@@ -40,6 +40,8 @@ export enum ErrorCode {
   RUN_PROXY_HOST_BLOCKED = 'RUN_PROXY_HOST_BLOCKED',
   /** A stream ended abnormally. */
   RUN_STREAM_FAILED = 'RUN_STREAM_FAILED',
+  /** The runner or the socket client was called in a build that does not carry one yet. */
+  RUN_NOT_AVAILABLE = 'RUN_NOT_AVAILABLE',
 
   /** A federated remote could not be reached. */
   FED_REMOTE_UNAVAILABLE = 'FED_REMOTE_UNAVAILABLE',

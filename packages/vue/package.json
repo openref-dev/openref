@@ -30,7 +30,8 @@
     "access": "public"
   },
   "dependencies": {
-    "@openref/core": "workspace:*"
+    "@openref/core": "workspace:*",
+    "vue": "3.5.41"
   },
   "devDependencies": {
     "tsup": "8.5.1",
