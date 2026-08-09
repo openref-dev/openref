@@ -572,11 +572,15 @@ describe('normalizeOpenApiDocument optional members', () => {
       cycleDepth: 4,
     });
 
-    // Then
+    // Then, an external target is registered as a named schema of the document and the use
+    // site refers to it, per SPEC 5.1.1
     const slot = operationOf(document, 'get-orders').parameters[0]?.schema;
     expect(slot?.kind).toBe('inline');
     if (slot?.kind !== 'inline') return;
-    expect(slot.schema.normalized).toMatchObject({ format: 'decimal' });
+
+    const id = slot.schema.normalized?.$ref;
+    expect(id).toMatch(/^Money__[0-9a-f]{8}$/);
+    expect(document.schemas.get(id ?? '')?.normalized).toMatchObject({ format: 'decimal' });
   });
 
   it('should fall back to the method when a document has a title of only punctuation', () => {

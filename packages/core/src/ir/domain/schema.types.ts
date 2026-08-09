@@ -48,7 +48,24 @@ export interface IRDiscriminator {
  */
 export interface IRJsonSchema {
   readonly $id?: string;
-  /** Set instead of the body when resolution folded a cycle at this position. */
+  /**
+   * Id of an entry in {@link IRDocument.schemas} that stands at this position, per SPEC 5.1.1.
+   *
+   * A named schema exists once, in the document's schema map, and is referred to everywhere
+   * else. When this is set, no keyword other than an annotation accompanies it, and a
+   * consumer must look the target up rather than expect a body here.
+   *
+   * This is a model decision, not a size optimization. Federation deduplicates by schema
+   * hash, the schema viewer shows a field as being of a named type, and diff classifies a
+   * change to a named schema once. An inlined copy has lost the name all three need.
+   */
+  readonly $ref?: string;
+  /**
+   * Set instead of the body when resolution folded a cycle at this position.
+   *
+   * A cycle is a reference too, marked separately because a consumer needs to know that
+   * following it leads back to where it started.
+   */
   readonly $cycle?: string;
 
   readonly title?: string;

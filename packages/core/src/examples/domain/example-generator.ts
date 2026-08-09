@@ -51,11 +51,21 @@ export interface GenerateExampleOptions {
   readonly fieldName?: string;
   /** Depth limit, defaults to {@link MAX_EXAMPLE_DEPTH}. */
   readonly maxDepth?: number;
+  /**
+   * The document's named schemas, so that a `$ref` node can be followed, per SPEC 5.1.1.
+   *
+   * Without it a reference has nothing to resolve against and the position becomes `null`,
+   * which is honest: the generator will not invent a value for a type it cannot see.
+   */
+  readonly schemas?: ReadonlyMap<string, IRJsonSchema>;
 }
 
 interface Context {
   readonly view: IRSchemaView;
   readonly maxDepth: number;
+  readonly schemas: ReadonlyMap<string, IRJsonSchema>;
+  /** Schema ids currently being generated, so a reference cycle terminates. */
+  readonly open: Set<string>;
 }
 
 /**
@@ -76,6 +86,8 @@ export function generateExample(
   const context: Context = {
     view: options.view ?? 'both',
     maxDepth: options.maxDepth ?? MAX_EXAMPLE_DEPTH,
+    schemas: options.schemas ?? new Map(),
+    open: new Set(),
   };
 
   return build(schema, context, options.fieldName, 0);
@@ -89,6 +101,8 @@ function build(
 ): IRJsonValue {
   if (depth >= context.maxDepth) return null;
   if (schema.$cycle !== undefined) return null;
+
+  if (schema.$ref !== undefined) return followReference(schema.$ref, context, fieldName, depth);
 
   const declared = declaredValue(schema);
   if (declared !== undefined) return declared;
@@ -113,6 +127,32 @@ function build(
       return null;
     default:
       return null;
+  }
+}
+
+/**
+ * Follows a reference into the document's named schemas, per SPEC 5.1.1.
+ *
+ * A reference already being generated further up is a cycle and stops at `null`. That is what
+ * makes a recursive type produce a finite example without the generator having to know which
+ * references close a loop.
+ */
+function followReference(
+  id: string,
+  context: Context,
+  fieldName: string | undefined,
+  depth: number,
+): IRJsonValue {
+  if (context.open.has(id)) return null;
+
+  const target = context.schemas.get(id);
+  if (target === undefined) return null;
+
+  context.open.add(id);
+  try {
+    return build(target, context, fieldName, depth + 1);
+  } finally {
+    context.open.delete(id);
   }
 }
 

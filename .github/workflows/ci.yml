@@ -43,5 +43,11 @@ jobs:
       - name: Test
         run: pnpm run test
 
+      # The integration suite holds the gate tests themselves: the dependency graph boundary
+      # probe, the license attestations and the corpus attribution. Without this step they
+      # only ever run on a developer's machine.
+      - name: Integration tests
+        run: pnpm run test:integration
+
       - name: Gates
         run: pnpm run gates

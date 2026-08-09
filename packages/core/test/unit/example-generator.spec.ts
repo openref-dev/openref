@@ -3,7 +3,7 @@ import {
   ARRAY_EXAMPLE_LENGTH,
   canonicalize,
   generateExample,
-  normalizeSchema,
+  normalizeSchemaGraph,
   type IRJsonSchema,
 } from '../../src/index';
 
@@ -301,16 +301,39 @@ describe('generateExample recursion', () => {
         },
       },
     };
-    const normalized = normalizeSchema(
+    const graph = normalizeSchemaGraph(
       { $ref: '#/components/schemas/Node' },
       { rootDocument: document },
     );
 
-    // When
-    const example = generateExample(normalized);
+    // When, the generator follows references through the document's schema map and stops
+    // when one leads back to a schema it is already generating
+    const example = generateExample(graph.schema, { schemas: graph.schemas });
 
     // Then
     expect(example).toEqual({ child: null, value: 'string' });
+  });
+
+  it('should emit null for a reference it has no schema map to follow', () => {
+    // Given
+    const schema: IRJsonSchema = { $ref: 'Order' };
+
+    // When
+    const example = generateExample(schema);
+
+    // Then, inventing a value for a type it cannot see would be a guess
+    expect(example).toBeNull();
+  });
+
+  it('should follow a reference into the schema map when one is supplied', () => {
+    // Given
+    const schemas = new Map<string, IRJsonSchema>([['Money', { type: 'string', format: 'uuid' }]]);
+
+    // When
+    const example = generateExample({ $ref: 'Money' }, { schemas });
+
+    // Then
+    expect(example).toBe('00000000-0000-4000-8000-000000000000');
   });
 
   it('should stop at the depth limit for a schema that nests without a marked cycle', () => {

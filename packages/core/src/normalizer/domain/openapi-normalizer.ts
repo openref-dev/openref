@@ -33,6 +33,7 @@ import type {
 } from '../../ir/domain/schema.types';
 import { ErrorCode, NormalizeError, UnsupportedDialectError } from '../../shared/errors/index';
 import { buildSchema } from './dialect';
+import { createSchemaRegistry, type SchemaRegistry } from './schema-registry';
 import {
   asBoolean,
   asJsonValue,
@@ -49,7 +50,7 @@ import {
   STANDARD_HTTP_METHODS,
 } from './operation-identity';
 import { compareByCodePoint } from '../../hashing/domain/canonical';
-import type { normalizeSchema } from './schema-normalizer';
+import { normalizeSchema } from './schema-normalizer';
 
 /**
  * OpenAPI intake for 3.0, 3.1 and 3.2, per SPEC 5.4 and SPEC 23.
@@ -104,6 +105,8 @@ interface Context {
   readonly document: Record<string, unknown>;
   readonly dialect: IRSchemaDialect;
   readonly namedSchemas: ReadonlySet<string>;
+  /** Where every named schema reached anywhere in the document is collected, per SPEC 5.1.1. */
+  readonly registry: SchemaRegistry;
   readonly externalDocuments: Readonly<Record<string, unknown>>;
   readonly cycleDepth: number | undefined;
   /** Requirement declared on the document, inherited by an operation that declares none. */
@@ -127,7 +130,8 @@ function schemaOptions(context: Context): Parameters<typeof normalizeSchema>[1] 
     rootDocument: unknown;
     externalDocuments?: Readonly<Record<string, unknown>>;
     cycleDepth?: number;
-  } = { rootDocument: context.document };
+    registry: SchemaRegistry;
+  } = { rootDocument: context.document, registry: context.registry };
 
   if (Object.keys(context.externalDocuments).length > 0) {
     options.externalDocuments = context.externalDocuments;
@@ -657,22 +661,35 @@ function readTags(raw: unknown): NavigationTag[] {
   return tags;
 }
 
-function readNamedSchemas(context: Context): IRSchema[] {
-  const components = context.document.components;
-  const source = isPlainObject(components) ? components.schemas : undefined;
-  if (!isPlainObject(source)) return [];
+/**
+ * Normalizes every schema the document declares, in canonical name order.
+ *
+ * Order is deliberate rather than incidental. A named schema is produced once and referred to
+ * afterwards, so whichever schema is reached first is the one that gets expanded; sorting the
+ * declared names makes that choice the same on every run and for every input ordering.
+ */
+function produceDeclaredSchemas(context: Context): void {
+  for (const name of [...context.namedSchemas].sort(compareByCodePoint)) {
+    normalizeSchema({ $ref: `#/components/schemas/${name}` }, schemaOptions(context));
+  }
+}
 
-  return Object.keys(source)
-    .sort(compareByCodePoint)
-    .map((name) =>
-      buildSchema({
-        id: name,
-        name,
-        payload: { $ref: `#/components/schemas/${name}` },
-        defaultDialect: context.dialect,
-        normalizeOptions: schemaOptions(context),
-      }),
-    );
+/**
+ * Reads the registry into the document's schema map.
+ *
+ * Runs last, because an external reference anywhere in the document registers a named schema
+ * too, and those are only known once everything has been walked.
+ */
+function collectNamedSchemas(context: Context): IRSchema[] {
+  return [...context.registry.entries()].map(([id, normalized]) => {
+    const schema: { -readonly [Key in keyof IRSchema]: IRSchema[Key] } = {
+      id,
+      dialect: context.dialect,
+      normalized,
+    };
+    if (context.namedSchemas.has(id)) schema.name = id;
+    return schema;
+  });
 }
 
 function readVersion(document: Record<string, unknown>): string {
@@ -739,11 +756,12 @@ export function normalizeOpenApiDocument(
     ),
     externalDocuments: options.externalDocuments ?? {},
     cycleDepth: options.cycleDepth,
+    registry: createSchemaRegistry(),
     documentSecurity: readSecurityRequirements(input.security),
   };
 
   const info = readInfo(input.info);
-  const schemas = readNamedSchemas(context);
+  produceDeclaredSchemas(context);
 
   const rawOperations = collectOperations(input.paths);
   const identities = assignOperationIdentities(
@@ -777,6 +795,8 @@ export function normalizeOpenApiDocument(
   const webhookOperations = rawWebhooks.map((entry, index) =>
     readOperation(entry, context, `webhook-${webhookIdentities[index]?.id ?? entry.method}`),
   );
+
+  const schemas = collectNamedSchemas(context);
 
   const nodes = new Map<string, IRNode>(operations.map((operation) => [operation.id, operation]));
   const webhooks = new Map<string, IRNode>(

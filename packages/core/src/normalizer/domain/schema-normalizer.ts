@@ -23,6 +23,7 @@ import {
   isUnknownArray,
 } from './guards';
 import { parseReference, resolveJsonPointer, schemaNameFromReference } from './json-pointer';
+import { createSchemaRegistry, type SchemaRegistry } from './schema-registry';
 
 /**
  * Schema normalization: reference resolution, cycles, composition, per SPEC 5.4.
@@ -46,8 +47,22 @@ export interface NormalizeSchemaOptions {
    * reference to a document that is not here raises rather than resolving to nothing.
    */
   readonly externalDocuments?: Readonly<Record<string, unknown>>;
-  /** Limit on reference chain depth. Defaults to {@link DEFAULT_CYCLE_DEPTH}. */
+  /**
+   * Limit on how deeply schemas without a name may nest.
+   *
+   * It is no longer a limit on reference chains: a reference to a named schema does not
+   * expand, so a chain of them has no depth to exceed. Per SPEC 5.1.1 it bounds the
+   * expansion of anonymous targets, which is the only thing left that can nest without end.
+   */
   readonly cycleDepth?: number;
+  /**
+   * Where named schemas are collected, per SPEC 5.1.1.
+   *
+   * Supply one to see the targets a schema points at. Without it, references still become
+   * references, they are simply resolved into a registry the caller never sees. Use
+   * {@link normalizeSchemaGraph} to get both halves back.
+   */
+  readonly registry?: SchemaRegistry;
 }
 
 /** A mutable draft of a schema. */
@@ -57,8 +72,9 @@ interface Context {
   readonly rootDocument: unknown;
   readonly externalDocuments: Readonly<Record<string, unknown>>;
   readonly cycleDepth: number;
-  /** References currently being expanded, innermost last. */
+  /** Unnamed references currently being expanded, innermost last. */
   readonly stack: string[];
+  readonly registry: SchemaRegistry;
 }
 
 function assign<Key extends keyof Draft>(
@@ -162,15 +178,89 @@ function extensionsOf(source: Record<string, unknown>): Record<string, IRJsonVal
   return Object.keys(extensions).length > 0 ? extensions : undefined;
 }
 
+/**
+ * Keywords that describe a position rather than constrain a type.
+ *
+ * These may sit beside a `$ref` without changing what the target is, so they stay where they
+ * are written. Anything else beside a `$ref` narrows the target and has to be merged.
+ */
+const ANNOTATION_KEYWORDS: readonly string[] = [
+  'title',
+  'description',
+  'deprecated',
+  'readOnly',
+  'writeOnly',
+  'examples',
+  'example',
+  'default',
+];
+
+function annotationsBeside(
+  source: Record<string, unknown>,
+  context: Context,
+  path: string,
+): { readonly annotations: IRJsonSchema; readonly constraints: Record<string, unknown> } {
+  const constraints: Record<string, unknown> = {};
+  const annotationSource: Record<string, unknown> = {};
+
+  for (const [key, value] of Object.entries(source)) {
+    if (key === '$ref') continue;
+    if (ANNOTATION_KEYWORDS.includes(key)) {
+      annotationSource[key] = value;
+    } else {
+      constraints[key] = value;
+    }
+  }
+
+  const annotations =
+    Object.keys(annotationSource).length === 0 ? {} : convert(annotationSource, context, path);
+
+  return { annotations, constraints };
+}
+
+/**
+ * Resolves a reference, per SPEC 5.1.1.
+ *
+ * A reference to a named schema stays a reference. The target is normalized once, into the
+ * registry, and this position holds its id. A reference to anything else has no name to point
+ * at and is expanded where it stands, which is also where the cycle marker and the depth
+ * limit still apply.
+ */
 function convertReference(
   source: Record<string, unknown>,
   reference: string,
   context: Context,
   path: string,
 ): IRJsonSchema {
+  const id = context.registry.idFor(reference);
+
+  if (id !== undefined) {
+    // Producing the target before pointing at it, so a reference never dangles. The registry
+    // is re-entrant: a schema reached from inside its own production stops here.
+    context.registry.ensure(id, reference, () =>
+      convert(resolveTarget(reference, context, path), context, `${path} -> ${reference}`),
+    );
+
+    const { annotations, constraints } = annotationsBeside(source, context, path);
+
+    if (Object.keys(constraints).length === 0) return { $ref: id, ...annotations };
+
+    // OpenAPI 3.1 allows keywords beside a `$ref`. Anything that narrows the target makes this
+    // position a different type from the target, so it can no longer be a bare reference. The
+    // merge is against the registered body, per SPEC 5.1.1, rather than against a fresh
+    // expansion of the source, which is what keeps its cost bounded. Annotations go into the
+    // merge as well, so nothing written beside the reference is lost.
+    const siblings = Object.fromEntries(Object.entries(source).filter(([key]) => key !== '$ref'));
+
+    return mergeAllOf(
+      [resolveForMerge(id, reference, path, context), convert(siblings, context, path)],
+      path,
+    );
+  }
+
   const identifier = schemaNameFromReference(reference);
 
-  // A reference already being expanded is a cycle. It folds to a marker rather than looping.
+  // An unnamed target is expanded here, so a repeat on the stack is a cycle and folds.
   if (context.stack.includes(reference)) {
     return { $cycle: identifier };
   }
@@ -196,11 +286,38 @@ function convertReference(
 
   const named: IRJsonSchema = { $id: identifier, ...resolved };
 
-  // OpenAPI 3.1 allows keywords beside a `$ref`. They constrain the target further.
   const siblings = Object.fromEntries(Object.entries(source).filter(([key]) => key !== '$ref'));
   if (Object.keys(siblings).length === 0) return named;
 
   return mergeAllOf([named, convert(siblings, context, path)], path);
+}
+
+/**
+ * Reads a registered body so that an `allOf` branch can be merged into.
+ *
+ * Merging needs the target: `required` and `properties` cannot be combined without knowing
+ * them. Taking the already normalized body rather than expanding the source again is what
+ * keeps the cost of that bounded, because the body itself still holds references for its own
+ * named members and none of those are expanded.
+ *
+ * @throws {NormalizeError} When the target is still being produced, which means the document
+ *         asks to merge a schema into itself and no resolved form exists
+ */
+function resolveForMerge(
+  id: string,
+  reference: string,
+  path: string,
+  context: Context,
+): IRJsonSchema {
+  const body = context.registry.get(id);
+  if (body !== undefined) return body;
+
+  throw new NormalizeError(
+    `${reference} takes part in a composition that refers back to itself at ${path}, so it has no merged form`,
+    ErrorCode.NORM_COMPOSITION_CONFLICT,
+    undefined,
+    { path, reference, schemaId: id },
+  );
 }
 
 function convert(input: unknown, context: Context, path: string): IRJsonSchema {
@@ -359,8 +476,13 @@ function convert(input: unknown, context: Context, path: string): IRJsonSchema {
   assign(draft, 'extensions', extensionsOf(input));
 
   if (Object.hasOwn(input, 'allOf')) {
-    const branches = convertBranchList(input.allOf, context, `${path}.allOf`).map(
-      (branch) => branch.schema,
+    const branches = convertBranchList(input.allOf, context, `${path}.allOf`).map((branch) =>
+      // A branch that is a bare reference has to be resolved to be merged, per the decision
+      // recorded in SPEC 5.1.1. Only a branch the document explicitly asked to merge is
+      // resolved; a reference used anywhere else stays a reference.
+      branch.schema.$ref === undefined || branch.reference === undefined
+        ? branch.schema
+        : resolveForMerge(branch.schema.$ref, branch.reference, `${path}.allOf`, context),
     );
     return mergeAllOf([draft, ...branches], `${path}.allOf`);
   }
@@ -401,7 +523,45 @@ export function normalizeSchema(input: unknown, options: NormalizeSchemaOptions)
       externalDocuments: options.externalDocuments ?? {},
       cycleDepth,
       stack: [],
+      registry: options.registry ?? createSchemaRegistry(),
     },
     '$',
   );
+}
+
+/**
+ * A schema together with every named schema it reaches.
+ *
+ * `schema` holds `{ $ref: id }` at each named position and `schemas` holds the bodies those
+ * ids resolve to, so the two are only meaningful together, per SPEC 5.2.
+ */
+export interface NormalizedSchemaGraph {
+  readonly schema: IRJsonSchema;
+  readonly schemas: Map<string, IRJsonSchema>;
+}
+
+/**
+ * Normalizes a schema and returns the named schemas it reaches alongside it.
+ *
+ * @param input - Schema exactly as the source document wrote it, untrusted
+ * @param options - Root document, external documents and the depth limit
+ * @returns The schema, with references intact, and the map they point into
+ * @throws {RefResolutionError} When a reference cannot be resolved
+ * @throws {NormalizeError} When the input is not a schema, or an `allOf` contradicts itself
+ *
+ * @example
+ * const document = { components: { schemas: { Order: { type: 'object' } } } };
+ * const graph = normalizeSchemaGraph({ $ref: '#/components/schemas/Order' }, {
+ *   rootDocument: document,
+ * });
+ * graph.schema;             // { $ref: 'Order' }
+ * graph.schemas.get('Order'); // { type: 'object' }
+ */
+export function normalizeSchemaGraph(
+  input: unknown,
+  options: NormalizeSchemaOptions,
+): NormalizedSchemaGraph {
+  const registry = options.registry ?? createSchemaRegistry();
+  const schema = normalizeSchema(input, { ...options, registry });
+  return { schema, schemas: registry.entries() };
 }

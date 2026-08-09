@@ -144,8 +144,21 @@ export {
   schemaNameFromReference,
 } from './normalizer/domain/json-pointer';
 export type { ParsedReference } from './normalizer/domain/json-pointer';
-export { DEFAULT_CYCLE_DEPTH, normalizeSchema } from './normalizer/domain/schema-normalizer';
-export type { NormalizeSchemaOptions } from './normalizer/domain/schema-normalizer';
+export {
+  DEFAULT_CYCLE_DEPTH,
+  normalizeSchema,
+  normalizeSchemaGraph,
+} from './normalizer/domain/schema-normalizer';
+export type {
+  NormalizedSchemaGraph,
+  NormalizeSchemaOptions,
+} from './normalizer/domain/schema-normalizer';
+export {
+  createSchemaRegistry,
+  NAMED_SCHEMA_POINTER_PREFIX,
+  schemaIdForReference,
+} from './normalizer/domain/schema-registry';
+export type { SchemaRegistry } from './normalizer/domain/schema-registry';
 export { applyView, toRequestView, toResponseView } from './normalizer/domain/views';
 export { parseSpecification } from './normalizer/domain/parse';
 export type { ParseSpecificationOptions } from './normalizer/domain/parse';
