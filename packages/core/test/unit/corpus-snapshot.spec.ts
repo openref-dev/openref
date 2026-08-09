@@ -3,23 +3,31 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import type { IRDocument } from '../../src/index';
 import { canonicalize, hash, normalizeOpenApiDocument, parseSpecification } from '../../src/index';
+import { documentShape, renderShape } from './corpus-shape';
 
 /**
- * The corpus snapshot harness, per SPEC 21 and BUILD T006.
+ * The corpus snapshot harness, per SPEC 21, BUILD T006 and amendment T006-R1.
  *
- * Two kinds of snapshot, because one kind cannot serve both documents in the corpus.
+ * Three kinds of artefact, because one kind cannot serve every document in the corpus.
  *
  * A small document gets its whole normalized IR written out. That is the readable form: when
  * something changes, the diff says what.
  *
- * A large one gets a digest instead. Stripe's IR is 5.3 MB and no one reviews a diff that
- * size, so writing it out would produce a file that is always accepted rather than read. The
- * digest still pins every byte, because it carries the document hash, which is taken over the
- * canonical serialization of the whole IR. The rest of the digest, the counts and the per
- * schema hashes, exists so that a changed document hash can be located rather than merely
- * noticed.
+ * A large one gets two files instead. Stripe's IR is 5.3 MB and no one reviews a diff that
+ * size, so writing it out would produce a file that is always accepted rather than read.
  *
- * Adding a document is a line in `manifest.json` and a new snapshot file.
+ * - the digest pins every byte, because it carries the document hash, which is taken over the
+ *   canonical serialization of the whole IR. Its counts, node ids and per schema hashes exist
+ *   so that a changed document hash can be located rather than merely noticed.
+ * - the shape says what moved, in a file short enough to read in full. A hash alone tells you
+ *   Stripe changed, which is exactly the moment a snapshot is supposed to earn its keep.
+ *
+ * A change therefore shows first as a readable delta in the shape, and the full IR is consulted
+ * only when the shape says something moved.
+ *
+ * Adding a document is a line in `manifest.json`, a regenerated `NOTICE`, and its snapshots:
+ * one file below the threshold, two above it. Running this suite writes all of them in one
+ * pass.
  */
 
 const CORPUS = join(import.meta.dirname, '..', 'corpus');
@@ -108,6 +116,32 @@ describe('corpus snapshots', () => {
 
       // Then
       await expect(rendered).toMatchFileSnapshot(join(SNAPSHOTS, `${entry.file}.${kind}.json`));
+    }, 120_000);
+
+    if (readable) continue;
+
+    it(`should match the recorded shape for ${entry.file}`, async () => {
+      // Given
+      const document = normalize(entry.file);
+
+      // When
+      const rendered = renderShape(entry.file, documentShape(document));
+
+      // Then
+      await expect(rendered).toMatchFileSnapshot(join(SNAPSHOTS, `${entry.file}.shape.md`));
+    }, 120_000);
+
+    it(`should keep the shape of ${entry.file} short enough to read in full`, () => {
+      // Given, the bound is the same threshold above which a diff was ruled unreadable. A
+      // shape that grew past it would be the thing it exists to avoid.
+      const rendered = renderShape(entry.file, documentShape(normalize(entry.file)));
+
+      // When
+      const bytes = Buffer.byteLength(rendered, 'utf8');
+
+      // Then
+      expect(bytes).toBeLessThan(READABLE_DOCUMENT_BYTES);
+      expect(rendered.split('\n').length).toBeLessThan(400);
     }, 120_000);
   }
 
