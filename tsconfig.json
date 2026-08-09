@@ -1,0 +1,32 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "declaration": false,
+    "declarationMap": false,
+    "sourceMap": false,
+    "types": ["node"],
+    "baseUrl": ".",
+    "paths": {
+      "@openref/core": ["packages/core/src/index.ts"],
+      "@openref/vue": ["packages/vue/src/index.ts"],
+      "@openref/render": ["packages/render/src/index.ts"],
+      "@openref/runner": ["packages/runner/src/index.ts"],
+      "@openref/search": ["packages/search/src/index.ts"],
+      "@openref/nest": ["packages/nest/src/index.ts"],
+      "@openref/theme": ["packages/theme/src/index.ts"],
+      "openref": ["packages/cli/src/index.ts"]
+    },
+    "allowImportingTsExtensions": true
+  },
+  "include": [
+    "packages/*/src/**/*.ts",
+    "packages/*/test/**/*.ts",
+    "packages/*/*.config.ts",
+    "tools/*/src/**/*.ts",
+    "tools/*/test/**/*.ts",
+    "tools/*/*.config.ts",
+    "vitest.config.ts",
+    "vitest.shared.ts"
+  ]
+}

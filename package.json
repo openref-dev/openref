@@ -1,0 +1,40 @@
+{
+  "name": "openref-monorepo",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "NestJS-native API reference engine for HTTP, events and runtime contracts",
+  "license": "MIT",
+  "packageManager": "pnpm@11.20.0",
+  "engines": {
+    "node": ">=20.11.0"
+  },
+  "scripts": {
+    "build": "pnpm -r run build",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "pnpm run typecheck && eslint . && pnpm run lint:deps",
+    "lint:deps": "depcruise packages --config .dependency-cruiser.cjs",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "vitest run --exclude \"**/test/integration/**\"",
+    "test:cov": "vitest run --coverage",
+    "test:integration": "vitest run test/integration",
+    "gates": "pnpm --filter @openref/gates run build && node tools/gates/dist/index.js",
+    "changeset": "changeset",
+    "version-packages": "changeset version"
+  },
+  "devDependencies": {
+    "@changesets/cli": "2.31.1",
+    "@types/node": "22.20.1",
+    "@vitest/coverage-v8": "4.1.10",
+    "dependency-cruiser": "18.1.1",
+    "eslint": "9.39.5",
+    "eslint-config-prettier": "10.1.8",
+    "globals": "17.9.0",
+    "prettier": "3.9.6",
+    "tsup": "8.5.1",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.66.0",
+    "vitest": "4.1.10"
+  }
+}

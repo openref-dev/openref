@@ -1,0 +1,63 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build
+dist/
+.turbo/
+*.tsbuildinfo
+
+# Compiled files in src (should only be in dist)
+packages/*/src/**/*.js
+packages/*/src/**/*.d.ts
+packages/*/src/**/*.d.ts.map
+!packages/*/src/**/*.spec.ts
+
+# Vue SFC build artifacts
+packages/*/src/**/*.vue.js
+packages/*/src/**/*.vue.d.ts
+
+# Coverage and reports
+coverage/
+packages/*/coverage/
+.nyc_output/
+gates-report.json
+bundle-stats.html
+
+# Playwright and visual regression
+test-results/
+playwright-report/
+blob-report/
+**/__screenshots__/*-actual.png
+**/__screenshots__/*-diff.png
+
+# Spec corpus (large, fetched by script)
+test/corpus/downloaded/
+
+# Static build output
+examples/*/dist-docs/
+website/.vitepress/cache/
+website/.vitepress/dist/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-error.log
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Misc
+*.tgz
+.changeset/*.md
+!.changeset/README.md

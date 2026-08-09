@@ -1,0 +1,20 @@
+{
+  "name": "@openref/gates",
+  "version": "0.0.0",
+  "description": "Committed CI gates for OPENREF: dependency graph, licenses, budgets, CSP, coverage",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "source": "./src/index.ts",
+  "engines": {
+    "node": ">=20.11.0"
+  },
+  "scripts": {
+    "build": "tsup"
+  },
+  "devDependencies": {
+    "tsup": "8.5.1",
+    "typescript": "5.9.3"
+  }
+}
