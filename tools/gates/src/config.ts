@@ -40,6 +40,38 @@ export const FIXTURE_ROOTS: readonly FixtureRoot[] = [
 export const BUILD_FILE = 'ai-docs/BUILD.md';
 
 /**
+ * The four documents the whole project is written against.
+ *
+ * `ai-docs/` is excluded from the repository on purpose, so nothing that walks tracked files
+ * can tell whether these exist. They are also, for the same reason, the files most likely to
+ * go missing without anything noticing: a fresh clone has none of them, and a session that
+ * starts without SPEC.md does not stop, it improvises.
+ *
+ * Checked for presence and for content, alongside the BUILD.md line count, so an absent spec
+ * fails the build at once instead of being discovered three tasks later.
+ */
+export const REQUIRED_DOCS: readonly { readonly file: string; readonly purpose: string }[] = [
+  { file: 'ai-docs/SPEC.md', purpose: 'the authoritative product specification' },
+  { file: BUILD_FILE, purpose: 'the execution order, addressed by absolute line number' },
+  {
+    file: 'ai-docs/BUILD-AMENDMENTS.md',
+    purpose: 'retrofits and per task amendments, since BUILD.md cannot be edited',
+  },
+  {
+    file: 'ai-docs/PROJECT_STATE.md',
+    purpose: 'the running log of decisions each session inherits',
+  },
+];
+
+/**
+ * Fewest bytes a required document can hold and still be one.
+ *
+ * An empty file and a placeholder are the same failure as a missing file, and both would
+ * otherwise pass a presence check.
+ */
+export const REQUIRED_DOC_MIN_BYTES = 200;
+
+/**
  * The line count the CONTENTS ranges in BUILD.md were written against.
  *
  * This is not a budget that can be renegotiated. If BUILD.md legitimately changes length,

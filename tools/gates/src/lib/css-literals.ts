@@ -8,6 +8,26 @@
  *
  * One file is exempt, the generated token stylesheet, because that is where the values are
  * defined. Exempting anything else would defeat the check.
+ *
+ * THE RULE ON `var()` FALLBACKS: a literal fallback is banned outright.
+ *
+ * `color: var(--oref-color-fg, #0b0d10)` is a hardcoded colour. It does not look like one,
+ * which is the whole problem: a fallback reads as a safety net rather than as a value, and it
+ * is what actually ships whenever the token is not set. The alternative rule, allowing a
+ * fallback for a token that is guaranteed defined, was considered and rejected on three
+ * grounds:
+ *
+ * 1. It is unenforceable here. Whether a token is set depends on which stylesheets a host
+ *    loaded and on what an L0 consumer overrode, and neither is visible to a static scan.
+ * 2. For a token this project ships, the fallback is dead code: `tokens.css` defines every
+ *    token, and `tokens.spec.ts` pins that file against the token set. A fallback beside a
+ *    defined token is a second, unpinned copy of the value.
+ * 3. For a token this project does not ship, the fallback is the value, and calling it a
+ *    fallback does not make it a token.
+ *
+ * So the fallback is kept and scanned rather than stripped. A fallback that is itself
+ * `var(--oref-*)` is fine: aliasing one token to another is not a hardcoded value. Simple
+ * rules survive contact with three themes; conditional ones do not.
  */
 
 /** One hardcoded value found in a stylesheet. */
@@ -231,19 +251,94 @@ function stripComments(css: string): string {
   return css.replace(/\/\*[\s\S]*?\*\//g, (match) => match.replace(/[^\n]/g, ' '));
 }
 
-/** Removes every `var(--token, fallback)` reference, so only literal remnants are examined. */
-function stripVarReferences(value: string): string {
-  let previous = '';
-  let current = value;
+/**
+ * Index of the closing parenthesis matching the one at `open`, or -1 when there is none.
+ *
+ * Counting rather than matching a regular expression, because a fallback can hold a function
+ * of its own: `var(--x, rgba(0, 0, 0, 0.5))` has two commas and two closing parentheses, and
+ * only one of each belongs to the reference.
+ */
+function matchingParenthesis(value: string, open: number): number {
+  let depth = 0;
 
-  // Nested `var()` needs more than one pass, and the loop terminates because each pass either
-  // removes a reference or changes nothing.
-  while (current !== previous) {
-    previous = current;
-    current = current.replace(/var\(\s*--[a-z0-9-]+\s*(?:,[^()]*)?\)/gi, ' ');
+  for (let at = open; at < value.length; at += 1) {
+    const character = value[at];
+    if (character === '(') depth += 1;
+    else if (character === ')') {
+      depth -= 1;
+      if (depth === 0) return at;
+    }
   }
 
-  return current;
+  return -1;
+}
+
+/** Index of the first comma at nesting depth zero, or -1 when the value holds none. */
+function topLevelComma(value: string): number {
+  let depth = 0;
+
+  for (let at = 0; at < value.length; at += 1) {
+    const character = value[at];
+    if (character === '(') depth += 1;
+    else if (character === ')') depth -= 1;
+    else if (character === ',' && depth === 0) return at;
+  }
+
+  return -1;
+}
+
+/** True when `var` at this position is a whole word rather than the tail of an identifier. */
+function isWordStart(value: string, at: number): boolean {
+  if (at === 0) return true;
+  const before = value[at - 1] ?? '';
+  return !/[\w-]/.test(before);
+}
+
+/**
+ * Replaces every `var()` reference with its fallback, recursively.
+ *
+ * THE FALLBACK IS KEPT, NOT DISCARDED. Stripping the whole reference was the first version of
+ * this function and it left a hole exactly where a hardcoded value is most likely to survive:
+ * `color: var(--oref-color-fg, #0b0d10)` reads as a safety net rather than as a value, which
+ * is what makes it easy to write and easy to miss. What ships is the fallback, whenever the
+ * token happens not to be set, so the fallback is a value like any other and is scanned like
+ * one.
+ *
+ * The token name itself is dropped, since a reference to a token is the thing this gate wants
+ * to see. A fallback that is itself a `var()` is expanded in turn, so nesting buys nothing.
+ *
+ * @param value - A declaration value
+ * @returns The value with token names removed and every fallback left in place
+ */
+export function expandVarFallbacks(value: string): string {
+  let out = '';
+  let cursor = 0;
+
+  for (;;) {
+    let at = value.indexOf('var(', cursor);
+    while (at !== -1 && !isWordStart(value, at)) at = value.indexOf('var(', at + 1);
+
+    if (at === -1) {
+      out += value.slice(cursor);
+      return out;
+    }
+
+    out += value.slice(cursor, at);
+
+    const open = at + 'var'.length;
+    const close = matchingParenthesis(value, open);
+    if (close === -1) {
+      // Unbalanced. Keep the remainder verbatim rather than assuming what was meant: a typo
+      // must not become a place where a value hides.
+      out += ` ${value.slice(open + 1)}`;
+      return out;
+    }
+
+    const inner = value.slice(open + 1, close);
+    const comma = topLevelComma(inner);
+    out += comma === -1 ? ' ' : ` ${expandVarFallbacks(inner.slice(comma + 1))} `;
+    cursor = close + 1;
+  }
 }
 
 function isColorLiteral(remainder: string): boolean {
@@ -283,7 +378,7 @@ export function findCssLiterals(css: string): CssLiteral[] {
     // stylesheet declares them, and that file is exempt as a whole.
     if (property.startsWith('--')) return;
 
-    const remainder = stripVarReferences(value);
+    const remainder = expandVarFallbacks(value);
     const at = index + 1;
 
     if (isColorLiteral(remainder)) {

@@ -12,6 +12,10 @@ import type { Gate, GateFinding, GateResult } from '../types.js';
  * every visible value traces to a token, and one literal that escaped is a value an L0 theme
  * cannot reach. The generated token stylesheet is exempt because it is where the values are
  * defined; nothing else is.
+ *
+ * A literal inside a `var()` fallback counts. It is what ships when the token is not set, and
+ * it is the likeliest place for a hardcoded colour to survive unnoticed. The rule and the
+ * reasons for choosing it over the conditional alternative are in `lib/css-literals.ts`.
  */
 export const themeTokensGate: Gate = {
   id: 'theme-tokens',

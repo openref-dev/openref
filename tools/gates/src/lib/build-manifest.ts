@@ -15,6 +15,60 @@
  * description, so a wrong task description invalidates the rest of the run.
  */
 
+/** One document the project is written against, and what it is for. */
+export interface RequiredDoc {
+  readonly file: string;
+  readonly purpose: string;
+}
+
+/** How a required document was found, or was not. */
+export type DocPresence = 'ok' | 'missing' | 'empty';
+
+/** The state of one required document. */
+export interface DocCheck {
+  readonly file: string;
+  readonly purpose: string;
+  readonly presence: DocPresence;
+  readonly bytes: number;
+}
+
+/**
+ * Checks that every document the project is written against is present and has content.
+ *
+ * `ai-docs/` is deliberately outside the repository, which means no check that walks tracked
+ * files can see these at all. A missing SPEC.md does not announce itself: a session simply
+ * reads the next best thing and improvises, and the divergence is found several tasks later
+ * when the code and the specification no longer agree.
+ *
+ * Emptiness counts as absence. A placeholder file passes a presence check while carrying none
+ * of the decisions the next session inherits.
+ *
+ * @param docs - The documents to look for
+ * @param minBytes - Fewest bytes a document can hold and still count as one
+ * @param sizeOf - Size of a file in bytes, or `undefined` when it cannot be read
+ * @returns One result per document, in the order given
+ */
+export function checkRequiredDocs(
+  docs: readonly RequiredDoc[],
+  minBytes: number,
+  sizeOf: (file: string) => number | undefined,
+): DocCheck[] {
+  return docs.map((doc) => {
+    const bytes = sizeOf(doc.file);
+
+    if (bytes === undefined) {
+      return { file: doc.file, purpose: doc.purpose, presence: 'missing', bytes: 0 };
+    }
+
+    return {
+      file: doc.file,
+      purpose: doc.purpose,
+      presence: bytes < minBytes ? 'empty' : 'ok',
+      bytes,
+    };
+  });
+}
+
 /** One entry in the CONTENTS block. */
 export interface BuildTaskEntry {
   readonly id: string;

@@ -122,16 +122,109 @@ describe('findCssLiterals', () => {
     expect(found).toEqual([]);
   });
 
-  it('should look inside a var fallback, since a fallback ships too', () => {
-    // Given
+  it('should catch a literal planted in a var fallback, since a fallback ships too', () => {
+    // Given, the fallback is what renders whenever the token is not set. It reads as a safety
+    // net rather than as a value, which is exactly why it is the easiest place to hide one.
     const css = '.a {\n  color: var(--oref-color-fg, #0b0d10);\n}\n';
 
     // When
     const found = findCssLiterals(css);
 
-    // Then, the fallback is stripped with the reference it belongs to, so this is the one
-    // literal the scan does not see. Recording the limit rather than implying there is none.
+    // Then
+    expect(found).toHaveLength(1);
+    expect(found[0]?.kind).toBe('color');
+    expect(found[0]?.property).toBe('color');
+  });
+
+  it('should catch a literal planted in a nested var fallback', () => {
+    // Given, nesting is the obvious way round a scan that only looks one level deep.
+    const css = '.a {\n  color: var(--oref-color-fg, var(--oref-color-accent, #0b0d10));\n}\n';
+
+    // When
+    const found = findCssLiterals(css);
+
+    // Then
+    expect(found).toHaveLength(1);
+    expect(found[0]?.kind).toBe('color');
+  });
+
+  it('should catch a literal planted in a var fallback inside a shorthand property', () => {
+    // Given
+    const css =
+      '.a {\n  border: var(--oref-layout-border-width) solid var(--oref-color-border, #0b0d10);\n}\n';
+
+    // When
+    const found = findCssLiterals(css);
+
+    // Then
+    expect(found).toHaveLength(1);
+    expect(found[0]?.kind).toBe('color');
+    expect(found[0]?.property).toBe('border');
+  });
+
+  it('should say nothing once the fallback plants are removed', () => {
+    // Given, the same three declarations with the fallbacks taken out.
+    const css = [
+      '.a {',
+      '  color: var(--oref-color-fg);',
+      '  background: var(--oref-color-bg, var(--oref-color-bg-subtle));',
+      '  border: var(--oref-layout-border-width) solid var(--oref-color-border);',
+      '}',
+    ].join('\n');
+
+    // When
+    const found = findCssLiterals(css);
+
+    // Then, a fallback that is itself a token is an alias, not a hardcoded value.
     expect(found).toEqual([]);
+  });
+
+  it('should catch a length and a font stack planted in a fallback, not only a colour', () => {
+    // Given
+    const css =
+      ".a {\n  padding: var(--oref-space-2, 8px);\n  font-family: var(--oref-font-family-sans, 'Inter', sans-serif);\n}\n";
+
+    // When
+    const kinds = findCssLiterals(css).map((literal) => literal.kind);
+
+    // Then
+    expect(kinds).toContain('length');
+    expect(kinds).toContain('font');
+  });
+
+  it('should keep the remainder of an unbalanced var, so a typo hides nothing', () => {
+    // Given, a missing closing parenthesis is a mistake, not a licence.
+    const css = '.a {\n  color: var(--oref-color-fg, #0b0d10;\n}\n';
+
+    // When
+    const found = findCssLiterals(css);
+
+    // Then
+    expect(found.some((literal) => literal.kind === 'color')).toBe(true);
+  });
+
+  it('should not mistake an identifier ending in var for a reference', () => {
+    // Given
+    const css = '.a {\n  color: myvar(--oref-color-fg, #0b0d10);\n}\n';
+
+    // When
+    const found = findCssLiterals(css);
+
+    // Then, nothing was expanded, so the literal is still plainly there.
+    expect(found.some((literal) => literal.kind === 'color')).toBe(true);
+  });
+
+  it('should read a fallback that carries a function of its own', () => {
+    // Given, the commas and the closing parenthesis inside `rgba()` belong to it, not to the
+    // reference, so a regular expression that counts neither would end the fallback early.
+    const css = '.a {\n  box-shadow: var(--oref-elevation-1, 0 1px 2px rgba(0, 0, 0, 0.2));\n}\n';
+
+    // When
+    const kinds = findCssLiterals(css).map((literal) => literal.kind);
+
+    // Then
+    expect(kinds).toContain('color');
+    expect(kinds).toContain('length');
   });
 
   it('should ignore a value that appears only inside a comment', () => {

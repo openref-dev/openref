@@ -1,5 +1,13 @@
+import { statSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { checkBuildManifest, parseContents, splitLines } from '../../src/lib/build-manifest';
+import { REQUIRED_DOC_MIN_BYTES, REQUIRED_DOCS } from '../../src/config';
+import {
+  checkBuildManifest,
+  checkRequiredDocs,
+  parseContents,
+  splitLines,
+} from '../../src/lib/build-manifest';
 
 /**
  * A miniature BUILD.md with the same shape as the real one: a CONTENTS block whose
@@ -183,5 +191,79 @@ describe('checkBuildManifest', () => {
 
     // Then
     expect(issues.map((issue) => issue.rule)).toContain('duplicate-id');
+  });
+});
+
+describe('checkRequiredDocs', () => {
+  const docs = [
+    { file: 'ai-docs/SPEC.md', purpose: 'the specification' },
+    { file: 'ai-docs/BUILD.md', purpose: 'the execution order' },
+  ];
+
+  it('should accept a document that is present and has content', () => {
+    // Given
+    const sizeOf = (): number => 4096;
+
+    // When
+    const checked = checkRequiredDocs(docs, 200, sizeOf);
+
+    // Then
+    expect(checked.map((doc) => doc.presence)).toEqual(['ok', 'ok']);
+  });
+
+  it('should report a document that is not there', () => {
+    // Given, a fresh clone has none of these: ai-docs is outside the repository.
+    const sizeOf = (file: string): number | undefined =>
+      file === 'ai-docs/SPEC.md' ? undefined : 4096;
+
+    // When
+    const checked = checkRequiredDocs(docs, 200, sizeOf);
+
+    // Then
+    expect(checked[0]?.presence).toBe('missing');
+    expect(checked[1]?.presence).toBe('ok');
+  });
+
+  it('should treat a placeholder as absent, since it carries nothing', () => {
+    // Given
+    const sizeOf = (): number => 12;
+
+    // When
+    const checked = checkRequiredDocs(docs, 200, sizeOf);
+
+    // Then
+    expect(checked.map((doc) => doc.presence)).toEqual(['empty', 'empty']);
+    expect(checked[0]?.bytes).toBe(12);
+  });
+
+  it('should keep the purpose of each document, so the failure says what is gone', () => {
+    // Given
+    const sizeOf = (): undefined => undefined;
+
+    // When
+    const checked = checkRequiredDocs(docs, 200, sizeOf);
+
+    // Then
+    expect(checked.map((doc) => doc.purpose)).toEqual(['the specification', 'the execution order']);
+  });
+});
+
+describe('the documents this project is written against', () => {
+  it('should all be present and hold content right now', () => {
+    // Given, the same check the gate runs, against the real files.
+    const repoRoot = join(import.meta.dirname, '..', '..', '..', '..');
+
+    // When
+    const checked = checkRequiredDocs(REQUIRED_DOCS, REQUIRED_DOC_MIN_BYTES, (file) => {
+      try {
+        return statSync(join(repoRoot, file)).size;
+      } catch {
+        return undefined;
+      }
+    });
+
+    // Then
+    expect(checked.filter((doc) => doc.presence !== 'ok')).toEqual([]);
+    expect(checked).toHaveLength(4);
   });
 });
