@@ -105,7 +105,26 @@ describe('the hashing path', () => {
     expect(offenders).toEqual([]);
   });
 
-  it('should import nothing outside the package', () => {
+  it('should import nothing outside the package but the pinned hash dependency', () => {
+    // Given, the one external import the hashing path is allowed. `@noble/hashes` supplies
+    // the SHA-256 compression function: MIT, no dependencies of its own, synchronous, and
+    // browser safe under the `browser` condition. Anything else appearing here is a
+    // regression, which is what this list is for.
+    const allowed = ['@noble/hashes/sha2'];
+    const graph = collectGraph(ENTRY);
+
+    // When
+    const external = graph.flatMap((module) =>
+      module.specifiers.filter(
+        (specifier) => !specifier.startsWith('.') && !allowed.includes(specifier),
+      ),
+    );
+
+    // Then
+    expect(external).toEqual([]);
+  });
+
+  it('should reach the pinned hash dependency, so the allowance is not dead', () => {
     // Given
     const graph = collectGraph(ENTRY);
 
@@ -115,7 +134,7 @@ describe('the hashing path', () => {
     );
 
     // Then
-    expect(external).toEqual([]);
+    expect(external).toEqual(['@noble/hashes/sha2']);
   });
 
   it('should import nothing from Nest, Vue or the DOM', () => {
