@@ -32,6 +32,7 @@ import type {
   IRSchemaSlot,
 } from '../../ir/domain/schema.types';
 import { ErrorCode, NormalizeError, UnsupportedDialectError } from '../../shared/errors/index';
+import { buildSchema } from './dialect';
 import {
   asBoolean,
   asJsonValue,
@@ -48,7 +49,7 @@ import {
   STANDARD_HTTP_METHODS,
 } from './operation-identity';
 import { compareByCodePoint } from '../../hashing/domain/canonical';
-import { normalizeSchema } from './schema-normalizer';
+import type { normalizeSchema } from './schema-normalizer';
 
 /**
  * OpenAPI intake for 3.0, 3.1 and 3.2, per SPEC 5.4 and SPEC 23.
@@ -157,11 +158,12 @@ function schemaSlot(raw: unknown, context: Context, id: string): IRSchemaSlot | 
 
   return {
     kind: 'inline',
-    schema: {
+    schema: buildSchema({
       id,
-      dialect: context.dialect,
-      normalized: normalizeSchema(raw, schemaOptions(context)),
-    },
+      payload: raw,
+      defaultDialect: context.dialect,
+      normalizeOptions: schemaOptions(context),
+    }),
   };
 }
 
@@ -662,12 +664,15 @@ function readNamedSchemas(context: Context): IRSchema[] {
 
   return Object.keys(source)
     .sort(compareByCodePoint)
-    .map((name) => ({
-      id: name,
-      name,
-      dialect: context.dialect,
-      normalized: normalizeSchema({ $ref: `#/components/schemas/${name}` }, schemaOptions(context)),
-    }));
+    .map((name) =>
+      buildSchema({
+        id: name,
+        name,
+        payload: { $ref: `#/components/schemas/${name}` },
+        defaultDialect: context.dialect,
+        normalizeOptions: schemaOptions(context),
+      }),
+    );
 }
 
 function readVersion(document: Record<string, unknown>): string {

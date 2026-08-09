@@ -165,3 +165,26 @@ export { buildNavigation } from './normalizer/domain/navigation';
 export type { BuildNavigationOptions, NavigationTag } from './normalizer/domain/navigation';
 export { normalizeOpenApiDocument } from './normalizer/domain/openapi-normalizer';
 export type { NormalizeOpenApiOptions } from './normalizer/domain/openapi-normalizer';
+export {
+  buildSchema,
+  dialectFromSchemaFormat,
+  isJsonSchemaCompatible,
+  JSON_SCHEMA_DIALECTS,
+  normalizeSchemaFormat,
+} from './normalizer/domain/dialect';
+export type { SchemaSource } from './normalizer/domain/dialect';
+
+export {
+  ARRAY_EXAMPLE_LENGTH,
+  generateExample,
+  MAX_EXAMPLE_DEPTH,
+} from './examples/domain/example-generator';
+export type { GenerateExampleOptions } from './examples/domain/example-generator';
+export {
+  numberForFieldName,
+  numberForFormat,
+  splitFieldName,
+  stringForFieldName,
+  stringForFormat,
+} from './examples/domain/field-heuristics';
+export { isSafePattern, matchesPattern, sampleFromPattern } from './examples/domain/pattern';
