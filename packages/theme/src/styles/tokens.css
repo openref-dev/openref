@@ -1,0 +1,137 @@
+/*
+ * OPENREF design tokens, per SPEC 10.1 and STANDARDS 4.4.
+ *
+ * Generated from src/tokens/domain/tokens.ts. Do not edit by hand: tokens.spec.ts compares
+ * this file with the generator and fails when they disagree.
+ *
+ * This is the one file in the theme where a literal colour, length or font stack is allowed.
+ * Everywhere else reads var(--oref-*), and a gate fails the build on a literal that escapes.
+ */
+
+:root,
+[data-oref-color-scheme='light'] {
+  color-scheme: light;
+  --oref-color-bg: #ffffff;
+  --oref-color-bg-subtle: #f6f7f9;
+  --oref-color-bg-raised: #ffffff;
+  --oref-color-bg-overlay: rgba(27, 31, 36, 0.5);
+  --oref-color-fg: #1b1f24;
+  --oref-color-fg-muted: #57606a;
+  --oref-color-fg-subtle: #6a737d;
+  --oref-color-border: #d0d7de;
+  --oref-color-border-strong: #8c959f;
+  --oref-color-accent: #0b5fd0;
+  --oref-color-accent-fg: #ffffff;
+  --oref-color-focus: #0b5fd0;
+  --oref-color-success: #116329;
+  --oref-color-warning: #7a4a00;
+  --oref-color-danger: #a40e26;
+  --oref-color-info: #0b5fd0;
+  --oref-color-method-get: #0b5fd0;
+  --oref-color-method-post: #116329;
+  --oref-color-method-put: #7a4a00;
+  --oref-color-method-patch: #6639ba;
+  --oref-color-method-delete: #a40e26;
+  --oref-color-method-other: #57606a;
+  --oref-space-0: 0;
+  --oref-space-1: 0.25rem;
+  --oref-space-2: 0.5rem;
+  --oref-space-3: 0.75rem;
+  --oref-space-4: 1rem;
+  --oref-space-5: 1.5rem;
+  --oref-space-6: 2rem;
+  --oref-space-7: 3rem;
+  --oref-font-family-sans:
+    system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif;
+  --oref-font-family-mono:
+    ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
+  --oref-font-size-xs: 0.75rem;
+  --oref-font-size-sm: 0.875rem;
+  --oref-font-size-md: 1rem;
+  --oref-font-size-lg: 1.125rem;
+  --oref-font-size-xl: 1.375rem;
+  --oref-font-size-2xl: 1.75rem;
+  --oref-font-weight-regular: 400;
+  --oref-font-weight-medium: 500;
+  --oref-font-weight-bold: 650;
+  --oref-font-line-tight: 1.25;
+  --oref-font-line-normal: 1.5;
+  --oref-font-line-relaxed: 1.7;
+  --oref-font-tracking-wide: 0.04em;
+  --oref-radius-sm: 3px;
+  --oref-radius-md: 6px;
+  --oref-radius-lg: 10px;
+  --oref-radius-full: 9999px;
+  --oref-elevation-0: none;
+  --oref-elevation-1: 0 1px 2px rgba(27, 31, 36, 0.12);
+  --oref-elevation-2: 0 4px 12px rgba(27, 31, 36, 0.14);
+  --oref-elevation-3: 0 12px 32px rgba(27, 31, 36, 0.18);
+  --oref-motion-fast: 80ms;
+  --oref-motion-normal: 160ms;
+  --oref-motion-none: 0s;
+  --oref-motion-ease: cubic-bezier(0.2, 0, 0.13, 1);
+  --oref-layout-sidebar-width: 17rem;
+  --oref-layout-content-max: 54rem;
+  --oref-layout-border-width: 1px;
+  --oref-layout-focus-ring: 2px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-oref-color-scheme='light']) {
+    color-scheme: dark;
+    --oref-color-bg: #0d1117;
+    --oref-color-bg-subtle: #161b22;
+    --oref-color-bg-raised: #161b22;
+    --oref-color-bg-overlay: rgba(1, 4, 9, 0.7);
+    --oref-color-fg: #e6edf3;
+    --oref-color-fg-muted: #9aa7b4;
+    --oref-color-fg-subtle: #8b949e;
+    --oref-color-border: #30363d;
+    --oref-color-border-strong: #6e7681;
+    --oref-color-accent: #6aa9ff;
+    --oref-color-accent-fg: #0d1117;
+    --oref-color-focus: #6aa9ff;
+    --oref-color-success: #4cc38a;
+    --oref-color-warning: #e3b341;
+    --oref-color-danger: #ff8189;
+    --oref-color-info: #6aa9ff;
+    --oref-color-method-get: #6aa9ff;
+    --oref-color-method-post: #4cc38a;
+    --oref-color-method-put: #e3b341;
+    --oref-color-method-patch: #c297ff;
+    --oref-color-method-delete: #ff8189;
+    --oref-color-method-other: #9aa7b4;
+    --oref-elevation-1: 0 1px 2px rgba(1, 4, 9, 0.6);
+    --oref-elevation-2: 0 4px 12px rgba(1, 4, 9, 0.7);
+    --oref-elevation-3: 0 12px 32px rgba(1, 4, 9, 0.8);
+  }
+}
+
+[data-oref-color-scheme='dark'] {
+  color-scheme: dark;
+  --oref-color-bg: #0d1117;
+  --oref-color-bg-subtle: #161b22;
+  --oref-color-bg-raised: #161b22;
+  --oref-color-bg-overlay: rgba(1, 4, 9, 0.7);
+  --oref-color-fg: #e6edf3;
+  --oref-color-fg-muted: #9aa7b4;
+  --oref-color-fg-subtle: #8b949e;
+  --oref-color-border: #30363d;
+  --oref-color-border-strong: #6e7681;
+  --oref-color-accent: #6aa9ff;
+  --oref-color-accent-fg: #0d1117;
+  --oref-color-focus: #6aa9ff;
+  --oref-color-success: #4cc38a;
+  --oref-color-warning: #e3b341;
+  --oref-color-danger: #ff8189;
+  --oref-color-info: #6aa9ff;
+  --oref-color-method-get: #6aa9ff;
+  --oref-color-method-post: #4cc38a;
+  --oref-color-method-put: #e3b341;
+  --oref-color-method-patch: #c297ff;
+  --oref-color-method-delete: #ff8189;
+  --oref-color-method-other: #9aa7b4;
+  --oref-elevation-1: 0 1px 2px rgba(1, 4, 9, 0.6);
+  --oref-elevation-2: 0 4px 12px rgba(1, 4, 9, 0.7);
+  --oref-elevation-3: 0 12px 32px rgba(1, 4, 9, 0.8);
+}

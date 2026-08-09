@@ -141,6 +141,21 @@ export const MEASURED_BUDGETS: readonly MeasuredBudget[] = [
   },
 ];
 
+/**
+ * Directories holding the default theme's stylesheets, relative to the repository root.
+ *
+ * Scanned by the theme-tokens gate for hardcoded colours, lengths and font stacks.
+ */
+export const THEME_STYLE_ROOTS: readonly string[] = ['packages/theme/src'];
+
+/**
+ * The one stylesheet allowed to hold literal values, because it declares the tokens.
+ *
+ * It is generated from `packages/theme/src/tokens/domain/tokens.ts` and pinned by a test, so
+ * exempting it does not create a place values can hide.
+ */
+export const THEME_TOKEN_SOURCE = 'packages/theme/src/styles/tokens.css';
+
 /** Directories scanned for CSP violations, relative to the repository root. */
 export const CSP_SCAN_ROOTS: readonly string[] = PACKAGE_DIRS.map((dir) => `packages/${dir}/dist`);
 

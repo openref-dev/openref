@@ -5,6 +5,7 @@ import { cspGate } from './gates/csp.gate.js';
 import { dependencyGraphGate } from './gates/dependency-graph.gate.js';
 import { fixtureLicensesGate } from './gates/fixture-licenses.gate.js';
 import { licensesGate } from './gates/licenses.gate.js';
+import { themeTokensGate } from './gates/theme-tokens.gate.js';
 import type { Gate, GateResult } from './types.js';
 
 /**
@@ -18,6 +19,9 @@ import type { Gate, GateResult } from './types.js';
  * The fixture license gate sits beside the dependency one rather than inside it. SPEC 0 has
  * three zones, and zones 1 and 2 are answered by walking the dependency tree while zone 3 is
  * answered by walking vendored files. Two questions, two walks, two reports.
+ *
+ * The theme token gate sits beside the CSP one: both scan stylesheets, one for what a policy
+ * would block and one for what a theme author could not override.
  */
 export const GATES: readonly Gate[] = [
   buildManifestGate,
@@ -26,6 +30,7 @@ export const GATES: readonly Gate[] = [
   fixtureLicensesGate,
   budgetsGate,
   cspGate,
+  themeTokensGate,
   coverageGate,
 ];
 

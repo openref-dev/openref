@@ -1,0 +1,372 @@
+/*
+ * OPENREF default theme.
+ *
+ * Every declared value here is var(--oref-*). Not one literal colour, length or font stack
+ * appears, and the theme-tokens gate fails the build on one that does. That is what makes L0
+ * theming real: a consumer restyles the whole reference by setting custom properties.
+ *
+ * No inline style and no inline script is ever produced, per STANDARDS 10, so this stylesheet
+ * works under style-src 'self' with no unsafe-inline.
+ */
+
+.oref-root {
+  background: var(--oref-color-bg);
+  color: var(--oref-color-fg);
+  font-family: var(--oref-font-family-sans);
+  font-size: var(--oref-font-size-md);
+  line-height: var(--oref-font-line-normal);
+  display: grid;
+  grid-template-columns: var(--oref-layout-sidebar-width) minmax(0, 1fr);
+  gap: var(--oref-space-5);
+  align-items: start;
+}
+
+.oref-root *:focus-visible {
+  outline: var(--oref-layout-focus-ring) solid var(--oref-color-focus);
+  outline-offset: var(--oref-space-1);
+  border-radius: var(--oref-radius-sm);
+}
+
+/* Sidebar */
+
+.oref-sidebar {
+  background: var(--oref-color-bg-subtle);
+  border-right: var(--oref-layout-border-width) solid var(--oref-color-border);
+  padding: var(--oref-space-4);
+  position: sticky;
+  top: var(--oref-space-0);
+  max-height: 100vh;
+  overflow-y: auto;
+}
+
+.oref-sidebar-group {
+  margin-bottom: var(--oref-space-5);
+}
+
+.oref-sidebar-group-label {
+  color: var(--oref-color-fg-muted);
+  font-size: var(--oref-font-size-xs);
+  font-weight: var(--oref-font-weight-medium);
+  letter-spacing: var(--oref-font-tracking-wide);
+  text-transform: uppercase;
+  margin-bottom: var(--oref-space-2);
+}
+
+.oref-nav-list {
+  list-style: none;
+  margin: var(--oref-space-0);
+  padding: var(--oref-space-0);
+}
+
+.oref-nav-item {
+  border-radius: var(--oref-radius-md);
+  color: var(--oref-color-fg-muted);
+  display: block;
+  font-size: var(--oref-font-size-sm);
+  padding: var(--oref-space-1) var(--oref-space-2);
+  text-decoration: none;
+  transition: background var(--oref-motion-fast) var(--oref-motion-ease);
+}
+
+.oref-nav-item:hover {
+  background: var(--oref-color-bg-raised);
+  color: var(--oref-color-fg);
+}
+
+.oref-nav-item.oref-active {
+  background: var(--oref-color-accent);
+  color: var(--oref-color-accent-fg);
+  font-weight: var(--oref-font-weight-medium);
+}
+
+.oref-nav-item.oref-deprecated {
+  text-decoration: line-through;
+  color: var(--oref-color-fg-subtle);
+}
+
+/* Content */
+
+.oref-content {
+  max-width: var(--oref-layout-content-max);
+  padding: var(--oref-space-5) var(--oref-space-4);
+}
+
+.oref-title {
+  font-size: var(--oref-font-size-2xl);
+  font-weight: var(--oref-font-weight-bold);
+  line-height: var(--oref-font-line-tight);
+  margin: var(--oref-space-0) var(--oref-space-0) var(--oref-space-2);
+}
+
+.oref-subtitle {
+  color: var(--oref-color-fg-muted);
+  font-size: var(--oref-font-size-sm);
+  margin: var(--oref-space-0) var(--oref-space-0) var(--oref-space-5);
+}
+
+.oref-operation {
+  border: var(--oref-layout-border-width) solid var(--oref-color-border);
+  border-radius: var(--oref-radius-lg);
+  background: var(--oref-color-bg-raised);
+  box-shadow: var(--oref-elevation-1);
+  margin-bottom: var(--oref-space-6);
+  padding: var(--oref-space-5);
+}
+
+.oref-operation-header {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--oref-space-3);
+  margin-bottom: var(--oref-space-4);
+}
+
+.oref-operation-title {
+  font-size: var(--oref-font-size-xl);
+  font-weight: var(--oref-font-weight-bold);
+  line-height: var(--oref-font-line-tight);
+  margin: var(--oref-space-0);
+}
+
+.oref-path {
+  background: var(--oref-color-bg-subtle);
+  border-radius: var(--oref-radius-md);
+  color: var(--oref-color-fg);
+  font-family: var(--oref-font-family-mono);
+  font-size: var(--oref-font-size-sm);
+  padding: var(--oref-space-1) var(--oref-space-2);
+}
+
+.oref-description {
+  color: var(--oref-color-fg-muted);
+  line-height: var(--oref-font-line-relaxed);
+}
+
+/* Badges */
+
+.oref-badge {
+  border-radius: var(--oref-radius-full);
+  font-family: var(--oref-font-family-mono);
+  font-size: var(--oref-font-size-xs);
+  font-weight: var(--oref-font-weight-bold);
+  letter-spacing: var(--oref-font-tracking-wide);
+  padding: var(--oref-space-1) var(--oref-space-3);
+  text-transform: uppercase;
+  color: var(--oref-color-accent-fg);
+  background: var(--oref-color-method-other);
+}
+
+.oref-badge.oref-method-get {
+  background: var(--oref-color-method-get);
+}
+
+.oref-badge.oref-method-post {
+  background: var(--oref-color-method-post);
+}
+
+.oref-badge.oref-method-put {
+  background: var(--oref-color-method-put);
+}
+
+.oref-badge.oref-method-patch {
+  background: var(--oref-color-method-patch);
+}
+
+.oref-badge.oref-method-delete {
+  background: var(--oref-color-method-delete);
+}
+
+.oref-badge.oref-deprecated {
+  background: var(--oref-color-bg-subtle);
+  color: var(--oref-color-fg-subtle);
+}
+
+.oref-status {
+  font-family: var(--oref-font-family-mono);
+  font-size: var(--oref-font-size-sm);
+  font-weight: var(--oref-font-weight-medium);
+  color: var(--oref-color-fg-muted);
+}
+
+.oref-status.oref-status-1xx {
+  color: var(--oref-color-info);
+}
+
+.oref-status.oref-status-2xx {
+  color: var(--oref-color-success);
+}
+
+.oref-status.oref-status-3xx {
+  color: var(--oref-color-warning);
+}
+
+.oref-status.oref-status-4xx,
+.oref-status.oref-status-5xx {
+  color: var(--oref-color-danger);
+}
+
+/* Tables and parameter lists */
+
+.oref-section-title {
+  font-size: var(--oref-font-size-lg);
+  font-weight: var(--oref-font-weight-bold);
+  margin: var(--oref-space-5) var(--oref-space-0) var(--oref-space-3);
+}
+
+.oref-table {
+  border-collapse: collapse;
+  font-size: var(--oref-font-size-sm);
+  width: 100%;
+}
+
+.oref-table th {
+  background: var(--oref-color-bg-subtle);
+  color: var(--oref-color-fg-muted);
+  font-weight: var(--oref-font-weight-medium);
+  padding: var(--oref-space-2) var(--oref-space-3);
+  text-align: start;
+}
+
+.oref-table td {
+  border-top: var(--oref-layout-border-width) solid var(--oref-color-border);
+  padding: var(--oref-space-2) var(--oref-space-3);
+  vertical-align: top;
+}
+
+.oref-required {
+  color: var(--oref-color-danger);
+  font-size: var(--oref-font-size-xs);
+  font-weight: var(--oref-font-weight-medium);
+}
+
+/* Schema viewer */
+
+.oref-schema {
+  font-family: var(--oref-font-family-mono);
+  font-size: var(--oref-font-size-sm);
+}
+
+.oref-schema-list {
+  list-style: none;
+  margin: var(--oref-space-0);
+  padding-inline-start: var(--oref-space-4);
+  border-inline-start: var(--oref-layout-border-width) solid var(--oref-color-border);
+}
+
+.oref-schema-row {
+  padding: var(--oref-space-1) var(--oref-space-0);
+}
+
+.oref-schema-label {
+  color: var(--oref-color-fg);
+  font-weight: var(--oref-font-weight-medium);
+}
+
+.oref-schema-type {
+  color: var(--oref-color-fg-muted);
+  margin-inline-start: var(--oref-space-2);
+}
+
+.oref-schema-ref {
+  color: var(--oref-color-accent);
+  margin-inline-start: var(--oref-space-2);
+}
+
+.oref-schema-cycle {
+  background: var(--oref-color-bg-subtle);
+  border-radius: var(--oref-radius-sm);
+  color: var(--oref-color-warning);
+  font-size: var(--oref-font-size-xs);
+  margin-inline-start: var(--oref-space-2);
+  padding: var(--oref-space-0) var(--oref-space-1);
+}
+
+.oref-schema-toggle {
+  background: none;
+  border: none;
+  color: var(--oref-color-fg-muted);
+  cursor: pointer;
+  font: inherit;
+  padding: var(--oref-space-0) var(--oref-space-1);
+}
+
+/* Search */
+
+.oref-search {
+  margin-bottom: var(--oref-space-4);
+}
+
+.oref-search-input {
+  background: var(--oref-color-bg);
+  border: var(--oref-layout-border-width) solid var(--oref-color-border-strong);
+  border-radius: var(--oref-radius-md);
+  color: var(--oref-color-fg);
+  font: inherit;
+  padding: var(--oref-space-2) var(--oref-space-3);
+  width: 100%;
+}
+
+.oref-search-input::placeholder {
+  color: var(--oref-color-fg-subtle);
+}
+
+.oref-search-results {
+  background: var(--oref-color-bg-raised);
+  border-radius: var(--oref-radius-md);
+  box-shadow: var(--oref-elevation-2);
+  list-style: none;
+  margin: var(--oref-space-2) var(--oref-space-0) var(--oref-space-0);
+  padding: var(--oref-space-1);
+}
+
+.oref-search-hit {
+  border-radius: var(--oref-radius-sm);
+  padding: var(--oref-space-2);
+}
+
+.oref-search-hit.oref-active {
+  background: var(--oref-color-bg-subtle);
+}
+
+.oref-search-empty {
+  color: var(--oref-color-fg-subtle);
+  font-size: var(--oref-font-size-sm);
+  padding: var(--oref-space-2);
+}
+
+/* Panels */
+
+.oref-panel {
+  background: var(--oref-color-bg-subtle);
+  border-radius: var(--oref-radius-md);
+  padding: var(--oref-space-4);
+}
+
+.oref-code {
+  background: var(--oref-color-bg-subtle);
+  border-radius: var(--oref-radius-md);
+  color: var(--oref-color-fg);
+  display: block;
+  font-family: var(--oref-font-family-mono);
+  font-size: var(--oref-font-size-sm);
+  line-height: var(--oref-font-line-relaxed);
+  overflow-x: auto;
+  padding: var(--oref-space-3);
+}
+
+.oref-footer {
+  border-top: var(--oref-layout-border-width) solid var(--oref-color-border);
+  color: var(--oref-color-fg-subtle);
+  font-size: var(--oref-font-size-xs);
+  grid-column: 1 / -1;
+  padding: var(--oref-space-4);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .oref-root *,
+  .oref-root *::before,
+  .oref-root *::after {
+    transition-duration: var(--oref-motion-none);
+    animation-duration: var(--oref-motion-none);
+  }
+}

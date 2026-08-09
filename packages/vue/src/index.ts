@@ -85,6 +85,7 @@ export { useSchemaView } from './composables/useSchemaView';
 export type { UseSchemaView } from './composables/useSchemaView';
 export { DEFAULT_HIT_LIMIT, useSearch } from './composables/useSearch';
 export type { UseSearch } from './composables/useSearch';
+export { useSlot } from './composables/useSlot';
 export { useSocket } from './composables/useSocket';
 export type { UseSocket } from './composables/useSocket';
 export { useTheme } from './composables/useTheme';
