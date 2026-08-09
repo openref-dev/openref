@@ -5,6 +5,40 @@
  * genuinely wrong, `ai-docs/SPEC.md` changes first.
  */
 
+import type { LicenseAttestation } from './lib/licenses.js';
+
+/**
+ * Recorded readings of licenses that no manifest declares.
+ *
+ * Each entry says: this text, at this version, hashed to this, and was read as this
+ * license. It permits nothing that the policy would otherwise reject. When the text or the
+ * version changes the record stops matching and the gate fails, which is the point.
+ *
+ * Adding an entry means someone read the license file. Do not add one to clear a failure.
+ */
+export const LICENSE_ATTESTATIONS: readonly LicenseAttestation[] = [
+  {
+    package: 'spawndamnit@3.0.1',
+    license: 'MIT',
+    file: 'LICENSE',
+    sha256: 'aac99045d4e36ab3b1e2914337620963b56cbac53de280c94f29261a22ab5b0f',
+  },
+];
+
+/** The build manifest, addressed by absolute line number by every session. */
+export const BUILD_FILE = 'ai-docs/BUILD.md';
+
+/**
+ * The line count the CONTENTS ranges in BUILD.md were written against.
+ *
+ * This is not a budget that can be renegotiated. If BUILD.md legitimately changes length,
+ * the maintainer regenerates the file and its ranges together, and this number follows.
+ */
+export const BUILD_LINE_COUNT = 1641;
+
+/** The number of tasks BUILD.md contains, T001 through T065. */
+export const BUILD_TASK_COUNT = 65;
+
 /** Directory names under `packages/`, in dependency order. */
 export const PACKAGE_DIRS: readonly string[] = [
   'core',

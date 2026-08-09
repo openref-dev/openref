@@ -20,6 +20,7 @@
     "test:cov": "vitest run --coverage",
     "test:integration": "vitest run test/integration",
     "gates": "pnpm --filter @openref/gates run build && node tools/gates/dist/index.js",
+    "gates:licenses": "pnpm --filter @openref/gates run build && node tools/gates/dist/index.js licenses",
     "changeset": "changeset",
     "version-packages": "changeset version"
   },

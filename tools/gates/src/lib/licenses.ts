@@ -1,15 +1,22 @@
 /**
  * License identification and policy evaluation.
  *
- * Two scopes, both enforced:
+ * Two scopes, both enforced, as stated in SPEC 0:
  *
- * - production tree: every license must be one of {@link ALLOWED_LICENSES}
- * - development tree: strong copyleft, source available and unidentifiable licenses are
+ * - production zone, the dependency closure of what is actually published: every license
+ *   must be one of {@link ALLOWED_LICENSES}
+ * - development zone: strong copyleft, source available and unidentifiable licenses are
  *   rejected; weak per file copyleft is reported as a warning because a build time tool
  *   that is never redistributed carries no obligation into the published artifacts
  *
  * There is no per package exception list. Adding one would turn this gate into a switch.
+ *
+ * A license read out of a LICENSE file rather than a manifest is recorded with the hash of
+ * the text it was read from, so the reading has to be redone when the text changes rather
+ * than surviving as a stale assumption.
  */
+
+import { createHash } from 'node:crypto';
 
 /**
  * The only licenses allowed anywhere in the production dependency tree.
@@ -66,6 +73,14 @@ const UNIDENTIFIED_MARKERS: readonly RegExp[] = [
 ];
 
 /**
+ * Where a license came from, when it did not come from the manifest.
+ */
+export interface LicenseResolution {
+  readonly file: string;
+  readonly sha256: string;
+}
+
+/**
  * One package as reported by `pnpm licenses list --json`.
  */
 export interface LicensedPackage {
@@ -73,6 +88,31 @@ export interface LicensedPackage {
   readonly versions: readonly string[];
   readonly license: string;
   readonly paths: readonly string[];
+  /** Present when the license was read from a file rather than declared in the manifest. */
+  readonly resolvedFrom?: LicenseResolution;
+}
+
+/**
+ * The identity a license attestation is keyed by.
+ *
+ * The version is part of the key on purpose. An attestation records the text that was
+ * read once, at one version, and says nothing about any other version.
+ *
+ * @param entry - Package as reported by pnpm
+ * @returns `name@version[,version]`
+ */
+export function packageKey(entry: Pick<LicensedPackage, 'name' | 'versions'>): string {
+  return `${entry.name}@${[...entry.versions].sort().join(',')}`;
+}
+
+/**
+ * Hashes the exact bytes of a license file as they were read.
+ *
+ * @param text - Contents of the license file
+ * @returns Lowercase hex SHA-256
+ */
+export function hashLicenseText(text: string): string {
+  return createHash('sha256').update(text, 'utf8').digest('hex');
 }
 
 /**
@@ -308,4 +348,100 @@ export function detectLicenseFromText(text: string): string | null {
   if (/PYTHON SOFTWARE FOUNDATION LICENSE/i.test(normalized)) return 'Python-2.0';
 
   return null;
+}
+
+/**
+ * A recorded reading of a license out of a file, committed in `config.ts`.
+ *
+ * This is not an exception. It grants nothing and excuses nothing: it records what text
+ * was read, at which version, and what it was read as. The hash is what makes the record
+ * expire on its own.
+ */
+export interface LicenseAttestation {
+  /** `name@version`, as produced by {@link packageKey}. */
+  readonly package: string;
+  /** SPDX identifier the text was read as. */
+  readonly license: string;
+  /** File the text was read from. */
+  readonly file: string;
+  /** SHA-256 of the exact text. */
+  readonly sha256: string;
+}
+
+/**
+ * Checks a license read out of a file against the committed record of that reading.
+ *
+ * @param entry - Package whose manifest gave no usable license
+ * @param resolution - File and hash the license was read from
+ * @param detected - SPDX identifier the text was recognised as
+ * @param attestations - The committed records
+ * @returns An error finding when the reading is unrecorded or no longer matches, else null
+ */
+export function checkLicenseAttestation(
+  entry: Pick<LicensedPackage, 'name' | 'versions'>,
+  resolution: LicenseResolution,
+  detected: string,
+  attestations: readonly LicenseAttestation[],
+): LicenseFinding | null {
+  const key = packageKey(entry);
+  const attestation = attestations.find((candidate) => candidate.package === key);
+
+  const finding = (reason: string): LicenseFinding => ({
+    level: 'error',
+    packageName: entry.name,
+    versions: entry.versions,
+    license: detected,
+    reason,
+  });
+
+  if (attestation === undefined) {
+    return finding(
+      `license read from ${resolution.file} as ${detected} with no recorded reading. Record it as { package: '${key}', license: '${detected}', file: '${resolution.file}', sha256: '${resolution.sha256}' } after checking the text yourself`,
+    );
+  }
+
+  if (attestation.file !== resolution.file) {
+    return finding(
+      `license read from ${resolution.file}, but the recorded reading was taken from ${attestation.file}`,
+    );
+  }
+
+  if (attestation.sha256 !== resolution.sha256) {
+    return finding(
+      `the text of ${resolution.file} changed since it was read: recorded ${attestation.sha256}, found ${resolution.sha256}. Read it again rather than assuming it still says the same thing`,
+    );
+  }
+
+  if (attestation.license !== detected) {
+    return finding(
+      `the recorded reading says ${attestation.license}, the text now reads as ${detected}`,
+    );
+  }
+
+  return null;
+}
+
+/**
+ * Finds recorded readings that no longer correspond to anything in the tree.
+ *
+ * A record that outlives its package is how a stale assumption starts, so it is reported
+ * rather than ignored.
+ *
+ * @param attestations - The committed records
+ * @param usedKeys - Package keys that actually needed a reading in this run
+ * @returns One warning per record that went unused
+ */
+export function findStaleAttestations(
+  attestations: readonly LicenseAttestation[],
+  usedKeys: ReadonlySet<string>,
+): LicenseFinding[] {
+  return attestations
+    .filter((attestation) => !usedKeys.has(attestation.package))
+    .map((attestation) => ({
+      level: 'warning' as const,
+      packageName: attestation.package,
+      versions: [],
+      license: attestation.license,
+      reason: 'recorded license reading matches nothing in the tree; remove it',
+    }));
 }
