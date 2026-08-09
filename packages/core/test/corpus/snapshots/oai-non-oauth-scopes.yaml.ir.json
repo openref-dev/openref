@@ -1,0 +1,64 @@
+{
+  "hash": "092b8105c17a5bf67dab105eabd3409cda3261c85ea0d7ff0c53a07640b6eaf3",
+  "id": "non-oauth-scopes-example",
+  "info": {
+    "title": "Non-oAuth Scopes example",
+    "version": "1.0.0"
+  },
+  "kind": "http",
+  "navigation": [
+    {
+      "children": [
+        {
+          "children": [],
+          "id": "nav-get-users",
+          "kind": "node",
+          "label": "GET /users",
+          "nodeId": "get-users"
+        }
+      ],
+      "id": "group-untagged",
+      "kind": "group",
+      "label": "Other"
+    }
+  ],
+  "nodes": [
+    [
+      "get-users",
+      {
+        "deprecated": false,
+        "id": "get-users",
+        "kind": "operation",
+        "method": "get",
+        "operationId": "get-users",
+        "parameters": [],
+        "path": "/users",
+        "responses": [],
+        "security": [
+          {
+            "schemeId": "bearerAuth",
+            "scopes": [
+              "read:users",
+              "public"
+            ]
+          }
+        ],
+        "servers": [],
+        "tags": []
+      }
+    ]
+  ],
+  "relationships": [],
+  "schemas": [],
+  "security": [
+    {
+      "bearerFormat": "jwt",
+      "description": "note: non-oauth scopes are not defined at the securityScheme level",
+      "id": "bearerAuth",
+      "scheme": "bearer",
+      "type": "http"
+    }
+  ],
+  "servers": [],
+  "webhooks": []
+}

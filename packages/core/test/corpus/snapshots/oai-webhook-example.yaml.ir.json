@@ -1,0 +1,94 @@
+{
+  "hash": "9f8a4aa5c63c9754539d4a8accf82da1697f8447210d1de4f810d3c1321842eb",
+  "id": "webhook-example",
+  "info": {
+    "title": "Webhook Example",
+    "version": "1.0.0"
+  },
+  "kind": "http",
+  "navigation": [
+    {
+      "children": [
+        {
+          "children": [],
+          "id": "nav-schema-Pet",
+          "kind": "schema",
+          "label": "Pet",
+          "schemaId": "Pet"
+        }
+      ],
+      "id": "group-schemas",
+      "kind": "group",
+      "label": "Schemas"
+    }
+  ],
+  "nodes": [],
+  "relationships": [],
+  "schemas": [
+    [
+      "Pet",
+      {
+        "dialect": "json-schema-2020-12",
+        "id": "Pet",
+        "name": "Pet",
+        "normalized": {
+          "properties": {
+            "id": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "name": {
+              "type": "string"
+            },
+            "tag": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "name"
+          ],
+          "type": "object"
+        }
+      }
+    ]
+  ],
+  "security": [],
+  "servers": [],
+  "webhooks": [
+    [
+      "webhook-post-newpet",
+      {
+        "deprecated": false,
+        "id": "webhook-post-newpet",
+        "kind": "operation",
+        "method": "post",
+        "parameters": [],
+        "path": "newPet",
+        "requestBody": {
+          "content": [
+            {
+              "mediaType": "application/json",
+              "schema": {
+                "kind": "named",
+                "schemaId": "Pet"
+              }
+            }
+          ],
+          "description": "Information about a new pet in the system",
+          "required": false
+        },
+        "responses": [
+          {
+            "content": [],
+            "description": "Return a 200 status to indicate that the data was received successfully",
+            "statusCode": "200"
+          }
+        ],
+        "security": [],
+        "servers": [],
+        "tags": []
+      }
+    ]
+  ]
+}

@@ -1,0 +1,514 @@
+{
+  "hash": "ba254b2e50025e9725c7afdfd92f46e3350b1113565bd7e2e648ff5ada264b71",
+  "id": "tic-tac-toe",
+  "info": {
+    "description": "This API allows writing down marks on a Tic Tac Toe board\nand requesting the state of the board or of individual squares.\n",
+    "title": "Tic Tac Toe",
+    "version": "1.0.0"
+  },
+  "kind": "http",
+  "navigation": [
+    {
+      "children": [
+        {
+          "children": [],
+          "id": "nav-get-board",
+          "kind": "node",
+          "label": "Get the whole board",
+          "nodeId": "get-board"
+        },
+        {
+          "children": [],
+          "id": "nav-get-board-row-column",
+          "kind": "node",
+          "label": "Get a single board square",
+          "nodeId": "get-board-row-column"
+        },
+        {
+          "children": [],
+          "id": "nav-put-board-row-column",
+          "kind": "node",
+          "label": "Set a single board square",
+          "nodeId": "put-board-row-column"
+        }
+      ],
+      "id": "group-gameplay",
+      "kind": "group",
+      "label": "Gameplay"
+    },
+    {
+      "children": [
+        {
+          "children": [],
+          "id": "nav-schema-board",
+          "kind": "schema",
+          "label": "board",
+          "schemaId": "board"
+        },
+        {
+          "children": [],
+          "id": "nav-schema-coordinate",
+          "kind": "schema",
+          "label": "coordinate",
+          "schemaId": "coordinate"
+        },
+        {
+          "children": [],
+          "id": "nav-schema-errorMessage",
+          "kind": "schema",
+          "label": "errorMessage",
+          "schemaId": "errorMessage"
+        },
+        {
+          "children": [],
+          "id": "nav-schema-mark",
+          "kind": "schema",
+          "label": "mark",
+          "schemaId": "mark"
+        },
+        {
+          "children": [],
+          "id": "nav-schema-status",
+          "kind": "schema",
+          "label": "status",
+          "schemaId": "status"
+        },
+        {
+          "children": [],
+          "id": "nav-schema-winner",
+          "kind": "schema",
+          "label": "winner",
+          "schemaId": "winner"
+        }
+      ],
+      "id": "group-schemas",
+      "kind": "group",
+      "label": "Schemas"
+    }
+  ],
+  "nodes": [
+    [
+      "get-board",
+      {
+        "deprecated": false,
+        "description": "Retrieves the current state of the board and the winner.",
+        "id": "get-board",
+        "kind": "operation",
+        "method": "get",
+        "operationId": "get-board",
+        "parameters": [],
+        "path": "/board",
+        "rawOperationId": "get-board",
+        "responses": [
+          {
+            "content": [
+              {
+                "mediaType": "application/json",
+                "schema": {
+                  "kind": "named",
+                  "schemaId": "status"
+                }
+              }
+            ],
+            "description": "OK",
+            "statusCode": "200"
+          }
+        ],
+        "security": [
+          {
+            "schemeId": "defaultApiKey",
+            "scopes": []
+          },
+          {
+            "schemeId": "app2AppOauth",
+            "scopes": [
+              "board:read"
+            ]
+          }
+        ],
+        "servers": [],
+        "summary": "Get the whole board",
+        "tags": [
+          "Gameplay"
+        ]
+      }
+    ],
+    [
+      "get-board-row-column",
+      {
+        "deprecated": false,
+        "description": "Retrieves the requested square.",
+        "id": "get-board-row-column",
+        "kind": "operation",
+        "method": "get",
+        "operationId": "get-square",
+        "parameters": [],
+        "path": "/board/{row}/{column}",
+        "rawOperationId": "get-square",
+        "responses": [
+          {
+            "content": [
+              {
+                "mediaType": "application/json",
+                "schema": {
+                  "kind": "named",
+                  "schemaId": "mark"
+                }
+              }
+            ],
+            "description": "OK",
+            "statusCode": "200"
+          },
+          {
+            "content": [
+              {
+                "example": "Illegal coordinates",
+                "mediaType": "text/html",
+                "schema": {
+                  "kind": "named",
+                  "schemaId": "errorMessage"
+                }
+              }
+            ],
+            "description": "The provided parameters are incorrect",
+            "statusCode": "400"
+          }
+        ],
+        "security": [
+          {
+            "schemeId": "bearerHttpAuthentication",
+            "scopes": []
+          },
+          {
+            "schemeId": "user2AppOauth",
+            "scopes": [
+              "board:read"
+            ]
+          }
+        ],
+        "servers": [],
+        "summary": "Get a single board square",
+        "tags": [
+          "Gameplay"
+        ]
+      }
+    ],
+    [
+      "put-board-row-column",
+      {
+        "deprecated": false,
+        "description": "Places a mark on the board and retrieves the whole board and the winner (if any).",
+        "id": "put-board-row-column",
+        "kind": "operation",
+        "method": "put",
+        "operationId": "put-square",
+        "parameters": [
+          {
+            "description": "Progress URL that should be called if asynchronous response is returned",
+            "explode": false,
+            "in": "header",
+            "name": "progressUrl",
+            "required": false,
+            "schema": {
+              "kind": "inline",
+              "schema": {
+                "dialect": "json-schema-2020-12",
+                "id": "put-board-row-column.parameters.0.progressUrl",
+                "normalized": {
+                  "type": "string"
+                }
+              }
+            },
+            "style": "simple"
+          }
+        ],
+        "path": "/board/{row}/{column}",
+        "rawOperationId": "put-square",
+        "requestBody": {
+          "content": [
+            {
+              "mediaType": "application/json",
+              "schema": {
+                "kind": "named",
+                "schemaId": "mark"
+              }
+            }
+          ],
+          "required": true
+        },
+        "responses": [
+          {
+            "content": [
+              {
+                "mediaType": "application/json",
+                "schema": {
+                  "kind": "named",
+                  "schemaId": "status"
+                }
+              }
+            ],
+            "description": "OK",
+            "statusCode": "200"
+          },
+          {
+            "content": [],
+            "description": "Mark operation has not completed. Use callback to check for progress",
+            "headers": [
+              {
+                "description": "Callback URL",
+                "name": "Location",
+                "required": false,
+                "schema": {
+                  "kind": "inline",
+                  "schema": {
+                    "dialect": "json-schema-2020-12",
+                    "id": "put-board-row-column.responses.202.headers.Location",
+                    "normalized": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            ],
+            "statusCode": "202"
+          },
+          {
+            "content": [
+              {
+                "examples": {
+                  "illegalCoordinates": {
+                    "value": "Illegal coordinates."
+                  },
+                  "invalidMark": {
+                    "value": "Invalid Mark (X or O)."
+                  },
+                  "notEmpty": {
+                    "value": "Square is not empty."
+                  }
+                },
+                "mediaType": "text/html",
+                "schema": {
+                  "kind": "named",
+                  "schemaId": "errorMessage"
+                }
+              }
+            ],
+            "description": "The provided parameters are incorrect",
+            "statusCode": "400"
+          }
+        ],
+        "security": [
+          {
+            "schemeId": "bearerHttpAuthentication",
+            "scopes": []
+          },
+          {
+            "schemeId": "user2AppOauth",
+            "scopes": [
+              "board:write"
+            ]
+          }
+        ],
+        "servers": [],
+        "summary": "Set a single board square",
+        "tags": [
+          "Gameplay"
+        ]
+      }
+    ]
+  ],
+  "relationships": [],
+  "schemas": [
+    [
+      "board",
+      {
+        "dialect": "json-schema-2020-12",
+        "id": "board",
+        "name": "board",
+        "normalized": {
+          "items": {
+            "items": {
+              "$ref": "mark"
+            },
+            "maxItems": 3,
+            "minItems": 3,
+            "type": "array"
+          },
+          "maxItems": 3,
+          "minItems": 3,
+          "type": "array"
+        }
+      }
+    ],
+    [
+      "coordinate",
+      {
+        "dialect": "json-schema-2020-12",
+        "id": "coordinate",
+        "name": "coordinate",
+        "normalized": {
+          "examples": [
+            1
+          ],
+          "maximum": 3,
+          "minimum": 1,
+          "type": "integer"
+        }
+      }
+    ],
+    [
+      "errorMessage",
+      {
+        "dialect": "json-schema-2020-12",
+        "id": "errorMessage",
+        "name": "errorMessage",
+        "normalized": {
+          "description": "A text message describing an error",
+          "maxLength": 256,
+          "type": "string"
+        }
+      }
+    ],
+    [
+      "mark",
+      {
+        "dialect": "json-schema-2020-12",
+        "id": "mark",
+        "name": "mark",
+        "normalized": {
+          "description": "Possible values for a board square. `.` means empty square.",
+          "enum": [
+            ".",
+            "X",
+            "O"
+          ],
+          "examples": [
+            "."
+          ],
+          "type": "string"
+        }
+      }
+    ],
+    [
+      "status",
+      {
+        "dialect": "json-schema-2020-12",
+        "id": "status",
+        "name": "status",
+        "normalized": {
+          "properties": {
+            "board": {
+              "$ref": "board"
+            },
+            "winner": {
+              "$ref": "winner"
+            }
+          },
+          "type": "object"
+        }
+      }
+    ],
+    [
+      "winner",
+      {
+        "dialect": "json-schema-2020-12",
+        "id": "winner",
+        "name": "winner",
+        "normalized": {
+          "description": "Winner of the game. `.` means nobody has won yet.",
+          "enum": [
+            ".",
+            "X",
+            "O"
+          ],
+          "examples": [
+            "."
+          ],
+          "type": "string"
+        }
+      }
+    ]
+  ],
+  "security": [
+    {
+      "flows": {
+        "clientCredentials": {
+          "scopes": {
+            "board:read": "Read the board"
+          },
+          "tokenUrl": "https://learn.openapis.org/oauth/2.0/token"
+        }
+      },
+      "id": "app2AppOauth",
+      "type": "oauth2"
+    },
+    {
+      "description": "Basic HTTP Authentication",
+      "id": "basicHttpAuthentication",
+      "scheme": "Basic",
+      "type": "http"
+    },
+    {
+      "bearerFormat": "JWT",
+      "description": "Bearer token using a JWT",
+      "id": "bearerHttpAuthentication",
+      "scheme": "Bearer",
+      "type": "http"
+    },
+    {
+      "description": "API key provided in console",
+      "id": "defaultApiKey",
+      "in": "header",
+      "name": "api-key",
+      "type": "apiKey"
+    },
+    {
+      "flows": {
+        "authorizationCode": {
+          "authorizationUrl": "https://learn.openapis.org/oauth/2.0/auth",
+          "scopes": {
+            "board:read": "Read the board",
+            "board:write": "Write to the board"
+          },
+          "tokenUrl": "https://learn.openapis.org/oauth/2.0/token"
+        }
+      },
+      "id": "user2AppOauth",
+      "type": "oauth2"
+    }
+  ],
+  "servers": [],
+  "webhooks": [
+    [
+      "webhook-post-markstatus",
+      {
+        "deprecated": false,
+        "description": "Provides the status of the mark operation on completion",
+        "id": "webhook-post-markstatus",
+        "kind": "operation",
+        "method": "post",
+        "parameters": [],
+        "path": "markStatus",
+        "responses": [
+          {
+            "content": [
+              {
+                "mediaType": "application/json",
+                "schema": {
+                  "kind": "named",
+                  "schemaId": "status"
+                }
+              }
+            ],
+            "description": "Mark operation has completed successfully",
+            "statusCode": "200"
+          }
+        ],
+        "security": [],
+        "servers": [],
+        "summary": "Status of mark operation",
+        "tags": []
+      }
+    ]
+  ]
+}

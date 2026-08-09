@@ -1,0 +1,350 @@
+{
+  "hash": "e0a1957d06a9b6a83082d873ffea8e157a49a9c6ad9a7c5b3cb1a6ab6354551f",
+  "id": "swagger-petstore",
+  "info": {
+    "license": {
+      "name": "MIT"
+    },
+    "title": "Swagger Petstore",
+    "version": "1.0.0"
+  },
+  "kind": "http",
+  "navigation": [
+    {
+      "children": [
+        {
+          "children": [],
+          "id": "nav-get-pets",
+          "kind": "node",
+          "label": "List all pets",
+          "nodeId": "get-pets"
+        },
+        {
+          "children": [],
+          "id": "nav-post-pets",
+          "kind": "node",
+          "label": "Create a pet",
+          "nodeId": "post-pets"
+        },
+        {
+          "children": [],
+          "id": "nav-get-pets-petid",
+          "kind": "node",
+          "label": "Info for a specific pet",
+          "nodeId": "get-pets-petid"
+        }
+      ],
+      "id": "group-pets",
+      "kind": "group",
+      "label": "pets"
+    },
+    {
+      "children": [
+        {
+          "children": [],
+          "id": "nav-schema-Error",
+          "kind": "schema",
+          "label": "Error",
+          "schemaId": "Error"
+        },
+        {
+          "children": [],
+          "id": "nav-schema-Pet",
+          "kind": "schema",
+          "label": "Pet",
+          "schemaId": "Pet"
+        },
+        {
+          "children": [],
+          "id": "nav-schema-Pets",
+          "kind": "schema",
+          "label": "Pets",
+          "schemaId": "Pets"
+        }
+      ],
+      "id": "group-schemas",
+      "kind": "group",
+      "label": "Schemas"
+    }
+  ],
+  "nodes": [
+    [
+      "get-pets",
+      {
+        "deprecated": false,
+        "id": "get-pets",
+        "kind": "operation",
+        "method": "get",
+        "operationId": "listPets",
+        "parameters": [
+          {
+            "description": "How many items to return at one time (max 100)",
+            "explode": true,
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "kind": "inline",
+              "schema": {
+                "dialect": "json-schema-2020-12",
+                "id": "get-pets.parameters.0.limit",
+                "normalized": {
+                  "format": "int32",
+                  "maximum": 100,
+                  "type": "integer"
+                }
+              }
+            },
+            "style": "form"
+          }
+        ],
+        "path": "/pets",
+        "rawOperationId": "listPets",
+        "responses": [
+          {
+            "content": [
+              {
+                "mediaType": "application/json",
+                "schema": {
+                  "kind": "named",
+                  "schemaId": "Pets"
+                }
+              }
+            ],
+            "description": "A paged array of pets",
+            "headers": [
+              {
+                "description": "A link to the next page of responses",
+                "name": "x-next",
+                "required": false,
+                "schema": {
+                  "kind": "inline",
+                  "schema": {
+                    "dialect": "json-schema-2020-12",
+                    "id": "get-pets.responses.200.headers.x-next",
+                    "normalized": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            ],
+            "statusCode": "200"
+          },
+          {
+            "content": [
+              {
+                "mediaType": "application/json",
+                "schema": {
+                  "kind": "named",
+                  "schemaId": "Error"
+                }
+              }
+            ],
+            "description": "unexpected error",
+            "statusCode": "default"
+          }
+        ],
+        "security": [],
+        "servers": [],
+        "summary": "List all pets",
+        "tags": [
+          "pets"
+        ]
+      }
+    ],
+    [
+      "get-pets-petid",
+      {
+        "deprecated": false,
+        "id": "get-pets-petid",
+        "kind": "operation",
+        "method": "get",
+        "operationId": "showPetById",
+        "parameters": [
+          {
+            "description": "The id of the pet to retrieve",
+            "explode": false,
+            "in": "path",
+            "name": "petId",
+            "required": true,
+            "schema": {
+              "kind": "inline",
+              "schema": {
+                "dialect": "json-schema-2020-12",
+                "id": "get-pets-petid.parameters.0.petId",
+                "normalized": {
+                  "type": "string"
+                }
+              }
+            },
+            "style": "simple"
+          }
+        ],
+        "path": "/pets/{petId}",
+        "rawOperationId": "showPetById",
+        "responses": [
+          {
+            "content": [
+              {
+                "mediaType": "application/json",
+                "schema": {
+                  "kind": "named",
+                  "schemaId": "Pet"
+                }
+              }
+            ],
+            "description": "Expected response to a valid request",
+            "statusCode": "200"
+          },
+          {
+            "content": [
+              {
+                "mediaType": "application/json",
+                "schema": {
+                  "kind": "named",
+                  "schemaId": "Error"
+                }
+              }
+            ],
+            "description": "unexpected error",
+            "statusCode": "default"
+          }
+        ],
+        "security": [],
+        "servers": [],
+        "summary": "Info for a specific pet",
+        "tags": [
+          "pets"
+        ]
+      }
+    ],
+    [
+      "post-pets",
+      {
+        "deprecated": false,
+        "id": "post-pets",
+        "kind": "operation",
+        "method": "post",
+        "operationId": "createPets",
+        "parameters": [],
+        "path": "/pets",
+        "rawOperationId": "createPets",
+        "requestBody": {
+          "content": [
+            {
+              "mediaType": "application/json",
+              "schema": {
+                "kind": "named",
+                "schemaId": "Pet"
+              }
+            }
+          ],
+          "required": true
+        },
+        "responses": [
+          {
+            "content": [],
+            "description": "Null response",
+            "statusCode": "201"
+          },
+          {
+            "content": [
+              {
+                "mediaType": "application/json",
+                "schema": {
+                  "kind": "named",
+                  "schemaId": "Error"
+                }
+              }
+            ],
+            "description": "unexpected error",
+            "statusCode": "default"
+          }
+        ],
+        "security": [],
+        "servers": [],
+        "summary": "Create a pet",
+        "tags": [
+          "pets"
+        ]
+      }
+    ]
+  ],
+  "relationships": [],
+  "schemas": [
+    [
+      "Error",
+      {
+        "dialect": "json-schema-2020-12",
+        "id": "Error",
+        "name": "Error",
+        "normalized": {
+          "properties": {
+            "code": {
+              "format": "int32",
+              "type": "integer"
+            },
+            "message": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "code",
+            "message"
+          ],
+          "type": "object"
+        }
+      }
+    ],
+    [
+      "Pet",
+      {
+        "dialect": "json-schema-2020-12",
+        "id": "Pet",
+        "name": "Pet",
+        "normalized": {
+          "properties": {
+            "id": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "name": {
+              "type": "string"
+            },
+            "tag": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "name"
+          ],
+          "type": "object"
+        }
+      }
+    ],
+    [
+      "Pets",
+      {
+        "dialect": "json-schema-2020-12",
+        "id": "Pets",
+        "name": "Pets",
+        "normalized": {
+          "items": {
+            "$ref": "Pet"
+          },
+          "maxItems": 100,
+          "type": "array"
+        }
+      }
+    ]
+  ],
+  "security": [],
+  "servers": [
+    {
+      "url": "http://petstore.swagger.io/v1"
+    }
+  ],
+  "webhooks": []
+}

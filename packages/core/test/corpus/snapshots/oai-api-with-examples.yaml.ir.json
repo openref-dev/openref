@@ -1,0 +1,227 @@
+{
+  "hash": "6a323ba20f0912b702c3ba92a3a89ffc751cb828267cfd47056fa0a7b26a8049",
+  "id": "simple-api-overview",
+  "info": {
+    "title": "Simple API overview",
+    "version": "2.0.0"
+  },
+  "kind": "http",
+  "navigation": [
+    {
+      "children": [
+        {
+          "children": [],
+          "id": "nav-get-root",
+          "kind": "node",
+          "label": "List API versions",
+          "nodeId": "get-root"
+        },
+        {
+          "children": [],
+          "id": "nav-get-v2",
+          "kind": "node",
+          "label": "Show API version details",
+          "nodeId": "get-v2"
+        }
+      ],
+      "id": "group-untagged",
+      "kind": "group",
+      "label": "Other"
+    }
+  ],
+  "nodes": [
+    [
+      "get-root",
+      {
+        "deprecated": false,
+        "id": "get-root",
+        "kind": "operation",
+        "method": "get",
+        "operationId": "listVersionsv2",
+        "parameters": [],
+        "path": "/",
+        "rawOperationId": "listVersionsv2",
+        "responses": [
+          {
+            "content": [
+              {
+                "examples": {
+                  "foo": {
+                    "value": {
+                      "versions": [
+                        {
+                          "id": "v2.0",
+                          "links": [
+                            {
+                              "href": "http://127.0.0.1:8774/v2/",
+                              "rel": "self"
+                            }
+                          ],
+                          "status": "CURRENT",
+                          "updated": "2011-01-21T11:33:21Z"
+                        },
+                        {
+                          "id": "v3.0",
+                          "links": [
+                            {
+                              "href": "http://127.0.0.1:8774/v3/",
+                              "rel": "self"
+                            }
+                          ],
+                          "status": "EXPERIMENTAL",
+                          "updated": "2013-07-23T11:33:21Z"
+                        }
+                      ]
+                    }
+                  }
+                },
+                "mediaType": "application/json"
+              }
+            ],
+            "description": "200 response",
+            "statusCode": "200"
+          },
+          {
+            "content": [
+              {
+                "examples": {
+                  "foo": {
+                    "value": "{\n \"versions\": [\n       {\n         \"status\": \"CURRENT\",\n         \"updated\": \"2011-01-21T11:33:21Z\",\n         \"id\": \"v2.0\",\n         \"links\": [\n             {\n                 \"href\": \"http://127.0.0.1:8774/v2/\",\n                 \"rel\": \"self\"\n             }\n         ]\n     },\n     {\n         \"status\": \"EXPERIMENTAL\",\n         \"updated\": \"2013-07-23T11:33:21Z\",\n         \"id\": \"v3.0\",\n         \"links\": [\n             {\n                 \"href\": \"http://127.0.0.1:8774/v3/\",\n                 \"rel\": \"self\"\n             }\n         ]\n     }\n ]\n}\n"
+                  }
+                },
+                "mediaType": "application/json"
+              }
+            ],
+            "description": "300 response",
+            "statusCode": "300"
+          }
+        ],
+        "security": [],
+        "servers": [],
+        "summary": "List API versions",
+        "tags": []
+      }
+    ],
+    [
+      "get-v2",
+      {
+        "deprecated": false,
+        "id": "get-v2",
+        "kind": "operation",
+        "method": "get",
+        "operationId": "getVersionDetailsv2",
+        "parameters": [],
+        "path": "/v2",
+        "rawOperationId": "getVersionDetailsv2",
+        "responses": [
+          {
+            "content": [
+              {
+                "examples": {
+                  "foo": {
+                    "value": {
+                      "version": {
+                        "id": "v2.0",
+                        "links": [
+                          {
+                            "href": "http://127.0.0.1:8774/v2/",
+                            "rel": "self"
+                          },
+                          {
+                            "href": "http://docs.openstack.org/api/openstack-compute/2/os-compute-devguide-2.pdf",
+                            "rel": "describedby",
+                            "type": "application/pdf"
+                          },
+                          {
+                            "href": "http://docs.openstack.org/api/openstack-compute/2/wadl/os-compute-2.wadl",
+                            "rel": "describedby",
+                            "type": "application/vnd.sun.wadl+xml"
+                          },
+                          {
+                            "href": "http://docs.openstack.org/api/openstack-compute/2/wadl/os-compute-2.wadl",
+                            "rel": "describedby",
+                            "type": "application/vnd.sun.wadl+xml"
+                          }
+                        ],
+                        "media-types": [
+                          {
+                            "base": "application/xml",
+                            "type": "application/vnd.openstack.compute+xml;version=2"
+                          },
+                          {
+                            "base": "application/json",
+                            "type": "application/vnd.openstack.compute+json;version=2"
+                          }
+                        ],
+                        "status": "CURRENT",
+                        "updated": "2011-01-21T11:33:21Z"
+                      }
+                    }
+                  }
+                },
+                "mediaType": "application/json"
+              }
+            ],
+            "description": "200 response",
+            "statusCode": "200"
+          },
+          {
+            "content": [
+              {
+                "examples": {
+                  "foo": {
+                    "value": {
+                      "version": {
+                        "id": "v2.0",
+                        "links": [
+                          {
+                            "href": "http://23.253.228.211:8774/v2/",
+                            "rel": "self"
+                          },
+                          {
+                            "href": "http://docs.openstack.org/api/openstack-compute/2/os-compute-devguide-2.pdf",
+                            "rel": "describedby",
+                            "type": "application/pdf"
+                          },
+                          {
+                            "href": "http://docs.openstack.org/api/openstack-compute/2/wadl/os-compute-2.wadl",
+                            "rel": "describedby",
+                            "type": "application/vnd.sun.wadl+xml"
+                          }
+                        ],
+                        "media-types": [
+                          {
+                            "base": "application/xml",
+                            "type": "application/vnd.openstack.compute+xml;version=2"
+                          },
+                          {
+                            "base": "application/json",
+                            "type": "application/vnd.openstack.compute+json;version=2"
+                          }
+                        ],
+                        "status": "CURRENT",
+                        "updated": "2011-01-21T11:33:21Z"
+                      }
+                    }
+                  }
+                },
+                "mediaType": "application/json"
+              }
+            ],
+            "description": "203 response",
+            "statusCode": "203"
+          }
+        ],
+        "security": [],
+        "servers": [],
+        "summary": "Show API version details",
+        "tags": []
+      }
+    ]
+  ],
+  "relationships": [],
+  "schemas": [],
+  "security": [],
+  "servers": [],
+  "webhooks": []
+}

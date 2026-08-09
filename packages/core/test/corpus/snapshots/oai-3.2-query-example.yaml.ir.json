@@ -1,0 +1,196 @@
+{
+  "hash": "992d231700738467dd9a3bdd24aba7821ba0a3725c28a62c660964d19db6f155",
+  "id": "flight-api",
+  "info": {
+    "title": "Flight API",
+    "version": "1.0.0"
+  },
+  "kind": "http",
+  "navigation": [
+    {
+      "children": [
+        {
+          "children": [],
+          "id": "nav-query-flights-search",
+          "kind": "node",
+          "label": "Search flights with complex criteria",
+          "nodeId": "query-flights-search"
+        }
+      ],
+      "id": "group-untagged",
+      "kind": "group",
+      "label": "Other"
+    }
+  ],
+  "nodes": [
+    [
+      "query-flights-search",
+      {
+        "deprecated": false,
+        "description": "Uses the HTTP QUERY method to perform a safe, idempotent flight search with filters that are too complex for a URL query string.\n",
+        "id": "query-flights-search",
+        "kind": "operation",
+        "method": "query",
+        "operationId": "searchFlights",
+        "parameters": [],
+        "path": "/flights/search",
+        "rawOperationId": "searchFlights",
+        "requestBody": {
+          "content": [
+            {
+              "mediaType": "application/json",
+              "schema": {
+                "kind": "inline",
+                "schema": {
+                  "dialect": "json-schema-2020-12",
+                  "id": "query-flights-search.requestBody.application/json",
+                  "normalized": {
+                    "properties": {
+                      "cabinClass": {
+                        "enum": [
+                          "economy",
+                          "premium-economy",
+                          "business",
+                          "first"
+                        ],
+                        "examples": [
+                          "business"
+                        ],
+                        "type": "string"
+                      },
+                      "departureDate": {
+                        "examples": [
+                          "2026-06-15"
+                        ],
+                        "format": "date",
+                        "type": "string"
+                      },
+                      "destination": {
+                        "examples": [
+                          "LHR"
+                        ],
+                        "type": "string"
+                      },
+                      "nonStopOnly": {
+                        "examples": [
+                          true
+                        ],
+                        "type": "boolean"
+                      },
+                      "origin": {
+                        "examples": [
+                          "ATL"
+                        ],
+                        "type": "string"
+                      },
+                      "passengers": {
+                        "examples": [
+                          2
+                        ],
+                        "minimum": 1,
+                        "type": "integer"
+                      },
+                      "returnDate": {
+                        "examples": [
+                          "2026-06-25"
+                        ],
+                        "format": "date",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "origin",
+                      "destination",
+                      "departureDate"
+                    ],
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          ],
+          "required": true
+        },
+        "responses": [
+          {
+            "content": [
+              {
+                "mediaType": "application/json",
+                "schema": {
+                  "kind": "inline",
+                  "schema": {
+                    "dialect": "json-schema-2020-12",
+                    "id": "query-flights-search.responses.200.application/json",
+                    "normalized": {
+                      "properties": {
+                        "flights": {
+                          "items": {
+                            "properties": {
+                              "arrivalTime": {
+                                "examples": [
+                                  "2026-06-16T10:15:00Z"
+                                ],
+                                "format": "date-time",
+                                "type": "string"
+                              },
+                              "departureTime": {
+                                "examples": [
+                                  "2026-06-15T22:30:00Z"
+                                ],
+                                "format": "date-time",
+                                "type": "string"
+                              },
+                              "destination": {
+                                "examples": [
+                                  "LHR"
+                                ],
+                                "type": "string"
+                              },
+                              "flightNumber": {
+                                "examples": [
+                                  "DL30"
+                                ],
+                                "type": "string"
+                              },
+                              "origin": {
+                                "examples": [
+                                  "ATL"
+                                ],
+                                "type": "string"
+                              },
+                              "price": {
+                                "examples": [
+                                  1249.99
+                                ],
+                                "format": "float",
+                                "type": "number"
+                              }
+                            },
+                            "type": "object"
+                          },
+                          "type": "array"
+                        }
+                      },
+                      "type": "object"
+                    }
+                  }
+                }
+              }
+            ],
+            "description": "Matching flights",
+            "statusCode": "200"
+          }
+        ],
+        "security": [],
+        "servers": [],
+        "summary": "Search flights with complex criteria",
+        "tags": []
+      }
+    ]
+  ],
+  "relationships": [],
+  "schemas": [],
+  "security": [],
+  "servers": [],
+  "webhooks": []
+}

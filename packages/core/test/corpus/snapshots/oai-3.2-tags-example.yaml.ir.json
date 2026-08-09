@@ -1,0 +1,150 @@
+{
+  "hash": "b6ab6c1d79a2ad370fc26fe4a54c14c3eacff83b4737032cd7559027f47efcf5",
+  "id": "flight-api",
+  "info": {
+    "title": "Flight API",
+    "version": "1.0.0"
+  },
+  "kind": "http",
+  "navigation": [
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [],
+              "id": "nav-get-flights-international",
+              "kind": "node",
+              "label": "List international flights",
+              "nodeId": "get-flights-international"
+            }
+          ],
+          "id": "group-international",
+          "kind": "group",
+          "label": "International"
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "id": "nav-get-flights-domestic",
+              "kind": "node",
+              "label": "List domestic flights",
+              "nodeId": "get-flights-domestic"
+            }
+          ],
+          "id": "group-domestic",
+          "kind": "group",
+          "label": "Domestic"
+        },
+        {
+          "children": [],
+          "id": "nav-get-flights",
+          "kind": "node",
+          "label": "List all flights",
+          "nodeId": "get-flights"
+        }
+      ],
+      "id": "group-flights",
+      "kind": "group",
+      "label": "Flights"
+    },
+    {
+      "children": [
+        {
+          "children": [],
+          "id": "nav-get-flights-delayed",
+          "kind": "node",
+          "label": "Get delayed flights",
+          "nodeId": "get-flights-delayed"
+        }
+      ],
+      "id": "group-delays",
+      "kind": "group",
+      "label": "Delays"
+    }
+  ],
+  "nodes": [
+    [
+      "get-flights",
+      {
+        "deprecated": false,
+        "id": "get-flights",
+        "kind": "operation",
+        "method": "get",
+        "operationId": "get-flights",
+        "parameters": [],
+        "path": "/flights",
+        "responses": [],
+        "security": [],
+        "servers": [],
+        "summary": "List all flights",
+        "tags": [
+          "flights"
+        ]
+      }
+    ],
+    [
+      "get-flights-delayed",
+      {
+        "deprecated": false,
+        "id": "get-flights-delayed",
+        "kind": "operation",
+        "method": "get",
+        "operationId": "get-flights-delayed",
+        "parameters": [],
+        "path": "/flights/delayed",
+        "responses": [],
+        "security": [],
+        "servers": [],
+        "summary": "Get delayed flights",
+        "tags": [
+          "delays"
+        ]
+      }
+    ],
+    [
+      "get-flights-domestic",
+      {
+        "deprecated": false,
+        "id": "get-flights-domestic",
+        "kind": "operation",
+        "method": "get",
+        "operationId": "get-flights-domestic",
+        "parameters": [],
+        "path": "/flights/domestic",
+        "responses": [],
+        "security": [],
+        "servers": [],
+        "summary": "List domestic flights",
+        "tags": [
+          "domestic"
+        ]
+      }
+    ],
+    [
+      "get-flights-international",
+      {
+        "deprecated": false,
+        "id": "get-flights-international",
+        "kind": "operation",
+        "method": "get",
+        "operationId": "get-flights-international",
+        "parameters": [],
+        "path": "/flights/international",
+        "responses": [],
+        "security": [],
+        "servers": [],
+        "summary": "List international flights",
+        "tags": [
+          "international"
+        ]
+      }
+    ]
+  ],
+  "relationships": [],
+  "schemas": [],
+  "security": [],
+  "servers": [],
+  "webhooks": []
+}

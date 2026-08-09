@@ -1,0 +1,587 @@
+{
+  "hash": "824ee17630882a1e92c7ba358b7025eea41d93b6287cad5d0e85064094c2a252",
+  "id": "link-example",
+  "info": {
+    "title": "Link Example",
+    "version": "1.0.0"
+  },
+  "kind": "http",
+  "navigation": [
+    {
+      "children": [
+        {
+          "children": [],
+          "id": "nav-get-2-0-repositories-username",
+          "kind": "node",
+          "label": "GET /2.0/repositories/{username}",
+          "nodeId": "get-2-0-repositories-username"
+        },
+        {
+          "children": [],
+          "id": "nav-get-2-0-repositories-username-slug",
+          "kind": "node",
+          "label": "GET /2.0/repositories/{username}/{slug}",
+          "nodeId": "get-2-0-repositories-username-slug"
+        },
+        {
+          "children": [],
+          "id": "nav-get-2-0-repositories-username-slug-pullrequests",
+          "kind": "node",
+          "label": "GET /2.0/repositories/{username}/{slug}/pullrequests",
+          "nodeId": "get-2-0-repositories-username-slug-pullrequests"
+        },
+        {
+          "children": [],
+          "id": "nav-get-2-0-repositories-username-slug-pullrequests-pid",
+          "kind": "node",
+          "label": "GET /2.0/repositories/{username}/{slug}/pullrequests/{pid}",
+          "nodeId": "get-2-0-repositories-username-slug-pullrequests-pid"
+        },
+        {
+          "children": [],
+          "id": "nav-post-2-0-repositories-username-slug-pullrequests-pid-merge",
+          "kind": "node",
+          "label": "POST /2.0/repositories/{username}/{slug}/pullrequests/{pid}/merge",
+          "nodeId": "post-2-0-repositories-username-slug-pullrequests-pid-merge"
+        },
+        {
+          "children": [],
+          "id": "nav-get-2-0-users-username",
+          "kind": "node",
+          "label": "GET /2.0/users/{username}",
+          "nodeId": "get-2-0-users-username"
+        }
+      ],
+      "id": "group-untagged",
+      "kind": "group",
+      "label": "Other"
+    },
+    {
+      "children": [
+        {
+          "children": [],
+          "id": "nav-schema-pullrequest",
+          "kind": "schema",
+          "label": "pullrequest",
+          "schemaId": "pullrequest"
+        },
+        {
+          "children": [],
+          "id": "nav-schema-repository",
+          "kind": "schema",
+          "label": "repository",
+          "schemaId": "repository"
+        },
+        {
+          "children": [],
+          "id": "nav-schema-user",
+          "kind": "schema",
+          "label": "user",
+          "schemaId": "user"
+        }
+      ],
+      "id": "group-schemas",
+      "kind": "group",
+      "label": "Schemas"
+    }
+  ],
+  "nodes": [
+    [
+      "get-2-0-repositories-username",
+      {
+        "deprecated": false,
+        "id": "get-2-0-repositories-username",
+        "kind": "operation",
+        "method": "get",
+        "operationId": "getRepositoriesByOwner",
+        "parameters": [
+          {
+            "explode": false,
+            "in": "path",
+            "name": "username",
+            "required": true,
+            "schema": {
+              "kind": "inline",
+              "schema": {
+                "dialect": "json-schema-2020-12",
+                "id": "get-2-0-repositories-username.parameters.0.username",
+                "normalized": {
+                  "type": "string"
+                }
+              }
+            },
+            "style": "simple"
+          }
+        ],
+        "path": "/2.0/repositories/{username}",
+        "rawOperationId": "getRepositoriesByOwner",
+        "responses": [
+          {
+            "content": [
+              {
+                "mediaType": "application/json",
+                "schema": {
+                  "kind": "inline",
+                  "schema": {
+                    "dialect": "json-schema-2020-12",
+                    "id": "get-2-0-repositories-username.responses.200.application/json",
+                    "normalized": {
+                      "items": {
+                        "$ref": "repository"
+                      },
+                      "type": "array"
+                    }
+                  }
+                }
+              }
+            ],
+            "description": "repositories owned by the supplied user",
+            "statusCode": "200"
+          }
+        ],
+        "security": [],
+        "servers": [],
+        "tags": []
+      }
+    ],
+    [
+      "get-2-0-repositories-username-slug",
+      {
+        "deprecated": false,
+        "id": "get-2-0-repositories-username-slug",
+        "kind": "operation",
+        "method": "get",
+        "operationId": "getRepository",
+        "parameters": [
+          {
+            "explode": false,
+            "in": "path",
+            "name": "username",
+            "required": true,
+            "schema": {
+              "kind": "inline",
+              "schema": {
+                "dialect": "json-schema-2020-12",
+                "id": "get-2-0-repositories-username-slug.parameters.0.username",
+                "normalized": {
+                  "type": "string"
+                }
+              }
+            },
+            "style": "simple"
+          },
+          {
+            "explode": false,
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "kind": "inline",
+              "schema": {
+                "dialect": "json-schema-2020-12",
+                "id": "get-2-0-repositories-username-slug.parameters.1.slug",
+                "normalized": {
+                  "type": "string"
+                }
+              }
+            },
+            "style": "simple"
+          }
+        ],
+        "path": "/2.0/repositories/{username}/{slug}",
+        "rawOperationId": "getRepository",
+        "responses": [
+          {
+            "content": [
+              {
+                "mediaType": "application/json",
+                "schema": {
+                  "kind": "named",
+                  "schemaId": "repository"
+                }
+              }
+            ],
+            "description": "The repository",
+            "statusCode": "200"
+          }
+        ],
+        "security": [],
+        "servers": [],
+        "tags": []
+      }
+    ],
+    [
+      "get-2-0-repositories-username-slug-pullrequests",
+      {
+        "deprecated": false,
+        "id": "get-2-0-repositories-username-slug-pullrequests",
+        "kind": "operation",
+        "method": "get",
+        "operationId": "getPullRequestsByRepository",
+        "parameters": [
+          {
+            "explode": false,
+            "in": "path",
+            "name": "username",
+            "required": true,
+            "schema": {
+              "kind": "inline",
+              "schema": {
+                "dialect": "json-schema-2020-12",
+                "id": "get-2-0-repositories-username-slug-pullrequests.parameters.0.username",
+                "normalized": {
+                  "type": "string"
+                }
+              }
+            },
+            "style": "simple"
+          },
+          {
+            "explode": false,
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "kind": "inline",
+              "schema": {
+                "dialect": "json-schema-2020-12",
+                "id": "get-2-0-repositories-username-slug-pullrequests.parameters.1.slug",
+                "normalized": {
+                  "type": "string"
+                }
+              }
+            },
+            "style": "simple"
+          },
+          {
+            "explode": true,
+            "in": "query",
+            "name": "state",
+            "required": false,
+            "schema": {
+              "kind": "inline",
+              "schema": {
+                "dialect": "json-schema-2020-12",
+                "id": "get-2-0-repositories-username-slug-pullrequests.parameters.2.state",
+                "normalized": {
+                  "enum": [
+                    "open",
+                    "merged",
+                    "declined"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "style": "form"
+          }
+        ],
+        "path": "/2.0/repositories/{username}/{slug}/pullrequests",
+        "rawOperationId": "getPullRequestsByRepository",
+        "responses": [
+          {
+            "content": [
+              {
+                "mediaType": "application/json",
+                "schema": {
+                  "kind": "inline",
+                  "schema": {
+                    "dialect": "json-schema-2020-12",
+                    "id": "get-2-0-repositories-username-slug-pullrequests.responses.200.application/json",
+                    "normalized": {
+                      "items": {
+                        "$ref": "pullrequest"
+                      },
+                      "type": "array"
+                    }
+                  }
+                }
+              }
+            ],
+            "description": "an array of pull request objects",
+            "statusCode": "200"
+          }
+        ],
+        "security": [],
+        "servers": [],
+        "tags": []
+      }
+    ],
+    [
+      "get-2-0-repositories-username-slug-pullrequests-pid",
+      {
+        "deprecated": false,
+        "id": "get-2-0-repositories-username-slug-pullrequests-pid",
+        "kind": "operation",
+        "method": "get",
+        "operationId": "getPullRequestsById",
+        "parameters": [
+          {
+            "explode": false,
+            "in": "path",
+            "name": "username",
+            "required": true,
+            "schema": {
+              "kind": "inline",
+              "schema": {
+                "dialect": "json-schema-2020-12",
+                "id": "get-2-0-repositories-username-slug-pullrequests-pid.parameters.0.username",
+                "normalized": {
+                  "type": "string"
+                }
+              }
+            },
+            "style": "simple"
+          },
+          {
+            "explode": false,
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "kind": "inline",
+              "schema": {
+                "dialect": "json-schema-2020-12",
+                "id": "get-2-0-repositories-username-slug-pullrequests-pid.parameters.1.slug",
+                "normalized": {
+                  "type": "string"
+                }
+              }
+            },
+            "style": "simple"
+          },
+          {
+            "explode": false,
+            "in": "path",
+            "name": "pid",
+            "required": true,
+            "schema": {
+              "kind": "inline",
+              "schema": {
+                "dialect": "json-schema-2020-12",
+                "id": "get-2-0-repositories-username-slug-pullrequests-pid.parameters.2.pid",
+                "normalized": {
+                  "type": "string"
+                }
+              }
+            },
+            "style": "simple"
+          }
+        ],
+        "path": "/2.0/repositories/{username}/{slug}/pullrequests/{pid}",
+        "rawOperationId": "getPullRequestsById",
+        "responses": [
+          {
+            "content": [
+              {
+                "mediaType": "application/json",
+                "schema": {
+                  "kind": "named",
+                  "schemaId": "pullrequest"
+                }
+              }
+            ],
+            "description": "a pull request object",
+            "statusCode": "200"
+          }
+        ],
+        "security": [],
+        "servers": [],
+        "tags": []
+      }
+    ],
+    [
+      "get-2-0-users-username",
+      {
+        "deprecated": false,
+        "id": "get-2-0-users-username",
+        "kind": "operation",
+        "method": "get",
+        "operationId": "getUserByName",
+        "parameters": [
+          {
+            "explode": false,
+            "in": "path",
+            "name": "username",
+            "required": true,
+            "schema": {
+              "kind": "inline",
+              "schema": {
+                "dialect": "json-schema-2020-12",
+                "id": "get-2-0-users-username.parameters.0.username",
+                "normalized": {
+                  "type": "string"
+                }
+              }
+            },
+            "style": "simple"
+          }
+        ],
+        "path": "/2.0/users/{username}",
+        "rawOperationId": "getUserByName",
+        "responses": [
+          {
+            "content": [
+              {
+                "mediaType": "application/json",
+                "schema": {
+                  "kind": "named",
+                  "schemaId": "user"
+                }
+              }
+            ],
+            "description": "The User",
+            "statusCode": "200"
+          }
+        ],
+        "security": [],
+        "servers": [],
+        "tags": []
+      }
+    ],
+    [
+      "post-2-0-repositories-username-slug-pullrequests-pid-merge",
+      {
+        "deprecated": false,
+        "id": "post-2-0-repositories-username-slug-pullrequests-pid-merge",
+        "kind": "operation",
+        "method": "post",
+        "operationId": "mergePullRequest",
+        "parameters": [
+          {
+            "explode": false,
+            "in": "path",
+            "name": "username",
+            "required": true,
+            "schema": {
+              "kind": "inline",
+              "schema": {
+                "dialect": "json-schema-2020-12",
+                "id": "post-2-0-repositories-username-slug-pullrequests-pid-merge.parameters.0.username",
+                "normalized": {
+                  "type": "string"
+                }
+              }
+            },
+            "style": "simple"
+          },
+          {
+            "explode": false,
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "kind": "inline",
+              "schema": {
+                "dialect": "json-schema-2020-12",
+                "id": "post-2-0-repositories-username-slug-pullrequests-pid-merge.parameters.1.slug",
+                "normalized": {
+                  "type": "string"
+                }
+              }
+            },
+            "style": "simple"
+          },
+          {
+            "explode": false,
+            "in": "path",
+            "name": "pid",
+            "required": true,
+            "schema": {
+              "kind": "inline",
+              "schema": {
+                "dialect": "json-schema-2020-12",
+                "id": "post-2-0-repositories-username-slug-pullrequests-pid-merge.parameters.2.pid",
+                "normalized": {
+                  "type": "string"
+                }
+              }
+            },
+            "style": "simple"
+          }
+        ],
+        "path": "/2.0/repositories/{username}/{slug}/pullrequests/{pid}/merge",
+        "rawOperationId": "mergePullRequest",
+        "responses": [
+          {
+            "content": [],
+            "description": "the PR was successfully merged",
+            "statusCode": "204"
+          }
+        ],
+        "security": [],
+        "servers": [],
+        "tags": []
+      }
+    ]
+  ],
+  "relationships": [],
+  "schemas": [
+    [
+      "pullrequest",
+      {
+        "dialect": "json-schema-2020-12",
+        "id": "pullrequest",
+        "name": "pullrequest",
+        "normalized": {
+          "properties": {
+            "author": {
+              "$ref": "user"
+            },
+            "id": {
+              "type": "integer"
+            },
+            "repository": {
+              "$ref": "repository"
+            },
+            "title": {
+              "type": "string"
+            }
+          },
+          "type": "object"
+        }
+      }
+    ],
+    [
+      "repository",
+      {
+        "dialect": "json-schema-2020-12",
+        "id": "repository",
+        "name": "repository",
+        "normalized": {
+          "properties": {
+            "owner": {
+              "$ref": "user"
+            },
+            "slug": {
+              "type": "string"
+            }
+          },
+          "type": "object"
+        }
+      }
+    ],
+    [
+      "user",
+      {
+        "dialect": "json-schema-2020-12",
+        "id": "user",
+        "name": "user",
+        "normalized": {
+          "properties": {
+            "username": {
+              "type": "string"
+            },
+            "uuid": {
+              "type": "string"
+            }
+          },
+          "type": "object"
+        }
+      }
+    ]
+  ],
+  "security": [],
+  "servers": [],
+  "webhooks": []
+}

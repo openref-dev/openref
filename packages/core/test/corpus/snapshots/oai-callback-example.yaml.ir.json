@@ -1,0 +1,104 @@
+{
+  "hash": "a313e7f475c68ef41b6fe9af782dd8e79ece571566b3b16bb9ac2b44d72e3b0b",
+  "id": "callback-example",
+  "info": {
+    "title": "Callback Example",
+    "version": "1.0.0"
+  },
+  "kind": "http",
+  "navigation": [
+    {
+      "children": [
+        {
+          "children": [],
+          "id": "nav-post-streams",
+          "kind": "node",
+          "label": "POST /streams",
+          "nodeId": "post-streams"
+        }
+      ],
+      "id": "group-untagged",
+      "kind": "group",
+      "label": "Other"
+    }
+  ],
+  "nodes": [
+    [
+      "post-streams",
+      {
+        "deprecated": false,
+        "description": "subscribes a client to receive out-of-band data",
+        "id": "post-streams",
+        "kind": "operation",
+        "method": "post",
+        "operationId": "post-streams",
+        "parameters": [
+          {
+            "description": "the location where data will be sent.  Must be network accessible\nby the source server\n",
+            "explode": true,
+            "in": "query",
+            "name": "callbackUrl",
+            "required": true,
+            "schema": {
+              "kind": "inline",
+              "schema": {
+                "dialect": "json-schema-2020-12",
+                "id": "post-streams.parameters.0.callbackUrl",
+                "normalized": {
+                  "examples": [
+                    "https://tonys-server.com"
+                  ],
+                  "format": "uri",
+                  "type": "string"
+                }
+              }
+            },
+            "style": "form"
+          }
+        ],
+        "path": "/streams",
+        "responses": [
+          {
+            "content": [
+              {
+                "mediaType": "application/json",
+                "schema": {
+                  "kind": "inline",
+                  "schema": {
+                    "dialect": "json-schema-2020-12",
+                    "id": "post-streams.responses.201.application/json",
+                    "normalized": {
+                      "description": "subscription information",
+                      "properties": {
+                        "subscriptionId": {
+                          "description": "this unique identifier allows management of the subscription",
+                          "examples": [
+                            "2531329f-fb09-4ef7-887e-84e648214436"
+                          ],
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "subscriptionId"
+                      ]
+                    }
+                  }
+                }
+              }
+            ],
+            "description": "subscription successfully created",
+            "statusCode": "201"
+          }
+        ],
+        "security": [],
+        "servers": [],
+        "tags": []
+      }
+    ]
+  ],
+  "relationships": [],
+  "schemas": [],
+  "security": [],
+  "servers": [],
+  "webhooks": []
+}
