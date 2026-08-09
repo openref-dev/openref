@@ -249,6 +249,16 @@ function convert(input: unknown, context: Context, path: string): IRJsonSchema {
     if (types.length > 0) draft.type = types;
   }
 
+  // OpenAPI 3.0 uplift: `nullable: true` is `type: [..., 'null']` in 3.1.
+  if (asBoolean(input.nullable) === true) {
+    const current = draft.type;
+    if (typeof current === 'string') {
+      draft.type = current === 'null' ? current : [current, 'null'];
+    } else if (current !== undefined && !current.includes('null')) {
+      draft.type = [...current, 'null'];
+    }
+  }
+
   assign(draft, 'const', asJsonValue(input.const));
   assign(draft, 'default', asJsonValue(input.default));
 
@@ -260,6 +270,10 @@ function convert(input: unknown, context: Context, path: string): IRJsonSchema {
   const rawExamples = input.examples;
   if (isUnknownArray(rawExamples)) {
     draft.examples = rawExamples.map((member) => asJsonValue(member) ?? null);
+  } else {
+    // OpenAPI 3.0 uplift: a Schema Object's single `example` is `examples[]` in 3.1.
+    const single = asJsonValue(input.example);
+    if (single !== undefined) draft.examples = [single];
   }
 
   assign(draft, 'deprecated', asBoolean(input.deprecated));

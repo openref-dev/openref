@@ -53,6 +53,7 @@ export type {
   IRResponse,
   IRSecurityRequirement,
   IRServerOverride,
+  IRStandardHttpMethod,
 } from './ir/domain/node.types';
 
 export type {
@@ -146,3 +147,21 @@ export type { ParsedReference } from './normalizer/domain/json-pointer';
 export { DEFAULT_CYCLE_DEPTH, normalizeSchema } from './normalizer/domain/schema-normalizer';
 export type { NormalizeSchemaOptions } from './normalizer/domain/schema-normalizer';
 export { applyView, toRequestView, toResponseView } from './normalizer/domain/views';
+export { parseSpecification } from './normalizer/domain/parse';
+export type { ParseSpecificationOptions } from './normalizer/domain/parse';
+export {
+  assignOperationIdentities,
+  isGeneratedOperationId,
+  isStandardHttpMethod,
+  operationNodeId,
+  pathSlug,
+  STANDARD_HTTP_METHODS,
+} from './normalizer/domain/operation-identity';
+export type {
+  OperationIdentity,
+  OperationIdentityInput,
+} from './normalizer/domain/operation-identity';
+export { buildNavigation } from './normalizer/domain/navigation';
+export type { BuildNavigationOptions, NavigationTag } from './normalizer/domain/navigation';
+export { normalizeOpenApiDocument } from './normalizer/domain/openapi-normalizer';
+export type { NormalizeOpenApiOptions } from './normalizer/domain/openapi-normalizer';

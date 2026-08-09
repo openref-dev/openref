@@ -8,9 +8,18 @@ import type { IRNodeRuntime } from './runtime.types';
  * the event model later would mean rewriting the core.
  */
 
-/** HTTP methods, including `query` from OpenAPI 3.2. */
-export type IRHttpMethod =
+/** The methods OpenAPI enumerates, including `query` from 3.2. */
+export type IRStandardHttpMethod =
   'get' | 'put' | 'post' | 'delete' | 'options' | 'head' | 'patch' | 'trace' | 'query';
+
+/**
+ * Method of an operation, always lowercase.
+ *
+ * OpenAPI 3.2 `additionalOperations` is keyed by method names the specification does not
+ * enumerate, so the set is open and this is a string. {@link IRStandardHttpMethod} names the
+ * ones that are enumerated, and `isStandardHttpMethod` reports which is which.
+ */
+export type IRHttpMethod = string;
 
 /** Where a parameter is carried. */
 export type IRParameterLocation = 'path' | 'query' | 'header' | 'cookie';
