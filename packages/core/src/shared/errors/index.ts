@@ -20,6 +20,8 @@ export enum ErrorCode {
   NORM_UNSUPPORTED_DIALECT = 'NORM_UNSUPPORTED_DIALECT',
   /** A value reached canonical serialization that has no deterministic representation. */
   NORM_VALUE_NOT_SERIALIZABLE = 'NORM_VALUE_NOT_SERIALIZABLE',
+  /** Two `allOf` branches describe a schema nothing can satisfy. */
+  NORM_COMPOSITION_CONFLICT = 'NORM_COMPOSITION_CONFLICT',
   /** The document itself is malformed beyond repair. */
   NORM_DOCUMENT_INVALID = 'NORM_DOCUMENT_INVALID',
 

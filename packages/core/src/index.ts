@@ -123,3 +123,26 @@ export {
   ThemeError,
   UnsupportedDialectError,
 } from './shared/errors/index';
+
+export { intersectTypes, mergeAllOf, mergeRequired } from './normalizer/domain/compose';
+export {
+  asBoolean,
+  asJsonSchemaType,
+  asJsonValue,
+  asNumber,
+  asString,
+  asStringArray,
+  asStringRecord,
+  isPlainObject,
+  isUnknownArray,
+} from './normalizer/domain/guards';
+export {
+  parseJsonPointer,
+  parseReference,
+  resolveJsonPointer,
+  schemaNameFromReference,
+} from './normalizer/domain/json-pointer';
+export type { ParsedReference } from './normalizer/domain/json-pointer';
+export { DEFAULT_CYCLE_DEPTH, normalizeSchema } from './normalizer/domain/schema-normalizer';
+export type { NormalizeSchemaOptions } from './normalizer/domain/schema-normalizer';
+export { applyView, toRequestView, toResponseView } from './normalizer/domain/views';
