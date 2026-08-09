@@ -5,3 +5,9 @@ pnpm-lock.yaml
 .changeset
 ai-docs
 CLAUDE.md
+
+# Vendored third party specification documents, SPEC 0 zone 3.
+# Formatting them would be an undeclared modification of someone else's work, and it
+# breaks the digests the corpus manifest records. The fixture license gate catches it,
+# but it should never get that far.
+packages/core/test/corpus/documents

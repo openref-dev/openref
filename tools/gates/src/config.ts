@@ -5,6 +5,7 @@
  * genuinely wrong, `ai-docs/SPEC.md` changes first.
  */
 
+import type { FixtureRoot } from './gates/fixture-licenses.gate.js';
 import type { LicenseAttestation } from './lib/licenses.js';
 
 /**
@@ -23,6 +24,16 @@ export const LICENSE_ATTESTATIONS: readonly LicenseAttestation[] = [
     file: 'LICENSE',
     sha256: 'aac99045d4e36ab3b1e2914337620963b56cbac53de280c94f29261a22ab5b0f',
   },
+];
+
+/**
+ * Vendored corpora, zone 3 of SPEC 0.
+ *
+ * Each root holds `manifest.json`, `NOTICE` and `documents/`. Adding a corpus is a line
+ * here; adding a document to one is a line in its manifest.
+ */
+export const FIXTURE_ROOTS: readonly FixtureRoot[] = [
+  { directory: 'packages/core/test/corpus', producedBy: 'T006' },
 ];
 
 /** The build manifest, addressed by absolute line number by every session. */

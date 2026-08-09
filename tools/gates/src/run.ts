@@ -3,6 +3,7 @@ import { budgetsGate } from './gates/budgets.gate.js';
 import { coverageGate } from './gates/coverage.gate.js';
 import { cspGate } from './gates/csp.gate.js';
 import { dependencyGraphGate } from './gates/dependency-graph.gate.js';
+import { fixtureLicensesGate } from './gates/fixture-licenses.gate.js';
 import { licensesGate } from './gates/licenses.gate.js';
 import type { Gate, GateResult } from './types.js';
 
@@ -13,11 +14,16 @@ import type { Gate, GateResult } from './types.js';
  * description read out of BUILD.md by line number, so a shifted BUILD.md makes the rest of
  * the run a report on the wrong work. Then the order required by BUILD T001: dependency
  * graph, licenses, size budgets, CSP scan, coverage floors.
+ *
+ * The fixture license gate sits beside the dependency one rather than inside it. SPEC 0 has
+ * three zones, and zones 1 and 2 are answered by walking the dependency tree while zone 3 is
+ * answered by walking vendored files. Two questions, two walks, two reports.
  */
 export const GATES: readonly Gate[] = [
   buildManifestGate,
   dependencyGraphGate,
   licensesGate,
+  fixtureLicensesGate,
   budgetsGate,
   cspGate,
   coverageGate,
