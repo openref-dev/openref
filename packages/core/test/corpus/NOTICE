@@ -1,0 +1,164 @@
+NOTICE - third party specification documents
+============================================
+
+This directory holds specification documents written by other people. They are
+vendored here as test fixtures for the OPENREF specification corpus, per SPEC 21.
+Nothing here is part of any published OPENREF package: these files do not ship in a
+tarball, are not linked into any consumer's code, and carry no obligation into it.
+
+This NOTICE exists because attribution has to travel with the material. `manifest.json`
+next to it carries the same facts in machine readable form, and the license gate checks
+that the two agree. A manifest line detaches the moment a file is copied out of this
+directory on its own; a NOTICE in the directory does not.
+
+Each document below is listed with its source, the date it was retrieved, its license,
+its copyright holder, and whether OPENREF modified it. Under CC-BY-4.0 a modification
+must be indicated, so truncating a document or repairing invalid YAML is recorded as a
+modification with a description of what was done.
+
+The documents are unmodified unless the entry says otherwise. OPENREF claims no
+copyright in any of them, and their licenses are not changed by their presence here.
+
+Apache-2.0
+----------
+
+Copyright holder: Box, Inc.
+License text:     https://www.apache.org/licenses/LICENSE-2.0
+
+  documents/box.json
+      Box API, multipart uploads
+      source:    https://raw.githubusercontent.com/box/box-openapi/main/openapi.json
+      retrieved: 2026-08-09
+      modified:  no
+
+Apache-2.0
+----------
+
+Copyright holder: OpenAPI Initiative
+License text:     https://www.apache.org/licenses/LICENSE-2.0
+
+  documents/oai-api-with-examples.yaml
+      OAI, API with examples
+      source:    https://raw.githubusercontent.com/OAI/OpenAPI-Specification/main/_archive_/schemas/v3.0/pass/api-with-examples.yaml
+      retrieved: 2026-08-09
+      modified:  no
+
+  documents/oai-callback-example.yaml
+      OAI, callbacks
+      source:    https://raw.githubusercontent.com/OAI/OpenAPI-Specification/main/_archive_/schemas/v3.0/pass/callback-example.yaml
+      retrieved: 2026-08-09
+      modified:  no
+
+  documents/oai-link-example.yaml
+      OAI, links
+      source:    https://raw.githubusercontent.com/OAI/OpenAPI-Specification/main/_archive_/schemas/v3.0/pass/link-example.yaml
+      retrieved: 2026-08-09
+      modified:  no
+
+  documents/oai-petstore-expanded.yaml
+      OAI, petstore expanded
+      source:    https://raw.githubusercontent.com/OAI/OpenAPI-Specification/main/_archive_/schemas/v3.0/pass/petstore-expanded.yaml
+      retrieved: 2026-08-09
+      modified:  no
+
+  documents/oai-petstore.yaml
+      OAI, petstore
+      source:    https://raw.githubusercontent.com/OAI/OpenAPI-Specification/main/_archive_/schemas/v3.0/pass/petstore.yaml
+      retrieved: 2026-08-09
+      modified:  no
+
+  documents/oai-uspto.yaml
+      OAI, USPTO data set API
+      source:    https://raw.githubusercontent.com/OAI/OpenAPI-Specification/main/_archive_/schemas/v3.0/pass/uspto.yaml
+      retrieved: 2026-08-09
+      modified:  no
+
+Apache-2.0
+----------
+
+Copyright holder: The Kubernetes Authors
+License text:     https://www.apache.org/licenses/LICENSE-2.0
+
+  documents/kubernetes-apiextensions-v1.json
+      Kubernetes apiextensions v1, recursive schemas
+      source:    https://raw.githubusercontent.com/kubernetes/kubernetes/master/api/openapi-spec/v3/apis__apiextensions.k8s.io__v1_openapi.json
+      retrieved: 2026-08-09
+      modified:  no
+
+  documents/kubernetes-apps-v1.json
+      Kubernetes apps v1
+      source:    https://raw.githubusercontent.com/kubernetes/kubernetes/master/api/openapi-spec/v3/apis__apps__v1_openapi.json
+      retrieved: 2026-08-09
+      modified:  no
+
+CC-BY-4.0
+---------
+
+Copyright holder: OpenAPI Initiative
+License text:     https://creativecommons.org/licenses/by/4.0/
+
+  documents/oai-3.2-query-example.yaml
+      OAI 3.2, QUERY method
+      source:    https://raw.githubusercontent.com/OAI/learn.openapis.org/main/examples/v3.2/3.2-query-example.yaml
+      retrieved: 2026-08-09
+      modified:  no
+
+  documents/oai-3.2-tags-example.yaml
+      OAI 3.2, hierarchical tags
+      source:    https://raw.githubusercontent.com/OAI/learn.openapis.org/main/examples/v3.2/3.2-tags-example.yaml
+      retrieved: 2026-08-09
+      modified:  no
+
+  documents/oai-non-oauth-scopes.yaml
+      OAI 3.1, non oauth scopes
+      source:    https://raw.githubusercontent.com/OAI/learn.openapis.org/main/examples/v3.1/non-oauth-scopes.yaml
+      retrieved: 2026-08-09
+      modified:  no
+
+  documents/oai-tictactoe.yaml
+      OAI 3.1, tic tac toe
+      source:    https://raw.githubusercontent.com/OAI/learn.openapis.org/main/examples/v3.1/tictactoe.yaml
+      retrieved: 2026-08-09
+      modified:  no
+
+  documents/oai-webhook-example.yaml
+      OAI 3.1, webhooks
+      source:    https://raw.githubusercontent.com/OAI/learn.openapis.org/main/examples/v3.1/webhook-example.yaml
+      retrieved: 2026-08-09
+      modified:  no
+
+MIT
+---
+
+Copyright holder: Adyen N.V.
+License text:     https://opensource.org/license/mit
+
+  documents/adyen-checkout-v71.json
+      Adyen Checkout v71, discriminator and oneOf
+      source:    https://raw.githubusercontent.com/Adyen/adyen-openapi/main/json/CheckoutService-v71.json
+      retrieved: 2026-08-09
+      modified:  no
+
+MIT
+---
+
+Copyright holder: Stripe, Inc.
+License text:     https://opensource.org/license/mit
+
+  documents/stripe.yaml
+      Stripe API, the large document
+      source:    https://raw.githubusercontent.com/stripe/openapi/master/openapi/spec3.yaml
+      retrieved: 2026-08-09
+      modified:  no
+
+MIT
+---
+
+Copyright holder: Twilio Inc.
+License text:     https://opensource.org/license/mit
+
+  documents/twilio-api-v2010.yaml
+      Twilio API 2010-04-01
+      source:    https://raw.githubusercontent.com/twilio/twilio-oai/main/spec/yaml/twilio_api_v2010.yaml
+      retrieved: 2026-08-09
+      modified:  no

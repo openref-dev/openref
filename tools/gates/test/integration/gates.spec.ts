@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { LICENSE_ATTESTATIONS } from '../../src/config';
 import { buildManifestGate } from '../../src/gates/build-manifest.gate';
 import { dependencyGraphGate } from '../../src/gates/dependency-graph.gate';
+import { fixtureLicensesGate } from '../../src/gates/fixture-licenses.gate';
 import { licensesGate } from '../../src/gates/licenses.gate';
 import { detectLicenseFromText, hashLicenseText } from '../../src/lib/licenses';
 import { readWorkspaceManifests, resolveShippedPackages } from '../../src/lib/workspace';
@@ -139,6 +140,60 @@ describe('licensesGate', () => {
     expect(recorded?.sha256).toBe(actual);
     expect(detectLicenseFromText(readFileSync(path, 'utf8'))).toBe(recorded?.license);
   });
+});
+
+describe('fixtureLicensesGate', () => {
+  it('should pass on the committed corpus', async () => {
+    // Given
+    const context = { repoRoot };
+
+    // When
+    const result = await fixtureLicensesGate.run(context);
+
+    // Then
+    expect(result.findings.filter((finding) => finding.level === 'error')).toEqual([]);
+    expect(result.status).toBe('pass');
+  }, 120_000);
+
+  it('should attribute every corpus document in the NOTICE that sits beside it', () => {
+    // Given
+    const base = join(repoRoot, 'packages/core/test/corpus');
+    const manifest = JSON.parse(readFileSync(join(base, 'manifest.json'), 'utf8')) as {
+      documents: { file: string; copyrightHolder: string; license: string }[];
+    };
+    const notice = readFileSync(join(base, 'NOTICE'), 'utf8');
+
+    // When
+    const missing = manifest.documents.filter(
+      (document) =>
+        !notice.includes(document.file) ||
+        !notice.includes(document.copyrightHolder) ||
+        !notice.includes(document.license),
+    );
+
+    // Then
+    expect(missing.map((document) => document.file)).toEqual([]);
+  });
+
+  it('should cover 3.0, 3.1 and 3.2 with at least fifteen documents, per SPEC 21', () => {
+    // Given
+    const base = join(repoRoot, 'packages/core/test/corpus');
+    const manifest = JSON.parse(readFileSync(join(base, 'manifest.json'), 'utf8')) as {
+      documents: { file: string }[];
+    };
+
+    // When
+    const versions = new Set(
+      manifest.documents.map((document) => {
+        const text = readFileSync(join(base, 'documents', document.file), 'utf8');
+        return /openapi["']?\s*:\s*["']?(\d+\.\d+)/.exec(text)?.[1] ?? 'unknown';
+      }),
+    );
+
+    // Then
+    expect(manifest.documents.length).toBeGreaterThanOrEqual(15);
+    expect([...versions].sort()).toEqual(['3.0', '3.1', '3.2']);
+  }, 60_000);
 });
 
 describe('selectGates', () => {

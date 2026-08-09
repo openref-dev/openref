@@ -1,0 +1,191 @@
+{
+  "documents": [
+    {
+      "file": "oai-api-with-examples.yaml",
+      "title": "OAI, API with examples",
+      "sourceUrl": "https://raw.githubusercontent.com/OAI/OpenAPI-Specification/main/_archive_/schemas/v3.0/pass/api-with-examples.yaml",
+      "retrievedAt": "2026-08-09",
+      "license": "Apache-2.0",
+      "copyrightHolder": "OpenAPI Initiative",
+      "modified": false,
+      "bytes": 6444,
+      "sha256": "f7dc3d69f69ca11ae3e7e6ee702aff13fee3faca565033058d9fd073a15d9d45"
+    },
+    {
+      "file": "oai-callback-example.yaml",
+      "title": "OAI, callbacks",
+      "sourceUrl": "https://raw.githubusercontent.com/OAI/OpenAPI-Specification/main/_archive_/schemas/v3.0/pass/callback-example.yaml",
+      "retrievedAt": "2026-08-09",
+      "license": "Apache-2.0",
+      "copyrightHolder": "OpenAPI Initiative",
+      "modified": false,
+      "bytes": 2158,
+      "sha256": "42174fc75c21436e3ffd10960c483c4374469059f652c1fdc4542854233ab15d"
+    },
+    {
+      "file": "oai-link-example.yaml",
+      "title": "OAI, links",
+      "sourceUrl": "https://raw.githubusercontent.com/OAI/OpenAPI-Specification/main/_archive_/schemas/v3.0/pass/link-example.yaml",
+      "retrievedAt": "2026-08-09",
+      "license": "Apache-2.0",
+      "copyrightHolder": "OpenAPI Initiative",
+      "modified": false,
+      "bytes": 5280,
+      "sha256": "4b7b29d7bda1cf95f8c027500c86a9eb3761dfee42f1a8aeb095c5c0b5ccde3b"
+    },
+    {
+      "file": "oai-petstore.yaml",
+      "title": "OAI, petstore",
+      "sourceUrl": "https://raw.githubusercontent.com/OAI/OpenAPI-Specification/main/_archive_/schemas/v3.0/pass/petstore.yaml",
+      "retrievedAt": "2026-08-09",
+      "license": "Apache-2.0",
+      "copyrightHolder": "OpenAPI Initiative",
+      "modified": false,
+      "bytes": 2772,
+      "sha256": "598136cb904e17e8eeead51ae33dd8d401fdff455d2d74f3869c4aa5f2742266"
+    },
+    {
+      "file": "oai-petstore-expanded.yaml",
+      "title": "OAI, petstore expanded",
+      "sourceUrl": "https://raw.githubusercontent.com/OAI/OpenAPI-Specification/main/_archive_/schemas/v3.0/pass/petstore-expanded.yaml",
+      "retrievedAt": "2026-08-09",
+      "license": "Apache-2.0",
+      "copyrightHolder": "OpenAPI Initiative",
+      "modified": false,
+      "bytes": 5479,
+      "sha256": "b1633b6309c065c43d56be7c659b0f2c4be03be5a4013b7c3f74b32bd33f62eb"
+    },
+    {
+      "file": "oai-uspto.yaml",
+      "title": "OAI, USPTO data set API",
+      "sourceUrl": "https://raw.githubusercontent.com/OAI/OpenAPI-Specification/main/_archive_/schemas/v3.0/pass/uspto.yaml",
+      "retrievedAt": "2026-08-09",
+      "license": "Apache-2.0",
+      "copyrightHolder": "OpenAPI Initiative",
+      "modified": false,
+      "bytes": 7743,
+      "sha256": "8c171115aa448ea485aedbbe6f17448290aaeefd05d4f04c28edc175549cbc18"
+    },
+    {
+      "file": "oai-non-oauth-scopes.yaml",
+      "title": "OAI 3.1, non oauth scopes",
+      "sourceUrl": "https://raw.githubusercontent.com/OAI/learn.openapis.org/main/examples/v3.1/non-oauth-scopes.yaml",
+      "retrievedAt": "2026-08-09",
+      "license": "CC-BY-4.0",
+      "copyrightHolder": "OpenAPI Initiative",
+      "modified": false,
+      "bytes": 379,
+      "sha256": "f51b1e1e8abda7bfc790f6e9fbddf36c24353576d3bf7cd2e33e0670e965b177"
+    },
+    {
+      "file": "oai-tictactoe.yaml",
+      "title": "OAI 3.1, tic tac toe",
+      "sourceUrl": "https://raw.githubusercontent.com/OAI/learn.openapis.org/main/examples/v3.1/tictactoe.yaml",
+      "retrievedAt": "2026-08-09",
+      "license": "CC-BY-4.0",
+      "copyrightHolder": "OpenAPI Initiative",
+      "modified": false,
+      "bytes": 6753,
+      "sha256": "772a199c00079409660f84ef7746f3f5f6cb3250945732bedd3529ff913d85d3"
+    },
+    {
+      "file": "oai-webhook-example.yaml",
+      "title": "OAI 3.1, webhooks",
+      "sourceUrl": "https://raw.githubusercontent.com/OAI/learn.openapis.org/main/examples/v3.1/webhook-example.yaml",
+      "retrievedAt": "2026-08-09",
+      "license": "CC-BY-4.0",
+      "copyrightHolder": "OpenAPI Initiative",
+      "modified": false,
+      "bytes": 947,
+      "sha256": "1bf9c928e1d42d5ffd3d793dbc6b569bd47a97a4679ee5c85cd78091136ab2a4"
+    },
+    {
+      "file": "oai-3.2-query-example.yaml",
+      "title": "OAI 3.2, QUERY method",
+      "sourceUrl": "https://raw.githubusercontent.com/OAI/learn.openapis.org/main/examples/v3.2/3.2-query-example.yaml",
+      "retrievedAt": "2026-08-09",
+      "license": "CC-BY-4.0",
+      "copyrightHolder": "OpenAPI Initiative",
+      "modified": false,
+      "bytes": 2969,
+      "sha256": "b303415fb10b1db28d74a35ec584441eba269e62c916b90337841dc0e3525c42"
+    },
+    {
+      "file": "oai-3.2-tags-example.yaml",
+      "title": "OAI 3.2, hierarchical tags",
+      "sourceUrl": "https://raw.githubusercontent.com/OAI/learn.openapis.org/main/examples/v3.2/3.2-tags-example.yaml",
+      "retrievedAt": "2026-08-09",
+      "license": "CC-BY-4.0",
+      "copyrightHolder": "OpenAPI Initiative",
+      "modified": false,
+      "bytes": 1617,
+      "sha256": "8dcbcce8641c5fa11243faf3266daa2fcea7a2a5c2d919bf20fab8e3551b45de"
+    },
+    {
+      "file": "stripe.yaml",
+      "title": "Stripe API, the large document",
+      "sourceUrl": "https://raw.githubusercontent.com/stripe/openapi/master/openapi/spec3.yaml",
+      "retrievedAt": "2026-08-09",
+      "license": "MIT",
+      "copyrightHolder": "Stripe, Inc.",
+      "modified": false,
+      "bytes": 6364174,
+      "sha256": "707de00b0616e606fa4a388ce840ff6cb2dd0bafe7abb1c2cc6da8b6d8a2f76e"
+    },
+    {
+      "file": "box.json",
+      "title": "Box API, multipart uploads",
+      "sourceUrl": "https://raw.githubusercontent.com/box/box-openapi/main/openapi.json",
+      "retrievedAt": "2026-08-09",
+      "license": "Apache-2.0",
+      "copyrightHolder": "Box, Inc.",
+      "modified": false,
+      "bytes": 1766675,
+      "sha256": "e28c050c94e1eb45e0e21bab39a247389df888ff09f719dacaa9caec53caed50"
+    },
+    {
+      "file": "kubernetes-apiextensions-v1.json",
+      "title": "Kubernetes apiextensions v1, recursive schemas",
+      "sourceUrl": "https://raw.githubusercontent.com/kubernetes/kubernetes/master/api/openapi-spec/v3/apis__apiextensions.k8s.io__v1_openapi.json",
+      "retrievedAt": "2026-08-09",
+      "license": "Apache-2.0",
+      "copyrightHolder": "The Kubernetes Authors",
+      "modified": false,
+      "bytes": 182439,
+      "sha256": "41d85b9f6f2757d35b6645086d5bcadf4904a8f0133b00d77e2576b3feb47d56"
+    },
+    {
+      "file": "kubernetes-apps-v1.json",
+      "title": "Kubernetes apps v1",
+      "sourceUrl": "https://raw.githubusercontent.com/kubernetes/kubernetes/master/api/openapi-spec/v3/apis__apps__v1_openapi.json",
+      "retrievedAt": "2026-08-09",
+      "license": "Apache-2.0",
+      "copyrightHolder": "The Kubernetes Authors",
+      "modified": false,
+      "bytes": 934942,
+      "sha256": "e1326db2904fd6356d2f16e6179f8ad8e4800c0112cb74ab3b21da7286df4dbe"
+    },
+    {
+      "file": "twilio-api-v2010.yaml",
+      "title": "Twilio API 2010-04-01",
+      "sourceUrl": "https://raw.githubusercontent.com/twilio/twilio-oai/main/spec/yaml/twilio_api_v2010.yaml",
+      "retrievedAt": "2026-08-09",
+      "license": "MIT",
+      "copyrightHolder": "Twilio Inc.",
+      "modified": false,
+      "bytes": 1496453,
+      "sha256": "768720d76b47f1b75896c8fe092fac59b886bd3370278b27b6962b83cacae12e"
+    },
+    {
+      "file": "adyen-checkout-v71.json",
+      "title": "Adyen Checkout v71, discriminator and oneOf",
+      "sourceUrl": "https://raw.githubusercontent.com/Adyen/adyen-openapi/main/json/CheckoutService-v71.json",
+      "retrievedAt": "2026-08-09",
+      "license": "MIT",
+      "copyrightHolder": "Adyen N.V.",
+      "modified": false,
+      "bytes": 935759,
+      "sha256": "fd59f89f18d134f901d6d42b7aabad1c8afd4e2eb733823ba50944c034f1095a"
+    }
+  ]
+}
