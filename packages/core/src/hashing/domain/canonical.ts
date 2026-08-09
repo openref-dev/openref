@@ -155,12 +155,25 @@ function serialize(value: unknown, seen: Set<object>, path: string): string {
     }
 
     if (Array.isArray(container)) {
-      const items = (container as readonly unknown[]).map((item, index) => {
+      const source = container as readonly unknown[];
+      const items: string[] = [];
+
+      // Indexed rather than `map`, which skips holes instead of visiting them. A sparse array
+      // would otherwise reach `join` as a hole and render as nothing at all, producing
+      // `[1,,2]`, which is valid JavaScript and not valid JSON.
+      for (let index = 0; index < source.length; index += 1) {
+        if (!(index in source)) {
+          throw notSerializable('a hole in an array', `${path}[${String(index)}]`);
+        }
+
+        const item = source[index];
         if (item === undefined) {
           throw notSerializable('undefined inside an array', `${path}[${String(index)}]`);
         }
-        return serialize(item, seen, `${path}[${String(index)}]`);
-      });
+
+        items.push(serialize(item, seen, `${path}[${String(index)}]`));
+      }
+
       return `[${items.join(',')}]`;
     }
 

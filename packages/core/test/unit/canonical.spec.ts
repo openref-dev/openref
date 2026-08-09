@@ -360,3 +360,47 @@ describe('compareByCodePoint', () => {
     expect(result).toBe(0);
   });
 });
+
+describe('canonicalize sparse arrays', () => {
+  it('should refuse a hole rather than emit invalid JSON for it', () => {
+    // Given, a sparse array. `Array.prototype.map` skips holes instead of visiting them, so
+    // a hole used to reach `join` and render as nothing, producing `[1,,2]`. That is valid
+    // JavaScript and not valid JSON, which is the one thing this function must never produce.
+    const value = { lengths: [1, , 2] };
+
+    // When
+    const act = (): string => canonicalize(value);
+
+    // Then
+    expect(act).toThrow(NormalizeError);
+    expect(act).toThrow(/hole in an array/);
+  });
+
+  it('should report the path of the hole', () => {
+    // Given
+    const value = { outer: { lengths: [0, , 0] } };
+
+    // When
+    let context: Readonly<Record<string, unknown>> | undefined;
+    try {
+      canonicalize(value);
+    } catch (error) {
+      context = error instanceof NormalizeError ? error.context : undefined;
+    }
+
+    // Then
+    expect(context?.path).toBe('$.outer.lengths[1]');
+  });
+
+  it('should still accept a dense array holding a zero', () => {
+    // Given
+    const value = { lengths: [1, 0, 2] };
+
+    // When
+    const result = canonicalize(value);
+
+    // Then
+    expect(result).toBe('{"lengths":[1,0,2]}');
+    expect(() => JSON.parse(result) as unknown).not.toThrow();
+  });
+});
