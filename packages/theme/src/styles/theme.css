@@ -207,6 +207,45 @@
   text-decoration: line-through;
 }
 
+/*
+ * A group that can be opened is a button, so it needs the reset a button in a list needs: no
+ * chrome of its own, the width of the row, and the label and the count on one line.
+ */
+.oref-nav-item.oref-nav-toggle {
+  background: none;
+  border-block: 0;
+  border-inline-end: 0;
+  cursor: pointer;
+  display: flex;
+  font-family: inherit;
+  gap: var(--oref-space-300);
+  justify-content: space-between;
+  text-align: start;
+  width: 100%;
+}
+
+.oref-nav-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* What a closed group holds, which is the only thing that says it holds anything. */
+.oref-nav-count {
+  color: var(--oref-color-fg-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+ * Shown only when the rest of the navigation could not be fetched. It is a statement about the
+ * sidebar rather than a failure of the page, so it reads as muted text and not as an alarm.
+ */
+.oref-nav-error {
+  color: var(--oref-color-fg-muted);
+  font-size: var(--oref-font-size-200);
+  padding: var(--oref-space-300) var(--oref-space-400);
+}
+
 /* Content */
 
 .oref-content {

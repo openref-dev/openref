@@ -4,9 +4,10 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { createApp } from 'vue';
 import { createMarkdownRenderer } from '../../src/markdown/domain/markdown';
 import { NAV_MAX_ROWS } from '../../src/page/domain/nav-rows';
-import { buildPageModel, type PageModel } from '../../src/page/domain/page-model';
+import { buildNavigation, buildPageModel, type PageModel } from '../../src/page/domain/page-model';
 import { ReferenceApp } from '../../src/components/ReferenceApp';
 import { cyclicDocument, largeDocument, smallDocument } from '../mocks/documents';
+import type { IRDocument } from '@openref/core';
 
 /**
  * The reference UI as a reader uses it, per BUILD T012 and SPEC 11.
@@ -20,11 +21,25 @@ const markdown = await createMarkdownRenderer();
 
 let mounted: { unmount(): void } | null = null;
 
-function mount(page: PageModel): HTMLElement {
+/**
+ * Mounts a page, optionally with the rest of the navigation reachable.
+ *
+ * The loader stands in for the request the browser bundle makes to the page's own origin. It
+ * resolves from the document in hand rather than over a network, because what these tests are
+ * about is what the components do with the answer, and `packages/nest` proves the route that
+ * produces it.
+ */
+function mount(page: PageModel, document_?: IRDocument): HTMLElement {
   const host = document.createElement('div');
   document.body.append(host);
 
-  const app = createApp(ReferenceApp, { page, basePath: '' });
+  const app = createApp(ReferenceApp, {
+    page,
+    basePath: '',
+    ...(document_ === undefined
+      ? {}
+      : { loadNavigation: () => Promise.resolve(buildNavigation(document_)) }),
+  });
   app.mount(host);
   mounted = app;
 
@@ -239,15 +254,27 @@ describe('the virtualized sidebar', () => {
   });
 
   it('should move the window when the container is scrolled', async () => {
-    // Given
-    const page = buildPageModel(largeDocument(1000), { markdown });
+    // Given a page deep in the list, so the sidebar carries the whole of one group rather than
+    // the twenty one headers an overview carries, which is fewer rows than a chunk.
+    const document_ = largeDocument(1000);
+    const nodeId = [...document_.nodes.keys()][900] ?? '';
+    const page = buildPageModel(document_, { nodeId, markdown });
     const host = mount(page);
     const scroll = host.querySelector('.oref-nav-scroll')!;
-    const first = host.querySelector('.oref-nav-item')?.textContent ?? '';
 
-    // When
+    // WHICH CHUNKS ARE RENDERED IS WHAT THE WINDOW IS. Comparing the first visible row instead
+    // reports a moved window only when it moved far enough to change the row at the top, which
+    // depends on how many chunks the page happens to have.
+    const rendered = (): string[] =>
+      Array.from(host.querySelectorAll('.oref-nav-list.oref-nav-rendered')).map(
+        (list) => list.getAttribute('data-oref-chunk') ?? '',
+      );
+
+    const before = rendered();
+
+    // When the reader scrolls to the bottom
     Object.defineProperties(scroll, {
-      scrollTop: { value: 10_000, configurable: true },
+      scrollTop: { value: 20_000, configurable: true },
       scrollHeight: { value: 20_200, configurable: true },
       clientHeight: { value: 200, configurable: true },
     });
@@ -255,7 +282,7 @@ describe('the virtualized sidebar', () => {
     await Promise.resolve();
 
     // Then
-    expect(host.querySelector('.oref-nav-item')?.textContent).not.toBe(first);
+    expect(rendered()).not.toEqual(before);
   });
 
   it('should open the window on the entry the page is about', () => {
@@ -303,10 +330,11 @@ describe('the command palette', () => {
     // Given, the keyboard path BUILD T012 asks for, end to end and in one test, because each leg
     // of it working separately is not the same as the path working.
     const document_ = cyclicDocument();
-    const host = mount(buildPageModel(document_, { markdown }));
+    const host = mount(buildPageModel(document_, { markdown }), document_);
 
-    // When, the reader opens the palette and types.
+    // When, the reader opens the palette, which fetches the rest of the index, and types.
     press(document, 'k', { ctrlKey: true });
+    await Promise.resolve();
     await Promise.resolve();
 
     const input = host.querySelector<HTMLInputElement>('.oref-palette-input')!;

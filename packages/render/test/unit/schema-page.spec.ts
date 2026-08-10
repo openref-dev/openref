@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createMarkdownRenderer } from '../../src/markdown/domain/markdown';
 import { schemaHref, SCHEMA_SEGMENT } from '../../src/page/domain/links';
-import { buildPageModel } from '../../src/page/domain/page-model';
+import { buildNavigation, buildPageModel } from '../../src/page/domain/page-model';
 import { cyclicDocument, smallDocument } from '../mocks/documents';
 
 const markdown = await createMarkdownRenderer();
@@ -126,8 +126,7 @@ describe('buildPageModel, the schema payload of a node page', () => {
     const document = smallDocument();
 
     // When
-    const page = buildPageModel(document, { markdown });
-    const hints = page.navigation
+    const hints = buildNavigation(document)
       .flatMap((entry) => entry.children)
       .filter((entry) => entry.nodeId !== null)
       .map((entry) => entry.hint);

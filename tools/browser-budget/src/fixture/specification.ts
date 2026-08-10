@@ -20,6 +20,16 @@ import { repositoryRoot } from '../repo-root.js';
 /** Nodes SPEC 20 budgets TTI against. */
 export const TTI_NODE_COUNT = 1000;
 
+/**
+ * Nodes the security proofs run against.
+ *
+ * Small, because none of them is about size: a policy either authorizes an inline style or it
+ * does not, and a page of a thousand nodes proves that no better than a page of twelve while
+ * costing a minute of normalization in every run. The shape is the same generator, so a proof
+ * and a budget are still looking at the same kind of page.
+ */
+export const PROOF_NODE_COUNT = 12;
+
 /** The corpus document SPEC 20's memory figure is about, relative to the repository root. */
 export const MEMORY_DOCUMENT = 'packages/core/test/corpus/documents/stripe.yaml';
 

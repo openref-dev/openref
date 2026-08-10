@@ -16,12 +16,20 @@
  *
  * ARIA is the combobox pattern: the input owns the listbox, `aria-activedescendant` says which
  * option is current, and focus stays in the input while the arrows move the selection.
+ *
+ * OPENING IT IS WHAT FETCHES THE INDEX. Since T012-R2 a page carries the navigation it can
+ * draw and not the document's whole one, so searching needs the rest, and one keystroke deep is
+ * exactly the place a fetch is invisible. It is the same payload and the same store the sidebar
+ * uses, so opening a group first and the palette second costs one request between them. Until
+ * it arrives the palette searches what the page shipped, which is a short list rather than an
+ * empty one, and says that it is still loading.
  */
 
 import {
   computed,
   defineComponent,
   h,
+  inject,
   onBeforeUnmount,
   onMounted,
   ref,
@@ -31,6 +39,7 @@ import {
 import { nodeHref, schemaHref } from '../page/domain/links';
 import { flattenNavigation, type NavRow } from '../page/domain/nav-rows';
 import { searchNavigation } from '../page/domain/nav-search';
+import { NAVIGATION_KEY, type NavigationStore } from '../page/api/nav-context';
 import type { NavEntryModel } from '../page/domain/page-model';
 import { listenerHost, type KeyEvent, type QueryRoot } from '../shared/dom';
 
@@ -57,6 +66,7 @@ export const CommandPalette = defineComponent({
   },
 
   setup(props) {
+    const store = inject<NavigationStore | null>(NAVIGATION_KEY, null);
     const openState = ref(false);
     const query = ref('');
     const selected = ref(0);
@@ -64,15 +74,18 @@ export const CommandPalette = defineComponent({
     const listRef = ref<QueryRoot | null>(null);
 
     // Flattened once and only when the palette is first opened, because a closed palette should
-    // cost nothing on a page nobody searches from.
+    // cost nothing on a page nobody searches from. Every entry present is searched, whatever the
+    // sidebar has open: a reader typing a path is looking for it, not for what is on screen.
     const rows = computed<NavRow[]>(() =>
-      openState.value ? flattenNavigation(props.entries) : [],
+      openState.value ? flattenNavigation(store?.entries.value ?? props.entries) : [],
     );
     const hits = computed(() => searchNavigation(rows.value, query.value));
+    const partial = computed(() => store !== null && !store.complete.value);
 
     function open(): void {
       openState.value = true;
       selected.value = 0;
+      void store?.load();
     }
 
     function close(): void {
@@ -229,7 +242,11 @@ export const CommandPalette = defineComponent({
                     h(
                       'li',
                       { class: 'oref-palette-empty' },
-                      query.value.trim() === '' ? 'Type to search' : 'Nothing matches',
+                      query.value.trim() === ''
+                        ? 'Type to search'
+                        : partial.value
+                          ? 'Nothing matches what this page arrived with. The rest of the index is still loading.'
+                          : 'Nothing matches',
                     ),
                   ]
                 : hits.value.map((hit, index) => renderHit(hit.row, index)),

@@ -11,13 +11,15 @@
  * from a use site to travel with the page is shown by linking to it.
  */
 
-import { defineComponent, h, type PropType, type VNode } from 'vue';
+import { defineComponent, h, provide, type PropType, type VNode } from 'vue';
 import { CommandPalette } from './CommandPalette';
 import { MarkdownBlock } from './MarkdownBlock';
 import { NavigationTree } from './NavigationTree';
 import { NodePanel } from './NodePanel';
 import { SchemaPanel } from './SchemaPanel';
 import { overviewHref } from '../page/domain/links';
+import { createNavigationStore, NAVIGATION_KEY } from '../page/api/nav-context';
+import type { NavigationLoader } from '../page/domain/nav-source';
 import type { PageModel } from '../page/domain/page-model';
 
 /** Element the client mounts on, and the id the shell writes. */
@@ -74,9 +76,29 @@ export const ReferenceApp = defineComponent({
   props: {
     page: { type: Object as PropType<PageModel>, required: true },
     basePath: { type: String, default: '' },
+    /**
+     * How the rest of the navigation is fetched.
+     *
+     * ABSENT ON THE SERVER, ALWAYS. A server render must not fetch: it holds the whole
+     * document already, and a page that waited on a request to render would put a network
+     * round trip inside the two second prerender budget. The client supplies one in
+     * `hydrateReference`, and a page with none keeps the navigation it shipped with.
+     */
+    loadNavigation: { type: Function as PropType<NavigationLoader>, default: undefined },
   },
 
   setup(props) {
+    // Created once, for the life of this page, and handed to both components that ask about
+    // the navigation so that they share one copy and one fetch.
+    provide(
+      NAVIGATION_KEY,
+      createNavigationStore({
+        entries: props.page.navigation,
+        complete: props.page.navigationComplete,
+        ...(props.loadNavigation === undefined ? {} : { loader: props.loadNavigation }),
+      }),
+    );
+
     return (): VNode => {
       const page = props.page;
 

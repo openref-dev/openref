@@ -47,6 +47,17 @@ const HYDRATION_CEILING_MS = 1500;
 const MEMORY_CEILING_BYTES = 250 * 1024 * 1024;
 
 /**
+ * SPEC 20, the served document of the thousand node page, in raw bytes.
+ *
+ * RAW RATHER THAN GZIP, alone among the size budgets, and that is the whole point of it. The
+ * page this budget was written about was 191,975 raw bytes and 13,534 gzip: the navigation
+ * blob compressed to nothing, so every existing budget would have shrugged at it while the
+ * browser spent 143 ms of a 150 ms budget parsing it. What costs the reader here is bytes
+ * parsed, so bytes parsed is what is bounded.
+ */
+const DOCUMENT_CEILING_BYTES = 64 * 1024;
+
+/**
  * The largest document in the corpus, which is what SPEC 20's figure is about.
  *
  * `stripe.yaml` is 1.9 MB of source and 5.3 MB of IR, with 589 operations and 1440 schemas. A
@@ -138,6 +149,23 @@ describe('the cost of a page of a thousand nodes', () => {
     expect(document_.schemas.size).toBeGreaterThan(1000);
     expect(after - before).toBeLessThan(MEMORY_CEILING_BYTES);
   }, 300_000);
+
+  it('should serve a document the browser can parse inside the TTI budget', async () => {
+    // Given the page SPEC 20 writes both the TTI budget and this one about. They are one
+    // measurement in two places: this fails in every CI run and costs a second, and the browser
+    // study measures what it actually costs a reader.
+    const document_ = largeDocument(NODE_COUNT);
+    const nodeId = [...document_.nodes.keys()][500] ?? '';
+
+    // When
+    const page = await renderPage(document_, { nodeId, markdown });
+    const html = renderHtmlDocument(page, {
+      assets: { stylesheets: ['/s.css'], modules: ['/m.js'] },
+    });
+
+    // Then
+    expect(Buffer.byteLength(html, 'utf8')).toBeLessThan(DOCUMENT_CEILING_BYTES);
+  }, 120_000);
 
   it('should carry a page state whose schemas cannot outgrow the bound', () => {
     // Given, the one part of the state that grows with the document rather than with the page.

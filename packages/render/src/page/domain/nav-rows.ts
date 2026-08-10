@@ -18,7 +18,7 @@
  * in a test.
  */
 
-import type { NavEntryModel } from './page-model';
+import type { NavEntryModel } from './nav-entry';
 
 /** Rows per chunk. The theme reserves exactly this many row heights for a chunk it has not rendered. */
 export const NAV_CHUNK_ROWS = 20;
@@ -46,21 +46,38 @@ export interface NavRow {
   readonly hint: string;
   /** Depth in the original tree, from 1. Indentation is a data attribute the theme styles. */
   readonly level: number;
+  /** Children this entry has in the whole navigation, whether or not this page carries them. */
+  readonly childCount: number;
+  /** True when this row's children are rendered under it. */
+  readonly expanded: boolean;
 }
 
 /**
  * Flattens the navigation tree into the lines a reader scrolls through.
  *
- * @param entries - The navigation as the page model carries it
- * @returns Every entry, parents before children, with its depth
+ * WHAT IS OPEN IS THE DATA, NOT A DECISION TAKEN HERE. A page ships the children of the groups
+ * it means to show open and nothing under the rest, per `nav-payload.ts`, so with no set given
+ * the rows are exactly what arrived. Once the client has fetched the whole navigation it has
+ * children under every group, and the set is what it opened; passing the set the slice implies
+ * over the whole tree reproduces the server's rows exactly, which is what keeps the first
+ * client render identical to the markup it hydrates.
+ *
+ * @param entries - The navigation, whole or sliced
+ * @param expanded - Ids whose children are shown, or undefined for every child present
+ * @returns Every visible entry, parents before children, with its depth
  *
  * @example
- * flattenNavigation(page.navigation).length; // 2029 for stripe.yaml
+ * flattenNavigation(page.navigation).length; // 71 of 1022 on the thousand node document
  */
-export function flattenNavigation(entries: readonly NavEntryModel[]): NavRow[] {
+export function flattenNavigation(
+  entries: readonly NavEntryModel[],
+  expanded?: ReadonlySet<string>,
+): NavRow[] {
   const rows: NavRow[] = [];
 
   const walk = (entry: NavEntryModel, level: number): void => {
+    const open = entry.children.length > 0 && (expanded === undefined || expanded.has(entry.id));
+
     rows.push({
       id: entry.id,
       label: entry.label,
@@ -70,12 +87,40 @@ export function flattenNavigation(entries: readonly NavEntryModel[]): NavRow[] {
       deprecated: entry.deprecated,
       hint: entry.hint,
       level,
+      childCount: entry.childCount,
+      expanded: open,
     });
+
+    if (!open) return;
     for (const child of entry.children) walk(child, level + 1);
   };
 
   for (const entry of entries) walk(entry, 1);
   return rows;
+}
+
+/**
+ * The groups a slice arrived with open.
+ *
+ * A group whose children travelled with the page is a group the page renders open, so the
+ * shipped shape is the initial state rather than a second copy of it. Read once, before
+ * anything is fetched, because after the fetch every group has children and the shape no
+ * longer says which ones were open.
+ *
+ * @param entries - The navigation as the page model carries it
+ * @returns Ids of every entry that arrived with children
+ */
+export function expandedInSlice(entries: readonly NavEntryModel[]): Set<string> {
+  const open = new Set<string>();
+
+  const walk = (entry: NavEntryModel): void => {
+    if (entry.children.length === 0) return;
+    open.add(entry.id);
+    for (const child of entry.children) walk(child);
+  };
+
+  for (const entry of entries) walk(entry);
+  return open;
 }
 
 /** Rows in groups of {@link NAV_CHUNK_ROWS}, the last one short. */

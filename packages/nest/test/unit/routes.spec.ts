@@ -97,6 +97,7 @@ describe('referenceRoutes', () => {
       '/docs/openapi.yaml',
       '/docs/_assets/:asset',
       '/docs/_search-index',
+      '/docs/_navigation/:documentHash',
       '/docs/health',
       '/docs/schema/:schemaId',
       '/docs/:nodeId',

@@ -6,12 +6,18 @@
  * arrives already tokenized, which is what keeps SPEC 12's promise that the highlighter
  * never reaches the browser.
  *
- * Nothing here fetches anything. The state is in the document, per SPEC 19.4.
+ * NOTHING HERE FETCHES ANYTHING ON LOAD. The state is in the document, per SPEC 19.4. Since
+ * T012-R2 that state is the navigation this page can draw rather than the document's whole
+ * index, and the rest is fetched from the reader's own origin the first time a reader opens a
+ * closed group or the palette. The boundary is the one SPEC 14.4.1 draws: a page that was
+ * opened and not touched makes no request beyond loading itself.
  */
 
 import { RUNNER_KEY, type IRunnerPort } from '@openref/vue';
 import { createSSRApp } from 'vue';
 import { APP_ROOT_ID, ReferenceApp } from '../components/ReferenceApp';
+import { navigationHref } from '../page/domain/links';
+import { readNavigationPayload, type NavigationLoader } from '../page/domain/nav-source';
 import { STATE_ELEMENT_ID } from '../page/domain/shell';
 import type { PageModel } from '../page/domain/page-model';
 
@@ -30,6 +36,40 @@ export interface HydrateOptions {
    * so composition happens where both are visible, which is `@openref/nest` and the CLI.
    */
   readonly runner?: IRunnerPort;
+  /**
+   * How the rest of the navigation is fetched, for a host that serves it from elsewhere.
+   *
+   * The default asks this page's own origin at the path `links.ts` names, which is the route
+   * `@openref/nest` registers and the file a static build writes. A host that mounts the
+   * reference behind a rewrite supplies its own rather than being told to match a path.
+   */
+  readonly loadNavigation?: NavigationLoader;
+}
+
+/**
+ * The default loader: one request, to this page's own origin.
+ *
+ * SAME ORIGIN BY CONSTRUCTION, not by policy. The path is relative and is built from the
+ * document hash the page already carries, so there is nowhere for a host name to enter, and
+ * SPEC 19.4 holds whatever a host mounts the reference under.
+ *
+ * @param page - The page model, for the document hash
+ * @param basePath - Where the reference is mounted
+ * @returns A loader
+ */
+function fetchNavigation(page: PageModel, basePath: string): NavigationLoader {
+  return async () => {
+    const response = await fetch(navigationHref(page.documentHash, basePath), {
+      headers: { accept: 'application/json' },
+      credentials: 'same-origin',
+    });
+
+    if (!response.ok) {
+      throw new Error(`the navigation payload answered ${String(response.status)}`);
+    }
+
+    return readNavigationPayload(await response.json(), page.documentHash);
+  };
 }
 
 /**
@@ -72,7 +112,15 @@ export function hydrateReference(options: HydrateOptions = {}): boolean {
   const page = readPageState(root);
   if (page === null) return false;
 
-  const app = createSSRApp(ReferenceApp, { page, basePath: options.basePath ?? '' });
+  // THE PAGE'S OWN MOUNT POINT IS THE DEFAULT, not the root. A host that mounts the reference
+  // at `/docs` serves links under `/docs`, and a client that assumed the root would build every
+  // link it rendered, and every request it made, against a path that is not there.
+  const basePath = options.basePath ?? page.basePath;
+  const app = createSSRApp(ReferenceApp, {
+    page,
+    basePath,
+    loadNavigation: options.loadNavigation ?? fetchNavigation(page, basePath),
+  });
   if (options.runner !== undefined) app.provide(RUNNER_KEY, options.runner);
   app.mount(mount);
 

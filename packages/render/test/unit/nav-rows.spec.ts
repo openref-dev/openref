@@ -20,6 +20,7 @@ function entry(id: string, children: NavEntryModel[] = [], nodeId?: string): Nav
     schemaId: null,
     deprecated: false,
     hint: '',
+    childCount: children.length,
     children,
   };
 }

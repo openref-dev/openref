@@ -1,6 +1,6 @@
 import type { IRSchema, IRSchemaSlot } from '@openref/core';
 import { describe, expect, it } from 'vitest';
-import { buildPageModel, typeLabel } from '../../src/page/domain/page-model';
+import { buildNavigation, buildPageModel, typeLabel } from '../../src/page/domain/page-model';
 import { createMarkdownRenderer } from '../../src/markdown/domain/markdown';
 import { hostileDocument, smallDocument } from '../mocks/documents';
 
@@ -104,11 +104,39 @@ describe('buildPageModel', () => {
     const document = smallDocument();
 
     // When
-    const model = buildPageModel(document, { markdown });
+    const navigation = buildNavigation(document);
 
     // Then
-    const withChildren = model.navigation.filter((entry) => entry.children.length > 0);
+    const withChildren = navigation.filter((entry) => entry.children.length > 0);
     expect(withChildren.length).toBeGreaterThan(0);
+  });
+
+  it('should ship a closed group as a header with a count and no children', () => {
+    // Given a page about nothing in the navigation, so no group is open
+    const document = smallDocument();
+
+    // When
+    const model = buildPageModel(document, { markdown });
+
+    // Then, the count is what tells a closed group from an empty one
+    const groups = model.navigation.filter((entry) => entry.childCount > 0);
+    expect(groups.length).toBeGreaterThan(0);
+    expect(groups.every((entry) => entry.children.length === 0)).toBe(true);
+    expect(model.navigationComplete).toBe(false);
+    expect(model.navigationRows).toBeGreaterThan(model.navigation.length);
+  });
+
+  it('should open the groups that hold the page and no others', () => {
+    // Given an operation somewhere inside a group
+    const document = smallDocument();
+    const nodeId = [...document.nodes.keys()][0] ?? '';
+
+    // When
+    const model = buildPageModel(document, { markdown, nodeId });
+
+    // Then the entry the page is about is in what shipped
+    const shipped = model.navigation.flatMap((entry) => entry.children);
+    expect(shipped.some((entry) => entry.nodeId === nodeId)).toBe(true);
   });
 
   it('should build an operation with its method, path, parameters and responses', () => {

@@ -27,6 +27,7 @@ import {
   type IRDocument,
 } from '@openref/core';
 import {
+  buildNavigation,
   createMemoryRenderCache,
   createOpenRefHighlighter,
   plainHighlighter,
@@ -42,6 +43,7 @@ import { stringify as stringifyYaml } from 'yaml';
 import {
   assetHref,
   ASSET_PARAM,
+  NAVIGATION_PARAM,
   NODE_PARAM,
   SCHEMA_PARAM,
   type ReferenceRouteId,
@@ -96,6 +98,7 @@ export class ReferenceService {
   private specificationJson: string | null = null;
   private specificationYaml: string | null = null;
   private searchIndexJson: string | null = null;
+  private navigationJson: string | null = null;
 
   /** @param options - Document, mount point, assets and rendering choices */
   constructor(options: ReferenceServiceOptions) {
@@ -139,6 +142,8 @@ export class ReferenceService {
         return Promise.resolve(this.specification(request, 'yaml'));
       case 'search-index':
         return Promise.resolve(this.searchIndex(request));
+      case 'navigation':
+        return Promise.resolve(this.navigation(request));
       case 'health':
         return Promise.resolve(this.health());
       case 'asset':
@@ -257,6 +262,38 @@ export class ReferenceService {
         etag: tag,
       },
       body: this.searchIndexJson,
+    };
+  }
+
+  /**
+   * The whole navigation, which a page ships a slice of.
+   *
+   * ADDRESSED BY DOCUMENT HASH AND IMMUTABLE FOR A YEAR, like an asset and for the same
+   * reason: the bytes are a pure function of the name, so a changed document is a changed url
+   * and no cache anywhere can answer with a navigation that does not match the page holding
+   * it. A request for another hash is a 404 rather than the current navigation, because
+   * answering it would hand a reader whose page is stale a sidebar that disagrees with it.
+   *
+   * Serialized once. It is the largest thing this service returns, and it is the same bytes
+   * for every reader of a deployment.
+   *
+   * @param request - The request, for the hash it asks for
+   * @returns The payload, or a 404
+   */
+  private navigation(request: ReferenceRequest): ReferenceReply {
+    if (request.params[NAVIGATION_PARAM] !== this.document.hash) {
+      return notFoundReply('navigation');
+    }
+
+    this.navigationJson ??= canonicalize({
+      documentHash: this.document.hash,
+      navigation: buildNavigation(this.document),
+    });
+
+    return {
+      status: 200,
+      headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': IMMUTABLE },
+      body: this.navigationJson,
     };
   }
 

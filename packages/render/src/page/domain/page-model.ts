@@ -28,34 +28,16 @@ import {
   schemaDisplayName,
 } from '@openref/vue';
 import type { RunnerOperationView } from '@openref/vue';
+import type { NavEntryModel } from './nav-entry';
+import { sliceNavigation } from './nav-payload';
 import { buildSchemaPayload } from './schema-payload';
 import type { IMarkdownRenderer } from '../../markdown/domain/markdown';
 
 /** Version of the page model shape, part of the cache key. */
-export const PAGE_MODEL_VERSION = 2;
+export const PAGE_MODEL_VERSION = 3;
 
 /** Media types an example is generated for. */
 const JSON_MEDIA_TYPE = /^application\/(?:[\w.+-]+\+)?json$/i;
-
-/** One entry of the navigation tree, flattened to what a renderer needs. */
-export interface NavEntryModel {
-  readonly id: string;
-  readonly label: string;
-  readonly kind: string;
-  readonly nodeId: string | null;
-  readonly schemaId: string | null;
-  readonly deprecated: boolean;
-  /**
-   * The second line: `METHOD /path` for an operation, the address for a channel, empty for a
-   * group.
-   *
-   * It exists because the label is the operation's summary when it has one, and a reader
-   * searching for `/orders/{id}` would otherwise find nothing on a document whose authors
-   * wrote summaries. It is what the command palette matches on as well as shows.
-   */
-  readonly hint: string;
-  readonly children: readonly NavEntryModel[];
-}
 
 /** One parameter row. */
 export interface ParameterModel {
@@ -145,8 +127,26 @@ export interface PageModel {
   readonly title: string;
   readonly version: string;
   readonly descriptionHtml: string;
+  /**
+   * Where the reference is mounted, without a trailing slash.
+   *
+   * THE PAGE CARRIES ITS OWN MOUNT POINT because the client has to build the same links the
+   * server built and has no other way to know it. Before T012-R2 the omission was invisible:
+   * the server wrote every link and hydration kept them, so a client rendered link only
+   * appeared when a reader scrolled the sidebar far enough to bring an unrendered chunk in.
+   * The navigation fetch made it visible immediately, by asking the wrong origin path.
+   */
+  readonly basePath: string;
   readonly servers: readonly string[];
+  /**
+   * The navigation this page carries, which is a slice of the document's, per
+   * `nav-payload.ts`.
+   */
   readonly navigation: readonly NavEntryModel[];
+  /** True when `navigation` is the whole of it, so nothing is fetched and nothing is missing. */
+  readonly navigationComplete: boolean;
+  /** Rows in the whole navigation, so the sidebar can say what it is not showing. */
+  readonly navigationRows: number;
   readonly activeNodeId: string | null;
   /** Set on a schema page, so the navigation can mark the entry that is open. */
   readonly activeSchemaId: string | null;
@@ -172,6 +172,8 @@ export interface PageModelOptions {
   /** Named schema to show, for a schema page. Ignored when `nodeId` is set. */
   readonly schemaId?: string | null;
   readonly markdown: IMarkdownRenderer;
+  /** Where the reference is mounted, so the client can build the links the server built. */
+  readonly basePath?: string;
   /** Greatest serialized size of the schema payload. Defaults to the measured limit. */
   readonly schemaPayloadLimit?: number;
 }
@@ -218,8 +220,23 @@ function navEntry(document: IRDocument, node: IRNavNode): NavEntryModel {
     schemaId: node.schemaId ?? null,
     deprecated: node.deprecated ?? false,
     hint: navHint(document, node.nodeId),
+    childCount: node.children.length,
     children: node.children.map((child) => navEntry(document, child)),
   };
+}
+
+/**
+ * The whole navigation of a document, as the model carries it.
+ *
+ * Separate from `buildPageModel` because it is separately served: a page ships a slice of this
+ * and the rest arrives from `<mount>/_navigation/<hash>` when a reader opens a closed group or
+ * the palette. One function builds both, so the two can never describe different documents.
+ *
+ * @param document - The normalized document
+ * @returns Every navigation entry, in tree shape
+ */
+export function buildNavigation(document: IRDocument): NavEntryModel[] {
+  return document.navigation.map((entry) => navEntry(document, entry));
 }
 
 /**
@@ -422,6 +439,11 @@ export function buildPageModel(document: IRDocument, options: PageModelOptions):
         : [];
 
   const payload = buildSchemaPayload(document, slots, options.schemaPayloadLimit);
+  const navigation = sliceNavigation(
+    buildNavigation(document),
+    node === null ? null : node.id,
+    schema === null ? null : schema.id,
+  );
 
   return {
     pageModelVersion: PAGE_MODEL_VERSION,
@@ -430,8 +452,11 @@ export function buildPageModel(document: IRDocument, options: PageModelOptions):
     title: document.info.title,
     version: document.info.version,
     descriptionHtml: markdown.render(document.info.description),
+    basePath: options.basePath ?? '',
     servers: document.servers.map((server) => server.url),
-    navigation: document.navigation.map((entry) => navEntry(document, entry)),
+    navigation: navigation.entries,
+    navigationComplete: navigation.complete,
+    navigationRows: navigation.total,
     activeNodeId: node === null ? null : node.id,
     activeSchemaId: schema === null ? null : schema.id,
     node,
@@ -440,3 +465,5 @@ export function buildPageModel(document: IRDocument, options: PageModelOptions):
     truncatedSchemas: payload.truncated,
   };
 }
+
+export type { NavEntryModel };

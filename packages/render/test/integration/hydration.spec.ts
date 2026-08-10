@@ -124,7 +124,8 @@ describe('readPageState', () => {
     // The literal is deliberate rather than the exported constant: the version is part of the
     // render cache key, and a page model that grew a field without the version moving would be
     // served from a cache written by code that did not produce it. T013 added `run` and took it
-    // to 2.
-    expect(state?.pageModelVersion).toBe(2);
+    // to 2; T012-R2 made the navigation a slice and took it to 3, and that one had to move,
+    // because a cached page written before it carries an index of the whole document.
+    expect(state?.pageModelVersion).toBe(3);
   });
 });

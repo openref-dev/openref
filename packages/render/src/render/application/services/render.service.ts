@@ -134,7 +134,7 @@ export async function renderPage(
 
   const markdown = await markdownFor(options);
 
-  const model = buildPageModel(document, { nodeId, schemaId, markdown });
+  const model = buildPageModel(document, { nodeId, schemaId, markdown, basePath });
   const app = createSSRApp(ReferenceApp, { page: model, basePath });
   const appHtml = await renderToString(app);
 

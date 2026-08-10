@@ -58,22 +58,31 @@ describe('prerender budget', () => {
     expect(elapsed).toBeLessThan(BUDGET_MS / 10);
   });
 
-  it('should window the navigation in the markup while carrying all of it in the state', async () => {
-    // Given, this replaces an assertion that every entry was rendered. SPEC 11 puts about sixty
-    // rows in the document at once, which T012 implements, so rendering all 1000 is now the
-    // failure rather than the requirement. What must still hold is that nothing is LOST: the
-    // sidebar is windowed, not truncated, and the difference is visible in the state.
+  it('should window the navigation in the markup and ship only what it can draw', async () => {
+    // Given the two halves of the same rule, one measured in the markup and one in the state.
+    // SPEC 11 puts about sixty rows in the document at once, which T012 implements. T012-R2
+    // then measured what the state cost and found the whole index in it: 173 KB of a 192 KB
+    // page, of which the sidebar could show sixty rows. What must hold now is that the page
+    // carries what it draws, and that what it left out is counted rather than lost.
     const document = largeDocument(NODE_COUNT);
+    const nodeId = [...document.nodes.keys()][500] ?? '';
 
     // When
-    const page = await renderPage(document);
+    const page = await renderPage(document, { nodeId });
     const state = JSON.parse(page.stateJson) as PageModel;
+    const rows = flattenNavigation(state.navigation);
 
     // Then
     const links = page.appHtml.match(/<a class="oref-nav-item/g) ?? [];
     expect(links.length).toBeLessThanOrEqual(NAV_MAX_ROWS);
-    expect(flattenNavigation(state.navigation).filter((row) => row.nodeId !== null)).toHaveLength(
-      NODE_COUNT,
-    );
+
+    // The slice is one group and the headers of the rest, which is two orders of magnitude
+    // under the document and is the entry the reader is on plus its neighbours.
+    expect(rows.length).toBeLessThan(NODE_COUNT / 4);
+    expect(rows.some((row) => row.nodeId === nodeId)).toBe(true);
+
+    // And what is missing is stated rather than implied.
+    expect(state.navigationComplete).toBe(false);
+    expect(state.navigationRows).toBeGreaterThan(NODE_COUNT);
   });
 });

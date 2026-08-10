@@ -156,11 +156,12 @@ describe('renderPage', () => {
   });
 
   it('should build links against the mount point it was given', async () => {
-    // Given
+    // Given a node page, because an overview opens no group and so renders no operation link
     const document = smallDocument();
+    const nodeId = [...document.nodes.keys()][0] ?? '';
 
     // When
-    const page = await renderPage(document, { basePath: '/docs' });
+    const page = await renderPage(document, { basePath: '/docs', nodeId });
 
     // Then
     expect(page.appHtml).toContain('href="/docs/');

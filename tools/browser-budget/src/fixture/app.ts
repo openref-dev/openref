@@ -20,14 +20,41 @@
 import { randomBytes } from 'node:crypto';
 import express from 'express';
 import { OpenRefModule } from '@openref/nest';
-import { largeSpecification, memorySpecification, TTI_NODE_COUNT } from './specification.js';
+import {
+  largeSpecification,
+  memorySpecification,
+  PROOF_NODE_COUNT,
+  TTI_NODE_COUNT,
+} from './specification.js';
 import type { Request, Response } from 'express';
 
-/** Which document a boot serves. */
-export type FixtureDocument = 'large' | 'memory';
+/**
+ * Which document a boot serves.
+ *
+ * `proof` is the third and it is not a budget document. The security proofs need a page, not a
+ * thousand nodes, and booting the budget fixture for them would spend a minute of every run
+ * normalizing a document whose size none of them is about.
+ */
+export type FixtureDocument = 'large' | 'memory' | 'proof';
 
 /** Where the fixture mounts the reference. */
 export const FIXTURE_BASE_PATH = '/docs';
+
+/** How one boot is varied. */
+export interface FixtureOptions {
+  /**
+   * Whether the responses carry the strict policy of SPEC 19.2.
+   *
+   * ON EVERYWHERE EXCEPT IN ONE PROOF, and that proof is the reason the switch exists. The
+   * network isolation claim is that the page fetches nothing outside its origin; proving that
+   * check can fail means planting a request that goes outside the origin and seeing it
+   * recorded, and under this policy the browser blocks such a request before it is made. A
+   * plant that never reaches the network would leave the interception looking watchful while
+   * observing nothing. So the plant is seen once with the policy off, which proves the eye
+   * works, and once with it on, which proves the policy stops what the eye can see.
+   */
+  readonly policy?: boolean;
+}
 
 /**
  * The policy every response carries.
@@ -58,12 +85,28 @@ export function contentSecurityPolicy(nonce: string): string {
 }
 
 /**
+ * The specification one document name stands for.
+ *
+ * @param document - Which document to serve
+ * @returns The specification, as a host would hand it to `setup`
+ */
+function specificationFor(document: FixtureDocument): Record<string, unknown> | string {
+  if (document === 'memory') return memorySpecification();
+
+  return largeSpecification(document === 'large' ? TTI_NODE_COUNT : PROOF_NODE_COUNT);
+}
+
+/**
  * Builds the express application serving one document.
  *
- * @param document - Which of the two SPEC 20 documents to serve
+ * @param document - Which document to serve
+ * @param options - Whether the strict policy is sent
  * @returns The application, not yet listening
  */
-export function createFixture(document: FixtureDocument): express.Express {
+export function createFixture(
+  document: FixtureDocument,
+  options: FixtureOptions = {},
+): express.Express {
   const app = express();
 
   // A NONCE PER RESPONSE, AND A REAL ONE. A fixed nonce would authorize a script written once
@@ -72,7 +115,9 @@ export function createFixture(document: FixtureDocument): express.Express {
   app.use((_request: Request, response: Response, next: () => void) => {
     const nonce = randomBytes(16).toString('base64');
     response.locals.cspNonce = nonce;
-    response.setHeader('Content-Security-Policy', contentSecurityPolicy(nonce));
+    if (options.policy !== false) {
+      response.setHeader('Content-Security-Policy', contentSecurityPolicy(nonce));
+    }
     next();
   });
 
@@ -85,9 +130,7 @@ export function createFixture(document: FixtureDocument): express.Express {
           app.get(path, handler),
       }),
     },
-    {
-      document: document === 'large' ? largeSpecification(TTI_NODE_COUNT) : memorySpecification(),
-    },
+    { document: specificationFor(document) },
   );
 
   return app;

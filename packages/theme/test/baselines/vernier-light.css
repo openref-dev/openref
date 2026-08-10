@@ -149,6 +149,36 @@
   text-decoration: line-through;
 }
 
+.oref-nav-item.oref-nav-toggle {
+  background: none;
+  border-block: 0;
+  border-inline-end: 0;
+  cursor: pointer;
+  display: flex;
+  font-family: inherit;
+  gap: 6px;
+  justify-content: space-between;
+  text-align: start;
+  width: 100%;
+}
+
+.oref-nav-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.oref-nav-count {
+  color: #5f6e7a;
+  font-variant-numeric: tabular-nums;
+}
+
+.oref-nav-error {
+  color: #5f6e7a;
+  font-size: 12px;
+  padding: 6px 10px;
+}
+
 .oref-content {
   background: #eef1f4;
   grid-column: 3;

@@ -26,6 +26,15 @@ export const ASSET_SEGMENT = '_assets';
 /** Segment serving the serialized search index. */
 export const SEARCH_INDEX_SEGMENT = '_search-index';
 
+/**
+ * Segment serving the whole navigation, addressed by document hash.
+ *
+ * It mirrors `navigationHref` in `@openref/render`, which is what the page fetches, for the
+ * same reason every other route here mirrors `links.ts`: two spellings of one path is a broken
+ * link that neither side's tests would see. `routes.spec.ts` compares the two.
+ */
+export const NAVIGATION_SEGMENT = '_navigation';
+
 /** Segment serving the health report. */
 export const HEALTH_SEGMENT = 'health';
 
@@ -38,6 +47,9 @@ export const NODE_PARAM = 'nodeId';
 /** Name of the parameter carrying a schema id. */
 export const SCHEMA_PARAM = 'schemaId';
 
+/** Name of the parameter carrying the document hash a navigation payload is asked for by. */
+export const NAVIGATION_PARAM = 'documentHash';
+
 /** What a route answers with. */
 export type ReferenceRouteId =
   | 'overview'
@@ -45,6 +57,7 @@ export type ReferenceRouteId =
   | 'openapi-yaml'
   | 'asset'
   | 'search-index'
+  | 'navigation'
   | 'health'
   | 'schema'
   | 'node';
@@ -109,6 +122,7 @@ export function referenceRoutes(basePath: string): readonly ReferenceRoute[] {
     { id: 'openapi-yaml', pattern: at('/openapi.yaml') },
     { id: 'asset', pattern: at(`/${ASSET_SEGMENT}/:${ASSET_PARAM}`) },
     { id: 'search-index', pattern: at(`/${SEARCH_INDEX_SEGMENT}`) },
+    { id: 'navigation', pattern: at(`/${NAVIGATION_SEGMENT}/:${NAVIGATION_PARAM}`) },
     { id: 'health', pattern: at(`/${HEALTH_SEGMENT}`) },
     { id: 'schema', pattern: at(`/schema/:${SCHEMA_PARAM}`) },
     { id: 'node', pattern: at(`/:${NODE_PARAM}`) },

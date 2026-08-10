@@ -10,12 +10,14 @@ import { spawn, type ChildProcessByStdio } from 'node:child_process';
 import { join } from 'node:path';
 import { repositoryRoot } from '../repo-root.js';
 import type { Readable } from 'node:stream';
-import type { FixtureDocument } from './app.js';
+import type { FixtureDocument, FixtureOptions } from './app.js';
 
 /** A booted fixture. */
 export interface BootedFixture {
   readonly url: string;
   readonly document: FixtureDocument;
+  /** Whether this boot sends the strict policy. */
+  readonly policy: boolean;
   stop(): Promise<void>;
 }
 
@@ -25,17 +27,22 @@ export const FIXTURE_ENTRY = 'tools/browser-budget/dist/fixture/serve.js';
 /**
  * Boots the fixture on a free port.
  *
- * @param document - Which of the two SPEC 20 documents to serve
+ * @param document - Which document to serve
+ * @param options - Whether the strict policy is sent
  * @returns Its url and a way to stop it
  * @throws Error when it fails to report a url, carrying whatever it printed instead
  */
-export async function bootFixture(document: FixtureDocument): Promise<BootedFixture> {
+export async function bootFixture(
+  document: FixtureDocument,
+  options: FixtureOptions = {},
+): Promise<BootedFixture> {
   const root = repositoryRoot();
   const entry = join(root, FIXTURE_ENTRY);
+  const policy = options.policy !== false;
 
   const child: ChildProcessByStdio<null, Readable, Readable> = spawn(
     process.execPath,
-    [entry, `--document=${document}`, '--port=0'],
+    [entry, `--document=${document}`, '--port=0', `--policy=${policy ? 'on' : 'off'}`],
     { cwd: root, stdio: ['ignore', 'pipe', 'pipe'] },
   );
 
@@ -79,6 +86,7 @@ export async function bootFixture(document: FixtureDocument): Promise<BootedFixt
   return {
     url,
     document,
+    policy,
     stop: () =>
       new Promise<void>((resolve) => {
         child.on('exit', () => {

@@ -61,6 +61,8 @@ export interface PageMeasurement {
   readonly heapSamples: number;
   readonly requests: readonly RequestRecord[];
   readonly cspViolations: readonly CspViolationRecord[];
+  /** For each global `MeasureOptions.globals` named, whether the page set it. */
+  readonly globals: Readonly<Record<string, boolean>>;
   /** Absent when the navigation ran unthrottled. */
   readonly throttle?: ThrottleVerification;
 }
@@ -88,6 +90,14 @@ export interface MeasureOptions {
   readonly transformHtml?: (html: string) => string;
   /** How long the main thread must stay quiet before the page is called settled. */
   readonly quietMs?: number;
+  /**
+   * Globals to read back after the load, reported as set or not set.
+   *
+   * It exists for one claim a violation report cannot make on its own: that a block the browser
+   * reported was a block the browser performed. A planted inline script writes a global, and a
+   * violation beside a global that is set would mean the report was about nothing.
+   */
+  readonly globals?: readonly string[];
 }
 
 /** What the page collects for itself, read back after the load. */
@@ -281,6 +291,14 @@ export async function measurePage(
       throw new Error(`no navigation timing entry for ${options.url}`);
     }
 
+    const globals: Record<string, boolean> = {};
+    for (const name of options.globals ?? []) {
+      globals[name] = await page.evaluate(
+        (key: string) => (globalThis as unknown as Record<string, unknown>)[key] !== undefined,
+        name,
+      );
+    }
+
     if (heapSampleMs > 0 && timings.heapSamples.length === 0) {
       throw new Error(
         'the heap sampler produced nothing, so peak client memory would report zero. ' +
@@ -308,6 +326,7 @@ export async function measurePage(
       peakHeapBytes: timings.heapSamples.reduce((peak, sample) => Math.max(peak, sample), 0),
       heapSamples: timings.heapSamples.length,
       requests,
+      globals,
       cspViolations: [
         ...timings.violations.map((violation) => ({ ...violation, source: 'event' as const })),
         ...consoleViolations,

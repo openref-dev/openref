@@ -18,21 +18,29 @@
  * The window opens on the chunk holding the page's own entry, so a reader arriving at an
  * operation sees it in the sidebar rather than at the top of a list of two thousand.
  *
+ * A GROUP THE PAGE DID NOT SHIP OPENS BY FETCHING. Since T012-R2 a page carries the navigation
+ * it can draw rather than the document's whole index, per `nav-payload.ts`, so a closed group
+ * is a header with a count and no children. Opening one asks the store for the rest, once, and
+ * a fetch that fails leaves the group closed and says so rather than showing an empty group,
+ * which is what "no children" would otherwise look like.
+ *
  * Class names come from the vocabulary the default theme already declares, so that the markup
  * this package emits and the stylesheet that package ships agree without either one importing
  * the other.
  */
 
-import { computed, defineComponent, h, ref, type PropType, type VNode } from 'vue';
+import { computed, defineComponent, h, inject, ref, type PropType, type VNode } from 'vue';
 import { nodeHref, schemaHref } from '../page/domain/links';
 import {
   chunkAt,
   chunkOfActive,
   chunkRows,
   chunkWindow,
+  expandedInSlice,
   flattenNavigation,
   type NavRow,
 } from '../page/domain/nav-rows';
+import { NAVIGATION_KEY, type NavigationStore } from '../page/api/nav-context';
 import type { NavEntryModel } from '../page/domain/page-model';
 
 /** What this component needs from a scroll event target, and nothing else. */
@@ -76,12 +84,35 @@ export const NavigationTree = defineComponent({
   },
 
   setup(props) {
-    const rows = computed(() => flattenNavigation(props.entries));
+    const store = inject<NavigationStore | null>(NAVIGATION_KEY, null);
+
+    // WHAT IS OPEN IS READ OFF THE SLICE, ONCE. The page ships the children of the groups it
+    // renders open, so the first client render reproduces the server's rows from the same
+    // data. Reading it later, after a fetch has filled every group, would open the document
+    // entire and the markup would stop matching what it is hydrating.
+    const expanded = ref(expandedInSlice(props.entries));
+
+    const entries = computed(() => store?.entries.value ?? props.entries);
+    const rows = computed(() => flattenNavigation(entries.value, expanded.value));
     const chunks = computed(() => chunkRows(rows.value));
 
     // Where the window starts is a pure function of the page, so the server and the first client
     // render agree without anything being carried between them.
     const current = ref(chunkOfActive(rows.value, props.activeNodeId, props.activeSchemaId));
+
+    async function toggle(row: NavRow): Promise<void> {
+      if (expanded.value.has(row.id)) {
+        const next = new Set(expanded.value);
+        next.delete(row.id);
+        expanded.value = next;
+        return;
+      }
+
+      // Only a fetch can open a group whose children never travelled with the page.
+      if (store !== null && !store.complete.value && !(await store.load())) return;
+
+      expanded.value = new Set(expanded.value).add(row.id);
+    }
 
     const visible = computed(() => new Set(chunkWindow(current.value, chunks.value.length)));
 
@@ -105,6 +136,33 @@ export const NavigationTree = defineComponent({
             ? schemaHref(row.schemaId, props.basePath)
             : null;
 
+      // A GROUP IS A BUTTON, AND A GROUP WITH NOTHING IN IT IS NOT. `childCount` is what the
+      // document has rather than what this page carries, so a closed group offers to open and
+      // an empty one, which `children` alone cannot tell it from, does not.
+      if (href === null && row.childCount > 0) {
+        return h(
+          'li',
+          { class: 'oref-nav-entry', key: row.id, 'data-oref-level': Math.min(row.level, 6) },
+          [
+            h(
+              'button',
+              {
+                class: [...rowClasses(row, false), 'oref-nav-toggle'],
+                type: 'button',
+                'aria-expanded': row.expanded ? 'true' : 'false',
+                onClick: () => {
+                  void toggle(row);
+                },
+              },
+              [
+                h('span', { class: 'oref-nav-label' }, row.label),
+                h('span', { class: 'oref-nav-count' }, String(row.childCount)),
+              ],
+            ),
+          ],
+        );
+      }
+
       const label =
         href === null
           ? h('span', { class: rowClasses(row, false) }, row.label)
@@ -126,10 +184,8 @@ export const NavigationTree = defineComponent({
     }
 
     return (): VNode =>
-      h(
-        'div',
-        { class: 'oref-nav-scroll', onScroll },
-        chunks.value.map((chunk, index) =>
+      h('div', { class: 'oref-nav-scroll', onScroll }, [
+        ...chunks.value.map((chunk, index) =>
           h(
             'ul',
             {
@@ -140,6 +196,15 @@ export const NavigationTree = defineComponent({
             visible.value.has(index) ? chunk.map(renderRow) : [],
           ),
         ),
-      );
+        // Rendered only after a failure, so it is absent from the server's markup and from the
+        // first client render, and hydration has nothing to disagree about.
+        store?.failed.value === true
+          ? h(
+              'p',
+              { class: 'oref-nav-error', role: 'status' },
+              'The rest of the navigation could not be loaded. This page still lists what it arrived with.',
+            )
+          : null,
+      ]);
   },
 });

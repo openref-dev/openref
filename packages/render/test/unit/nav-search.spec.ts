@@ -11,6 +11,7 @@ function entry(overrides: Partial<NavEntryModel> & { id: string }): NavEntryMode
     schemaId: null,
     deprecated: false,
     hint: '',
+    childCount: overrides.children?.length ?? 0,
     children: [],
     ...overrides,
   };

@@ -59,10 +59,15 @@ export {
 } from './cache/infrastructure/adapters/memory-render-cache.adapter';
 export type { MemoryRenderCacheOptions } from './cache/infrastructure/adapters/memory-render-cache.adapter';
 
-export { buildPageModel, PAGE_MODEL_VERSION, typeLabel } from './page/domain/page-model';
+export {
+  buildNavigation,
+  buildPageModel,
+  PAGE_MODEL_VERSION,
+  typeLabel,
+} from './page/domain/page-model';
+export type { NavEntryModel } from './page/domain/nav-entry';
 export type {
   MediaTypeModel,
-  NavEntryModel,
   NodeModel,
   PageModel,
   PageModelOptions,
@@ -82,15 +87,24 @@ export {
   chunkOfActive,
   chunkRows,
   chunkWindow,
+  expandedInSlice,
   flattenNavigation,
   NAV_CHUNK_ROWS,
   NAV_CHUNK_WINDOW,
   NAV_MAX_ROWS,
 } from './page/domain/nav-rows';
+export { ancestorsOfActive, sliceNavigation } from './page/domain/nav-payload';
+export type { NavigationSlice } from './page/domain/nav-payload';
+export { readNavigationPayload } from './page/domain/nav-source';
+export type { NavigationLoader, NavigationPayload } from './page/domain/nav-source';
+export { createNavigationStore, NAVIGATION_KEY } from './page/api/nav-context';
+export type { NavigationStore, NavigationStoreOptions } from './page/api/nav-context';
 export type { NavRow, ScrollPosition } from './page/domain/nav-rows';
 export { NAV_HIT_LIMIT, searchNavigation } from './page/domain/nav-search';
 export type { NavHit } from './page/domain/nav-search';
 export {
+  navigationHref,
+  NAVIGATION_SEGMENT,
   nodeHref,
   OVERVIEW_PATH,
   overviewHref,

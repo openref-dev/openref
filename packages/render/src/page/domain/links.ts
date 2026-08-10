@@ -34,6 +34,25 @@ export function overviewHref(basePath = ''): string {
   return basePath === '' ? OVERVIEW_PATH : basePath;
 }
 
+/** Segment under which the whole navigation is served, per page slice of it. */
+export const NAVIGATION_SEGMENT = '_navigation';
+
+/**
+ * Where the rest of the navigation is fetched from.
+ *
+ * ADDRESSED BY DOCUMENT HASH, so the response is immutable and a reader who has it never asks
+ * again, and so a deployment that changes the document changes the url rather than serving a
+ * navigation that does not match the page holding it. The hash is already in the page, as
+ * `PageModel.documentHash`, so nothing has to be threaded through to build this.
+ *
+ * @param documentHash - `IRDocument.hash`
+ * @param basePath - Where the reference is mounted, without a trailing slash
+ * @returns Absolute path of the navigation payload
+ */
+export function navigationHref(documentHash: string, basePath = ''): string {
+  return `${basePath}/${NAVIGATION_SEGMENT}/${encodeURIComponent(documentHash)}`;
+}
+
 /** Segment that separates a schema page from a node page, so the two id spaces cannot collide. */
 export const SCHEMA_SEGMENT = 'schema';
 
