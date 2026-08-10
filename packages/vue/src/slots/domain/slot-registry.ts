@@ -51,7 +51,7 @@ function assertSlotName(name: string): asserts name is SlotName {
  * @throws {SlotNotFoundError} When an override names something that is not a slot
  *
  * @example
- * const registry = createSlotRegistry({ 'operation.header': MyHeader });
+ * const registry = createSlotRegistry({ OperationHeader: MyHeader });
  */
 export function createSlotRegistry(
   overrides: Readonly<Record<string, Component>> = {},

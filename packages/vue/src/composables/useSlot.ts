@@ -19,7 +19,7 @@ import type { SlotName } from '../slots/domain/slot-props.types';
  * @throws {ThemeContractError} When no state was provided above
  *
  * @example
- * const header = useSlot('operation.header', DefaultOperationHeader);
+ * const header = useSlot('OperationHeader', DefaultOperationHeader);
  * return () => h(header.value, { operation });
  */
 export function useSlot(name: SlotName, fallback: Component): ComputedRef<Component> {

@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { createDocState, useSlot } from '../../src/index';
 import { simpleDocument } from '../mocks/documents';
 import { renderWithDocState, withDocState } from '../mocks/render';
-import { CustomFooter, SlottedTree } from '../mocks/slotted-tree';
+import { CustomNotice, SlottedTree } from '../mocks/slotted-tree';
 
 /**
  * L1 theming, per SPEC 10.1 and BUILD T009: a consumer replaces one registered slot with their
@@ -37,7 +37,7 @@ describe('overriding one slot', () => {
       createDocState({
         document,
         activeNodeId: 'get-orders',
-        theme: { name: 'consumer', components: { footer: CustomFooter } },
+        theme: { name: 'consumer', components: { StateNotice: CustomNotice } },
       }),
       SlottedTree,
     );
@@ -48,7 +48,7 @@ describe('overriding one slot', () => {
     expect([...right.keys()]).toEqual([...left.keys()]);
 
     for (const name of left.keys()) {
-      if (name === 'footer') continue;
+      if (name === 'StateNotice') continue;
       expect(right.get(name)).toBe(left.get(name));
     }
   });
@@ -66,13 +66,13 @@ describe('overriding one slot', () => {
       createDocState({
         document,
         activeNodeId: 'get-orders',
-        theme: { name: 'consumer', components: { footer: CustomFooter } },
+        theme: { name: 'consumer', components: { StateNotice: CustomNotice } },
       }),
       SlottedTree,
     );
 
     // Then
-    expect(regions(before).get('footer')).not.toBe(regions(after).get('footer'));
+    expect(regions(before).get('StateNotice')).not.toBe(regions(after).get('StateNotice'));
     expect(after).toContain('oref-custom');
     expect(before).not.toContain('oref-custom');
   });
@@ -98,7 +98,7 @@ describe('useSlot', () => {
     const state = createDocState({ document: simpleDocument() });
 
     // When
-    const resolved = await withDocState(state, () => useSlot('sidebar', Fallback));
+    const resolved = await withDocState(state, () => useSlot('NavTree', Fallback));
 
     // Then
     expect(resolved.value).toBe(Fallback);
@@ -110,11 +110,11 @@ describe('useSlot', () => {
     const Override = defineComponent({ name: 'Override', setup: () => () => h('em') });
     const state = createDocState({
       document: simpleDocument(),
-      theme: { name: 'consumer', components: { sidebar: Override } },
+      theme: { name: 'consumer', components: { NavTree: Override } },
     });
 
     // When
-    const resolved = await withDocState(state, () => useSlot('sidebar', Fallback));
+    const resolved = await withDocState(state, () => useSlot('NavTree', Fallback));
 
     // Then
     expect(resolved.value).toBe(Override);
@@ -125,7 +125,7 @@ describe('useSlot', () => {
     const Fallback = defineComponent({ name: 'Fallback', setup: () => () => h('span') });
     const Override = defineComponent({ name: 'Override', setup: () => () => h('em') });
     const state = createDocState({ document: simpleDocument() });
-    const resolved = await withDocState(state, () => useSlot('sidebar', Fallback));
+    const resolved = await withDocState(state, () => useSlot('NavTree', Fallback));
 
     // When
     state.theme.value = {
@@ -134,7 +134,7 @@ describe('useSlot', () => {
       tokens: {},
       assets: {},
     };
-    state.theme.value.slots.register('sidebar', Override);
+    state.theme.value.slots.register('NavTree', Override);
 
     // Then
     expect(resolved.value).toBe(Override);
@@ -147,7 +147,7 @@ describe('useSlot', () => {
 
     // When
     const build = async (): Promise<unknown> =>
-      withDocState(state, () => useSlot('sidebar.entries' as never, Fallback).value);
+      withDocState(state, () => useSlot('NavTreeItem' as never, Fallback).value);
 
     // Then
     await expect(build()).rejects.toBeInstanceOf(SlotNotFoundError);

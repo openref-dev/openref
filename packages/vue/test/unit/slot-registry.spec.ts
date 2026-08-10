@@ -9,31 +9,31 @@ const Other = defineComponent({ name: 'Other', setup: () => () => h('em') });
 describe('createSlotRegistry', () => {
   it('should hold only the overrides a theme supplied', () => {
     // Given
-    const registry = createSlotRegistry({ 'operation.header': Stub });
+    const registry = createSlotRegistry({ OperationHeader: Stub });
 
     // When
     const overridden = registry.overridden();
 
     // Then
-    expect(overridden).toEqual(['operation.header']);
-    expect(registry.resolve('operation.header')).toBe(Stub);
-    expect(registry.resolve('footer')).toBeUndefined();
+    expect(overridden).toEqual(['OperationHeader']);
+    expect(registry.resolve('OperationHeader')).toBe(Stub);
+    expect(registry.resolve('StateNotice')).toBeUndefined();
   });
 
   it('should list overrides in registry order rather than in the order they were given', () => {
     // Given
-    const registry = createSlotRegistry({ footer: Stub, layout: Other });
+    const registry = createSlotRegistry({ StateNotice: Stub, AppShell: Other });
 
     // When
     const overridden = registry.overridden();
 
     // Then
-    expect(overridden).toEqual(['layout', 'footer']);
+    expect(overridden).toEqual(['AppShell', 'StateNotice']);
   });
 
   it('should refuse an override naming something that is not a slot', () => {
     // Given
-    const build = (): unknown => createSlotRegistry({ 'operation.headers': Stub });
+    const build = (): unknown => createSlotRegistry({ OperationHeaders: Stub });
 
     // When
     let thrown: unknown;
@@ -46,7 +46,7 @@ describe('createSlotRegistry', () => {
     // Then
     expect(thrown).toBeInstanceOf(SlotNotFoundError);
     expect((thrown as SlotNotFoundError).code).toBe(ErrorCode.THEME_SLOT_NOT_FOUND);
-    expect((thrown as SlotNotFoundError).context?.name).toBe('operation.headers');
+    expect((thrown as SlotNotFoundError).context?.name).toBe('OperationHeaders');
   });
 
   it('should refuse to resolve a name that is not a slot, rather than returning undefined', () => {
@@ -54,7 +54,7 @@ describe('createSlotRegistry', () => {
     const registry = createSlotRegistry();
 
     // When
-    const resolve = (): unknown => registry.resolve('sidebar.items');
+    const resolve = (): unknown => registry.resolve('NavTreeItem');
 
     // Then
     expect(resolve).toThrow(SlotNotFoundError);
@@ -75,14 +75,14 @@ describe('createSlotRegistry', () => {
 
   it('should replace an override when the same slot is registered again', () => {
     // Given
-    const registry = createSlotRegistry({ schema: Stub });
+    const registry = createSlotRegistry({ SchemaTree: Stub });
 
     // When
-    registry.register('schema', Other);
+    registry.register('SchemaTree', Other);
 
     // Then
-    expect(registry.resolve('schema')).toBe(Other);
-    expect(registry.overridden()).toEqual(['schema']);
+    expect(registry.resolve('SchemaTree')).toBe(Other);
+    expect(registry.overridden()).toEqual(['SchemaTree']);
   });
 
   it('should narrow a string that names a slot', () => {
@@ -99,13 +99,13 @@ describe('createSlotRegistry', () => {
 
   it('should give each registry its own overrides', () => {
     // Given
-    const first = createSlotRegistry({ footer: Stub });
+    const first = createSlotRegistry({ StateNotice: Stub });
 
     // When
     const second = createSlotRegistry();
 
     // Then
-    expect(second.resolve('footer')).toBeUndefined();
-    expect(first.resolve('footer')).toBe(Stub);
+    expect(second.resolve('StateNotice')).toBeUndefined();
+    expect(first.resolve('StateNotice')).toBe(Stub);
   });
 });

@@ -412,7 +412,7 @@ describe('useTheme', () => {
     expect(theme.name.value).toBe('default');
     expect(theme.tokens.value).toEqual({});
     expect(theme.overridden.value).toEqual([]);
-    expect(theme.slot('footer')).toBeUndefined();
+    expect(theme.slot('StateNotice')).toBeUndefined();
   });
 
   it('should expose the tokens and overrides of a supplied theme', async () => {
@@ -423,7 +423,7 @@ describe('useTheme', () => {
       theme: {
         name: 'aurora',
         tokens: { '--oref-color-fg': '#e6e6e6' },
-        components: { footer: Stub },
+        components: { StateNotice: Stub },
         assets: { css: ['./aurora.css'] },
       },
     });
@@ -435,8 +435,8 @@ describe('useTheme', () => {
     expect(theme.name.value).toBe('aurora');
     expect(theme.tokens.value['--oref-color-fg']).toBe('#e6e6e6');
     expect(theme.assets.value.css).toEqual(['./aurora.css']);
-    expect(theme.slot('footer')).toBe(Stub);
-    expect(theme.overridden.value).toEqual(['footer']);
+    expect(theme.slot('StateNotice')).toBe(Stub);
+    expect(theme.overridden.value).toEqual(['StateNotice']);
   });
 });
 

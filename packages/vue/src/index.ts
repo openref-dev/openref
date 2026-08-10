@@ -55,6 +55,12 @@ export type {
   SlotProps,
   SlotPropsMap,
 } from './slots/domain/slot-props.types';
+export type {
+  CodeSampleView,
+  ColorScheme,
+  ColorSchemePreference,
+  StateNoticeKind,
+} from './slots/domain/slot-value.types';
 export { createSlotRegistry } from './slots/domain/slot-registry';
 export type { SlotRegistry } from './slots/domain/slot-registry';
 
