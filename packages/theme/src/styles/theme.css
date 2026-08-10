@@ -354,6 +354,61 @@
   padding: var(--oref-space-3);
 }
 
+/* Syntax highlighting.
+ *
+ * The renderer emits one class per token kind and never a colour, because a nonce cannot
+ * authorize a style attribute and a colour is a theme's decision in any case. Every rule
+ * below reads a token that already exists, so no palette was invented here: a theme that
+ * wants a real syntax palette declares one and overrides these.
+ */
+
+.oref-hl-line {
+  display: inline;
+}
+
+.oref-hl-keyword {
+  color: var(--oref-color-accent);
+}
+
+.oref-hl-string,
+.oref-hl-string-expression {
+  color: var(--oref-color-success);
+}
+
+.oref-hl-constant {
+  color: var(--oref-color-warning);
+}
+
+.oref-hl-function {
+  color: var(--oref-color-info);
+}
+
+.oref-hl-parameter {
+  color: var(--oref-color-fg);
+}
+
+.oref-hl-comment,
+.oref-hl-punctuation {
+  color: var(--oref-color-fg-subtle);
+}
+
+.oref-hl-link {
+  color: var(--oref-color-info);
+  text-decoration: underline;
+}
+
+.oref-hl-italic {
+  font-style: italic;
+}
+
+.oref-hl-bold {
+  font-weight: var(--oref-font-weight-bold);
+}
+
+.oref-hl-underline {
+  text-decoration: underline;
+}
+
 .oref-footer {
   border-top: var(--oref-layout-border-width) solid var(--oref-color-border);
   color: var(--oref-color-fg-subtle);

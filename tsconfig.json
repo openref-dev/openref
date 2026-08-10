@@ -28,5 +28,6 @@
     "tools/*/*.config.ts",
     "vitest.config.ts",
     "vitest.shared.ts"
-  ]
+  ],
+  "exclude": ["packages/render/src/browser", "packages/render/test/integration"]
 }

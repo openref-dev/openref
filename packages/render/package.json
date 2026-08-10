@@ -14,12 +14,19 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
       "require": "./dist/index.cjs"
+    },
+    "./browser": {
+      "source": "./src/browser/index.ts",
+      "import": "./dist/browser/openref.js"
     }
   },
   "files": [
     "dist"
   ],
-  "sideEffects": false,
+  "sideEffects": [
+    "./src/browser/entry.ts",
+    "./dist/browser/*"
+  ],
   "engines": {
     "node": ">=20.11.0"
   },
@@ -29,9 +36,14 @@
   "private": true,
   "dependencies": {
     "@openref/core": "workspace:*",
-    "@openref/vue": "workspace:*"
+    "@openref/vue": "workspace:*",
+    "isomorphic-dompurify": "3.22.0",
+    "marked": "18.0.9",
+    "shiki": "4.4.2",
+    "vue": "3.5.41"
   },
   "devDependencies": {
+    "jsdom": "30.0.1",
     "tsup": "8.5.1",
     "typescript": "5.9.3"
   }

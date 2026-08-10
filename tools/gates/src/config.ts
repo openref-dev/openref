@@ -38,7 +38,14 @@ export const LICENSE_ATTESTATIONS: readonly LicenseAttestation[] = [
  *
  * Empty until a package under such a license actually enters the published closure.
  */
-export const DATA_ONLY_ATTESTATIONS: readonly DataOnlyAttestation[] = [];
+export const DATA_ONLY_ATTESTATIONS: readonly DataOnlyAttestation[] = [
+  {
+    package: 'mdn-data@2.27.1',
+    license: 'CC0-1.0',
+    rationale:
+      'Read at 2.27.1: 19 JSON files of CSS, API and localization reference tables, plus four index modules whose entire body is require() of those files. It implements nothing, so the patent grant CC0 withholds covers nothing that could be asserted. Arrives through @openref/render -> isomorphic-dompurify -> jsdom -> css-tree.',
+  },
+];
 
 /**
  * Vendored corpora, zone 3 of SPEC 0.

@@ -1,0 +1,19 @@
+{
+  "extends": "../../../../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "declaration": false,
+    "declarationMap": false,
+    "sourceMap": false,
+    "lib": ["ES2022", "DOM"],
+    "types": ["node"],
+    "baseUrl": "../../../..",
+    "paths": {
+      "@openref/core": ["packages/core/src/index.ts"],
+      "@openref/vue": ["packages/vue/src/index.ts"],
+      "@openref/render": ["packages/render/src/index.ts"]
+    },
+    "allowImportingTsExtensions": true
+  },
+  "include": ["**/*.ts", "../mocks/**/*.ts", "../../src/browser/**/*.ts"]
+}
