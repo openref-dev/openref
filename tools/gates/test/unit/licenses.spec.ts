@@ -1,13 +1,18 @@
 import { describe, expect, it } from 'vitest';
 import {
+  ALLOWED_LICENSES,
   classifyRestrictiveFamily,
+  DATA_ONLY_LICENSES,
   detectLicenseFromText,
   evaluateDevelopmentTree,
   evaluateProductionTree,
+  findStaleDataOnlyAttestations,
   flattenLicenseReport,
   isLicenseAllowed,
   isUnidentifiedLicense,
+  requiresDataOnlyAttestation,
   splitLicenseExpression,
+  type DataOnlyAttestation,
   type LicensedPackage,
   type PnpmLicenseReport,
 } from '../../src/lib/licenses';
@@ -26,6 +31,17 @@ describe('isLicenseAllowed', () => {
 
     // Then
     expect(results).toEqual([true, true, true, true, true]);
+  });
+
+  it('should accept the three licenses added to the production zone on 2026-08-09', () => {
+    // Given
+    const added = ['MIT-0', 'BlueOak-1.0.0', 'CC0-1.0'];
+
+    // When
+    const results = added.map((license) => isLicenseAllowed(license));
+
+    // Then
+    expect(results).toEqual([true, true, true]);
   });
 
   it('should accept a dual license when one branch is on the allowlist', () => {
@@ -202,6 +218,186 @@ describe('evaluateProductionTree', () => {
     // Then
     expect(findings).toHaveLength(1);
     expect(findings[0]?.reason).toContain('outside the allowlist');
+  });
+});
+
+describe('requiresDataOnlyAttestation', () => {
+  it('should hold every data-only license on the allowlist, since the condition is not a ban', () => {
+    // Given
+    const dataOnly = DATA_ONLY_LICENSES;
+
+    // When
+    const onAllowlist = dataOnly.filter((license) => ALLOWED_LICENSES.includes(license));
+
+    // Then
+    expect(onAllowlist).toEqual([...dataOnly]);
+  });
+
+  it('should require a reading of a package admitted only by CC0', () => {
+    // Given
+    const expression = 'CC0-1.0';
+
+    // When
+    const result = requiresDataOnlyAttestation(expression);
+
+    // Then
+    expect(result).toBe(true);
+  });
+
+  it('should require nothing of the unconditional licenses', () => {
+    // Given
+    const expressions = ['MIT', 'Apache-2.0', 'MIT-0', 'BlueOak-1.0.0'];
+
+    // When
+    const results = expressions.map((expression) => requiresDataOnlyAttestation(expression));
+
+    // Then
+    expect(results).toEqual([false, false, false, false]);
+  });
+
+  it('should require nothing when an unconditional branch can be chosen instead', () => {
+    // Given
+    const expression = '(CC0-1.0 OR MIT)';
+
+    // When
+    const result = requiresDataOnlyAttestation(expression);
+
+    // Then
+    expect(result).toBe(false);
+  });
+
+  it('should require a reading when CC0 is conjoined rather than offered as an alternative', () => {
+    // Given
+    const expression = 'MIT AND CC0-1.0';
+
+    // When
+    const result = requiresDataOnlyAttestation(expression);
+
+    // Then
+    expect(result).toBe(true);
+  });
+
+  it('should require nothing of a license that is refused outright', () => {
+    // Given
+    const expression = 'GPL-3.0-only';
+
+    // When
+    const result = requiresDataOnlyAttestation(expression);
+
+    // Then
+    expect(result).toBe(false);
+  });
+});
+
+describe('evaluateProductionTree, data-only condition', () => {
+  const record: DataOnlyAttestation = {
+    package: 'mdn-data@2.27.1',
+    license: 'CC0-1.0',
+    rationale: 'reference tables about CSS, no implementation of anything patentable',
+  };
+
+  function dataPackage(version: string, license = 'CC0-1.0'): LicensedPackage {
+    return { name: 'mdn-data', versions: [version], license, paths: ['/store/mdn-data'] };
+  }
+
+  it('should fail a CC0 package that carries no recorded reading', () => {
+    // Given
+    const packages = [dataPackage('2.27.1')];
+
+    // When
+    const findings = evaluateProductionTree(packages, []);
+
+    // Then
+    expect(findings).toHaveLength(1);
+    expect(findings[0]?.level).toBe('error');
+    expect(findings[0]?.reason).toContain('DATA_ONLY_ATTESTATIONS');
+  });
+
+  it('should pass a CC0 package that was read and recorded', () => {
+    // Given
+    const packages = [dataPackage('2.27.1')];
+
+    // When
+    const findings = evaluateProductionTree(packages, [record]);
+
+    // Then
+    expect(findings).toEqual([]);
+  });
+
+  it('should fail a bumped version, so a package that gained code is looked at again', () => {
+    // Given
+    const packages = [dataPackage('2.28.0')];
+
+    // When
+    const findings = evaluateProductionTree(packages, [record]);
+
+    // Then
+    expect(findings).toHaveLength(1);
+    expect(findings[0]?.reason).toContain('mdn-data@2.28.0');
+  });
+
+  it('should fail when the recorded reading was taken for a different license', () => {
+    // Given
+    const stale: DataOnlyAttestation = { ...record, license: 'Unlicense' };
+
+    // When
+    const findings = evaluateProductionTree([dataPackage('2.27.1')], [stale]);
+
+    // Then
+    expect(findings).toHaveLength(1);
+    expect(findings[0]?.reason).toContain('taken for Unlicense');
+  });
+
+  it('should demand no reading of a package on an unconditional license', () => {
+    // Given
+    const packages = [packageWith('lru-cache', 'BlueOak-1.0.0'), packageWith('helpers', 'MIT-0')];
+
+    // When
+    const findings = evaluateProductionTree(packages, []);
+
+    // Then
+    expect(findings).toEqual([]);
+  });
+
+  it('should collect the packages that needed a reading', () => {
+    // Given
+    const used = new Set<string>();
+    const packages = [dataPackage('2.27.1'), packageWith('a', 'MIT')];
+
+    // When
+    evaluateProductionTree(packages, [record], used);
+
+    // Then
+    expect([...used]).toEqual(['mdn-data@2.27.1']);
+  });
+});
+
+describe('findStaleDataOnlyAttestations', () => {
+  it('should warn about a record that matches nothing in the closure', () => {
+    // Given
+    const records: DataOnlyAttestation[] = [
+      { package: 'gone@1.0.0', license: 'CC0-1.0', rationale: 'data' },
+    ];
+
+    // When
+    const findings = findStaleDataOnlyAttestations(records, new Set<string>());
+
+    // Then
+    expect(findings).toHaveLength(1);
+    expect(findings[0]?.level).toBe('warning');
+  });
+
+  it('should stay silent about a record that was used', () => {
+    // Given
+    const records: DataOnlyAttestation[] = [
+      { package: 'mdn-data@2.27.1', license: 'CC0-1.0', rationale: 'data' },
+    ];
+
+    // When
+    const findings = findStaleDataOnlyAttestations(records, new Set(['mdn-data@2.27.1']));
+
+    // Then
+    expect(findings).toEqual([]);
   });
 });
 

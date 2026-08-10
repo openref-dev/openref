@@ -10,6 +10,8 @@
  *   that is never redistributed carries no obligation into the published artifacts
  *
  * There is no per package exception list. Adding one would turn this gate into a switch.
+ * A data-only license carries a condition rather than an exception: the identifier is on
+ * the allowlist for every package, and every package it admits has to be read first.
  *
  * A license read out of a LICENSE file rather than a manifest is recorded with the hash of
  * the text it was read from, so the reading has to be redone when the text changes rather
@@ -20,6 +22,12 @@ import { createHash } from 'node:crypto';
 
 /**
  * The only licenses allowed anywhere in the production dependency tree.
+ *
+ * SPEC 0 states the reason each one is here. The last three were added on 2026-08-09:
+ * MIT-0 is MIT without the attribution clause and so strictly more permissive than a
+ * license already on the list; BlueOak-1.0.0 is permissive with an explicit patent grant,
+ * which is more than MIT offers, and the development zone already treated it as permissive.
+ * CC0-1.0 is different in kind and carries the extra condition below.
  */
 export const ALLOWED_LICENSES: readonly string[] = [
   'MIT',
@@ -27,7 +35,26 @@ export const ALLOWED_LICENSES: readonly string[] = [
   'BSD-2-Clause',
   'BSD-3-Clause',
   'Apache-2.0',
+  'MIT-0',
+  'BlueOak-1.0.0',
+  'CC0-1.0',
 ];
+
+/**
+ * Licenses that are only allowed for a package made of data.
+ *
+ * CC0-1.0 is not OSI approved and explicitly withholds patent rights. It is accepted for
+ * reference data, where the withheld grant covers nothing that could be asserted, and not
+ * as a general permission. A package admitted by one of these licenses therefore has to
+ * carry a recorded reading of its contents, keyed by version, so a new version and any new
+ * package under the same license stop the gate until someone looks inside.
+ */
+export const DATA_ONLY_LICENSES: readonly string[] = ['CC0-1.0'];
+
+/** The allowlist with the data-only licenses removed, used to tell the two cases apart. */
+const UNCONDITIONAL_LICENSES: readonly string[] = ALLOWED_LICENSES.filter(
+  (id) => !DATA_ONLY_LICENSES.includes(id),
+);
 
 /** Reciprocal licenses that place obligations on derived works as a whole. */
 export const STRONG_COPYLEFT_PATTERNS: readonly RegExp[] = [
@@ -189,23 +216,42 @@ export function isUnidentifiedLicense(expression: string): boolean {
  * when every identifier is allowed.
  *
  * @param expression - Declared license expression
+ * @param allowlist - Identifiers to accept, the full allowlist by default
  * @returns True when the expression is acceptable in the production tree
  */
-export function isLicenseAllowed(expression: string): boolean {
+export function isLicenseAllowed(
+  expression: string,
+  allowlist: readonly string[] = ALLOWED_LICENSES,
+): boolean {
   if (isUnidentifiedLicense(expression)) return false;
 
-  const allowed = new Set(ALLOWED_LICENSES.map((id) => id.toLowerCase()));
+  const allowed = new Set(allowlist.map((id) => id.toLowerCase()));
   const stripped = expression.replace(/[()]/g, ' ').trim();
 
   const orBranches = stripped.split(/\s+OR\s+/i);
   if (orBranches.length > 1) {
-    return orBranches.some((branch) => isLicenseAllowed(branch));
+    return orBranches.some((branch) => isLicenseAllowed(branch, allowlist));
   }
 
   const andParts = splitLicenseExpression(stripped);
   if (andParts.length === 0) return false;
 
   return andParts.every((part) => allowed.has(part.toLowerCase()));
+}
+
+/**
+ * Reports whether a package passes only because of a data-only license.
+ *
+ * A package offering an unconditional branch, `(CC0-1.0 OR MIT)`, needs nothing extra: the
+ * permissive branch can be chosen. A package whose only route through the allowlist runs
+ * through {@link DATA_ONLY_LICENSES} has to be attested.
+ *
+ * @param expression - Declared license expression
+ * @returns True when the expression needs a data-only attestation to be accepted
+ */
+export function requiresDataOnlyAttestation(expression: string): boolean {
+  if (!isLicenseAllowed(expression)) return false;
+  return !isLicenseAllowed(expression, UNCONDITIONAL_LICENSES);
 }
 
 /**
@@ -234,16 +280,72 @@ export function classifyRestrictiveFamily(
 }
 
 /**
+ * A recorded reading of what a package under a data-only license actually contains.
+ *
+ * This is not an exception either. The license set already admits CC0-1.0; what the record
+ * carries is the condition SPEC 0 attaches to it, that the package is reference data rather
+ * than an implementation of something patentable. The version is part of the key, so the
+ * record expires by itself when the package moves.
+ */
+export interface DataOnlyAttestation {
+  /** `name@version`, as produced by {@link packageKey}. */
+  readonly package: string;
+  /** SPDX identifier the record was taken for. */
+  readonly license: string;
+  /** What the package holds, and why the withheld patent grant covers nothing in it. */
+  readonly rationale: string;
+}
+
+/**
  * Applies the production policy: the allowlist, with no exceptions.
  *
+ * A package admitted only by a data-only license also has to carry a committed record that
+ * someone read its contents. An unrecorded one fails rather than passing on the strength of
+ * the identifier alone.
+ *
  * @param packages - Packages reachable from the production dependency tree
- * @returns One error finding per package outside the allowlist
+ * @param attestations - Committed data-only records, from `config.ts`
+ * @param usedKeys - Collects the packages that needed a record, so stale ones show up
+ * @returns One error finding per package outside the allowlist or lacking a required record
  */
-export function evaluateProductionTree(packages: readonly LicensedPackage[]): LicenseFinding[] {
+export function evaluateProductionTree(
+  packages: readonly LicensedPackage[],
+  attestations: readonly DataOnlyAttestation[] = [],
+  usedKeys: Set<string> = new Set<string>(),
+): LicenseFinding[] {
   const findings: LicenseFinding[] = [];
 
   for (const entry of packages) {
-    if (isLicenseAllowed(entry.license)) continue;
+    if (isLicenseAllowed(entry.license)) {
+      if (!requiresDataOnlyAttestation(entry.license)) continue;
+
+      const key = packageKey(entry);
+      usedKeys.add(key);
+      const attestation = attestations.find((candidate) => candidate.package === key);
+
+      if (attestation === undefined) {
+        findings.push({
+          level: 'error',
+          packageName: entry.name,
+          versions: entry.versions,
+          license: entry.license,
+          reason: `${entry.license} is accepted only for a package made of data. Read what this package ships, then record it as { package: '${key}', license: '${entry.license}', rationale: '...' } in DATA_ONLY_ATTESTATIONS`,
+        });
+        continue;
+      }
+
+      if (attestation.license !== entry.license) {
+        findings.push({
+          level: 'error',
+          packageName: entry.name,
+          versions: entry.versions,
+          license: entry.license,
+          reason: `the recorded data-only reading was taken for ${attestation.license}, the package now declares ${entry.license}`,
+        });
+      }
+
+      continue;
+    }
 
     const reason = isUnidentifiedLicense(entry.license)
       ? 'license could not be identified from the manifest or the license file'
@@ -259,6 +361,28 @@ export function evaluateProductionTree(packages: readonly LicensedPackage[]): Li
   }
 
   return findings;
+}
+
+/**
+ * Finds data-only records that no longer correspond to anything in the published closure.
+ *
+ * @param attestations - The committed records
+ * @param usedKeys - Package keys that actually needed a record in this run
+ * @returns One warning per record that went unused
+ */
+export function findStaleDataOnlyAttestations(
+  attestations: readonly DataOnlyAttestation[],
+  usedKeys: ReadonlySet<string>,
+): LicenseFinding[] {
+  return attestations
+    .filter((attestation) => !usedKeys.has(attestation.package))
+    .map((attestation) => ({
+      level: 'warning' as const,
+      packageName: attestation.package,
+      versions: [],
+      license: attestation.license,
+      reason: 'recorded data-only reading matches nothing in the published closure; remove it',
+    }));
 }
 
 /**

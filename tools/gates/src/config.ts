@@ -6,7 +6,7 @@
  */
 
 import type { FixtureRoot } from './gates/fixture-licenses.gate.js';
-import type { LicenseAttestation } from './lib/licenses.js';
+import type { DataOnlyAttestation, LicenseAttestation } from './lib/licenses.js';
 
 /**
  * Recorded readings of licenses that no manifest declares.
@@ -25,6 +25,20 @@ export const LICENSE_ATTESTATIONS: readonly LicenseAttestation[] = [
     sha256: 'aac99045d4e36ab3b1e2914337620963b56cbac53de280c94f29261a22ab5b0f',
   },
 ];
+
+/**
+ * Recorded readings of packages admitted to the production zone by a data-only license.
+ *
+ * SPEC 0 accepts CC0-1.0 in zone 1 only for reference data, because CC0 withholds patent
+ * rights and that withholding covers nothing in a package that implements nothing. Each
+ * entry says: someone read this package, at this version, and found data.
+ *
+ * The version is part of the key, so a bump stops matching and the gate asks again. A CC0
+ * package carrying executable logic gets re-examined rather than admitted by precedent.
+ *
+ * Empty until a package under such a license actually enters the published closure.
+ */
+export const DATA_ONLY_ATTESTATIONS: readonly DataOnlyAttestation[] = [];
 
 /**
  * Vendored corpora, zone 3 of SPEC 0.

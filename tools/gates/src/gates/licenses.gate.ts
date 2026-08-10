@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { LICENSE_ATTESTATIONS } from '../config.js';
+import { DATA_ONLY_ATTESTATIONS, LICENSE_ATTESTATIONS } from '../config.js';
 import { runCommand } from '../lib/exec.js';
 import {
   ALLOWED_LICENSES,
@@ -9,6 +9,7 @@ import {
   evaluateDevelopmentTree,
   evaluateProductionTree,
   findStaleAttestations,
+  findStaleDataOnlyAttestations,
   flattenLicenseReport,
   hashLicenseText,
   isLicenseAllowed,
@@ -172,8 +173,18 @@ export const licensesGate: Gate = {
       findings.push({ level: finding.level, message: `license reading: ${describe(finding)}` });
     }
 
-    for (const finding of evaluateProductionTree(productionPackages)) {
+    const dataOnlyKeys = new Set<string>();
+
+    for (const finding of evaluateProductionTree(
+      productionPackages,
+      DATA_ONLY_ATTESTATIONS,
+      dataOnlyKeys,
+    )) {
       findings.push({ level: 'error', message: `production zone: ${describe(finding)}` });
+    }
+
+    for (const finding of findStaleDataOnlyAttestations(DATA_ONLY_ATTESTATIONS, dataOnlyKeys)) {
+      findings.push({ level: finding.level, message: `data-only reading: ${describe(finding)}` });
     }
 
     const developmentFindings = evaluateDevelopmentTree(developmentPackages);
