@@ -1,3 +1,4 @@
+import { budgetExceptionsGate } from './gates/budget-exceptions.gate.js';
 import { buildManifestGate } from './gates/build-manifest.gate.js';
 import { budgetsGate } from './gates/budgets.gate.js';
 import { clientRunnerGate } from './gates/client-runner.gate.js';
@@ -39,6 +40,11 @@ import type { Gate, GateResult } from './types.js';
  * can answer, and it runs after the fixture gate has established that those files may be there
  * at all.
  *
+ * The budget exceptions gate runs immediately after the budgets, in that order for a reason: a
+ * reader sees the number first and the terms it is over on second. It is what keeps a named
+ * exception from being a raised threshold, so it fails on an entry with no owner, an expired
+ * one, or one whose budget is inside its limit again.
+ *
  * The client runner gate reads the same built bundle the size budget weighs, and asks the one
  * question weighing it cannot: whether the try-it console of SPEC 2 has anything to send with.
  * It sits beside the budget for that reason, and it exists because for the length of one task
@@ -51,6 +57,7 @@ export const GATES: readonly Gate[] = [
   licensesGate,
   fixtureLicensesGate,
   budgetsGate,
+  budgetExceptionsGate,
   clientRunnerGate,
   cspGate,
   themeTokensGate,

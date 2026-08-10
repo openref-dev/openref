@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { BUILD_FILE, CLAIM_MAP_FILE, SPEC_20_BUDGET_IDS, SPEC_FILE } from '../config.js';
+import { aiDocsAbsentMessage, aiDocsPresent } from '../lib/ai-docs.js';
 import { parseContents, splitLines } from '../lib/build-manifest.js';
 import {
   checkClaimMap,
@@ -30,6 +31,25 @@ export const claimsGate: Gate = {
 
   run(context): Promise<GateResult> {
     const findings: GateFinding[] = [];
+
+    if (!aiDocsPresent(context.repoRoot)) {
+      return Promise.resolve({
+        id: claimsGate.id,
+        title: claimsGate.title,
+        status: 'skip',
+        findings: [
+          {
+            level: 'warning',
+            message: aiDocsAbsentMessage(claimsGate.title, [
+              SPEC_FILE,
+              CLAIM_MAP_FILE,
+              BUILD_FILE,
+              'ai-docs/BUILD-AMENDMENTS.md',
+            ]),
+          },
+        ],
+      });
+    }
 
     const read = (file: string): string | null => {
       try {

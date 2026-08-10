@@ -1,11 +1,17 @@
-import { statSync } from 'node:fs';
+import { readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { REQUIRED_DOC_MIN_BYTES, REQUIRED_DOCS } from '../../src/config';
+import {
+  BUILD_FILE,
+  BUILD_TASK_COUNT,
+  REQUIRED_DOC_MIN_BYTES,
+  REQUIRED_DOCS,
+} from '../../src/config';
 import {
   checkBuildManifest,
   checkRequiredDocs,
   parseContents,
+  parseMilestones,
   splitLines,
 } from '../../src/lib/build-manifest';
 
@@ -265,5 +271,68 @@ describe('the documents this project is written against', () => {
     // Then
     expect(checked.filter((doc) => doc.presence !== 'ok')).toEqual([]);
     expect(checked).toHaveLength(4);
+  });
+});
+
+describe('parseMilestones', () => {
+  it('should group the CONTENTS entries under the milestone above them', () => {
+    // Given
+    const lines = [
+      '**M0 - REFERENCE**',
+      '',
+      '- [x] `T001`  L0171-L0196  Monorepo skeleton',
+      '- [ ] `T002`  L0197-L0220  IR types',
+      '',
+      '**M1 - RUNTIME INTELLIGENCE**',
+      '',
+      '- [ ] `T017`  L0547-L0568  Collector contract',
+    ];
+
+    // When
+    const milestones = parseMilestones(lines);
+
+    // Then
+    expect(milestones.map((milestone) => milestone.id)).toEqual(['M0', 'M1']);
+    expect(milestones[0]?.label).toBe('M0 - REFERENCE');
+    expect(milestones[0]?.tasks.map((task) => task.id)).toEqual(['T001', 'T002']);
+    expect(milestones[0]?.tasks.map((task) => task.done)).toEqual([true, false]);
+  });
+
+  it('should drop a bold line that owns no task, so a task body cannot invent a milestone', () => {
+    // Given, the task bodies further down BUILD.md hold bold lines of their own, and one of them
+    // matching the heading shape would otherwise produce a milestone that closes the moment it
+    // appears, because a milestone with no task has every task of it ticked.
+    const lines = ['**M0 - REFERENCE**', '- [ ] `T001`  L0001-L0002  a task', '**RELEASE**'];
+
+    // When
+    const milestones = parseMilestones(lines);
+
+    // Then
+    expect(milestones.map((milestone) => milestone.id)).toEqual(['M0']);
+  });
+
+  it('should read the real BUILD.md as eight milestones covering every task', () => {
+    // Given
+    const repoRoot = join(import.meta.dirname, '..', '..', '..', '..');
+    const lines = splitLines(readFileSync(join(repoRoot, BUILD_FILE), 'utf8'));
+
+    // When
+    const milestones = parseMilestones(lines);
+    const tasks = milestones.flatMap((milestone) => milestone.tasks);
+
+    // Then
+    expect(milestones.map((milestone) => milestone.id)).toEqual([
+      'M0',
+      'M1',
+      'M2',
+      'M3',
+      'M4',
+      'M5',
+      'M6',
+      'M7',
+      'RELEASE',
+    ]);
+    expect(tasks).toHaveLength(BUILD_TASK_COUNT);
+    expect(milestones[0]?.tasks.map((task) => task.id)).toContain('T016');
   });
 });

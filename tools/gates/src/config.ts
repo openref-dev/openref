@@ -6,6 +6,7 @@
  */
 
 import { ASSET_ALLOWED_LICENSES, FIXTURE_ALLOWED_LICENSES } from './lib/fixtures.js';
+import type { BudgetException } from './lib/budget-exceptions.js';
 import type { FixtureRoot } from './gates/fixture-licenses.gate.js';
 import type { DataOnlyAttestation, LicenseAttestation } from './lib/licenses.js';
 
@@ -111,6 +112,14 @@ export const FIXTURE_ROOTS: readonly FixtureRoot[] = [
 export const BUILD_FILE = 'ai-docs/BUILD.md';
 
 /**
+ * Where work scheduled between two regenerations of BUILD.md lives.
+ *
+ * BUILD.md cannot gain a task without being regenerated, which is the maintainer's call, so a
+ * retrofit and a task with no number are written here and own things from here.
+ */
+export const BUILD_AMENDMENTS_FILE = 'ai-docs/BUILD-AMENDMENTS.md';
+
+/**
  * The four documents the whole project is written against.
  *
  * `ai-docs/` is excluded from the repository on purpose, so nothing that walks tracked files
@@ -125,7 +134,7 @@ export const REQUIRED_DOCS: readonly { readonly file: string; readonly purpose: 
   { file: 'ai-docs/SPEC.md', purpose: 'the authoritative product specification' },
   { file: BUILD_FILE, purpose: 'the execution order, addressed by absolute line number' },
   {
-    file: 'ai-docs/BUILD-AMENDMENTS.md',
+    file: BUILD_AMENDMENTS_FILE,
     purpose: 'retrofits and per task amendments, since BUILD.md cannot be edited',
   },
   {
@@ -391,6 +400,46 @@ export const BROWSER_CEILINGS = {
   externalRequests: 0,
   servedDocumentBytes: 64 * 1024,
 } as const;
+
+/**
+ * The budgets that are over, with a name on the debt and a milestone it has to be gone by.
+ *
+ * HERE BESIDE THE THRESHOLDS AND NOT INSTEAD OF THEM. Nothing in this list changes a number in
+ * `BROWSER_CEILINGS` or in `SIZE_BUDGETS`. An entry says that a budget is over, by how much,
+ * why, who is fixing it and when it must be gone, and it lets the plan continue meanwhile. The
+ * budgets gate goes on printing the failure on every run.
+ *
+ * IT EXISTS BECAUSE THE GATE WAS RIGHT AND ITS POSITION WAS WRONG. `tti` is owned by T015 and
+ * is not fixable inside T015: what stands between the page and 150 ms is the client bundle and
+ * the theme stylesheet, which belong to T011 and T012. A red budget with a diagnosis attached
+ * is the honest state, and blocking fifty tasks behind a defect that is not theirs is not.
+ *
+ * `budget-exceptions` is the gate that keeps this from being a raised threshold in disguise. An
+ * entry with no owning task, an owner that is not a real task, a milestone BUILD.md does not
+ * have, a milestone that closes while the entry is still here, or a budget that is inside its
+ * limit again all fail the build.
+ *
+ * WHAT IS DELIBERATELY NOT HERE: `served-document`. It was named alongside `tti` when this list
+ * was asked for, and it measures 29.0 KB against 64 KB. Listing a budget that passes would
+ * record a debt that does not exist, and the staleness rule would fail the build for saying so.
+ */
+export const BUDGET_EXCEPTIONS: readonly BudgetException[] = [
+  {
+    budget: 'tti',
+    measured: '213.9 ms, median of 25 throttled navigations',
+    target: '150 ms',
+    owners: ['T011-R', 'T012-R3'],
+    clearBy: 'M0',
+    recordedAt: '2026-08-10',
+    diagnosis:
+      'Measured twice on github-actions/ubuntu24/X64 under Chrome 150 at a measured 4.19x throttle. ' +
+      'Every subresource has arrived by 33 ms and the document is not interactive until 138 ms, so ' +
+      'what is between the page and the budget is work rather than transfer: 108 KB of decoded ' +
+      'JavaScript to compile and hydrate, and 38.8 KB of decoded CSS to parse and match. Cutting the ' +
+      'served document by 85 percent in T012-R2 moved the phase it was aimed at by 4 percent, so the ' +
+      'state block was not the cause. T011-R owns the bundle and T012-R3 owns the stylesheet.',
+  },
+];
 
 /** The claim map, which answers every SPEC 19 and SPEC 20 claim with what would go red. */
 export const CLAIM_MAP_FILE = 'ai-docs/CLAIM-MAP.md';

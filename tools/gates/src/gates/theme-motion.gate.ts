@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { THEME_TOKEN_STYLESHEETS } from '../config.js';
+import { aiDocsAbsentMessage, aiDocsPresent } from '../lib/ai-docs.js';
 import { auditMotionTokens, MOTION_TOKENS, type StyleSource } from '../lib/motion-tokens.js';
 import type { Gate, GateFinding, GateResult } from '../types.js';
 
@@ -20,6 +21,11 @@ import type { Gate, GateFinding, GateResult } from '../types.js';
  *
  * A configured stylesheet that is missing is an error, not a skip. A theme this cannot read is
  * a theme nothing checks.
+ *
+ * THE ONE EXCEPTION IS `ai-docs/` NOT BEING THERE AT ALL, which is a checkout without the
+ * maintainer's private documents rather than a theme that lost its tokens. Three of the four
+ * themes live there, so a run that saw only vernier would report on a third of the contract; it
+ * skips loudly instead, per `lib/ai-docs.ts`.
  */
 export const themeMotionGate: Gate = {
   id: 'theme-motion',
@@ -28,6 +34,25 @@ export const themeMotionGate: Gate = {
   run(context): Promise<GateResult> {
     const findings: GateFinding[] = [];
     let failed = false;
+
+    if (!aiDocsPresent(context.repoRoot)) {
+      return Promise.resolve({
+        id: themeMotionGate.id,
+        title: themeMotionGate.title,
+        status: 'skip',
+        findings: [
+          {
+            level: 'warning',
+            message: aiDocsAbsentMessage(
+              themeMotionGate.title,
+              THEME_TOKEN_STYLESHEETS.flatMap((sheet) => sheet.files).filter((file) =>
+                file.startsWith('ai-docs/'),
+              ),
+            ),
+          },
+        ],
+      });
+    }
 
     for (const stylesheet of THEME_TOKEN_STYLESHEETS) {
       const sources: StyleSource[] = [];

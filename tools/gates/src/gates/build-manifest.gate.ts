@@ -7,6 +7,7 @@ import {
   REQUIRED_DOC_MIN_BYTES,
   REQUIRED_DOCS,
 } from '../config.js';
+import { aiDocsAbsentMessage, aiDocsPresent } from '../lib/ai-docs.js';
 import { checkBuildManifest, checkRequiredDocs } from '../lib/build-manifest.js';
 import type { Gate, GateFinding, GateResult } from '../types.js';
 
@@ -25,6 +26,23 @@ export const buildManifestGate: Gate = {
   run(context): Promise<GateResult> {
     const findings: GateFinding[] = [];
     let failed = false;
+
+    if (!aiDocsPresent(context.repoRoot)) {
+      return Promise.resolve({
+        id: buildManifestGate.id,
+        title: buildManifestGate.title,
+        status: 'skip',
+        findings: [
+          {
+            level: 'warning',
+            message: aiDocsAbsentMessage(
+              buildManifestGate.title,
+              REQUIRED_DOCS.map((doc) => doc.file),
+            ),
+          },
+        ],
+      });
+    }
 
     const docs = checkRequiredDocs(REQUIRED_DOCS, REQUIRED_DOC_MIN_BYTES, (file) => {
       try {

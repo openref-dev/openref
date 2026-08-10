@@ -6,19 +6,28 @@ import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
   BROWSER_BASELINE_FILE,
+  BUDGET_EXCEPTIONS,
+  BUILD_AMENDMENTS_FILE,
+  BUILD_FILE,
   FONT_BUDGETS,
+  SPEC_20_BUDGET_IDS,
   FONT_STYLESHEETS,
   LICENSE_ATTESTATIONS,
   THEME_TOKEN_STYLESHEETS,
 } from '../../src/config';
+import { budgetExceptionsGate } from '../../src/gates/budget-exceptions.gate';
 import { budgetsGate } from '../../src/gates/budgets.gate';
 import { buildManifestGate } from '../../src/gates/build-manifest.gate';
+import { claimsGate } from '../../src/gates/claims.gate';
 import { dependencyGraphGate } from '../../src/gates/dependency-graph.gate';
 import { enginesFloorGate } from '../../src/gates/engines-floor.gate';
 import { fixtureLicensesGate } from '../../src/gates/fixture-licenses.gate';
 import { licensesGate } from '../../src/gates/licenses.gate';
 import { themeFontsGate } from '../../src/gates/theme-fonts.gate';
 import { themeMotionGate } from '../../src/gates/theme-motion.gate';
+import { AI_DOCS_DIR } from '../../src/lib/ai-docs';
+import { checkBudgetExceptions } from '../../src/lib/budget-exceptions';
+import { parseContents, parseMilestones, splitLines } from '../../src/lib/build-manifest';
 import { runCommand } from '../../src/lib/exec';
 import {
   detectLicenseFromText,
@@ -293,8 +302,11 @@ describe('themeMotionGate', () => {
 
   it('should fail on a stylesheet it was told about and cannot read', async () => {
     // Given, a theme this cannot read is a theme nothing checks, so absence is an error and
-    // never a skip.
+    // never a skip. `ai-docs/` IS PLANTED AND IT IS THE POINT OF THE FIXTURE: three of the four
+    // themes live under it, so a checkout without the directory is a different condition from a
+    // theme that lost its tokens, and this case is the second one.
     const context = { repoRoot: mkdtempSync(join(tmpdir(), 'openref-motion-')) };
+    mkdirSync(join(context.repoRoot, AI_DOCS_DIR), { recursive: true });
 
     // When
     const result = await themeMotionGate.run(context);
@@ -466,6 +478,135 @@ describe('budgetsGate, the three font budgets', () => {
     expect(over.map((finding) => finding.message.split(',')[0])).toEqual([
       'OVER fonts-first-paint',
     ]);
+  });
+});
+
+describe('budgetExceptionsGate', () => {
+  it('should pass on the committed list, with every entry printed', async () => {
+    // Given, the list holds `tti` and the two retrofits that own it.
+    const context = { repoRoot };
+
+    // When
+    const result = await budgetExceptionsGate.run(context);
+
+    // Then, the debt is visible on every run rather than absorbed into a green line.
+    expect(result.findings.filter((finding) => finding.level === 'error')).toEqual([]);
+    expect(result.status).toBe('pass');
+    expect(result.findings.map((finding) => finding.message).join('\n')).toContain('EXCEPTED tti');
+  }, 180_000);
+
+  it('should run immediately after the budgets, so the figure is read before the terms', () => {
+    // Given
+    const order = GATES.map((gate) => gate.id);
+
+    // When
+    const position = order.indexOf(budgetExceptionsGate.id);
+
+    // Then
+    expect(order[position - 1]).toBe(budgetsGate.id);
+  });
+
+  it('should let the budgets gate report an excepted budget as over without failing', async () => {
+    // Given, the whole point of the list: the number does not move and the build does not stop.
+    const context = { repoRoot };
+
+    // When
+    const result = await budgetsGate.run(context);
+    const excepted = result.findings.filter((finding) =>
+      finding.message.startsWith('OVER BUDGET, EXCEPTED'),
+    );
+
+    // Then
+    expect(result.status).toBe('pass');
+    expect(excepted).toHaveLength(BUDGET_EXCEPTIONS.length);
+    expect(excepted[0]?.level).toBe('warning');
+    expect(excepted[0]?.message).toContain('must clear by M0');
+  }, 180_000);
+
+  it('should keep every owner of the committed list a task the plan actually carries', () => {
+    // Given, the check that caught this list on its first run: both owners were named before
+    // either retrofit was filed, and the gate refused them until they were.
+    const build = readFileSync(join(repoRoot, BUILD_FILE), 'utf8');
+    const amendments = readFileSync(join(repoRoot, BUILD_AMENDMENTS_FILE), 'utf8');
+    const owners = BUDGET_EXCEPTIONS.flatMap((entry) => entry.owners);
+
+    // When
+    const filed = owners.filter(
+      (owner) =>
+        parseContents(splitLines(build)).some((entry) => entry.id === owner) ||
+        new RegExp(`^### \\[[ x]\\] \`${owner}\``, 'm').test(amendments),
+    );
+
+    // Then
+    expect(owners.length).toBeGreaterThan(0);
+    expect(filed).toEqual(owners);
+  });
+  it('should refuse to let M0 close while the entry is still there', () => {
+    // Given, the real BUILD.md with every M0 box ticked, which is what the last M0 task does.
+    // The rule is what makes the expiry real: a milestone cannot be declared done over a budget
+    // it never met, and T016 is the task that would do it.
+    const build = readFileSync(join(repoRoot, BUILD_FILE), 'utf8');
+    const milestones = parseMilestones(splitLines(build));
+    const m0 = milestones.find((milestone) => milestone.id === 'M0');
+    const closed = (m0?.tasks ?? []).map((task) => ({ ...task, done: true }));
+
+    // When
+    const issues = checkBudgetExceptions(BUDGET_EXCEPTIONS, {
+      budgetIds: SPEC_20_BUDGET_IDS,
+      overBudgetIds: BUDGET_EXCEPTIONS.map((entry) => entry.budget),
+      taskIds: BUDGET_EXCEPTIONS.flatMap((entry) => entry.owners),
+      milestones: [{ id: 'M0', label: 'M0 - REFERENCE', tasks: closed }],
+    });
+
+    // Then
+    expect(m0?.tasks.some((task) => task.id === 'T016')).toBe(true);
+    expect(issues.map((issue) => issue.rule)).toEqual(['milestone-closed']);
+    expect(issues[0]?.message).toContain('T011-R');
+  });
+});
+
+describe('the gates that read ai-docs', () => {
+  /**
+   * The three gates that cannot run without the maintainer's private documents.
+   *
+   * `ai-docs/` is excluded from git, so a fresh clone has none of it and these three would
+   * report the absence as a defect in the code. They skip loudly instead. A fourth gate,
+   * `budget-exceptions`, joins them only when the list is not empty, because an exception it
+   * cannot validate is a raised threshold.
+   */
+  const readers = [buildManifestGate, claimsGate, themeMotionGate, budgetExceptionsGate];
+
+  it('should skip loudly rather than fail when the directory is not there', async () => {
+    // Given, a checkout with no ai-docs at all, which is what every clone of this repository is.
+    const root = mkdtempSync(join(tmpdir(), 'openref-nodocs-'));
+
+    // When
+    const results = await Promise.all(readers.map((gate) => gate.run({ repoRoot: root })));
+    rmSync(root, { recursive: true, force: true });
+
+    // Then, a skip and never a pass: nothing was checked and the message says so.
+    for (const result of results) {
+      expect(result.status).toBe('skip');
+      expect(result.findings[0]?.level).toBe('warning');
+      expect(result.findings[0]?.message).toContain('SKIPPED, NOT PASSED');
+      expect(result.findings[0]?.message).toContain("AWAITING THE MAINTAINER'S DECISION");
+    }
+  }, 180_000);
+
+  it('should go on failing on a missing document when the directory is there', async () => {
+    // Given, the distinction the skip rests on. A directory with nothing in it is a document
+    // that went missing, which is the failure these gates exist for, and a plant proving the
+    // skip did not quietly disable them.
+    const root = mkdtempSync(join(tmpdir(), 'openref-emptydocs-'));
+    mkdirSync(join(root, AI_DOCS_DIR), { recursive: true });
+
+    // When
+    const result = await buildManifestGate.run({ repoRoot: root });
+    rmSync(root, { recursive: true, force: true });
+
+    // Then
+    expect(result.status).toBe('fail');
+    expect(result.findings.some((finding) => finding.message.includes('is missing'))).toBe(true);
   });
 });
 

@@ -126,6 +126,62 @@ export function parseContents(lines: readonly string[]): BuildTaskEntry[] {
   return entries;
 }
 
+/** One milestone heading in the CONTENTS block, with the tasks written under it. */
+export interface BuildMilestone {
+  readonly id: string;
+  readonly label: string;
+  readonly tasks: readonly BuildTaskEntry[];
+}
+
+const MILESTONE_PATTERN = /^\*\*([A-Z][A-Z0-9]*)(?: - (.+?))?\*\*$/;
+
+/**
+ * Groups the CONTENTS entries under the milestone headings above them.
+ *
+ * A milestone is what an exception expires against: an entry that has to clear by M0 is one
+ * that cannot still be there when the last M0 task is ticked. Nothing else in the plan states
+ * which tasks belong to which milestone, so it is read from the file rather than duplicated.
+ *
+ * A heading with no task under it is dropped. The task bodies further down the file hold bold
+ * lines of their own, and one of them matching this pattern would otherwise invent a milestone
+ * that owns nothing.
+ *
+ * @param lines - Lines of BUILD.md, index 0 holding line 1
+ * @returns Milestones in file order, each with its tasks in file order
+ */
+export function parseMilestones(lines: readonly string[]): BuildMilestone[] {
+  const milestones: { id: string; label: string; tasks: BuildTaskEntry[] }[] = [];
+
+  for (const line of lines) {
+    const heading = MILESTONE_PATTERN.exec(line);
+    if (heading !== null) {
+      const id = heading[1] ?? '';
+      milestones.push({
+        id,
+        label: heading[2] === undefined ? id : `${id} - ${heading[2]}`,
+        tasks: [],
+      });
+      continue;
+    }
+
+    const entry = CONTENTS_PATTERN.exec(line);
+    if (entry === null) continue;
+
+    const current = milestones[milestones.length - 1];
+    if (current === undefined) continue;
+
+    current.tasks.push({
+      id: entry[2] ?? '',
+      done: entry[1] === 'x',
+      startLine: Number(entry[3]),
+      endLine: Number(entry[4]),
+      title: entry[5] ?? '',
+    });
+  }
+
+  return milestones.filter((milestone) => milestone.tasks.length > 0);
+}
+
 /**
  * Checks BUILD.md against its own addressing contract.
  *
