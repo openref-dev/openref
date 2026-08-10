@@ -483,7 +483,9 @@ describe('useRunner and useSocket', () => {
 
     // Then
     expect(runner.available.value).toBe(false);
-    await expect(runner.send()).rejects.toBeInstanceOf(RunnerError);
+    await expect(
+      runner.send({ serverUrl: 'https://api.example.com', values: {} }),
+    ).rejects.toBeInstanceOf(RunnerError);
   });
 
   it('should carry the not available code rather than a generic failure', async () => {
@@ -494,7 +496,7 @@ describe('useRunner and useSocket', () => {
     // When
     let thrown: unknown;
     try {
-      await runner.send();
+      await runner.send({ serverUrl: 'https://api.example.com', values: {} });
     } catch (error: unknown) {
       thrown = error;
     }

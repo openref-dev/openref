@@ -21,12 +21,18 @@ import {
   type IRSchemaSlot,
   type IRSchemaView,
 } from '@openref/core';
-import { materializeNode, resolveSchemaSlot, schemaDisplayName } from '@openref/vue';
+import {
+  materializeNode,
+  resolveSchemaSlot,
+  runnerOperationOf,
+  schemaDisplayName,
+} from '@openref/vue';
+import type { RunnerOperationView } from '@openref/vue';
 import { buildSchemaPayload } from './schema-payload';
 import type { IMarkdownRenderer } from '../../markdown/domain/markdown';
 
 /** Version of the page model shape, part of the cache key. */
-export const PAGE_MODEL_VERSION = 1;
+export const PAGE_MODEL_VERSION = 2;
 
 /** Media types an example is generated for. */
 const JSON_MEDIA_TYPE = /^application\/(?:[\w.+-]+\+)?json$/i;
@@ -120,6 +126,15 @@ export interface NodeModel {
   readonly requestBody: readonly MediaTypeModel[];
   readonly responses: readonly ResponseModel[];
   readonly security: readonly SecurityModel[];
+  /**
+   * What the try-it console needs to send this operation, or null for a channel.
+   *
+   * The projection travels with the page rather than the IR, which is what lets a console work
+   * on a static file. It carries no credential and never will: those live in the runner, behind
+   * the storage policy of SPEC 14.4, and a page that carried one would be a page that published
+   * it.
+   */
+  readonly run: RunnerOperationView | null;
 }
 
 /** Everything one page renders from. */
@@ -349,6 +364,7 @@ function nodeModel(context: ModelContext, nodeId: string): NodeModel | null {
       requestBody: [],
       responses: [],
       security: [],
+      run: null,
     };
   }
 
@@ -375,6 +391,7 @@ function nodeModel(context: ModelContext, nodeId: string): NodeModel | null {
       type: requirement.scheme?.type ?? 'unknown',
       scopes: requirement.scopes,
     })),
+    run: runnerOperationOf(view.node, document),
   };
 }
 

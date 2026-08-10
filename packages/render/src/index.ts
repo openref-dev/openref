@@ -44,6 +44,8 @@ export {
 export type { IHighlighter } from './highlight/domain/highlight';
 
 export { escapeHtml, escapeJsonForScript } from './shared/html';
+export { eventValue } from './shared/dom';
+export type { ValueEvent, ValueTarget } from './shared/dom';
 
 export type {
   IObservableRenderCache,
@@ -103,6 +105,7 @@ export { CommandPalette } from './components/CommandPalette';
 export { MarkdownBlock } from './components/MarkdownBlock';
 export { NavigationTree } from './components/NavigationTree';
 export { NodePanel } from './components/NodePanel';
+export { TryItPanel } from './components/TryItPanel';
 export { SchemaPanel } from './components/SchemaPanel';
 export { SchemaView } from './components/SchemaView';
 

@@ -48,6 +48,18 @@ export type {
 
 export type { ISearchPort, SearchHit, SearchHitKind } from './state/application/ports/search.port';
 
+export type {
+  IRunnerPort,
+  RunnerOperationView,
+  RunnerParameterView,
+  RunnerResult,
+  RunnerResultHeader,
+  RunnerSecuritySchemeView,
+  RunnerSendInput,
+} from './runner/application/ports/runner.port';
+export { provideRunner, RUNNER_KEY, useRunnerPort } from './runner/api/context';
+export { runnerOperationOf } from './runner/domain/runner-operation';
+
 export { SLOT_NAMES } from './slots/domain/slot-props.types';
 export type {
   SLOT_NAMES_ARE_COMPLETE,
@@ -83,8 +95,8 @@ export { useNode } from './composables/useNode';
 export type { UseNode } from './composables/useNode';
 export { useOperation } from './composables/useOperation';
 export type { UseOperation } from './composables/useOperation';
-export { useRunner } from './composables/useRunner';
-export type { UseRunner } from './composables/useRunner';
+export { useRunner, useRunnerFor } from './composables/useRunner';
+export type { UseRunner, UseRunnerSendArgs } from './composables/useRunner';
 export { useRuntime } from './composables/useRuntime';
 export type { UseRuntime } from './composables/useRuntime';
 export { useSchemaView } from './composables/useSchemaView';

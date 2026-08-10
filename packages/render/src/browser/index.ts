@@ -9,6 +9,7 @@
  * Nothing here fetches anything. The state is in the document, per SPEC 19.4.
  */
 
+import { RUNNER_KEY, type IRunnerPort } from '@openref/vue';
 import { createSSRApp } from 'vue';
 import { APP_ROOT_ID, ReferenceApp } from '../components/ReferenceApp';
 import { STATE_ELEMENT_ID } from '../page/domain/shell';
@@ -20,6 +21,15 @@ export interface HydrateOptions {
   readonly document?: Document;
   /** Where the reference is mounted, so client rendered links match the server's. */
   readonly basePath?: string;
+  /**
+   * The request runner the try-it console sends through.
+   *
+   * Absent leaves the console disabled, which is a supported build rather than a degraded one:
+   * a reference that is published read only has nothing to send from. The runner is passed in
+   * rather than imported because STANDARDS 3.5 gives this package no edge to `@openref/runner`,
+   * so composition happens where both are visible, which is `@openref/nest` and the CLI.
+   */
+  readonly runner?: IRunnerPort;
 }
 
 /**
@@ -62,7 +72,9 @@ export function hydrateReference(options: HydrateOptions = {}): boolean {
   const page = readPageState(root);
   if (page === null) return false;
 
-  createSSRApp(ReferenceApp, { page, basePath: options.basePath ?? '' }).mount(mount);
+  const app = createSSRApp(ReferenceApp, { page, basePath: options.basePath ?? '' });
+  if (options.runner !== undefined) app.provide(RUNNER_KEY, options.runner);
+  app.mount(mount);
 
   return true;
 }

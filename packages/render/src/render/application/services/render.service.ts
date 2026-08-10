@@ -33,7 +33,7 @@ import {
  * Bumped by hand when a change to a component changes the bytes of an unchanged document.
  * It is part of the cache key, so bumping it invalidates every stored page at once.
  */
-export const RENDER_VERSION = 1;
+export const RENDER_VERSION = 2;
 
 /** How one page is rendered. */
 export interface RenderPageOptions {

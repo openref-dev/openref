@@ -15,13 +15,14 @@
  *
  * THIS FILE STYLES THE MARKUP THE RENDERER EMITS TODAY AND NOTHING ELSE. A rule for markup
  * that does not exist yet is bytes every reader downloads for a page nobody can render, and it
- * reads as coverage while covering nothing. The schema viewer, the command palette, the try-it
- * console, the runtime panel and the drift cards bring their rules with them, in the task that
- * emits their markup. `theme.spec.ts` compares the two lists in both directions.
+ * reads as coverage while covering nothing. The schema viewer and the command palette arrived
+ * with T012 and the try-it console with T013; the runtime panel and the drift cards bring their
+ * rules with them, in the task that emits their markup. `theme.spec.ts` compares the two lists
+ * in both directions.
  *
  * There is no transition and no animation anywhere in this file yet, which is the honest
  * reading of a theme built from hairlines and flat surfaces: nothing it draws today has a
- * state worth animating. When something does, in T012 and T013, its duration is
+ * state worth animating. When something does, its duration is
  * var(--oref-motion-duration-fast) or var(--oref-motion-duration-base) and its curve is var(--oref-motion-easing-standard).
  * A literal duration here is a literal like any other and the gate refuses it.
  *
@@ -816,4 +817,157 @@ button.oref-schema-row:hover {
   color: var(--oref-color-fg-muted);
   font-size: var(--oref-font-size-300);
   padding: var(--oref-space-500);
+}
+
+/* The try-it console.
+ *
+ * The runtime side of the double scale, so it takes the runtime accent while the operation
+ * header takes the specification one. It is the only block on the page a reader types into,
+ * and the design has no rounding and no shadow, so a control is a surface inside a hairline
+ * and a focus ring says which one is live. The ring is the root rule, not a rule of its own.
+ *
+ * No transition here either. The standing rule from the designer is that motion belongs to
+ * what appears over content, and nothing in this console does: the response is revealed in
+ * place, below the button that asked for it. */
+
+.oref-section-tryit {
+  border-top: var(--oref-border-mark) solid var(--oref-color-accent-runtime);
+}
+
+.oref-tryit-form {
+  display: grid;
+  gap: var(--oref-space-400);
+}
+
+.oref-field {
+  display: grid;
+  gap: var(--oref-space-200);
+  max-width: var(--oref-layout-measure);
+}
+
+.oref-field-label {
+  color: var(--oref-color-fg-secondary);
+  font-size: var(--oref-font-size-200);
+  font-weight: var(--oref-font-weight-medium);
+  letter-spacing: var(--oref-font-tracking-mid);
+}
+
+.oref-field-control {
+  background: var(--oref-color-surface-inset);
+  border: var(--oref-border-hair) solid var(--oref-color-fg-muted);
+  border-radius: var(--oref-radius-none);
+  color: var(--oref-color-fg);
+  font-family: var(--oref-font-family-mono);
+  font-size: var(--oref-font-size-300);
+  padding: var(--oref-space-300) var(--oref-space-400);
+  width: 100%;
+}
+
+.oref-field-control:disabled {
+  color: var(--oref-color-fg-muted);
+}
+
+.oref-field-body {
+  line-height: var(--oref-font-leading-data);
+  resize: vertical;
+}
+
+.oref-field-note {
+  color: var(--oref-color-fg-muted);
+  font-size: var(--oref-font-size-100);
+  letter-spacing: var(--oref-font-tracking-wide);
+  text-transform: uppercase;
+}
+
+.oref-tryit-actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--oref-space-400);
+  margin-top: var(--oref-space-500);
+}
+
+.oref-send {
+  background: var(--oref-color-accent-runtime);
+  border: var(--oref-border-hair) solid var(--oref-color-accent-runtime);
+  border-radius: var(--oref-radius-none);
+  color: var(--oref-color-fg-inverse);
+  font-family: var(--oref-font-family-sans);
+  font-size: var(--oref-font-size-300);
+  font-weight: var(--oref-font-weight-medium);
+  letter-spacing: var(--oref-font-tracking-mid);
+  padding: var(--oref-space-300) var(--oref-space-600);
+  text-transform: uppercase;
+}
+
+.oref-send:disabled {
+  background: var(--oref-color-surface-inset);
+  border-color: var(--oref-color-fg-muted);
+  color: var(--oref-color-fg-muted);
+}
+
+.oref-tryit-notice {
+  color: var(--oref-color-fg-muted);
+  font-size: var(--oref-font-size-300);
+  margin: 0;
+}
+
+.oref-run-error {
+  background: var(--oref-drift-crit-bg);
+  border-inline-start: var(--oref-drift-crit-border-width) var(--oref-drift-crit-border-style)
+    var(--oref-drift-crit-fg);
+  color: var(--oref-drift-crit-fg);
+  font-size: var(--oref-font-size-300);
+  margin: var(--oref-space-500) 0 0;
+  padding: var(--oref-space-400) var(--oref-space-500);
+}
+
+.oref-run-result {
+  border-top: var(--oref-border-hair) solid var(--oref-color-line-edge);
+  margin-top: var(--oref-space-500);
+  padding-top: var(--oref-space-500);
+}
+
+.oref-run-summary {
+  align-items: baseline;
+  display: flex;
+  gap: var(--oref-space-400);
+}
+
+.oref-run-time {
+  color: var(--oref-color-fg-muted);
+  font-family: var(--oref-font-family-mono);
+  font-size: var(--oref-font-size-200);
+}
+
+.oref-run-headers {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: var(--oref-space-200) var(--oref-space-400);
+  margin: var(--oref-space-400) 0 0;
+}
+
+.oref-run-header-name {
+  color: var(--oref-color-fg-muted);
+  font-family: var(--oref-font-family-mono);
+  font-size: var(--oref-font-size-200);
+}
+
+.oref-run-header-value {
+  color: var(--oref-color-fg-secondary);
+  font-family: var(--oref-font-family-mono);
+  font-size: var(--oref-font-size-200);
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.oref-run-body {
+  background: var(--oref-color-surface-code);
+  border: var(--oref-border-hair) solid var(--oref-color-line);
+  font-family: var(--oref-font-family-mono);
+  font-size: var(--oref-font-size-300);
+  margin: var(--oref-space-400) 0 0;
+  overflow-wrap: anywhere;
+  padding: var(--oref-space-500);
+  white-space: pre-wrap;
 }

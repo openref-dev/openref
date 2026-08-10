@@ -76,6 +76,9 @@ const NOT_CLASSES = new Set([
   'oref-schema',
   // Ids the palette generates one per option, so `aria-activedescendant` can name one.
   'oref-palette-option-',
+  // Id prefix of a try-it field, so a label can name the control it belongs to. The full id
+  // carries the node id and the parameter, so it is built at runtime and is never a class.
+  'oref-field-',
 ]);
 
 /**

@@ -846,6 +846,10 @@ export const CONTRAST_PAIRS: readonly ContrastPair[] = (
     ['--oref-color-accent-link', '--oref-color-bg', 'text'],
     ['--oref-color-accent-runtime', '--oref-color-bg', 'text'],
     ['--oref-color-fg-inverse', '--oref-color-accent-spec', 'text'],
+    // The send button of the try-it console, added in T013. It is the only solid runtime
+    // coloured surface with text on it, and the only new claim that block makes: everything
+    // else it draws is fg, fg-secondary or fg-muted on a surface already listed above.
+    ['--oref-color-fg-inverse', '--oref-color-accent-runtime', 'text'],
     ['--oref-color-fg-inverse', '--oref-color-method-get', 'text'],
     ['--oref-color-fg-inverse', '--oref-color-method-post', 'text'],
     ['--oref-color-fg-inverse', '--oref-color-method-put', 'text'],

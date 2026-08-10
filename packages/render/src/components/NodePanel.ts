@@ -11,6 +11,7 @@ import type { IRSchema } from '@openref/core';
 import { defineComponent, h, type PropType, type VNode } from 'vue';
 import { MarkdownBlock } from './MarkdownBlock';
 import { SchemaView } from './SchemaView';
+import { TryItPanel } from './TryItPanel';
 import type { MediaTypeModel, NodeModel, ParameterModel } from '../page/domain/page-model';
 
 /** What every media type block needs to put a schema viewer under itself. */
@@ -191,6 +192,11 @@ export const NodePanel = defineComponent({
           ),
         );
       }
+
+      // Last, after the documented responses rather than before them. A reader reads what the
+      // operation does and then tries it, and the response the console shows then sits beside
+      // the responses the specification promised, which is where the comparison happens.
+      parts.push(h(TryItPanel, { run: node.run }));
 
       return h('article', { class: 'oref-operation', 'data-oref-node': node.id }, parts);
     };

@@ -19,6 +19,32 @@ export interface KeyEvent {
   preventDefault(): void;
 }
 
+/** What carries the new value of an input, said structurally. */
+export interface ValueTarget {
+  readonly value?: unknown;
+}
+
+/** An input or change event, as a component reads the value off it. */
+export interface ValueEvent {
+  readonly target?: ValueTarget | null;
+}
+
+/**
+ * The new value of a control, or the empty string when the event carries none.
+ *
+ * Narrowed rather than asserted, because the event is the browser's and this file compiles in
+ * a program with no DOM types. An event with no usable value yields an empty field rather than
+ * throwing inside a listener, where nothing could catch it.
+ *
+ * @param event - The input or change event
+ * @returns The value as a string
+ */
+export function eventValue(event: ValueEvent): string {
+  const value = event.target?.value;
+
+  return typeof value === 'string' ? value : '';
+}
+
 /** Something that can take focus, and that says which row it is. */
 export interface FocusTarget {
   focus(): void;

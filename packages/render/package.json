@@ -43,6 +43,7 @@
     "vue": "3.5.41"
   },
   "devDependencies": {
+    "@openref/runner": "workspace:*",
     "jsdom": "30.0.1",
     "tsup": "8.5.1",
     "typescript": "5.9.3"
