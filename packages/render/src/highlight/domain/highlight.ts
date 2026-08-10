@@ -17,6 +17,16 @@
  * in the CJS half: `ERR_REQUIRE_ESM` in the project of anyone whose NestJS application is
  * CommonJS, which SPEC 23 names as inadmissible. `import()` works from both module systems
  * on every Node this project supports, and esbuild leaves it alone for an external package.
+ *
+ * IT STAYS AFTER THE FLOOR MOVE OF 2026-08-10, and that needed deciding rather than assuming.
+ * SPEC 23 now starts at Node 22.22.2, and every version in that range can `require` an ESM
+ * package natively, so the original failure is no longer reachable. Two reasons to keep the
+ * construction anyway. Native `require(esm)` refuses a graph containing top level await, with
+ * `ERR_REQUIRE_ASYNC_MODULE`, so it turns a dependency's internal change into a failure in a
+ * consumer's process; and it is the honest spelling of what this is, a module fetched at call
+ * time from a package that publishes one shape. The guard that can still fail is the assertion
+ * in `packages/nest/test/integration/module-formats.spec.ts` that the built CommonJS file
+ * reaches these packages with `import(` and never with `require(`.
  */
 
 import type { BundledLanguage } from 'shiki';

@@ -25,7 +25,7 @@ jobs:
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
           cache: pnpm
 
       - name: Install
@@ -75,7 +75,7 @@ jobs:
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
           cache: pnpm
 
       - name: Install
@@ -89,7 +89,7 @@ jobs:
       - name: Switch to the engines floor
         uses: actions/setup-node@v4
         with:
-          node-version: 20.11.0
+          node-version: 22.22.2
 
       - name: Load the package on the floor
         run: node tools/module-floor-check.mjs

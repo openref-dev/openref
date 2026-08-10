@@ -13,6 +13,7 @@ import {
 import { budgetsGate } from '../../src/gates/budgets.gate';
 import { buildManifestGate } from '../../src/gates/build-manifest.gate';
 import { dependencyGraphGate } from '../../src/gates/dependency-graph.gate';
+import { enginesFloorGate } from '../../src/gates/engines-floor.gate';
 import { fixtureLicensesGate } from '../../src/gates/fixture-licenses.gate';
 import { licensesGate } from '../../src/gates/licenses.gate';
 import { themeFontsGate } from '../../src/gates/theme-fonts.gate';
@@ -96,6 +97,35 @@ describe('dependencyGraphGate', () => {
 
     // Then
     expect(result.status).toBe('pass');
+  }, 180_000);
+});
+
+describe('enginesFloorGate', () => {
+  it('should pass on the committed manifests and the committed closure', async () => {
+    // Given
+    const context = { repoRoot };
+
+    // When
+    const result = await enginesFloorGate.run(context);
+
+    // Then
+    const errors = result.findings.filter((finding) => finding.level === 'error');
+    expect(errors).toEqual([]);
+    expect(result.status).toBe('pass');
+  }, 180_000);
+
+  it('should read a range from a real package rather than reporting on an empty set', async () => {
+    // Given, a check that found no declared range anywhere would pass in silence, which is the
+    // shape of failure this gate was built to remove rather than to reproduce.
+    const context = { repoRoot };
+
+    // When
+    const result = await enginesFloorGate.run(context);
+    const summary = result.findings.find((finding) => finding.level === 'info')?.message ?? '';
+
+    // Then
+    expect(summary).toMatch(/is a subset of the \d+ declared range\(s\)/);
+    expect(summary).not.toContain('subset of the 0 declared');
   }, 180_000);
 });
 

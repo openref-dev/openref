@@ -8,12 +8,14 @@
   "main": "./dist/index.js",
   "source": "./src/index.ts",
   "engines": {
-    "node": ">=20.11.0"
+    "node": "^22.22.2 || ^24.15.0 || >=26.0.0"
   },
   "scripts": {
     "build": "tsup"
   },
   "devDependencies": {
+    "@types/semver": "7.7.1",
+    "semver": "7.8.5",
     "tsup": "8.5.1",
     "typescript": "5.9.3"
   }

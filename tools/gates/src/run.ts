@@ -4,6 +4,7 @@ import { clientRunnerGate } from './gates/client-runner.gate.js';
 import { coverageGate } from './gates/coverage.gate.js';
 import { cspGate } from './gates/csp.gate.js';
 import { dependencyGraphGate } from './gates/dependency-graph.gate.js';
+import { enginesFloorGate } from './gates/engines-floor.gate.js';
 import { fixtureLicensesGate } from './gates/fixture-licenses.gate.js';
 import { licensesGate } from './gates/licenses.gate.js';
 import { themeFontsGate } from './gates/theme-fonts.gate.js';
@@ -23,6 +24,10 @@ import type { Gate, GateResult } from './types.js';
  * three zones, and zones 1 and 2 are answered by walking the dependency tree while zone 3 is
  * answered by walking vendored files. Two questions, two walks, two reports.
  *
+ * The engines gate sits beside the licence one because both read the same published closure and
+ * ask a question of every package in it. One asks what the licence obliges, the other what the
+ * runtime requires, and neither can be answered by reading this repository alone.
+ *
  * The theme token gate sits beside the CSP one: both scan stylesheets, one for what a policy
  * would block and one for what a theme author could not override. The theme motion gate sits
  * beside them and asks a third question of the same files: whether every theme, not only the
@@ -41,6 +46,7 @@ import type { Gate, GateResult } from './types.js';
 export const GATES: readonly Gate[] = [
   buildManifestGate,
   dependencyGraphGate,
+  enginesFloorGate,
   licensesGate,
   fixtureLicensesGate,
   budgetsGate,

@@ -8,10 +8,15 @@ import { describe, expect, it } from 'vitest';
 /**
  * The dual build of SPEC 23, checked by loading it rather than by reading the configuration.
  *
- * `ERR_REQUIRE_ESM` in a consumer project is named inadmissible by SPEC 23, and two of this
- * package's dependencies, `marked` and `shiki`, publish ESM only. Nothing about the source
- * shows whether that was handled: a static import compiles fine and fails at the moment a
- * CommonJS application requires the package. So both halves are loaded in a real Node process.
+ * WHAT THE LOADING TESTS PROVE, AND WHAT THEY NO LONGER DO. They prove the built package
+ * resolves and carries its public surface in both module systems, which is a real claim: it is
+ * what caught `@noble/hashes` missing from `dependencies`. They no longer prove anything about
+ * `ERR_REQUIRE_ESM`. SPEC 23 moved to Node 22.22.2 on 2026-08-10 and every version in that
+ * range can `require` an ESM package natively, so a runtime check of that cannot fail on any
+ * runtime this project supports. Rather than keep a test whose name promised a guarantee it had
+ * stopped providing, the guarantee moved to the static assertion below, which reads the built
+ * CommonJS file and fails on any Node at all. The load on the declared floor itself is
+ * `tools/module-floor-check.mjs`, run by the `module-floor` job.
  *
  * THE EXTERNAL IMPORT CHECK IS HERE FOR A REASON THAT WAS FOUND THE HARD WAY. The build keeps
  * third party packages external and inlines the workspace ones, which means every dependency
@@ -117,7 +122,7 @@ function packageOf(specifier: string): string {
 }
 
 describe('the dual build', () => {
-  it('should import from an ESM consumer', () => {
+  it('should resolve and expose its surface to an ESM consumer', () => {
     // Given
     const source = `
       const module = await import('@openref/nest');
@@ -131,7 +136,7 @@ describe('the dual build', () => {
     expect(JSON.parse(printed)).toEqual({ name: '@openref/nest', setup: 'function' });
   });
 
-  it('should require from a CommonJS consumer without ERR_REQUIRE_ESM', () => {
+  it('should resolve and expose its surface to a CommonJS consumer', () => {
     // Given
     const source = `
       const module = require('@openref/nest');
@@ -145,9 +150,10 @@ describe('the dual build', () => {
     expect(JSON.parse(printed)).toEqual({ name: '@openref/nest', setup: 'function' });
   });
 
-  it('should reach the ESM only dependencies from CommonJS, which is what they are dynamic for', () => {
+  it('should render a page from CommonJS, which is the path the ESM only dependencies sit on', () => {
     // Given, the highlighter and the markdown renderer, the two paths that touch `shiki` and
-    // `marked`. A static import of either becomes a require() in this file and raises.
+    // `marked`. This exercises them from the CommonJS half; what it cannot do any more is fail
+    // when they are reached with `require`, since every supported Node allows that.
     const source = `
       const { ReferenceService } = require('@openref/nest');
       const service = new ReferenceService({

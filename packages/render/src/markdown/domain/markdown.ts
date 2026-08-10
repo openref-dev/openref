@@ -7,11 +7,10 @@
  * description keeps working, and every byte of it goes through the sanitizer.
  *
  * `marked` IS LOADED WITH A DYNAMIC IMPORT, for the reason given at the head of
- * `highlight/domain/highlight.ts`: it publishes ESM only, this package is bundled into the
- * CJS half of `@openref/nest`, and a static import there becomes a `require()` of an ESM
- * package, which is `ERR_REQUIRE_ESM` in a CommonJS NestJS project. Only construction is
- * asynchronous. Rendering stays synchronous, because the page model feeds a hash keyed
- * cache and an async render would make it depend on scheduling.
+ * `highlight/domain/highlight.ts`, including why it stays now that SPEC 23 starts at a Node
+ * that can `require` an ESM package natively. Only construction is asynchronous. Rendering
+ * stays synchronous, because the page model feeds a hash keyed cache and an async render
+ * would make it depend on scheduling.
  */
 
 import { plainHighlighter, type IHighlighter } from '../../highlight/domain/highlight';
