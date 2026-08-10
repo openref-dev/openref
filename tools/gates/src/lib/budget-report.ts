@@ -29,6 +29,7 @@ import {
   type ArtifactMeasurement,
   type BudgetQuantity,
 } from './budgets.js';
+import { chunkName, partitionModuleGraph } from './module-graph.js';
 import { collectFiles } from './walk.js';
 
 /** How each quantity is printed, so a figure is never read as the other one. */
@@ -88,20 +89,65 @@ export function collectBudgetOutcomes(repoRoot: string): BudgetReport {
   let measuredCount = 0;
 
   for (const budget of SIZE_BUDGETS) {
-    const measurements: ArtifactMeasurement[] = [];
+    const present: string[] = [];
 
     for (const root of budget.roots) {
-      for (const relativePath of collectFiles(join(repoRoot, root), budget.extensions, repoRoot)) {
-        const content = readFileSync(join(repoRoot, relativePath));
-        measurements.push({
-          path: relativePath,
-          rawBytes: content.byteLength,
-          gzipBytes: gzipSizeOf(content),
-        });
-      }
+      present.push(...collectFiles(join(repoRoot, root), budget.extensions, repoRoot));
     }
 
+    // THE PARTITION IS COMPUTED BEFORE ANYTHING IS WEIGHED, so a budget over one side of a split
+    // bundle weighs that side and not the directory holding it. A budget with no partition
+    // weighs everything under its roots, which is what a set of files with no graph over them
+    // means, and is how every budget behaved before the bundle was split.
+    let wanted = present;
+
+    if (budget.partition !== undefined && present.length > 0) {
+      const partition = budget.partition;
+      let split;
+      try {
+        split = partitionModuleGraph(repoRoot, partition.entry, present);
+      } catch (cause) {
+        errors.push(
+          `${budget.id}: ${cause instanceof Error ? cause.message : String(cause)}. A bundle whose graph cannot be walked has no side to measure, and measuring the directory instead is what this partition exists to stop`,
+        );
+        continue;
+      }
+
+      // A FILE ON NEITHER SIDE FAILS THE BUDGET RATHER THAN BEING LEFT OUT OF IT. It is either
+      // an artifact nobody loads, or a specifier form the walker does not read, and the second
+      // one would silently report the smallest bundle this project has ever built.
+      if (split.unaccounted.length > 0) {
+        errors.push(
+          `${budget.id}: ${String(split.unaccounted.length)} file(s) under ${budget.roots.join(', ')} are reached by neither the static closure of ${partition.entry} nor any dynamic import from it: ${split.unaccounted.map(chunkName).join(', ')}`,
+        );
+        continue;
+      }
+
+      wanted = [...(partition.side === 'initial' ? split.initial : split.deferred)];
+    }
+
+    const measurements: ArtifactMeasurement[] = wanted.map((relativePath) => {
+      const content = readFileSync(join(repoRoot, relativePath));
+      return {
+        path: relativePath,
+        rawBytes: content.byteLength,
+        gzipBytes: gzipSizeOf(content),
+      };
+    });
+
     if (measurements.length === 0) {
+      // AN EMPTY SIDE OF A BUNDLE THAT EXISTS IS A FAILURE, NOT A SKIP. `skip` says the artifact
+      // has not been built yet, which is true of an empty directory and false of a split that
+      // has been undone: a `client-js-deferred` reading zero would mean the three features are
+      // back in the first paint, and printing that as "nothing to measure yet" is exactly how a
+      // reverted deferral would pass unnoticed.
+      if (budget.partition !== undefined && present.length > 0) {
+        errors.push(
+          `${budget.id}: the ${budget.partition.side} side of ${budget.partition.entry} is empty while ${String(present.length)} file(s) sit under ${budget.roots.join(', ')}. That is a split that no longer splits anything, not a bundle nobody has built`,
+        );
+        continue;
+      }
+
       outcomes.push({
         id: budget.id,
         status: 'skip',

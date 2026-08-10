@@ -2,7 +2,9 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { SHIPPED_CLIENT_BUNDLES } from '../config.js';
 import { findForeignOrigins } from '../lib/bundle-origins.js';
+import { chunkName, partitionModuleGraph } from '../lib/module-graph.js';
 import { auditRunnerBinding } from '../lib/runner-binding.js';
+import { collectFiles } from '../lib/walk.js';
 import type { Gate, GateFinding, GateResult } from '../types.js';
 
 /**
@@ -39,7 +41,40 @@ export const clientRunnerGate: Gate = {
         continue;
       }
 
-      const { missing } = auditRunnerBinding(readFileSync(path, 'utf8'));
+      const present = bundle.roots.flatMap((root) =>
+        collectFiles(join(context.repoRoot, root), ['.js', '.mjs'], context.repoRoot),
+      );
+
+      let split;
+      try {
+        split = partitionModuleGraph(context.repoRoot, bundle.file, present);
+      } catch (cause) {
+        failed = true;
+        findings.push({
+          level: 'error',
+          message: `${bundle.label}: ${cause instanceof Error ? cause.message : String(cause)}`,
+        });
+        continue;
+      }
+
+      if (split.unaccounted.length > 0) {
+        failed = true;
+        findings.push({
+          level: 'error',
+          message: `${bundle.label}: ${split.unaccounted.map(chunkName).join(', ')} sit beside the bundle and nothing in it reaches them, so a marker found in one of them would prove nothing`,
+        });
+        continue;
+      }
+
+      const sourceOf = (files: readonly string[]): string =>
+        files.map((file) => readFileSync(join(context.repoRoot, file), 'utf8')).join('\n');
+
+      const initialSource = sourceOf(split.initial);
+      const deferredSource = sourceOf(split.deferred);
+      const { missing, eager } = auditRunnerBinding({
+        initial: initialSource,
+        deferred: deferredSource,
+      });
 
       for (const marker of missing) {
         failed = true;
@@ -49,14 +84,26 @@ export const clientRunnerGate: Gate = {
         });
       }
 
-      if (missing.length === 0) {
+      // THE RUNNER BEING PRESENT IS HALF THE CLAIM SINCE T011-R, and being absent from the first
+      // paint is the other half. Both are failures and they are opposite ones, which is why they
+      // are two messages rather than one: absent means the console is dead, and eager means the
+      // deferral this task exists for has been undone.
+      for (const marker of eager) {
+        failed = true;
         findings.push({
-          level: 'info',
-          message: `${bundle.label}: hydration and runner both present in ${bundle.file}`,
+          level: 'error',
+          message: `${bundle.label}: "${marker.literal}" is in what the first paint loads, so ${marker.carriedBy} is compiled before any reader has opened a console. T011-R put it behind a dynamic import`,
         });
       }
 
-      const foreign = findForeignOrigins(readFileSync(path, 'utf8'));
+      if (missing.length === 0 && eager.length === 0) {
+        findings.push({
+          level: 'info',
+          message: `${bundle.label}: hydration in the ${String(split.initial.length)} file(s) the first paint loads, the runner in the ${String(split.deferred.length)} behind a dynamic import`,
+        });
+      }
+
+      const foreign = findForeignOrigins(`${initialSource}\n${deferredSource}`);
 
       for (const origin of foreign) {
         failed = true;
@@ -69,7 +116,7 @@ export const clientRunnerGate: Gate = {
       if (foreign.length === 0) {
         findings.push({
           level: 'info',
-          message: `${bundle.label}: no address outside the reader's own origin`,
+          message: `${bundle.label}: no address outside the reader's own origin, over all ${String(split.initial.length + split.deferred.length)} file(s) of the graph`,
         });
       }
     }

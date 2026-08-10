@@ -205,6 +205,27 @@ export interface SizeBudget {
   readonly extensions: readonly string[];
   /** Task that first produces the artifacts, printed when the budget has nothing to measure. */
   readonly producedBy: string;
+  /**
+   * Which side of a split bundle's module graph this budget bounds, for a bundle that has one.
+   *
+   * ABSENT MEANS THE WHOLE OF THE ROOTS, which is right for a set of files with no graph over
+   * them, such as the theme stylesheets. Present, the roots stop being the measurement and
+   * become the completeness check: every file under them has to be on one side or the other,
+   * and one that is on neither fails the budget rather than being left out of it.
+   */
+  readonly partition?: BundlePartition;
+}
+
+/** One side of a split bundle, named by the entry the graph is walked from. */
+export interface BundlePartition {
+  /** Repository relative path of the entry module. */
+  readonly entry: string;
+  /**
+   * `initial` is the entry and its static closure, which is what a first paint compiles.
+   * `deferred` is everything reachable only through a dynamic import, which is what a reader
+   * who opens a feature compiles instead.
+   */
+  readonly side: 'initial' | 'deferred';
 }
 
 /**
@@ -241,8 +262,28 @@ export interface MeasuredBudget {
  * the CLI composes one at build time or that output is entered in this list with the reason it
  * is exempt. Silence is not an answer.
  */
-export const SHIPPED_CLIENT_BUNDLES: readonly { readonly label: string; readonly file: string }[] =
-  [{ label: '@openref/nest', file: 'packages/nest/dist/browser/openref.js' }];
+export interface ShippedClientBundle {
+  readonly label: string;
+  /** Repository relative path of the entry module a page loads. */
+  readonly file: string;
+  /**
+   * Directories holding the entry and every chunk it can reach.
+   *
+   * THE GATE READS THE GRAPH AND NOT THE FILE, since T011-R. The runner now lives behind a
+   * dynamic import, so a check that read only the entry stopped seeing it and started failing;
+   * a check that had been written to read only the entry and to pass on absence would instead
+   * have stopped seeing it and stayed green, which is the state that gate exists about.
+   */
+  readonly roots: readonly string[];
+}
+
+export const SHIPPED_CLIENT_BUNDLES: readonly ShippedClientBundle[] = [
+  {
+    label: '@openref/nest',
+    file: 'packages/nest/dist/browser/openref.js',
+    roots: ['packages/nest/dist/browser'],
+  },
+];
 
 /**
  * The stylesheets the default theme ships, budgeted twice over one list.
@@ -252,10 +293,24 @@ export const SHIPPED_CLIENT_BUNDLES: readonly { readonly label: string; readonly
  */
 const THEME_CSS_ROOTS: readonly string[] = ['packages/theme/dist', 'packages/theme/fonts'];
 
+/**
+ * The shipped browser bundle, named once for the four budgets that partition it.
+ *
+ * ONE ENTRY AND ONE ROOT LIST FOR ALL FOUR, for the reason `THEME_CSS_ROOTS` exists: two copies
+ * of the roots is how two budgets over one artifact come to bound different file sets while
+ * reading as two views of one.
+ */
+const CLIENT_JS_ROOTS: readonly string[] = [
+  'packages/nest/dist/browser',
+  'packages/theme/dist/browser',
+];
+
+const CLIENT_JS_ENTRY = 'packages/nest/dist/browser/openref.js';
+
 export const SIZE_BUDGETS: readonly SizeBudget[] = [
   {
     id: 'client-js',
-    label: 'Client JS, core plus default theme, gzip',
+    label: 'Client JS the first paint loads, gzip',
     limitBytes: 100 * 1024,
     // THE ROOT MOVED IN T014, from the renderer's browser build to the composed one, and the
     // limit did not. SPEC 20 bounds what a reader downloads, and what a reader downloads is
@@ -263,10 +318,82 @@ export const SIZE_BUDGETS: readonly SizeBudget[] = [
     // two are alternatives rather than an addition, so measuring both would sum a quantity
     // nobody ever fetches and would report 88 KB of 100 for a page that costs 41. The
     // renderer's own bundle keeps a ceiling of its own in `client-bundle.spec.ts`.
-    roots: ['packages/nest/dist/browser', 'packages/theme/dist/browser'],
+    //
+    // AND THE QUANTITY MOVED IN T011-R, which is a correction and not a relaxation. That task
+    // split four features out of the bundle, and from the moment it did, summing the directory
+    // counted four chunks no reader loads on first paint: 45.8 KB gzip reported for a page that
+    // costs 37.8. The limit did not move here either. What moved is that this row now measures
+    // the entry and its static closure, which is the quantity the deferral acts on, and the
+    // deferred side is measured by two budgets of its own rather than by nobody.
+    roots: CLIENT_JS_ROOTS,
     extensions: ['.js', '.mjs'],
     quantity: 'transfer',
     producedBy: 'T014',
+    partition: { entry: CLIENT_JS_ENTRY, side: 'initial' },
+  },
+  {
+    // THE SECOND CAP ON THE FIRST PAINT, the one T011-R owes and the one the TTI diagnosis
+    // named. The gzip cap bounds what a reader downloads; this bounds what the engine decodes
+    // and compiles before the page is interactive, and those differ by a factor of 2.53 here.
+    //
+    // 98 KB IS DELIBERATELY TIGHTER THAN THE USUAL TEN PERCENT, and the reason is what this
+    // budget is for. Measured 97,920 raw bytes across six files. Ten percent would be 105 KB,
+    // and at 105 KB any two of the three deferred features could come back into the first load
+    // without a word, which is the exact regression the task that set this cap exists to
+    // prevent. At 98 KB the smallest of them returning fails it: the palette is 3,278 raw and
+    // takes the closure to 101,198. What is left for ordinary work is 2,432 bytes, which is the
+    // same trade `page-bytes` makes and is stated here for the same reason: a task that needs
+    // more room says so and moves the number deliberately.
+    id: 'client-js-raw',
+    label: 'Client JS the first paint loads, raw bytes',
+    limitBytes: 98 * 1024,
+    roots: CLIENT_JS_ROOTS,
+    extensions: ['.js', '.mjs'],
+    quantity: 'parse',
+    producedBy: 'T011-R',
+    partition: { entry: CLIENT_JS_ENTRY, side: 'initial' },
+  },
+  {
+    // THE OTHER SIDE OF THE SAME GRAPH, GATED RATHER THAN RECORDED. The alternative was to print
+    // the deferred figures and assert nothing, on the grounds that a reader pays them only on
+    // interaction. That was rejected: they are byte counts, which is the one quantity this
+    // project's machinery has been able to threshold at all, and an unasserted figure beside an
+    // asserted one is the shape SPEC 0 now names as a defect class of its own.
+    //
+    // Measured 8,240 gzip and 18,845 raw across five chunks, and both caps are the measurement
+    // plus ten percent. The concrete regression both have to fail is a fourth deferred feature
+    // the size of the palette, 3,278 raw and about 1.4 KB gzip: planted on the real gate it read
+    // 21.6 KB raw and 9.2 KB gzip, over both.
+    //
+    // AND A PLANT THAT FAILS ONLY ONE OF THEM, WHICH IS WHY THERE ARE TWO. Appending a byte
+    // identical copy of the schema viewer chunk to itself was tried first and read 22.1 KB raw,
+    // over, beside 8.1 KB gzip, inside. A duplicate costs the engine everything and costs the
+    // wire almost nothing, so the raw cap saw a doubled chunk that the gzip cap could not. That
+    // is the transfer against parse distinction of SPEC 0 appearing in a plant rather than in an
+    // argument, and it is recorded here because the first version of this comment claimed the
+    // doubling failed both and the measurement said otherwise.
+    //
+    // MOVING CODE FROM THE FIRST PAINT INTO A CHUNK RAISES THIS BUDGET, and that is not a defect
+    // in it. Deferring a fourth feature is a deliberate act with a number attached, and raising
+    // this cap while `client-js-raw` falls is what that act looks like from here.
+    id: 'client-js-deferred',
+    label: 'Client JS behind a dynamic import, gzip',
+    limitBytes: 9 * 1024,
+    roots: CLIENT_JS_ROOTS,
+    extensions: ['.js', '.mjs'],
+    quantity: 'transfer',
+    producedBy: 'T011-R',
+    partition: { entry: CLIENT_JS_ENTRY, side: 'deferred' },
+  },
+  {
+    id: 'client-js-deferred-raw',
+    label: 'Client JS behind a dynamic import, raw bytes',
+    limitBytes: 21 * 1024,
+    roots: CLIENT_JS_ROOTS,
+    extensions: ['.js', '.mjs'],
+    quantity: 'parse',
+    producedBy: 'T011-R',
+    partition: { entry: CLIENT_JS_ENTRY, side: 'deferred' },
   },
   {
     id: 'theme-css',

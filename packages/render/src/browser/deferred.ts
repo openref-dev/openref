@@ -20,10 +20,20 @@
  * is the moment this file is trying to reach. So the listeners sit on the document, in the
  * capture phase, and match on the class the server rendered.
  *
- * AND THE EVENT IS REPLAYED, or the first click of every deferred feature would be the click
- * that loads it and does nothing else. The component that resolves is wrapped in one that
- * dispatches the captured event again from `onMounted`, which is after its subtree has hydrated
- * and its listeners are attached.
+ * AND THE WHOLE INTERACTION IS REPLAYED, or the first click of every deferred feature would be
+ * the click that loads it and does nothing else. The component that resolves is wrapped in one
+ * that dispatches the captured events again from `onMounted`, which is after its subtree has
+ * hydrated and its listeners are attached.
+ *
+ * THE INTERACTION IS A SEQUENCE AND NOT ONE EVENT, which is the correction of 2026-08-10 and the
+ * reason the palette needed two clicks. `pointerdown` is what starts the fetch, because it is the
+ * earliest moment a reader has committed to a control, and it is not what any of these components
+ * listen to: the palette button opens on `click`, and a click arrives after a pointerdown that
+ * this gate has already consumed. Replaying only the event that opened the gate therefore
+ * dispatched an event nothing was listening for, and the feature stayed shut until the reader
+ * tried again. So the listeners stay armed after the gate opens, every matching event is recorded
+ * in the order it happened, and all of them are dispatched again once the subtree is mounted. The
+ * gate keeps the earliest possible trigger and the component keeps the event it actually handles.
  */
 
 import {
@@ -43,7 +53,13 @@ interface ReachSpec {
   readonly name: string;
   /** Class of the region the server rendered, matched with `closest`. */
   readonly selector: string;
-  /** Events that count as reaching for it. */
+  /**
+   * Events that count as reaching for it, and that are recorded until it has hydrated.
+   *
+   * `pointerdown` is what opens the gate soonest and `click` is what these components listen to,
+   * so both belong in the list for a different reason: the first buys the fetch the length of a
+   * press, the second is the event the feature has to be handed when it arrives.
+   */
   readonly events: readonly string[];
   /** A keystroke anywhere on the page that also opens it, such as the palette shortcut. */
   readonly shortcut?: (event: KeyboardEvent) => boolean;
@@ -53,7 +69,12 @@ interface ReachSpec {
 interface Reached {
   /** Resolves the moment the reader reaches for the feature. */
   readonly reached: Promise<void>;
-  /** Dispatches the captured event again, once, after the feature has hydrated. */
+  /**
+   * Dispatches every event of the interaction again, in order, after the feature has hydrated.
+   *
+   * Disarms first, so a replayed event cannot be recorded as a new one, and clears the queue, so
+   * a second call dispatches nothing.
+   */
   readonly replay: () => void;
 }
 
@@ -68,12 +89,17 @@ function isPaletteShortcut(event: KeyboardEvent): boolean {
  * CAPTURE PHASE, so a region that stops propagation cannot keep its own feature from loading,
  * and `once` is not used because the listener has to survive an event that matched nothing.
  *
+ * THE LISTENERS STAY ARMED AFTER THE GATE OPENS. What is being recorded is the interaction and
+ * not the trigger: between the pointerdown that starts the fetch and the moment the chunk has
+ * hydrated, the reader's pointerup, click and keystrokes all land on markup with no listeners on
+ * it, and every one of them is lost unless it is kept here.
+ *
  * @param spec - What counts as reaching for this feature
  * @param root - Document to listen on
  * @returns The promise the loader waits on, and the replay
  */
 export function whenReached(spec: ReachSpec, root: Document): Reached {
-  let captured: Event | null = null;
+  const captured: Event[] = [];
   let settle: (() => void) | null = null;
   const reached = new Promise<void>((resolve) => {
     settle = resolve;
@@ -92,8 +118,7 @@ export function whenReached(spec: ReachSpec, root: Document): Reached {
     // that is loading the palette and then act again on the one that is replayed.
     if (shortcut) event.preventDefault();
 
-    captured = event;
-    dispose();
+    captured.push(event);
     settle?.();
   };
 
@@ -104,20 +129,25 @@ export function whenReached(spec: ReachSpec, root: Document): Reached {
   for (const type of spec.events) root.addEventListener(type, onEvent, true);
 
   const replay = (): void => {
-    const event = captured;
-    captured = null;
-    if (event === null) return;
+    // DISARMED BEFORE THE FIRST DISPATCH, and that is not tidiness. A replayed event is an event
+    // of a listened type landing inside the region, so a listener still attached would record it
+    // and the queue would grow while it was being drained.
+    dispose();
 
-    const target = event.target;
-    if (target === null) return;
+    const events = captured.splice(0, captured.length);
 
-    // Cloned through the event's own constructor with the original as the init, which is how
-    // Vue's own interaction strategy replays one: every field a listener reads is on the init.
-    const clone = new (event.constructor as new (type: string, init: Event) => Event)(
-      event.type,
-      event,
-    );
-    target.dispatchEvent(clone);
+    for (const event of events) {
+      const target = event.target;
+      if (target === null) continue;
+
+      // Cloned through the event's own constructor with the original as the init, which is how
+      // Vue's own interaction strategy replays one: every field a listener reads is on the init.
+      const clone = new (event.constructor as new (type: string, init: Event) => Event)(
+        event.type,
+        event,
+      );
+      target.dispatchEvent(clone);
+    }
   };
 
   return { reached, replay };
@@ -197,14 +227,18 @@ export function deferredComponents(options: DeferredOptions): DeferrableComponen
         selector: '.oref-schema-tree',
         // `keydown` as well as the pointer, because the tree is a `role="tree"` with roving
         // focus and arrow keys, and a reader who is on the keyboard never clicks it.
-        events: ['pointerdown', 'focusin', 'keydown'],
+        events: ['pointerdown', 'click', 'focusin', 'keydown'],
       },
       root,
       async () => (await import('../components/SchemaView')).SchemaView,
     ),
 
     tryIt: deferUntilReached(
-      { name: 'TryItPanel', selector: '.oref-section-tryit', events: ['pointerdown', 'focusin'] },
+      {
+        name: 'TryItPanel',
+        selector: '.oref-section-tryit',
+        events: ['pointerdown', 'click', 'focusin'],
+      },
       root,
       async () => {
         const { TryItPanel } = await import('../components/TryItPanel');
@@ -223,7 +257,7 @@ export function deferredComponents(options: DeferredOptions): DeferrableComponen
       {
         name: 'CommandPalette',
         selector: '.oref-palette-open',
-        events: ['pointerdown', 'focusin', 'keydown'],
+        events: ['pointerdown', 'click', 'focusin', 'keydown'],
         shortcut: isPaletteShortcut,
       },
       root,

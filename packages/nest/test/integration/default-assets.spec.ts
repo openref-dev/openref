@@ -44,13 +44,24 @@ describe('the default asset set', () => {
   it('should serve the composed bundle rather than the renderer own one', () => {
     // Given
     const plan = loadDefaultAssets();
-    const bundle = plan.sources.find((source) => source.name === 'openref.js');
-    const code = new TextDecoder().decode(bundle?.bytes);
+    const decoder = new TextDecoder();
 
-    // Then
+    // When
     // `oref.credential.` comes from `@openref/runner` and reaches a bundle only by being used.
     // The renderer cannot import that package at all, so its presence identifies which of the
     // two browser builds is being served.
-    expect(code).toContain('oref.credential.');
+    //
+    // LOOKED FOR ACROSS THE PLAN AND NOT IN THE ENTRY, since T011-R. The runner sits behind a
+    // dynamic import now, so the entry no longer carries it and a check that read only the entry
+    // would report the renderer's bundle being served when it is not. What the claim needs is
+    // that the runner is among the bytes this host will answer for, which is what the plan is.
+    const carriers = plan.sources.filter((source) =>
+      decoder.decode(source.bytes).includes('oref.credential.'),
+    );
+
+    // Then
+    expect(plan.sources.map((source) => source.name)).toContain('openref.js');
+    expect(carriers).toHaveLength(1);
+    expect(carriers[0]?.name).not.toBe('openref.js');
   });
 });

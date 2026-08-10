@@ -6,10 +6,9 @@
  * specification would be a measurement of the measurer.
  */
 
-import { spawn, type ChildProcessByStdio } from 'node:child_process';
 import { join } from 'node:path';
 import { repositoryRoot } from '../repo-root.js';
-import type { Readable } from 'node:stream';
+import { spawnServer } from '../spawn.js';
 import type { FixtureDocument, FixtureOptions } from './app.js';
 
 /** A booted fixture. */
@@ -37,63 +36,15 @@ export async function bootFixture(
   options: FixtureOptions = {},
 ): Promise<BootedFixture> {
   const root = repositoryRoot();
-  const entry = join(root, FIXTURE_ENTRY);
   const policy = options.policy !== false;
 
-  const child: ChildProcessByStdio<null, Readable, Readable> = spawn(
-    process.execPath,
-    [entry, `--document=${document}`, '--port=0', `--policy=${policy ? 'on' : 'off'}`],
-    { cwd: root, stdio: ['ignore', 'pipe', 'pipe'] },
-  );
-
-  let out = '';
-  let err = '';
-  child.stdout.setEncoding('utf8');
-  child.stderr.setEncoding('utf8');
-  child.stderr.on('data', (chunk: string) => (err += chunk));
-
-  const url = await new Promise<string>((resolve, reject) => {
-    const fail = (reason: string): void => {
-      child.kill('SIGKILL');
-      reject(new Error(`the ${document} fixture did not start: ${reason}\n${out}\n${err}`));
-    };
-
-    const timer = setTimeout(() => {
-      fail('no url within 120 seconds');
-    }, 120_000);
-
-    child.on('exit', (code) => {
-      clearTimeout(timer);
-      fail(`it exited with code ${String(code)}`);
-    });
-
-    child.stdout.on('data', (chunk: string) => {
-      out += chunk;
-
-      for (const line of out.split('\n')) {
-        if (!line.startsWith('{')) continue;
-
-        const parsed = JSON.parse(line) as { url?: unknown };
-        if (typeof parsed.url === 'string') {
-          clearTimeout(timer);
-          resolve(parsed.url);
-          return;
-        }
-      }
-    });
+  const server = await spawnServer({
+    entry: join(root, FIXTURE_ENTRY),
+    args: [`--document=${document}`, '--port=0', `--policy=${policy ? 'on' : 'off'}`],
+    cwd: root,
+    label: `the ${document} fixture`,
+    timeoutMs: 120_000,
   });
 
-  return {
-    url,
-    document,
-    policy,
-    stop: () =>
-      new Promise<void>((resolve) => {
-        child.on('exit', () => {
-          resolve();
-        });
-        child.kill('SIGTERM');
-        setTimeout(() => child.kill('SIGKILL'), 2_000).unref();
-      }),
-  };
+  return { url: server.url, document, policy, stop: () => server.stop() };
 }

@@ -232,7 +232,16 @@ export function rewriteJsSpecifiers(
  * @param decoder - Shared decoder
  * @returns Disk names it refers to, which have to be hashed before it is
  */
-function referencesOf(name: string, bytes: Uint8Array, decoder: TextDecoder): readonly string[] {
+function referencesOf(
+  name: string,
+  bytes: Uint8Array,
+  // `InstanceType<typeof TextDecoder>` RATHER THAN `TextDecoder`, and it is not a style choice.
+  // Under `lib.dom` the name is an interface as well as a value; under `@types/node` alone it is
+  // a `var` and nothing else, so writing the bare name typechecks in the two programs that carry
+  // DOM and fails in the root one. Reading the instance type off the ambient value is the form
+  // that means the same thing in all three.
+  decoder: InstanceType<typeof TextDecoder>,
+): readonly string[] {
   if (isStylesheet(name)) {
     const text = decoder.decode(bytes);
     const names: string[] = [];
@@ -320,7 +329,10 @@ export function buildAssetCatalog(sources: readonly AssetSource[]): AssetCatalog
 
     for (const source of ready) {
       if (isStylesheet(source.name)) {
-        add(source.name, encoder.encode(rewriteCssUrls(decoder.decode(source.bytes), servedNameOf)));
+        add(
+          source.name,
+          encoder.encode(rewriteCssUrls(decoder.decode(source.bytes), servedNameOf)),
+        );
       } else if (isScript(source.name)) {
         add(
           source.name,
