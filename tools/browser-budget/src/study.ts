@@ -59,6 +59,10 @@ export interface StudyReport {
   /** Measured slowdown per run, proving the throttle took every time rather than once. */
   readonly throttleRatios: readonly number[];
   readonly tti: Spread;
+  /** Where the time went, so a figure over budget says what to look at. */
+  readonly ttiTransferMs: Spread;
+  readonly ttiParseMs: Spread;
+  readonly ttiScriptMs: Spread;
   readonly ttiRuns: readonly PageMeasurement[];
   readonly peakHeapBytes: Spread;
   readonly memoryRuns: readonly PageMeasurement[];
@@ -178,6 +182,9 @@ export async function runStudy(options: StudyOptions = {}): Promise<StudyReport>
       throttleRate: THROTTLE_RATE,
       throttleRatios: ttiMeasurements.map((run) => run.throttle?.ratio ?? 0),
       tti: spreadOf(ttiMeasurements.map((run) => run.ttiMs)),
+      ttiTransferMs: spreadOf(ttiMeasurements.map((run) => run.breakdown.transferMs)),
+      ttiParseMs: spreadOf(ttiMeasurements.map((run) => run.breakdown.parseMs)),
+      ttiScriptMs: spreadOf(ttiMeasurements.map((run) => run.breakdown.scriptMs)),
       ttiRuns: ttiMeasurements,
       peakHeapBytes: spreadOf(memoryMeasurements.map((run) => run.peakHeapBytes)),
       memoryRuns: memoryMeasurements,

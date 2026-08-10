@@ -35,6 +35,9 @@ export function summarize(report: StudyReport): string[] {
       `sd ${report.tti.standardDeviation.toFixed(1)}, ` +
       `range ${(report.tti.relativeRange * 100).toFixed(1)}% of median`,
     `               samples ${report.tti.samples.map((value) => value.toFixed(1)).join(', ')}`,
+    `               transfer ${report.ttiTransferMs.median.toFixed(1)} ms, ` +
+      `parse ${report.ttiParseMs.median.toFixed(1)} ms, ` +
+      `script and hydrate ${report.ttiScriptMs.median.toFixed(1)} ms, all medians`,
     `peak heap      ${String(report.peakHeapBytes.count)} runs, median ${kb(report.peakHeapBytes.median)}, ` +
       `min ${kb(report.peakHeapBytes.min)}, max ${kb(report.peakHeapBytes.max)}`,
     `external reqs  ${String(report.externalRequests.length)}`,

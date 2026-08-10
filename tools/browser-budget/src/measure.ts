@@ -52,6 +52,8 @@ export interface PageMeasurement {
   /** What the server took before the first byte, for context. Not part of the client budget. */
   readonly serverMs: number;
   readonly domContentLoadedMs: number;
+  /** Where the time went, so a figure that is too high says what to look at. */
+  readonly breakdown: TtiBreakdown;
   readonly longTaskCount: number;
   readonly lastLongTaskEndMs: number;
   /** Highest heap seen, in bytes. Zero when heap sampling was not asked for. */
@@ -92,10 +94,29 @@ export interface MeasureOptions {
 interface PageTimings {
   readonly responseStartMs: number;
   readonly requestStartMs: number;
+  readonly responseEndMs: number;
+  readonly domInteractiveMs: number;
   readonly domContentLoadedMs: number;
   readonly longTasks: readonly { readonly startTime: number; readonly duration: number }[];
   readonly violations: readonly { readonly directive: string; readonly blockedUri: string }[];
   readonly heapSamples: readonly number[];
+}
+
+/**
+ * Where the time between the first byte and an interactive page goes.
+ *
+ * A single figure says a page is too slow and says nothing about what to do, so the phases are
+ * reported beside it. They are the browser's own boundaries rather than a decomposition of our
+ * own making: the document arriving, the document parsing, and everything the deferred module
+ * script does, which on this page is the bundle parsing and the hydration.
+ */
+export interface TtiBreakdown {
+  /** First byte to last byte of the document. */
+  readonly transferMs: number;
+  /** Last byte to `domInteractive`: parsing the markup. */
+  readonly parseMs: number;
+  /** `domInteractive` to `DOMContentLoaded`: fetching and running the deferred module. */
+  readonly scriptMs: number;
 }
 
 /**
@@ -110,6 +131,8 @@ interface PageTimings {
 interface NavigationTimingLike {
   readonly requestStart: number;
   readonly responseStart: number;
+  readonly responseEnd: number;
+  readonly domInteractive: number;
   readonly domContentLoadedEventEnd: number;
 }
 
@@ -245,6 +268,8 @@ export async function measurePage(
       return {
         requestStartMs: navigation?.requestStart ?? -1,
         responseStartMs: navigation?.responseStart ?? -1,
+        responseEndMs: navigation?.responseEnd ?? -1,
+        domInteractiveMs: navigation?.domInteractive ?? -1,
         domContentLoadedMs: navigation?.domContentLoadedEventEnd ?? -1,
         longTasks: globals.__openrefLongTasks ?? [],
         violations: globals.__openrefCspViolations ?? [],
@@ -273,6 +298,11 @@ export async function measurePage(
       ttiMs: Math.max(timings.domContentLoadedMs, lastLongTaskEndMs) - timings.responseStartMs,
       serverMs: timings.responseStartMs - timings.requestStartMs,
       domContentLoadedMs: timings.domContentLoadedMs,
+      breakdown: {
+        transferMs: timings.responseEndMs - timings.responseStartMs,
+        parseMs: timings.domInteractiveMs - timings.responseEndMs,
+        scriptMs: timings.domContentLoadedMs - timings.domInteractiveMs,
+      },
       longTaskCount: timings.longTasks.length,
       lastLongTaskEndMs,
       peakHeapBytes: timings.heapSamples.reduce((peak, sample) => Math.max(peak, sample), 0),
