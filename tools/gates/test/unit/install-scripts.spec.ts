@@ -42,7 +42,7 @@ function allowBuilds(): Map<string, boolean> {
 
   let inside = false;
   for (const line of text.split('\n')) {
-    if (/^allowBuilds:/.test(line)) {
+    if (line.startsWith('allowBuilds:')) {
       inside = true;
       continue;
     }

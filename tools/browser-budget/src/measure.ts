@@ -56,6 +56,18 @@ export interface PageMeasurement {
   readonly breakdown: TtiBreakdown;
   readonly longTaskCount: number;
   readonly lastLongTaskEndMs: number;
+  /**
+   * Every subresource the page fetched, with the browser's own timings.
+   *
+   * IT IS HERE BECAUSE THE PHASE NAMES LIED ONCE. `parseMs` is `responseEnd` to
+   * `domInteractive` and reads as "parsing the document", and on this page it is dominated by
+   * whatever the parser waits for rather than by the markup. Cutting the served document from
+   * 192 KB to 30 KB moved it by five percent, which is how that reading was caught. A figure
+   * over budget has to say what to look at, and a phase boundary is not enough.
+   */
+  readonly resources: readonly ResourceRecord[];
+  /** First contentful paint, or 0 when the browser reported none. */
+  readonly firstPaintMs: number;
   /** Highest heap seen, in bytes. Zero when heap sampling was not asked for. */
   readonly peakHeapBytes: number;
   readonly heapSamples: number;
@@ -100,6 +112,18 @@ export interface MeasureOptions {
   readonly globals?: readonly string[];
 }
 
+/** One subresource the page fetched, as the browser timed it. */
+export interface ResourceRecord {
+  readonly name: string;
+  readonly initiatorType: string;
+  /** Milliseconds from navigation start to the moment it was asked for. */
+  readonly startMs: number;
+  /** Milliseconds from navigation start to the moment the last byte arrived. */
+  readonly endMs: number;
+  readonly encodedBytes: number;
+  readonly decodedBytes: number;
+}
+
 /** What the page collects for itself, read back after the load. */
 interface PageTimings {
   readonly responseStartMs: number;
@@ -110,6 +134,8 @@ interface PageTimings {
   readonly longTasks: readonly { readonly startTime: number; readonly duration: number }[];
   readonly violations: readonly { readonly directive: string; readonly blockedUri: string }[];
   readonly heapSamples: readonly number[];
+  readonly resources: readonly ResourceRecord[];
+  readonly firstPaintMs: number;
 }
 
 /**
@@ -275,7 +301,36 @@ export async function measurePage(
         throw new Error('this browser does not report long tasks, so TTI cannot be computed');
       }
 
+      const resourceTimings = (
+        performance as unknown as {
+          getEntriesByType(type: string): readonly {
+            name: string;
+            initiatorType: string;
+            startTime: number;
+            responseEnd: number;
+            encodedBodySize: number;
+            decodedBodySize: number;
+          }[];
+        }
+      ).getEntriesByType('resource');
+
+      const paints = (
+        performance as unknown as {
+          getEntriesByType(type: string): readonly { name: string; startTime: number }[];
+        }
+      ).getEntriesByType('paint');
+
       return {
+        resources: resourceTimings.map((entry) => ({
+          name: entry.name,
+          initiatorType: entry.initiatorType,
+          startMs: entry.startTime,
+          endMs: entry.responseEnd,
+          encodedBytes: entry.encodedBodySize,
+          decodedBytes: entry.decodedBodySize,
+        })),
+        firstPaintMs:
+          paints.find((entry) => entry.name === 'first-contentful-paint')?.startTime ?? 0,
         requestStartMs: navigation?.requestStart ?? -1,
         responseStartMs: navigation?.responseStart ?? -1,
         responseEndMs: navigation?.responseEnd ?? -1,
@@ -323,6 +378,8 @@ export async function measurePage(
       },
       longTaskCount: timings.longTasks.length,
       lastLongTaskEndMs,
+      resources: timings.resources,
+      firstPaintMs: timings.firstPaintMs,
       peakHeapBytes: timings.heapSamples.reduce((peak, sample) => Math.max(peak, sample), 0),
       heapSamples: timings.heapSamples.length,
       requests,

@@ -19,6 +19,7 @@ export type {
   MeasureOptions,
   PageMeasurement,
   RequestRecord,
+  ResourceRecord,
 } from './measure.js';
 export {
   PLANTED_ORIGIN,
@@ -31,6 +32,6 @@ export { repositoryRoot } from './repo-root.js';
 export { spreadOf } from './statistics.js';
 export type { Spread } from './statistics.js';
 export { firstNodePage, runStudy, TTI_PAGE, TTI_PAGE_MARKER } from './study.js';
-export type { StudyOptions, StudyReport } from './study.js';
+export type { ResourceSummary, StudyOptions, StudyReport } from './study.js';
 export { applyVerifiedThrottle, THROTTLE_RATE, THROTTLE_TOLERANCE } from './throttle.js';
 export type { ThrottleVerification } from './throttle.js';

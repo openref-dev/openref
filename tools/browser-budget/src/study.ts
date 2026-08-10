@@ -13,7 +13,12 @@ import { navigationHref } from '@openref/render';
 import { bootFixture } from './fixture/boot.js';
 import { FIXTURE_BASE_PATH } from './fixture/app.js';
 import { currentEnvironment, type MeasurementEnvironment } from './environment.js';
-import { externalRequestsOf, measurePage, type PageMeasurement } from './measure.js';
+import {
+  externalRequestsOf,
+  measurePage,
+  type PageMeasurement,
+  type ResourceRecord,
+} from './measure.js';
 import { spreadOf, type Spread } from './statistics.js';
 import { CHROME_ARGS } from './chrome.js';
 import { THROTTLE_RATE } from './throttle.js';
@@ -44,6 +49,48 @@ export const MEMORY_PAGE_MIN_BYTES = 50_000;
  */
 export const HEAP_SAMPLE_MS = 25;
 
+/** One subresource, as it behaved across the runs of a study. */
+export interface ResourceSummary {
+  /** Path of the resource, without the origin, which changes per run. */
+  readonly path: string;
+  readonly initiatorType: string;
+  readonly decodedBytes: number;
+  /** Median moment the last byte arrived, from navigation start. */
+  readonly endMs: number;
+  /** How many of the runs fetched it, so a conditional request is visible as one. */
+  readonly runs: number;
+}
+
+/**
+ * Summarises what the page fetched besides itself.
+ *
+ * A phase boundary says a page is slow between two events and never says what it was waiting
+ * for. This does: every subresource, when its last byte arrived, and how big it was.
+ *
+ * @param runs - The measurements of one page
+ * @returns One entry per distinct path, slowest last
+ */
+function resourceSummaries(runs: readonly PageMeasurement[]): ResourceSummary[] {
+  const byPath = new Map<string, ResourceRecord[]>();
+
+  for (const run of runs) {
+    for (const resource of run.resources) {
+      const path = new URL(resource.name).pathname;
+      byPath.set(path, [...(byPath.get(path) ?? []), resource]);
+    }
+  }
+
+  return [...byPath.entries()]
+    .map(([path, records]) => ({
+      path,
+      initiatorType: records[0]?.initiatorType ?? '',
+      decodedBytes: records[0]?.decodedBytes ?? 0,
+      endMs: spreadOf(records.map((record) => record.endMs)).median,
+      runs: records.length,
+    }))
+    .sort((left, right) => left.endMs - right.endMs);
+}
+
 /** How a study is varied. */
 export interface StudyOptions {
   /** Throttled runs over the thousand node page. */
@@ -66,6 +113,10 @@ export interface StudyReport {
   readonly ttiParseMs: Spread;
   readonly ttiScriptMs: Spread;
   readonly ttiRuns: readonly PageMeasurement[];
+  /** Median first contentful paint, for context on what the reader sees and when. */
+  readonly ttiFirstPaintMs: Spread;
+  /** What the page fetched besides itself, summarised over the runs. */
+  readonly ttiResources: readonly ResourceSummary[];
   readonly peakHeapBytes: Spread;
   readonly memoryRuns: readonly PageMeasurement[];
   /** Every request either page made to anything but its own origin. */
@@ -212,6 +263,8 @@ export async function runStudy(options: StudyOptions = {}): Promise<StudyReport>
       ttiTransferMs: spreadOf(ttiMeasurements.map((run) => run.breakdown.transferMs)),
       ttiParseMs: spreadOf(ttiMeasurements.map((run) => run.breakdown.parseMs)),
       ttiScriptMs: spreadOf(ttiMeasurements.map((run) => run.breakdown.scriptMs)),
+      ttiFirstPaintMs: spreadOf(ttiMeasurements.map((run) => run.firstPaintMs)),
+      ttiResources: resourceSummaries(ttiMeasurements),
       ttiRuns: ttiMeasurements,
       peakHeapBytes: spreadOf(memoryMeasurements.map((run) => run.peakHeapBytes)),
       memoryRuns: memoryMeasurements,

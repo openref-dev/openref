@@ -38,6 +38,14 @@ export function summarize(report: StudyReport): string[] {
     `               transfer ${report.ttiTransferMs.median.toFixed(1)} ms, ` +
       `parse ${report.ttiParseMs.median.toFixed(1)} ms, ` +
       `script and hydrate ${report.ttiScriptMs.median.toFixed(1)} ms, all medians`,
+    `first paint    ${report.ttiFirstPaintMs.median.toFixed(1)} ms, median`,
+    'resources      when the last byte arrived, median, and what it was',
+    ...report.ttiResources.map(
+      (resource) =>
+        `               ${resource.endMs.toFixed(1).padStart(8)} ms  ` +
+        `${String(Math.round(resource.decodedBytes / 1024)).padStart(5)} KB  ` +
+        `${resource.initiatorType.padEnd(6)} ${resource.path}`,
+    ),
     `peak heap      ${String(report.peakHeapBytes.count)} runs, median ${kb(report.peakHeapBytes.median)}, ` +
       `min ${kb(report.peakHeapBytes.min)}, max ${kb(report.peakHeapBytes.max)}`,
     `external reqs  ${String(report.externalRequests.length)}`,
