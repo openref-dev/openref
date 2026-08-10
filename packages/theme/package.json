@@ -23,7 +23,7 @@
   },
   "files": [
     "dist",
-    "fonts"
+    "fonts/**"
   ],
   "sideEffects": false,
   "engines": {

@@ -19,6 +19,7 @@
     "test": "vitest run --exclude \"**/test/integration/**\"",
     "test:cov": "vitest run --coverage",
     "test:integration": "vitest run test/integration",
+    "test:packaging": "vitest run test/integration/packaged-attribution.spec.ts",
     "gates": "pnpm --filter @openref/gates run build && node tools/gates/dist/index.js",
     "gates:licenses": "pnpm --filter @openref/gates run build && node tools/gates/dist/index.js licenses",
     "changeset": "changeset",

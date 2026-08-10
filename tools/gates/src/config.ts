@@ -217,10 +217,27 @@ export interface FontBudget {
   readonly producedBy: string;
 }
 
-/** Both caps, per SPEC 20. Measured gzip, like every other budget. */
+/**
+ * Both caps, per SPEC 20. Measured gzip, like every other budget.
+ *
+ * The total was 130 KB and became 160 KB on 2026-08-10. That is a correction rather than a
+ * concession: 130 came from estimates taken over hinted fonts, and it only held because the
+ * first build dropped the hinting to make it hold. Hinting is rendering quality, not packaging,
+ * and it is lost exactly where this product is most exposed, monospace code at 11 px. A
+ * threshold that stands only while quality is thrown away was set wrong from the start.
+ *
+ * 160 is the measured 144.3 KB plus about 11 percent, chosen so the budget still fails on the
+ * thing it exists to catch: the lightest of the five faces is 25.5 KB, so a sixth face reaches
+ * 169.8 KB and breaks the build.
+ *
+ * THE FIRST PAINT CAP DOES NOT MOVE and has 1.4 KB of room at 58.7 KB. When that runs out the
+ * lever is splitting latin from latin-ext into separate files with `unicode-range`, which the
+ * design handover assumed anyway and which takes the first paint to 44.9 KB. It is not
+ * hinting.
+ */
 export const FONT_BUDGET_LIMITS = {
   firstPaintBytes: 60 * 1024,
-  totalBytes: 130 * 1024,
+  totalBytes: 160 * 1024,
 } as const;
 
 export const FONT_BUDGETS: readonly FontBudget[] = [

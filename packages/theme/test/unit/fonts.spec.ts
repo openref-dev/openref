@@ -152,6 +152,9 @@ describe('the fonts the default theme ships', () => {
 
     // Then
     expect(target).toBe('./fonts/fonts.css');
-    expect(exports.files).toContain('fonts');
+    // That the fonts and their licences actually arrive is asserted against the packed tarball
+    // in `test/integration/packaged-attribution.spec.ts`, not here: this file reads the working
+    // tree, and the failure worth catching is one the working tree cannot show.
+    expect(exports.files.some((entry) => entry.startsWith('fonts'))).toBe(true);
   });
 });

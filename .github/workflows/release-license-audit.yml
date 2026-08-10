@@ -1,11 +1,17 @@
 name: Release license audit
 
+# Two checks over the thing that is about to be published rather than over the workspace.
+#
 # The production zone of the license policy is the dependency closure of what is actually
 # published. Running it in CI proves the workspace is clean; running it here proves the
 # thing about to be published is clean, which is the claim that matters to a consumer.
 #
-# Callable, so the release job of T064 gates publication on it with `uses:` rather than
-# reimplementing the check.
+# Zone 4 attribution is the same argument one step further. npm drops anything outside the
+# `files` field silently, so a font can ship with no licence beside it while the working tree
+# looks exactly right. The only place that shows is the packed tarball, which is built here.
+#
+# Callable, so the release job of T064 gates publication on both with `uses:` rather than
+# reimplementing them.
 
 on:
   push:
@@ -38,3 +44,12 @@ jobs:
 
       - name: License audit
         run: pnpm run gates:licenses
+
+      - name: Build
+        run: pnpm build
+
+      # Packs every publishable package and asserts that each font arrived with its family's
+      # complete licence text and its own NOTICE beside it. Attribution is a per package
+      # obligation: a tarball cannot lean on a sibling package or on the repository root.
+      - name: Packaged attribution audit
+        run: pnpm run test:packaging

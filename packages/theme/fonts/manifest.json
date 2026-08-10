@@ -13,9 +13,9 @@
       "reservedFontName": null,
       "copyrightHolder": "The Space Grotesk Project Authors",
       "modified": true,
-      "modifications": "subset to latin and latin-ext, TrueType hinting instructions dropped, converted to woff2 with pyftsubset; outlines, metrics and layout features unchanged",
-      "bytes": 24488,
-      "sha256": "682ba10595c08e82d8e13e4ecdbc3dc075ac47057075e5d6eacaa48a9dca5ff2"
+      "modifications": "subset to latin and latin-ext and converted to woff2 with pyftsubset, keeping the kern, liga, tnum and calt layout features; outlines, metrics and TrueType hinting instructions unchanged",
+      "bytes": 26316,
+      "sha256": "9a1584c1fff9d648fb3d179a8a5d33e7522b9c5773ff8f4b628deed55d77b84d"
     },
     {
       "file": "SpaceGrotesk-500.woff2",
@@ -30,9 +30,9 @@
       "reservedFontName": null,
       "copyrightHolder": "The Space Grotesk Project Authors",
       "modified": true,
-      "modifications": "subset to latin and latin-ext, TrueType hinting instructions dropped, converted to woff2 with pyftsubset; outlines, metrics and layout features unchanged",
-      "bytes": 24276,
-      "sha256": "661bb759e98c5e87829c54cbf70edfc51f6a48a98aaead78055cc1ba76d82628"
+      "modifications": "subset to latin and latin-ext and converted to woff2 with pyftsubset, keeping the kern, liga, tnum and calt layout features; outlines, metrics and TrueType hinting instructions unchanged",
+      "bytes": 26720,
+      "sha256": "56016f6e2eb1dae249ef7309687af0e88f0b7ecb0d045e3549752847559cef22"
     },
     {
       "file": "SpaceGrotesk-700.woff2",
@@ -47,9 +47,9 @@
       "reservedFontName": null,
       "copyrightHolder": "The Space Grotesk Project Authors",
       "modified": true,
-      "modifications": "subset to latin and latin-ext, TrueType hinting instructions dropped, converted to woff2 with pyftsubset; outlines, metrics and layout features unchanged",
-      "bytes": 23508,
-      "sha256": "da589ebd05a9c35bc59170ec526d53cf2c88cf473d1332321e0459ee282cec25"
+      "modifications": "subset to latin and latin-ext and converted to woff2 with pyftsubset, keeping the kern, liga, tnum and calt layout features; outlines, metrics and TrueType hinting instructions unchanged",
+      "bytes": 26076,
+      "sha256": "91da5f57cfef820265a5454c74755b2195b6bc457897ff628c2164e0f1baac1a"
     },
     {
       "file": "JetBrainsMono-400.woff2",
@@ -64,9 +64,9 @@
       "reservedFontName": null,
       "copyrightHolder": "The JetBrains Mono Project Authors",
       "modified": true,
-      "modifications": "subset to latin and latin-ext, TrueType hinting instructions dropped, converted to woff2 with pyftsubset; outlines, metrics and layout features unchanged",
-      "bytes": 27300,
-      "sha256": "af4747e4a9ef6b18316bc009c11e81a4a503ed09d9ad605e61f8775c95ffe635"
+      "modifications": "subset to latin and latin-ext and converted to woff2 with pyftsubset, keeping the kern, liga, tnum and calt layout features; outlines, metrics and TrueType hinting instructions unchanged",
+      "bytes": 33640,
+      "sha256": "af3429c601f9e655b29b329c3e75e3df673d0260915196ec239492bd515b681d"
     },
     {
       "file": "JetBrainsMono-700.woff2",
@@ -81,9 +81,9 @@
       "reservedFontName": null,
       "copyrightHolder": "The JetBrains Mono Project Authors",
       "modified": true,
-      "modifications": "subset to latin and latin-ext, TrueType hinting instructions dropped, converted to woff2 with pyftsubset; outlines, metrics and layout features unchanged",
-      "bytes": 28164,
-      "sha256": "12b5921bc305fc9be5decab2974509c68f4c820a9f5919178b3bfc782759607e"
+      "modifications": "subset to latin and latin-ext and converted to woff2 with pyftsubset, keeping the kern, liga, tnum and calt layout features; outlines, metrics and TrueType hinting instructions unchanged",
+      "bytes": 34800,
+      "sha256": "dfdf8d51bd4beaea93fc4da7262e5048c9eecd6bfb5216f9fadb74154fbdf146"
     }
   ]
 }

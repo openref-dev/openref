@@ -446,6 +446,24 @@ describe('the shipped asset zone', () => {
     ]);
   });
 
+  it('should read the reserved name a real family declares, in the form that family wrote it', () => {
+    // Given, the copyright line of IBM Plex, verbatim. Every plant above is synthetic; this is
+    // a family that really does reserve a name, and reading it is what caused the forge design
+    // to swap its mono family on 2026-08-10 rather than rename a subset.
+    const text = [
+      'Copyright \u00a9 2017 IBM Corp. with Reserved Font Name "Plex"',
+      '',
+      'This Font Software is licensed under the SIL Open Font License, Version 1.1.',
+      '',
+    ].join('\n');
+
+    // When
+    const declared = reservedFontName(text);
+
+    // Then
+    expect(declared).toBe('Plex');
+  });
+
   it('should report no reserved name for either family this repository ships', () => {
     // Given, the real texts. This is a reading of two files and not an assumption that
     // families agree: the check exists because the declaration is not in a fixed place.
