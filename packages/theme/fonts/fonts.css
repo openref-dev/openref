@@ -1,35 +1,6 @@
-/*
- * The faces the default theme ships, per SPEC 0 zone 4.
- *
- * Self hosted, no CDN, no external request of any kind: SPEC 19 puts the number of outgoing
- * requests from the client at zero, and a font served from someone else's origin is an
- * outgoing request that also tells them who is reading your documentation.
- *
- * Every file is a subset. `packages/theme/fonts` carries the licence text of each family, a
- * NOTICE.md and a manifest recording the exact source of every byte.
- *
- * This file sits with the fonts rather than under `src`, and is not built. A stylesheet whose
- * url() names a binary beside it survives a bundler only by being kept away from one: esbuild
- * would rewrite the reference and move the file, and the licence text and the NOTICE that have
- * to travel with these bytes would stop travelling with them.
- *
- * EACH FACE IS TWO FILES, latin and latin-ext, selected by `unicode-range`. A reader of an
- * English interface fetches the latin half and nothing else, which is what took the first paint
- * from 58.7 KB to 44.9 KB and the whole session from 144.3 KB to 107.9 KB. The directory got
- * heavier, 176.8 KB against 144.3, because a split face carries `fpgm`, the `name` table and
- * every latin base glyph its accented glyphs compose from in both halves. SPEC 20 budgets the
- * three numbers separately for that reason.
- *
- * THE latin-ext BLOCK COMES FIRST IN EVERY PAIR, and the order is load bearing. The two ranges
- * overlap on a handful of code points, and when two faces of one family both match, the last
- * declaration wins. Declaring latin second means the overlap is served by the file a reader
- * already has.
- *
- * FONT-DISPLAY IS SWAP EVERYWHERE. Text that is readable in a fallback face beats text that is
- * not there, and the reference is a document before it is a design. The two latin regulars are
- * what the first paint waits for and are budgeted separately, per SPEC 20; every other file
- * arrives when it arrives and swaps in.
- */
+/* Default theme faces, SPEC 0 zone 4. Served as written, so the reasoning is in FONTS.md
+   beside this file rather than in these bytes. Read it before editing: the latin-ext block
+   coming first in every pair is load bearing, and this stylesheet must not be bundled. */
 
 @font-face {
   font-family: 'Space Grotesk';

@@ -302,6 +302,9 @@ importers:
       '@openref/render':
         specifier: workspace:*
         version: link:../../packages/render
+      '@openref/theme':
+        specifier: workspace:*
+        version: link:../../packages/theme
       '@types/express':
         specifier: 5.0.6
         version: 5.0.6

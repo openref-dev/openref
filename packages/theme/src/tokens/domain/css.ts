@@ -14,17 +14,31 @@ import { ALL_TOKENS, MOTION_DURATION_TOKENS, MOTION_ZERO_TOKEN } from './tokens'
 export const COLOR_SCHEME_ATTRIBUTE = 'data-oref-color-scheme';
 
 /**
- * Every token in every block, including the ones whose value does not change between schemes.
+ * The light block declares every token. A dark block declares only the ones that change.
  *
- * The design contract requires the two colour schemes to carry an identical name list, and
- * that is stronger than it looks. A block that declares only what changes is correct for a
- * document whose light values are already in force, and wrong for anything that reads one
- * block on its own: a theme editor, a conformance checker, a host that copies the dark block
- * into a shadow root. The repetition costs bytes that gzip removes and buys a block that means
- * the same thing wherever it is read.
+ * IT USED TO WRITE ALL OF THEM THREE TIMES, and the reason it stopped is measurement rather
+ * than taste. The design contract requires every theme to define all its tokens in both colour
+ * modes, and the generator read that as a requirement on the text of each block. The comment
+ * that defended the repetition said it "costs bytes that gzip removes". Gzip does remove them;
+ * the browser parses the bytes gzip did not remove, and the three stylesheets were 38,786 of
+ * those against 6,499 transferred. The decision was made against the wrong quantity, which
+ * SPEC 0 now records as a defect class beside may-ship against did-ship.
+ *
+ * CONTRACT.md is amended to match: the requirement is on the declared surface and is checked on
+ * the resolved computed value in both modes, in a browser, not by counting declarations in a
+ * stylesheet. A token declared on the light block and not overridden in the dark one does have
+ * a value in dark mode, because that is what the cascade is for. The new check is stronger than
+ * the count it replaces, since a token declared and then overridden to nothing passes a count
+ * and fails a resolution.
+ *
+ * @param tokens - The token set
+ * @param dark - Whether this is a dark scheme block
+ * @returns The declarations, one per line, or the empty string when nothing changes
  */
 function declarations(tokens: readonly ThemeToken[], dark: boolean): string {
-  return tokens
+  const declared = dark ? tokens.filter((token) => token.dark !== undefined) : tokens;
+
+  return declared
     .map((token) => `  ${token.name}: ${dark ? (token.dark ?? token.value) : token.value};`)
     .join('\n');
 }
@@ -114,7 +128,10 @@ export function renderTokensCss(tokens: readonly ThemeToken[] = ALL_TOKENS): str
  * Generated from src/tokens/domain/tokens.ts. Do not edit by hand: tokens.spec.ts compares
  * this file with the generator and fails when they disagree.
  *
- * Both colour schemes carry the identical name list, which the design contract requires.
+ * The light block declares every token. A dark block declares only the tokens whose value
+ * changes, and the rest resolve through the cascade. The design contract requires all of them
+ * to be defined in both modes and checks that on the resolved value in a browser, which is a
+ * stronger check than counting declarations here.
  *
  * This is the one file in the theme where a literal colour, length or font stack is allowed.
  * Everywhere else reads var(--oref-*), and a gate fails the build on a literal that escapes.

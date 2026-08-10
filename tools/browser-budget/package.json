@@ -17,6 +17,7 @@
     "@openref/gates": "workspace:*",
     "@openref/nest": "workspace:*",
     "@openref/render": "workspace:*",
+    "@openref/theme": "workspace:*",
     "@types/express": "5.0.6",
     "express": "5.2.1",
     "playwright-core": "1.62.1",

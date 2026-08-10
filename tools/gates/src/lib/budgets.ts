@@ -11,11 +11,23 @@ export interface ArtifactMeasurement {
 }
 
 /**
+ * Which quantity a budget bounds.
+ *
+ * NAMED RATHER THAN ASSUMED, per SPEC 0. `transfer` is what a host serves and a CDN bills;
+ * `parse` is what the main thread decodes and then has to do something with. For the theme
+ * stylesheets the two differ by a factor of 5.97, and a budget that measured only the first
+ * reported 6.3 KB of 15 while nothing bounded the 38.8 KB the browser walked.
+ */
+export type BudgetQuantity = 'transfer' | 'parse';
+
+/**
  * Outcome of comparing measured artifacts against a limit.
  */
 export interface BudgetEvaluation {
   readonly ok: boolean;
-  readonly totalGzipBytes: number;
+  readonly quantity: BudgetQuantity;
+  /** Sum of the quantity this budget names, not of some other one. */
+  readonly totalBytes: number;
   readonly limitBytes: number;
   readonly overBy: number;
 }
@@ -31,22 +43,28 @@ export function gzipSizeOf(content: Buffer): number {
 }
 
 /**
- * Compares the summed gzip size of a set of artifacts against a limit.
+ * Compares the summed size of a set of artifacts against a limit, in one named quantity.
  *
  * @param limitBytes - Budget in bytes
  * @param measurements - Artifacts that make up the budgeted bundle
+ * @param quantity - Which size the limit is about, transferred or decoded
  * @returns Evaluation carrying the total and the overshoot
  */
 export function evaluateBudget(
   limitBytes: number,
   measurements: readonly ArtifactMeasurement[],
+  quantity: BudgetQuantity = 'transfer',
 ): BudgetEvaluation {
-  const totalGzipBytes = measurements.reduce((sum, item) => sum + item.gzipBytes, 0);
-  const overBy = Math.max(0, totalGzipBytes - limitBytes);
+  const totalBytes = measurements.reduce(
+    (sum, item) => sum + (quantity === 'parse' ? item.rawBytes : item.gzipBytes),
+    0,
+  );
+  const overBy = Math.max(0, totalBytes - limitBytes);
 
   return {
-    ok: totalGzipBytes <= limitBytes,
-    totalGzipBytes,
+    ok: totalBytes <= limitBytes,
+    quantity,
+    totalBytes,
     limitBytes,
     overBy,
   };

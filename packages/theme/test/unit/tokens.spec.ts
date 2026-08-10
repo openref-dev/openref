@@ -204,23 +204,44 @@ describe('the generated token stylesheet', () => {
     expect(attributeAt).toBeGreaterThan(mediaAt);
   });
 
-  it('should give both colour schemes the identical name list', () => {
-    // Given, the contract requires it, and a block that declares only what changes means
-    // something different when it is read on its own: in a theme editor, in a conformance
-    // checker, or copied into a shadow root.
+  it('should declare every token once in the light block and only the changes in the dark ones', () => {
+    // Given, CONTRACT.md was amended on 2026-08-10, in T012-R3. The requirement is on the
+    // declared surface and is checked on the RESOLVED value, in a browser, in both modes, by
+    // `tools/browser-budget/test/integration/token-conformance.spec.ts`. Here, where there is
+    // no cascade, the only thing worth pinning is that the emitted file is the reduced form and
+    // that the reduction is exactly the tokens whose value does not change.
     const blocks = declarations(readFileSync(TOKENS_CSS, 'utf8'));
     const [light, media, attribute] = blocks;
+    const changing = ALL_TOKENS.filter((token) => token.dark !== undefined);
 
     // When
     const names = (block: Map<string, string> | undefined): string[] =>
       [...(block?.keys() ?? [])].sort((a, b) => a.localeCompare(b));
+    const expectedDark = changing.map((token) => token.name).sort((a, b) => a.localeCompare(b));
 
-    // Then, four blocks: the three scheme blocks carry the identical name list, and the fourth
-    // is the reduced motion block, which deliberately carries the durations and nothing else.
+    // Then, four blocks still: light, the media query, the attribute, and reduced motion.
     expect(blocks).toHaveLength(4);
-    expect(names(media)).toEqual(names(light));
-    expect(names(attribute)).toEqual(names(light));
     expect(names(light)).toHaveLength(ALL_TOKENS.length);
+    expect(names(media)).toEqual(expectedDark);
+    expect(names(attribute)).toEqual(expectedDark);
+    expect(changing.length).toBeLessThan(ALL_TOKENS.length);
+  });
+
+  it('should write no dark declaration that repeats the light value', () => {
+    // Given, this is the property that makes the reduction safe to read as "only what changes".
+    // A dark block holding a declaration identical to the light one is a byte nobody needs and
+    // a name a reader has to check twice.
+    const [light, media, attribute] = declarations(readFileSync(TOKENS_CSS, 'utf8'));
+
+    // When
+    const repeated = [media, attribute].flatMap((block) =>
+      [...(block?.entries() ?? [])]
+        .filter(([name, value]) => light?.get(name) === value)
+        .map(([name]) => name),
+    );
+
+    // Then
+    expect(repeated).toEqual([]);
   });
 
   it('should carry the dark values in both dark blocks', () => {

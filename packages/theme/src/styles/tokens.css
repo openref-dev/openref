@@ -4,7 +4,10 @@
  * Generated from src/tokens/domain/tokens.ts. Do not edit by hand: tokens.spec.ts compares
  * this file with the generator and fails when they disagree.
  *
- * Both colour schemes carry the identical name list, which the design contract requires.
+ * The light block declares every token. A dark block declares only the tokens whose value
+ * changes, and the rest resolve through the cascade. The design contract requires all of them
+ * to be defined in both modes and checks that on the resolved value in a browser, which is a
+ * stronger check than counting declarations here.
  *
  * This is the one file in the theme where a literal colour, length or font stack is allowed.
  * Everywhere else reads var(--oref-*), and a gate fails the build on a literal that escapes.
@@ -159,63 +162,13 @@
     --oref-color-method-sse: #38d6d6;
     --oref-color-method-event: #93a4b3;
     --oref-color-scrim: rgba(4, 7, 10, 0.66);
-    --oref-font-family-sans: 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
-    --oref-font-family-mono: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
-    --oref-font-family-display: 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
-    --oref-font-weight-regular: 400;
-    --oref-font-weight-medium: 500;
-    --oref-font-weight-bold: 700;
-    --oref-font-size-100: 11px;
-    --oref-font-size-200: 12px;
-    --oref-font-size-300: 13px;
-    --oref-font-size-400: 14px;
-    --oref-font-size-500: 16px;
-    --oref-font-size-600: 21px;
-    --oref-font-size-700: 27px;
-    --oref-font-size-800: 44px;
-    --oref-font-size-900: 64px;
-    --oref-font-leading-tight: 1.25;
-    --oref-font-leading-data: 1.45;
-    --oref-font-leading-prose: 1.62;
-    --oref-font-tracking-wide: 0.22em;
-    --oref-font-tracking-mid: 0.12em;
-    --oref-font-tracking-head: -0.02em;
-    --oref-space-100: 2px;
-    --oref-space-200: 4px;
-    --oref-space-300: 6px;
-    --oref-space-400: 10px;
-    --oref-space-500: 14px;
-    --oref-space-600: 20px;
-    --oref-space-700: 26px;
-    --oref-space-800: 36px;
-    --oref-space-900: 52px;
-    --oref-space-1000: 80px;
-    --oref-radius-none: 0px;
-    --oref-radius-sm: 0px;
-    --oref-radius-md: 0px;
-    --oref-radius-lg: 0px;
-    --oref-radius-pill: 0px;
-    --oref-border-hair: 1px;
-    --oref-border-mark: 3px;
-    --oref-shadow-panel: none;
-    --oref-shadow-overlay: none;
     --oref-focus-color: #ffb020;
-    --oref-focus-width: 2px;
-    --oref-focus-offset: -2px;
-    --oref-layout-rail: 268px;
-    --oref-layout-measure: 78ch;
     --oref-prov-declared-fg: #8fbcff;
     --oref-prov-declared-bg: #0e1a2a;
-    --oref-prov-declared-border-style: solid;
-    --oref-prov-declared-code: 'DCL';
     --oref-prov-derived-fg: #ffb020;
     --oref-prov-derived-bg: #1f1607;
-    --oref-prov-derived-border-style: dashed;
-    --oref-prov-derived-code: 'DRV';
     --oref-prov-inferred-fg: #b98cff;
     --oref-prov-inferred-bg: #170f26;
-    --oref-prov-inferred-border-style: dotted;
-    --oref-prov-inferred-code: 'INF';
     --oref-state-ok-fg: #3fd18b;
     --oref-state-ok-bg: #08201a;
     --oref-state-warn-fg: #ffb020;
@@ -228,28 +181,10 @@
     --oref-state-muted-bg: #111820;
     --oref-drift-crit-fg: #ff5a47;
     --oref-drift-crit-bg: #230d0c;
-    --oref-drift-crit-border-width: 2px;
-    --oref-drift-crit-border-style: solid;
     --oref-drift-warn-fg: #ffb020;
     --oref-drift-warn-bg: #1f1607;
-    --oref-drift-warn-border-width: 1px;
-    --oref-drift-warn-border-style: dashed;
     --oref-drift-note-fg: #93a4b3;
     --oref-drift-note-bg: #111820;
-    --oref-drift-note-border-width: 1px;
-    --oref-drift-note-border-style: dotted;
-    --oref-motion-duration-fast: 80ms;
-    --oref-motion-duration-base: 160ms;
-    --oref-motion-duration-none: 0s;
-    --oref-motion-easing-standard: cubic-bezier(0.2, 0, 0.13, 1);
-    --oref-scrim-blur: 0px;
-    --oref-layout-gutter: 44px;
-    --oref-layout-tick: repeating-linear-gradient(
-      180deg,
-      var(--oref-color-line-edge) 0 1px,
-      transparent 1px 8px
-    );
-    --oref-layout-nav-row: 27px;
   }
 }
 
@@ -280,63 +215,13 @@
   --oref-color-method-sse: #38d6d6;
   --oref-color-method-event: #93a4b3;
   --oref-color-scrim: rgba(4, 7, 10, 0.66);
-  --oref-font-family-sans: 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
-  --oref-font-family-mono: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
-  --oref-font-family-display: 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
-  --oref-font-weight-regular: 400;
-  --oref-font-weight-medium: 500;
-  --oref-font-weight-bold: 700;
-  --oref-font-size-100: 11px;
-  --oref-font-size-200: 12px;
-  --oref-font-size-300: 13px;
-  --oref-font-size-400: 14px;
-  --oref-font-size-500: 16px;
-  --oref-font-size-600: 21px;
-  --oref-font-size-700: 27px;
-  --oref-font-size-800: 44px;
-  --oref-font-size-900: 64px;
-  --oref-font-leading-tight: 1.25;
-  --oref-font-leading-data: 1.45;
-  --oref-font-leading-prose: 1.62;
-  --oref-font-tracking-wide: 0.22em;
-  --oref-font-tracking-mid: 0.12em;
-  --oref-font-tracking-head: -0.02em;
-  --oref-space-100: 2px;
-  --oref-space-200: 4px;
-  --oref-space-300: 6px;
-  --oref-space-400: 10px;
-  --oref-space-500: 14px;
-  --oref-space-600: 20px;
-  --oref-space-700: 26px;
-  --oref-space-800: 36px;
-  --oref-space-900: 52px;
-  --oref-space-1000: 80px;
-  --oref-radius-none: 0px;
-  --oref-radius-sm: 0px;
-  --oref-radius-md: 0px;
-  --oref-radius-lg: 0px;
-  --oref-radius-pill: 0px;
-  --oref-border-hair: 1px;
-  --oref-border-mark: 3px;
-  --oref-shadow-panel: none;
-  --oref-shadow-overlay: none;
   --oref-focus-color: #ffb020;
-  --oref-focus-width: 2px;
-  --oref-focus-offset: -2px;
-  --oref-layout-rail: 268px;
-  --oref-layout-measure: 78ch;
   --oref-prov-declared-fg: #8fbcff;
   --oref-prov-declared-bg: #0e1a2a;
-  --oref-prov-declared-border-style: solid;
-  --oref-prov-declared-code: 'DCL';
   --oref-prov-derived-fg: #ffb020;
   --oref-prov-derived-bg: #1f1607;
-  --oref-prov-derived-border-style: dashed;
-  --oref-prov-derived-code: 'DRV';
   --oref-prov-inferred-fg: #b98cff;
   --oref-prov-inferred-bg: #170f26;
-  --oref-prov-inferred-border-style: dotted;
-  --oref-prov-inferred-code: 'INF';
   --oref-state-ok-fg: #3fd18b;
   --oref-state-ok-bg: #08201a;
   --oref-state-warn-fg: #ffb020;
@@ -349,28 +234,10 @@
   --oref-state-muted-bg: #111820;
   --oref-drift-crit-fg: #ff5a47;
   --oref-drift-crit-bg: #230d0c;
-  --oref-drift-crit-border-width: 2px;
-  --oref-drift-crit-border-style: solid;
   --oref-drift-warn-fg: #ffb020;
   --oref-drift-warn-bg: #1f1607;
-  --oref-drift-warn-border-width: 1px;
-  --oref-drift-warn-border-style: dashed;
   --oref-drift-note-fg: #93a4b3;
   --oref-drift-note-bg: #111820;
-  --oref-drift-note-border-width: 1px;
-  --oref-drift-note-border-style: dotted;
-  --oref-motion-duration-fast: 80ms;
-  --oref-motion-duration-base: 160ms;
-  --oref-motion-duration-none: 0s;
-  --oref-motion-easing-standard: cubic-bezier(0.2, 0, 0.13, 1);
-  --oref-scrim-blur: 0px;
-  --oref-layout-gutter: 44px;
-  --oref-layout-tick: repeating-linear-gradient(
-    180deg,
-    var(--oref-color-line-edge) 0 1px,
-    transparent 1px 8px
-  );
-  --oref-layout-nav-row: 27px;
 }
 
 @media (prefers-reduced-motion: reduce) {

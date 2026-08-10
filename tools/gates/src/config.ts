@@ -7,6 +7,7 @@
 
 import { ASSET_ALLOWED_LICENSES, FIXTURE_ALLOWED_LICENSES } from './lib/fixtures.js';
 import type { BudgetException } from './lib/budget-exceptions.js';
+import type { BudgetQuantity } from './lib/budgets.js';
 import type { FixtureRoot } from './gates/fixture-licenses.gate.js';
 import type { DataOnlyAttestation, LicenseAttestation } from './lib/licenses.js';
 
@@ -188,11 +189,17 @@ export const COVERAGE_FLOORS: Readonly<Record<string, number>> = {
 
 /**
  * A budget that is checked by measuring built files.
+ *
+ * THE QUANTITY IS PART OF THE BUDGET AND IS NAMED IN THE ID. `transfer` is gzip, what a host
+ * serves; `parse` is the raw bytes, what the main thread decodes and then walks. SPEC 0 records
+ * why the distinction is a defect class of its own: `theme-css` measured the first, reported
+ * 6.3 KB of 15 and was green while the browser parsed 38.8 KB that nothing bounded.
  */
 export interface SizeBudget {
   readonly id: string;
   readonly label: string;
   readonly limitBytes: number;
+  readonly quantity: BudgetQuantity;
   /** Repository relative directories that hold the artifacts making up this bundle. */
   readonly roots: readonly string[];
   readonly extensions: readonly string[];
@@ -227,6 +234,14 @@ export interface MeasuredBudget {
 export const SHIPPED_CLIENT_BUNDLES: readonly { readonly label: string; readonly file: string }[] =
   [{ label: '@openref/nest', file: 'packages/nest/dist/browser/openref.js' }];
 
+/**
+ * The stylesheets the default theme ships, budgeted twice over one list.
+ *
+ * ONE LIST FOR BOTH CAPS, deliberately. Two copies of the roots is how the two budgets would
+ * come to bound different file sets while reading as two views of one.
+ */
+const THEME_CSS_ROOTS: readonly string[] = ['packages/theme/dist', 'packages/theme/fonts'];
+
 export const SIZE_BUDGETS: readonly SizeBudget[] = [
   {
     id: 'client-js',
@@ -240,13 +255,36 @@ export const SIZE_BUDGETS: readonly SizeBudget[] = [
     // renderer's own bundle keeps a ceiling of its own in `client-bundle.spec.ts`.
     roots: ['packages/nest/dist/browser', 'packages/theme/dist/browser'],
     extensions: ['.js', '.mjs'],
+    quantity: 'transfer',
     producedBy: 'T014',
   },
   {
     id: 'theme-css',
     label: 'Default theme CSS, gzip',
     limitBytes: 15 * 1024,
-    roots: ['packages/theme/dist', 'packages/theme/fonts'],
+    quantity: 'transfer',
+    roots: THEME_CSS_ROOTS,
+    extensions: ['.css'],
+    producedBy: 'T009',
+  },
+  {
+    // THE SECOND CAP ON THE SAME FILES, AND IT IS NOT A REPLACEMENT FOR THE FIRST. The gzip cap
+    // bounds what a reader downloads, which is a real cost and stays. This bounds what the main
+    // thread decodes, parses and matches, which is the cost the TTI study actually observed and
+    // which nothing bounded while the two quantities differed by 5.97 times.
+    //
+    // 34 KB is the measurement plus about ten percent, chosen the way `fonts-total` was: a
+    // concrete regression has to trip it. Measured 38,786 bytes before T012-R3, which would have
+    // given 41 KB, and 32,094 after it, which gives 34. It was recomputed rather than left at 41
+    // because a cap 8.9 KB above the artifact would have let more back in than the fix removed.
+    // Another region of `theme.css` the size of the try-it console, 3,669 bytes, or of the page
+    // frame, 3,287, lands above the cap; a navigation sized 2,520 does not, and that is the room
+    // ordinary work gets.
+    id: 'theme-css-raw',
+    label: 'Default theme CSS, raw bytes',
+    limitBytes: 34 * 1024,
+    quantity: 'parse',
+    roots: THEME_CSS_ROOTS,
     extensions: ['.css'],
     producedBy: 'T009',
   },

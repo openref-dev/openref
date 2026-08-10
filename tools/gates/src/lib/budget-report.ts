@@ -22,8 +22,20 @@ import {
   SIZE_BUDGETS,
 } from '../config.js';
 import { checkCeilings, readBrowserBaseline, recordedFigure } from './browser-baseline.js';
-import { evaluateBudget, formatBytes, gzipSizeOf, type ArtifactMeasurement } from './budgets.js';
+import {
+  evaluateBudget,
+  formatBytes,
+  gzipSizeOf,
+  type ArtifactMeasurement,
+  type BudgetQuantity,
+} from './budgets.js';
 import { collectFiles } from './walk.js';
+
+/** How each quantity is printed, so a figure is never read as the other one. */
+const QUANTITY_LABEL: Readonly<Record<BudgetQuantity, string>> = {
+  transfer: 'gzip',
+  parse: 'raw',
+};
 
 /**
  * What one budget came to on this run.
@@ -100,8 +112,10 @@ export function collectBudgetOutcomes(repoRoot: string): BudgetReport {
     }
 
     measuredCount += 1;
-    const evaluation = evaluateBudget(budget.limitBytes, measurements);
-    const summary = `${budget.id}: ${formatBytes(evaluation.totalGzipBytes)} of ${formatBytes(evaluation.limitBytes)} across ${String(measurements.length)} file(s)`;
+    const evaluation = evaluateBudget(budget.limitBytes, measurements, budget.quantity);
+    // The quantity is printed with the figure. A reader comparing two budgets over the same
+    // files has to be able to see that they are two quantities and not a contradiction.
+    const summary = `${budget.id}: ${formatBytes(evaluation.totalBytes)} ${QUANTITY_LABEL[evaluation.quantity]} of ${formatBytes(evaluation.limitBytes)} across ${String(measurements.length)} file(s)`;
 
     outcomes.push(
       evaluation.ok
@@ -174,7 +188,7 @@ export function collectBudgetOutcomes(repoRoot: string): BudgetReport {
       ['fonts-total', FONT_BUDGET_LIMITS.totalBytes, measurements],
     ] as const) {
       const evaluation = evaluateBudget(limit, group);
-      const summary = `${id}, ${budget.theme}: ${formatBytes(evaluation.totalGzipBytes)} of ${formatBytes(evaluation.limitBytes)} across ${String(group.length)} file(s)`;
+      const summary = `${id}, ${budget.theme}: ${formatBytes(evaluation.totalBytes)} ${QUANTITY_LABEL[evaluation.quantity]} of ${formatBytes(evaluation.limitBytes)} across ${String(group.length)} file(s)`;
 
       outcomes.push(
         evaluation.ok
