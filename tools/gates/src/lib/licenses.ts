@@ -386,6 +386,57 @@ export function findStaleDataOnlyAttestations(
 }
 
 /**
+ * Checks that the tools which must never reach a consumer did not.
+ *
+ * TWO DIRECTIONS, AND THE SECOND IS WHAT KEEPS THIS HONEST. A named package inside the
+ * published closure is an error, which is the check. A named package that the development tree
+ * does not hold either is a warning, because then the entry names nothing this repository
+ * installs and the check silently stops being able to fail.
+ *
+ * @param names - The committed list, with the reason each is named
+ * @param production - Packages inside the published closure
+ * @param development - Packages reachable only from the development tree
+ * @returns One error per package that shipped, one warning per entry that matches nothing
+ */
+export function findNeverShippedViolations(
+  names: readonly { readonly name: string; readonly reason: string }[],
+  production: readonly LicensedPackage[],
+  development: readonly LicensedPackage[],
+): LicenseFinding[] {
+  const findings: LicenseFinding[] = [];
+  const inProduction = new Map(production.map((entry) => [entry.name, entry]));
+  const inDevelopment = new Set(development.map((entry) => entry.name));
+
+  for (const named of names) {
+    const shipped = inProduction.get(named.name);
+
+    if (shipped !== undefined) {
+      findings.push({
+        level: 'error',
+        packageName: named.name,
+        versions: [...shipped.versions],
+        license: shipped.license,
+        reason: `must never reach a consumer and is inside the published closure: ${named.reason}`,
+      });
+      continue;
+    }
+
+    if (!inDevelopment.has(named.name)) {
+      findings.push({
+        level: 'warning',
+        packageName: named.name,
+        versions: [],
+        license: 'n/a',
+        reason:
+          'is named as never shipped and is in neither tree, so this entry can no longer fail; remove it',
+      });
+    }
+  }
+
+  return findings;
+}
+
+/**
  * Applies the development policy.
  *
  * Development tooling is never redistributed, so the question is narrower than the

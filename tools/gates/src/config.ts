@@ -48,6 +48,34 @@ export const DATA_ONLY_ATTESTATIONS: readonly DataOnlyAttestation[] = [
   },
 ];
 
+/** A package that must never reach a consumer, and the reason it would be a defect if it did. */
+export interface NeverShippedPackage {
+  readonly name: string;
+  readonly reason: string;
+}
+
+/**
+ * Development tools that must stay in zone 2, named rather than inferred.
+ *
+ * THE LICENCE ZONES CANNOT CATCH THIS ON THEIR OWN. Both zones allow Apache-2.0, so a browser
+ * driver crossing from the development tree into the published closure would pass every licence
+ * check and add thirteen megabytes to what a consumer installs, with nothing red. The zones ask
+ * whether a package may ship; this asks whether a particular package did.
+ *
+ * The check runs in both directions. A named package inside the published closure is an error.
+ * A named package that is nowhere in the development tree either is reported as stale, because
+ * an entry for something the repository no longer installs is a check that cannot fail and it
+ * should be removed rather than left to look like coverage.
+ */
+export const NEVER_SHIPPED_PACKAGES: readonly NeverShippedPackage[] = [
+  {
+    name: 'playwright-core',
+    reason:
+      'the browser driver T015 measures the SPEC 20 browser budgets with. It is Apache-2.0, so ' +
+      'the licence policy would admit it to either zone, and it is 13 MB.',
+  },
+];
+
 /**
  * Vendored corpora, zone 3 of SPEC 0.
  *

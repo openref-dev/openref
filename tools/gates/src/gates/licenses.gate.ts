@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { DATA_ONLY_ATTESTATIONS, LICENSE_ATTESTATIONS } from '../config.js';
+import { DATA_ONLY_ATTESTATIONS, LICENSE_ATTESTATIONS, NEVER_SHIPPED_PACKAGES } from '../config.js';
 import { runCommand } from '../lib/exec.js';
 import {
   ALLOWED_LICENSES,
@@ -8,6 +8,7 @@ import {
   detectLicenseFromText,
   evaluateDevelopmentTree,
   evaluateProductionTree,
+  findNeverShippedViolations,
   findStaleAttestations,
   findStaleDataOnlyAttestations,
   flattenLicenseReport,
@@ -205,9 +206,17 @@ export const licensesGate: Gate = {
       });
     }
 
+    for (const finding of findNeverShippedViolations(
+      NEVER_SHIPPED_PACKAGES,
+      productionPackages,
+      developmentPackages,
+    )) {
+      findings.push({ level: finding.level, message: `never shipped: ${describe(finding)}` });
+    }
+
     findings.push({
       level: 'info',
-      message: `checked ${String(productionPackages.length)} published and ${String(developmentPackages.length)} development packages against ${ALLOWED_LICENSES.join(', ')}`,
+      message: `checked ${String(productionPackages.length)} published and ${String(developmentPackages.length)} development packages against ${ALLOWED_LICENSES.join(', ')}, and confirmed ${String(NEVER_SHIPPED_PACKAGES.length)} development tool(s) stayed out of the published closure`,
     });
 
     const hasError = findings.some((finding) => finding.level === 'error');

@@ -6,6 +6,7 @@ import {
   detectLicenseFromText,
   evaluateDevelopmentTree,
   evaluateProductionTree,
+  findNeverShippedViolations,
   findStaleDataOnlyAttestations,
   flattenLicenseReport,
   isLicenseAllowed,
@@ -554,5 +555,58 @@ describe('detectLicenseFromText', () => {
 
     // Then
     expect(result).toBeNull();
+  });
+});
+
+describe('findNeverShippedViolations', () => {
+  const named = [{ name: 'playwright-core', reason: 'a browser driver, 13 MB, Apache-2.0' }];
+
+  it('should report a named tool that reached the published closure', () => {
+    // Given, the case the licence zones cannot catch: Apache-2.0 passes in both of them, so a
+    // browser driver crossing into what a consumer installs is invisible to every other check.
+    const production = [packageWith('playwright-core', 'Apache-2.0')];
+    const development: LicensedPackage[] = [];
+
+    // When
+    const findings = findNeverShippedViolations(named, production, development);
+
+    // Then
+    expect(findings).toHaveLength(1);
+    expect(findings[0]?.level).toBe('error');
+    expect(findings[0]?.reason).toContain('inside the published closure');
+  });
+
+  it('should say nothing when the tool is in the development tree where it belongs', () => {
+    // Given
+    const development = [packageWith('playwright-core', 'Apache-2.0')];
+
+    // When
+    const findings = findNeverShippedViolations(named, [], development);
+
+    // Then
+    expect(findings).toEqual([]);
+  });
+
+  it('should report an entry that matches neither tree, because it can no longer fail', () => {
+    // Given, an entry naming something the repository stopped installing. Left alone it reads
+    // as coverage while checking nothing, which is the failure this project keeps removing.
+    // When
+    const findings = findNeverShippedViolations(named, [], []);
+
+    // Then
+    expect(findings).toHaveLength(1);
+    expect(findings[0]?.level).toBe('warning');
+    expect(findings[0]?.reason).toContain('can no longer fail');
+  });
+
+  it('should not confuse a package of the same name in the other tree', () => {
+    // Given, present in both, which is what a leaked devDependency looks like
+    const both = [packageWith('playwright-core', 'Apache-2.0')];
+
+    // When
+    const findings = findNeverShippedViolations(named, both, both);
+
+    // Then
+    expect(findings.map((finding) => finding.level)).toEqual(['error']);
   });
 });

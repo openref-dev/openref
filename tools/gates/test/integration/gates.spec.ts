@@ -18,7 +18,13 @@ import { fixtureLicensesGate } from '../../src/gates/fixture-licenses.gate';
 import { licensesGate } from '../../src/gates/licenses.gate';
 import { themeFontsGate } from '../../src/gates/theme-fonts.gate';
 import { themeMotionGate } from '../../src/gates/theme-motion.gate';
-import { detectLicenseFromText, hashLicenseText } from '../../src/lib/licenses';
+import { runCommand } from '../../src/lib/exec';
+import {
+  detectLicenseFromText,
+  flattenLicenseReport,
+  hashLicenseText,
+  type PnpmLicenseReport,
+} from '../../src/lib/licenses';
 import { readWorkspaceManifests, resolveShippedPackages } from '../../src/lib/workspace';
 import { GATES, selectGates } from '../../src/run';
 
@@ -161,6 +167,34 @@ describe('licensesGate', () => {
     expect(result.bundled).toEqual(['@openref/render', '@openref/runner', '@openref/search']);
     expect(result.shipped).not.toContain('@openref/gates');
   });
+
+  it('should keep the browser driver out of the published closure, measured rather than assumed', () => {
+    // Given, the confirmation T015 owes: `playwright-core` is a devDependency and SPEC 0 zone 2
+    // applies, and both zones allow Apache-2.0, so no licence check can tell whether it shipped.
+    // The published closure is asked directly, and the development tree is asked too, because a
+    // check that found the driver in neither would pass while proving nothing.
+    const manifests = readWorkspaceManifests(repoRoot);
+    const { shipped } = resolveShippedPackages(manifests);
+
+    // When
+    const production = runCommand(
+      'pnpm',
+      ['licenses', 'list', '--json', '--prod', ...shipped.flatMap((name) => ['--filter', name])],
+      repoRoot,
+    );
+    const everything = runCommand('pnpm', ['licenses', 'list', '--json'], repoRoot);
+
+    const namesIn = (stdout: string): string[] =>
+      flattenLicenseReport(JSON.parse(stdout.trim()) as PnpmLicenseReport).map(
+        (entry) => entry.name,
+      );
+
+    // Then
+    const shippedNames = namesIn(production.stdout);
+    expect(shippedNames).not.toContain('playwright-core');
+    expect(shippedNames.filter((name) => /playwright|puppeteer|chromium/.test(name))).toEqual([]);
+    expect(namesIn(everything.stdout)).toContain('playwright-core');
+  }, 180_000);
 
   it('should hold a recorded license reading that still matches the text on disk', () => {
     // Given
