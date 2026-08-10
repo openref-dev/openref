@@ -17,10 +17,11 @@ repository, ship to nobody, and carry their attribution in `packages/core/test/c
 
 ## Fonts
 
-Every font file in this repository is a subset of its original: reduced to the latin and
-latin-ext ranges and converted to woff2, keeping the kern, liga, tnum and calt layout features.
-Outlines, metrics and TrueType hinting instructions are unchanged. A subset is a derivative
-work, so each subset carries the licence of the family it came from.
+Every font file in this repository is a subset of its original: reduced to the latin range or
+to the latin-ext range and converted to woff2, keeping the kern, liga, tnum and calt layout
+features. Outlines, metrics and TrueType hinting instructions are unchanged. A subset is a
+derivative work, so each subset carries the licence of the family it came from. Each face ships
+as two files, and a browser fetches the second only when the text needs a character from it.
 
 Vendored today, in `@openref/theme`:
 

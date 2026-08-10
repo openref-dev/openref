@@ -193,58 +193,74 @@ export const SIZE_BUDGETS: readonly SizeBudget[] = [
 ];
 
 /**
- * A theme's font directory, budgeted twice.
+ * A theme's font directory, budgeted three times.
  *
  * PER THEME, NOT PER REPOSITORY, and that is the point rather than a convenience. A theme
  * nobody loads costs nothing, and there will be more than one theme. A repository total would
  * have to be raised every time a theme is added, which is a budget that only ever moves in one
  * direction.
  *
- * Two numbers rather than one, for the same reason. The first bounds what a reader actually
- * waits for: the primary sans weight and the primary mono weight, which are the two files the
- * first paint needs. Everything else loads with `font-display: swap` and delays nothing, so
- * the second number bounds the whole directory and sits looser. A single cap would fail on
- * arrival: the heaviest of the three designs fills almost all of it, and a font version bump
- * would then break the build while saying nothing about whether a reader is worse off.
+ * Three numbers rather than one, because they measure three different things. The first bounds
+ * what a reader waits for: the latin half of the primary sans weight and of the primary mono
+ * weight, the two files the first paint needs. The second bounds what a reader of an English
+ * interface fetches over a whole session: the latin half of every face. The third bounds what
+ * the published package weighs, the directory entire, latin-ext included. Everything past the
+ * first pair loads with `font-display: swap` and delays nothing, so the third sits loosest.
+ *
+ * The second exists because the split made the second and third numbers different. While a face
+ * was one file, the directory and the download were the same quantity; once a face is two files
+ * they are not, and a single cap would then bound the one nobody pays.
  */
 export interface FontBudget {
   /** The package that ships them, for the message. */
   readonly theme: string;
   /** Repository relative directory holding the font files. */
   readonly directory: string;
-  /** The two files the first paint needs: the primary sans weight and the primary mono weight. */
+  /** The two files the first paint needs: the latin half of the primary sans and mono weights. */
   readonly firstPaint: readonly string[];
+  /** Every latin file: what a reader who stays inside that range downloads in total. */
+  readonly latin: readonly string[];
   readonly producedBy: string;
 }
 
 /**
- * Both caps, per SPEC 20. Measured gzip, like every other budget.
+ * All three caps, per SPEC 20. Measured gzip, like every other budget.
  *
- * The total was 130 KB and became 160 KB on 2026-08-10. That is a correction rather than a
- * concession: 130 came from estimates taken over hinted fonts, and it only held because the
- * first build dropped the hinting to make it hold. Hinting is rendering quality, not packaging,
- * and it is lost exactly where this product is most exposed, monospace code at 11 px. A
- * threshold that stands only while quality is thrown away was set wrong from the start.
+ * The total was corrected twice on 2026-08-10, and neither time was a concession.
  *
- * 160 is the measured 144.3 KB plus about 11 percent, chosen so the budget still fails on the
- * thing it exists to catch: the lightest of the five faces is 25.5 KB, so a sixth face reaches
- * 169.8 KB and breaks the build.
+ * 130 became 160 because 130 came from estimates taken over hinted fonts and only held while
+ * the first build dropped the hinting. Hinting is rendering quality, not packaging, and it is
+ * lost exactly where this product is most exposed, monospace code at 11 px.
  *
- * THE FIRST PAINT CAP DOES NOT MOVE and has 1.4 KB of room at 58.7 KB. When that runs out the
- * lever is splitting latin from latin-ext into separate files with `unicode-range`, which the
- * design handover assumed anyway and which takes the first paint to 44.9 KB. It is not
- * hinting.
+ * 160 became 195 when latin and latin-ext were split into separate files. The split takes the
+ * first paint from 58.7 KB to 44.9 KB and a latin reader's whole session from 144.3 KB to
+ * 107.9 KB, and it takes the directory from 144.3 KB to 176.8 KB, because a split face carries
+ * `fpgm`, the `name` table and every latin base glyph its accented glyphs compose from in both
+ * halves: 6.3 KB per face, 32.5 KB over five.
+ *
+ * Each cap is the measurement plus about ten percent, chosen the same way the 160 was: a sixth
+ * face has to fail. Split it reaches about 209 KB of 195 and about 124.6 KB of 120; as a single
+ * file it reaches about 202 KB. THE FIRST PAINT CAP HAS NEVER MOVED and now has 25 percent of
+ * room rather than 2.3.
  */
 export const FONT_BUDGET_LIMITS = {
   firstPaintBytes: 60 * 1024,
-  totalBytes: 160 * 1024,
+  latinBytes: 120 * 1024,
+  totalBytes: 195 * 1024,
 } as const;
 
 export const FONT_BUDGETS: readonly FontBudget[] = [
   {
     theme: '@openref/theme',
     directory: 'packages/theme/fonts',
-    firstPaint: ['SpaceGrotesk-400.woff2', 'JetBrainsMono-400.woff2'],
+    firstPaint: ['SpaceGrotesk-400-latin.woff2', 'JetBrainsMono-400-latin.woff2'],
+    latin: [
+      'SpaceGrotesk-400-latin.woff2',
+      'SpaceGrotesk-500-latin.woff2',
+      'SpaceGrotesk-700-latin.woff2',
+      'JetBrainsMono-400-latin.woff2',
+      'JetBrainsMono-700-latin.woff2',
+    ],
     producedBy: 'the zone 4 work of 2026-08-10',
   },
 ];
@@ -287,6 +303,26 @@ export const THEME_STYLE_ROOTS: readonly string[] = ['packages/theme/src', 'pack
  * exempting it does not create a place values can hide.
  */
 export const THEME_TOKEN_SOURCE = 'packages/theme/src/styles/tokens.css';
+
+/**
+ * A theme's token stylesheet, checked against the motion half of the design contract.
+ *
+ * Three of these are in `ai-docs/design/` and one is code. That is the point rather than an
+ * accident of layout: the failure the motion contract exists to prevent is three themes
+ * disagreeing about reduced motion, and a check that saw only the shipped theme would report
+ * conformance for one of the three.
+ *
+ * Reading `ai-docs/` is the assumption the build manifest gate already makes about the four
+ * required documents, not a new one. A theme added here and then removed from disk fails the
+ * gate rather than dropping out of it.
+ */
+export const THEME_TOKEN_STYLESHEETS: readonly { readonly theme: string; readonly file: string }[] =
+  [
+    { theme: 'vernier, as shipped', file: THEME_TOKEN_SOURCE },
+    { theme: 'vernier, as designed', file: 'ai-docs/design/vernier/tokens.css' },
+    { theme: 'telltale', file: 'ai-docs/design/telltale/tokens.css' },
+    { theme: 'forge', file: 'ai-docs/design/forge/tokens.css' },
+  ];
 
 /** Directories scanned for CSP violations, relative to the repository root. */
 export const CSP_SCAN_ROOTS: readonly string[] = PACKAGE_DIRS.map((dir) => `packages/${dir}/dist`);

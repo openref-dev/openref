@@ -1,5 +1,5 @@
 import type { ThemeToken } from './token.types';
-import { ALL_TOKENS } from './tokens';
+import { ALL_TOKENS, MOTION_DURATION_TOKENS, MOTION_ZERO_TOKEN } from './tokens';
 
 /**
  * Rendering the token set as a stylesheet.
@@ -37,11 +37,52 @@ function indent(block: string): string {
 }
 
 /**
+ * The reduced motion block: every duration token aliases the zero token.
+ *
+ * IT IS GENERATED HERE RATHER THAN LEFT TO EACH THEME, which is the whole reason motion is a
+ * token group. A theme that answers `prefers-reduced-motion` in its own stylesheet answers it
+ * somewhere nothing can read, and three themes then disagree silently. With the durations in
+ * the token layer, a theme reduces motion by declaring the tokens and a checker can see that it
+ * did.
+ *
+ * The alias, rather than a repeated `0s`: the zero is one value with one name, and a component
+ * that reads `--oref-motion-fast` gets it without knowing the media query exists.
+ *
+ * It selects all three blocks above rather than `:root` alone. A host may set the scheme
+ * attribute on a subtree instead of the document, and a `:root` rule would then lose to the
+ * attribute block on that subtree, which is the one place this could quietly fail to apply.
+ */
+function reducedMotion(tokens: readonly ThemeToken[]): string {
+  const declared = new Set(tokens.map((token) => token.name));
+  const durations = MOTION_DURATION_TOKENS.filter(
+    (name) => declared.has(name) && name !== MOTION_ZERO_TOKEN,
+  );
+
+  if (durations.length === 0 || !declared.has(MOTION_ZERO_TOKEN)) return '';
+
+  const declarations = durations
+    .map((name) => `    ${name}: var(${MOTION_ZERO_TOKEN});`)
+    .join('\n');
+
+  return `
+@media (prefers-reduced-motion: reduce) {
+  :root,
+  [${COLOR_SCHEME_ATTRIBUTE}='light'],
+  [${COLOR_SCHEME_ATTRIBUTE}='dark'] {
+${declarations}
+  }
+}
+`;
+}
+
+/**
  * Renders the token stylesheet.
  *
- * Three blocks, in this order and for this reason: the light values are the defaults, the
+ * Four blocks, in this order and for this reason: the light values are the defaults, the
  * system preference applies the dark values, and the explicit attribute overrides both, so a
- * host that forces a scheme wins over the media query rather than fighting it.
+ * host that forces a scheme wins over the media query rather than fighting it. The reduced
+ * motion block comes last because it must win over all three on equal specificity, and because
+ * it is orthogonal to the scheme: a reader can want a dark interface and no animation.
  *
  * THE SYSTEM PREFERENCE IS HONOURED WITHOUT AN ATTRIBUTE. A reader who has told their
  * operating system they want a dark interface has already answered the question, and a theme
@@ -89,5 +130,5 @@ ${indent(dark)}
   color-scheme: dark;
 ${dark}
 }
-`;
+${reducedMotion(tokens)}`;
 }

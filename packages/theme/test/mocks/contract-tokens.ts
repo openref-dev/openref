@@ -1,5 +1,5 @@
 /**
- * The 103 core token names, transcribed from `ai-docs/design/CONTRACT.md`.
+ * The 107 core token names, transcribed from `ai-docs/design/CONTRACT.md`.
  *
  * Written out here rather than derived from the token set, because deriving it would make the
  * test compare the token set with itself. This list is the contract; `THEME_TOKENS` is this
@@ -109,4 +109,8 @@ export const CONTRACT_TOKEN_NAMES: readonly string[] = [
   '--oref-drift-warn-border-style',
   '--oref-drift-warn-border-width',
   '--oref-drift-warn-fg',
+  '--oref-motion-ease',
+  '--oref-motion-fast',
+  '--oref-motion-none',
+  '--oref-motion-normal',
 ];

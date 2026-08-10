@@ -133,18 +133,35 @@ describe('the default stylesheet', () => {
     expect(unprefixed).toEqual([]);
   });
 
-  it('should have no motion to reduce, rather than a block that reduces it', () => {
-    // Given, the token contract carries no motion group, so a duration in this file would be a
-    // literal, and a literal is the one thing it may not contain. Nothing moves, which is a
-    // stronger guarantee than a reduced motion block: there is nothing left to honour.
-    const css = readFileSync(THEME_CSS, 'utf8');
+  it('should time every motion it writes with a motion token', () => {
+    // Given, nothing in this file moves today, and the assertion is written for the day
+    // something does: a duration is a token like every other value, so a literal one here is a
+    // value an L0 consumer cannot reach and a duration a reduced motion reader cannot stop.
+    const css = readFileSync(THEME_CSS, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
 
     // When
-    const moving = /(?:^|[\s;{])(?:transition|animation)(?:-[a-z-]+)?\s*:/m.test(css);
+    const timings = [...css.matchAll(/(?:^|[\s;{])(transition|animation)[a-z-]*\s*:([^;]+);/gm)];
+    const untokenized = timings.filter(
+      ([, , value]) => !(value ?? '').includes('var(--oref-motion-'),
+    );
 
     // Then
-    expect(moving).toBe(false);
-    expect(css).not.toContain('@keyframes');
+    expect(untokenized.map(([match]) => match.trim())).toEqual([]);
+  });
+
+  it('should answer reduced motion in the token layer and not here', () => {
+    // Given, the durations collapse to zero in tokens.css, once, for every rule at the same
+    // time. A block here would answer the same question in a second place, and a theme that
+    // forgot to write one would look exactly like a theme that had nothing to reduce.
+    // Comments are stripped: the header says this file carries no such block, and the sentence
+    // saying so must not be what satisfies the check.
+    const css = readFileSync(THEME_CSS, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+
+    // When
+    const answered = css.includes('prefers-reduced-motion');
+
+    // Then
+    expect(answered).toBe(false);
   });
 
   it('should never remove the focus outline, only restyle it', () => {

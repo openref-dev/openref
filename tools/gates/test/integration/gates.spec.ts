@@ -1,12 +1,16 @@
-import { readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { randomBytes } from 'node:crypto';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
-import { LICENSE_ATTESTATIONS } from '../../src/config';
+import { FONT_BUDGETS, LICENSE_ATTESTATIONS, THEME_TOKEN_STYLESHEETS } from '../../src/config';
+import { budgetsGate } from '../../src/gates/budgets.gate';
 import { buildManifestGate } from '../../src/gates/build-manifest.gate';
 import { dependencyGraphGate } from '../../src/gates/dependency-graph.gate';
 import { fixtureLicensesGate } from '../../src/gates/fixture-licenses.gate';
 import { licensesGate } from '../../src/gates/licenses.gate';
+import { themeMotionGate } from '../../src/gates/theme-motion.gate';
 import { detectLicenseFromText, hashLicenseText } from '../../src/lib/licenses';
 import { readWorkspaceManifests, resolveShippedPackages } from '../../src/lib/workspace';
 import { GATES, selectGates } from '../../src/run';
@@ -194,6 +198,125 @@ describe('fixtureLicensesGate', () => {
     expect(manifest.documents.length).toBeGreaterThanOrEqual(15);
     expect([...versions].sort()).toEqual(['3.0', '3.1', '3.2']);
   }, 60_000);
+});
+
+describe('themeMotionGate', () => {
+  it('should pass on all four committed theme stylesheets', async () => {
+    // Given, three reference themes and the shipped one. Only one of them is code, and a check
+    // that saw only that one would report conformance for a third of the problem.
+    const context = { repoRoot };
+
+    // When
+    const result = await themeMotionGate.run(context);
+
+    // Then
+    expect(result.findings.filter((finding) => finding.level === 'error')).toEqual([]);
+    expect(result.status).toBe('pass');
+    expect(THEME_TOKEN_STYLESHEETS.map((sheet) => sheet.theme)).toEqual([
+      'vernier, as shipped',
+      'vernier, as designed',
+      'telltale',
+      'forge',
+    ]);
+  });
+
+  it('should fail on a stylesheet it was told about and cannot read', async () => {
+    // Given, a theme this cannot read is a theme nothing checks, so absence is an error and
+    // never a skip.
+    const context = { repoRoot: mkdtempSync(join(tmpdir(), 'openref-motion-')) };
+
+    // When
+    const result = await themeMotionGate.run(context);
+    rmSync(context.repoRoot, { recursive: true, force: true });
+
+    // Then
+    expect(result.status).toBe('fail');
+    expect(result.findings).toHaveLength(THEME_TOKEN_STYLESHEETS.length);
+    expect(result.findings[0]?.message).toContain('is not there, so this theme is unchecked');
+  });
+});
+
+describe('budgetsGate, the three font budgets', () => {
+  /**
+   * Builds a repository root holding nothing but one theme's font directory.
+   *
+   * The size budgets then find no artifacts and print SKIP, which is what they are supposed to
+   * do, and the font budgets are measured on files this test controls the bytes of.
+   */
+  function plantFonts(files: Readonly<Record<string, number>>): string {
+    const root = mkdtempSync(join(tmpdir(), 'openref-budgets-'));
+    const directory = join(root, FONT_BUDGETS[0]?.directory ?? '');
+    mkdirSync(directory, { recursive: true });
+
+    for (const [name, bytes] of Object.entries(files)) {
+      // Random bytes so gzip cannot compress them away and the measurement is the size asked
+      // for rather than the compressibility of whatever filler was chosen.
+      writeFileSync(join(directory, name), randomBytes(bytes));
+    }
+
+    return root;
+  }
+
+  it('should measure the first paint pair, the latin files and the whole directory apart', async () => {
+    // Given, ten small files under the names the budget lists.
+    const budget = FONT_BUDGETS[0];
+    const named = [...(budget?.latin ?? []), 'Extra-latin-ext.woff2'];
+    const root = plantFonts(Object.fromEntries(named.map((file) => [file, 1024])));
+
+    // When
+    const result = await budgetsGate.run({ repoRoot: root });
+    rmSync(root, { recursive: true, force: true });
+    const ids = result.findings
+      .map((finding) => /^OK (fonts-[a-z-]+)/.exec(finding.message)?.[1])
+      .filter((id) => id !== undefined);
+
+    // Then
+    expect(ids).toEqual(['fonts-first-paint', 'fonts-latin', 'fonts-total']);
+    expect(result.status).toBe('pass');
+  });
+
+  it('should fail when a named latin file is absent rather than measuring it as zero', async () => {
+    // Given, every file but one of the five the latin budget names. A budget that silently
+    // measures an absent file as zero passes by being wrong rather than by being small, which
+    // is the only way either of the two named budgets could go green while shipping more.
+    const budget = FONT_BUDGETS[0];
+    const present = (budget?.latin ?? []).slice(0, -1);
+    const root = plantFonts(Object.fromEntries(present.map((file) => [file, 1024])));
+
+    // When
+    const result = await budgetsGate.run({ repoRoot: root });
+    rmSync(root, { recursive: true, force: true });
+
+    // Then
+    expect(result.status).toBe('fail');
+    expect(result.findings.filter((finding) => finding.level === 'error')).toHaveLength(1);
+    expect(result.findings.map((finding) => finding.message).join('\n')).toContain(
+      'fonts-latin, @openref/theme: names 5 file(s) and found 4',
+    );
+  });
+
+  it('should fail a budget that is over, naming the overshoot', async () => {
+    // Given, a first paint pair well past 60 KB.
+    const budget = FONT_BUDGETS[0];
+    const files = Object.fromEntries(
+      (budget?.latin ?? []).map((file) => [
+        file,
+        (budget?.firstPaint ?? []).includes(file) ? 40 * 1024 : 1024,
+      ]),
+    );
+    const root = plantFonts(files);
+
+    // When
+    const result = await budgetsGate.run({ repoRoot: root });
+    rmSync(root, { recursive: true, force: true });
+    const over = result.findings.filter((finding) => finding.message.startsWith('OVER'));
+
+    // Then
+    expect(result.status).toBe('fail');
+    expect(over.map((finding) => finding.message.split(',')[0])).toEqual([
+      'OVER fonts-first-paint',
+    ]);
+  });
 });
 
 describe('selectGates', () => {

@@ -276,7 +276,7 @@ describe('the shipped stylesheets', () => {
       '@font-face {',
       "  font-family: 'Space Grotesk';",
       '  font-weight: 400;',
-      "  src: url('./SpaceGrotesk-400.woff2') format('woff2');",
+      "  src: url('./SpaceGrotesk-400-latin.woff2') format('woff2');",
       '  unicode-range: U+0000-00FF, U+2C60-2C7F;',
       '}',
       '',

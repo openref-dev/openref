@@ -12,7 +12,18 @@ interface AssetEntry {
   readonly licenseTextFile: string;
   readonly modified: boolean;
   readonly modifications: string;
+  readonly unicodeRange: string;
 }
+
+/** The faces, and the two halves each of them ships as. */
+const FACES = [
+  'SpaceGrotesk-400',
+  'SpaceGrotesk-500',
+  'SpaceGrotesk-700',
+  'JetBrainsMono-400',
+  'JetBrainsMono-700',
+];
+const RANGES = ['latin', 'latin-ext'];
 
 function manifest(): AssetEntry[] {
   const parsed = JSON.parse(readFileSync(join(FONTS, 'manifest.json'), 'utf8')) as {
@@ -44,7 +55,58 @@ describe('the fonts the default theme ships', () => {
 
     // Then
     expect(referenced).toEqual(onDisk);
-    expect(onDisk).toHaveLength(5);
+    expect(onDisk).toEqual(
+      FACES.flatMap((face) => RANGES.map((range) => `${face}-${range}.woff2`)).sort(),
+    );
+  });
+
+  it('should ship both halves of every face', () => {
+    // Given, a face with only its latin half renders a latin-ext character in a fallback and
+    // says nothing about it; a face with only its latin-ext half is bytes nobody reaches.
+    const onDisk = new Set(readdirSync(FONTS).filter((file) => file.endsWith('.woff2')));
+
+    // When
+    const incomplete = FACES.filter((face) =>
+      RANGES.some((range) => !onDisk.has(`${face}-${range}.woff2`)),
+    );
+
+    // Then
+    expect(incomplete).toEqual([]);
+  });
+
+  it('should declare the latin-ext half of a face before its latin half', () => {
+    // Given, the two ranges overlap on a handful of code points, and the last matching
+    // declaration wins. Declaring latin second means the overlap is served by the file a
+    // reader already has rather than by one fetched for six characters.
+    const css = readFileSync(join(FONTS, 'fonts.css'), 'utf8');
+    const order = [...css.matchAll(/url\('\.\/([^']+)'\)/g)].map((match) => match[1] ?? '');
+
+    // When
+    const inverted = FACES.filter(
+      (face) => order.indexOf(`${face}-latin-ext.woff2`) > order.indexOf(`${face}-latin.woff2`),
+    );
+
+    // Then
+    expect(inverted).toEqual([]);
+  });
+
+  it('should give each file the unicode range the manifest records for it', () => {
+    // Given, the range in the stylesheet is what decides which file a browser fetches, so a
+    // file subset to one range and declared under the other ships characters nobody can reach.
+    const css = readFileSync(join(FONTS, 'fonts.css'), 'utf8');
+    const blocks = [...css.matchAll(/@font-face\s*\{([^}]*)\}/g)].map((match) => match[1] ?? '');
+
+    // When
+    const mismatched = manifest().filter((entry) => {
+      const block = blocks.find((body) => body.includes(`./${entry.file}`)) ?? '';
+      const range = /unicode-range:([^;]*);/.exec(block)?.[1] ?? '';
+      // U+2074 is in the latin range and in no latin-ext one, so it tells the two apart.
+      return entry.unicodeRange === 'latin' ? !range.includes('U+2074') : range.includes('U+2074');
+    });
+
+    // Then
+    expect(blocks).toHaveLength(FACES.length * RANGES.length);
+    expect(mismatched.map((entry) => entry.file)).toEqual([]);
   });
 
   it('should name only families the token stacks actually ask for', () => {
@@ -85,7 +147,7 @@ describe('the fonts the default theme ships', () => {
     const swaps = css.match(/font-display:\s*swap/g)?.length ?? 0;
 
     // Then
-    expect(faces).toBe(5);
+    expect(faces).toBe(FACES.length * RANGES.length);
     expect(swaps).toBe(faces);
   });
 
@@ -111,7 +173,7 @@ describe('the fonts the default theme ships', () => {
     );
 
     // Then
-    expect(entries).toHaveLength(5);
+    expect(entries).toHaveLength(FACES.length * RANGES.length);
     expect(silent).toEqual([]);
   });
 

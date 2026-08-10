@@ -10,11 +10,16 @@
 /**
  * Groups a token can belong to. The group is the first segment of `--oref-{group}-{name}`.
  *
- * These are the eleven groups of `ai-docs/design/CONTRACT.md` and nothing else. A group is not
+ * These are the twelve groups of `ai-docs/design/CONTRACT.md` and nothing else. A group is not
  * a label on a list: `prov`, `state` and `drift` exist because provenance, response class and
  * drift severity are three different things that all happen to be coloured, and collapsing
  * them into `color` is what makes a theme paint a warning and a derived fact the same amber
  * without noticing.
+ *
+ * `motion` is a group for the same kind of reason, and the reason is written down in the
+ * contract: with durations as tokens a theme collapses motion by pointing them at the zero
+ * token and a checker can read whether it did. Without them, every theme writes its own
+ * reduced motion block and nothing can tell whether a theme wrote one.
  */
 export type TokenGroup =
   | 'color'
@@ -27,7 +32,8 @@ export type TokenGroup =
   | 'layout'
   | 'prov'
   | 'state'
-  | 'drift';
+  | 'drift'
+  | 'motion';
 
 /** One design token. */
 export interface ThemeToken {

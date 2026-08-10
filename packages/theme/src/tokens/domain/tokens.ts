@@ -1,7 +1,7 @@
 import type { ContrastPair, ThemeToken } from './token.types';
 
 /**
- * The core token set: the 103 names of `ai-docs/design/CONTRACT.md`, with the values of the
+ * The core token set: the 107 names of `ai-docs/design/CONTRACT.md`, with the values of the
  * vernier design, which is what `@openref/theme` ships.
  *
  * The names are the contract and are identical in every theme. The values are this theme's.
@@ -708,6 +708,49 @@ export const THEME_TOKENS: readonly ThemeToken[] = [
     value: 'dotted',
     description: 'Drift of severity info: edge style',
   },
+
+  // Motion. Two durations, a zero and a curve. Under prefers-reduced-motion the two
+  // durations alias the zero, which is done in the token stylesheet rather than left to each
+  // theme: see `MOTION_DURATION_TOKENS` below and the contract section that decided it.
+  {
+    name: '--oref-motion-fast',
+    group: 'motion',
+    value: '80ms',
+    description: 'A state change the reader caused and is looking at: hover, press, focus',
+  },
+  {
+    name: '--oref-motion-normal',
+    group: 'motion',
+    value: '160ms',
+    description: 'Something entering or leaving: a panel, a dialog, a disclosure',
+  },
+  {
+    name: '--oref-motion-none',
+    group: 'motion',
+    value: '0s',
+    description: 'No motion, and what the two durations resolve to under reduced motion',
+  },
+  {
+    name: '--oref-motion-ease',
+    group: 'motion',
+    value: 'cubic-bezier(0.2, 0, 0.13, 1)',
+    description: 'The curve every transition uses; a zero duration has no curve to run',
+  },
+];
+
+/**
+ * The motion tokens that carry a duration, and the one they collapse to.
+ *
+ * Named here rather than matched by shape, because the reduced motion block is generated from
+ * this list and a duration that fell out of it would silently keep moving. `--oref-motion-ease`
+ * is deliberately absent: it is a curve, and a transition of zero duration has none to run.
+ */
+export const MOTION_ZERO_TOKEN = '--oref-motion-none';
+
+export const MOTION_DURATION_TOKENS: readonly string[] = [
+  '--oref-motion-fast',
+  '--oref-motion-normal',
+  MOTION_ZERO_TOKEN,
 ];
 
 /**

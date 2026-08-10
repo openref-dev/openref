@@ -5,6 +5,7 @@ import { cspGate } from './gates/csp.gate.js';
 import { dependencyGraphGate } from './gates/dependency-graph.gate.js';
 import { fixtureLicensesGate } from './gates/fixture-licenses.gate.js';
 import { licensesGate } from './gates/licenses.gate.js';
+import { themeMotionGate } from './gates/theme-motion.gate.js';
 import { themeTokensGate } from './gates/theme-tokens.gate.js';
 import type { Gate, GateResult } from './types.js';
 
@@ -21,7 +22,9 @@ import type { Gate, GateResult } from './types.js';
  * answered by walking vendored files. Two questions, two walks, two reports.
  *
  * The theme token gate sits beside the CSP one: both scan stylesheets, one for what a policy
- * would block and one for what a theme author could not override.
+ * would block and one for what a theme author could not override. The theme motion gate sits
+ * beside them and asks a third question of the same files: whether every theme, not only the
+ * one that is code, answers reduced motion in the token layer where a checker can read it.
  */
 export const GATES: readonly Gate[] = [
   buildManifestGate,
@@ -31,6 +34,7 @@ export const GATES: readonly Gate[] = [
   budgetsGate,
   cspGate,
   themeTokensGate,
+  themeMotionGate,
   coverageGate,
 ];
 

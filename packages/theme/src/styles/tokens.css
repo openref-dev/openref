@@ -116,6 +116,10 @@
   --oref-drift-note-bg: #eaeef1;
   --oref-drift-note-border-width: 1px;
   --oref-drift-note-border-style: dotted;
+  --oref-motion-fast: 80ms;
+  --oref-motion-normal: 160ms;
+  --oref-motion-none: 0s;
+  --oref-motion-ease: cubic-bezier(0.2, 0, 0.13, 1);
   --oref-layout-gutter: 44px;
   --oref-layout-tick: repeating-linear-gradient(
     180deg,
@@ -230,6 +234,10 @@
     --oref-drift-note-bg: #111820;
     --oref-drift-note-border-width: 1px;
     --oref-drift-note-border-style: dotted;
+    --oref-motion-fast: 80ms;
+    --oref-motion-normal: 160ms;
+    --oref-motion-none: 0s;
+    --oref-motion-ease: cubic-bezier(0.2, 0, 0.13, 1);
     --oref-layout-gutter: 44px;
     --oref-layout-tick: repeating-linear-gradient(
       180deg,
@@ -344,10 +352,23 @@
   --oref-drift-note-bg: #111820;
   --oref-drift-note-border-width: 1px;
   --oref-drift-note-border-style: dotted;
+  --oref-motion-fast: 80ms;
+  --oref-motion-normal: 160ms;
+  --oref-motion-none: 0s;
+  --oref-motion-ease: cubic-bezier(0.2, 0, 0.13, 1);
   --oref-layout-gutter: 44px;
   --oref-layout-tick: repeating-linear-gradient(
     180deg,
     var(--oref-color-line-edge) 0 1px,
     transparent 1px 8px
   );
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root,
+  [data-oref-color-scheme='light'],
+  [data-oref-color-scheme='dark'] {
+    --oref-motion-fast: var(--oref-motion-none);
+    --oref-motion-normal: var(--oref-motion-none);
+  }
 }

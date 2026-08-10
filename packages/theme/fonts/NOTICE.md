@@ -3,10 +3,13 @@
 These files are not the work of this project. They are third party typefaces, vendored under
 zone 4 of SPEC 0, and they ship inside the published package.
 
-**Every file here is a subset of the original.** Each face was reduced to the latin and
-latin-ext ranges and converted to woff2, keeping the kern, liga, tnum and calt layout
-features. Outlines, metrics and TrueType hinting instructions are unchanged. A subset is a
-derivative work, so each subset is under the same licence as the family it came from.
+**Every file here is a subset of the original.** Each face was reduced to a unicode range and
+converted to woff2, keeping the kern, liga, tnum and calt layout features. Outlines, metrics
+and TrueType hinting instructions are unchanged. A subset is a derivative work, so each subset
+is under the same licence as the family it came from.
+
+**Each face is two files, latin and latin-ext**, chosen by the browser through `unicode-range`
+in `fonts.css`. A reader whose text stays inside the latin range never fetches the other half.
 
 The complete licence text of each family sits beside these files, taken verbatim from that
 family's own repository and never rewritten. It is the full text and not a pointer to anything
@@ -23,7 +26,9 @@ digest of the bytes as they are here.
 - <https://github.com/floriankarsten/space-grotesk>
 - SIL Open Font License 1.1, text in `SpaceGrotesk-OFL.txt`
 - No Reserved Font Name is declared, read from that file rather than assumed
-- Files: `SpaceGrotesk-400.woff2`, `SpaceGrotesk-500.woff2`, `SpaceGrotesk-700.woff2`
+- Files: `SpaceGrotesk-400-latin.woff2`, `SpaceGrotesk-400-latin-ext.woff2`,
+  `SpaceGrotesk-500-latin.woff2`, `SpaceGrotesk-500-latin-ext.woff2`,
+  `SpaceGrotesk-700-latin.woff2`, `SpaceGrotesk-700-latin-ext.woff2`
 
 ## JetBrains Mono
 
@@ -32,4 +37,5 @@ digest of the bytes as they are here.
 - <https://github.com/JetBrains/JetBrainsMono>
 - SIL Open Font License 1.1, text in `JetBrainsMono-OFL.txt`
 - No Reserved Font Name is declared, read from that file rather than assumed
-- Files: `JetBrainsMono-400.woff2`, `JetBrainsMono-700.woff2`
+- Files: `JetBrainsMono-400-latin.woff2`, `JetBrainsMono-400-latin-ext.woff2`,
+  `JetBrainsMono-700-latin.woff2`, `JetBrainsMono-700-latin-ext.woff2`

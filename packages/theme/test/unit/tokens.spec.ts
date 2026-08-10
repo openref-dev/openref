@@ -6,6 +6,8 @@ import {
   COLOR_SCHEME_ATTRIBUTE,
   DARK_TOKEN_VALUES,
   LIGHT_TOKEN_VALUES,
+  MOTION_DURATION_TOKENS,
+  MOTION_ZERO_TOKEN,
   renderTokensCss,
   THEME_SPECIFIC_TOKENS,
   THEME_TOKENS,
@@ -90,7 +92,7 @@ describe('the token set', () => {
     expect(names).toEqual([]);
   });
 
-  it('should hold exactly the 103 names the design contract fixes', () => {
+  it('should hold exactly the 107 names the design contract fixes', () => {
     // Given, the contract list is transcribed in the mock, so a rename shows up as a diff here
     // rather than as a theme that silently stops conforming.
     const declared = THEME_TOKENS.map((token) => token.name).sort((a, b) => a.localeCompare(b));
@@ -100,7 +102,7 @@ describe('the token set', () => {
 
     // Then
     expect(declared).toEqual(contract);
-    expect(THEME_TOKENS).toHaveLength(103);
+    expect(THEME_TOKENS).toHaveLength(107);
   });
 
   it('should group the core set the way the contract groups it', () => {
@@ -117,6 +119,7 @@ describe('the token set', () => {
       'prov',
       'state',
       'drift',
+      'motion',
     ];
 
     // When
@@ -211,8 +214,9 @@ describe('the generated token stylesheet', () => {
     const names = (block: Map<string, string> | undefined): string[] =>
       [...(block?.keys() ?? [])].sort((a, b) => a.localeCompare(b));
 
-    // Then
-    expect(blocks).toHaveLength(3);
+    // Then, four blocks: the three scheme blocks carry the identical name list, and the fourth
+    // is the reduced motion block, which deliberately carries the durations and nothing else.
+    expect(blocks).toHaveLength(4);
     expect(names(media)).toEqual(names(light));
     expect(names(attribute)).toEqual(names(light));
     expect(names(light)).toHaveLength(ALL_TOKENS.length);
@@ -228,6 +232,54 @@ describe('the generated token stylesheet', () => {
     // Then
     expect(media?.get('--oref-color-bg')).toBe(bg);
     expect(attribute?.get('--oref-color-bg')).toBe(bg);
+  });
+
+  it('should collapse every duration to zero under prefers-reduced-motion', () => {
+    // Given, this is why motion is a token group at all. A theme that answers reduced motion in
+    // its own stylesheet answers it somewhere nothing can read, and three themes then disagree
+    // silently. Answered in the token layer, it is one declaration a checker can find.
+    const blocks = declarations(readFileSync(TOKENS_CSS, 'utf8'));
+    const reduced = blocks.at(-1);
+    const zero = LIGHT_TOKEN_VALUES[MOTION_ZERO_TOKEN];
+
+    // When
+    const durations = MOTION_DURATION_TOKENS.filter((name) => name !== MOTION_ZERO_TOKEN);
+    const unreduced = durations.filter(
+      (name) => reduced?.get(name) !== `var(${MOTION_ZERO_TOKEN})`,
+    );
+
+    // Then
+    expect(zero).toBe('0s');
+    expect(unreduced).toEqual([]);
+    expect([...(reduced?.keys() ?? [])]).toEqual(durations);
+  });
+
+  it('should put the reduced motion block after every block it has to beat', () => {
+    // Given, the three scheme blocks all declare the durations at their moving values, and the
+    // reduced block matches the same selectors, so it wins on order rather than on specificity.
+    const css = readFileSync(TOKENS_CSS, 'utf8');
+
+    // When
+    const reducedAt = css.indexOf('@media (prefers-reduced-motion: reduce)');
+    const attributeAt = css.indexOf(`[${COLOR_SCHEME_ATTRIBUTE}='dark'] {`);
+
+    // Then
+    expect(reducedAt).toBeGreaterThan(attributeAt);
+    for (const selector of [':root', `[${COLOR_SCHEME_ATTRIBUTE}='light']`]) {
+      expect(css.slice(reducedAt)).toContain(selector);
+    }
+  });
+
+  it('should leave the easing curve alone, since a zero duration has none to run', () => {
+    // Given, reducing motion means not moving, not moving differently.
+    const reduced = declarations(readFileSync(TOKENS_CSS, 'utf8')).at(-1);
+
+    // When
+    const ease = reduced?.get('--oref-motion-ease');
+
+    // Then
+    expect(ease).toBeUndefined();
+    expect(LIGHT_TOKEN_VALUES['--oref-motion-ease']).toBe('cubic-bezier(0.2, 0, 0.13, 1)');
   });
 
   it('should follow the system preference without an attribute', () => {

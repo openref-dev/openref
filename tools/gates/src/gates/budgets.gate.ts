@@ -17,10 +17,11 @@ import type { Gate, GateFinding, GateResult } from '../types.js';
  * will produce them. A skip is printed on every run so that an unbuilt bundle can never
  * read as a passing budget.
  *
- * The two font budgets are per theme, per SPEC 20, and measured over the theme's own font
- * directory. Gzip of a woff2 is a fraction of a percent larger than the file, because woff2 is
- * already brotli compressed and a server must not compress it again, so these two effectively
- * bound the raw bytes and do it in the unfavourable direction.
+ * The three font budgets are per theme, per SPEC 20, and measured over the theme's own font
+ * directory: what the first paint waits for, what a latin reader downloads across a session,
+ * and what the package weighs. Gzip of a woff2 is a fraction of a percent larger than the file,
+ * because woff2 is already brotli compressed and a server must not compress it again, so these
+ * three effectively bound the raw bytes and do it in the unfavourable direction.
  */
 export const budgetsGate: Gate = {
   id: 'budgets',
@@ -96,19 +97,33 @@ export const budgetsGate: Gate = {
         };
       });
 
-      const wanted = new Set(budget.firstPaint);
-      const firstPaint = measurements.filter((measurement) =>
-        wanted.has(measurement.path.slice(measurement.path.lastIndexOf('/') + 1)),
-      );
+      const named = (files: readonly string[]): ArtifactMeasurement[] => {
+        const wanted = new Set(files);
+        return measurements.filter((measurement) =>
+          wanted.has(measurement.path.slice(measurement.path.lastIndexOf('/') + 1)),
+        );
+      };
 
-      // A named first paint file that is not there would otherwise measure as zero, which is
-      // the one way this budget could pass by being wrong rather than by being small.
-      if (firstPaint.length !== budget.firstPaint.length) {
+      const firstPaint = named(budget.firstPaint);
+      const latin = named(budget.latin);
+
+      // A named file that is not there would otherwise measure as zero, which is the one way
+      // either of these two budgets could pass by being wrong rather than by being small.
+      const absent = [
+        ['fonts-first-paint', budget.firstPaint, firstPaint],
+        ['fonts-latin', budget.latin, latin],
+      ] as const;
+
+      const missing = absent.filter(([, wanted, found]) => found.length !== wanted.length);
+
+      if (missing.length > 0) {
         failed = true;
-        findings.push({
-          level: 'error',
-          message: `fonts-first-paint, ${budget.theme}: names ${String(budget.firstPaint.length)} file(s) and found ${String(firstPaint.length)} under ${budget.directory}`,
-        });
+        for (const [id, wanted, found] of missing) {
+          findings.push({
+            level: 'error',
+            message: `${id}, ${budget.theme}: names ${String(wanted.length)} file(s) and found ${String(found.length)} under ${budget.directory}`,
+          });
+        }
         continue;
       }
 
@@ -116,6 +131,7 @@ export const budgetsGate: Gate = {
 
       for (const [id, limit, group] of [
         ['fonts-first-paint', FONT_BUDGET_LIMITS.firstPaintBytes, firstPaint],
+        ['fonts-latin', FONT_BUDGET_LIMITS.latinBytes, latin],
         ['fonts-total', FONT_BUDGET_LIMITS.totalBytes, measurements],
       ] as const) {
         const evaluation = evaluateBudget(limit, group);
