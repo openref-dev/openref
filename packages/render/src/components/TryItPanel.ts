@@ -323,7 +323,15 @@ export const TryItPanel = defineComponent({
             : h(
                 'span',
                 { class: 'oref-tryit-notice' },
-                'The console is available once the page is interactive and a runner is wired in.',
+                // Two different states, and only one of them lasts. Before mount the page is
+                // simply not interactive yet. After it, the console is disabled because this
+                // build carries no runner, which is a property of how the reference was
+                // published and not of anything the reader can set. The message says so: a
+                // notice that read as an error or as a missing setting would send a reader
+                // looking for a switch that does not exist.
+                mounted.value
+                  ? 'This build carries no request runner, so the console is read only. The application hosting this reference composes one in.'
+                  : 'The console becomes active once the page is interactive.',
               ),
         ]),
       );

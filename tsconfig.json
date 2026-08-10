@@ -17,7 +17,8 @@
       "@openref/theme": ["packages/theme/src/index.ts"],
       "openref": ["packages/cli/src/index.ts"]
     },
-    "allowImportingTsExtensions": true
+    "allowImportingTsExtensions": true,
+    "customConditions": ["source"]
   },
   "include": [
     "packages/*/src/**/*.ts",
@@ -29,5 +30,10 @@
     "vitest.config.ts",
     "vitest.shared.ts"
   ],
-  "exclude": ["packages/render/src/browser", "packages/render/test/integration"]
+  "exclude": [
+    "packages/render/src/browser",
+    "packages/render/test/integration",
+    "packages/nest/src/browser",
+    "packages/nest/test/integration"
+  ]
 }

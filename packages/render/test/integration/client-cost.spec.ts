@@ -30,7 +30,7 @@ import { largeDocument } from '../mocks/documents';
  *   a heap in either runtime and the number is not a proxy for anything
  */
 
-const markdown = createMarkdownRenderer();
+const markdown = await createMarkdownRenderer();
 
 /** Nodes SPEC 20 budgets TTI and the prerender against. */
 const NODE_COUNT = 1000;

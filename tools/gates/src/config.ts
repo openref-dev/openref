@@ -173,14 +173,37 @@ export interface MeasuredBudget {
   readonly enforcedBy: string;
 }
 
+/**
+ * The browser bundles a served reference actually loads.
+ *
+ * ONE ENTRY, AND IT IS THE COMPOSED ONE. `@openref/render` builds a browser bundle of its own
+ * and that bundle is deliberately runner free, because the renderer may not see the runner:
+ * STANDARDS 3.5 gives it `core` and `vue` and nothing else. It is a component of what ships,
+ * not a thing that ships, and holding it to this check would demand of it exactly what the
+ * dependency rule forbids it.
+ *
+ * T039 adds the static build's bundle here when it produces one, and answers the question this
+ * gate raises for it: a reference written to files has no host to compose a runner, so either
+ * the CLI composes one at build time or that output is entered in this list with the reason it
+ * is exempt. Silence is not an answer.
+ */
+export const SHIPPED_CLIENT_BUNDLES: readonly { readonly label: string; readonly file: string }[] =
+  [{ label: '@openref/nest', file: 'packages/nest/dist/browser/openref.js' }];
+
 export const SIZE_BUDGETS: readonly SizeBudget[] = [
   {
     id: 'client-js',
     label: 'Client JS, core plus default theme, gzip',
     limitBytes: 100 * 1024,
-    roots: ['packages/render/dist/browser', 'packages/theme/dist/browser'],
+    // THE ROOT MOVED IN T014, from the renderer's browser build to the composed one, and the
+    // limit did not. SPEC 20 bounds what a reader downloads, and what a reader downloads is
+    // the bundle `@openref/nest` serves, which is the renderer's plus the request runner. The
+    // two are alternatives rather than an addition, so measuring both would sum a quantity
+    // nobody ever fetches and would report 88 KB of 100 for a page that costs 41. The
+    // renderer's own bundle keeps a ceiling of its own in `client-bundle.spec.ts`.
+    roots: ['packages/nest/dist/browser', 'packages/theme/dist/browser'],
     extensions: ['.js', '.mjs'],
-    producedBy: 'T011',
+    producedBy: 'T014',
   },
   {
     id: 'theme-css',

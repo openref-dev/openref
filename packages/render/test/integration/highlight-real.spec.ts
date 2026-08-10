@@ -78,7 +78,7 @@ describe('createOpenRefHighlighter', () => {
   it('should survive the sanitizer with its classes intact', async () => {
     // Given
     const highlighter = await createOpenRefHighlighter(['json']);
-    const markdown = createMarkdownRenderer({ highlighter });
+    const markdown = await createMarkdownRenderer({ highlighter });
 
     // When
     const html = markdown.render('```json\n{ "a": 1 }\n```');

@@ -4,6 +4,16 @@ import { PACKAGE_NAME as RUNNER_PACKAGE } from '@openref/runner';
 import { PACKAGE_NAME as SEARCH_PACKAGE } from '@openref/search';
 
 /**
+ * `@openref/nest`: the package a consumer installs, and the composition point of SPEC 2.
+ *
+ * It bundles the internal packages, mounts the routes of SPEC 13.3 on a running NestJS
+ * application, and builds the browser bundle in which the request runner is bound to the
+ * try-it console. Nothing here imports NestJS at runtime; the application is taken as the
+ * structural type in `shared/types/nest-surface.ts`, which is what makes SPEC 23's support
+ * for NestJS 10 and 11 a single checkable surface.
+ */
+
+/**
  * Name of this package.
  *
  * Exported so that the dependency graph linter has a real edge to follow and so that
@@ -20,3 +30,80 @@ export const UPSTREAM_PACKAGES: readonly string[] = [
   RUNNER_PACKAGE,
   SEARCH_PACKAGE,
 ];
+
+export { OpenRefModule } from './api/openref.module';
+export type { OpenRefSetupOptions } from './api/openref.module';
+
+export { ReferenceService } from './reference/application/services/reference.service';
+export type { ReferenceServiceOptions } from './reference/application/services/reference.service';
+
+export {
+  assetHref,
+  ASSET_PARAM,
+  ASSET_SEGMENT,
+  HEALTH_SEGMENT,
+  NODE_PARAM,
+  normalizeRoute,
+  referenceRoutes,
+  SCHEMA_PARAM,
+  SEARCH_INDEX_SEGMENT,
+} from './reference/domain/routes';
+export type { ReferenceRoute, ReferenceRouteId } from './reference/domain/routes';
+
+export {
+  buildAssetCatalog,
+  contentTypeFor,
+  digestOf,
+  DIGEST_LENGTH,
+  hashedName,
+  rewriteCssUrls,
+} from './assets/domain/asset-catalog';
+export type { AssetCatalog, AssetSource, CatalogAsset } from './assets/domain/asset-catalog';
+
+export {
+  CLIENT_BUNDLE_SPECIFIER,
+  DEFAULT_THEME_STYLESHEETS,
+  loadDefaultAssets,
+  resolveAssetPath,
+  siblingReferences,
+} from './assets/infrastructure/adapters/package-assets.adapter';
+export type {
+  AssetPlan,
+  DefaultAssetOptions,
+} from './assets/infrastructure/adapters/package-assets.adapter';
+
+export {
+  failureReply,
+  IMMUTABLE,
+  NO_STORE,
+  notFoundReply,
+  REVALIDATE,
+  textReply,
+} from './http/domain/reply';
+export type { ErrorReporter } from './http/domain/reply';
+export { readNestedString, readStringRecord } from './http/domain/request-shape';
+export type {
+  IReferenceHttpAdapter,
+  ReferenceHandler,
+  ReferenceReply,
+  ReferenceRequest,
+} from './http/application/ports/reference-http.port';
+export {
+  ExpressReferenceAdapter,
+  writeExpressReply,
+} from './http/infrastructure/adapters/express-reference.adapter';
+export type {
+  NonceReader,
+  ReferenceAdapterOptions,
+} from './http/infrastructure/adapters/express-reference.adapter';
+export {
+  FastifyReferenceAdapter,
+  writeFastifyReply,
+} from './http/infrastructure/adapters/fastify-reference.adapter';
+export {
+  createReferenceAdapter,
+  SUPPORTED_PLATFORMS,
+} from './http/infrastructure/adapters/reference-adapter.factory';
+
+export { isNestApplication } from './shared/types/nest-surface';
+export type { HttpAdapterLike, NestApplicationLike } from './shared/types/nest-surface';

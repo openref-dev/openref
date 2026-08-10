@@ -168,10 +168,10 @@ describe('renderPage', () => {
 });
 
 describe('serializePageModel', () => {
-  it('should serialize canonically, so two runs produce one string', () => {
+  it('should serialize canonically, so two runs produce one string', async () => {
     // Given
     const document = smallDocument();
-    const markdown = createMarkdownRenderer();
+    const markdown = await createMarkdownRenderer();
     const model = buildPageModel(document, { markdown });
 
     // When

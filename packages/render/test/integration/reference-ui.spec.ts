@@ -16,7 +16,7 @@ import { cyclicDocument, largeDocument, smallDocument } from '../mocks/documents
  * the search key to a schema field can be walked without a pointer.
  */
 
-const markdown = createMarkdownRenderer();
+const markdown = await createMarkdownRenderer();
 
 let mounted: { unmount(): void } | null = null;
 

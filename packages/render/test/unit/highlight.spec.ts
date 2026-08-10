@@ -122,23 +122,23 @@ describe('codeBlockHtml', () => {
 });
 
 describe('isBundledLanguage', () => {
-  it('should recognise a language and its alias', () => {
+  it('should recognise a language and its alias', async () => {
     // Given
     const names = ['json', 'yaml', 'js'];
 
     // When
-    const results = names.map((name) => isBundledLanguage(name));
+    const results = await Promise.all(names.map((name) => isBundledLanguage(name)));
 
     // Then
     expect(results).toEqual([true, true, true]);
   });
 
-  it('should refuse a name that is not bundled, including one from a document', () => {
+  it('should refuse a name that is not bundled, including one from a document', async () => {
     // Given
     const names = ['not-a-language', 'constructor', '__proto__'];
 
     // When
-    const results = names.map((name) => isBundledLanguage(name));
+    const results = await Promise.all(names.map((name) => isBundledLanguage(name)));
 
     // Then
     expect(results).toEqual([false, false, false]);

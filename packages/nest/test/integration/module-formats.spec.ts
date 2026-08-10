@@ -1,0 +1,203 @@
+import { builtinModules } from 'node:module';
+import { execFileSync } from 'node:child_process';
+import { existsSync, readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { describe, expect, it } from 'vitest';
+
+/**
+ * The dual build of SPEC 23, checked by loading it rather than by reading the configuration.
+ *
+ * `ERR_REQUIRE_ESM` in a consumer project is named inadmissible by SPEC 23, and two of this
+ * package's dependencies, `marked` and `shiki`, publish ESM only. Nothing about the source
+ * shows whether that was handled: a static import compiles fine and fails at the moment a
+ * CommonJS application requires the package. So both halves are loaded in a real Node process.
+ *
+ * THE EXTERNAL IMPORT CHECK IS HERE FOR A REASON THAT WAS FOUND THE HARD WAY. The build keeps
+ * third party packages external and inlines the workspace ones, which means every dependency
+ * of a bundled internal package has to be redeclared on this one. `@noble/hashes` was not, and
+ * nothing noticed until an example application tried to boot: the unit suite runs from source,
+ * where the dependency resolves through the package that actually declares it.
+ */
+
+const packageRoot = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
+const repoRoot = join(packageRoot, '..', '..');
+
+interface Manifest {
+  readonly dependencies?: Readonly<Record<string, string>>;
+  readonly peerDependencies?: Readonly<Record<string, string>>;
+}
+
+const manifest = JSON.parse(readFileSync(join(packageRoot, 'package.json'), 'utf8')) as Manifest;
+
+/**
+ * Reads a built file, refusing to pass when there is nothing to read.
+ *
+ * @param relative - Path inside the package
+ * @returns The contents
+ */
+function built(relative: string): string {
+  const path = join(packageRoot, relative);
+
+  if (!existsSync(path)) {
+    throw new Error(`${relative} is not built. Run pnpm build; a missing artifact is not a pass`);
+  }
+
+  return readFileSync(path, 'utf8');
+}
+
+/**
+ * The two consumer projects the loading tests run inside.
+ *
+ * A real project rather than the repository root, and that is the point: only a package that
+ * declares `@openref/nest` can resolve it, so running the snippet anywhere else would prove
+ * something about the workspace layout instead of about the build. The ESM consumer is the
+ * example of SPEC 2 and the CommonJS one is the NestJS 10 arm of the compatibility matrix,
+ * which is what a NestJS application scaffolded by the CLI looks like.
+ */
+const CONSUMERS = {
+  module: join(repoRoot, 'examples', 'nest-minimal'),
+  commonjs: join(repoRoot, 'compat', 'nest10-cjs'),
+} as const;
+
+/**
+ * Runs a snippet in a fresh Node process, inside a real consumer project.
+ *
+ * @param source - Program text
+ * @param kind - Module system of the consumer
+ * @returns Whatever it printed
+ */
+function runInNode(source: string, kind: 'module' | 'commonjs'): string {
+  return execFileSync(process.execPath, [`--input-type=${kind}`, '-e', source], {
+    cwd: CONSUMERS[kind],
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'pipe'],
+  }).trim();
+}
+
+/** Everything Node provides, so it is never mistaken for an undeclared dependency. */
+const BUILTINS = new Set(builtinModules);
+
+/** Bare package specifiers imported or required by a built file. */
+function externalSpecifiers(code: string): string[] {
+  const found = new Set<string>();
+  const patterns = [
+    /(?:^|[\s;{}])import\s+[^'"]*from\s*["']([^"']+)["']/g,
+    /(?:^|[\s;{}=(])import\s*\(\s*["']([^"']+)["']\s*\)/g,
+    /require\s*\(\s*["']([^"']+)["']\s*\)/g,
+  ];
+
+  for (const pattern of patterns) {
+    for (const match of code.matchAll(pattern)) {
+      const specifier = match[1] ?? '';
+      // Node builtins appear with and without the `node:` prefix, because esbuild strips it
+      // in the CommonJS output. Both are the platform, not a dependency.
+      if (specifier === '' || specifier.startsWith('.')) continue;
+      if (specifier.startsWith('node:') || BUILTINS.has(specifier)) continue;
+      found.add(specifier);
+    }
+  }
+
+  return [...found].sort((a, b) => a.localeCompare(b));
+}
+
+/** Package name of a specifier, which may carry a subpath. */
+function packageOf(specifier: string): string {
+  const parts = specifier.split('/');
+  return specifier.startsWith('@') ? parts.slice(0, 2).join('/') : (parts[0] ?? specifier);
+}
+
+describe('the dual build', () => {
+  it('should import from an ESM consumer', () => {
+    // Given
+    const source = `
+      const module = await import('@openref/nest');
+      console.log(JSON.stringify({ name: module.PACKAGE_NAME, setup: typeof module.OpenRefModule.setup }));
+    `;
+
+    // When
+    const printed = runInNode(source, 'module');
+
+    // Then
+    expect(JSON.parse(printed)).toEqual({ name: '@openref/nest', setup: 'function' });
+  });
+
+  it('should require from a CommonJS consumer without ERR_REQUIRE_ESM', () => {
+    // Given
+    const source = `
+      const module = require('@openref/nest');
+      console.log(JSON.stringify({ name: module.PACKAGE_NAME, setup: typeof module.OpenRefModule.setup }));
+    `;
+
+    // When
+    const printed = runInNode(source, 'commonjs');
+
+    // Then
+    expect(JSON.parse(printed)).toEqual({ name: '@openref/nest', setup: 'function' });
+  });
+
+  it('should reach the ESM only dependencies from CommonJS, which is what they are dynamic for', () => {
+    // Given, the highlighter and the markdown renderer, the two paths that touch `shiki` and
+    // `marked`. A static import of either becomes a require() in this file and raises.
+    const source = `
+      const { ReferenceService } = require('@openref/nest');
+      const service = new ReferenceService({
+        document: {
+          openapi: '3.1.0',
+          info: { title: 'T', version: '1' },
+          paths: { '/a': { get: { responses: { '200': { description: 'ok' } } } } },
+        },
+        basePath: '/docs',
+        assets: {
+          sources: [{ name: 'openref.js', bytes: new TextEncoder().encode('x') }],
+          stylesheetNames: [],
+          moduleName: 'openref.js',
+        },
+      });
+      service.handle('overview', { params: {}, headers: {} }).then((reply) => {
+        console.log(JSON.stringify({ status: reply.status, html: String(reply.body).startsWith('<!DOCTYPE html>') }));
+      });
+    `;
+
+    // When
+    const printed = runInNode(source, 'commonjs');
+
+    // Then
+    expect(JSON.parse(printed)).toEqual({ status: 200, html: true });
+  });
+
+  it('should declare every package its built output reaches for', () => {
+    // Given
+    const declared = new Set([
+      ...Object.keys(manifest.dependencies ?? {}),
+      ...Object.keys(manifest.peerDependencies ?? {}),
+    ]);
+
+    // When
+    const reached = [
+      ...new Set(
+        [
+          ...externalSpecifiers(built('dist/index.js')),
+          ...externalSpecifiers(built('dist/index.cjs')),
+        ].map(packageOf),
+      ),
+    ].sort((a, b) => a.localeCompare(b));
+    const undeclared = reached.filter((name) => !declared.has(name));
+
+    // Then
+    expect(undeclared).toEqual([]);
+    expect(reached.length).toBeGreaterThan(0);
+  });
+
+  it('should keep the browser bundle free of any external import at all', () => {
+    // Given, everything a page needs is in the file. An import left in it would be a request
+    // to somewhere, and SPEC 19.4 puts outgoing requests from the client at zero.
+    const bundle = built('dist/browser/openref.js');
+
+    // When
+    const external = externalSpecifiers(bundle);
+
+    // Then
+    expect(external).toEqual([]);
+  });
+});

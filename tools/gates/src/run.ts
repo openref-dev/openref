@@ -1,5 +1,6 @@
 import { buildManifestGate } from './gates/build-manifest.gate.js';
 import { budgetsGate } from './gates/budgets.gate.js';
+import { clientRunnerGate } from './gates/client-runner.gate.js';
 import { coverageGate } from './gates/coverage.gate.js';
 import { cspGate } from './gates/csp.gate.js';
 import { dependencyGraphGate } from './gates/dependency-graph.gate.js';
@@ -31,6 +32,11 @@ import type { Gate, GateResult } from './types.js';
  * asks whether a `unicode-range` describes the subset behind it, which no amount of reading CSS
  * can answer, and it runs after the fixture gate has established that those files may be there
  * at all.
+ *
+ * The client runner gate reads the same built bundle the size budget weighs, and asks the one
+ * question weighing it cannot: whether the try-it console of SPEC 2 has anything to send with.
+ * It sits beside the budget for that reason, and it exists because for the length of one task
+ * a bundle with a disabled console passed every check there was.
  */
 export const GATES: readonly Gate[] = [
   buildManifestGate,
@@ -38,6 +44,7 @@ export const GATES: readonly Gate[] = [
   licensesGate,
   fixtureLicensesGate,
   budgetsGate,
+  clientRunnerGate,
   cspGate,
   themeTokensGate,
   themeMotionGate,

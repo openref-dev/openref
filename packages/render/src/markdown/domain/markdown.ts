@@ -5,9 +5,15 @@
  * HTML through by design, so its output is untrusted no matter how trusted the markdown
  * looked. SPEC 19.1 calls for sanitization rather than escaping, so HTML written in a
  * description keeps working, and every byte of it goes through the sanitizer.
+ *
+ * `marked` IS LOADED WITH A DYNAMIC IMPORT, for the reason given at the head of
+ * `highlight/domain/highlight.ts`: it publishes ESM only, this package is bundled into the
+ * CJS half of `@openref/nest`, and a static import there becomes a `require()` of an ESM
+ * package, which is `ERR_REQUIRE_ESM` in a CommonJS NestJS project. Only construction is
+ * asynchronous. Rendering stays synchronous, because the page model feeds a hash keyed
+ * cache and an async render would make it depend on scheduling.
  */
 
-import { Marked } from 'marked';
 import { plainHighlighter, type IHighlighter } from '../../highlight/domain/highlight';
 import { sanitizeHtml } from './sanitize';
 
@@ -32,15 +38,16 @@ export interface IMarkdownRenderer {
  * Builds a markdown renderer.
  *
  * `marked` is configured without `gfm` heading ids and without `mangle`, both of which add
- * non determinism or transform link text. Rendering is synchronous: an async renderer
- * would make the page model depend on scheduling, and the page model feeds the hash keyed
- * cache.
+ * non determinism or transform link text.
  *
  * @param options - Highlighter to use for fenced blocks
  * @returns A renderer whose output is already sanitized
  */
-export function createMarkdownRenderer(options: MarkdownOptions = {}): IMarkdownRenderer {
+export async function createMarkdownRenderer(
+  options: MarkdownOptions = {},
+): Promise<IMarkdownRenderer> {
   const highlighter = options.highlighter ?? plainHighlighter;
+  const { Marked } = await import('marked');
 
   const marked = new Marked({
     async: false,

@@ -4,7 +4,7 @@ import { schemaHref, SCHEMA_SEGMENT } from '../../src/page/domain/links';
 import { buildPageModel } from '../../src/page/domain/page-model';
 import { cyclicDocument, smallDocument } from '../mocks/documents';
 
-const markdown = createMarkdownRenderer();
+const markdown = await createMarkdownRenderer();
 
 /**
  * The page model additions T012 needs: schema pages, use site slots, and the bounded payload.

@@ -12,7 +12,7 @@ import { smallDocument } from '../mocks/documents';
  * document hash and served to every reader.
  */
 
-const markdown = createMarkdownRenderer();
+const markdown = await createMarkdownRenderer();
 
 async function renderNode(nodeId: string): Promise<string> {
   const page = await renderPage(smallDocument(), { nodeId });

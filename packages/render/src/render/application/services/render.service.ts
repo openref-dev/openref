@@ -78,7 +78,7 @@ export function renderCacheKey(
  * @param options - Options of the call
  * @returns The supplied renderer, or one built around the supplied highlighter
  */
-function markdownFor(options: RenderPageOptions): IMarkdownRenderer {
+async function markdownFor(options: RenderPageOptions): Promise<IMarkdownRenderer> {
   if (options.markdown !== undefined) return options.markdown;
 
   return createMarkdownRenderer(
@@ -132,7 +132,7 @@ export async function renderPage(
   const cached = await options.cache?.get(key);
   if (cached !== undefined) return cached;
 
-  const markdown = markdownFor(options);
+  const markdown = await markdownFor(options);
 
   const model = buildPageModel(document, { nodeId, schemaId, markdown });
   const app = createSSRApp(ReferenceApp, { page: model, basePath });
@@ -171,7 +171,7 @@ export async function renderAllPages(
   document: IRDocument,
   options: Omit<RenderPageOptions, 'nodeId' | 'schemaId'> = {},
 ): Promise<RenderedPage[]> {
-  const markdown = markdownFor(options);
+  const markdown = await markdownFor(options);
 
   const pages: RenderedPage[] = [await renderPage(document, { ...options, markdown })];
 

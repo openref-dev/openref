@@ -26,7 +26,7 @@ describe('prerender budget', () => {
     // Given
     const document = largeDocument(NODE_COUNT);
     const highlighter = await createOpenRefHighlighter(['json']);
-    const markdown = createMarkdownRenderer({ highlighter });
+    const markdown = await createMarkdownRenderer({ highlighter });
     const nodeId = [...document.nodes.keys()][0] ?? '';
 
     // When

@@ -24,7 +24,7 @@ import { renderPage } from '../../src/render/application/services/render.service
  */
 
 const CORPUS = join(import.meta.dirname, '..', '..', '..', 'core', 'test', 'corpus');
-const markdown = createMarkdownRenderer();
+const markdown = await createMarkdownRenderer();
 
 interface ManifestEntry {
   readonly file: string;

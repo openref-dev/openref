@@ -4,7 +4,7 @@ import { buildPageModel, typeLabel } from '../../src/page/domain/page-model';
 import { createMarkdownRenderer } from '../../src/markdown/domain/markdown';
 import { hostileDocument, smallDocument } from '../mocks/documents';
 
-const markdown = createMarkdownRenderer();
+const markdown = await createMarkdownRenderer();
 
 function namedSchema(id: string, name: string): IRSchema {
   return { id, name, dialect: 'json-schema-2020-12', normalized: { type: 'object' } };

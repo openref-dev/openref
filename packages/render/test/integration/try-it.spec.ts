@@ -297,4 +297,18 @@ describe('the try-it console, end to end against a real server', () => {
     expect(button?.disabled).toBe(true);
     expect(document.querySelector('.oref-tryit-notice')).not.toBeNull();
   });
+
+  it('should say the console awaits a host runner rather than reporting a fault', async () => {
+    // Given, the same read only build, read for what it tells the person looking at it.
+    await openPage('get-orders-id', origin);
+
+    // When
+    hydrateReference();
+    await settle();
+
+    // Then
+    const notice = document.querySelector('.oref-tryit-notice')?.textContent ?? '';
+    expect(notice).toContain('The application hosting this reference composes one in');
+    expect(notice).not.toMatch(/error|failed|unavailable|configure|check your/i);
+  });
 });

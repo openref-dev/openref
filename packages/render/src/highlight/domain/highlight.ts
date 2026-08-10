@@ -10,14 +10,16 @@
  * the resolved colour inline, which a strict policy cannot authorize, so the CSS variables
  * theme is used and every variable is mapped to a class. A theme decides what those
  * classes look like; this package decides nothing about colour.
+ *
+ * SHIKI IS LOADED WITH A DYNAMIC IMPORT AND THAT IS NOT A LAZINESS OPTIMISATION. Shiki 4
+ * publishes ESM only, with no `require` condition. This package is bundled into
+ * `@openref/nest`, which ships CJS as well as ESM, and a static import becomes `require()`
+ * in the CJS half: `ERR_REQUIRE_ESM` in the project of anyone whose NestJS application is
+ * CommonJS, which SPEC 23 names as inadmissible. `import()` works from both module systems
+ * on every Node this project supports, and esbuild leaves it alone for an external package.
  */
 
-import {
-  bundledLanguages,
-  createCssVariablesTheme,
-  createHighlighter,
-  type BundledLanguage,
-} from 'shiki';
+import type { BundledLanguage } from 'shiki';
 import { escapeHtml } from '../../shared/html';
 
 /** Languages a specification realistically writes a fenced block in. */
@@ -145,10 +147,16 @@ export const plainHighlighter: IHighlighter = {
  * a fenced block in a third party document, so it is untrusted input, and narrowing it by
  * assertion would be trusting that document about what a library supports.
  *
+ * ASYNCHRONOUS BECAUSE THE REGISTRY IS LOADED ON DEMAND, per the note on the imports above.
+ * The synchronous shape would have needed a module level cache of the registry, which reads
+ * as false for every language until something else happens to have loaded shiki, and a guard
+ * whose answer depends on load order is worse than one that has to be awaited.
+ *
  * @param name - Language as written after a fence
  * @returns True when shiki bundles a grammar or an alias under that name
  */
-export function isBundledLanguage(name: string): name is BundledLanguage {
+export async function isBundledLanguage(name: string): Promise<boolean> {
+  const { bundledLanguages } = await import('shiki');
   return Object.hasOwn(bundledLanguages, name);
 }
 
@@ -165,6 +173,8 @@ export function isBundledLanguage(name: string): name is BundledLanguage {
 export async function createOpenRefHighlighter(
   languages: readonly BundledLanguage[] = HIGHLIGHT_LANGUAGES,
 ): Promise<IHighlighter> {
+  const { bundledLanguages, createCssVariablesTheme, createHighlighter } = await import('shiki');
+
   const theme = createCssVariablesTheme({
     name: THEME_NAME,
     variablePrefix: VARIABLE_PREFIX,
@@ -177,6 +187,15 @@ export async function createOpenRefHighlighter(
     langs: [...languages],
   });
 
+  /**
+   * The same question {@link isBundledLanguage} answers, asked against the registry this
+   * call already holds. It is a type predicate rather than a boolean because shiki types
+   * `codeToTokens` by its bundled language union, and it is local because a predicate
+   * cannot be awaited at the call site inside a synchronous `highlight`.
+   */
+  const isBundled = (name: string): name is BundledLanguage =>
+    Object.hasOwn(bundledLanguages, name);
+
   // Aliases count: a fence written ```js has to highlight as JavaScript. Shiki reports
   // them among the loaded languages, so no table of aliases is kept here.
   const loaded = new Set(shiki.getLoadedLanguages());
@@ -185,7 +204,7 @@ export async function createOpenRefHighlighter(
     languages: [...loaded].sort((a, b) => a.localeCompare(b)),
 
     highlight(code, language) {
-      if (language === undefined || !loaded.has(language) || !isBundledLanguage(language)) {
+      if (language === undefined || !loaded.has(language) || !isBundled(language)) {
         return plainHighlighter.highlight(code, language);
       }
 

@@ -1,6 +1,15 @@
 packages:
   - 'packages/*'
   - 'tools/*'
+  - 'examples/*'
+  - 'compat/*'
 
+# Install scripts are opt in, and the two refused here are refused for the same reason.
+# SPEC 19.5 puts telemetry at zero. `@nestjs/core` 10 runs `@nuxtjs/opencollective` on
+# install and `@scarf/scarf` is an analytics package that reports installs; both arrive only
+# through the compatibility fixtures and neither is needed for anything to work. Refusing a
+# postinstall does not remove the package, it removes the call home.
 allowBuilds:
+  '@nestjs/core': false
+  '@scarf/scarf': false
   esbuild: true

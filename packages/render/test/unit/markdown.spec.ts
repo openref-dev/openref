@@ -16,9 +16,9 @@ function countingHighlighter(): IHighlighter & { calls: string[] } {
 }
 
 describe('createMarkdownRenderer', () => {
-  it('should render markdown to html', () => {
+  it('should render markdown to html', async () => {
     // Given
-    const renderer = createMarkdownRenderer();
+    const renderer = await createMarkdownRenderer();
 
     // When
     const result = renderer.render('# Title\n\nSome **bold** text.');
@@ -28,9 +28,9 @@ describe('createMarkdownRenderer', () => {
     expect(result).toContain('<strong>bold</strong>');
   });
 
-  it('should produce nothing for an absent or blank description', () => {
+  it('should produce nothing for an absent or blank description', async () => {
     // Given
-    const renderer = createMarkdownRenderer();
+    const renderer = await createMarkdownRenderer();
 
     // When
     const results = [renderer.render(undefined), renderer.render('   \n  ')];
@@ -39,9 +39,9 @@ describe('createMarkdownRenderer', () => {
     expect(results).toEqual(['', '']);
   });
 
-  it('should sanitize html written inside markdown', () => {
+  it('should sanitize html written inside markdown', async () => {
     // Given
-    const renderer = createMarkdownRenderer();
+    const renderer = await createMarkdownRenderer();
 
     // When
     const result = renderer.render('Text\n\n<script>globalThis.pwned = true;</script>\n');
@@ -51,9 +51,9 @@ describe('createMarkdownRenderer', () => {
     expect(result).toContain('Text');
   });
 
-  it('should sanitize an event handler on an element written inside markdown', () => {
+  it('should sanitize an event handler on an element written inside markdown', async () => {
     // Given
-    const renderer = createMarkdownRenderer();
+    const renderer = await createMarkdownRenderer();
 
     // When
     const result = renderer.render('<img src=x onerror="globalThis.pwned = true">');
@@ -62,10 +62,10 @@ describe('createMarkdownRenderer', () => {
     expect(result).not.toContain('onerror');
   });
 
-  it('should hand a fenced block to the highlighter with its language', () => {
+  it('should hand a fenced block to the highlighter with its language', async () => {
     // Given
     const highlighter = countingHighlighter();
-    const renderer = createMarkdownRenderer({ highlighter });
+    const renderer = await createMarkdownRenderer({ highlighter });
 
     // When
     renderer.render('```json\n{"a":1}\n```');
@@ -74,10 +74,10 @@ describe('createMarkdownRenderer', () => {
     expect(highlighter.calls).toEqual(['json:{"a":1}']);
   });
 
-  it('should treat a fence with no language as having none', () => {
+  it('should treat a fence with no language as having none', async () => {
     // Given
     const highlighter = countingHighlighter();
-    const renderer = createMarkdownRenderer({ highlighter });
+    const renderer = await createMarkdownRenderer({ highlighter });
 
     // When
     renderer.render('```\nplain\n```');
@@ -86,9 +86,9 @@ describe('createMarkdownRenderer', () => {
     expect(highlighter.calls).toEqual(['none:plain']);
   });
 
-  it('should escape a fenced block when no highlighter was given', () => {
+  it('should escape a fenced block when no highlighter was given', async () => {
     // Given
-    const renderer = createMarkdownRenderer();
+    const renderer = await createMarkdownRenderer();
 
     // When
     const result = renderer.render('```html\n<script>alert(1)</script>\n```');
@@ -98,13 +98,13 @@ describe('createMarkdownRenderer', () => {
     expect(result).toContain('&lt;script&gt;');
   });
 
-  it('should sanitize what the highlighter returns, not only what markdown returns', () => {
+  it('should sanitize what the highlighter returns, not only what markdown returns', async () => {
     // Given
     const hostile: IHighlighter = {
       languages: [],
       highlight: () => '<pre onmouseover="globalThis.pwned = true">x</pre>',
     };
-    const renderer = createMarkdownRenderer({ highlighter: hostile });
+    const renderer = await createMarkdownRenderer({ highlighter: hostile });
 
     // When
     const result = renderer.renderCode('x', 'json');
@@ -114,9 +114,9 @@ describe('createMarkdownRenderer', () => {
     expect(result).toContain('x');
   });
 
-  it('should produce the same bytes for the same input twice', () => {
+  it('should produce the same bytes for the same input twice', async () => {
     // Given
-    const renderer = createMarkdownRenderer();
+    const renderer = await createMarkdownRenderer();
     const source = '# T\n\n- a\n- b\n\n```json\n{"a":1}\n```\n';
 
     // When
