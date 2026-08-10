@@ -46,7 +46,7 @@ function indent(block: string): string {
  * did.
  *
  * The alias, rather than a repeated `0s`: the zero is one value with one name, and a component
- * that reads `--oref-motion-fast` gets it without knowing the media query exists.
+ * that reads `--oref-motion-duration-fast` gets it without knowing the media query exists.
  *
  * IT REPEATS THE SELECTOR OF EVERY BLOCK IT HAS TO BEAT, and that is not tidiness. Coming last
  * only wins on equal specificity. The dark block is `:root:not([data-oref-color-scheme='light'])`,

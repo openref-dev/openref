@@ -22,14 +22,14 @@ function sheet(css: string, file = 'tokens.css'): { file: string; css: string }[
  */
 function conforming(overrides: { light?: string; dark?: string; reduced?: string } = {}): string {
   const motion = [
-    '  --oref-motion-fast: 80ms;',
-    '  --oref-motion-normal: 160ms;',
-    '  --oref-motion-none: 0s;',
-    '  --oref-motion-ease: cubic-bezier(0.2, 0, 0.13, 1);',
+    '  --oref-motion-duration-fast: 80ms;',
+    '  --oref-motion-duration-base: 160ms;',
+    '  --oref-motion-duration-none: 0s;',
+    '  --oref-motion-easing-standard: cubic-bezier(0.2, 0, 0.13, 1);',
   ].join('\n');
 
   return [
-    '/* A comment naming --oref-motion-fast, which is prose and not a declaration. */',
+    '/* A comment naming --oref-motion-duration-fast, which is prose and not a declaration. */',
     ':root,',
     "[data-oref-color-scheme='light'] {",
     '  --oref-color-bg: #ffffff;',
@@ -47,8 +47,8 @@ function conforming(overrides: { light?: string; dark?: string; reduced?: string
     "  [data-oref-color-scheme='dark'] {",
     overrides.reduced ??
       [
-        '    --oref-motion-fast: var(--oref-motion-none);',
-        '    --oref-motion-normal: var(--oref-motion-none);',
+        '    --oref-motion-duration-fast: var(--oref-motion-duration-none);',
+        '    --oref-motion-duration-base: var(--oref-motion-duration-none);',
       ].join('\n'),
     '  }',
     '}',
@@ -59,7 +59,8 @@ function conforming(overrides: { light?: string; dark?: string; reduced?: string
 describe('readBlocks', () => {
   it('should keep the at-rules a declaration sits inside', () => {
     // Given
-    const css = '@media (prefers-reduced-motion: reduce) { :root { --oref-motion-fast: 0s; } }';
+    const css =
+      '@media (prefers-reduced-motion: reduce) { :root { --oref-motion-duration-fast: 0s; } }';
 
     // When
     const blocks = readBlocks(css);
@@ -67,7 +68,7 @@ describe('readBlocks', () => {
     // Then
     expect(blocks).toHaveLength(1);
     expect(blocks[0]?.prelude).toBe('@media (prefers-reduced-motion: reduce) :root');
-    expect(blocks[0]?.declarations.get('--oref-motion-fast')).toBe('0s');
+    expect(blocks[0]?.declarations.get('--oref-motion-duration-fast')).toBe('0s');
   });
 
   it('should read a declaration prettier wrapped across lines', () => {
@@ -75,7 +76,7 @@ describe('readBlocks', () => {
     // not on the line its property is on as no value at all.
     const css = [
       ':root {',
-      '  --oref-motion-ease: cubic-bezier(',
+      '  --oref-motion-easing-standard: cubic-bezier(',
       '    0.2,',
       '    0,',
       '    1',
@@ -84,7 +85,7 @@ describe('readBlocks', () => {
     ].join('\n');
 
     // When
-    const value = readBlocks(css)[0]?.declarations.get('--oref-motion-ease');
+    const value = readBlocks(css)[0]?.declarations.get('--oref-motion-easing-standard');
 
     // Then
     expect(value).toBe('cubic-bezier( 0.2, 0, 1 )');
@@ -92,13 +93,14 @@ describe('readBlocks', () => {
 
   it('should ignore a token name written inside a comment', () => {
     // Given
-    const css = '/* --oref-motion-fast: 999ms; */ :root { --oref-motion-none: 0s; }';
+    const css =
+      '/* --oref-motion-duration-fast: 999ms; */ :root { --oref-motion-duration-none: 0s; }';
 
     // When
     const declarations = readBlocks(css)[0]?.declarations;
 
     // Then
-    expect([...(declarations?.keys() ?? [])]).toEqual(['--oref-motion-none']);
+    expect([...(declarations?.keys() ?? [])]).toEqual(['--oref-motion-duration-none']);
   });
 });
 
@@ -162,7 +164,7 @@ describe('specificityOf', () => {
 describe('auditMotionTokens', () => {
   it('should report a theme that declares motion in one colour mode and not the other', () => {
     // Given, the failure a check over the union of the blocks would call conforming.
-    const css = conforming({ dark: '  --oref-motion-none: 0s;' });
+    const css = conforming({ dark: '  --oref-motion-duration-none: 0s;' });
 
     // When
     const findings = auditMotionTokens('planted', sheet(css));
@@ -170,7 +172,7 @@ describe('auditMotionTokens', () => {
     // Then
     expect(findings).toHaveLength(1);
     expect(findings[0]?.reason).toContain("[data-oref-color-scheme='dark']");
-    expect(findings[0]?.reason).toContain('--oref-motion-fast');
+    expect(findings[0]?.reason).toContain('--oref-motion-duration-fast');
   });
 
   it('should report a theme with no reduced motion block', () => {
@@ -188,7 +190,9 @@ describe('auditMotionTokens', () => {
 
   it('should report a duration that keeps running under reduced motion', () => {
     // Given, a block that reduces one duration and forgets the other.
-    const css = conforming({ reduced: '    --oref-motion-fast: var(--oref-motion-none);' });
+    const css = conforming({
+      reduced: '    --oref-motion-duration-fast: var(--oref-motion-duration-none);',
+    });
 
     // When
     const findings = auditMotionTokens('planted', sheet(css));
@@ -196,14 +200,17 @@ describe('auditMotionTokens', () => {
     // Then
     expect(findings).toHaveLength(1);
     expect(findings[0]?.reason).toContain(
-      '--oref-motion-normal resolves to 160ms under reduced motion, and it has to resolve to zero',
+      '--oref-motion-duration-base resolves to 160ms under reduced motion, and it has to resolve to zero',
     );
   });
 
   it('should accept a literal zero as readily as an alias to the zero token', () => {
     // Given, what is checked is where the chain ends, because that is what a browser computes.
     const css = conforming({
-      reduced: ['    --oref-motion-fast: 0ms;', '    --oref-motion-normal: 0s;'].join('\n'),
+      reduced: [
+        '    --oref-motion-duration-fast: 0ms;',
+        '    --oref-motion-duration-base: 0s;',
+      ].join('\n'),
     });
 
     // When
@@ -215,24 +222,27 @@ describe('auditMotionTokens', () => {
 
   it('should report a zero token that is not zero, which every alias then inherits', () => {
     // Given, the one declaration that makes an otherwise correct reduced motion block a lie.
-    const css = conforming().replaceAll('--oref-motion-none: 0s;', '--oref-motion-none: 120ms;');
+    const css = conforming().replaceAll(
+      '--oref-motion-duration-none: 0s;',
+      '--oref-motion-duration-none: 120ms;',
+    );
 
     // When
     const findings = auditMotionTokens('planted', sheet(css));
 
     // Then
     expect(findings.map((finding) => finding.reason)).toEqual([
-      expect.stringContaining('--oref-motion-fast resolves to 120ms under reduced motion'),
-      expect.stringContaining('--oref-motion-normal resolves to 120ms under reduced motion'),
-      expect.stringContaining('--oref-motion-none resolves to 120ms under reduced motion'),
+      expect.stringContaining('--oref-motion-duration-fast resolves to 120ms under reduced motion'),
+      expect.stringContaining('--oref-motion-duration-base resolves to 120ms under reduced motion'),
+      expect.stringContaining('--oref-motion-duration-none resolves to 120ms under reduced motion'),
     ]);
   });
 
   it('should report a curve written into a duration token', () => {
     // Given, a duration that is not a duration would otherwise be resolved and compared as one.
     const css = conforming().replaceAll(
-      '--oref-motion-fast: 80ms;',
-      '--oref-motion-fast: ease-out;',
+      '--oref-motion-duration-fast: 80ms;',
+      '--oref-motion-duration-fast: ease-out;',
     );
 
     // When
@@ -240,7 +250,7 @@ describe('auditMotionTokens', () => {
 
     // Then
     expect(findings.map((finding) => finding.reason)).toContain(
-      '--oref-motion-fast resolves to ease-out, which is not a duration',
+      '--oref-motion-duration-fast resolves to ease-out, which is not a duration',
     );
   });
 
@@ -248,7 +258,7 @@ describe('auditMotionTokens', () => {
     // Given, THE CASCADE HAZARD. The reduced motion block is correct and the theme still
     // animates, because a stylesheet loaded after it re-declares the duration at the same
     // specificity. Reading either file on its own reports a conforming theme.
-    const theme = "[data-oref-color-scheme='dark'] { --oref-motion-normal: 200ms; }";
+    const theme = "[data-oref-color-scheme='dark'] { --oref-motion-duration-base: 200ms; }";
 
     // When
     const findings = auditMotionTokens('planted', [
@@ -272,9 +282,9 @@ describe('auditMotionTokens', () => {
     // plain `:root` is one. Source order never gets a say, so a reader who wants a dark
     // interface and no animation keeps the animation, and nothing in the file looks wrong.
     const css = [
-      ':root { --oref-motion-fast: 80ms; --oref-motion-normal: 160ms; --oref-motion-none: 0s; --oref-motion-ease: linear; }',
-      "@media (prefers-color-scheme: dark) { :root:not([data-oref-color-scheme='light']) { --oref-motion-fast: 80ms; --oref-motion-normal: 160ms; --oref-motion-none: 0s; --oref-motion-ease: linear; } }",
-      '@media (prefers-reduced-motion: reduce) { :root { --oref-motion-fast: var(--oref-motion-none); --oref-motion-normal: var(--oref-motion-none); } }',
+      ':root { --oref-motion-duration-fast: 80ms; --oref-motion-duration-base: 160ms; --oref-motion-duration-none: 0s; --oref-motion-easing-standard: linear; }',
+      "@media (prefers-color-scheme: dark) { :root:not([data-oref-color-scheme='light']) { --oref-motion-duration-fast: 80ms; --oref-motion-duration-base: 160ms; --oref-motion-duration-none: 0s; --oref-motion-easing-standard: linear; } }",
+      '@media (prefers-reduced-motion: reduce) { :root { --oref-motion-duration-fast: var(--oref-motion-duration-none); --oref-motion-duration-base: var(--oref-motion-duration-none); } }',
     ].join('\n');
 
     // When
@@ -282,8 +292,8 @@ describe('auditMotionTokens', () => {
 
     // Then
     expect(findings.map((finding) => finding.reason)).toEqual([
-      expect.stringContaining('--oref-motion-fast resolves to 80ms under reduced motion'),
-      expect.stringContaining('--oref-motion-normal resolves to 160ms under reduced motion'),
+      expect.stringContaining('--oref-motion-duration-fast resolves to 80ms under reduced motion'),
+      expect.stringContaining('--oref-motion-duration-base resolves to 160ms under reduced motion'),
     ]);
     expect(findings[0]?.reason).toContain('prefers-color-scheme: dark');
   });
@@ -291,9 +301,9 @@ describe('auditMotionTokens', () => {
   it('should accept a reduced motion block that repeats the selector it has to beat', () => {
     // Given, the fix: the same selector, later in the file, winning by order.
     const css = [
-      ':root { --oref-motion-fast: 80ms; --oref-motion-normal: 160ms; --oref-motion-none: 0s; --oref-motion-ease: linear; }',
-      "@media (prefers-color-scheme: dark) { :root:not([data-oref-color-scheme='light']) { --oref-motion-fast: 80ms; --oref-motion-normal: 160ms; --oref-motion-none: 0s; --oref-motion-ease: linear; } }",
-      "@media (prefers-reduced-motion: reduce) { :root, :root:not([data-oref-color-scheme='light']) { --oref-motion-fast: var(--oref-motion-none); --oref-motion-normal: var(--oref-motion-none); } }",
+      ':root { --oref-motion-duration-fast: 80ms; --oref-motion-duration-base: 160ms; --oref-motion-duration-none: 0s; --oref-motion-easing-standard: linear; }',
+      "@media (prefers-color-scheme: dark) { :root:not([data-oref-color-scheme='light']) { --oref-motion-duration-fast: 80ms; --oref-motion-duration-base: 160ms; --oref-motion-duration-none: 0s; --oref-motion-easing-standard: linear; } }",
+      "@media (prefers-reduced-motion: reduce) { :root, :root:not([data-oref-color-scheme='light']) { --oref-motion-duration-fast: var(--oref-motion-duration-none); --oref-motion-duration-base: var(--oref-motion-duration-none); } }",
     ].join('\n');
 
     // When
@@ -327,6 +337,6 @@ describe('auditMotionTokens', () => {
     // Then
     expect(findings).toEqual([]);
     expect(MOTION_TOKENS).toHaveLength(4);
-    expect(MOTION_DURATIONS).not.toContain('--oref-motion-ease');
+    expect(MOTION_DURATIONS).not.toContain('--oref-motion-easing-standard');
   });
 });

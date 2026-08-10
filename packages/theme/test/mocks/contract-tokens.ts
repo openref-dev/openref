@@ -110,9 +110,9 @@ export const CONTRACT_TOKEN_NAMES: readonly string[] = [
   '--oref-drift-warn-border-style',
   '--oref-drift-warn-border-width',
   '--oref-drift-warn-fg',
-  '--oref-motion-ease',
-  '--oref-motion-fast',
-  '--oref-motion-none',
-  '--oref-motion-normal',
+  '--oref-motion-easing-standard',
+  '--oref-motion-duration-fast',
+  '--oref-motion-duration-none',
+  '--oref-motion-duration-base',
   '--oref-scrim-blur',
 ];

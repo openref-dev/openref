@@ -20,6 +20,14 @@
  * contract: with durations as tokens a theme collapses motion by pointing them at the zero
  * token and a checker can read whether it did. Without them, every theme writes its own
  * reduced motion block and nothing can tell whether a theme wrote one.
+ *
+ * MOTION IS ONE GROUP AND NOT TWO, decided on 2026-08-10 when the designer's names arrived as
+ * `duration-*` and `easing-*`. They live under `motion-` rather than becoming groups of their
+ * own: `--oref-duration-none` says nothing on its own, while `--oref-motion-duration-none`
+ * reads as "no motion", which is what it means and what a theme author sees at the call site.
+ * The group will also grow, with a delay and with separate durations for entry against exit,
+ * and those are motion rather than time in the abstract. Two groups that always change
+ * together are one group.
  */
 export type TokenGroup =
   | 'color'

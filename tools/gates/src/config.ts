@@ -336,6 +336,18 @@ export const THEME_TOKEN_STYLESHEETS: readonly {
   { theme: 'forge', files: ['ai-docs/design/forge/tokens.css'] },
 ];
 
+/**
+ * Stylesheets declaring `@font-face`, checked against the bytes of the files they name.
+ *
+ * One entry per theme that ships fonts. Only vernier does today; T032 adds the others, and the
+ * amendment for that task already says so. The font files are resolved relative to the
+ * stylesheet, which is how the stylesheet itself addresses them.
+ */
+export const FONT_STYLESHEETS: readonly {
+  readonly theme: string;
+  readonly file: string;
+}[] = [{ theme: 'vernier, as shipped', file: 'packages/theme/fonts/fonts.css' }];
+
 /** Directories scanned for CSP violations, relative to the repository root. */
 export const CSP_SCAN_ROOTS: readonly string[] = PACKAGE_DIRS.map((dir) => `packages/${dir}/dist`);
 

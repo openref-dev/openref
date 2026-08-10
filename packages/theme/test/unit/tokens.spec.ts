@@ -290,11 +290,13 @@ describe('the generated token stylesheet', () => {
     const reduced = declarations(readFileSync(TOKENS_CSS, 'utf8')).at(-1);
 
     // When
-    const ease = reduced?.get('--oref-motion-ease');
+    const ease = reduced?.get('--oref-motion-easing-standard');
 
     // Then
     expect(ease).toBeUndefined();
-    expect(LIGHT_TOKEN_VALUES['--oref-motion-ease']).toBe('cubic-bezier(0.2, 0, 0.13, 1)');
+    expect(LIGHT_TOKEN_VALUES['--oref-motion-easing-standard']).toBe(
+      'cubic-bezier(0.2, 0, 0.13, 1)',
+    );
   });
 
   it('should follow the system preference without an attribute', () => {

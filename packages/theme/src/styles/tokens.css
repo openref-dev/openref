@@ -117,10 +117,10 @@
   --oref-drift-note-bg: #eaeef1;
   --oref-drift-note-border-width: 1px;
   --oref-drift-note-border-style: dotted;
-  --oref-motion-fast: 80ms;
-  --oref-motion-normal: 160ms;
-  --oref-motion-none: 0s;
-  --oref-motion-ease: cubic-bezier(0.2, 0, 0.13, 1);
+  --oref-motion-duration-fast: 80ms;
+  --oref-motion-duration-base: 160ms;
+  --oref-motion-duration-none: 0s;
+  --oref-motion-easing-standard: cubic-bezier(0.2, 0, 0.13, 1);
   --oref-scrim-blur: 0px;
   --oref-layout-gutter: 44px;
   --oref-layout-tick: repeating-linear-gradient(
@@ -238,10 +238,10 @@
     --oref-drift-note-bg: #111820;
     --oref-drift-note-border-width: 1px;
     --oref-drift-note-border-style: dotted;
-    --oref-motion-fast: 80ms;
-    --oref-motion-normal: 160ms;
-    --oref-motion-none: 0s;
-    --oref-motion-ease: cubic-bezier(0.2, 0, 0.13, 1);
+    --oref-motion-duration-fast: 80ms;
+    --oref-motion-duration-base: 160ms;
+    --oref-motion-duration-none: 0s;
+    --oref-motion-easing-standard: cubic-bezier(0.2, 0, 0.13, 1);
     --oref-scrim-blur: 0px;
     --oref-layout-gutter: 44px;
     --oref-layout-tick: repeating-linear-gradient(
@@ -359,10 +359,10 @@
   --oref-drift-note-bg: #111820;
   --oref-drift-note-border-width: 1px;
   --oref-drift-note-border-style: dotted;
-  --oref-motion-fast: 80ms;
-  --oref-motion-normal: 160ms;
-  --oref-motion-none: 0s;
-  --oref-motion-ease: cubic-bezier(0.2, 0, 0.13, 1);
+  --oref-motion-duration-fast: 80ms;
+  --oref-motion-duration-base: 160ms;
+  --oref-motion-duration-none: 0s;
+  --oref-motion-easing-standard: cubic-bezier(0.2, 0, 0.13, 1);
   --oref-scrim-blur: 0px;
   --oref-layout-gutter: 44px;
   --oref-layout-tick: repeating-linear-gradient(
@@ -378,7 +378,7 @@
   :root:not([data-oref-color-scheme='light']),
   [data-oref-color-scheme='light'],
   [data-oref-color-scheme='dark'] {
-    --oref-motion-fast: var(--oref-motion-none);
-    --oref-motion-normal: var(--oref-motion-none);
+    --oref-motion-duration-fast: var(--oref-motion-duration-none);
+    --oref-motion-duration-base: var(--oref-motion-duration-none);
   }
 }

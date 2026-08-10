@@ -4,12 +4,18 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
-import { FONT_BUDGETS, LICENSE_ATTESTATIONS, THEME_TOKEN_STYLESHEETS } from '../../src/config';
+import {
+  FONT_BUDGETS,
+  FONT_STYLESHEETS,
+  LICENSE_ATTESTATIONS,
+  THEME_TOKEN_STYLESHEETS,
+} from '../../src/config';
 import { budgetsGate } from '../../src/gates/budgets.gate';
 import { buildManifestGate } from '../../src/gates/build-manifest.gate';
 import { dependencyGraphGate } from '../../src/gates/dependency-graph.gate';
 import { fixtureLicensesGate } from '../../src/gates/fixture-licenses.gate';
 import { licensesGate } from '../../src/gates/licenses.gate';
+import { themeFontsGate } from '../../src/gates/theme-fonts.gate';
 import { themeMotionGate } from '../../src/gates/theme-motion.gate';
 import { detectLicenseFromText, hashLicenseText } from '../../src/lib/licenses';
 import { readWorkspaceManifests, resolveShippedPackages } from '../../src/lib/workspace';
@@ -235,6 +241,52 @@ describe('themeMotionGate', () => {
     expect(result.status).toBe('fail');
     expect(result.findings).toHaveLength(files);
     expect(result.findings[0]?.message).toContain('is not there, so this theme is unchecked');
+  });
+});
+
+describe('themeFontsGate', () => {
+  it('should pass on the committed stylesheet and the fonts beside it', async () => {
+    // Given, the ranges were rewritten by hand after the defect of 2026-08-10, and this is what
+    // stops them being written by hand again without anything noticing.
+    const context = { repoRoot };
+
+    // When
+    const result = await themeFontsGate.run(context);
+
+    // Then
+    expect(result.findings.filter((finding) => finding.level === 'error')).toEqual([]);
+    expect(result.status).toBe('pass');
+    expect(result.findings[0]?.message).toContain('10 face(s)');
+  });
+
+  it('should fail on a stylesheet it was told about and cannot read', async () => {
+    // Given, the same rule the motion gate follows: absence is an error, never a skip.
+    const context = { repoRoot: mkdtempSync(join(tmpdir(), 'openref-fonts-')) };
+
+    // When
+    const result = await themeFontsGate.run(context);
+    rmSync(context.repoRoot, { recursive: true, force: true });
+
+    // Then
+    expect(result.status).toBe('fail');
+    expect(result.findings).toHaveLength(FONT_STYLESHEETS.length);
+    expect(result.findings[0]?.message).toContain('is not there, so its faces are unchecked');
+  });
+
+  it('should fail on a stylesheet that declares nothing it can check', async () => {
+    // Given, a stylesheet with no @font-face passes every textual check ever written about it.
+    const root = mkdtempSync(join(tmpdir(), 'openref-fonts-'));
+    const target = join(root, FONT_STYLESHEETS[0]?.file ?? '');
+    mkdirSync(dirname(target), { recursive: true });
+    writeFileSync(target, ':root { --oref-font-family-sans: sans-serif; }\n');
+
+    // When
+    const result = await themeFontsGate.run({ repoRoot: root });
+    rmSync(root, { recursive: true, force: true });
+
+    // Then
+    expect(result.status).toBe('fail');
+    expect(result.findings[0]?.message).toContain('declares no @font-face');
   });
 });
 

@@ -33,10 +33,10 @@
 
 /** The four names the contract fixes for the motion group. */
 export const MOTION_TOKENS: readonly string[] = [
-  '--oref-motion-fast',
-  '--oref-motion-normal',
-  '--oref-motion-none',
-  '--oref-motion-ease',
+  '--oref-motion-duration-fast',
+  '--oref-motion-duration-base',
+  '--oref-motion-duration-none',
+  '--oref-motion-easing-standard',
 ];
 
 /**
@@ -46,9 +46,9 @@ export const MOTION_TOKENS: readonly string[] = [
  * token would then be checked as though it had no duration at all.
  */
 export const MOTION_DURATIONS: readonly string[] = [
-  '--oref-motion-fast',
-  '--oref-motion-normal',
-  '--oref-motion-none',
+  '--oref-motion-duration-fast',
+  '--oref-motion-duration-base',
+  '--oref-motion-duration-none',
 ];
 
 /** A duration of zero, whichever unit it is written in. */

@@ -22,7 +22,7 @@
  * There is no transition and no animation anywhere in this file yet, which is the honest
  * reading of a theme built from hairlines and flat surfaces: nothing it draws today has a
  * state worth animating. When something does, in T012 and T013, its duration is
- * var(--oref-motion-fast) or var(--oref-motion-normal) and its curve is var(--oref-motion-ease).
+ * var(--oref-motion-duration-fast) or var(--oref-motion-duration-base) and its curve is var(--oref-motion-easing-standard).
  * A literal duration here is a literal like any other and the gate refuses it.
  *
  * THIS FILE CARRIES NO prefers-reduced-motion BLOCK AND NEVER WILL. The durations collapse to

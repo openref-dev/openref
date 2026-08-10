@@ -5,6 +5,7 @@ import { cspGate } from './gates/csp.gate.js';
 import { dependencyGraphGate } from './gates/dependency-graph.gate.js';
 import { fixtureLicensesGate } from './gates/fixture-licenses.gate.js';
 import { licensesGate } from './gates/licenses.gate.js';
+import { themeFontsGate } from './gates/theme-fonts.gate.js';
 import { themeMotionGate } from './gates/theme-motion.gate.js';
 import { themeTokensGate } from './gates/theme-tokens.gate.js';
 import type { Gate, GateResult } from './types.js';
@@ -25,6 +26,11 @@ import type { Gate, GateResult } from './types.js';
  * would block and one for what a theme author could not override. The theme motion gate sits
  * beside them and asks a third question of the same files: whether every theme, not only the
  * one that is code, answers reduced motion in the token layer where a checker can read it.
+ *
+ * The theme font gate is the fourth stylesheet reader and the only one that opens a binary. It
+ * asks whether a `unicode-range` describes the subset behind it, which no amount of reading CSS
+ * can answer, and it runs after the fixture gate has established that those files may be there
+ * at all.
  */
 export const GATES: readonly Gate[] = [
   buildManifestGate,
@@ -35,6 +41,7 @@ export const GATES: readonly Gate[] = [
   cspGate,
   themeTokensGate,
   themeMotionGate,
+  themeFontsGate,
   coverageGate,
 ];
 
