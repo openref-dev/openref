@@ -88,6 +88,7 @@ if (args.includes('--check')) {
       ...checkCeilings(baseline),
       ...compareToBaseline(baseline, {
         environmentId: report.environment.id,
+        cpuModel: report.environment.cpuModel,
         browserMajor: report.browser.major,
         ttiMedianMs: report.tti.median,
         peakHeapMedianBytes: report.peakHeapBytes.median,

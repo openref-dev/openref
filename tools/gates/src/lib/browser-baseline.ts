@@ -92,6 +92,8 @@ export interface BaselineIssue {
 /** What a study has to report for the relative check to be possible. */
 export interface MeasuredStudy {
   readonly environmentId: string;
+  /** The processor the figures were taken on, which the environment id does not identify. */
+  readonly cpuModel: string;
   readonly browserMajor: number;
   readonly ttiMedianMs: number;
   readonly peakHeapMedianBytes: number;
@@ -242,6 +244,27 @@ export function compareToBaseline(
       message:
         `measured on ${study.environmentId} and the baseline is from ${baseline.environment.id}. ` +
         'The relative check does not apply across machines, so only the ceilings were checked',
+    });
+
+    return issues;
+  }
+
+  // THE ENVIRONMENT ID DOES NOT IDENTIFY THE PROCESSOR, and the run of 2026-08-10 proved it.
+  // `github-actions/ubuntu24/X64` and Chrome 150 were identical between two studies taken on an
+  // AMD EPYC 9V74 and an AMD EPYC 9V45, so the relative check applied across two machines and
+  // the TTI median came out 66 ms lower with nothing reporting that anything had changed. A CPU
+  // throttle is relative to the host, which is the premise of this whole package: two figures
+  // from two processors are two measurements and neither is a movement in the other.
+  if (study.cpuModel !== baseline.environment.cpuModel) {
+    issues.push({
+      budget: 'tti',
+      kind: 'stale',
+      message:
+        `measured on ${study.cpuModel} and the baseline is from ${baseline.environment.cpuModel}. ` +
+        `TTI reads ${study.ttiMedianMs.toFixed(1)} ms against a recorded ${baseline.ttiMs.median.toFixed(1)} ms, ` +
+        'and the difference is not attributable to the product. A shared runner pool changes ' +
+        'processor without changing its image, so re-record the baseline deliberately rather ' +
+        'than reading this as a change either way. Only the ceilings were checked',
     });
 
     return issues;

@@ -42,6 +42,7 @@ function baseline(overrides: Partial<BrowserBaseline> = {}): BrowserBaseline {
 
 const measured = {
   environmentId: 'github-actions/ubuntu24/X64',
+  cpuModel: 'x',
   browserMajor: 150,
   ttiMedianMs: 120,
   peakHeapMedianBytes: 4 * 1024 * 1024,
@@ -177,6 +178,55 @@ describe('compareToBaseline', () => {
     // Then it says so, and it still checks the ceiling
     expect(issues.some((issue) => issue.kind === 'stale')).toBe(true);
     expect(issues.some((issue) => issue.kind === 'over-budget')).toBe(true);
+  });
+
+  it('should refuse to compare across processors that share an environment id', () => {
+    // Given the run of 2026-08-10, replayed. The environment id and the Chrome major were
+    // identical and the runner pool had swapped an AMD EPYC 9V74 for a 9V45, so the relative
+    // check compared two machines and read 66 ms of hardware as 66 ms of product.
+    const record = baseline({
+      environment: {
+        id: 'github-actions/ubuntu24/X64',
+        label: 'runner',
+        cpuModel: 'AMD EPYC 9V74 80-Core Processor',
+        cpuCount: 4,
+      },
+      ttiMs: spread(213.9, 15),
+    });
+    const study = {
+      ...measured,
+      cpuModel: 'AMD EPYC 9V45 96-Core Processor',
+      ttiMedianMs: 148.2,
+    };
+
+    // When
+    const issues = compareToBaseline(record, study);
+
+    // Then it says the baseline is stale and does not report a 66 ms improvement
+    expect(issues).toHaveLength(1);
+    expect(issues[0]?.kind).toBe('stale');
+    expect(issues[0]?.message).toContain('9V45');
+    expect(issues[0]?.message).toContain('not attributable to the product');
+  });
+
+  it('should still check the ceiling when the processor moved', () => {
+    // Given, because a slower machine is still a page a reader waits for
+    const record = baseline({
+      environment: {
+        id: 'github-actions/ubuntu24/X64',
+        label: 'runner',
+        cpuModel: 'AMD EPYC 9V74 80-Core Processor',
+        cpuCount: 4,
+      },
+    });
+    const study = { ...measured, cpuModel: 'AMD EPYC 9V45 96-Core Processor', ttiMedianMs: 400 };
+
+    // When
+    const issues = compareToBaseline(record, study);
+
+    // Then
+    expect(issues.filter((issue) => issue.kind === 'over-budget')).toHaveLength(1);
+    expect(issues.filter((issue) => issue.kind === 'stale')).toHaveLength(1);
   });
 
   it('should report a policy violation and an external request as budget failures', () => {
