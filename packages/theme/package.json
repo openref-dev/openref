@@ -17,10 +17,13 @@
     },
     "./tokens.css": "./dist/styles/tokens.css",
     "./theme.css": "./dist/styles/theme.css",
-    "./styles/*": "./dist/styles/*"
+    "./styles/*": "./dist/styles/*",
+    "./fonts.css": "./fonts/fonts.css",
+    "./fonts/*": "./fonts/*"
   },
   "files": [
-    "dist"
+    "dist",
+    "fonts"
   ],
   "sideEffects": false,
   "engines": {

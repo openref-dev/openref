@@ -1,11 +1,17 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
+  ASSET_ALLOWED_LICENSES,
   auditFixtures,
   FIXTURE_ALLOWED_LICENSES,
   refuseFixtureLicense,
+  reservedFontName,
   type FixtureAudit,
   type FixtureManifestEntry,
 } from '../../src/lib/fixtures';
+
+const REPO_ROOT = join(import.meta.dirname, '..', '..', '..', '..');
 
 function entryWith(overrides: Partial<FixtureManifestEntry> = {}): FixtureManifestEntry {
   return {
@@ -97,7 +103,7 @@ describe('refuseFixtureLicense', () => {
     const refusal = refuseFixtureLicense(license);
 
     // Then
-    expect(refusal).toContain('outside the fixture set');
+    expect(refusal).toContain('outside the allowed set');
   });
 
   it('should refuse an empty license', () => {
@@ -231,5 +237,242 @@ describe('auditFixtures', () => {
     expect(findings[0]?.level).toBe('warning');
     expect(findings[0]?.file).toBe('petstore.yaml');
     expect(findings[0]?.reason).toContain('matches no file');
+  });
+});
+
+/**
+ * Zone 4 of SPEC 0: material that ships to a user inside a published package.
+ *
+ * The header below is synthetic so that a declared reserved name can be planted, which no
+ * shipped family gives us. The last test in this block reads the two real licence texts, so
+ * the synthetic ones are never the only thing the check was tried against.
+ */
+describe('the shipped asset zone', () => {
+  const OFL_HEADER = [
+    'Copyright 2020 The Example Project Authors (https://example.invalid)',
+    '',
+    'This Font Software is licensed under the SIL Open Font License, Version 1.1.',
+    '',
+    '"Reserved Font Name" refers to any names specified as such after the',
+    'copyright statement(s).',
+    '',
+  ].join('\n');
+
+  it('should allow SIL OFL 1.1 for an asset and refuse it for a fixture', () => {
+    // Given, a font ships and does not link, so its obligation travels with the file.
+
+    // When
+    const asAsset = refuseFixtureLicense('OFL-1.1', ASSET_ALLOWED_LICENSES);
+
+    // Then
+    expect(asAsset).toBeNull();
+    expect(refuseFixtureLicense('OFL-1.1', FIXTURE_ALLOWED_LICENSES)).toContain(
+      'outside the allowed set',
+    );
+  });
+
+  it('should refuse a no derivatives clause for an asset too, since a subset is a derivative', () => {
+    // Given
+    const license = 'CC-BY-ND-4.0';
+
+    // When
+    const refusal = refuseFixtureLicense(license, ASSET_ALLOWED_LICENSES);
+
+    // Then
+    expect(refusal).toContain('no derivatives');
+  });
+
+  it('should not read the sentence that defines the term as a declaration of one', () => {
+    // Given, that sentence is in the body of every OFL text, so a whole file search would
+    // report a reserved name for every family that ever shipped one, which is all of them.
+
+    // When
+    const declared = reservedFontName(OFL_HEADER);
+
+    // Then
+    expect(declared).toBeNull();
+  });
+
+  it('should read a reserved name out of the copyright line where OFL puts it', () => {
+    // Given
+    const text = OFL_HEADER.replace(
+      'Authors (https://example.invalid)',
+      'Authors (https://example.invalid), with Reserved Font Name "Example Sans"',
+    );
+
+    // When
+    const declared = reservedFontName(text);
+
+    // Then
+    expect(declared).toBe('Example Sans');
+  });
+
+  it('should read two reserved names when a family declares two', () => {
+    // Given
+    const text = OFL_HEADER.replace(
+      'Authors (https://example.invalid)',
+      'Authors, with Reserved Font Names "Example Sans" and "Example Mono"',
+    );
+
+    // When
+    const declared = reservedFontName(text);
+
+    // Then
+    expect(declared).toBe('Example Sans, Example Mono');
+  });
+
+  it('should refuse a subset that ships under a name its family reserves', () => {
+    // Given
+    const text = OFL_HEADER.replace(
+      'Authors (https://example.invalid)',
+      'Authors, with Reserved Font Name "Example Sans"',
+    );
+    const entry = entryWith({
+      file: 'ExampleSans-400.woff2',
+      license: 'OFL-1.1',
+      licenseTextFile: 'ExampleSans-OFL.txt',
+      reservedFontName: 'Example Sans',
+      shipsAs: 'Example Sans',
+      modified: true,
+      modifications: 'subset to latin',
+      sha256: 'deadbeef',
+    });
+
+    // When
+    const findings = auditFixtures({
+      presentFiles: ['ExampleSans-400.woff2'],
+      entries: [entry],
+      notice: 'ExampleSans-400.woff2',
+      digests: { 'ExampleSans-400.woff2': 'deadbeef' },
+      allowedLicenses: ASSET_ALLOWED_LICENSES,
+      licenseTexts: { 'ExampleSans-OFL.txt': text },
+    });
+
+    // Then
+    expect(findings.map((finding) => finding.reason)).toEqual([
+      expect.stringContaining('a modified version may not use a reserved font name'),
+    ]);
+  });
+
+  it('should accept the same subset once it ships under a different name', () => {
+    // Given
+    const text = OFL_HEADER.replace(
+      'Authors (https://example.invalid)',
+      'Authors, with Reserved Font Name "Example Sans"',
+    );
+    const entry = entryWith({
+      file: 'ExampleSans-400.woff2',
+      license: 'OFL-1.1',
+      licenseTextFile: 'ExampleSans-OFL.txt',
+      reservedFontName: 'Example Sans',
+      shipsAs: 'Openref Sans',
+      modified: true,
+      modifications: 'subset to latin',
+      sha256: 'deadbeef',
+    });
+
+    // When
+    const findings = auditFixtures({
+      presentFiles: ['ExampleSans-400.woff2'],
+      entries: [entry],
+      notice: 'ExampleSans-400.woff2',
+      digests: { 'ExampleSans-400.woff2': 'deadbeef' },
+      allowedLicenses: ASSET_ALLOWED_LICENSES,
+      licenseTexts: { 'ExampleSans-OFL.txt': text },
+    });
+
+    // Then
+    expect(findings).toEqual([]);
+  });
+
+  it('should refuse a manifest that records no reserved name for a family that declares one', () => {
+    // Given, the licence text binds and the manifest is what a reader sees.
+    const text = OFL_HEADER.replace(
+      'Authors (https://example.invalid)',
+      'Authors, with Reserved Font Name "Example Sans"',
+    );
+    const entry = entryWith({
+      file: 'ExampleSans-400.woff2',
+      license: 'OFL-1.1',
+      licenseTextFile: 'ExampleSans-OFL.txt',
+      reservedFontName: null,
+      shipsAs: 'Openref Sans',
+      modified: true,
+      modifications: 'subset to latin',
+      sha256: 'deadbeef',
+    });
+
+    // When
+    const findings = auditFixtures({
+      presentFiles: ['ExampleSans-400.woff2'],
+      entries: [entry],
+      notice: 'ExampleSans-400.woff2',
+      digests: { 'ExampleSans-400.woff2': 'deadbeef' },
+      allowedLicenses: ASSET_ALLOWED_LICENSES,
+      licenseTexts: { 'ExampleSans-OFL.txt': text },
+    });
+
+    // Then
+    expect(findings.map((finding) => finding.reason)).toEqual([
+      expect.stringContaining('declares reserved font name Example Sans'),
+    ]);
+  });
+
+  it('should refuse an asset whose licence text is not beside it', () => {
+    // Given
+    const entry = entryWith({
+      file: 'ExampleSans-400.woff2',
+      license: 'OFL-1.1',
+      licenseTextFile: 'ExampleSans-OFL.txt',
+      reservedFontName: null,
+      modified: true,
+      modifications: 'subset to latin',
+      sha256: 'deadbeef',
+    });
+
+    // When
+    const findings = auditFixtures({
+      presentFiles: ['ExampleSans-400.woff2'],
+      entries: [entry],
+      notice: 'ExampleSans-400.woff2',
+      digests: { 'ExampleSans-400.woff2': 'deadbeef' },
+      allowedLicenses: ASSET_ALLOWED_LICENSES,
+      licenseTexts: {},
+    });
+
+    // Then
+    expect(findings.map((finding) => finding.reason)).toEqual([
+      expect.stringContaining('would not travel with them'),
+    ]);
+  });
+
+  it('should report no reserved name for either family this repository ships', () => {
+    // Given, the real texts. This is a reading of two files and not an assumption that
+    // families agree: the check exists because the declaration is not in a fixed place.
+    const directory = join(REPO_ROOT, 'packages', 'theme', 'fonts');
+
+    // When
+    const declared = ['SpaceGrotesk-OFL.txt', 'JetBrainsMono-OFL.txt'].map((file) =>
+      reservedFontName(readFileSync(join(directory, file), 'utf8')),
+    );
+
+    // Then
+    expect(declared).toEqual([null, null]);
+  });
+
+  it('should ask nothing about reserved names in zone 3, which has no licence texts', () => {
+    // Given, a corpus document has no family and no OFL header.
+    const entry = entryWith({ sha256: 'deadbeef' });
+
+    // When
+    const findings = auditFixtures({
+      presentFiles: ['petstore.yaml'],
+      entries: [entry],
+      notice: 'petstore.yaml',
+      digests: { 'petstore.yaml': 'deadbeef' },
+    });
+
+    // Then
+    expect(findings).toEqual([]);
   });
 });

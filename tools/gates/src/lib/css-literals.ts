@@ -246,6 +246,22 @@ const FONT_PROPERTY = /^font(?:-family)?$/;
 /** Values a font property may hold without naming a family. */
 const ALLOWED_FONT_VALUES = new Set(['inherit', 'initial', 'unset', 'revert']);
 
+/**
+ * Blanks the body of every `@font-face` block.
+ *
+ * A `font-family` inside one names the face being defined, exactly as a custom property
+ * declaration defines a value. Reading it as a hardcoded font stack would make the rule
+ * unsatisfiable: the only way to name a self hosted face is to name it, and the token stack in
+ * `tokens.css` refers to that name. Nothing else in such a block is a design value either; a
+ * `unicode-range` is a range of code points and a `src` is a path.
+ *
+ * The body is replaced with spaces rather than removed, so every reported line number still
+ * points at the line it came from.
+ */
+function stripFontFaceBlocks(css: string): string {
+  return css.replace(/@font-face\s*\{[^}]*\}/gi, (match) => match.replace(/[^\n]/g, ' '));
+}
+
 /** Strips comments so a value inside one is never reported. */
 function stripComments(css: string): string {
   return css.replace(/\/\*[\s\S]*?\*\//g, (match) => match.replace(/[^\n]/g, ' '));
@@ -365,7 +381,7 @@ function isColorLiteral(remainder: string): boolean {
  */
 export function findCssLiterals(css: string): CssLiteral[] {
   const found: CssLiteral[] = [];
-  const lines = stripComments(css).split('\n');
+  const lines = stripFontFaceBlocks(stripComments(css)).split('\n');
 
   lines.forEach((line, index) => {
     const declaration = /^\s*([a-z-]+)\s*:\s*([^;{}]+);?\s*$/i.exec(line);

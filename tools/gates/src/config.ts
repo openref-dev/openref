@@ -5,6 +5,7 @@
  * genuinely wrong, `ai-docs/SPEC.md` changes first.
  */
 
+import { ASSET_ALLOWED_LICENSES, FIXTURE_ALLOWED_LICENSES } from './lib/fixtures.js';
 import type { FixtureRoot } from './gates/fixture-licenses.gate.js';
 import type { DataOnlyAttestation, LicenseAttestation } from './lib/licenses.js';
 
@@ -54,7 +55,28 @@ export const DATA_ONLY_ATTESTATIONS: readonly DataOnlyAttestation[] = [
  * here; adding a document to one is a line in its manifest.
  */
 export const FIXTURE_ROOTS: readonly FixtureRoot[] = [
-  { directory: 'packages/core/test/corpus', producedBy: 'T006' },
+  {
+    directory: 'packages/core/test/corpus',
+    producedBy: 'T006',
+    filesDirectory: 'documents',
+    noticeFile: 'NOTICE',
+    manifestKey: 'documents',
+    allowedLicenses: FIXTURE_ALLOWED_LICENSES,
+    extensions: ['.json', '.yaml', '.yml'],
+    readsLicenseText: false,
+    label: 'document(s)',
+  },
+  {
+    directory: 'packages/theme/fonts',
+    producedBy: 'the zone 4 work of 2026-08-10',
+    filesDirectory: '',
+    noticeFile: 'NOTICE.md',
+    manifestKey: 'assets',
+    allowedLicenses: ASSET_ALLOWED_LICENSES,
+    extensions: ['.woff2', '.woff', '.ttf', '.otf'],
+    readsLicenseText: true,
+    label: 'font file(s)',
+  },
 ];
 
 /** The build manifest, addressed by absolute line number by every session. */
@@ -164,9 +186,49 @@ export const SIZE_BUDGETS: readonly SizeBudget[] = [
     id: 'theme-css',
     label: 'Default theme CSS, gzip',
     limitBytes: 15 * 1024,
-    roots: ['packages/theme/dist'],
+    roots: ['packages/theme/dist', 'packages/theme/fonts'],
     extensions: ['.css'],
     producedBy: 'T009',
+  },
+];
+
+/**
+ * A theme's font directory, budgeted twice.
+ *
+ * PER THEME, NOT PER REPOSITORY, and that is the point rather than a convenience. A theme
+ * nobody loads costs nothing, and there will be more than one theme. A repository total would
+ * have to be raised every time a theme is added, which is a budget that only ever moves in one
+ * direction.
+ *
+ * Two numbers rather than one, for the same reason. The first bounds what a reader actually
+ * waits for: the primary sans weight and the primary mono weight, which are the two files the
+ * first paint needs. Everything else loads with `font-display: swap` and delays nothing, so
+ * the second number bounds the whole directory and sits looser. A single cap would fail on
+ * arrival: the heaviest of the three designs fills almost all of it, and a font version bump
+ * would then break the build while saying nothing about whether a reader is worse off.
+ */
+export interface FontBudget {
+  /** The package that ships them, for the message. */
+  readonly theme: string;
+  /** Repository relative directory holding the font files. */
+  readonly directory: string;
+  /** The two files the first paint needs: the primary sans weight and the primary mono weight. */
+  readonly firstPaint: readonly string[];
+  readonly producedBy: string;
+}
+
+/** Both caps, per SPEC 20. Measured gzip, like every other budget. */
+export const FONT_BUDGET_LIMITS = {
+  firstPaintBytes: 60 * 1024,
+  totalBytes: 130 * 1024,
+} as const;
+
+export const FONT_BUDGETS: readonly FontBudget[] = [
+  {
+    theme: '@openref/theme',
+    directory: 'packages/theme/fonts',
+    firstPaint: ['SpaceGrotesk-400.woff2', 'JetBrainsMono-400.woff2'],
+    producedBy: 'the zone 4 work of 2026-08-10',
   },
 ];
 
@@ -199,7 +261,7 @@ export const MEASURED_BUDGETS: readonly MeasuredBudget[] = [
  *
  * Scanned by the theme-tokens gate for hardcoded colours, lengths and font stacks.
  */
-export const THEME_STYLE_ROOTS: readonly string[] = ['packages/theme/src'];
+export const THEME_STYLE_ROOTS: readonly string[] = ['packages/theme/src', 'packages/theme/fonts'];
 
 /**
  * The one stylesheet allowed to hold literal values, because it declares the tokens.

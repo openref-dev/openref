@@ -269,6 +269,48 @@ describe('the shipped stylesheets', () => {
     expect(offending).toEqual([]);
   });
 
+  it('should let a font-face name the face it defines', () => {
+    // Given, naming a self hosted face is the only way to declare one, and the token stack in
+    // tokens.css refers to that name.
+    const css = [
+      '@font-face {',
+      "  font-family: 'Space Grotesk';",
+      '  font-weight: 400;',
+      "  src: url('./SpaceGrotesk-400.woff2') format('woff2');",
+      '  unicode-range: U+0000-00FF, U+2C60-2C7F;',
+      '}',
+      '',
+    ].join('\n');
+
+    // When
+    const found = findCssLiterals(css);
+
+    // Then
+    expect(found).toEqual([]);
+  });
+
+  it('should still catch a literal outside the font-face block in the same file', () => {
+    // Given, the exemption must cover the block and not the file.
+    const css = [
+      '@font-face {',
+      "  font-family: 'Space Grotesk';",
+      '}',
+      '',
+      '.oref-root {',
+      '  color: #0b0d10;',
+      '  padding: 4px;',
+      '}',
+      '',
+    ].join('\n');
+
+    // When
+    const found = findCssLiterals(css);
+
+    // Then
+    expect(found.map((literal) => literal.kind)).toEqual(['color', 'length']);
+    expect(found[0]?.line).toBe(6);
+  });
+
   it('should find the values it exempts in the generated token file, so the exemption is real', () => {
     // Given, if the exempt file held no literals the exemption would be meaningless and the
     // gate would be passing for the wrong reason.

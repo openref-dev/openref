@@ -25,7 +25,8 @@ export const DEFAULT_THEME_NAME = 'openref-default';
 /**
  * Stylesheets the default theme brings, in the order they must be applied.
  *
- * Tokens first, because everything else reads them.
+ * Faces first, because a face declared after the rule that asks for it still applies but is
+ * fetched later than it needed to be. Tokens next, because everything else reads them.
  *
  * Written as package specifiers rather than as relative paths. SPEC 10.4 shows a theme naming
  * its own file relative to itself, which is right for a theme that is also the application.
@@ -33,6 +34,7 @@ export const DEFAULT_THEME_NAME = 'openref-default';
  * whoever imported it. These resolve through the package's `exports` from anywhere.
  */
 export const DEFAULT_THEME_STYLESHEETS: readonly string[] = [
+  '@openref/theme/fonts.css',
   '@openref/theme/tokens.css',
   '@openref/theme/theme.css',
 ];

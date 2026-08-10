@@ -76,7 +76,11 @@ describe('the default theme', () => {
 
   it('should list tokens before the theme stylesheet, since the second reads the first', () => {
     // Given
-    const expected = ['@openref/theme/tokens.css', '@openref/theme/theme.css'];
+    const expected = [
+      '@openref/theme/fonts.css',
+      '@openref/theme/tokens.css',
+      '@openref/theme/theme.css',
+    ];
 
     // When
     const actual = [...DEFAULT_THEME_STYLESHEETS];

@@ -1,0 +1,81 @@
+/*
+ * The faces the default theme ships, per SPEC 0 zone 4.
+ *
+ * Self hosted, no CDN, no external request of any kind: SPEC 19 puts the number of outgoing
+ * requests from the client at zero, and a font served from someone else's origin is an
+ * outgoing request that also tells them who is reading your documentation.
+ *
+ * Every file is a subset, reduced to the latin and latin-ext ranges. `packages/theme/fonts`
+ * carries the licence text of each family, a NOTICE.md and a manifest recording the exact
+ * source of every byte.
+ *
+ * This file sits with the fonts rather than under `src`, and is not built. A stylesheet whose
+ * url() names a binary beside it survives a bundler only by being kept away from one: esbuild
+ * would rewrite the reference and move the file, and the licence text and the NOTICE that have
+ * to travel with these bytes would stop travelling with them.
+ *
+ * FONT-DISPLAY IS SWAP EVERYWHERE. Text that is readable in a fallback face beats text that is
+ * not there, and the reference is a document before it is a design. The two regular weights
+ * are what the first paint waits for and are budgeted separately, per SPEC 20; every other
+ * weight arrives when it arrives and swaps in.
+ */
+
+@font-face {
+  font-family: 'Space Grotesk';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('./SpaceGrotesk-400.woff2') format('woff2');
+  unicode-range:
+    U+0000-00FF, U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304,
+    U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2000-206F, U+20A0-20C0, U+2113,
+    U+2122, U+2191, U+2193, U+2212, U+2215, U+2C60-2C7F, U+A720-A7FF, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: 'Space Grotesk';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url('./SpaceGrotesk-500.woff2') format('woff2');
+  unicode-range:
+    U+0000-00FF, U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304,
+    U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2000-206F, U+20A0-20C0, U+2113,
+    U+2122, U+2191, U+2193, U+2212, U+2215, U+2C60-2C7F, U+A720-A7FF, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: 'Space Grotesk';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('./SpaceGrotesk-700.woff2') format('woff2');
+  unicode-range:
+    U+0000-00FF, U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304,
+    U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2000-206F, U+20A0-20C0, U+2113,
+    U+2122, U+2191, U+2193, U+2212, U+2215, U+2C60-2C7F, U+A720-A7FF, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('./JetBrainsMono-400.woff2') format('woff2');
+  unicode-range:
+    U+0000-00FF, U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304,
+    U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2000-206F, U+20A0-20C0, U+2113,
+    U+2122, U+2191, U+2193, U+2212, U+2215, U+2C60-2C7F, U+A720-A7FF, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('./JetBrainsMono-700.woff2') format('woff2');
+  unicode-range:
+    U+0000-00FF, U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304,
+    U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2000-206F, U+20A0-20C0, U+2113,
+    U+2122, U+2191, U+2193, U+2212, U+2215, U+2C60-2C7F, U+A720-A7FF, U+FEFF, U+FFFD;
+}
