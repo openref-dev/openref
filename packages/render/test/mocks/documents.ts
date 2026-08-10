@@ -153,3 +153,84 @@ export function largeDocument(count: number): IRDocument {
     },
   });
 }
+
+/**
+ * A document whose schemas refer to each other in a ring, with a discriminated union in it.
+ *
+ * Three things the schema viewer has to survive are here on purpose. `Node.parent` points back
+ * at `Node`, so an expander without a path guard never stops. `Node.owner` reaches `Person`,
+ * which reaches `Node` again, which is the two step cycle a single step guard misses. And
+ * `Shape` is a `oneOf` with a discriminator mapping, so the variant labels come from the
+ * mapping rather than from the branch index.
+ *
+ * SPEC 5.1.1 puts no `$cycle` marker on any of this: a chain of named references never expands,
+ * so there is nothing for the normalizer to mark, and the viewer detects the revisit itself.
+ *
+ * @returns The normalized document
+ */
+export function cyclicDocument(): IRDocument {
+  return normalizeOpenApiDocument({
+    openapi: '3.1.0',
+    info: { title: 'Graph', version: '1.0.0' },
+    paths: {
+      '/nodes': {
+        get: {
+          operationId: 'listNodes',
+          summary: 'List nodes',
+          responses: {
+            '200': {
+              description: 'Nodes',
+              content: {
+                'application/json': { schema: { $ref: '#/components/schemas/Node' } },
+              },
+            },
+          },
+        },
+        post: {
+          operationId: 'createShape',
+          summary: 'Create a shape',
+          requestBody: {
+            content: {
+              'application/json': { schema: { $ref: '#/components/schemas/Shape' } },
+            },
+          },
+          responses: { '201': { description: 'Created' } },
+        },
+      },
+    },
+    components: {
+      schemas: {
+        Node: {
+          type: 'object',
+          description: 'One node of the graph.',
+          required: ['id'],
+          properties: {
+            id: { type: 'string', readOnly: true },
+            label: { type: 'string', writeOnly: true },
+            parent: { $ref: '#/components/schemas/Node' },
+            owner: { $ref: '#/components/schemas/Person' },
+          },
+        },
+        Person: {
+          type: 'object',
+          properties: {
+            name: { type: 'string' },
+            favourite: { $ref: '#/components/schemas/Node' },
+          },
+        },
+        Shape: {
+          oneOf: [{ $ref: '#/components/schemas/Circle' }, { $ref: '#/components/schemas/Square' }],
+          discriminator: {
+            propertyName: 'kind',
+            mapping: {
+              round: '#/components/schemas/Circle',
+              boxy: '#/components/schemas/Square',
+            },
+          },
+        },
+        Circle: { type: 'object', properties: { radius: { type: 'number' } } },
+        Square: { type: 'object', properties: { side: { type: 'number' } } },
+      },
+    },
+  });
+}

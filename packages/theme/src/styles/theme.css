@@ -125,26 +125,49 @@
   display: block;
 }
 
+/*
+ * A chunk the renderer has not rendered reserves the height of a full chunk, so the scrollbar
+ * is the length of the whole navigation and the rows below stay where they are. That is what
+ * makes the sidebar virtualizable without a computed length being written into the document,
+ * which STANDARDS 10 forbids: every chunk holds the same number of rows, so one class covers
+ * every unrendered chunk. The 20 is `NAV_CHUNK_ROWS` in the renderer, and `theme.spec.ts`
+ * compares the two rather than trusting this comment.
+ */
 .oref-nav-list {
   list-style: none;
   margin: 0;
+  min-height: calc(20 * var(--oref-layout-nav-row));
   padding: 0;
 }
 
-.oref-nav-list.oref-nav-root {
-  border-inline-start: none;
-  margin-inline-start: 0;
-  padding-inline-start: 0;
+.oref-nav-list.oref-nav-rendered {
+  min-height: 0;
 }
 
-.oref-nav-list .oref-nav-list {
-  border-inline-start: var(--oref-border-hair) solid var(--oref-color-line);
-  margin-inline-start: var(--oref-space-300);
-  padding-inline-start: var(--oref-space-300);
+.oref-nav-scroll {
+  display: block;
 }
 
 .oref-nav-entry {
   margin: 0;
+}
+
+/*
+ * Depth is an attribute rather than a nested list. The tree is flattened so that the sidebar
+ * can render a window of it, and a nested list would have to be whole to be nested.
+ */
+.oref-nav-entry[data-oref-level='2'] .oref-nav-item {
+  padding-inline-start: var(--oref-space-600);
+}
+
+.oref-nav-entry[data-oref-level='3'] .oref-nav-item {
+  padding-inline-start: var(--oref-space-800);
+}
+
+.oref-nav-entry[data-oref-level='4'] .oref-nav-item,
+.oref-nav-entry[data-oref-level='5'] .oref-nav-item,
+.oref-nav-entry[data-oref-level='6'] .oref-nav-item {
+  padding-inline-start: var(--oref-space-900);
 }
 
 .oref-nav-item {
@@ -552,4 +575,245 @@
 
 .oref-hl-underline {
   text-decoration: underline;
+}
+
+/*
+ * Skip link. First in the tab order, out of the way until it is focused, which is the only
+ * arrangement in which a skip link does anything for the reader it exists for.
+ */
+
+.oref-skip {
+  background: var(--oref-color-surface);
+  border: var(--oref-border-hair) solid var(--oref-color-line-edge);
+  color: var(--oref-color-accent-link);
+  inset-block-start: var(--oref-space-200);
+  inset-inline-start: var(--oref-space-200);
+  padding: var(--oref-space-300) var(--oref-space-500);
+  position: absolute;
+  transform: translateY(-200%);
+  z-index: 2;
+}
+
+.oref-skip:focus {
+  transform: translateY(0);
+}
+
+/*
+ * The schema viewer.
+ *
+ * A row is a button when it opens something and a plain element when it does not, so the two
+ * are given the same shape here rather than the browser's idea of a button.
+ */
+
+.oref-schema-page {
+  display: block;
+}
+
+.oref-schema-tree,
+.oref-schema-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.oref-schema-list {
+  border-inline-start: var(--oref-border-hair) solid var(--oref-color-line);
+  margin-inline-start: var(--oref-space-400);
+  padding-inline-start: var(--oref-space-400);
+}
+
+.oref-schema-item {
+  margin: 0;
+}
+
+.oref-schema-row {
+  align-items: baseline;
+  background: none;
+  border: none;
+  color: var(--oref-color-fg);
+  display: flex;
+  font: inherit;
+  font-size: var(--oref-font-size-300);
+  gap: var(--oref-space-300);
+  padding: var(--oref-space-100) 0;
+  text-align: start;
+  width: 100%;
+}
+
+button.oref-schema-row {
+  cursor: pointer;
+}
+
+button.oref-schema-row:hover {
+  background: var(--oref-color-accent-bg);
+}
+
+/*
+ * The marker carries the open state without colour and without an icon font: a closed position
+ * points along the reading direction, an open one points down, and a leaf keeps the same width
+ * so the names line up.
+ */
+.oref-schema-marker {
+  color: var(--oref-color-fg-muted);
+  display: inline-block;
+  text-align: center;
+  width: var(--oref-space-500);
+}
+
+.oref-schema-marker.oref-closed::before {
+  content: '+';
+}
+
+.oref-schema-marker.oref-open::before {
+  content: '-';
+}
+
+/*
+ * A leaf marker is empty rather than a character. The width is what aligns the names, and a
+ * character would have to be one the shipped subset carries: the triangles a tree usually uses
+ * are outside latin and latin-ext, so they would come from whatever font the reader happens to
+ * have.
+ */
+.oref-schema-marker.oref-schema-leaf::before {
+  content: '';
+}
+
+.oref-schema-name {
+  font-family: var(--oref-font-family-mono);
+}
+
+.oref-schema-type {
+  color: var(--oref-color-fg-secondary);
+  font-family: var(--oref-font-family-mono);
+  font-size: var(--oref-font-size-200);
+}
+
+.oref-schema-link {
+  color: var(--oref-color-accent-link);
+  text-decoration: underline;
+}
+
+.oref-schema-doc {
+  color: var(--oref-color-fg-secondary);
+  font-size: var(--oref-font-size-200);
+}
+
+.oref-schema-cycle {
+  background: var(--oref-state-warn-bg);
+  color: var(--oref-state-warn-fg);
+  font-size: var(--oref-font-size-100);
+  letter-spacing: var(--oref-font-tracking-mid);
+  padding: 0 var(--oref-space-200);
+  text-transform: uppercase;
+}
+
+.oref-schema-cycle-row .oref-schema-name {
+  color: var(--oref-color-fg-secondary);
+}
+
+.oref-schema-empty {
+  color: var(--oref-color-fg-muted);
+  font-size: var(--oref-font-size-300);
+}
+
+/*
+ * The command palette.
+ *
+ * THE SCRIM IS THE DESIGNER'S, filed 2026-08-10, and both of its tokens are core. The dark
+ * value is denser than the light one rather than the same ink at the same alpha: a dark
+ * interface shows through a dark scrim, and at the light opacity the overlay loses its
+ * boundary. The blur is 0 here and stays 0: vernier is flat, and a blur behind a modal
+ * contradicts a design built from hairlines. forge is the theme that blurs.
+ */
+
+.oref-palette-open {
+  background: var(--oref-color-surface);
+  border: var(--oref-border-hair) solid var(--oref-color-line-edge);
+  color: var(--oref-color-fg-secondary);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--oref-font-size-300);
+  padding: var(--oref-space-200) var(--oref-space-500);
+}
+
+.oref-palette-open:hover {
+  border-color: var(--oref-color-fg-muted);
+  color: var(--oref-color-fg);
+}
+
+.oref-palette-scrim {
+  align-items: flex-start;
+  backdrop-filter: blur(var(--oref-scrim-blur));
+  background: var(--oref-color-scrim);
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  padding-top: var(--oref-space-1000);
+  position: fixed;
+  z-index: 3;
+}
+
+/*
+ * As wide as the content measure allows rather than as wide as the rail: a result is a summary
+ * and a path, and the rail is sized for a truncated label.
+ */
+.oref-palette {
+  background: var(--oref-color-surface);
+  border: var(--oref-border-hair) solid var(--oref-color-line-strong);
+  box-shadow: var(--oref-shadow-overlay);
+  margin: 0 var(--oref-space-600);
+  max-height: 60vh;
+  max-width: var(--oref-layout-measure);
+  overflow-y: auto;
+  width: 100%;
+}
+
+.oref-palette-input {
+  background: var(--oref-color-surface-inset);
+  border: none;
+  border-bottom: var(--oref-border-hair) solid var(--oref-color-line);
+  color: var(--oref-color-fg);
+  font: inherit;
+  font-size: var(--oref-font-size-400);
+  padding: var(--oref-space-500);
+  width: 100%;
+}
+
+.oref-palette-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.oref-palette-hit {
+  margin: 0;
+}
+
+.oref-palette-hit.oref-active {
+  background: var(--oref-color-accent-bg);
+}
+
+.oref-palette-link {
+  color: var(--oref-color-fg);
+  display: flex;
+  gap: var(--oref-space-400);
+  justify-content: space-between;
+  padding: var(--oref-space-300) var(--oref-space-500);
+  text-decoration: none;
+}
+
+.oref-palette-label {
+  font-size: var(--oref-font-size-300);
+}
+
+.oref-palette-hint {
+  color: var(--oref-color-fg-muted);
+  font-family: var(--oref-font-family-mono);
+  font-size: var(--oref-font-size-200);
+}
+
+.oref-palette-empty {
+  color: var(--oref-color-fg-muted);
+  font-size: var(--oref-font-size-300);
+  padding: var(--oref-space-500);
 }

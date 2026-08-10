@@ -1,5 +1,5 @@
 /**
- * The 107 core token names, transcribed from `ai-docs/design/CONTRACT.md`.
+ * The 109 core token names, transcribed from `ai-docs/design/CONTRACT.md`.
  *
  * Written out here rather than derived from the token set, because deriving it would make the
  * test compare the token set with itself. This list is the contract; `THEME_TOKENS` is this
@@ -27,6 +27,7 @@ export const CONTRACT_TOKEN_NAMES: readonly string[] = [
   '--oref-color-method-post',
   '--oref-color-method-put',
   '--oref-color-method-sse',
+  '--oref-color-scrim',
   '--oref-color-surface',
   '--oref-color-surface-code',
   '--oref-color-surface-inset',
@@ -113,4 +114,5 @@ export const CONTRACT_TOKEN_NAMES: readonly string[] = [
   '--oref-motion-fast',
   '--oref-motion-none',
   '--oref-motion-normal',
+  '--oref-scrim-blur',
 ];

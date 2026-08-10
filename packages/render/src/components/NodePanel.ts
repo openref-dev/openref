@@ -7,9 +7,18 @@
  * crossing into the client bundle.
  */
 
+import type { IRSchema } from '@openref/core';
 import { defineComponent, h, type PropType, type VNode } from 'vue';
 import { MarkdownBlock } from './MarkdownBlock';
+import { SchemaView } from './SchemaView';
 import type { MediaTypeModel, NodeModel, ParameterModel } from '../page/domain/page-model';
+
+/** What every media type block needs to put a schema viewer under itself. */
+interface SchemaContext {
+  readonly schemas: Readonly<Record<string, IRSchema>>;
+  readonly truncated: readonly string[];
+  readonly basePath: string;
+}
 
 function methodClass(method: string): string {
   const known = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'];
@@ -36,12 +45,22 @@ function parameterRow(parameter: ParameterModel): VNode {
   ]);
 }
 
-function mediaTypeBlock(media: MediaTypeModel, key: string): VNode {
+function mediaTypeBlock(media: MediaTypeModel, key: string, context: SchemaContext): VNode {
   return h('div', { class: 'oref-media', key }, [
     h('div', { class: 'oref-media-head' }, [
       h('code', { class: 'oref-media-type' }, media.mediaType),
       media.typeLabel === '' ? null : h('span', { class: 'oref-media-schema' }, media.typeLabel),
     ]),
+    media.schema === null
+      ? null
+      : h(SchemaView, {
+          slot: media.schema,
+          label: media.mediaType,
+          view: media.view,
+          schemas: context.schemas,
+          truncated: context.truncated,
+          basePath: context.basePath,
+        }),
     h(MarkdownBlock, { html: media.exampleHtml, className: 'oref-example' }),
   ]);
 }
@@ -59,11 +78,19 @@ export const NodePanel = defineComponent({
 
   props: {
     node: { type: Object as PropType<NodeModel>, required: true },
+    schemas: { type: Object as PropType<Readonly<Record<string, IRSchema>>>, default: () => ({}) },
+    truncated: { type: Array as PropType<readonly string[]>, default: () => [] },
+    basePath: { type: String, default: '' },
   },
 
   setup(props) {
     return (): VNode => {
       const node = props.node;
+      const context: SchemaContext = {
+        schemas: props.schemas,
+        truncated: props.truncated,
+        basePath: props.basePath,
+      };
       const parts: (VNode | null)[] = [];
 
       const address =
@@ -130,7 +157,9 @@ export const NodePanel = defineComponent({
           section(
             'Request body',
             'oref-section-request',
-            node.requestBody.map((media) => mediaTypeBlock(media, `request:${media.mediaType}`)),
+            node.requestBody.map((media) =>
+              mediaTypeBlock(media, `request:${media.mediaType}`, context),
+            ),
           ),
         );
       }
@@ -155,7 +184,7 @@ export const NodePanel = defineComponent({
                   }),
                 ]),
                 ...response.content.map((media) =>
-                  mediaTypeBlock(media, `${response.statusCode}:${media.mediaType}`),
+                  mediaTypeBlock(media, `${response.statusCode}:${media.mediaType}`, context),
                 ),
               ]),
             ),

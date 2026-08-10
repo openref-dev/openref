@@ -17,8 +17,10 @@
 export interface RenderedPage {
   /** Hash of the document this page was rendered from. */
   readonly documentHash: string;
-  /** Node the page shows, or null for the document overview. */
+  /** Node the page shows, or null for the overview and for a schema page. */
   readonly nodeId: string | null;
+  /** Named schema the page shows, or null for every other page. */
+  readonly schemaId: string | null;
   /** Text for the `title` element, unescaped. */
   readonly title: string;
   /** Server rendered application markup. */

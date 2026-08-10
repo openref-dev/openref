@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { THEME_TOKEN_STYLESHEETS } from '../config.js';
-import { auditMotionTokens, MOTION_TOKENS } from '../lib/motion-tokens.js';
+import { auditMotionTokens, MOTION_TOKENS, type StyleSource } from '../lib/motion-tokens.js';
 import type { Gate, GateFinding, GateResult } from '../types.js';
 
 /**
@@ -30,32 +30,37 @@ export const themeMotionGate: Gate = {
     let failed = false;
 
     for (const stylesheet of THEME_TOKEN_STYLESHEETS) {
-      const path = join(context.repoRoot, stylesheet.file);
+      const sources: StyleSource[] = [];
+      let readable = true;
 
-      if (!existsSync(path)) {
-        failed = true;
-        findings.push({
-          level: 'error',
-          message: `${stylesheet.theme}: ${stylesheet.file} is not there, so this theme is unchecked`,
-        });
-        continue;
+      for (const file of stylesheet.files) {
+        const path = join(context.repoRoot, file);
+
+        if (!existsSync(path)) {
+          failed = true;
+          readable = false;
+          findings.push({
+            level: 'error',
+            message: `${stylesheet.theme}: ${file} is not there, so this theme is unchecked`,
+          });
+          continue;
+        }
+
+        sources.push({ file, css: readFileSync(path, 'utf8') });
       }
 
-      const found = auditMotionTokens(stylesheet.theme, readFileSync(path, 'utf8'));
+      if (!readable) continue;
 
-      for (const finding of found) {
+      for (const finding of auditMotionTokens(stylesheet.theme, sources)) {
         failed = true;
-        findings.push({
-          level: finding.level,
-          message: `${stylesheet.file} [${finding.theme}] ${finding.reason}`,
-        });
+        findings.push({ level: finding.level, message: `[${finding.theme}] ${finding.reason}` });
       }
     }
 
     if (!failed) {
       findings.push({
         level: 'info',
-        message: `${String(THEME_TOKEN_STYLESHEETS.length)} theme(s) declare ${String(MOTION_TOKENS.length)} motion tokens in every block and resolve every duration to zero under prefers-reduced-motion`,
+        message: `${String(THEME_TOKEN_STYLESHEETS.length)} theme(s) declare ${String(MOTION_TOKENS.length)} motion tokens in every block, and every duration wins its way to zero under prefers-reduced-motion with the theme's stylesheets in load order`,
       });
     }
 

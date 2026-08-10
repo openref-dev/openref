@@ -229,9 +229,11 @@ describe('themeMotionGate', () => {
     const result = await themeMotionGate.run(context);
     rmSync(context.repoRoot, { recursive: true, force: true });
 
-    // Then
+    // Then, one finding per file rather than per theme: the shipped theme loads two, and both
+    // are named, because a theme half read is a theme unchecked either way.
+    const files = THEME_TOKEN_STYLESHEETS.reduce((count, sheet) => count + sheet.files.length, 0);
     expect(result.status).toBe('fail');
-    expect(result.findings).toHaveLength(THEME_TOKEN_STYLESHEETS.length);
+    expect(result.findings).toHaveLength(files);
     expect(result.findings[0]?.message).toContain('is not there, so this theme is unchecked');
   });
 });

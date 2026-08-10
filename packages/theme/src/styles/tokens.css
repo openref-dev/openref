@@ -37,6 +37,7 @@
   --oref-color-method-delete: #a92616;
   --oref-color-method-sse: #00666b;
   --oref-color-method-event: #465768;
+  --oref-color-scrim: rgba(8, 17, 26, 0.46);
   --oref-font-family-sans: 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
   --oref-font-family-mono: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
   --oref-font-family-display: 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
@@ -120,12 +121,14 @@
   --oref-motion-normal: 160ms;
   --oref-motion-none: 0s;
   --oref-motion-ease: cubic-bezier(0.2, 0, 0.13, 1);
+  --oref-scrim-blur: 0px;
   --oref-layout-gutter: 44px;
   --oref-layout-tick: repeating-linear-gradient(
     180deg,
     var(--oref-color-line-edge) 0 1px,
     transparent 1px 8px
   );
+  --oref-layout-nav-row: 27px;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -155,6 +158,7 @@
     --oref-color-method-delete: #ff5a47;
     --oref-color-method-sse: #38d6d6;
     --oref-color-method-event: #93a4b3;
+    --oref-color-scrim: rgba(4, 7, 10, 0.66);
     --oref-font-family-sans: 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
     --oref-font-family-mono: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
     --oref-font-family-display: 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
@@ -238,12 +242,14 @@
     --oref-motion-normal: 160ms;
     --oref-motion-none: 0s;
     --oref-motion-ease: cubic-bezier(0.2, 0, 0.13, 1);
+    --oref-scrim-blur: 0px;
     --oref-layout-gutter: 44px;
     --oref-layout-tick: repeating-linear-gradient(
       180deg,
       var(--oref-color-line-edge) 0 1px,
       transparent 1px 8px
     );
+    --oref-layout-nav-row: 27px;
   }
 }
 
@@ -273,6 +279,7 @@
   --oref-color-method-delete: #ff5a47;
   --oref-color-method-sse: #38d6d6;
   --oref-color-method-event: #93a4b3;
+  --oref-color-scrim: rgba(4, 7, 10, 0.66);
   --oref-font-family-sans: 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
   --oref-font-family-mono: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
   --oref-font-family-display: 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
@@ -356,16 +363,19 @@
   --oref-motion-normal: 160ms;
   --oref-motion-none: 0s;
   --oref-motion-ease: cubic-bezier(0.2, 0, 0.13, 1);
+  --oref-scrim-blur: 0px;
   --oref-layout-gutter: 44px;
   --oref-layout-tick: repeating-linear-gradient(
     180deg,
     var(--oref-color-line-edge) 0 1px,
     transparent 1px 8px
   );
+  --oref-layout-nav-row: 27px;
 }
 
 @media (prefers-reduced-motion: reduce) {
   :root,
+  :root:not([data-oref-color-scheme='light']),
   [data-oref-color-scheme='light'],
   [data-oref-color-scheme='dark'] {
     --oref-motion-fast: var(--oref-motion-none);

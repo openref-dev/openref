@@ -39,6 +39,8 @@ export const RENDER_VERSION = 1;
 export interface RenderPageOptions {
   /** Node to render, or null for the document overview. */
   readonly nodeId?: string | null;
+  /** Named schema to render, for a schema page. Ignored when `nodeId` is set. */
+  readonly schemaId?: string | null;
   /** Where the reference is mounted, without a trailing slash. */
   readonly basePath?: string;
   /** Cache to read from and write to. Rendering is uncached when absent. */
@@ -57,9 +59,14 @@ export interface RenderPageOptions {
  * @param basePath - Mount point, which links are built from and so is part of the bytes
  * @returns A key that changes whenever the bytes could
  */
-export function renderCacheKey(documentHash: string, nodeId: string | null, basePath = ''): string {
+export function renderCacheKey(
+  documentHash: string,
+  nodeId: string | null,
+  basePath = '',
+  schemaId: string | null = null,
+): string {
   const versions = `${String(IR_VERSION)}.${String(PAGE_MODEL_VERSION)}.${String(RENDER_VERSION)}`;
-  return `oref:${versions}:${documentHash}:${basePath}:${nodeId ?? ''}`;
+  return `oref:${versions}:${documentHash}:${basePath}:${nodeId ?? ''}:${schemaId ?? ''}`;
 }
 
 /**
@@ -95,6 +102,18 @@ export function serializePageModel(model: PageModel): string {
 }
 
 /**
+ * Title of a page: what it is about, then what document it belongs to.
+ *
+ * @param model - The page model
+ * @returns Text for the `title` element, unescaped
+ */
+function pageTitle(model: PageModel): string {
+  if (model.node !== null) return `${model.node.title} - ${model.title}`;
+  if (model.schema !== null) return `${model.schema.name} - ${model.title}`;
+  return model.title;
+}
+
+/**
  * Renders one page, through the cache when there is one.
  *
  * @param document - The normalized document
@@ -106,22 +125,24 @@ export async function renderPage(
   options: RenderPageOptions = {},
 ): Promise<RenderedPage> {
   const nodeId = options.nodeId ?? null;
+  const schemaId = nodeId === null ? (options.schemaId ?? null) : null;
   const basePath = options.basePath ?? '';
-  const key = renderCacheKey(document.hash, nodeId, basePath);
+  const key = renderCacheKey(document.hash, nodeId, basePath, schemaId);
 
   const cached = await options.cache?.get(key);
   if (cached !== undefined) return cached;
 
   const markdown = markdownFor(options);
 
-  const model = buildPageModel(document, { nodeId, markdown });
+  const model = buildPageModel(document, { nodeId, schemaId, markdown });
   const app = createSSRApp(ReferenceApp, { page: model, basePath });
   const appHtml = await renderToString(app);
 
   const page: RenderedPage = {
     documentHash: document.hash,
     nodeId: model.activeNodeId,
-    title: model.node === null ? model.title : `${model.node.title} - ${model.title}`,
+    schemaId: model.activeSchemaId,
+    title: pageTitle(model),
     appHtml,
     stateJson: serializePageModel(model),
   };
@@ -139,13 +160,16 @@ export async function renderPage(
  * page in flight rather than one. Parallelism across processes belongs to the static
  * build, in T039.
  *
+ * Every named schema gets a page too, because the navigation links to one and because a
+ * reference whose schema links 404 in a static build is a reference with broken links.
+ *
  * @param document - The normalized document
  * @param options - As for `renderPage`, minus the node
- * @returns Every page, the overview first, then nodes in document order
+ * @returns The overview, then nodes in document order, then schemas in document order
  */
 export async function renderAllPages(
   document: IRDocument,
-  options: Omit<RenderPageOptions, 'nodeId'> = {},
+  options: Omit<RenderPageOptions, 'nodeId' | 'schemaId'> = {},
 ): Promise<RenderedPage[]> {
   const markdown = markdownFor(options);
 
@@ -153,6 +177,10 @@ export async function renderAllPages(
 
   for (const nodeId of document.nodes.keys()) {
     pages.push(await renderPage(document, { ...options, markdown, nodeId }));
+  }
+
+  for (const schemaId of document.schemas.keys()) {
+    pages.push(await renderPage(document, { ...options, markdown, schemaId }));
   }
 
   return pages;

@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { createMemoryRenderCache } from '../../src/cache/infrastructure/adapters/memory-render-cache.adapter';
 import { createOpenRefHighlighter } from '../../src/highlight/domain/highlight';
 import { createMarkdownRenderer } from '../../src/markdown/domain/markdown';
+import { flattenNavigation, NAV_MAX_ROWS } from '../../src/page/domain/nav-rows';
+import type { PageModel } from '../../src/page/domain/page-model';
 import { renderPage } from '../../src/render/application/services/render.service';
 import { largeDocument } from '../mocks/documents';
 
@@ -56,15 +58,22 @@ describe('prerender budget', () => {
     expect(elapsed).toBeLessThan(BUDGET_MS / 10);
   });
 
-  it('should render every navigation entry rather than truncating a large document', async () => {
-    // Given
+  it('should window the navigation in the markup while carrying all of it in the state', async () => {
+    // Given, this replaces an assertion that every entry was rendered. SPEC 11 puts about sixty
+    // rows in the document at once, which T012 implements, so rendering all 1000 is now the
+    // failure rather than the requirement. What must still hold is that nothing is LOST: the
+    // sidebar is windowed, not truncated, and the difference is visible in the state.
     const document = largeDocument(NODE_COUNT);
 
     // When
     const page = await renderPage(document);
+    const state = JSON.parse(page.stateJson) as PageModel;
 
     // Then
     const links = page.appHtml.match(/<a class="oref-nav-item/g) ?? [];
-    expect(links).toHaveLength(NODE_COUNT);
+    expect(links.length).toBeLessThanOrEqual(NAV_MAX_ROWS);
+    expect(flattenNavigation(state.navigation).filter((row) => row.nodeId !== null)).toHaveLength(
+      NODE_COUNT,
+    );
   });
 });

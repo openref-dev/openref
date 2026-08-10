@@ -84,23 +84,34 @@
 .oref-nav-list {
   list-style: none;
   margin: 0;
+  min-height: calc(20 * 27px);
   padding: 0;
 }
 
-.oref-nav-list.oref-nav-root {
-  border-inline-start: none;
-  margin-inline-start: 0;
-  padding-inline-start: 0;
+.oref-nav-list.oref-nav-rendered {
+  min-height: 0;
 }
 
-.oref-nav-list .oref-nav-list {
-  border-inline-start: 1px solid #d9dfe5;
-  margin-inline-start: 6px;
-  padding-inline-start: 6px;
+.oref-nav-scroll {
+  display: block;
 }
 
 .oref-nav-entry {
   margin: 0;
+}
+
+.oref-nav-entry[data-oref-level='2'] .oref-nav-item {
+  padding-inline-start: 20px;
+}
+
+.oref-nav-entry[data-oref-level='3'] .oref-nav-item {
+  padding-inline-start: 36px;
+}
+
+.oref-nav-entry[data-oref-level='4'] .oref-nav-item,
+.oref-nav-entry[data-oref-level='5'] .oref-nav-item,
+.oref-nav-entry[data-oref-level='6'] .oref-nav-item {
+  padding-inline-start: 52px;
 }
 
 .oref-nav-item {
@@ -472,4 +483,208 @@
 
 .oref-hl-underline {
   text-decoration: underline;
+}
+
+.oref-skip {
+  background: #ffffff;
+  border: 1px solid #bfc9d2;
+  color: #1f57ab;
+  inset-block-start: 4px;
+  inset-inline-start: 4px;
+  padding: 6px 14px;
+  position: absolute;
+  transform: translateY(-200%);
+  z-index: 2;
+}
+
+.oref-skip:focus {
+  transform: translateY(0);
+}
+
+.oref-schema-page {
+  display: block;
+}
+
+.oref-schema-tree,
+.oref-schema-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.oref-schema-list {
+  border-inline-start: 1px solid #d9dfe5;
+  margin-inline-start: 10px;
+  padding-inline-start: 10px;
+}
+
+.oref-schema-item {
+  margin: 0;
+}
+
+.oref-schema-row {
+  align-items: baseline;
+  background: none;
+  border: none;
+  color: #08111a;
+  display: flex;
+  font: inherit;
+  font-size: 13px;
+  gap: 6px;
+  padding: 2px 0;
+  text-align: start;
+  width: 100%;
+}
+
+button.oref-schema-row {
+  cursor: pointer;
+}
+
+button.oref-schema-row:hover {
+  background: #eaf1fc;
+}
+
+.oref-schema-marker {
+  color: #5f6e7a;
+  display: inline-block;
+  text-align: center;
+  width: 14px;
+}
+
+.oref-schema-marker.oref-closed::before {
+  content: '+';
+}
+
+.oref-schema-marker.oref-open::before {
+  content: '-';
+}
+
+.oref-schema-marker.oref-schema-leaf::before {
+  content: '';
+}
+
+.oref-schema-name {
+  font-family: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+}
+
+.oref-schema-type {
+  color: #465768;
+  font-family: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+  font-size: 12px;
+}
+
+.oref-schema-link {
+  color: #1f57ab;
+  text-decoration: underline;
+}
+
+.oref-schema-doc {
+  color: #465768;
+  font-size: 12px;
+}
+
+.oref-schema-cycle {
+  background: #f9efdc;
+  color: #8a5200;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  padding: 0 4px;
+  text-transform: uppercase;
+}
+
+.oref-schema-cycle-row .oref-schema-name {
+  color: #465768;
+}
+
+.oref-schema-empty {
+  color: #5f6e7a;
+  font-size: 13px;
+}
+
+.oref-palette-open {
+  background: #ffffff;
+  border: 1px solid #bfc9d2;
+  color: #465768;
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  padding: 4px 14px;
+}
+
+.oref-palette-open:hover {
+  border-color: #5f6e7a;
+  color: #08111a;
+}
+
+.oref-palette-scrim {
+  align-items: flex-start;
+  backdrop-filter: blur(0px);
+  background: rgba(8, 17, 26, 0.46);
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  padding-top: 80px;
+  position: fixed;
+  z-index: 3;
+}
+
+.oref-palette {
+  background: #ffffff;
+  border: 1px solid #93a2ae;
+  box-shadow: none;
+  margin: 0 20px;
+  max-height: 60vh;
+  max-width: 78ch;
+  overflow-y: auto;
+  width: 100%;
+}
+
+.oref-palette-input {
+  background: #f6f8fa;
+  border: none;
+  border-bottom: 1px solid #d9dfe5;
+  color: #08111a;
+  font: inherit;
+  font-size: 14px;
+  padding: 14px;
+  width: 100%;
+}
+
+.oref-palette-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.oref-palette-hit {
+  margin: 0;
+}
+
+.oref-palette-hit.oref-active {
+  background: #eaf1fc;
+}
+
+.oref-palette-link {
+  color: #08111a;
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+  padding: 6px 14px;
+  text-decoration: none;
+}
+
+.oref-palette-label {
+  font-size: 13px;
+}
+
+.oref-palette-hint {
+  color: #5f6e7a;
+  font-family: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+  font-size: 12px;
+}
+
+.oref-palette-empty {
+  color: #5f6e7a;
+  font-size: 13px;
+  padding: 14px;
 }

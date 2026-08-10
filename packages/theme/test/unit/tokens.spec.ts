@@ -92,7 +92,7 @@ describe('the token set', () => {
     expect(names).toEqual([]);
   });
 
-  it('should hold exactly the 107 names the design contract fixes', () => {
+  it('should hold exactly the 109 names the design contract fixes', () => {
     // Given, the contract list is transcribed in the mock, so a rename shows up as a diff here
     // rather than as a theme that silently stops conforming.
     const declared = THEME_TOKENS.map((token) => token.name).sort((a, b) => a.localeCompare(b));
@@ -102,7 +102,7 @@ describe('the token set', () => {
 
     // Then
     expect(declared).toEqual(contract);
-    expect(THEME_TOKENS).toHaveLength(107);
+    expect(THEME_TOKENS).toHaveLength(109);
   });
 
   it('should group the core set the way the contract groups it', () => {
@@ -120,6 +120,7 @@ describe('the token set', () => {
       'state',
       'drift',
       'motion',
+      'scrim',
     ];
 
     // When
@@ -140,7 +141,7 @@ describe('the token set', () => {
 
     // Then
     expect(leaked).toEqual([]);
-    expect(names).toEqual(['--oref-layout-gutter', '--oref-layout-tick']);
+    expect(names).toEqual(['--oref-layout-gutter', '--oref-layout-tick', '--oref-layout-nav-row']);
     expect(ALL_TOKENS).toHaveLength(THEME_TOKENS.length + THEME_SPECIFIC_TOKENS.length);
   });
 
@@ -255,8 +256,7 @@ describe('the generated token stylesheet', () => {
   });
 
   it('should put the reduced motion block after every block it has to beat', () => {
-    // Given, the three scheme blocks all declare the durations at their moving values, and the
-    // reduced block matches the same selectors, so it wins on order rather than on specificity.
+    // Given
     const css = readFileSync(TOKENS_CSS, 'utf8');
 
     // When
@@ -268,6 +268,21 @@ describe('the generated token stylesheet', () => {
     for (const selector of [':root', `[${COLOR_SCHEME_ATTRIBUTE}='light']`]) {
       expect(css.slice(reducedAt)).toContain(selector);
     }
+  });
+
+  it('should repeat the dark selector, which coming last is not enough to beat', () => {
+    // Given, coming last only wins on EQUAL specificity. The dark block is
+    // `:root:not([data-oref-color-scheme='light'])`, which is two, and a plain `:root` is one:
+    // without this selector a reader who wants a dark interface and no animation keeps the
+    // animation, silently, and only that reader ever finds out. Measured on the committed file:
+    // removing this one line makes the theme-motion gate report both durations still running.
+    const css = readFileSync(TOKENS_CSS, 'utf8');
+
+    // When
+    const reduced = css.slice(css.indexOf('@media (prefers-reduced-motion: reduce)'));
+
+    // Then
+    expect(reduced).toContain(`:root:not([${COLOR_SCHEME_ATTRIBUTE}='light'])`);
   });
 
   it('should leave the easing curve alone, since a zero duration has none to run', () => {

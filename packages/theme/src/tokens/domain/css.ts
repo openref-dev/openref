@@ -48,9 +48,15 @@ function indent(block: string): string {
  * The alias, rather than a repeated `0s`: the zero is one value with one name, and a component
  * that reads `--oref-motion-fast` gets it without knowing the media query exists.
  *
- * It selects all three blocks above rather than `:root` alone. A host may set the scheme
- * attribute on a subtree instead of the document, and a `:root` rule would then lose to the
- * attribute block on that subtree, which is the one place this could quietly fail to apply.
+ * IT REPEATS THE SELECTOR OF EVERY BLOCK IT HAS TO BEAT, and that is not tidiness. Coming last
+ * only wins on equal specificity. The dark block is `:root:not([data-oref-color-scheme='light'])`,
+ * which is two, and a plain `:root` is one: a reader who wants a dark interface and no animation
+ * would have kept the animation, silently, and only that reader would ever have found out. So
+ * the same selector appears here, later in the file, where it wins by order.
+ *
+ * The subtree case is the other half. A host may set the scheme attribute on an element rather
+ * than on the document, and a `:root` rule would then lose to the attribute block on that
+ * subtree.
  */
 function reducedMotion(tokens: readonly ThemeToken[]): string {
   const declared = new Set(tokens.map((token) => token.name));
@@ -67,6 +73,7 @@ function reducedMotion(tokens: readonly ThemeToken[]): string {
   return `
 @media (prefers-reduced-motion: reduce) {
   :root,
+  :root:not([${COLOR_SCHEME_ATTRIBUTE}='light']),
   [${COLOR_SCHEME_ATTRIBUTE}='light'],
   [${COLOR_SCHEME_ATTRIBUTE}='dark'] {
 ${declarations}

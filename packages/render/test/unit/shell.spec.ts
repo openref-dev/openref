@@ -7,6 +7,7 @@ function page(overrides: Partial<RenderedPage> = {}): RenderedPage {
   return {
     documentHash: 'abc',
     nodeId: null,
+    schemaId: null,
     title: 'Orders API',
     appHtml: '<div class="oref-root"></div>',
     stateJson: '{"a":1}',

@@ -184,16 +184,19 @@ describe('serializePageModel', () => {
 });
 
 describe('renderAllPages', () => {
-  it('should render the overview and one page per node', async () => {
-    // Given
+  it('should render the overview, one page per node and one per named schema', async () => {
+    // Given, a schema has a page because the navigation ends in a Schemas group that links to
+    // one, and because a page that could not carry a schema links to it instead.
     const document = smallDocument();
 
     // When
     const pages = await renderAllPages(document);
 
     // Then
-    expect(pages).toHaveLength(document.nodes.size + 1);
+    expect(pages).toHaveLength(document.nodes.size + document.schemas.size + 1);
     expect(pages[0]?.nodeId).toBeNull();
+    expect(pages[0]?.schemaId).toBeNull();
+    expect(pages.filter((page) => page.schemaId !== null)).toHaveLength(document.schemas.size);
   });
 
   it('should fill the cache it was given', async () => {
@@ -205,6 +208,6 @@ describe('renderAllPages', () => {
     await renderAllPages(document, { cache });
 
     // Then
-    expect(cache.stats().entries).toBe(document.nodes.size + 1);
+    expect(cache.stats().entries).toBe(document.nodes.size + document.schemas.size + 1);
   });
 });

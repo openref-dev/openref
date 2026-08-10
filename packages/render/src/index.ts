@@ -66,16 +66,45 @@ export type {
   PageModelOptions,
   ParameterModel,
   ResponseModel,
+  SchemaPageModel,
   SecurityModel,
 } from './page/domain/page-model';
-export { nodeHref, OVERVIEW_PATH, overviewHref } from './page/domain/links';
+export {
+  buildSchemaPayload,
+  SCHEMA_PAYLOAD_LIMIT,
+  schemaMapOf,
+} from './page/domain/schema-payload';
+export type { SchemaPayload } from './page/domain/schema-payload';
+export {
+  chunkAt,
+  chunkOfActive,
+  chunkRows,
+  chunkWindow,
+  flattenNavigation,
+  NAV_CHUNK_ROWS,
+  NAV_CHUNK_WINDOW,
+  NAV_MAX_ROWS,
+} from './page/domain/nav-rows';
+export type { NavRow, ScrollPosition } from './page/domain/nav-rows';
+export { NAV_HIT_LIMIT, searchNavigation } from './page/domain/nav-search';
+export type { NavHit } from './page/domain/nav-search';
+export {
+  nodeHref,
+  OVERVIEW_PATH,
+  overviewHref,
+  SCHEMA_SEGMENT,
+  schemaHref,
+} from './page/domain/links';
 export { assertNonce, renderHtmlDocument, STATE_ELEMENT_ID } from './page/domain/shell';
 export type { ShellAssets, ShellOptions } from './page/domain/shell';
 
-export { APP_ROOT_ID, ReferenceApp } from './components/ReferenceApp';
+export { APP_ROOT_ID, MAIN_ID, ReferenceApp } from './components/ReferenceApp';
+export { CommandPalette } from './components/CommandPalette';
 export { MarkdownBlock } from './components/MarkdownBlock';
 export { NavigationTree } from './components/NavigationTree';
 export { NodePanel } from './components/NodePanel';
+export { SchemaPanel } from './components/SchemaPanel';
+export { SchemaView } from './components/SchemaView';
 
 export {
   renderAllPages,

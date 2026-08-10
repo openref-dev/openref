@@ -1,7 +1,7 @@
 import type { ContrastPair, ThemeToken } from './token.types';
 
 /**
- * The core token set: the 107 names of `ai-docs/design/CONTRACT.md`, with the values of the
+ * The core token set: the 109 names of `ai-docs/design/CONTRACT.md`, with the values of the
  * vernier design, which is what `@openref/theme` ships.
  *
  * The names are the contract and are identical in every theme. The values are this theme's.
@@ -184,6 +184,13 @@ export const THEME_TOKENS: readonly ThemeToken[] = [
     value: '#465768',
     dark: '#93a4b3',
     description: 'Event channel badge',
+  },
+  {
+    name: '--oref-color-scrim',
+    group: 'color',
+    value: 'rgba(8, 17, 26, 0.46)',
+    dark: 'rgba(4, 7, 10, 0.66)',
+    description: 'The surface behind a modal, which a dialog is read against',
   },
 
   // Typography. Two self hosted families and a display family, nine size steps, three
@@ -736,6 +743,15 @@ export const THEME_TOKENS: readonly ThemeToken[] = [
     value: 'cubic-bezier(0.2, 0, 0.13, 1)',
     description: 'The curve every transition uses; a zero duration has no curve to run',
   },
+
+  // Scrim. The dark value is denser than the light one on purpose, and the blur is a theme's
+  // own answer rather than a shared default. Both reasons are in the design notes.
+  {
+    name: '--oref-scrim-blur',
+    group: 'scrim',
+    value: '0px',
+    description: 'Blur applied to what is behind a modal; 0 in a flat theme, and a decision',
+  },
 ];
 
 /**
@@ -774,6 +790,13 @@ export const THEME_SPECIFIC_TOKENS: readonly ThemeToken[] = [
     value:
       'repeating-linear-gradient(180deg, var(--oref-color-line-edge) 0 1px, transparent 1px 8px)',
     description: 'The ruler itself, drawn as a repeating gradient of the edge colour',
+  },
+  {
+    name: '--oref-layout-nav-row',
+    group: 'layout',
+    value: '27px',
+    description:
+      'Height of one navigation row, which is what an unrendered chunk of the virtualized sidebar reserves',
   },
 ];
 

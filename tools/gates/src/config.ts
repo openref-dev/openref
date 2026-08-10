@@ -305,24 +305,36 @@ export const THEME_STYLE_ROOTS: readonly string[] = ['packages/theme/src', 'pack
 export const THEME_TOKEN_SOURCE = 'packages/theme/src/styles/tokens.css';
 
 /**
- * A theme's token stylesheet, checked against the motion half of the design contract.
+ * A theme's stylesheets, IN THE ORDER THE THEME LOADS THEM, checked against the motion half of
+ * the design contract.
  *
  * Three of these are in `ai-docs/design/` and one is code. That is the point rather than an
  * accident of layout: the failure the motion contract exists to prevent is three themes
  * disagreeing about reduced motion, and a check that saw only the shipped theme would report
  * conformance for one of the three.
  *
+ * THE ORDER IS PART OF THE CHECK AND NOT A DETAIL. Reduced motion is decided by the cascade,
+ * and the cascade is specificity then source order, so a stylesheet that re-declares a duration
+ * after the reduced motion block undoes it. Reading one file on its own cannot see that. The
+ * shipped theme's order is the one `DEFAULT_THEME_STYLESHEETS` publishes, minus the font file,
+ * which declares no token.
+ *
  * Reading `ai-docs/` is the assumption the build manifest gate already makes about the four
  * required documents, not a new one. A theme added here and then removed from disk fails the
  * gate rather than dropping out of it.
  */
-export const THEME_TOKEN_STYLESHEETS: readonly { readonly theme: string; readonly file: string }[] =
-  [
-    { theme: 'vernier, as shipped', file: THEME_TOKEN_SOURCE },
-    { theme: 'vernier, as designed', file: 'ai-docs/design/vernier/tokens.css' },
-    { theme: 'telltale', file: 'ai-docs/design/telltale/tokens.css' },
-    { theme: 'forge', file: 'ai-docs/design/forge/tokens.css' },
-  ];
+export const THEME_TOKEN_STYLESHEETS: readonly {
+  readonly theme: string;
+  readonly files: readonly string[];
+}[] = [
+  {
+    theme: 'vernier, as shipped',
+    files: [THEME_TOKEN_SOURCE, 'packages/theme/src/styles/theme.css'],
+  },
+  { theme: 'vernier, as designed', files: ['ai-docs/design/vernier/tokens.css'] },
+  { theme: 'telltale', files: ['ai-docs/design/telltale/tokens.css'] },
+  { theme: 'forge', files: ['ai-docs/design/forge/tokens.css'] },
+];
 
 /** Directories scanned for CSP violations, relative to the repository root. */
 export const CSP_SCAN_ROOTS: readonly string[] = PACKAGE_DIRS.map((dir) => `packages/${dir}/dist`);

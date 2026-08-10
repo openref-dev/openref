@@ -9,6 +9,7 @@ function page(id: string): RenderedPage {
   return {
     documentHash: 'h',
     nodeId: id,
+    schemaId: null,
     title: id,
     appHtml: `<div>${id}</div>`,
     stateJson: '{}',

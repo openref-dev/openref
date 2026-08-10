@@ -22,6 +22,7 @@ import {
   type IRSchemaView,
 } from '@openref/core';
 import { materializeNode, resolveSchemaSlot, schemaDisplayName } from '@openref/vue';
+import { buildSchemaPayload } from './schema-payload';
 import type { IMarkdownRenderer } from '../../markdown/domain/markdown';
 
 /** Version of the page model shape, part of the cache key. */
@@ -38,6 +39,15 @@ export interface NavEntryModel {
   readonly nodeId: string | null;
   readonly schemaId: string | null;
   readonly deprecated: boolean;
+  /**
+   * The second line: `METHOD /path` for an operation, the address for a channel, empty for a
+   * group.
+   *
+   * It exists because the label is the operation's summary when it has one, and a reader
+   * searching for `/orders/{id}` would otherwise find nothing on a document whose authors
+   * wrote summaries. It is what the command palette matches on as well as shows.
+   */
+  readonly hint: string;
   readonly children: readonly NavEntryModel[];
 }
 
@@ -49,6 +59,8 @@ export interface ParameterModel {
   readonly deprecated: boolean;
   readonly typeLabel: string;
   readonly descriptionHtml: string;
+  /** Where the schema viewer starts for this row, null when the parameter declares none. */
+  readonly schema: IRSchemaSlot | null;
 }
 
 /** One media type of a body or a response, with its example already highlighted. */
@@ -57,6 +69,22 @@ export interface MediaTypeModel {
   readonly typeLabel: string;
   /** Highlighted example, empty when the media type is not one an example is generated for. */
   readonly exampleHtml: string;
+  /** Where the schema viewer starts for this media type, null when it declares no schema. */
+  readonly schema: IRSchemaSlot | null;
+  /** Which half of a schema this position shows, so the viewer filters the same way. */
+  readonly view: IRSchemaView;
+}
+
+/** A named schema shown on a page of its own. */
+export interface SchemaPageModel {
+  /** Key into the shipped schema map, suffix and all. */
+  readonly id: string;
+  /** What a reader is shown, which is never the identity suffix of an external target. */
+  readonly name: string;
+  readonly descriptionHtml: string;
+  readonly deprecated: boolean;
+  /** True when the id names nothing in the document, so the page says so instead of blanking. */
+  readonly missing: boolean;
 }
 
 /** One response row. */
@@ -105,15 +133,32 @@ export interface PageModel {
   readonly servers: readonly string[];
   readonly navigation: readonly NavEntryModel[];
   readonly activeNodeId: string | null;
+  /** Set on a schema page, so the navigation can mark the entry that is open. */
+  readonly activeSchemaId: string | null;
   /** Null on the overview page, which shows the document rather than a node. */
   readonly node: NodeModel | null;
+  /** Set only on a schema page. */
+  readonly schema: SchemaPageModel | null;
+  /**
+   * The schemas this page carries, bounded per `schema-payload.ts`.
+   *
+   * The viewer expands on the client, so the bodies travel with the page rather than the
+   * document travelling with every page.
+   */
+  readonly schemas: Readonly<Record<string, IRSchema>>;
+  /** Ids referenced from this page and left behind by the bound, shown as links. */
+  readonly truncatedSchemas: readonly string[];
 }
 
 /** What building a page model needs. */
 export interface PageModelOptions {
   /** Node to show, or null for the document overview. */
   readonly nodeId?: string | null;
+  /** Named schema to show, for a schema page. Ignored when `nodeId` is set. */
+  readonly schemaId?: string | null;
   readonly markdown: IMarkdownRenderer;
+  /** Greatest serialized size of the schema payload. Defaults to the measured limit. */
+  readonly schemaPayloadLimit?: number;
 }
 
 /**
@@ -139,7 +184,17 @@ function schemaBodiesOf(document: IRDocument): ReadonlyMap<string, IRJsonSchema>
   return bodies;
 }
 
-function navEntry(node: IRNavNode): NavEntryModel {
+function navHint(document: IRDocument, nodeId: string | undefined): string {
+  if (nodeId === undefined) return '';
+
+  const node = document.nodes.get(nodeId);
+  if (node === undefined) return '';
+  if (node.kind === 'channel') return node.address ?? '';
+
+  return `${node.method.toUpperCase()} ${node.path}`;
+}
+
+function navEntry(document: IRDocument, node: IRNavNode): NavEntryModel {
   return {
     id: node.id,
     label: node.label,
@@ -147,7 +202,8 @@ function navEntry(node: IRNavNode): NavEntryModel {
     nodeId: node.nodeId ?? null,
     schemaId: node.schemaId ?? null,
     deprecated: node.deprecated ?? false,
-    children: node.children.map(navEntry),
+    hint: navHint(document, node.nodeId),
+    children: node.children.map((child) => navEntry(document, child)),
   };
 }
 
@@ -211,6 +267,8 @@ function mediaTypeModel(
     mediaType: media.mediaType,
     typeLabel: typeLabel(media.schema, context.document.schemas),
     exampleHtml: exampleHtml(media, context, view),
+    schema: media.schema ?? null,
+    view,
   };
 }
 
@@ -222,6 +280,45 @@ function parameterModel(parameter: IRParameter, context: ModelContext): Paramete
     deprecated: parameter.deprecated ?? false,
     typeLabel: typeLabel(parameter.schema, context.document.schemas),
     descriptionHtml: context.markdown.render(parameter.description),
+    schema: parameter.schema ?? null,
+  };
+}
+
+/** Every use site on a node page, which is what the schema payload is seeded from. */
+function slotsOf(node: NodeModel): IRSchemaSlot[] {
+  const slots: IRSchemaSlot[] = [];
+
+  for (const parameter of node.parameters)
+    if (parameter.schema !== null) slots.push(parameter.schema);
+  for (const media of node.requestBody) if (media.schema !== null) slots.push(media.schema);
+  for (const response of node.responses) {
+    for (const media of response.content) if (media.schema !== null) slots.push(media.schema);
+  }
+
+  return slots;
+}
+
+function schemaPageModel(context: ModelContext, schemaId: string): SchemaPageModel {
+  const entry = context.document.schemas.get(schemaId);
+
+  if (entry === undefined) {
+    return {
+      id: schemaId,
+      name: schemaDisplayName(undefined, schemaId),
+      descriptionHtml: '',
+      deprecated: false,
+      missing: true,
+    };
+  }
+
+  const body = entry.normalized;
+
+  return {
+    id: schemaId,
+    name: schemaDisplayName(entry, schemaId),
+    descriptionHtml: context.markdown.render(body?.description),
+    deprecated: body?.deprecated ?? false,
+    missing: false,
   };
 }
 
@@ -295,8 +392,19 @@ function nodeModel(context: ModelContext, nodeId: string): NodeModel | null {
 export function buildPageModel(document: IRDocument, options: PageModelOptions): PageModel {
   const { markdown } = options;
   const context: ModelContext = { document, markdown, schemaBodies: schemaBodiesOf(document) };
-  const requested = options.nodeId ?? null;
-  const node = requested === null ? null : nodeModel(context, requested);
+  const requestedNode = options.nodeId ?? null;
+  const node = requestedNode === null ? null : nodeModel(context, requestedNode);
+  const requestedSchema = node === null ? (options.schemaId ?? null) : null;
+  const schema = requestedSchema === null ? null : schemaPageModel(context, requestedSchema);
+
+  const slots: IRSchemaSlot[] =
+    node !== null
+      ? slotsOf(node)
+      : schema !== null && !schema.missing
+        ? [{ kind: 'named', schemaId: schema.id }]
+        : [];
+
+  const payload = buildSchemaPayload(document, slots, options.schemaPayloadLimit);
 
   return {
     pageModelVersion: PAGE_MODEL_VERSION,
@@ -306,8 +414,12 @@ export function buildPageModel(document: IRDocument, options: PageModelOptions):
     version: document.info.version,
     descriptionHtml: markdown.render(document.info.description),
     servers: document.servers.map((server) => server.url),
-    navigation: document.navigation.map(navEntry),
+    navigation: document.navigation.map((entry) => navEntry(document, entry)),
     activeNodeId: node === null ? null : node.id,
+    activeSchemaId: schema === null ? null : schema.id,
     node,
+    schema,
+    schemas: payload.schemas,
+    truncatedSchemas: payload.truncated,
   };
 }

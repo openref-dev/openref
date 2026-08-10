@@ -67,6 +67,15 @@ const NOT_CLASSES = new Set([
   'oref-method-',
   'oref-status-',
   'oref-hl-',
+  // Data attributes the reference UI reads back off an element: the chunk a list is, the depth
+  // a navigation row sits at, the option the palette has selected, the schema a page shows, and
+  // the position a schema row is. `oref-path` is not here, because it is also a class.
+  'oref-chunk',
+  'oref-level',
+  'oref-option',
+  'oref-schema',
+  // Ids the palette generates one per option, so `aria-activedescendant` can name one.
+  'oref-palette-option-',
 ]);
 
 /**
@@ -151,6 +160,25 @@ describe('the stylesheet and the markup', () => {
 
     // Then
     expect(unstyled).toEqual([]);
+  });
+
+  it('should reserve exactly the chunk the renderer windows the sidebar by', () => {
+    // Given, the one number this stylesheet and the renderer have to agree on. An unrendered
+    // chunk reserves a height, and the height is a count of rows: if the two disagree the
+    // scrollbar is the wrong length and the rows jump as the window moves. Neither package can
+    // import the other, so the constant is read out of the renderer's source, the way the class
+    // lists above are.
+    const source = readFileSync(join(RENDERER_SRC, 'page', 'domain', 'nav-rows.ts'), 'utf8');
+    const declared = /NAV_CHUNK_ROWS = (\d+)/.exec(source)?.[1] ?? '';
+
+    // When
+    const reserved = /min-height:\s*calc\((\d+) \* var\(--oref-layout-nav-row\)\)/.exec(
+      readFileSync(THEME_CSS, 'utf8'),
+    )?.[1];
+
+    // Then
+    expect(declared).not.toBe('');
+    expect(reserved).toBe(declared);
   });
 
   it('should style the syntax token classes, which are generated rather than written', () => {
