@@ -128,10 +128,10 @@ describe('checkCeilings', () => {
   });
 
   it('should sum the three byte columns and refuse a page frame sized addition', () => {
-    // Given the derivation the cap was chosen by: measured 173,044 bytes with 3,084 of room, so
+    // Given the derivation the cap was chosen by: measured 160,070 bytes with 2,746 of room, so
     // another region of `theme.css` the size of the page frame, 3,287 bytes, has to fail
     const record = baseline({
-      parsedBytes: { documentBytes: 29_682, cssBytes: 32_264 + 3_287, jsBytes: 111_098 },
+      parsedBytes: { documentBytes: 29_682, cssBytes: 32_264 + 3_287, jsBytes: 98_124 },
     });
 
     // When
@@ -145,7 +145,7 @@ describe('checkCeilings', () => {
   it('should let a navigation sized addition through, which is the room ordinary work gets', () => {
     // Given, the same allowance `theme-css-raw` was derived with
     const record = baseline({
-      parsedBytes: { documentBytes: 29_682, cssBytes: 32_264 + 2_520, jsBytes: 111_098 },
+      parsedBytes: { documentBytes: 29_682, cssBytes: 32_264 + 2_520, jsBytes: 98_124 },
     });
 
     // When
@@ -423,7 +423,7 @@ describe('the committed baseline', () => {
 
   it('should hold the figures the two gated caps were derived from', () => {
     // Given, so the derivation in `config.ts` is checked against the record rather than
-    // remembered: 173,044 bytes with 3,084 of headroom, and a long task count of 2
+    // remembered: 160,070 bytes with 2,746 of headroom, and a long task count of 2
     const { baseline: record } = readBrowserBaseline(repoRoot);
     if (record === null) throw new Error('no baseline');
 
@@ -431,8 +431,8 @@ describe('the committed baseline', () => {
     const bytes = pageBytesOf(record.parsedBytes);
 
     // Then
-    expect(bytes).toBe(173_044);
-    expect(BROWSER_CEILINGS.pageBytes - bytes).toBe(3_084);
+    expect(bytes).toBe(160_070);
+    expect(BROWSER_CEILINGS.pageBytes - bytes).toBe(2_746);
     expect(record.longTaskCount.median).toBe(BROWSER_CEILINGS.longTaskCount);
   });
 });

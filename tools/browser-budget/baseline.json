@@ -1,7 +1,7 @@
 {
   "recordedAt": "2026-08-10",
-  "commit": "acc435692ae5b32b7ff67bfa852827034afff19c",
-  "note": "TWO OF THESE FIGURES ARE GATED AND TWO ARE NOT, and which is which is a measurement rather than a preference. This study is one of six taken on the same commit across five processors of the runner pool. Wall clock TTI came out between 163.7 and 216.1 ms over those six, a range of 25.7 percent of the median, and total main thread task time, which was proposed as the machine independent replacement for it, came out at 27.0 percent, so SPEC 20 records both and gates neither. What did not move is the count of tasks over 50 ms, which read 2 as the median of 25 navigations on every one of the six, and the three byte columns, which were identical to the byte on all of them. Those two carry the thresholds. The runner CPU is not fixed within one image, so re-recording this file against a study taken on another processor compares nothing: the ceilings would still be checked and the relative TTI line would be meaningless.",
+  "commit": "8bdc888b0c0f6c02a0e2d70eb0cbf8ec13ea0b12",
+  "note": "TWO OF THESE FIGURES ARE GATED AND TWO ARE NOT, and which is which is a measurement rather than a preference. Wall clock TTI and total main thread task time move with the processor a shared runner pool hands out, by 25.7 and 27.0 percent of their medians over six studies of one commit on five machines, so SPEC 20 records both and gates neither. What does not move is the count of tasks over 50 ms and the three byte columns. Those two carry the thresholds. Re-recorded from the closing study of T011-R, on the same AMD EPYC 9V74 the previous record named, so the wall clock line it still carries is comparable with the 211.0 ms it replaces. The bytes are the reason for the re-record: four features moved behind a dynamic import and the JS the page loads fell from 111,098 to 98,124, identical to the byte on three studies over two processors and 75 navigations. THE WALL CLOCK DID NOT FALL WITH THEM, and it reads higher: 228.2 ms here against 211.0 before, with a spread this study cannot resolve, a single navigation at 1470.9 ms and a standard deviation of 251. The relative TTI line on this record is therefore weak on purpose rather than by oversight, and nothing gated depends on it. The runner CPU is not fixed within one image, so re-recording against a study taken on another processor compares nothing.",
   "environment": {
     "id": "github-actions/ubuntu24/X64",
     "label": "GitHub Actions runner, image ubuntu24, X64",
@@ -25,49 +25,49 @@
   "throttleRate": 4,
   "throttleRatio": {
     "samples": 25,
-    "median": 4.19,
-    "min": 4.17,
-    "max": 4.26,
-    "standardDeviation": 0.02
+    "median": 4.2,
+    "min": 4.16,
+    "max": 4.33,
+    "standardDeviation": 0.05
   },
   "ttiMs": {
     "samples": 25,
-    "median": 211.0,
-    "min": 195.8,
-    "max": 362.8,
-    "standardDeviation": 32.8
+    "median": 228.2,
+    "min": 181.3,
+    "max": 1470.9,
+    "standardDeviation": 251.1
   },
   "ttiPhaseMs": {
-    "transfer": 0.8,
-    "parse": 134.2,
-    "script": 68.0,
-    "firstContentfulPaint": 164.0
+    "transfer": 0.7,
+    "parse": 127.5,
+    "script": 103.3,
+    "firstContentfulPaint": 160.0
   },
   "mainThreadMs": {
     "samples": 25,
-    "median": 256.8,
-    "min": 243.8,
-    "max": 384.7,
-    "standardDeviation": 27.3
+    "median": 230.7,
+    "min": 217.9,
+    "max": 435.0,
+    "standardDeviation": 41.5
   },
   "longTaskCount": {
     "samples": 25,
     "median": 2,
     "min": 1,
-    "max": 3,
-    "standardDeviation": 0.5
+    "max": 6,
+    "standardDeviation": 0.9
   },
   "parsedBytes": {
     "documentBytes": 29682,
     "cssBytes": 32264,
-    "jsBytes": 111098
+    "jsBytes": 98124
   },
   "peakHeapBytes": {
     "samples": 5,
-    "median": 3705499,
-    "min": 3639899,
-    "max": 3723439,
-    "standardDeviation": 37956
+    "median": 3370355,
+    "min": 3362535,
+    "max": 3393582,
+    "standardDeviation": 12094
   },
   "externalRequests": 0,
   "cspViolations": 0,

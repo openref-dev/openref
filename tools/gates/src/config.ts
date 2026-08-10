@@ -541,7 +541,7 @@ export const MEASURED_BUDGETS: readonly MeasuredBudget[] = [
   {
     id: 'page-bytes',
     label: 'Document, CSS and JS the 1000 node page hands the main thread, raw',
-    limit: '172 KB',
+    limit: '159 KB',
     enforcedBy: 'T015-R1',
   },
   {
@@ -625,13 +625,19 @@ export const BROWSER_STUDY_WORKFLOW = '.github/workflows/browser-budget-study.ym
  * the load fails it. It is a coarse instrument and it says so: it cannot see an existing long
  * task getting worse without splitting.
  *
- * `pageBytes` is 172 KB against 173,044 measured, 169.0 KB, so the headroom is 3,084 bytes. It
+ * `pageBytes` is 159 KB against 160,070 measured, 156.3 KB, so the headroom is 2,746 bytes. It
  * is derived the way `theme-css-raw` was: another region of `theme.css` the size of the page
  * frame, 3,287 bytes, or of the try-it console, 3,669, has to fail it, and a navigation sized
  * addition of 2,520 has to fit. THIS IS THE TIGHTEST ROW IN THE TABLE AND IT IS MEANT TO BE. It
  * is the only budget measured over what the page actually loads rather than over what the build
  * produced, so it is the only one that can see a resource nobody weighed, and a cap with the
  * usual ten percent of room would let a whole stylesheet in without a word.
+ *
+ * IT CAME DOWN FROM 172 KB WITH T011-R, and following the artifact down is the whole discipline
+ * of this row. The closing study of that task measured 29,682 document, 32,264 CSS and 98,124 JS
+ * on three runs over two processors and 75 navigations, identical to the byte on all of them.
+ * The JS fell by 12,974 bytes because four features left the first paint, and a cap left at 172
+ * would have let every one of them back in without a word, which is more than the split removed.
  */
 export const BROWSER_CEILINGS = {
   peakHeapBytes: 250 * 1024 * 1024,
@@ -639,7 +645,7 @@ export const BROWSER_CEILINGS = {
   cspViolations: 0,
   servedDocumentBytes: 64 * 1024,
   longTaskCount: 2,
-  pageBytes: 172 * 1024,
+  pageBytes: 159 * 1024,
 } as const;
 
 /**
