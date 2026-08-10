@@ -121,8 +121,9 @@ describe('the default stylesheet', () => {
   });
 
   it('should prefix every class it styles with oref-', () => {
-    // Given
-    const css = readFileSync(THEME_CSS, 'utf8');
+    // Given, comments are stripped first: a file name in prose has a dot in it and would
+    // otherwise be read as a class selector.
+    const css = readFileSync(THEME_CSS, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
 
     // When
     const classes = [...css.matchAll(/\.([a-zA-Z][\w-]*)/g)].map((match) => match[1] ?? '');

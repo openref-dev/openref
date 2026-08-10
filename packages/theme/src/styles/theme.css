@@ -1,5 +1,10 @@
 /*
- * OPENREF default theme.
+ * OPENREF default theme: the vernier design.
+ *
+ * Thesis of the design, which is what the rules below are trying to be: a double scale. What
+ * the specification declares and what the running application does stand side by side, and the
+ * verdict is read from the ruler between them. Flat, rectangular, built from hairlines and
+ * lightness rather than from shadow and rounding.
  *
  * Every declared value here is var(--oref-*). Not one literal colour, length or font stack
  * appears, and the theme-tokens gate fails the build on one that does. That is what makes L0
@@ -8,53 +13,111 @@
  * No inline style and no inline script is ever produced, per STANDARDS 10, so this stylesheet
  * works under style-src 'self' with no unsafe-inline.
  *
+ * THIS FILE STYLES THE MARKUP THE RENDERER EMITS TODAY AND NOTHING ELSE. A rule for markup
+ * that does not exist yet is bytes every reader downloads for a page nobody can render, and it
+ * reads as coverage while covering nothing. The schema viewer, the command palette, the try-it
+ * console, the runtime panel and the drift cards bring their rules with them, in the task that
+ * emits their markup. `theme.spec.ts` compares the two lists in both directions.
+ *
  * There is no transition and no animation anywhere in this file. The token contract carries no
  * motion group, so a duration here would be a literal, and a literal is the one thing this
  * file may not contain. Nothing moving is also the honest reading of a theme built from
  * hairlines and flat surfaces. A prefers-reduced-motion block would have nothing to reduce.
  */
 
-.oref-root {
+.oref-body {
   background: var(--oref-color-bg);
   color: var(--oref-color-fg);
   font-family: var(--oref-font-family-sans);
   font-size: var(--oref-font-size-500);
   line-height: var(--oref-font-leading-data);
+  margin: 0;
+}
+
+.oref-root {
   display: grid;
-  grid-template-columns: var(--oref-layout-rail) minmax(0, 1fr);
-  gap: var(--oref-space-700);
-  align-items: start;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-height: 100vh;
 }
 
 .oref-root *:focus-visible {
   outline: var(--oref-focus-width) solid var(--oref-focus-color);
   outline-offset: var(--oref-focus-offset);
-  border-radius: var(--oref-radius-sm);
 }
 
-/* Sidebar */
+/* Header. A single band across the top, separated by an edge rather than by a shadow. */
+
+.oref-header {
+  background: var(--oref-color-surface);
+  border-bottom: var(--oref-border-hair) solid var(--oref-color-line-edge);
+  padding: var(--oref-space-400) var(--oref-space-600);
+}
+
+.oref-brand {
+  align-items: baseline;
+  color: var(--oref-color-fg);
+  display: inline-flex;
+  gap: var(--oref-space-400);
+  text-decoration: none;
+}
+
+.oref-brand-title {
+  font-family: var(--oref-font-family-display);
+  font-size: var(--oref-font-size-500);
+  font-weight: var(--oref-font-weight-bold);
+  letter-spacing: var(--oref-font-tracking-head);
+}
+
+.oref-brand-version {
+  color: var(--oref-color-fg-muted);
+  font-family: var(--oref-font-family-mono);
+  font-size: var(--oref-font-size-100);
+  letter-spacing: var(--oref-font-tracking-mid);
+  text-transform: uppercase;
+}
+
+/* The frame: a permanent rail, the ruler gutter, and the content column.
+ *
+ * The gutter is a frame element in this design rather than empty space, so it is a grid track
+ * of its own carrying the ruler. It is the only place the two theme specific tokens are used,
+ * and it is where the runtime column will meet the specification column from M1. */
+
+/* bg-sunken is painted here and nowhere else: it is the surface behind the page rather than the
+ * page, so it shows through the gutter and nothing reads text on it. */
+.oref-layout {
+  align-items: start;
+  background: var(--oref-color-bg-sunken);
+  display: grid;
+  grid-template-columns: var(--oref-layout-rail) var(--oref-layout-gutter) minmax(0, 1fr);
+  min-height: 100%;
+}
+
+.oref-layout::after {
+  background-image: var(--oref-layout-tick);
+  content: '';
+  grid-column: 2;
+  grid-row: 1;
+  height: 100%;
+  justify-self: center;
+  width: var(--oref-border-hair);
+}
+
+/* Navigation. The tree never leaves the screen: a permanent rail, sticky, scrolled on its own. */
 
 .oref-sidebar {
   background: var(--oref-color-surface-inset);
   border-right: var(--oref-border-hair) solid var(--oref-color-line);
-  padding: var(--oref-space-600);
-  position: sticky;
-  top: 0;
+  grid-column: 1;
+  grid-row: 1;
   max-height: 100vh;
   overflow-y: auto;
+  padding: var(--oref-space-600) var(--oref-space-500);
+  position: sticky;
+  top: 0;
 }
 
-.oref-sidebar-group {
-  margin-bottom: var(--oref-space-700);
-}
-
-.oref-sidebar-group-label {
-  color: var(--oref-color-fg-muted);
-  font-size: var(--oref-font-size-100);
-  font-weight: var(--oref-font-weight-medium);
-  letter-spacing: var(--oref-font-tracking-wide);
-  text-transform: uppercase;
-  margin-bottom: var(--oref-space-400);
+.oref-nav {
+  display: block;
 }
 
 .oref-nav-list {
@@ -63,11 +126,27 @@
   padding: 0;
 }
 
+.oref-nav-list.oref-nav-root {
+  border-inline-start: none;
+  margin-inline-start: 0;
+  padding-inline-start: 0;
+}
+
+.oref-nav-list .oref-nav-list {
+  border-inline-start: var(--oref-border-hair) solid var(--oref-color-line);
+  margin-inline-start: var(--oref-space-300);
+  padding-inline-start: var(--oref-space-300);
+}
+
+.oref-nav-entry {
+  margin: 0;
+}
+
 .oref-nav-item {
-  border-radius: var(--oref-radius-sm);
+  border-inline-start: var(--oref-border-mark) solid transparent;
   color: var(--oref-color-fg-secondary);
   display: block;
-  font-size: var(--oref-font-size-400);
+  font-size: var(--oref-font-size-300);
   padding: var(--oref-space-200) var(--oref-space-400);
   text-decoration: none;
 }
@@ -79,21 +158,34 @@
 
 .oref-nav-item.oref-active {
   background: var(--oref-color-accent-bg);
-  border-inline-start: var(--oref-border-mark) solid var(--oref-color-accent-spec);
+  border-inline-start-color: var(--oref-color-accent-spec);
   color: var(--oref-color-fg);
   font-weight: var(--oref-font-weight-medium);
 }
 
-.oref-nav-item.oref-deprecated {
-  text-decoration: line-through;
+/* A group label is a micro label: caps, the smallest step, the widest tracking. */
+.oref-nav-item.oref-nav-group {
   color: var(--oref-color-fg-muted);
+  font-size: var(--oref-font-size-100);
+  font-weight: var(--oref-font-weight-medium);
+  letter-spacing: var(--oref-font-tracking-wide);
+  margin-top: var(--oref-space-500);
+  text-transform: uppercase;
+}
+
+.oref-nav-item.oref-deprecated {
+  color: var(--oref-color-fg-muted);
+  text-decoration: line-through;
 }
 
 /* Content */
 
 .oref-content {
+  background: var(--oref-color-bg);
+  grid-column: 3;
+  grid-row: 1;
   max-width: var(--oref-layout-measure);
-  padding: var(--oref-space-700) var(--oref-space-600);
+  padding: var(--oref-space-800) var(--oref-space-700);
 }
 
 .oref-title {
@@ -108,64 +200,79 @@
 .oref-subtitle {
   color: var(--oref-color-fg-secondary);
   font-size: var(--oref-font-size-400);
-  margin: 0 0 var(--oref-space-700);
-}
-
-.oref-operation {
-  border: var(--oref-border-hair) solid var(--oref-color-line);
-  border-radius: var(--oref-radius-md);
-  background: var(--oref-color-surface);
-  box-shadow: var(--oref-shadow-panel);
-  margin-bottom: var(--oref-space-800);
-  padding: var(--oref-space-700);
-}
-
-.oref-operation-header {
-  align-items: center;
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--oref-space-500);
-  margin-bottom: var(--oref-space-600);
-}
-
-.oref-operation-title {
-  font-family: var(--oref-font-family-display);
-  font-size: var(--oref-font-size-600);
-  font-weight: var(--oref-font-weight-bold);
-  letter-spacing: var(--oref-font-tracking-head);
-  line-height: var(--oref-font-leading-tight);
-  margin: 0;
-}
-
-.oref-path {
-  background: var(--oref-color-surface-inset);
-  border-radius: var(--oref-radius-sm);
-  color: var(--oref-color-fg);
-  font-family: var(--oref-font-family-mono);
-  font-size: var(--oref-font-size-400);
-  padding: var(--oref-space-200) var(--oref-space-400);
+  margin: var(--oref-space-300) 0 0;
+  width: 100%;
 }
 
 .oref-description {
   color: var(--oref-color-fg-secondary);
   line-height: var(--oref-font-leading-prose);
+  max-width: var(--oref-layout-measure);
 }
 
-/* Badges */
+/* A section heading is a micro label rather than a second title. The design leans on the
+ * heading scale for the page and on caps for the strips inside it. */
+
+.oref-section {
+  border-top: var(--oref-border-hair) solid var(--oref-color-line);
+  margin-top: var(--oref-space-800);
+  padding-top: var(--oref-space-600);
+}
+
+.oref-section-title {
+  color: var(--oref-color-fg-muted);
+  font-size: var(--oref-font-size-100);
+  font-weight: var(--oref-font-weight-medium);
+  letter-spacing: var(--oref-font-tracking-wide);
+  margin: 0 0 var(--oref-space-500);
+  text-transform: uppercase;
+}
+
+.oref-overview,
+.oref-operation {
+  margin: 0;
+}
+
+.oref-operation-header {
+  align-items: baseline;
+  border-bottom: var(--oref-border-mark) solid var(--oref-color-accent-spec);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--oref-space-400);
+  margin-bottom: var(--oref-space-600);
+  padding-bottom: var(--oref-space-500);
+}
+
+.oref-operation-title {
+  margin: 0;
+}
+
+.oref-endpoint {
+  align-items: baseline;
+  display: inline-flex;
+  gap: var(--oref-space-400);
+}
+
+.oref-path,
+.oref-address {
+  background: var(--oref-color-surface-inset);
+  color: var(--oref-color-fg);
+  font-family: var(--oref-font-family-mono);
+  font-size: var(--oref-font-size-400);
+  padding: var(--oref-space-100) var(--oref-space-300);
+}
+
+/* Method badges. Rectangular, in caps, mid tracking; the design has no pill anywhere. */
 
 .oref-badge {
-  border-radius: var(--oref-radius-sm);
+  background: var(--oref-color-method-event);
+  color: var(--oref-color-fg-inverse);
   font-family: var(--oref-font-family-mono);
   font-size: var(--oref-font-size-100);
   font-weight: var(--oref-font-weight-bold);
   letter-spacing: var(--oref-font-tracking-mid);
-  padding: var(--oref-space-200) var(--oref-space-500);
+  padding: var(--oref-space-100) var(--oref-space-300);
   text-transform: uppercase;
-  color: var(--oref-color-fg-inverse);
-  /* The fallback background of a method the contract names no colour for. OpenAPI 3.2 has an
-   * open method set and the contract stops at seven, so an unrecognised method borrows the
-   * neutral one. Recorded in PROJECT_STATE as a question rather than settled here. */
-  background: var(--oref-color-method-event);
 }
 
 .oref-badge.oref-method-get {
@@ -188,8 +295,11 @@
   background: var(--oref-color-method-delete);
 }
 
-.oref-badge.oref-method-sse {
-  background: var(--oref-color-method-sse);
+/* A method the contract names no colour for. OpenAPI 3.2 leaves the method set open and the
+ * contract stops at seven, so an unrecognised one borrows the neutral colour. Recorded in
+ * PROJECT_STATE as a question for the designer rather than settled here. */
+.oref-badge.oref-method-other {
+  background: var(--oref-color-method-event);
 }
 
 /* The ink here is fg-secondary rather than state-muted-fg. Measured, not assumed: the supplied
@@ -201,11 +311,111 @@
   color: var(--oref-color-fg-secondary);
 }
 
+/* Parameters */
+
+.oref-table {
+  border-collapse: collapse;
+  font-size: var(--oref-font-size-300);
+  line-height: var(--oref-font-leading-data);
+  width: 100%;
+}
+
+.oref-table th {
+  border-bottom: var(--oref-border-hair) solid var(--oref-color-line-edge);
+  color: var(--oref-color-fg-muted);
+  font-size: var(--oref-font-size-100);
+  font-weight: var(--oref-font-weight-medium);
+  letter-spacing: var(--oref-font-tracking-wide);
+  padding: var(--oref-space-300) var(--oref-space-400);
+  text-align: start;
+  text-transform: uppercase;
+}
+
+.oref-table td {
+  border-bottom: var(--oref-border-hair) solid var(--oref-color-line);
+  padding: var(--oref-space-400);
+  vertical-align: top;
+}
+
+.oref-param-row:hover {
+  background: var(--oref-color-accent-bg);
+}
+
+.oref-param-name code {
+  font-family: var(--oref-font-family-mono);
+  font-weight: var(--oref-font-weight-medium);
+}
+
+.oref-param-in,
+.oref-param-type {
+  color: var(--oref-color-fg-secondary);
+  font-family: var(--oref-font-family-mono);
+  white-space: nowrap;
+}
+
+.oref-param-doc {
+  color: var(--oref-color-fg-secondary);
+}
+
+.oref-param-doc .oref-description {
+  line-height: var(--oref-font-leading-data);
+}
+
+.oref-required {
+  color: var(--oref-state-crit-fg);
+  font-size: var(--oref-font-size-100);
+  font-weight: var(--oref-font-weight-medium);
+  letter-spacing: var(--oref-font-tracking-mid);
+  margin-inline-start: var(--oref-space-300);
+  text-transform: uppercase;
+}
+
+/* Media types, requests and responses */
+
+.oref-media {
+  border-inline-start: var(--oref-border-hair) solid var(--oref-color-line);
+  margin-top: var(--oref-space-400);
+  padding-inline-start: var(--oref-space-500);
+}
+
+.oref-media-head {
+  align-items: baseline;
+  display: flex;
+  gap: var(--oref-space-400);
+}
+
+.oref-media-type {
+  color: var(--oref-color-fg);
+  font-family: var(--oref-font-family-mono);
+  font-size: var(--oref-font-size-200);
+}
+
+.oref-media-schema {
+  color: var(--oref-color-fg-muted);
+  font-family: var(--oref-font-family-mono);
+  font-size: var(--oref-font-size-200);
+}
+
+.oref-response {
+  border-top: var(--oref-border-hair) solid var(--oref-color-line);
+  padding: var(--oref-space-500) 0;
+}
+
+.oref-response-head {
+  align-items: baseline;
+  display: flex;
+  gap: var(--oref-space-400);
+}
+
+.oref-response-doc {
+  color: var(--oref-color-fg-secondary);
+  font-size: var(--oref-font-size-400);
+}
+
 .oref-status {
   font-family: var(--oref-font-family-mono);
   font-size: var(--oref-font-size-400);
-  font-weight: var(--oref-font-weight-medium);
-  color: var(--oref-color-fg-secondary);
+  font-weight: var(--oref-font-weight-bold);
 }
 
 .oref-status.oref-status-1xx {
@@ -225,231 +435,58 @@
   color: var(--oref-state-crit-fg);
 }
 
-/* Provenance, per SPEC 6.1. The edge style carries the level without colour. */
-
-.oref-prov {
-  font-family: var(--oref-font-family-mono);
-  font-size: var(--oref-font-size-100);
-  letter-spacing: var(--oref-font-tracking-mid);
-  padding: 0 var(--oref-space-200);
+.oref-status.oref-status-default {
+  color: var(--oref-state-muted-fg);
 }
 
-.oref-prov.oref-prov-declared {
-  background: var(--oref-prov-declared-bg);
-  border-inline-start: var(--oref-border-mark) var(--oref-prov-declared-border-style)
-    var(--oref-prov-declared-fg);
-  color: var(--oref-prov-declared-fg);
-}
+/* Security and servers */
 
-.oref-prov.oref-prov-declared::before {
-  content: var(--oref-prov-declared-code);
-}
-
-.oref-prov.oref-prov-derived {
-  background: var(--oref-prov-derived-bg);
-  border-inline-start: var(--oref-border-mark) var(--oref-prov-derived-border-style)
-    var(--oref-prov-derived-fg);
-  color: var(--oref-prov-derived-fg);
-}
-
-.oref-prov.oref-prov-derived::before {
-  content: var(--oref-prov-derived-code);
-}
-
-.oref-prov.oref-prov-inferred {
-  background: var(--oref-prov-inferred-bg);
-  border-inline-start: var(--oref-border-mark) var(--oref-prov-inferred-border-style)
-    var(--oref-prov-inferred-fg);
-  color: var(--oref-prov-inferred-fg);
-}
-
-.oref-prov.oref-prov-inferred::before {
-  content: var(--oref-prov-inferred-code);
-}
-
-/* Drift, per SPEC 7.1. Severity is the edge width as well as the colour. */
-
-.oref-drift {
-  padding: var(--oref-space-400) var(--oref-space-500);
-}
-
-.oref-drift.oref-drift-error {
-  background: var(--oref-drift-crit-bg);
-  border-inline-start: var(--oref-drift-crit-border-width) var(--oref-drift-crit-border-style)
-    var(--oref-drift-crit-fg);
-  color: var(--oref-drift-crit-fg);
-}
-
-.oref-drift.oref-drift-warning {
-  background: var(--oref-drift-warn-bg);
-  border-inline-start: var(--oref-drift-warn-border-width) var(--oref-drift-warn-border-style)
-    var(--oref-drift-warn-fg);
-  color: var(--oref-drift-warn-fg);
-}
-
-.oref-drift.oref-drift-info {
-  background: var(--oref-drift-note-bg);
-  border-inline-start: var(--oref-drift-note-border-width) var(--oref-drift-note-border-style)
-    var(--oref-drift-note-fg);
-  color: var(--oref-drift-note-fg);
-}
-
-/* Tables and parameter lists */
-
-.oref-section-title {
-  font-family: var(--oref-font-family-display);
-  font-size: var(--oref-font-size-600);
-  font-weight: var(--oref-font-weight-bold);
-  letter-spacing: var(--oref-font-tracking-head);
-  margin: var(--oref-space-700) 0 var(--oref-space-500);
-}
-
-.oref-table {
-  border-collapse: collapse;
-  font-size: var(--oref-font-size-300);
-  line-height: var(--oref-font-leading-data);
-  width: 100%;
-}
-
-.oref-table th {
-  background: var(--oref-color-surface-inset);
-  color: var(--oref-color-fg-secondary);
-  font-weight: var(--oref-font-weight-medium);
-  padding: var(--oref-space-400) var(--oref-space-500);
-  text-align: start;
-}
-
-.oref-table td {
-  border-top: var(--oref-border-hair) solid var(--oref-color-line);
-  padding: var(--oref-space-400) var(--oref-space-500);
-  vertical-align: top;
-}
-
-.oref-required {
-  color: var(--oref-state-crit-fg);
-  font-size: var(--oref-font-size-100);
-  font-weight: var(--oref-font-weight-medium);
-}
-
-/* Schema viewer */
-
-.oref-schema {
-  font-family: var(--oref-font-family-mono);
-  font-size: var(--oref-font-size-300);
-}
-
-.oref-schema-list {
+.oref-security-list,
+.oref-server-list {
   list-style: none;
   margin: 0;
-  padding-inline-start: var(--oref-space-600);
-  border-inline-start: var(--oref-border-hair) solid var(--oref-color-line);
+  padding: 0;
 }
 
-.oref-schema-row {
-  padding: var(--oref-space-200) 0;
+.oref-security-item,
+.oref-server {
+  align-items: baseline;
+  border-bottom: var(--oref-border-hair) solid var(--oref-color-line);
+  display: flex;
+  font-family: var(--oref-font-family-mono);
+  font-size: var(--oref-font-size-300);
+  gap: var(--oref-space-400);
+  padding: var(--oref-space-300) 0;
 }
 
-.oref-schema-label {
-  color: var(--oref-color-fg);
-  font-weight: var(--oref-font-weight-medium);
-}
-
-.oref-schema-type {
-  color: var(--oref-color-fg-secondary);
-  margin-inline-start: var(--oref-space-400);
-}
-
-.oref-schema-ref {
-  color: var(--oref-color-accent-link);
-  margin-inline-start: var(--oref-space-400);
-}
-
-.oref-schema-cycle {
-  background: var(--oref-state-warn-bg);
-  border-radius: var(--oref-radius-sm);
-  color: var(--oref-state-warn-fg);
+.oref-security-type {
+  color: var(--oref-color-accent-runtime);
   font-size: var(--oref-font-size-100);
-  margin-inline-start: var(--oref-space-400);
-  padding: 0 var(--oref-space-200);
+  letter-spacing: var(--oref-font-tracking-mid);
+  text-transform: uppercase;
 }
 
-.oref-schema-toggle {
-  background: none;
-  border: none;
-  color: var(--oref-color-fg-secondary);
-  cursor: pointer;
-  font: inherit;
-  padding: 0 var(--oref-space-200);
-}
-
-/* Search */
-
-.oref-search {
-  margin-bottom: var(--oref-space-600);
-}
-
-/* THE BOUNDARY OF A CONTROL IS DRAWN IN fg-muted, NOT IN line-strong. WCAG 1.4.11 asks 3:1 of
- * the visual boundary of a user interface component, and the supplied line-strong measures 2.31
- * against the page in light and 2.19 in dark. That is a finding against the palette rather than
- * against this rule, and it is recorded in PROJECT_STATE for the designer; until it is answered,
- * an input gets an edge that meets the threshold. */
-.oref-search-input {
-  background: var(--oref-color-surface);
-  border: var(--oref-border-hair) solid var(--oref-color-fg-muted);
-  border-radius: var(--oref-radius-sm);
-  color: var(--oref-color-fg);
-  font: inherit;
-  padding: var(--oref-space-400) var(--oref-space-500);
-  width: 100%;
-}
-
-.oref-search-input::placeholder {
+.oref-security-scopes {
   color: var(--oref-color-fg-muted);
 }
 
-.oref-search-results {
-  background: var(--oref-color-surface);
-  border: var(--oref-border-hair) solid var(--oref-color-line-edge);
-  border-radius: var(--oref-radius-sm);
-  box-shadow: var(--oref-shadow-overlay);
-  list-style: none;
-  margin: var(--oref-space-400) 0 0;
-  padding: var(--oref-space-200);
-}
-
-.oref-search-hit {
-  border-radius: var(--oref-radius-sm);
-  padding: var(--oref-space-400);
-}
-
-.oref-search-hit.oref-active {
-  background: var(--oref-color-accent-bg);
-}
-
-.oref-search-empty {
-  color: var(--oref-color-fg-muted);
-  font-size: var(--oref-font-size-400);
-  padding: var(--oref-space-400);
-}
-
-/* Panels */
-
-.oref-panel {
-  background: var(--oref-color-surface-inset);
-  border-radius: var(--oref-radius-md);
-  padding: var(--oref-space-600);
-}
+/* Code */
 
 .oref-code {
   background: var(--oref-color-surface-code);
-  border-radius: var(--oref-radius-md);
+  border-inline-start: var(--oref-border-mark) solid var(--oref-color-line-edge);
   color: var(--oref-color-fg);
   display: block;
   font-family: var(--oref-font-family-mono);
   font-size: var(--oref-font-size-300);
   line-height: var(--oref-font-leading-prose);
+  margin: var(--oref-space-400) 0;
   overflow-x: auto;
   padding: var(--oref-space-500);
+}
+
+.oref-example {
+  margin: var(--oref-space-400) 0 0;
 }
 
 /* Syntax highlighting.
@@ -510,12 +547,4 @@
 
 .oref-hl-underline {
   text-decoration: underline;
-}
-
-.oref-footer {
-  border-top: var(--oref-border-hair) solid var(--oref-color-line);
-  color: var(--oref-color-fg-muted);
-  font-size: var(--oref-font-size-200);
-  grid-column: 1 / -1;
-  padding: var(--oref-space-600);
 }

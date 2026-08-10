@@ -1,0 +1,475 @@
+.oref-body {
+  background: #080b0f;
+  color: #e8eef4;
+  font-family: 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
+  font-size: 16px;
+  line-height: 1.45;
+  margin: 0;
+}
+
+.oref-root {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-height: 100vh;
+}
+
+.oref-root *:focus-visible {
+  outline: 2px solid #ffb020;
+  outline-offset: -2px;
+}
+
+.oref-header {
+  background: #0f151b;
+  border-bottom: 1px solid #22303c;
+  padding: 10px 20px;
+}
+
+.oref-brand {
+  align-items: baseline;
+  color: #e8eef4;
+  display: inline-flex;
+  gap: 10px;
+  text-decoration: none;
+}
+
+.oref-brand-title {
+  font-family: 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.oref-brand-version {
+  color: #79899a;
+  font-family: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.oref-layout {
+  align-items: start;
+  background: #0b1015;
+  display: grid;
+  grid-template-columns: 268px 44px minmax(0, 1fr);
+  min-height: 100%;
+}
+
+.oref-layout::after {
+  background-image: repeating-linear-gradient(180deg, #22303c 0 1px, transparent 1px 8px);
+  content: '';
+  grid-column: 2;
+  grid-row: 1;
+  height: 100%;
+  justify-self: center;
+  width: 1px;
+}
+
+.oref-sidebar {
+  background: #131b22;
+  border-right: 1px solid #161f28;
+  grid-column: 1;
+  grid-row: 1;
+  max-height: 100vh;
+  overflow-y: auto;
+  padding: 20px 14px;
+  position: sticky;
+  top: 0;
+}
+
+.oref-nav {
+  display: block;
+}
+
+.oref-nav-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.oref-nav-list.oref-nav-root {
+  border-inline-start: none;
+  margin-inline-start: 0;
+  padding-inline-start: 0;
+}
+
+.oref-nav-list .oref-nav-list {
+  border-inline-start: 1px solid #161f28;
+  margin-inline-start: 6px;
+  padding-inline-start: 6px;
+}
+
+.oref-nav-entry {
+  margin: 0;
+}
+
+.oref-nav-item {
+  border-inline-start: 3px solid transparent;
+  color: #93a4b3;
+  display: block;
+  font-size: 13px;
+  padding: 4px 10px;
+  text-decoration: none;
+}
+
+.oref-nav-item:hover {
+  background: #0e1a2a;
+  color: #e8eef4;
+}
+
+.oref-nav-item.oref-active {
+  background: #0e1a2a;
+  border-inline-start-color: #8fbcff;
+  color: #e8eef4;
+  font-weight: 500;
+}
+
+.oref-nav-item.oref-nav-group {
+  color: #79899a;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.22em;
+  margin-top: 14px;
+  text-transform: uppercase;
+}
+
+.oref-nav-item.oref-deprecated {
+  color: #79899a;
+  text-decoration: line-through;
+}
+
+.oref-content {
+  background: #080b0f;
+  grid-column: 3;
+  grid-row: 1;
+  max-width: 78ch;
+  padding: 36px 26px;
+}
+
+.oref-title {
+  font-family: 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
+  font-size: 27px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+  margin: 0 0 10px;
+}
+
+.oref-subtitle {
+  color: #93a4b3;
+  font-size: 14px;
+  margin: 6px 0 0;
+  width: 100%;
+}
+
+.oref-description {
+  color: #93a4b3;
+  line-height: 1.62;
+  max-width: 78ch;
+}
+
+.oref-section {
+  border-top: 1px solid #161f28;
+  margin-top: 36px;
+  padding-top: 20px;
+}
+
+.oref-section-title {
+  color: #79899a;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.22em;
+  margin: 0 0 14px;
+  text-transform: uppercase;
+}
+
+.oref-overview,
+.oref-operation {
+  margin: 0;
+}
+
+.oref-operation-header {
+  align-items: baseline;
+  border-bottom: 3px solid #8fbcff;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 20px;
+  padding-bottom: 14px;
+}
+
+.oref-operation-title {
+  margin: 0;
+}
+
+.oref-endpoint {
+  align-items: baseline;
+  display: inline-flex;
+  gap: 10px;
+}
+
+.oref-path,
+.oref-address {
+  background: #131b22;
+  color: #e8eef4;
+  font-family: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+  font-size: 14px;
+  padding: 2px 6px;
+}
+
+.oref-badge {
+  background: #93a4b3;
+  color: #060a0d;
+  font-family: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  padding: 2px 6px;
+  text-transform: uppercase;
+}
+
+.oref-badge.oref-method-get {
+  background: #8fbcff;
+}
+
+.oref-badge.oref-method-post {
+  background: #3fd18b;
+}
+
+.oref-badge.oref-method-put {
+  background: #ffb020;
+}
+
+.oref-badge.oref-method-patch {
+  background: #b98cff;
+}
+
+.oref-badge.oref-method-delete {
+  background: #ff5a47;
+}
+
+.oref-badge.oref-method-other {
+  background: #93a4b3;
+}
+
+.oref-badge.oref-deprecated {
+  background: #111820;
+  color: #93a4b3;
+}
+
+.oref-table {
+  border-collapse: collapse;
+  font-size: 13px;
+  line-height: 1.45;
+  width: 100%;
+}
+
+.oref-table th {
+  border-bottom: 1px solid #22303c;
+  color: #79899a;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.22em;
+  padding: 6px 10px;
+  text-align: start;
+  text-transform: uppercase;
+}
+
+.oref-table td {
+  border-bottom: 1px solid #161f28;
+  padding: 10px;
+  vertical-align: top;
+}
+
+.oref-param-row:hover {
+  background: #0e1a2a;
+}
+
+.oref-param-name code {
+  font-family: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+  font-weight: 500;
+}
+
+.oref-param-in,
+.oref-param-type {
+  color: #93a4b3;
+  font-family: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+  white-space: nowrap;
+}
+
+.oref-param-doc {
+  color: #93a4b3;
+}
+
+.oref-param-doc .oref-description {
+  line-height: 1.45;
+}
+
+.oref-required {
+  color: #ff5a47;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  margin-inline-start: 6px;
+  text-transform: uppercase;
+}
+
+.oref-media {
+  border-inline-start: 1px solid #161f28;
+  margin-top: 10px;
+  padding-inline-start: 14px;
+}
+
+.oref-media-head {
+  align-items: baseline;
+  display: flex;
+  gap: 10px;
+}
+
+.oref-media-type {
+  color: #e8eef4;
+  font-family: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+  font-size: 12px;
+}
+
+.oref-media-schema {
+  color: #79899a;
+  font-family: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+  font-size: 12px;
+}
+
+.oref-response {
+  border-top: 1px solid #161f28;
+  padding: 14px 0;
+}
+
+.oref-response-head {
+  align-items: baseline;
+  display: flex;
+  gap: 10px;
+}
+
+.oref-response-doc {
+  color: #93a4b3;
+  font-size: 14px;
+}
+
+.oref-status {
+  font-family: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.oref-status.oref-status-1xx {
+  color: #8fbcff;
+}
+
+.oref-status.oref-status-2xx {
+  color: #3fd18b;
+}
+
+.oref-status.oref-status-3xx {
+  color: #ffb020;
+}
+
+.oref-status.oref-status-4xx,
+.oref-status.oref-status-5xx {
+  color: #ff5a47;
+}
+
+.oref-status.oref-status-default {
+  color: #5f7284;
+}
+
+.oref-security-list,
+.oref-server-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.oref-security-item,
+.oref-server {
+  align-items: baseline;
+  border-bottom: 1px solid #161f28;
+  display: flex;
+  font-family: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+  font-size: 13px;
+  gap: 10px;
+  padding: 6px 0;
+}
+
+.oref-security-type {
+  color: #ffb020;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.oref-security-scopes {
+  color: #79899a;
+}
+
+.oref-code {
+  background: #060a0d;
+  border-inline-start: 3px solid #22303c;
+  color: #e8eef4;
+  display: block;
+  font-family: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+  font-size: 13px;
+  line-height: 1.62;
+  margin: 10px 0;
+  overflow-x: auto;
+  padding: 14px;
+}
+
+.oref-example {
+  margin: 10px 0 0;
+}
+
+.oref-hl-line {
+  display: inline;
+}
+
+.oref-hl-keyword {
+  color: #8fbcff;
+}
+
+.oref-hl-string,
+.oref-hl-string-expression {
+  color: #3fd18b;
+}
+
+.oref-hl-constant {
+  color: #ffb020;
+}
+
+.oref-hl-function {
+  color: #8fbcff;
+}
+
+.oref-hl-parameter {
+  color: #e8eef4;
+}
+
+.oref-hl-comment,
+.oref-hl-punctuation {
+  color: #79899a;
+}
+
+.oref-hl-link {
+  color: #8fbcff;
+  text-decoration: underline;
+}
+
+.oref-hl-italic {
+  font-style: italic;
+}
+
+.oref-hl-bold {
+  font-weight: 700;
+}
+
+.oref-hl-underline {
+  text-decoration: underline;
+}

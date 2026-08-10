@@ -772,6 +772,7 @@ export const CONTRAST_PAIRS: readonly ContrastPair[] = (
     ['--oref-color-fg-muted', '--oref-color-surface', 'text'],
     ['--oref-color-fg-muted', '--oref-color-surface-inset', 'text'],
     ['--oref-color-fg', '--oref-color-accent-bg', 'text'],
+    ['--oref-color-fg-secondary', '--oref-color-accent-bg', 'text'],
     ['--oref-color-fg-muted', '--oref-color-accent-bg', 'text'],
     ['--oref-color-fg', '--oref-color-accent-soft', 'text'],
     ['--oref-color-fg', '--oref-color-surface-code', 'text'],

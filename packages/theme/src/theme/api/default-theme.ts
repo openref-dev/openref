@@ -19,8 +19,14 @@ export interface ThemeDescriptor {
   readonly assets: { readonly css: readonly string[] };
 }
 
-/** Name of the theme this package ships. */
-export const DEFAULT_THEME_NAME = 'openref-default';
+/**
+ * Name of the theme this package ships.
+ *
+ * `vernier` rather than something generic, because that is the design's own name and the name
+ * it is discussed by. The package stays `@openref/theme`, per SPEC 4: what is published is the
+ * default theme, and which design that is happens to be a value.
+ */
+export const DEFAULT_THEME_NAME = 'vernier';
 
 /**
  * Stylesheets the default theme brings, in the order they must be applied.
