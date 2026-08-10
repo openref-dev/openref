@@ -20,7 +20,6 @@ import {
   type ParsedBytes,
   type ResourceRecord,
 } from './measure.js';
-import { plantStallAndBytes } from './plants.js';
 import { spreadOf, type Spread } from './statistics.js';
 import { CHROME_ARGS } from './chrome.js';
 import { THROTTLE_RATE } from './throttle.js';
@@ -326,12 +325,7 @@ export async function runStudy(options: StudyOptions = {}): Promise<StudyReport>
 
       for (let run = 0; run < ttiRuns; run += 1) {
         ttiMeasurements.push(
-          await measurePage(chrome.browser, {
-            url,
-            throttleRate: THROTTLE_RATE,
-            // TEMPORARY PLANT, REVERTED IN THE NEXT COMMIT. See `plantStallAndBytes`.
-            transformHtml: plantStallAndBytes,
-          }),
+          await measurePage(chrome.browser, { url, throttleRate: THROTTLE_RATE }),
         );
       }
     } finally {
