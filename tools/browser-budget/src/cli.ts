@@ -156,6 +156,15 @@ if (args.includes('--check')) {
         peakHeapMedianBytes: report.peakHeapBytes.median,
         externalRequests: report.externalRequests.length,
         cspViolations: report.cspViolations.length,
+        longTaskMedian: report.work.longTaskCount.median,
+        // THE MAXIMUM RATHER THAN THE MEDIAN, and only for the bytes. These three columns are
+        // identical across the runs of a study by construction, so a run that loaded more than
+        // the others is a finding in itself, and a median would average it away.
+        parsedBytes: {
+          documentBytes: report.parsedBytes.documentBytes.max,
+          cssBytes: report.parsedBytes.cssBytes.max,
+          jsBytes: report.parsedBytes.jsBytes.max,
+        },
       }),
     ];
 
@@ -167,7 +176,10 @@ if (args.includes('--check')) {
     if (issues.length === 0) process.stdout.write('  everything inside its budget\n');
 
     // A STALE BASELINE IS NOT A FAILURE OF THE PRODUCT. It says the two figures are not
-    // comparable, which needs a person and not a red build.
+    // comparable, which needs a person and not a red build. Neither is a `report`: SPEC 20
+    // records elapsed time and main thread task time without gating them, because the pool's
+    // processors move both by a quarter of their value, so a red build on one of those would be
+    // a red build on the machine somebody happened to get.
     if (issues.some((issue) => issue.kind === 'over-budget')) process.exitCode = 1;
   }
 }

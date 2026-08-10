@@ -2,12 +2,18 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
   BUDGET_EXCEPTIONS,
+  BUDGET_EXCEPTION_HISTORY,
   BUILD_AMENDMENTS_FILE,
   BUILD_FILE,
   SPEC_20_BUDGET_IDS,
 } from '../config.js';
 import { aiDocsAbsentMessage, aiDocsPresent } from '../lib/ai-docs.js';
-import { checkBudgetExceptions, describeException } from '../lib/budget-exceptions.js';
+import {
+  checkBudgetExceptions,
+  checkExceptionHistory,
+  describeClosedException,
+  describeException,
+} from '../lib/budget-exceptions.js';
 import { collectBudgetOutcomes, overBudgetIds } from '../lib/budget-report.js';
 import { parseMilestones, planTaskIds, splitLines } from '../lib/build-manifest.js';
 import type { Gate, GateFinding, GateResult } from '../types.js';
@@ -36,16 +42,35 @@ export const budgetExceptionsGate: Gate = {
   run(context): Promise<GateResult> {
     const findings: GateFinding[] = [];
 
+    // THE CLOSED ENTRIES ARE CHECKED WHETHER OR NOT ANYTHING IS LIVE, and that ordering is the
+    // point rather than a detail: the day the last live entry goes away is exactly the day this
+    // gate would otherwise stop reading the record of what used to be here.
+    const closed = BUDGET_EXCEPTION_HISTORY.map((entry) => ({
+      level: 'info' as const,
+      message: `CLOSED ${describeClosedException(entry)}`,
+    }));
+
     if (BUDGET_EXCEPTIONS.length === 0) {
+      const historyIssues = checkExceptionHistory(
+        BUDGET_EXCEPTION_HISTORY,
+        BUDGET_EXCEPTIONS,
+        SPEC_20_BUDGET_IDS,
+      );
+
       return Promise.resolve({
         id: budgetExceptionsGate.id,
         title: budgetExceptionsGate.title,
-        status: 'pass',
+        status: historyIssues.length === 0 ? 'pass' : 'fail',
         findings: [
+          ...historyIssues.map((issue) => ({
+            level: 'error' as const,
+            message: `[${issue.rule}] ${issue.message}`,
+          })),
           {
             level: 'info',
             message: 'no budget is excepted: every SPEC 20 budget is inside its limit',
           },
+          ...closed,
         ],
       });
     }
@@ -85,6 +110,7 @@ export const budgetExceptionsGate: Gate = {
       overBudgetIds: overBudgetIds(collectBudgetOutcomes(context.repoRoot)),
       taskIds: planTaskIds(build, amendments),
       milestones: parseMilestones(lines),
+      history: BUDGET_EXCEPTION_HISTORY,
     });
 
     for (const issue of issues) {
@@ -94,6 +120,8 @@ export const budgetExceptionsGate: Gate = {
     for (const entry of BUDGET_EXCEPTIONS) {
       findings.push({ level: 'warning', message: `EXCEPTED ${describeException(entry)}` });
     }
+
+    findings.push(...closed);
 
     return Promise.resolve({
       id: budgetExceptionsGate.id,

@@ -46,6 +46,12 @@ export interface BudgetExceptionIssue {
   readonly message: string;
 }
 
+/** An entry that is no longer live, kept with how it ended. */
+export interface ClosedException extends BudgetException {
+  readonly closedAt: string;
+  readonly closedBecause: string;
+}
+
 /** What the list is checked against. */
 export interface BudgetExceptionContext {
   /** Every budget id SPEC 20 sets. */
@@ -56,6 +62,61 @@ export interface BudgetExceptionContext {
   readonly taskIds: readonly string[];
   /** The milestones of BUILD.md with their tasks, for the expiry check. */
   readonly milestones: readonly BuildMilestone[];
+  /** Entries that have been closed, checked so the record cannot rot into decoration. */
+  readonly history?: readonly ClosedException[];
+}
+
+/**
+ * Checks the record of closed exceptions.
+ *
+ * A HISTORY THAT IS NOT CHECKED IS A COMMENT. The rules are the smallest set that keeps it a
+ * record: an entry cannot be closed and live at once, because then which terms apply is a
+ * guess; it has to say when and why it closed, because "it went away" is what a deleted entry
+ * already says; and it has to name a budget SPEC 20 still sets, because a closed entry for a
+ * budget that no longer exists is a note about a number nobody can look up.
+ *
+ * @param history - The closed entries
+ * @param live - The entries that are still open
+ * @param budgetIds - Every budget id SPEC 20 sets
+ * @returns Every problem found
+ */
+export function checkExceptionHistory(
+  history: readonly ClosedException[],
+  live: readonly BudgetException[],
+  budgetIds: readonly string[],
+): BudgetExceptionIssue[] {
+  const issues: BudgetExceptionIssue[] = [];
+  const open = new Set(live.map((entry) => entry.budget));
+  const ids = new Set(budgetIds);
+
+  for (const entry of history) {
+    const add = (rule: string, message: string): void => {
+      issues.push({ rule, budget: entry.budget, message });
+    };
+
+    if (open.has(entry.budget)) {
+      add(
+        'closed-and-live',
+        `${entry.budget} is recorded as closed on ${entry.closedAt} and is also on the live list, so which terms apply is a guess`,
+      );
+    }
+
+    if (entry.closedBecause.trim().length === 0 || entry.closedAt.trim().length === 0) {
+      add(
+        'closed-without-reason',
+        `${entry.budget} was closed without saying when or why. A closed entry that says nothing is a deleted entry with extra steps`,
+      );
+    }
+
+    if (!ids.has(entry.budget)) {
+      add(
+        'closed-unknown-budget',
+        `${entry.budget} was closed and is not a budget SPEC 20 sets any more, so the record points at nothing a reader can look up`,
+      );
+    }
+  }
+
+  return issues;
 }
 
 /**
@@ -69,7 +130,9 @@ export function checkBudgetExceptions(
   exceptions: readonly BudgetException[],
   context: BudgetExceptionContext,
 ): BudgetExceptionIssue[] {
-  const issues: BudgetExceptionIssue[] = [];
+  const issues: BudgetExceptionIssue[] = [
+    ...checkExceptionHistory(context.history ?? [], exceptions, context.budgetIds),
+  ];
   const budgetIds = new Set(context.budgetIds);
   const over = new Set(context.overBudgetIds);
   const taskIds = new Set(context.taskIds);
@@ -157,5 +220,19 @@ export function describeException(entry: BudgetException): string {
   return (
     `${entry.budget}: ${entry.measured} against ${entry.target}, owned by ${entry.owners.join(', ')}, ` +
     `must clear by ${entry.clearBy}, recorded ${entry.recordedAt}. ${entry.diagnosis}`
+  );
+}
+
+/**
+ * One line describing a closed entry, printed so a debt that ended is as visible as one that
+ * stands.
+ *
+ * @param entry - The closed exception
+ * @returns A single line naming the figure it was recorded at and why it closed
+ */
+export function describeClosedException(entry: ClosedException): string {
+  return (
+    `${entry.budget}: ${entry.measured} against ${entry.target}, recorded ${entry.recordedAt}, ` +
+    `closed ${entry.closedAt}. ${entry.closedBecause}`
   );
 }

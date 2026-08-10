@@ -231,6 +231,7 @@ export function collectBudgetOutcomes(repoRoot: string): BudgetReport {
   for (const budget of MEASURED_BUDGETS) {
     const recorded = recordedFigure(baseline, budget.id);
     const over = overBudget.get(budget.id);
+    overBudget.delete(budget.id);
 
     if (over !== undefined) {
       outcomes.push({
@@ -242,20 +243,39 @@ export function collectBudgetOutcomes(repoRoot: string): BudgetReport {
       continue;
     }
 
-    outcomes.push(
-      recorded === null
-        ? {
-            id: budget.id,
-            status: 'not-measured',
-            source: 'recorded',
-            message: `${budget.id}: ${budget.label} <= ${budget.limit} (enforced by ${budget.enforcedBy})`,
-          }
-        : {
-            id: budget.id,
-            status: 'ok',
-            source: 'recorded',
-            message: `${budget.id}: ${recorded} of ${budget.limit} (${budget.enforcedBy}, from ${BROWSER_BASELINE_FILE})`,
-          },
+    if (recorded === null) {
+      outcomes.push({
+        id: budget.id,
+        status: 'not-measured',
+        source: 'recorded',
+        message: `${budget.id}: ${budget.label} <= ${budget.limit} (enforced by ${budget.enforcedBy})`,
+      });
+      continue;
+    }
+
+    // A REPORT IS PRINTED AS A REPORT. `of <limit>` after a figure reads as a comparison that
+    // was made, and for these two rows no comparison exists: SPEC 20 records them and gates the
+    // counts beside them. Printing them the same way as a checked budget is how an unchecked
+    // number comes to look like a passed one, which is the defect class SPEC 0 now names.
+    outcomes.push({
+      id: budget.id,
+      status: 'ok',
+      source: 'recorded',
+      message:
+        budget.reportOnly === true
+          ? `${budget.id}: ${recorded}, RECORDED AND NOT GATED (${budget.enforcedBy}, from ${BROWSER_BASELINE_FILE})`
+          : `${budget.id}: ${recorded} of ${budget.limit} (${budget.enforcedBy}, from ${BROWSER_BASELINE_FILE})`,
+    });
+  }
+
+  // A CEILING ISSUE NOBODY CLAIMED IS A FAILURE, NOT A DROPPED LINE. Everything above prints a
+  // figure for a budget id, so an issue whose id no `MEASURED_BUDGETS` entry carries would have
+  // been computed and thrown away, which is the same shape as the `cspViolations` defect one
+  // level up: the check ran, the answer was right, and nothing read it.
+  for (const [budgetId, message] of overBudget) {
+    errors.push(
+      `${budgetId}: over its SPEC 20 ceiling, measured ${message}, and no budget in MEASURED_BUDGETS ` +
+        'answers for it. A figure checked by nothing that prints it is a check with no result',
     );
   }
 

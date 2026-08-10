@@ -23,6 +23,14 @@
  * of the recorded per run samples. That is conservative on purpose: the standard error of a
  * median of twenty five samples is several times smaller than the per sample deviation, so a
  * run to run wobble does not reach it, while a real regression of a fifth of the budget does.
+ *
+ * WHAT IS ASSERTED AND WHAT IS ONLY RECORDED IS ITSELF DATA HERE, in `ASSERTED_FIGURES` and
+ * `RECORDED_NOT_ASSERTED`, and a test walks the committed file against both lists. That is not
+ * decoration. `cspViolations` sat in this record from the day it was written and no committed
+ * check read it, so a baseline carrying policy violations passed `pnpm gates` in silence while
+ * the same violations failed the study job, and the field sitting in the file read as coverage.
+ * SPEC 0 calls the class measured but never asserted. A figure recorded here is either checked
+ * or listed as unchecked with the reason, and there is no third state.
  */
 
 import { readFileSync } from 'node:fs';
@@ -38,6 +46,20 @@ export interface BaselineSpread {
   readonly standardDeviation: number;
 }
 
+/**
+ * The bytes the measured page hands the main thread, by kind.
+ *
+ * These are the one class of figure in this file that no processor moves: all six studies of
+ * 2026-08-10, on five processors, reported the three columns identical to the byte and
+ * identical between the twenty five runs of each study.
+ */
+export interface BaselineParsedBytes {
+  /** The served document itself, decoded. */
+  readonly documentBytes: number;
+  readonly cssBytes: number;
+  readonly jsBytes: number;
+}
+
 /** The committed record of one machine, one browser and one measurement. */
 export interface BrowserBaseline {
   /** Date the study was run, as `YYYY-MM-DD`. */
@@ -47,10 +69,10 @@ export interface BrowserBaseline {
   /**
    * What a reader of this file has to know that the numbers do not say.
    *
-   * It carries, today, the two things a later reader would otherwise get wrong: that TTI is
-   * over its ceiling deliberately rather than by an oversight, and that the runner's CPU model
-   * is not fixed within one image, so a small movement between two records is not necessarily
-   * a change to the product.
+   * It carries, today, the two things a later reader would otherwise get wrong: which figures
+   * here are gated and which are recorded for context only, and that the runner's CPU model is
+   * not fixed within one image, so a movement between two records is not necessarily a change
+   * to the product.
    */
   readonly note?: string;
   readonly environment: {
@@ -64,6 +86,7 @@ export interface BrowserBaseline {
   readonly throttleRate: number;
   /** Measured slowdown, so a throttle that stopped taking is visible in the record. */
   readonly throttleRatio: BaselineSpread;
+  /** Wall clock time to interactive. RECORDED AND NOT GATED, per SPEC 20. */
   readonly ttiMs: BaselineSpread;
   /** Where the time went, in medians, because a figure over budget has to say what to look at. */
   readonly ttiPhaseMs: {
@@ -72,21 +95,69 @@ export interface BrowserBaseline {
     readonly script: number;
     readonly firstContentfulPaint: number;
   };
+  /** Total main thread task time over the load. RECORDED AND NOT GATED, per SPEC 20. */
+  readonly mainThreadMs: BaselineSpread;
+  /** Main thread tasks over 50 ms, as a median of the study's runs. Gated. */
+  readonly longTaskCount: BaselineSpread;
+  /** What the page gives the main thread to parse and compile. Gated. */
+  readonly parsedBytes: BaselineParsedBytes;
   readonly peakHeapBytes: BaselineSpread;
   readonly externalRequests: number;
   readonly cspViolations: number;
-  /** Bytes of the served document of the page TTI is measured on. */
-  readonly servedDocumentBytes: number;
   /** What is over its ceiling today, named here so a reader of the file is not surprised. */
   readonly overBudget: readonly string[];
 }
+
+/**
+ * Every recorded figure a committed check reads, keyed by the budget id it answers.
+ *
+ * The list is exported so a test can hold the file to it. A figure added to the record and to
+ * neither list fails that test, which is the only defence against the next `cspViolations`.
+ */
+export const ASSERTED_FIGURES: Readonly<Record<string, string>> = {
+  longTaskCount: 'long-tasks',
+  parsedBytes: 'page-bytes and served-document',
+  peakHeapBytes: 'client-memory',
+  externalRequests: 'external-requests',
+  cspViolations: 'csp-violations',
+};
+
+/**
+ * Every recorded figure no check reads, with the reason it is here rather than checked.
+ *
+ * A reason is required. "Nobody got round to it" is the state this list exists to make
+ * visible, and writing it down is what turns it from an absence into a decision.
+ */
+export const RECORDED_NOT_ASSERTED: Readonly<Record<string, string>> = {
+  recordedAt: 'identity of the study, not a measurement',
+  commit: 'identity of the study, not a measurement',
+  note: 'prose for a reader of the file',
+  environment: 'identity of the machine, read by the staleness check rather than by a ceiling',
+  browser: 'identity of the browser, read by the staleness check',
+  chromeArgs: 'identity of the launch, recorded so two studies can be told apart',
+  throttleRate: 'what was requested; the harness fails when the measured ratio does not match it',
+  throttleRatio: 'proof the throttle took, checked in the harness at measurement time',
+  ttiMs:
+    'SPEC 20 retired the TTI ceiling on 2026-08-10. Six studies on five processors measured the ' +
+    'same bytes between 163.7 and 216.1 ms, a range of 25.7 percent of the median, so the ' +
+    'quantity is recorded and printed and nothing passes or fails on it',
+  ttiPhaseMs: 'the split of a figure that is itself recorded and not gated',
+  mainThreadMs:
+    'measured on the same six studies at a range of 27.0 percent of its median, slightly worse ' +
+    'than the wall clock it was proposed to replace, so no threshold was set. Recorded because ' +
+    'a page whose work moves says where to look, and printed beside the two counts that are gated',
+  overBudget: 'the record of what is over, checked against the ceilings rather than by them',
+};
 
 /** One thing wrong with a baseline, or with a study measured against one. */
 export interface BaselineIssue {
   readonly budget: string;
   readonly message: string;
-  /** `over-budget` is the product; `stale` and `malformed` are the record. */
-  readonly kind: 'over-budget' | 'stale' | 'malformed';
+  /**
+   * `over-budget` is the product and stops a build; `stale` and `malformed` are the record;
+   * `report` is a figure SPEC 20 records without gating, printed and never fatal.
+   */
+  readonly kind: 'over-budget' | 'stale' | 'malformed' | 'report';
 }
 
 /** What a study has to report for the relative check to be possible. */
@@ -99,6 +170,22 @@ export interface MeasuredStudy {
   readonly peakHeapMedianBytes: number;
   readonly externalRequests: number;
   readonly cspViolations: number;
+  readonly longTaskMedian: number;
+  readonly parsedBytes: BaselineParsedBytes;
+}
+
+/**
+ * The bytes one page load hands the main thread as source: the document, the CSS and the JS.
+ *
+ * Fonts and images are deliberately not in it. They are bytes a reader waits for and they are
+ * bounded by the three font caps; they are not bytes anything parses or compiles, which is what
+ * this quantity is about.
+ *
+ * @param bytes - The three columns
+ * @returns Their sum
+ */
+export function pageBytesOf(bytes: BaselineParsedBytes): number {
+  return bytes.documentBytes + bytes.cssBytes + bytes.jsBytes;
 }
 
 /**
@@ -137,7 +224,19 @@ export function readBaseline(value: unknown): BrowserBaseline {
   }
 
   spread('ttiMs', record.ttiMs);
+  spread('mainThreadMs', record.mainThreadMs);
+  spread('longTaskCount', record.longTaskCount);
   spread('peakHeapBytes', record.peakHeapBytes);
+
+  const bytes = record.parsedBytes;
+  if (
+    bytes === undefined ||
+    typeof bytes.documentBytes !== 'number' ||
+    typeof bytes.cssBytes !== 'number' ||
+    typeof bytes.jsBytes !== 'number'
+  ) {
+    throw new Error('the browser baseline carries no usable parsedBytes');
+  }
 
   return record as BrowserBaseline;
 }
@@ -145,22 +244,38 @@ export function readBaseline(value: unknown): BrowserBaseline {
 /**
  * Checks the recorded figures against the SPEC 20 ceilings.
  *
+ * EVERY GATED FIGURE IN THE RECORD IS READ HERE. The pair of this and `compareToBaseline` is
+ * where the same figure gets checked in one and forgotten in the other, which is what happened
+ * to `cspViolations`, so the two are kept symmetrical and the asymmetries that remain are named
+ * in `RECORDED_NOT_ASSERTED`.
+ *
  * @param baseline - The committed record
  * @returns One issue per figure over its ceiling, empty when everything is inside
  */
 export function checkCeilings(baseline: BrowserBaseline): BaselineIssue[] {
   const issues: BaselineIssue[] = [];
 
-  if (baseline.ttiMs.median > BROWSER_CEILINGS.ttiMs) {
+  if (baseline.longTaskCount.median > BROWSER_CEILINGS.longTaskCount) {
     issues.push({
-      budget: 'tti',
+      budget: 'long-tasks',
       kind: 'over-budget',
       message:
-        `${baseline.ttiMs.median.toFixed(1)} ms against ${String(BROWSER_CEILINGS.ttiMs)} ms, measured as the ` +
-        `median of ${String(baseline.ttiMs.samples)} navigations on ${baseline.environment.id} with ` +
-        `Chrome ${String(baseline.browser.major)}. Where it goes: ${baseline.ttiPhaseMs.transfer.toFixed(1)} ms ` +
-        `transfer, ${baseline.ttiPhaseMs.parse.toFixed(1)} ms to an interactive document, ` +
-        `${baseline.ttiPhaseMs.script.toFixed(1)} ms script and hydrate`,
+        `${baseline.longTaskCount.median.toFixed(0)} tasks over 50 ms against ` +
+        `${String(BROWSER_CEILINGS.longTaskCount)}, as the median of ` +
+        `${String(baseline.longTaskCount.samples)} navigations on ${baseline.environment.id}. ` +
+        `They took ${baseline.mainThreadMs.median.toFixed(1)} ms of main thread task time between them`,
+    });
+  }
+
+  const pageBytes = pageBytesOf(baseline.parsedBytes);
+  if (pageBytes > BROWSER_CEILINGS.pageBytes) {
+    issues.push({
+      budget: 'page-bytes',
+      kind: 'over-budget',
+      message:
+        `${String(pageBytes)} bytes against ${String(BROWSER_CEILINGS.pageBytes)}: ` +
+        `${String(baseline.parsedBytes.documentBytes)} document, ` +
+        `${String(baseline.parsedBytes.cssBytes)} CSS, ${String(baseline.parsedBytes.jsBytes)} JS`,
     });
   }
 
@@ -180,11 +295,26 @@ export function checkCeilings(baseline: BrowserBaseline): BaselineIssue[] {
     });
   }
 
-  if (baseline.servedDocumentBytes > BROWSER_CEILINGS.servedDocumentBytes) {
+  // THE FIELD THAT NOTHING READ. A baseline recorded with policy violations in it passed this
+  // function in silence from the day the record was written until 2026-08-10, while the study
+  // job failed on the same figure. SPEC 19.2 is the strongest claim this project makes and the
+  // committed half of its proof asserted nothing.
+  if (baseline.cspViolations > BROWSER_CEILINGS.cspViolations) {
+    issues.push({
+      budget: 'csp-violations',
+      kind: 'over-budget',
+      message:
+        `${String(baseline.cspViolations)} policy violation(s) under the strict policy, against ` +
+        `${String(BROWSER_CEILINGS.cspViolations)}. SPEC 19.2 is the claim, and a recorded ` +
+        'violation is that claim being false on the machine that measured it',
+    });
+  }
+
+  if (baseline.parsedBytes.documentBytes > BROWSER_CEILINGS.servedDocumentBytes) {
     issues.push({
       budget: 'served-document',
       kind: 'over-budget',
-      message: `${String(baseline.servedDocumentBytes)} bytes against ${String(BROWSER_CEILINGS.servedDocumentBytes)}`,
+      message: `${String(baseline.parsedBytes.documentBytes)} bytes against ${String(BROWSER_CEILINGS.servedDocumentBytes)}`,
     });
   }
 
@@ -197,7 +327,7 @@ export function checkCeilings(baseline: BrowserBaseline): BaselineIssue[] {
  * @param baseline - The committed record
  * @param study - What was just measured
  * @returns Issues, with `stale` meaning the two are not comparable rather than that anything
- *   regressed
+ *   regressed, and `report` meaning a quantity SPEC 20 records without gating
  */
 export function compareToBaseline(
   baseline: BrowserBaseline,
@@ -205,11 +335,31 @@ export function compareToBaseline(
 ): BaselineIssue[] {
   const issues: BaselineIssue[] = [];
 
-  if (study.ttiMedianMs > BROWSER_CEILINGS.ttiMs) {
+  if (study.longTaskMedian > BROWSER_CEILINGS.longTaskCount) {
     issues.push({
-      budget: 'tti',
+      budget: 'long-tasks',
       kind: 'over-budget',
-      message: `${study.ttiMedianMs.toFixed(1)} ms against ${String(BROWSER_CEILINGS.ttiMs)} ms`,
+      message: `${study.longTaskMedian.toFixed(0)} tasks over 50 ms against ${String(BROWSER_CEILINGS.longTaskCount)}`,
+    });
+  }
+
+  const pageBytes = pageBytesOf(study.parsedBytes);
+  if (pageBytes > BROWSER_CEILINGS.pageBytes) {
+    issues.push({
+      budget: 'page-bytes',
+      kind: 'over-budget',
+      message:
+        `${String(pageBytes)} bytes against ${String(BROWSER_CEILINGS.pageBytes)}: ` +
+        `${String(study.parsedBytes.documentBytes)} document, ${String(study.parsedBytes.cssBytes)} CSS, ` +
+        `${String(study.parsedBytes.jsBytes)} JS`,
+    });
+  }
+
+  if (study.parsedBytes.documentBytes > BROWSER_CEILINGS.servedDocumentBytes) {
+    issues.push({
+      budget: 'served-document',
+      kind: 'over-budget',
+      message: `${String(study.parsedBytes.documentBytes)} bytes against ${String(BROWSER_CEILINGS.servedDocumentBytes)}`,
     });
   }
 
@@ -221,7 +371,7 @@ export function compareToBaseline(
     });
   }
 
-  if (study.externalRequests > 0) {
+  if (study.externalRequests > BROWSER_CEILINGS.externalRequests) {
     issues.push({
       budget: 'external-requests',
       kind: 'over-budget',
@@ -229,9 +379,9 @@ export function compareToBaseline(
     });
   }
 
-  if (study.cspViolations > 0) {
+  if (study.cspViolations > BROWSER_CEILINGS.cspViolations) {
     issues.push({
-      budget: 'csp',
+      budget: 'csp-violations',
       kind: 'over-budget',
       message: `${String(study.cspViolations)} policy violation(s) under the strict policy`,
     });
@@ -284,15 +434,21 @@ export function compareToBaseline(
     return issues;
   }
 
+  // TTI IS REPORTED HERE AND GATES NOTHING, per SPEC 20. The comparison is still worth printing
+  // on the one occasion it means anything, which is the same machine and the same browser, and
+  // it is worth nothing as a pass or a fail: the spread across the pool's processors is a
+  // quarter of the figure, so a red build on this number would be a red build on the runner
+  // somebody happened to get.
   const allowance = baseline.ttiMs.standardDeviation;
   if (study.ttiMedianMs > baseline.ttiMs.median + allowance) {
     issues.push({
       budget: 'tti',
-      kind: 'over-budget',
+      kind: 'report',
       message:
         `${study.ttiMedianMs.toFixed(1)} ms against a recorded ${baseline.ttiMs.median.toFixed(1)} ms ` +
         `on the same machine and the same browser, which is beyond the ${allowance.toFixed(1)} ms ` +
-        'this measurement varies by. That is a change to the product rather than to the day',
+        'this measurement varies by. SPEC 20 records TTI and gates the two counts beside it, so ' +
+        'this is a line to read rather than a build to stop',
     });
   }
 
@@ -337,12 +493,20 @@ export function recordedFigure(baseline: BrowserBaseline, budgetId: string): str
   switch (budgetId) {
     case 'tti':
       return `${baseline.ttiMs.median.toFixed(1)} ms, median of ${String(baseline.ttiMs.samples)}`;
+    case 'main-thread-work':
+      return `${baseline.mainThreadMs.median.toFixed(1)} ms, median of ${String(baseline.mainThreadMs.samples)}`;
+    case 'long-tasks':
+      return baseline.longTaskCount.median.toFixed(0);
+    case 'page-bytes':
+      return `${(pageBytesOf(baseline.parsedBytes) / 1024).toFixed(1)} KB raw`;
     case 'client-memory':
       return `${(baseline.peakHeapBytes.median / (1024 * 1024)).toFixed(1)} MB, median of ${String(baseline.peakHeapBytes.samples)}`;
     case 'external-requests':
       return String(baseline.externalRequests);
+    case 'csp-violations':
+      return String(baseline.cspViolations);
     case 'served-document':
-      return `${(baseline.servedDocumentBytes / 1024).toFixed(1)} KB`;
+      return `${(baseline.parsedBytes.documentBytes / 1024).toFixed(1)} KB`;
     default:
       return null;
   }

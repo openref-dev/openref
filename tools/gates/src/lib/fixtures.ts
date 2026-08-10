@@ -66,6 +66,14 @@ export const FIXTURE_FORBIDDEN_CLAUSES: readonly (readonly [RegExp, string])[] =
 /** One entry of the corpus manifest. */
 export interface FixtureManifestEntry {
   readonly file: string;
+  /**
+   * A human readable name for the NOTICE and for a reader of the manifest.
+   *
+   * RECORDED AND CHECKED BY NOTHING, said here rather than left to be discovered. There is
+   * nothing to check it against: it is prose about someone else's document. It is named as
+   * unchecked because the alternative is a reader assuming otherwise, which is the defect class
+   * SPEC 0 calls measured but never asserted.
+   */
   readonly title: string;
   readonly sourceUrl: string;
   readonly retrievedAt: string;
@@ -74,6 +82,15 @@ export interface FixtureManifestEntry {
   readonly modified: boolean;
   /** Required when `modified` is true: what was changed, so CC-BY attribution stays honest. */
   readonly modifications?: string;
+  /**
+   * Size of the file, checked against the file.
+   *
+   * IT WAS RECORDED AND UNREAD UNTIL 2026-08-10, and the audit of that day said in as many
+   * words that the gate re-read both this and the digest. It read the digest. The check is
+   * subordinate to the digest and cannot catch anything the digest misses, and it is here
+   * because a number sitting beside a checked one reads as checked: the honest choices were to
+   * verify it or to delete it, and there is no third one.
+   */
   readonly bytes: number;
   readonly sha256: string;
 
@@ -109,6 +126,8 @@ export interface FixtureAudit {
   readonly notice: string;
   /** Actual SHA-256 of each present file, keyed by file name. */
   readonly digests: Readonly<Record<string, string>>;
+  /** Actual size of each present file, keyed by file name, so the recorded `bytes` is read. */
+  readonly sizes?: Readonly<Record<string, number>>;
   /** Licenses this material may carry. Defaults to the zone 3 set. */
   readonly allowedLicenses?: readonly string[];
   /**
@@ -307,6 +326,15 @@ export function auditFixtures(audit: FixtureAudit): FixtureFinding[] {
         file,
         reason:
           'recorded as modified but does not say how; CC-BY requires modifications to be indicated',
+      });
+    }
+
+    const size = audit.sizes?.[file];
+    if (size !== undefined && size !== entry.bytes) {
+      findings.push({
+        level: 'error',
+        file,
+        reason: `manifest records ${String(entry.bytes)} bytes and the file is ${String(size)}`,
       });
     }
 

@@ -215,6 +215,16 @@ export interface MeasuredBudget {
   readonly label: string;
   readonly limit: string;
   readonly enforcedBy: string;
+  /**
+   * A quantity SPEC 20 records without gating, printed with its figure and never a failure.
+   *
+   * TWO ROWS ARE LIKE THIS AND BOTH BECAME SO BY MEASUREMENT. Elapsed time and main thread task
+   * time move with the processor a shared runner hands out, by 25.7 and 27.0 percent of their
+   * medians over six studies on five machines, so neither can carry a threshold on this
+   * machinery. They are kept because a page whose time moves says where to look, and they are
+   * marked so that nobody reads a printed figure as a passed check.
+   */
+  readonly reportOnly?: boolean;
 }
 
 /**
@@ -371,23 +381,40 @@ export const MEASURED_BUDGETS: readonly MeasuredBudget[] = [
     enforcedBy: 'T007',
   },
   { id: 'prerender', label: 'Prerender, 1000 nodes', limit: '2 s', enforcedBy: 'T011' },
-  { id: 'tti', label: 'TTI, 1000 nodes, 4x CPU throttle', limit: '150 ms', enforcedBy: 'T015' },
-  // THESE TWO HAVE NO NUMBER YET, DELIBERATELY, and that is why they are here rather than in
-  // `BROWSER_CEILINGS`. SPEC 20 replaces the TTI ceiling with quantities that do not move with
-  // the processor, and it says in the same paragraph that a threshold written before the spread
-  // is measured is a fitted number from the other side. They print as not measured with the task
-  // that owns them, which is the state T001 asks for: an unmeasured budget is visible on every
-  // run and never reads as one that passed.
+  // THE TWO TIMES ARE RECORDED AND NEITHER IS GATED, and that is a measurement rather than a
+  // concession. Six studies of one commit on five processors put wall clock TTI between 163.7
+  // and 216.1 ms and main thread task time between 192.3 and 258.3, ranges of 25.7 and 27.0
+  // percent of their medians. The second was proposed as the machine independent replacement for
+  // the first and measured slightly worse than it, so no threshold was set for either. They are
+  // printed with their figures on every run, marked report only, so a reader can see the number
+  // without reading it as a check that passed.
+  {
+    id: 'tti',
+    label: 'TTI, 1000 nodes, 4x CPU throttle',
+    limit: 'recorded, not gated since 2026-08-10',
+    enforcedBy: 'T015',
+    reportOnly: true,
+  },
   {
     id: 'main-thread-work',
     label: 'Main thread task time, 1000 nodes, 4x CPU throttle',
-    limit: 'a threshold derived from the three processor study',
+    limit: 'recorded, not gated: the study measured it as unstable as the clock',
     enforcedBy: 'T015-R1',
+    reportOnly: true,
   },
+  // AND THE TWO COUNTS THAT SURVIVED THE SAME STUDY, both gated. The long task count read 2 on
+  // every one of the six studies and the three byte columns were identical to the byte on all of
+  // them, so these are the quantities this machinery can carry a threshold on.
   {
     id: 'long-tasks',
     label: 'Main thread tasks over 50 ms, 1000 nodes, 4x CPU throttle',
-    limit: 'a threshold derived from the three processor study',
+    limit: '2, as a median of 25 navigations',
+    enforcedBy: 'T015-R1',
+  },
+  {
+    id: 'page-bytes',
+    label: 'Document, CSS and JS the 1000 node page hands the main thread, raw',
+    limit: '172 KB',
     enforcedBy: 'T015-R1',
   },
   {
@@ -397,6 +424,16 @@ export const MEASURED_BUDGETS: readonly MeasuredBudget[] = [
     enforcedBy: 'T015',
   },
   { id: 'external-requests', label: 'External network requests', limit: '0', enforcedBy: 'T015' },
+  // A SPEC 19 CLAIM WITH A SPEC 20 NUMBER, exactly as `external-requests` is. It is a budget row
+  // because the browser produces a count and a count needs a limit somebody checks: the figure
+  // was recorded in the baseline from the day that file was written and no gate read it, so a
+  // record carrying policy violations passed `pnpm gates` in silence.
+  {
+    id: 'csp-violations',
+    label: 'Policy violations under the strict CSP',
+    limit: '0',
+    enforcedBy: 'T015',
+  },
   {
     id: 'served-document',
     label: 'Served document, 1000 nodes, raw bytes',
@@ -449,12 +486,33 @@ export const BROWSER_STUDY_WORKFLOW = '.github/workflows/browser-budget-study.ym
  * HERE RATHER THAN BESIDE THE HARNESS, for the reason the coverage floors are here: a threshold
  * has exactly one home, so there is exactly one place it could be lowered. `tools/browser-budget`
  * imports these rather than carrying a second copy.
+ *
+ * THERE IS NO `ttiMs` HERE ANY MORE, and its absence is the decision of 2026-08-10 rather than
+ * an omission. SPEC 20 keeps the 150 ms as what the product is for and stops checking it,
+ * because six studies of one commit across five processors of a pool that swaps them silently
+ * measured it between 163.7 and 216.1 ms. Everything below is either a count or a byte count,
+ * and no processor moved any of them.
+ *
+ * `longTaskCount` is 2 because 2 is what all six studies measured, as a median of 25
+ * navigations, and 3 is the smallest step an integer count has. A change that adds one stall to
+ * the load fails it. It is a coarse instrument and it says so: it cannot see an existing long
+ * task getting worse without splitting.
+ *
+ * `pageBytes` is 172 KB against 173,044 measured, 169.0 KB, so the headroom is 3,084 bytes. It
+ * is derived the way `theme-css-raw` was: another region of `theme.css` the size of the page
+ * frame, 3,287 bytes, or of the try-it console, 3,669, has to fail it, and a navigation sized
+ * addition of 2,520 has to fit. THIS IS THE TIGHTEST ROW IN THE TABLE AND IT IS MEANT TO BE. It
+ * is the only budget measured over what the page actually loads rather than over what the build
+ * produced, so it is the only one that can see a resource nobody weighed, and a cap with the
+ * usual ten percent of room would let a whole stylesheet in without a word.
  */
 export const BROWSER_CEILINGS = {
-  ttiMs: 150,
   peakHeapBytes: 250 * 1024 * 1024,
   externalRequests: 0,
+  cspViolations: 0,
   servedDocumentBytes: 64 * 1024,
+  longTaskCount: 2,
+  pageBytes: 172 * 1024,
 } as const;
 
 /**
@@ -465,8 +523,8 @@ export const BROWSER_CEILINGS = {
  * why, who is fixing it and when it must be gone, and it lets the plan continue meanwhile. The
  * budgets gate goes on printing the failure on every run.
  *
- * IT EXISTS BECAUSE THE GATE WAS RIGHT AND ITS POSITION WAS WRONG. `tti` is owned by T015 and
- * is not fixable inside T015: what stands between the page and 150 ms is the client bundle and
+ * IT EXISTED BECAUSE A GATE WAS RIGHT AND ITS POSITION WAS WRONG. `tti` was owned by T015 and
+ * was not fixable inside T015: what stood between the page and 150 ms was the client bundle and
  * the theme stylesheet, which belong to T011 and T012. A red budget with a diagnosis attached
  * is the honest state, and blocking fifty tasks behind a defect that is not theirs is not.
  *
@@ -475,11 +533,35 @@ export const BROWSER_CEILINGS = {
  * have, a milestone that closes while the entry is still here, or a budget that is inside its
  * limit again all fail the build.
  *
- * WHAT IS DELIBERATELY NOT HERE: `served-document`. It was named alongside `tti` when this list
- * was asked for, and it measures 29.0 KB against 64 KB. Listing a budget that passes would
+ * THE LIST IS EMPTY TODAY AND THAT IS NOT THE SAME AS NEVER HAVING HELD ANYTHING. Its one entry
+ * is in `BUDGET_EXCEPTION_HISTORY` below, with the reason it closed.
+ *
+ * WHAT WAS DELIBERATELY NEVER HERE: `served-document`. It was named alongside `tti` when this
+ * list was asked for, and it measures 29.0 KB against 64 KB. Listing a budget that passes would
  * record a debt that does not exist, and the staleness rule would fail the build for saying so.
  */
-export const BUDGET_EXCEPTIONS: readonly BudgetException[] = [
+export const BUDGET_EXCEPTIONS: readonly BudgetException[] = [];
+
+/**
+ * Exceptions that are closed, kept with the reason they closed.
+ *
+ * A CLOSED ENTRY IS DELETED FROM THE LIST AND NOT FROM THE RECORD. An exception is the one place
+ * in this repository where a red check does not stop a build, so how one ended matters as much
+ * as that it existed: an entry that simply vanishes leaves a reader unable to tell a debt that
+ * was paid from a debt somebody quietly stopped counting. The two endings are named separately
+ * below, and `closedBecause` says which this was.
+ *
+ * The gate reads this list too. A budget that is live here and in `BUDGET_EXCEPTIONS` at once,
+ * an entry with no reason, and a closed entry for a budget SPEC 20 no longer sets all fail.
+ */
+export interface ClosedBudgetException extends BudgetException {
+  /** When the entry stopped being live. */
+  readonly closedAt: string;
+  /** How it ended: what changed, and what the budget id means now. */
+  readonly closedBecause: string;
+}
+
+export const BUDGET_EXCEPTION_HISTORY: readonly ClosedBudgetException[] = [
   {
     budget: 'tti',
     measured: '213.9 ms, median of 25 throttled navigations',
@@ -493,13 +575,20 @@ export const BUDGET_EXCEPTIONS: readonly BudgetException[] = [
       'what is between the page and the budget is work rather than transfer: 108 KB of decoded ' +
       'JavaScript to compile and hydrate, and 38.8 KB of decoded CSS to parse and match. Cutting the ' +
       'served document by 85 percent in T012-R2 moved the phase it was aimed at by 4 percent, so the ' +
-      'state block was not the cause. T011-R owns the bundle. T012-R3 owned the stylesheet and is ' +
-      'done, and it is replaced here rather than removed, because what stands between this entry ' +
-      'and being retired is no longer only the artefact: three studies of identical bytes on one ' +
-      'image and one Chrome measured 213.9, 148.2 and 196.0 ms on three processors of a pool that ' +
-      'swaps them silently, so the ceiling is not resolvable on this machinery. T015-R1 owns the ' +
-      'replacement metric SPEC 20 now names, and this entry is retired by that landing rather than ' +
-      'by a baseline re-recorded on whichever processor the pool hands out.',
+      'state block was not the cause.',
+    closedAt: '2026-08-10',
+    closedBecause:
+      'THE BUDGET IT EXCUSED NO LONGER EXISTS IN GATED FORM, so there is nothing left to excuse. ' +
+      'It was not paid and it was not dropped: SPEC 20 stopped checking elapsed time after six ' +
+      'studies of one commit on five processors measured the same bytes at 163.7, 203.9, 204.0, ' +
+      '204.2, 211.0 and 216.1 ms, a range of 25.7 percent of the median against a budget the ' +
+      'excess over which was 42 percent. Main thread task time was measured on the same six runs ' +
+      'as a candidate replacement and came out marginally worse, 27.0 percent, and normalizing ' +
+      'against a calibration workload worse again at 29.6. What replaced the entry is two gated ' +
+      'counts on the same studies, `long-tasks` at 2 and `page-bytes` at 172 KB, and both are ' +
+      'green. TTI is still measured, still recorded and still printed, and it is a report. The ' +
+      'debt this entry named, that the page is slower than 150 ms on a throttled runner, is not ' +
+      'claimed to be paid by anything here.',
   },
 ];
 

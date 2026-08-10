@@ -124,10 +124,11 @@ export const fixtureLicensesGate: Gate = {
       }
 
       const digests: Record<string, string> = {};
+      const sizes: Record<string, number> = {};
       for (const file of presentFiles) {
-        digests[file] = createHash('sha256')
-          .update(readFileSync(join(filesDirectory, file)))
-          .digest('hex');
+        const content = readFileSync(join(filesDirectory, file));
+        digests[file] = createHash('sha256').update(content).digest('hex');
+        sizes[file] = content.byteLength;
       }
 
       let licenseTexts: Record<string, string> | undefined;
@@ -150,6 +151,7 @@ export const fixtureLicensesGate: Gate = {
         entries,
         notice,
         digests,
+        sizes,
         allowedLicenses: root.allowedLicenses,
         ...(licenseTexts === undefined ? {} : { licenseTexts }),
       });

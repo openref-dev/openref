@@ -35,6 +35,7 @@ function auditWith(overrides: Partial<FixtureAudit> = {}): FixtureAudit {
     entries: [entry],
     notice: `documents/${entry.file} by ${entry.copyrightHolder}`,
     digests: { [entry.file]: entry.sha256 },
+    sizes: { [entry.file]: entry.bytes },
     ...overrides,
   };
 }
@@ -225,9 +226,22 @@ describe('auditFixtures', () => {
     expect(findings.some((finding) => finding.reason.includes('no longer match'))).toBe(true);
   });
 
+  it('should fail a file whose size is not the size the manifest records', () => {
+    // Given the field found unread on 2026-08-10. The digest already covers the content, so
+    // this can catch nothing the digest misses, and that is the argument for checking it rather
+    // than for leaving it: a number recorded beside a checked one reads as checked.
+    const audit = auditWith({ sizes: { 'petstore.yaml': 11 } });
+
+    // When
+    const findings = auditFixtures(audit);
+
+    // Then
+    expect(findings.some((finding) => finding.reason.includes('records 10 bytes'))).toBe(true);
+  });
+
   it('should warn about a manifest entry that matches no file', () => {
     // Given
-    const audit = auditWith({ presentFiles: [], digests: {} });
+    const audit = auditWith({ presentFiles: [], digests: {}, sizes: {} });
 
     // When
     const findings = auditFixtures(audit);
