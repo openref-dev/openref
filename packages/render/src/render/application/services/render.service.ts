@@ -19,6 +19,8 @@ import type {
   RenderedPage,
 } from '../../../cache/application/ports/render-cache.port';
 import { ReferenceApp } from '../../../components/ReferenceApp';
+import { DEFERRABLE_KEY } from '../../../components/deferrable';
+import { EAGER_COMPONENTS } from '../../../components/eager';
 import { createMarkdownRenderer, type IMarkdownRenderer } from '../../../markdown/domain/markdown';
 import type { IHighlighter } from '../../../highlight/domain/highlight';
 import {
@@ -136,6 +138,10 @@ export async function renderPage(
 
   const model = buildPageModel(document, { nodeId, schemaId, markdown, basePath });
   const app = createSSRApp(ReferenceApp, { page: model, basePath });
+  // THE SERVER DEFERS NOTHING. A server render exists to put the whole page in the response,
+  // and a deferred component here would ship markup with a hole in it that the client would
+  // then have to fill, which is the opposite of what the client is being spared.
+  app.provide(DEFERRABLE_KEY, EAGER_COMPONENTS);
   const appHtml = await renderToString(app);
 
   const page: RenderedPage = {

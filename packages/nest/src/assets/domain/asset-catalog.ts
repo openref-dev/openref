@@ -173,6 +173,84 @@ function isStylesheet(name: string): boolean {
   return name.toLowerCase().endsWith('.css');
 }
 
+/** Whether a source is a script, and so may name chunks beside it. */
+function isScript(name: string): boolean {
+  return name.toLowerCase().endsWith('.js');
+}
+
+/**
+ * A relative specifier written inside a module, static or dynamic.
+ *
+ * IT MATCHES THE STRING AND NOT THE SYNTAX AROUND IT, deliberately. A minified bundle writes
+ * `from'./chunk-A.js'`, `import"./chunk-A.js"` and `import("./chunk-A.js")`, and a fourth form
+ * arrives with every bundler release. What every form has in common is a quoted sibling path
+ * ending in `.js`, and a quoted string of that shape that is not a specifier is a file this
+ * catalog does not serve, which fails below rather than being rewritten to something wrong.
+ */
+const JS_SPECIFIER = /(['"])\.\/([A-Za-z0-9_.-]+\.js)\1/g;
+
+/**
+ * Rewrites sibling chunk specifiers to the names the chunks are served under.
+ *
+ * WITHOUT THIS THE SPLIT SHIPS A 404. Assets are served under a name carrying the digest of
+ * their bytes, so `import("./chunk-A.js")` inside the entry points at a name nothing answers,
+ * and a deferred feature would fail at the moment a reader reached for it. That failure is also
+ * the quietest one available: the page is already rendered, so nothing looks wrong until the
+ * click does nothing.
+ *
+ * @param source - Module source
+ * @param servedNameOf - Served name for a sibling file name, or undefined when unknown
+ * @returns The module with sibling specifiers renamed
+ * @throws {InvalidOptionsError} When a specifier names a file the catalog lacks
+ */
+export function rewriteJsSpecifiers(
+  source: string,
+  servedNameOf: (name: string) => string | undefined,
+): string {
+  return source.replace(JS_SPECIFIER, (_whole, quote: string, name: string) => {
+    const served = servedNameOf(name);
+
+    if (served === undefined) {
+      throw new InvalidOptionsError(
+        `the module refers to "./${name}", which is not among the assets being served. A chunk ` +
+          'that is not served is a feature that fails when a reader reaches for it',
+        ErrorCode.CONFIG_INVALID_OPTIONS,
+        undefined,
+        { reference: name },
+      );
+    }
+
+    return `${quote}./${served}${quote}`;
+  });
+}
+
+/**
+ * The sibling assets one source refers to, by disk name.
+ *
+ * @param name - Disk name of the source
+ * @param bytes - Its contents
+ * @param decoder - Shared decoder
+ * @returns Disk names it refers to, which have to be hashed before it is
+ */
+function referencesOf(name: string, bytes: Uint8Array, decoder: TextDecoder): readonly string[] {
+  if (isStylesheet(name)) {
+    const text = decoder.decode(bytes);
+    const names: string[] = [];
+
+    for (const match of text.matchAll(CSS_URL)) {
+      const reference = match[2] ?? '';
+      if (!isSiblingReference(reference)) continue;
+      names.push(reference.startsWith('./') ? reference.slice(2) : reference);
+    }
+
+    return names;
+  }
+
+  if (!isScript(name)) return [];
+
+  return [...decoder.decode(bytes).matchAll(JS_SPECIFIER)].map((match) => match[2] ?? '');
+}
+
 /**
  * Builds the catalog.
  *
@@ -202,6 +280,8 @@ export function buildAssetCatalog(sources: readonly AssetSource[]): AssetCatalog
 
   const assets: CatalogAsset[] = [];
   const byName = new Map<string, CatalogAsset>();
+  const decoder = new TextDecoder();
+  const encoder = new TextEncoder();
 
   const add = (name: string, bytes: Uint8Array): void => {
     const asset: CatalogAsset = {
@@ -214,23 +294,44 @@ export function buildAssetCatalog(sources: readonly AssetSource[]): AssetCatalog
     byName.set(name, asset);
   };
 
-  for (const source of sources) {
-    if (isStylesheet(source.name)) continue;
-    add(source.name, source.bytes);
-  }
+  const servedNameOf = (name: string): string | undefined => byName.get(name)?.servedName;
 
-  const decoder = new TextDecoder();
-  const encoder = new TextEncoder();
-
-  for (const source of sources) {
-    if (!isStylesheet(source.name)) continue;
-
-    const rewritten = rewriteCssUrls(
-      decoder.decode(source.bytes),
-      (name) => byName.get(name)?.servedName,
+  // A file is hashed only once everything it names has been, so its own digest covers the names
+  // it points at. Two fixed passes were enough while only a stylesheet could name anything;
+  // since T011-R a chunk names other chunks, and the depth of that graph is the bundler's
+  // business rather than a number this file may assume.
+  let pending = [...sources];
+  while (pending.length > 0) {
+    const ready = pending.filter((source) =>
+      referencesOf(source.name, source.bytes, decoder).every(
+        (reference) => servedNameOf(reference) !== undefined,
+      ),
     );
 
-    add(source.name, encoder.encode(rewritten));
+    if (ready.length === 0) {
+      throw new InvalidOptionsError(
+        `these assets refer to each other in a cycle, so none of them can be named after its ` +
+          `contents: ${pending.map((source) => source.name).join(', ')}`,
+        ErrorCode.CONFIG_INVALID_OPTIONS,
+        undefined,
+        { names: pending.map((source) => source.name) },
+      );
+    }
+
+    for (const source of ready) {
+      if (isStylesheet(source.name)) {
+        add(source.name, encoder.encode(rewriteCssUrls(decoder.decode(source.bytes), servedNameOf)));
+      } else if (isScript(source.name)) {
+        add(
+          source.name,
+          encoder.encode(rewriteJsSpecifiers(decoder.decode(source.bytes), servedNameOf)),
+        );
+      } else {
+        add(source.name, source.bytes);
+      }
+    }
+
+    pending = pending.filter((source) => !ready.includes(source));
   }
 
   const byServedName = new Map(assets.map((asset) => [asset.servedName, asset]));

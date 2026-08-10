@@ -16,6 +16,8 @@
 import { RUNNER_KEY, type IRunnerPort } from '@openref/vue';
 import { createSSRApp } from 'vue';
 import { APP_ROOT_ID, ReferenceApp } from '../components/ReferenceApp';
+import { DEFERRABLE_KEY } from '../components/deferrable';
+import { deferredComponents } from './deferred';
 import { navigationHref } from '../page/domain/links';
 import { readNavigationPayload, type NavigationLoader } from '../page/domain/nav-source';
 import { STATE_ELEMENT_ID } from '../page/domain/shell';
@@ -36,6 +38,16 @@ export interface HydrateOptions {
    * so composition happens where both are visible, which is `@openref/nest` and the CLI.
    */
   readonly runner?: IRunnerPort;
+  /**
+   * The same runner, built only if the console is opened.
+   *
+   * THIS IS THE SHIPPED PATH AND `runner` IS THE EAGER ONE. A runner handed over as a value has
+   * to be constructed before the page hydrates, which puts the whole of `@openref/runner` in the
+   * first chunk for a console most readers never open. A function is imported dynamically by
+   * whoever supplies it, so the runner travels with the console. `runner` stays for a host that
+   * has one already, and for the tests that hand over a fake.
+   */
+  readonly loadRunner?: () => Promise<IRunnerPort>;
   /**
    * How the rest of the navigation is fetched, for a host that serves it from elsewhere.
    *
@@ -121,6 +133,21 @@ export function hydrateReference(options: HydrateOptions = {}): boolean {
     basePath,
     loadNavigation: options.loadNavigation ?? fetchNavigation(page, basePath),
   });
+
+  // THE CLIENT FILLS THE REGISTRY WITH GATES AND THE SERVER FILLS IT WITH COMPONENTS. Nothing
+  // here imports the three implementations, which is what keeps them out of the first chunk;
+  // `client-bundle.spec.ts` reads the built file for the proof rather than trusting the shape.
+  app.provide(
+    DEFERRABLE_KEY,
+    deferredComponents({
+      document: root,
+      ...(options.loadRunner === undefined ? {} : { loadRunner: options.loadRunner }),
+      provideRunner: (runner) => {
+        app.provide(RUNNER_KEY, runner);
+      },
+    }),
+  );
+
   if (options.runner !== undefined) app.provide(RUNNER_KEY, options.runner);
   app.mount(mount);
 

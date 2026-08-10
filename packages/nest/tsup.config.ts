@@ -51,6 +51,12 @@ export default defineConfig([
     clean: false,
     minify: true,
     treeshake: true,
+    // THE CODE SPLIT OF T011-R. Without this esbuild inlines every dynamic import back into the
+    // entry, and the three deferred features would be gated at runtime while still being
+    // downloaded and compiled on load, which is the cost the deferral exists to remove. The
+    // chunks are served by the asset catalog under digest names like every other file, and the
+    // specifiers inside the entry are rewritten to those names before the entry is hashed.
+    splitting: true,
     noExternal: [/^vue$/, /^@vue\//, /^@openref\//],
     outExtension: () => ({ js: '.js' }),
     esbuildOptions(options) {

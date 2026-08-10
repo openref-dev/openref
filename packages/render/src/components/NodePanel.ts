@@ -8,10 +8,9 @@
  */
 
 import type { IRSchema } from '@openref/core';
-import { defineComponent, h, type PropType, type VNode } from 'vue';
+import { defineComponent, h, type Component, type PropType, type VNode } from 'vue';
 import { MarkdownBlock } from './MarkdownBlock';
-import { SchemaView } from './SchemaView';
-import { TryItPanel } from './TryItPanel';
+import { useDeferrable } from './deferrable';
 import type { MediaTypeModel, NodeModel, ParameterModel } from '../page/domain/page-model';
 
 /** What every media type block needs to put a schema viewer under itself. */
@@ -19,6 +18,13 @@ interface SchemaContext {
   readonly schemas: Readonly<Record<string, IRSchema>>;
   readonly truncated: readonly string[];
   readonly basePath: string;
+  /**
+   * The schema viewer, resolved rather than imported.
+   *
+   * It travels in the context for the same reason the schemas do: this is a module function and
+   * the registry can only be read inside `setup`. See `deferrable.ts` for why it is not imported.
+   */
+  readonly schemaView: Component;
 }
 
 function methodClass(method: string): string {
@@ -54,7 +60,7 @@ function mediaTypeBlock(media: MediaTypeModel, key: string, context: SchemaConte
     ]),
     media.schema === null
       ? null
-      : h(SchemaView, {
+      : h(context.schemaView, {
           slot: media.schema,
           label: media.mediaType,
           view: media.view,
@@ -85,12 +91,15 @@ export const NodePanel = defineComponent({
   },
 
   setup(props) {
+    const deferrable = useDeferrable();
+
     return (): VNode => {
       const node = props.node;
       const context: SchemaContext = {
         schemas: props.schemas,
         truncated: props.truncated,
         basePath: props.basePath,
+        schemaView: deferrable.schemaView,
       };
       const parts: (VNode | null)[] = [];
 
@@ -196,7 +205,7 @@ export const NodePanel = defineComponent({
       // Last, after the documented responses rather than before them. A reader reads what the
       // operation does and then tries it, and the response the console shows then sits beside
       // the responses the specification promised, which is where the comparison happens.
-      parts.push(h(TryItPanel, { run: node.run }));
+      parts.push(h(deferrable.tryIt, { run: node.run }));
 
       return h('article', { class: 'oref-operation', 'data-oref-node': node.id }, parts);
     };

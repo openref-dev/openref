@@ -107,6 +107,30 @@ export function siblingReferences(css: string): readonly string[] {
   return names;
 }
 
+/** A relative specifier written inside a module, static or dynamic. See the catalog for why. */
+const JS_SPECIFIER = /(['"])\.\/([A-Za-z0-9_.-]+\.js)\1/g;
+
+/**
+ * Names of the chunks a module points at.
+ *
+ * THE BUNDLE IS THE LIST, for the reason the stylesheet is: a directory listing would pick up
+ * whatever a previous build left behind, and a hand written list would go stale on the first
+ * change to the split. What is served is what the shipped bytes ask for.
+ *
+ * @param source - Module source
+ * @returns Sibling chunk names, each once, in the order they appear
+ */
+export function chunkReferences(source: string): readonly string[] {
+  const names: string[] = [];
+
+  for (const match of source.matchAll(JS_SPECIFIER)) {
+    const name = match[2] ?? '';
+    if (name !== '' && !names.includes(name)) names.push(name);
+  }
+
+  return names;
+}
+
 /** How the default asset set is assembled. */
 export interface DefaultAssetOptions {
   /** Stylesheets to serve, as package specifiers or absolute paths. */
@@ -143,7 +167,23 @@ export function loadDefaultAssets(options: DefaultAssetOptions = {}): AssetPlan 
     ? bundleSpecifier
     : resolveAssetPath(bundleSpecifier);
   const moduleName = basenameOf(bundlePath);
-  sources.push({ name: moduleName, bytes: readAsset(bundlePath, bundleSpecifier) });
+  const bundleBytes = readAsset(bundlePath, bundleSpecifier);
+  sources.push({ name: moduleName, bytes: bundleBytes });
+
+  // TRANSITIVELY, because a chunk imports other chunks. A queue rather than one pass over the
+  // entry: the runner arrives through the console's chunk and would be missed by a pass that
+  // only read the file the shell links, and a missing chunk is a feature that 404s at the
+  // moment a reader reaches for it rather than a build that fails.
+  const bundleDirectory = dirname(bundlePath);
+  const queue = [...chunkReferences(decoder.decode(bundleBytes))];
+  while (queue.length > 0) {
+    const name = queue.shift() ?? '';
+    if (sources.some((source) => source.name === name)) continue;
+
+    const bytes = readAsset(join(bundleDirectory, name), name);
+    sources.push({ name, bytes });
+    queue.push(...chunkReferences(decoder.decode(bytes)));
+  }
 
   for (const specifier of stylesheets) {
     const path = specifier.startsWith('/') ? specifier : resolveAssetPath(specifier);

@@ -127,6 +127,44 @@ async function settle(): Promise<void> {
   await new Promise((resolve) => setTimeout(resolve, 0));
 }
 
+/**
+ * Reaches for the console the way a reader does, and waits for it to arrive.
+ *
+ * NEEDED SINCE T011-R, AND IT IS THE FEATURE RATHER THAN A TEST WORKAROUND. The console is not
+ * in the first chunk: the server markup is served and hydration leaves it alone until somebody
+ * touches the region, at which point the chunk is fetched and that subtree hydrates. So a test
+ * that drove the console without touching it first would be driving markup with no listeners on
+ * it, which is exactly what a reader would meet if the deferral were wrong.
+ *
+ * It gives up loudly rather than timing out silently, because a console that never arrives and
+ * a console that arrived disabled produce the same missing element.
+ */
+async function reachForConsole(arrived: () => boolean, description: string): Promise<void> {
+  const region = document.querySelector('.oref-section-tryit');
+  if (region === null) throw new Error('the page rendered no try-it region to reach for');
+
+  region.dispatchEvent(new Event('pointerdown', { bubbles: true }));
+
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    await settle();
+    if (arrived()) return;
+  }
+
+  throw new Error(`the console never hydrated after the region was touched: ${description}`);
+}
+
+/**
+ * Whether the console has hydrated, read off what hydration changes.
+ *
+ * THE PRESENCE OF THE BUTTON PROVES NOTHING, which is why this reads its state instead. The
+ * server renders the whole console including a disabled send button, so an element query is
+ * satisfied by the markup that was already there and a test built on one would pass with the
+ * chunk never fetched.
+ */
+function consoleIsLive(): boolean {
+  return document.querySelector<HTMLButtonElement>('.oref-send')?.disabled === false;
+}
+
 /** Types into a control the way a reader does, and lets Vue see it. */
 function type(id: string, value: string): void {
   const control = document.getElementById(id);
@@ -167,6 +205,7 @@ describe('the try-it console, end to end against a real server', () => {
     });
     expect(hydrateReference({ runner })).toBe(true);
     await settle();
+    await reachForConsole(consoleIsLive, 'the send button never became active');
 
     // When
     type(fieldId('get-orders-id', 'path', 'id'), '42');
@@ -195,6 +234,7 @@ describe('the try-it console, end to end against a real server', () => {
     });
     hydrateReference({ runner });
     await settle();
+    await reachForConsole(consoleIsLive, 'the send button never became active');
 
     // When
     type(fieldId('get-orders-id', 'path', 'id'), 'a b');
@@ -230,6 +270,7 @@ describe('the try-it console, end to end against a real server', () => {
     });
     hydrateReference({ runner });
     await settle();
+    await reachForConsole(consoleIsLive, 'the send button never became active');
 
     // When
     type(fieldId('get-orders-id', 'path', 'id'), '<img src=x onerror=alert(1)>');
@@ -254,6 +295,7 @@ describe('the try-it console, end to end against a real server', () => {
     });
     hydrateReference({ runner });
     await settle();
+    await reachForConsole(consoleIsLive, 'the send button never became active');
 
     // When
     type(fieldId('get-orders-id', 'auth', 'bearer'), 'secret-token');
@@ -273,6 +315,7 @@ describe('the try-it console, end to end against a real server', () => {
     });
     hydrateReference({ runner });
     await settle();
+    await reachForConsole(consoleIsLive, 'the send button never became active');
 
     // When
     document.querySelector<HTMLButtonElement>('.oref-send')?.click();
@@ -305,6 +348,10 @@ describe('the try-it console, end to end against a real server', () => {
     // When
     hydrateReference();
     await settle();
+    await reachForConsole(
+      () => (document.querySelector('.oref-tryit-notice')?.textContent ?? '').includes('composes'),
+      'the notice never changed from the one the server rendered',
+    );
 
     // Then
     const notice = document.querySelector('.oref-tryit-notice')?.textContent ?? '';

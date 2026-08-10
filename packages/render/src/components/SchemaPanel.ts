@@ -12,7 +12,7 @@
 import type { IRSchema } from '@openref/core';
 import { defineComponent, h, type PropType, type VNode } from 'vue';
 import { MarkdownBlock } from './MarkdownBlock';
-import { SchemaView } from './SchemaView';
+import { useDeferrable } from './deferrable';
 import type { SchemaPageModel } from '../page/domain/page-model';
 
 /** Renders one named schema. */
@@ -27,6 +27,8 @@ export const SchemaPanel = defineComponent({
   },
 
   setup(props) {
+    const deferrable = useDeferrable();
+
     return (): VNode => {
       const schema = props.schema;
 
@@ -42,7 +44,7 @@ export const SchemaPanel = defineComponent({
           ? // A stale link is a normal event on a document that changed, so the page says so
             // rather than rendering an empty tree that looks like a schema with no fields.
             h('p', { class: 'oref-schema-empty' }, 'This document declares no such schema.')
-          : h(SchemaView, {
+          : h(deferrable.schemaView, {
               slot: { kind: 'named', schemaId: schema.id },
               label: schema.name,
               view: 'both',

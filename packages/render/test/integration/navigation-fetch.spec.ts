@@ -3,6 +3,8 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { createApp } from 'vue';
 import { ReferenceApp } from '../../src/components/ReferenceApp';
+import { DEFERRABLE_KEY } from '../../src/components/deferrable';
+import { EAGER_COMPONENTS } from '../../src/components/eager';
 import { createMarkdownRenderer } from '../../src/markdown/domain/markdown';
 import { buildNavigation, buildPageModel } from '../../src/page/domain/page-model';
 import { renderPage } from '../../src/render/application/services/render.service';
@@ -44,6 +46,11 @@ function mountPage(page: PageModel, loadNavigation?: () => Promise<unknown>): HT
     basePath: '',
     ...(loadNavigation === undefined ? {} : { loadNavigation }),
   });
+  // THE EAGER REGISTRY, BECAUSE THESE ARE TESTS OF THE COMPONENTS AND NOT OF THE DEFERRAL.
+  // The server render provides the same one for the same reason: what is asserted below is what
+  // the schema viewer, the palette and the navigation do, and a gate in front of them would
+  // assert that Vue can wait. `deferred.spec.ts` owns the gate itself.
+  app.provide(DEFERRABLE_KEY, EAGER_COMPONENTS);
   app.mount(host);
   mounted = app;
 

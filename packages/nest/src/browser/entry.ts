@@ -20,11 +20,22 @@
  * applying exactly where it matters. The option belongs to a host that builds its own runner,
  * which is `forRoot` in SPEC 13.2 and a later task; a page served by this module can hold no
  * prefilled credential at all, which is stronger than gating one.
+ *
+ * THE IMPORT IS DYNAMIC SINCE T011-R, AND THE LITERAL SURVIVED IT. The runner is 7.7 KB of a
+ * bundle every reader compiles for a console most of them never open, so it now travels in the
+ * console's own chunk: this function is called the first time somebody reaches for the try-it
+ * panel, and not before. What did not change is the guarantee above. `visibility: 'public'` is
+ * still written here, still a literal, and `credentials` is still of type `never` under it, so
+ * the compile error is in the same place it was. The `client-runner` gate follows the binding
+ * into the chunk rather than reading the entry file alone.
  */
 
 import { hydrateReference } from '@openref/render/browser';
-import { createRunner } from '@openref/runner';
 
 hydrateReference({
-  runner: createRunner({ visibility: 'public', storage: 'session' }),
+  loadRunner: async () => {
+    const { createRunner } = await import('@openref/runner');
+
+    return createRunner({ visibility: 'public', storage: 'session' });
+  },
 });

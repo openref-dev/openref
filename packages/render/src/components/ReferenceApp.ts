@@ -12,11 +12,11 @@
  */
 
 import { defineComponent, h, provide, type PropType, type VNode } from 'vue';
-import { CommandPalette } from './CommandPalette';
 import { MarkdownBlock } from './MarkdownBlock';
 import { NavigationTree } from './NavigationTree';
 import { NodePanel } from './NodePanel';
 import { SchemaPanel } from './SchemaPanel';
+import { useDeferrable } from './deferrable';
 import { overviewHref } from '../page/domain/links';
 import { createNavigationStore, NAVIGATION_KEY } from '../page/api/nav-context';
 import type { NavigationLoader } from '../page/domain/nav-source';
@@ -88,6 +88,8 @@ export const ReferenceApp = defineComponent({
   },
 
   setup(props) {
+    const deferrable = useDeferrable();
+
     // Created once, for the life of this page, and handed to both components that ask about
     // the navigation so that they share one copy and one fetch.
     provide(
@@ -111,7 +113,7 @@ export const ReferenceApp = defineComponent({
             h('span', { class: 'oref-brand-title' }, page.title),
             h('span', { class: 'oref-brand-version' }, page.version),
           ]),
-          h(CommandPalette, { entries: page.navigation, basePath: props.basePath }),
+          h(deferrable.commandPalette, { entries: page.navigation, basePath: props.basePath }),
         ]),
         h('div', { class: 'oref-layout' }, [
           h('aside', { class: 'oref-sidebar' }, [
