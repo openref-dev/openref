@@ -296,6 +296,9 @@ importers:
       '@openref/nest':
         specifier: workspace:*
         version: link:../../packages/nest
+      '@openref/render':
+        specifier: workspace:*
+        version: link:../../packages/render
       '@types/express':
         specifier: 5.0.6
         version: 5.0.6

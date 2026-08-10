@@ -333,12 +333,43 @@ export const MEASURED_BUDGETS: readonly MeasuredBudget[] = [
   },
   { id: 'external-requests', label: 'External network requests', limit: '0', enforcedBy: 'T015' },
   {
+    id: 'served-document',
+    label: 'Served document, 1000 nodes, raw bytes',
+    limit: '64 KB',
+    enforcedBy: 'T015',
+  },
+  {
     id: 'static-build',
     label: 'Static build, 1000 nodes, 4 cores',
     limit: '60 s',
     enforcedBy: 'T039',
   },
 ];
+
+/**
+ * Every budget SPEC 20 sets, by id, in one list.
+ *
+ * THE SPECIFICATION'S TABLE AND THIS LIST ARE COMPARED BY THE CLAIM MAP GATE. They are two
+ * hand maintained lists of the same thing, and the failure that matters is a budget added to
+ * one and not the other: a row in the specification that nothing measures reads as a promise,
+ * and an id here that the specification does not set reads as a check protecting nothing.
+ *
+ * The three font caps are named here rather than derived from `FONT_BUDGETS`, because that list
+ * is per theme and these are three budgets however many themes ship.
+ */
+export const SPEC_20_BUDGET_IDS: readonly string[] = [
+  ...SIZE_BUDGETS.map((budget) => budget.id),
+  'fonts-first-paint',
+  'fonts-latin',
+  'fonts-total',
+  ...MEASURED_BUDGETS.map((budget) => budget.id),
+];
+
+/** The claim map, which answers every SPEC 19 and SPEC 20 claim with what would go red. */
+export const CLAIM_MAP_FILE = 'ai-docs/CLAIM-MAP.md';
+
+/** The specification the claims are read out of. */
+export const SPEC_FILE = 'ai-docs/SPEC.md';
 
 /**
  * Directories holding the default theme's stylesheets, relative to the repository root.

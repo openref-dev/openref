@@ -1,6 +1,7 @@
 import { buildManifestGate } from './gates/build-manifest.gate.js';
 import { budgetsGate } from './gates/budgets.gate.js';
 import { clientRunnerGate } from './gates/client-runner.gate.js';
+import { claimsGate } from './gates/claims.gate.js';
 import { coverageGate } from './gates/coverage.gate.js';
 import { cspGate } from './gates/csp.gate.js';
 import { dependencyGraphGate } from './gates/dependency-graph.gate.js';
@@ -55,6 +56,7 @@ export const GATES: readonly Gate[] = [
   themeTokensGate,
   themeMotionGate,
   themeFontsGate,
+  claimsGate,
   coverageGate,
 ];
 

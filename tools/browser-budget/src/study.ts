@@ -7,9 +7,11 @@
  * committed figure and a checked figure are never two different measurements.
  */
 
-import { ASSET_SEGMENT } from '@openref/nest';
+import { nodeHref, type NavEntryModel } from '@openref/render';
 import { launchChrome } from './chrome.js';
+import { navigationHref } from '@openref/render';
 import { bootFixture } from './fixture/boot.js';
+import { FIXTURE_BASE_PATH } from './fixture/app.js';
 import { currentEnvironment, type MeasurementEnvironment } from './environment.js';
 import { externalRequestsOf, measurePage, type PageMeasurement } from './measure.js';
 import { spreadOf, type Spread } from './statistics.js';
@@ -73,32 +75,57 @@ export interface StudyReport {
 }
 
 /**
- * Finds the first node page linked from a reference overview.
+ * Finds the first node page of a reference, through the routes the reference serves.
  *
- * Read off the served page rather than assembled from an identity rule, because the rule lives
- * in `core` and this package has no business restating it. The generated document's page is
- * named directly, and verified, because there the point is to measure a known node.
+ * IT USED TO READ THE LINKS OUT OF THE OVERVIEW MARKUP, and T012-R2 took those away: an
+ * overview opens no group, so its sidebar carries group headers and no operation link at all.
+ * The harness caught that itself, on the runner, by refusing to measure rather than measuring
+ * something else, which is what it was built to do.
+ *
+ * It now asks the same navigation route the page asks, and builds the url with the same
+ * function the page builds it with. Nothing about the identity rule or the link shape is
+ * restated here; both live in packages that own them.
  *
  * @param baseUrl - Origin of the fixture
  * @returns An absolute url
- * @throws Error when the overview links to no node page
+ * @throws Error when the reference serves no node at all
  */
 export async function firstNodePage(baseUrl: string): Promise<string> {
-  const response = await fetch(`${baseUrl}/docs`);
-  const html = await response.text();
+  const overview = await (await fetch(`${baseUrl}${FIXTURE_BASE_PATH}`)).text();
+  const state = /<script type="application\/json" id="oref-state"[^>]*>([\s\S]*?)<\/script>/.exec(
+    overview,
+  )?.[1];
 
-  for (const match of html.matchAll(/href="(\/docs\/[^"#?]+)"/g)) {
-    const href = match[1];
-    // THE ASSET PREFIX IS EXCLUDED BY NAME, and the first version of this did not exclude it,
-    // so the memory budget measured a stylesheet and reported 1.1 MB for a 6.4 MB document.
-    // A plausible looking number from the wrong page is the failure this whole package exists
-    // to avoid, so the caller also asserts that what came back is a node page.
-    if (href !== undefined && href !== '/docs' && !href.startsWith(`/docs/${ASSET_SEGMENT}`)) {
-      return `${baseUrl}${href}`;
-    }
+  if (state === undefined) {
+    throw new Error(`the overview at ${baseUrl}${FIXTURE_BASE_PATH} carries no page state`);
   }
 
-  throw new Error(`the overview at ${baseUrl}/docs links to no node page`);
+  const documentHash = (JSON.parse(state) as { documentHash?: unknown }).documentHash;
+  if (typeof documentHash !== 'string') {
+    throw new Error(
+      'the page state carries no document hash, so the navigation cannot be asked for',
+    );
+  }
+
+  const payload = (await (
+    await fetch(`${baseUrl}${navigationHref(documentHash, FIXTURE_BASE_PATH)}`)
+  ).json()) as { navigation?: readonly NavEntryModel[] };
+
+  const firstNodeId = (function find(entries: readonly NavEntryModel[]): string | null {
+    for (const entry of entries) {
+      if (entry.nodeId !== null) return entry.nodeId;
+      const inside = find(entry.children);
+      if (inside !== null) return inside;
+    }
+
+    return null;
+  })(payload.navigation ?? []);
+
+  if (firstNodeId === null) {
+    throw new Error(`the reference at ${baseUrl}${FIXTURE_BASE_PATH} navigates to no node`);
+  }
+
+  return `${baseUrl}${nodeHref(firstNodeId, FIXTURE_BASE_PATH)}`;
 }
 
 /**
