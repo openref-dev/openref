@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { IRDocument, IROperation } from '../../src/index';
-import { normalizeOpenApiDocument } from '../../src/index';
+import { DEFAULT_SERVER_URL, normalizeOpenApiDocument } from '../../src/index';
 
 /**
  * The parts of a document that are optional, and the parts that a real document gets wrong.
@@ -307,7 +307,9 @@ describe('normalizeOpenApiDocument optional members', () => {
     // Then
     expect(document).toMatchObject({
       id: 'bare',
-      servers: [],
+      // Not empty. A document that declares no server has one, at `/`, which the
+      // specification states outright and which `readDocumentServers` applies.
+      servers: [{ url: DEFAULT_SERVER_URL }],
       navigation: [],
       security: [],
       relationships: [],
@@ -592,5 +594,100 @@ describe('normalizeOpenApiDocument optional members', () => {
 
     // Then
     expect(document.id).toBe('document');
+  });
+});
+
+describe('the default server', () => {
+  it('should give a document that declares no servers the one the specification says it has', () => {
+    // Given
+    const source = { openapi: '3.1.0', info: { title: 'Bare', version: '1' } };
+
+    // When
+    const document = normalizeOpenApiDocument(source);
+
+    // Then
+    expect(document.servers).toEqual([{ url: DEFAULT_SERVER_URL }]);
+  });
+
+  it('should treat an empty array exactly as an absent member, as the specification does', () => {
+    // Given
+    const source = { openapi: '3.1.0', info: { title: 'Bare', version: '1' }, servers: [] };
+
+    // When
+    const document = normalizeOpenApiDocument(source);
+
+    // Then
+    expect(document.servers).toEqual([{ url: DEFAULT_SERVER_URL }]);
+  });
+
+  it('should apply the default when every declared server was unusable', () => {
+    // Given, entries with no url are skipped like any other malformed member, so what the
+    // document effectively declares is nothing.
+    const source = {
+      openapi: '3.1.0',
+      info: { title: 'Bare', version: '1' },
+      servers: [{ description: 'no url here' }, 'not an object'],
+    };
+
+    // When
+    const document = normalizeOpenApiDocument(source);
+
+    // Then
+    expect(document.servers).toEqual([{ url: DEFAULT_SERVER_URL }]);
+  });
+
+  it('should never override a server the document did declare', () => {
+    // Given
+    const source = {
+      openapi: '3.1.0',
+      info: { title: 'API', version: '1' },
+      servers: [{ url: 'https://api.example.test' }],
+    };
+
+    // When
+    const document = normalizeOpenApiDocument(source);
+
+    // Then
+    expect(document.servers).toEqual([{ url: 'https://api.example.test' }]);
+  });
+
+  it('should leave an operation with no override inheriting rather than defaulting', () => {
+    // Given, an empty override list means "use the document's", and the document now always
+    // has one. Defaulting here as well would turn inheritance into a per operation `/`.
+    const source = {
+      openapi: '3.1.0',
+      info: { title: 'API', version: '1' },
+      servers: [{ url: 'https://api.example.test' }],
+      paths: {
+        '/orders': {
+          get: { operationId: 'listOrders', responses: { '200': { description: 'ok' } } },
+        },
+      },
+    };
+
+    // When
+    const document = normalizeOpenApiDocument(source);
+    const node = document.nodes.get('list-orders') ?? [...document.nodes.values()][0];
+
+    // Then
+    expect(node?.kind === 'operation' ? node.servers : null).toEqual([]);
+  });
+
+  it('should contribute no host, so an allowlist derived from servers stays empty', () => {
+    // Given, SPEC 14.5 turns the proxy off on an empty allowlist and derives that allowlist
+    // from `servers`. A relative reference names no host, so the default cannot switch a
+    // proxy on that was off before.
+    const document = normalizeOpenApiDocument({
+      openapi: '3.1.0',
+      info: { title: 'Bare', version: '1' },
+    });
+
+    // When
+    const hosts = document.servers
+      .map((server) => URL.parse(server.url)?.host ?? '')
+      .filter((host) => host !== '');
+
+    // Then
+    expect(hosts).toEqual([]);
   });
 });

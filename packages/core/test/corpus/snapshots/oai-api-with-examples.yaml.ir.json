@@ -1,5 +1,5 @@
 {
-  "hash": "6a323ba20f0912b702c3ba92a3a89ffc751cb828267cfd47056fa0a7b26a8049",
+  "hash": "e39dac400539272c7805ac9cb698c3ccac91182496709a7285c49412187b296c",
   "id": "simple-api-overview",
   "info": {
     "title": "Simple API overview",
@@ -222,6 +222,10 @@
   "relationships": [],
   "schemas": [],
   "security": [],
-  "servers": [],
+  "servers": [
+    {
+      "url": "/"
+    }
+  ],
   "webhooks": []
 }

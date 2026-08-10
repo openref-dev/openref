@@ -51,3 +51,45 @@ jobs:
 
       - name: Gates
         run: pnpm run gates
+
+  module-floor:
+    name: load on the engines floor
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    # A JOB OF ITS OWN BECAUSE IT RUNS ON A DIFFERENT NODE. SPEC 23 says ERR_REQUIRE_ESM in a
+    # consumer project is inadmissible, and native require(esm) arrived in Node 20.19, so the
+    # verify job above passes whether or not anything was done about it. The reader this
+    # protects is on an older runtime. A compatibility check that cannot fail on the version it
+    # protects reports coverage that does not exist.
+    #
+    # The floor is pinned here and asserted against engines.node by
+    # tools/gates/test/unit/module-floor.spec.ts, so the two cannot drift apart in silence.
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm run build
+
+      # pnpm itself does not run on the floor, so the switch happens after everything is built
+      # and the check is plain Node with no dependencies.
+      - name: Switch to the engines floor
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20.11.0
+
+      - name: Load the package on the floor
+        run: node tools/module-floor-check.mjs

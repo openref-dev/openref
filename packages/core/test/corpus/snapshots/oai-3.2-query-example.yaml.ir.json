@@ -1,5 +1,5 @@
 {
-  "hash": "992d231700738467dd9a3bdd24aba7821ba0a3725c28a62c660964d19db6f155",
+  "hash": "116219b84b23ece83bc55d3cc1cfc5ccf559df7d6069709062b22c325f323777",
   "id": "flight-api",
   "info": {
     "title": "Flight API",
@@ -191,6 +191,10 @@
   "relationships": [],
   "schemas": [],
   "security": [],
-  "servers": [],
+  "servers": [
+    {
+      "url": "/"
+    }
+  ],
   "webhooks": []
 }

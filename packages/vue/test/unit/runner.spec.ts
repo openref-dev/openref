@@ -1,4 +1,9 @@
-import { ErrorCode, RunnerError } from '@openref/core';
+import {
+  DEFAULT_SERVER_URL,
+  ErrorCode,
+  normalizeOpenApiDocument,
+  RunnerError,
+} from '@openref/core';
 import { createSSRApp, defineComponent, h } from 'vue';
 import { renderToString } from 'vue/server-renderer';
 import { describe, expect, it } from 'vitest';
@@ -276,5 +281,30 @@ describe('useRunnerFor', () => {
     // Then
     expect(captured?.available.value).toBe(true);
     expect(captured?.id.value).toBe('get-orders');
+  });
+});
+
+describe('runnerOperationOf, the default server', () => {
+  it('should give the console somewhere to send when the document declared no server', () => {
+    // Given, the case this exists for: a NestJS application whose `DocumentBuilder` was never
+    // told a server url, which is the default a scaffolded application ships with. Before the
+    // T004-R1 retrofit the list was empty and the console reported that there was nowhere to
+    // send, on a page served by the very application the request was meant for.
+    const document = normalizeOpenApiDocument({
+      openapi: '3.1.0',
+      info: { title: 'Orders', version: '1.0.0' },
+      paths: {
+        '/orders': {
+          get: { operationId: 'listOrders', responses: { '200': { description: 'ok' } } },
+        },
+      },
+    });
+    const node = [...document.nodes.values()][0];
+
+    // When
+    const view = node?.kind === 'operation' ? runnerOperationOf(node, document) : null;
+
+    // Then
+    expect(view?.servers).toEqual([DEFAULT_SERVER_URL]);
   });
 });

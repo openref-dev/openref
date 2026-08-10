@@ -75,6 +75,15 @@ function runInNode(source: string, kind: 'module' | 'commonjs'): string {
   }).trim();
 }
 
+/**
+ * Dependencies that publish ESM only, and so cannot be `require`d below Node 20.19.
+ *
+ * Adding one here is what makes the check below able to fail. A package that gains an ESM only
+ * major without being added would pass silently, so this list is part of the dependency review
+ * rather than a convenience.
+ */
+const ESM_ONLY_DEPENDENCIES: readonly string[] = ['marked', 'shiki'];
+
 /** Everything Node provides, so it is never mistaken for an undeclared dependency. */
 const BUILTINS = new Set(builtinModules);
 
@@ -187,6 +196,26 @@ describe('the dual build', () => {
     // Then
     expect(undeclared).toEqual([]);
     expect(reached.length).toBeGreaterThan(0);
+  });
+
+  it('should reach every ESM only dependency through import() and never through require()', () => {
+    // Given, the assertion that does not depend on which Node runs it. `require(esm)` is
+    // native from Node 20.19, so a runtime check of this on a modern runtime passes whether or
+    // not the dynamic imports are there, and the reader this protects is on an older one. The
+    // built CommonJS file either reaches for these with `import(` or it does not.
+    const cjs = built('dist/index.cjs');
+
+    // When
+    const reachedByRequire = ESM_ONLY_DEPENDENCIES.filter((name) =>
+      new RegExp(`require\\(\\s*["']${name}["']`).test(cjs),
+    );
+    const reachedByImport = ESM_ONLY_DEPENDENCIES.filter((name) =>
+      new RegExp(`import\\(\\s*["']${name}["']`).test(cjs),
+    );
+
+    // Then
+    expect(reachedByRequire).toEqual([]);
+    expect(reachedByImport).toEqual([...ESM_ONLY_DEPENDENCIES]);
   });
 
   it('should keep the browser bundle free of any external import at all', () => {

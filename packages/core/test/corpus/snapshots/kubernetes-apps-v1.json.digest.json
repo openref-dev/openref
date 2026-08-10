@@ -1,5 +1,5 @@
 {
-  "hash": "e770d06b07bb795a8ef62c9dfc5bbfa74ee54fee672cabaa61c8903b5828614c",
+  "hash": "d882a634a881f3ed8f10fc0e82be8f915a5654848999fe9eca8035dd59c1dbae",
   "id": "kubernetes",
   "kind": "http",
   "info": {
@@ -10,7 +10,7 @@
     "nodes": 77,
     "schemas": 166,
     "webhooks": 0,
-    "servers": 0,
+    "servers": 1,
     "security": 1,
     "navigation": 2
   },

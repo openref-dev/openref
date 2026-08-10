@@ -1,5 +1,5 @@
 {
-  "hash": "092b8105c17a5bf67dab105eabd3409cda3261c85ea0d7ff0c53a07640b6eaf3",
+  "hash": "61d6c994a8718f61be8d4cd53b65ede2d960db49ed6129dd2363c8601b7cc622",
   "id": "non-oauth-scopes-example",
   "info": {
     "title": "Non-oAuth Scopes example",
@@ -59,6 +59,10 @@
       "type": "http"
     }
   ],
-  "servers": [],
+  "servers": [
+    {
+      "url": "/"
+    }
+  ],
   "webhooks": []
 }

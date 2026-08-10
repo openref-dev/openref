@@ -1,5 +1,5 @@
 {
-  "hash": "ba254b2e50025e9725c7afdfd92f46e3350b1113565bd7e2e648ff5ada264b71",
+  "hash": "c9ca230ea563f121f2cb4f56ad7194c9151e62de8511ab1c7e3bb07938012a12",
   "id": "tic-tac-toe",
   "info": {
     "description": "This API allows writing down marks on a Tic Tac Toe board\nand requesting the state of the board or of individual squares.\n",
@@ -477,7 +477,11 @@
       "type": "oauth2"
     }
   ],
-  "servers": [],
+  "servers": [
+    {
+      "url": "/"
+    }
+  ],
   "webhooks": [
     [
       "webhook-post-markstatus",

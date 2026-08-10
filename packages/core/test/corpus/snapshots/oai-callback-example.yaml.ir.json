@@ -1,5 +1,5 @@
 {
-  "hash": "a313e7f475c68ef41b6fe9af782dd8e79ece571566b3b16bb9ac2b44d72e3b0b",
+  "hash": "d9a93999c55409c0ffb4165eef82342b1a69665f2e07920fbf28fbf4b94a79cc",
   "id": "callback-example",
   "info": {
     "title": "Callback Example",
@@ -99,6 +99,10 @@
   "relationships": [],
   "schemas": [],
   "security": [],
-  "servers": [],
+  "servers": [
+    {
+      "url": "/"
+    }
+  ],
   "webhooks": []
 }

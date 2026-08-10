@@ -1,5 +1,5 @@
 {
-  "hash": "824ee17630882a1e92c7ba358b7025eea41d93b6287cad5d0e85064094c2a252",
+  "hash": "6c0c9604700696e3b3b7de6bf9f8c1a5506b1b7f5a87474e9c2ed635e4b8267d",
   "id": "link-example",
   "info": {
     "title": "Link Example",
@@ -582,6 +582,10 @@
     ]
   ],
   "security": [],
-  "servers": [],
+  "servers": [
+    {
+      "url": "/"
+    }
+  ],
   "webhooks": []
 }

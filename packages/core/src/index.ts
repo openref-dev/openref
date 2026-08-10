@@ -176,7 +176,10 @@ export type {
 } from './normalizer/domain/operation-identity';
 export { buildNavigation } from './normalizer/domain/navigation';
 export type { BuildNavigationOptions, NavigationTag } from './normalizer/domain/navigation';
-export { normalizeOpenApiDocument } from './normalizer/domain/openapi-normalizer';
+export {
+  DEFAULT_SERVER_URL,
+  normalizeOpenApiDocument,
+} from './normalizer/domain/openapi-normalizer';
 export type { NormalizeOpenApiOptions } from './normalizer/domain/openapi-normalizer';
 export {
   buildSchema,

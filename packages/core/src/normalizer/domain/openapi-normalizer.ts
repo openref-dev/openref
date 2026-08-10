@@ -291,6 +291,43 @@ function readServers(raw: unknown): IRServer[] {
   return servers;
 }
 
+/**
+ * The server an OpenAPI document has when it declares none.
+ *
+ * The specification is explicit: with `servers` absent or an empty array, the document has one
+ * Server Object whose url is `/`. It is a relative reference, meaning "wherever this document is
+ * served from", and a consumer resolves it against the location the document came from.
+ */
+export const DEFAULT_SERVER_URL = '/';
+
+/**
+ * The document's servers, with the specification's default applied.
+ *
+ * THE DEFAULT IS PART OF THE DOCUMENT, NOT A CONVENIENCE FOR ONE CONSUMER. Leaving the list
+ * empty made three different things wrong at once: the try-it console reported that there was
+ * nowhere to send, the server selector had nothing to select, and the proxy allowlist of SPEC
+ * 14.5, which T040 derives from `servers`, would have been derived from an absence rather than
+ * from the default. Each of those would have been fixed separately and differently.
+ *
+ * The default is applied whenever the effective list is empty, including when the document
+ * wrote entries this normalizer could not read. A server object with no url is skipped like
+ * every other malformed member, per T004, and a document whose only declaration was skipped has
+ * declared no usable server; the alternative is a reference with nowhere to send and nothing
+ * saying why.
+ *
+ * IT DOES NOT MAKE THE PROXY ALLOWLIST NON EMPTY. SPEC 14.5 turns the proxy off on an empty
+ * allowlist, and an allowlist is a set of hosts: `/` is relative and names no host, so it
+ * contributes nothing to it and the proxy stays off exactly where it was off before.
+ *
+ * @param raw - The `servers` member as written, untrusted
+ * @returns The declared servers, or the single default one
+ */
+function readDocumentServers(raw: unknown): IRServer[] {
+  const declared = readServers(raw);
+
+  return declared.length > 0 ? declared : [{ url: DEFAULT_SERVER_URL }];
+}
+
 function readServerOverrides(raw: unknown): IRServerOverride[] {
   return readServers(raw).map((server) => {
     const override: { -readonly [Key in keyof IRServerOverride]: IRServerOverride[Key] } = {
@@ -814,7 +851,7 @@ export function normalizeOpenApiDocument(
     kind: 'http',
     hash: '',
     info,
-    servers: readServers(input.servers),
+    servers: readDocumentServers(input.servers),
     navigation,
     nodes,
     schemas: new Map(schemas.map((schema) => [schema.id, schema])),

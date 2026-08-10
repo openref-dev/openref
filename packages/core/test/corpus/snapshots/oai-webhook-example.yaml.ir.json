@@ -1,5 +1,5 @@
 {
-  "hash": "9f8a4aa5c63c9754539d4a8accf82da1697f8447210d1de4f810d3c1321842eb",
+  "hash": "eff96d37db85c7cec0227911b08f2d768aff06092d264b1bf92dabdac2f4d398",
   "id": "webhook-example",
   "info": {
     "title": "Webhook Example",
@@ -54,7 +54,11 @@
     ]
   ],
   "security": [],
-  "servers": [],
+  "servers": [
+    {
+      "url": "/"
+    }
+  ],
   "webhooks": [
     [
       "webhook-post-newpet",
