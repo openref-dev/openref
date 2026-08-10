@@ -1,0 +1,23 @@
+{
+  "name": "@openref/browser-budget",
+  "version": "0.0.0",
+  "description": "The SPEC 20 budgets that only a real browser engine can produce: TTI under a CPU throttle, peak client memory, external requests, and the strict CSP proof",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "source": "./src/index.ts",
+  "engines": {
+    "node": "^22.22.2 || ^24.15.0 || >=26.0.0"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  },
+  "devDependencies": {
+    "@openref/nest": "workspace:*",
+    "@types/express": "5.0.6",
+    "express": "5.2.1",
+    "playwright-core": "1.62.1",
+    "typescript": "5.9.3"
+  }
+}

@@ -1,0 +1,72 @@
+name: Browser budget study
+
+# THE FIRST FIGURE HAS TO COME FROM THE RUNNER, NOT FROM A WORKSTATION.
+#
+# `Emulation.setCPUThrottlingRate` is relative to the host CPU, so a 4x throttle on a
+# developer machine and a 4x throttle here are two different measurements. A baseline taken
+# locally would name a machine nobody will ever run again.
+#
+# This is also the mechanism the T015 amendment asks for: when the runner image ships a new
+# Chrome major, the relative check stops firing and the committed baseline has to be
+# re-recorded deliberately. Re-recording is dispatching this workflow and reading the summary,
+# which is one deliberate act rather than a silent reset.
+#
+# THE IMAGE IS PINNED. `ubuntu-latest` moves, and a budget measured on an image that moves is
+# not a budget. When this pin is raised, the baseline is re-recorded in the same commit.
+
+on:
+  workflow_dispatch:
+    inputs:
+      tti-runs:
+        description: Throttled runs over the thousand node page
+        required: false
+        default: '20'
+      memory-runs:
+        description: Unthrottled runs over the 6.4 MB document
+        required: false
+        default: '5'
+
+jobs:
+  study:
+    name: measure TTI and peak client memory
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm run build
+
+      # Recorded in the log as well as in the report, because the log is what a maintainer
+      # reads when a figure moves and the first question is always which browser it was.
+      - name: Report the browser
+        run: |
+          google-chrome --version
+          echo "image ${ImageOS:-unknown} version ${ImageVersion:-unknown} arch ${RUNNER_ARCH:-unknown}"
+
+      - name: Study
+        run: >
+          node tools/browser-budget/dist/cli.js
+          --tti-runs=${{ inputs.tti-runs }}
+          --memory-runs=${{ inputs.memory-runs }}
+          --out=browser-budget-study.json
+
+      - name: Upload the report
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-budget-study
+          path: browser-budget-study.json
