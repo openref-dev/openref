@@ -12,6 +12,7 @@ import {
   checkRequiredDocs,
   parseContents,
   parseMilestones,
+  planTaskIds,
   splitLines,
 } from '../../src/lib/build-manifest';
 
@@ -334,5 +335,63 @@ describe('parseMilestones', () => {
     ]);
     expect(tasks).toHaveLength(BUILD_TASK_COUNT);
     expect(milestones[0]?.tasks.map((task) => task.id)).toContain('T016');
+  });
+});
+
+/**
+ * The one definition of what the plan can hand work to.
+ *
+ * IT WAS TWO DEFINITIONS UNTIL 2026-08-10, one in the claims gate and one in the budget
+ * exceptions gate, and they disagreed: the exceptions gate accepted a retrofit as an owner and
+ * the claims gate did not. So `T011-R` could excuse a budget and could not own a claim, and
+ * nothing said the two gates were answering the same question differently.
+ */
+describe('planTaskIds', () => {
+  const amendments = [
+    '### [ ] `T015-R1` The budget names work done, not time elapsed',
+    '### [x] `T012-R3` A retrofit that is already ticked is still an owner',
+    '### [ ] `TX-VIS` The reference routes behind a guard',
+    '### [ ] `T099` A heading with no retrofit suffix is not an amendment task',
+    'A line naming `T015-R2` in prose is not a heading and declares nothing',
+  ].join('\n');
+
+  it('should carry every BUILD.md task and every amendment task', () => {
+    // Given, both files that can hold an id
+    // When
+    const ids = planTaskIds(buildFixture(), amendments);
+
+    // Then
+    expect(ids).toContain('T001');
+    expect(ids).toContain('T015-R1');
+    expect(ids).toContain('T012-R3');
+    expect(ids).toContain('TX-VIS');
+  });
+
+  it('should take an id from a heading and never from prose', () => {
+    // Given, a mention is not a declaration. An id that counted because a sentence used it would
+    // let a claim be owned by a task nobody ever filed.
+    // When
+    const ids = planTaskIds(buildFixture(), amendments);
+
+    // Then
+    expect(ids).not.toContain('T015-R2');
+    expect(ids).not.toContain('T099');
+  });
+
+  it('should give the two gates that call it the same answer for the real files', () => {
+    // Given, the condition that made this one function: `T011-R` owns the live `tti` exception
+    // and now also owns claims, and both readings have to come out the same
+    const repoRoot = join(import.meta.dirname, '..', '..', '..', '..');
+    const build = readFileSync(join(repoRoot, BUILD_FILE), 'utf8');
+    const amendmentsText = readFileSync(join(repoRoot, 'ai-docs/BUILD-AMENDMENTS.md'), 'utf8');
+
+    // When
+    const ids = planTaskIds(build, amendmentsText);
+
+    // Then
+    expect(ids).toContain('T011-R');
+    expect(ids).toContain('T015-R1');
+    expect(ids).toContain('TX-VIS');
+    expect(ids).toHaveLength(new Set(ids).size);
   });
 });

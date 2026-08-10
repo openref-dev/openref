@@ -9,7 +9,7 @@ import {
 import { aiDocsAbsentMessage, aiDocsPresent } from '../lib/ai-docs.js';
 import { checkBudgetExceptions, describeException } from '../lib/budget-exceptions.js';
 import { collectBudgetOutcomes, overBudgetIds } from '../lib/budget-report.js';
-import { parseContents, parseMilestones, splitLines } from '../lib/build-manifest.js';
+import { parseMilestones, planTaskIds, splitLines } from '../lib/build-manifest.js';
 import type { Gate, GateFinding, GateResult } from '../types.js';
 
 /**
@@ -83,7 +83,7 @@ export const budgetExceptionsGate: Gate = {
     const issues = checkBudgetExceptions(BUDGET_EXCEPTIONS, {
       budgetIds: SPEC_20_BUDGET_IDS,
       overBudgetIds: overBudgetIds(collectBudgetOutcomes(context.repoRoot)),
-      taskIds: taskIdsOf(lines, amendments),
+      taskIds: planTaskIds(build, amendments),
       milestones: parseMilestones(lines),
     });
 
@@ -103,24 +103,3 @@ export const budgetExceptionsGate: Gate = {
     });
   },
 };
-
-/**
- * Every task id the plan carries, from both files that can hold one.
- *
- * A retrofit and a task with no number are real owners. `ai-docs/BUILD.md` cannot gain a task
- * without being regenerated, which is the maintainer's call, so work scheduled between
- * regenerations lives in the amendments and owns things from there.
- *
- * @param lines - Lines of `ai-docs/BUILD.md`
- * @param amendments - Text of `ai-docs/BUILD-AMENDMENTS.md`, empty when it could not be read
- * @returns Task ids, in no particular order
- */
-function taskIdsOf(lines: readonly string[], amendments: string): string[] {
-  const ids = parseContents(lines).map((entry) => entry.id);
-
-  for (const match of amendments.matchAll(/^### \[[ x]\] `((?:T\d{3}-R\d*)|(?:TX-[A-Z-]+))`/gm)) {
-    ids.push(match[1] ?? '');
-  }
-
-  return ids;
-}

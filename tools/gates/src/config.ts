@@ -372,6 +372,24 @@ export const MEASURED_BUDGETS: readonly MeasuredBudget[] = [
   },
   { id: 'prerender', label: 'Prerender, 1000 nodes', limit: '2 s', enforcedBy: 'T011' },
   { id: 'tti', label: 'TTI, 1000 nodes, 4x CPU throttle', limit: '150 ms', enforcedBy: 'T015' },
+  // THESE TWO HAVE NO NUMBER YET, DELIBERATELY, and that is why they are here rather than in
+  // `BROWSER_CEILINGS`. SPEC 20 replaces the TTI ceiling with quantities that do not move with
+  // the processor, and it says in the same paragraph that a threshold written before the spread
+  // is measured is a fitted number from the other side. They print as not measured with the task
+  // that owns them, which is the state T001 asks for: an unmeasured budget is visible on every
+  // run and never reads as one that passed.
+  {
+    id: 'main-thread-work',
+    label: 'Main thread task time, 1000 nodes, 4x CPU throttle',
+    limit: 'a threshold derived from the three processor study',
+    enforcedBy: 'T015-R1',
+  },
+  {
+    id: 'long-tasks',
+    label: 'Main thread tasks over 50 ms, 1000 nodes, 4x CPU throttle',
+    limit: 'a threshold derived from the three processor study',
+    enforcedBy: 'T015-R1',
+  },
   {
     id: 'client-memory',
     label: 'Peak client memory, 7 MB document',
@@ -466,7 +484,7 @@ export const BUDGET_EXCEPTIONS: readonly BudgetException[] = [
     budget: 'tti',
     measured: '213.9 ms, median of 25 throttled navigations',
     target: '150 ms',
-    owners: ['T011-R', 'T012-R3'],
+    owners: ['T011-R', 'T015-R1'],
     clearBy: 'M0',
     recordedAt: '2026-08-10',
     diagnosis:
@@ -475,7 +493,13 @@ export const BUDGET_EXCEPTIONS: readonly BudgetException[] = [
       'what is between the page and the budget is work rather than transfer: 108 KB of decoded ' +
       'JavaScript to compile and hydrate, and 38.8 KB of decoded CSS to parse and match. Cutting the ' +
       'served document by 85 percent in T012-R2 moved the phase it was aimed at by 4 percent, so the ' +
-      'state block was not the cause. T011-R owns the bundle and T012-R3 owns the stylesheet.',
+      'state block was not the cause. T011-R owns the bundle. T012-R3 owned the stylesheet and is ' +
+      'done, and it is replaced here rather than removed, because what stands between this entry ' +
+      'and being retired is no longer only the artefact: three studies of identical bytes on one ' +
+      'image and one Chrome measured 213.9, 148.2 and 196.0 ms on three processors of a pool that ' +
+      'swaps them silently, so the ceiling is not resolvable on this machinery. T015-R1 owns the ' +
+      'replacement metric SPEC 20 now names, and this entry is retired by that landing rather than ' +
+      'by a baseline re-recorded on whichever processor the pool hands out.',
   },
 ];
 

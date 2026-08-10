@@ -16,6 +16,7 @@ import { writeFileSync } from 'node:fs';
 import { checkCeilings, compareToBaseline, readBrowserBaseline } from '@openref/gates/baseline';
 import { repositoryRoot } from './repo-root.js';
 import { runStudy } from './study.js';
+import type { Spread } from './statistics.js';
 import type { StudyReport } from './study.js';
 
 /**
@@ -24,6 +25,55 @@ import type { StudyReport } from './study.js';
  * @param report - What the study produced
  * @returns Lines to print
  */
+/**
+ * The main thread block, one line per quantity, each with the spread beside the median.
+ *
+ * @param report - What the study produced
+ * @returns Lines to print
+ */
+function workLines(report: StudyReport): string[] {
+  const line = (label: string, spread: Spread, unit: string): string =>
+    `               ${label.padEnd(18)} median ${spread.median.toFixed(unit === '' ? 2 : 1).padStart(8)}${unit}` +
+    `  min ${spread.min.toFixed(unit === '' ? 2 : 1)}  max ${spread.max.toFixed(unit === '' ? 2 : 1)}` +
+    `  sd ${spread.standardDeviation.toFixed(unit === '' ? 2 : 1)}` +
+    `  range ${(spread.relativeRange * 100).toFixed(1)}% of median`;
+
+  return [
+    line('task time', report.work.taskMs, ' ms'),
+    line('  script', report.work.scriptMs, ' ms'),
+    line('  style recalc', report.work.recalcStyleMs, ' ms'),
+    line('  layout', report.work.layoutMs, ' ms'),
+    line('  other', report.work.otherMs, ' ms'),
+    line('long tasks >50ms', report.work.longTaskCount, ''),
+    line('  their total', report.work.longTaskTotalMs, ' ms'),
+    line('calibrated work', report.work.calibratedWork, ''),
+    `               samples ${report.work.taskMs.samples.map((value) => value.toFixed(1)).join(', ')}`,
+    report.work.rendererReusedConsistently
+      ? ''
+      : '               THE RENDERER WAS REUSED ON SOME RUNS AND SWAPPED ON OTHERS, so the ' +
+        'counters were read two different ways in one study',
+  ].filter((text) => text !== '');
+}
+
+/**
+ * One byte column, with min and max beside the median.
+ *
+ * These should not move at all between runs of one page, so the range is printed rather than
+ * assumed away: a column that moved says the runs were not measuring the same thing.
+ *
+ * @param label - Which column
+ * @param spread - What it did across the runs
+ * @returns The line
+ */
+function byteLine(label: string, spread: Spread): string {
+  const kb = (value: number): string => `${(value / 1024).toFixed(1)} KB`;
+
+  return (
+    `               ${label.padEnd(18)} median ${kb(spread.median).padStart(10)}` +
+    `  min ${kb(spread.min)}  max ${kb(spread.max)}`
+  );
+}
+
 export function summarize(report: StudyReport): string[] {
   const kb = (bytes: number): string => `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 
@@ -47,6 +97,18 @@ export function summarize(report: StudyReport): string[] {
       `parse ${report.ttiParseMs.median.toFixed(1)} ms, ` +
       `script and hydrate ${report.ttiScriptMs.median.toFixed(1)} ms, all medians`,
     `first paint    ${report.ttiFirstPaintMs.median.toFixed(1)} ms, median`,
+    '',
+    // PRINTED BESIDE TTI AND NOT INSTEAD OF IT. These are the quantities SPEC 20 moves to, and
+    // the whole point of the study they feed is comparing their spread against the clock's on
+    // one set of navigations. The relative range is what the comparison is read off, so it is
+    // printed for every one of them rather than left to be worked out from min and max.
+    'main thread    what the page cost, rather than how long it took',
+    ...workLines(report),
+    'parsed bytes   what the main thread is given, which no processor changes',
+    byteLine('document', report.parsedBytes.documentBytes),
+    byteLine('css', report.parsedBytes.cssBytes),
+    byteLine('js', report.parsedBytes.jsBytes),
+    byteLine('other', report.parsedBytes.otherBytes),
     'resources      when the last byte arrived, median, and what it was',
     ...report.ttiResources.map(
       (resource) =>

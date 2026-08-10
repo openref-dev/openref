@@ -24,10 +24,30 @@
  * and would make the client figure move whenever the render cache was cold. Everything after
  * the first byte is the client's: the rest of the document, the stylesheets, the bundle, the
  * parse and the hydration.
+ *
+ * AND SINCE 2026-08-10, TTI IS NO LONGER THE THING THIS IS FOR. Three studies of identical
+ * bytes, on one runner image and one Chrome, measured 213.9, 148.2 and 196.0 ms on three
+ * processors of a pool that swaps them without saying so. Elapsed time on such machinery cannot
+ * resolve a 150 ms ceiling, so SPEC 20 replaces what is checked with what the page costs rather
+ * than how long it takes, and this file measures three more things beside the clock:
+ *
+ * - main thread task time, and the split into script, style recalculation and layout. Time
+ *   spent rather than time elapsed: nothing the renderer waits for is in it
+ * - the count of main thread tasks over 50 ms, which is what a reader feels as a stall
+ * - the bytes the page parses and compiles, split by CSS and JS, which do not move with a
+ *   processor at all because they are a count of bytes
+ *
+ * WHAT THE INSTRUMENT CANNOT DO, stated rather than glossed. The maintainer asked for task time
+ * between `responseEnd` and `domInteractive`. `Performance.getMetrics` is a cumulative counter
+ * with no way to read it at a navigation timing boundary, and nothing in the page can see a task
+ * shorter than 50 ms, so what is measured is the whole of the load rather than one phase of it.
+ * That is the wider quantity and it is also the safer one: a phase boundary on this page already
+ * carried a wrong diagnosis once, in session 15, when `parseMs` was read as parsing the document
+ * and moved by five percent when the document shrank by eighty five.
  */
 
 import { applyVerifiedThrottle, THROTTLE_RATE, type ThrottleVerification } from './throttle.js';
-import type { Browser, ConsoleMessage, Page, Request } from 'playwright-core';
+import type { Browser, CDPSession, ConsoleMessage, Page, Request } from 'playwright-core';
 
 /** A request the page made. */
 export interface RequestRecord {
@@ -44,6 +64,59 @@ export interface CspViolationRecord {
   readonly source: 'event' | 'console';
 }
 
+/**
+ * The renderer's own counters, in seconds, exactly as `Performance.getMetrics` reports them.
+ *
+ * Kept in the browser's units up to the one place they are converted, so a factor of a thousand
+ * cannot be applied twice or not at all without the conversion being visible.
+ */
+export interface RendererCounters {
+  /** Total time the main thread spent inside tasks. Waiting is not a task. */
+  readonly taskSeconds: number;
+  readonly scriptSeconds: number;
+  readonly recalcStyleSeconds: number;
+  readonly layoutSeconds: number;
+  /** Task time that is none of the three above: parsing, compiling, painting, event handling. */
+  readonly otherSeconds: number;
+}
+
+/** What the main thread actually did over one page load, in milliseconds. */
+export interface MainThreadWork {
+  readonly taskMs: number;
+  readonly scriptMs: number;
+  readonly recalcStyleMs: number;
+  readonly layoutMs: number;
+  readonly otherMs: number;
+  /**
+   * Whether the navigation stayed in the renderer the throttle calibration ran in.
+   *
+   * THE CALIBRATION IS HUNDREDS OF MILLISECONDS OF DELIBERATE BUSY WORK, so a counter that
+   * carried it would be measuring the measurer. Chrome swaps renderer process between
+   * `about:blank` and the fixture origin today, which resets the counters, and the two cases are
+   * told apart rather than assumed: a counter that went down was reset and reads page only, a
+   * counter that went up is shared and the difference is the page's. Recorded per run so that a
+   * change to Chrome's process model shows up as a flipped flag instead of as a figure that
+   * quietly gained the calibration.
+   */
+  readonly rendererReused: boolean;
+}
+
+/**
+ * What the page hands the main thread to parse and compile, split by kind.
+ *
+ * THE ONLY QUANTITY HERE THAT IS THE SAME ON EVERY MACHINE. It is a count of bytes, so it has no
+ * spread across processors at all, which is what SPEC 20 wants from a budget after three studies
+ * of one page disagreed by a third of its ceiling.
+ */
+export interface ParsedBytes {
+  /** Decoded bytes of the document itself. */
+  readonly documentBytes: number;
+  readonly cssBytes: number;
+  readonly jsBytes: number;
+  /** Fonts, images and anything else, which the main thread does not parse as source. */
+  readonly otherBytes: number;
+}
+
 /** Everything one navigation produced. */
 export interface PageMeasurement {
   readonly url: string;
@@ -55,7 +128,13 @@ export interface PageMeasurement {
   /** Where the time went, so a figure that is too high says what to look at. */
   readonly breakdown: TtiBreakdown;
   readonly longTaskCount: number;
+  /** Milliseconds spent inside those tasks, so a count of one says how bad the one was. */
+  readonly longTaskTotalMs: number;
   readonly lastLongTaskEndMs: number;
+  /** What the main thread did, which is the quantity SPEC 20 moves to from elapsed time. */
+  readonly work: MainThreadWork;
+  /** What the page gave the main thread to parse and compile. */
+  readonly parsedBytes: ParsedBytes;
   /**
    * Every subresource the page fetched, with the browser's own timings.
    *
@@ -136,6 +215,7 @@ interface PageTimings {
   readonly heapSamples: readonly number[];
   readonly resources: readonly ResourceRecord[];
   readonly firstPaintMs: number;
+  readonly documentBytes: number;
 }
 
 /**
@@ -170,6 +250,105 @@ interface NavigationTimingLike {
   readonly responseEnd: number;
   readonly domInteractive: number;
   readonly domContentLoadedEventEnd: number;
+  readonly decodedBodySize: number;
+}
+
+/**
+ * The main thread work of one page load, from the counters read either side of the navigation.
+ *
+ * @param before - Counters read after the throttle was verified and before the navigation
+ * @param after - Counters read once the page had settled
+ * @returns The work, with `rendererReused` saying which of the two readings it came from
+ */
+export function mainThreadWorkOf(
+  before: RendererCounters,
+  after: RendererCounters,
+): MainThreadWork {
+  // A COUNTER THAT WENT DOWN WAS RESET, which is a new renderer process, and the `after` reading
+  // is then the page's own work with nothing of the calibration in it. A counter that went up is
+  // the same renderer counting on, and the difference is the page's. Deciding on the total
+  // rather than per field, so the five figures always describe one page load rather than a mix.
+  const reused = after.taskSeconds >= before.taskSeconds;
+  const of = (key: keyof RendererCounters): number =>
+    (reused ? after[key] - before[key] : after[key]) * 1000;
+
+  return {
+    taskMs: of('taskSeconds'),
+    scriptMs: of('scriptSeconds'),
+    recalcStyleMs: of('recalcStyleSeconds'),
+    layoutMs: of('layoutSeconds'),
+    otherMs: of('otherSeconds'),
+    rendererReused: reused,
+  };
+}
+
+/** The last extension of a path, which is what decides how the main thread treats the bytes. */
+const EXTENSION_PATTERN = /\.([a-z0-9]+)$/i;
+
+/** What each kind of resource counts as. Anything unlisted is other. */
+const KIND_BY_EXTENSION: Readonly<Record<string, 'css' | 'js'>> = {
+  css: 'css',
+  js: 'js',
+  mjs: 'js',
+  cjs: 'js',
+};
+
+/** What each initiator counts as, for a resource served with no extension at all. */
+const KIND_BY_INITIATOR: Readonly<Record<string, 'css' | 'js'>> = {
+  link: 'css',
+  script: 'js',
+};
+
+/**
+ * Splits what the page fetched into what the main thread parses as source and what it does not.
+ *
+ * CLASSIFIED BY THE EXTENSION FIRST AND THE INITIATOR ONLY WHEN THERE IS NONE. Assets are served
+ * under names carrying a digest, and the digest sits before the extension rather than replacing
+ * it, so the extension is the reliable half. The initiator alone would be wrong in a way that
+ * flatters the CSS figure: a preloaded font is fetched by a `link` too, and counting a woff2 as
+ * a stylesheet would put 45 KB the main thread never parses into the quantity being budgeted.
+ * Anything neither rule names is counted as other rather than dropped, so every byte the page
+ * fetched appears in exactly one column.
+ *
+ * @param documentBytes - Decoded bytes of the document itself, which is not a subresource
+ * @param resources - What the page fetched
+ * @returns The split
+ */
+export function parsedBytesOf(
+  documentBytes: number,
+  resources: readonly ResourceRecord[],
+): ParsedBytes {
+  let cssBytes = 0;
+  let jsBytes = 0;
+  let otherBytes = 0;
+
+  for (const resource of resources) {
+    const extension = EXTENSION_PATTERN.exec(pathOf(resource.name))?.[1]?.toLowerCase();
+    const kind =
+      extension === undefined
+        ? KIND_BY_INITIATOR[resource.initiatorType]
+        : KIND_BY_EXTENSION[extension];
+
+    if (kind === 'css') cssBytes += resource.decodedBytes;
+    else if (kind === 'js') jsBytes += resource.decodedBytes;
+    else otherBytes += resource.decodedBytes;
+  }
+
+  return { documentBytes, cssBytes, jsBytes, otherBytes };
+}
+
+/**
+ * The path of a resource url, without the origin, which changes per run.
+ *
+ * @param name - Url as the browser recorded it
+ * @returns The path, or the whole string when it is not a url
+ */
+function pathOf(name: string): string {
+  try {
+    return new URL(name).pathname;
+  } catch {
+    return name;
+  }
 }
 
 /**
@@ -262,6 +441,7 @@ export async function measurePage(
   });
 
   await page.addInitScript(observerScript(heapSampleMs));
+  await session.send('Performance.enable', { timeDomain: 'timeTicks' });
 
   if (options.transformHtml !== undefined) {
     const transform = options.transformHtml;
@@ -277,6 +457,11 @@ export async function measurePage(
     // contend with its own work and would time the loop against a busy main thread.
     throttle = await applyVerifiedThrottle(page, session, rate);
   }
+
+  // AFTER THE CALIBRATION AND BEFORE THE NAVIGATION, which is the only moment this reading is
+  // worth taking. The calibration is a busy loop by design, so a counter read before it would
+  // hand the page several hundred milliseconds of the harness's own work.
+  const countersBefore = await rendererCounters(session);
 
   try {
     await page.goto(options.url, { waitUntil: 'load', timeout: 180_000 });
@@ -331,6 +516,7 @@ export async function measurePage(
         })),
         firstPaintMs:
           paints.find((entry) => entry.name === 'first-contentful-paint')?.startTime ?? 0,
+        documentBytes: navigation?.decodedBodySize ?? 0,
         requestStartMs: navigation?.requestStart ?? -1,
         responseStartMs: navigation?.responseStart ?? -1,
         responseEndMs: navigation?.responseEnd ?? -1,
@@ -366,6 +552,19 @@ export async function measurePage(
       0,
     );
 
+    const work = mainThreadWorkOf(countersBefore, await rendererCounters(session));
+
+    // A COUNTER OF ZERO IS A BROKEN INSTRUMENT, NOT AN IDLE PAGE. This page compiles a hundred
+    // kilobytes of JavaScript and hydrates a component tree, so a main thread that did no work
+    // measured nothing. Left as a failure rather than a figure, for the reason the heap sampler
+    // is: a budget nobody measured reads exactly like one that passed.
+    if (work.taskMs <= 0) {
+      throw new Error(
+        'Performance.getMetrics reported no main thread task time for this page load, so the ' +
+          'quantity SPEC 20 budgets was not measured. TaskDuration is what it reads.',
+      );
+    }
+
     return {
       url: options.url,
       ttiMs: Math.max(timings.domContentLoadedMs, lastLongTaskEndMs) - timings.responseStartMs,
@@ -377,7 +576,10 @@ export async function measurePage(
         scriptMs: timings.domContentLoadedMs - timings.domInteractiveMs,
       },
       longTaskCount: timings.longTasks.length,
+      longTaskTotalMs: timings.longTasks.reduce((total, task) => total + task.duration, 0),
       lastLongTaskEndMs,
+      work,
+      parsedBytes: parsedBytesOf(timings.documentBytes, timings.resources),
       resources: timings.resources,
       firstPaintMs: timings.firstPaintMs,
       peakHeapBytes: timings.heapSamples.reduce((peak, sample) => Math.max(peak, sample), 0),
@@ -393,6 +595,43 @@ export async function measurePage(
   } finally {
     await context.close();
   }
+}
+
+/**
+ * Reads the renderer's own work counters over CDP.
+ *
+ * OVER CDP RATHER THAN FROM INSIDE THE PAGE, because nothing in the page can see a task shorter
+ * than 50 ms: `PerformanceObserver` reports long tasks and long animation frames and neither is
+ * the total. Reading it from the page would also mean running our own code inside the
+ * measurement, which is the defect the heap sampler is kept off the TTI runs for.
+ *
+ * @param session - CDP session of the page
+ * @returns The counters, in the seconds the protocol reports
+ * @throws Error when the protocol reports no `TaskDuration`, because a missing counter defaulted
+ *   to zero would read as a page that did no work
+ */
+async function rendererCounters(session: CDPSession): Promise<RendererCounters> {
+  const response = (await session.send('Performance.getMetrics')) as {
+    metrics: readonly { name: string; value: number }[];
+  };
+  const byName = new Map(response.metrics.map((metric) => [metric.name, metric.value]));
+
+  if (!byName.has('TaskDuration')) {
+    throw new Error(
+      'Performance.getMetrics reports no TaskDuration, so main thread work cannot be measured ' +
+        'in this browser. SPEC 20 budgets that quantity, so this is a failure and not a zero.',
+    );
+  }
+
+  const of = (name: string): number => byName.get(name) ?? 0;
+
+  return {
+    taskSeconds: of('TaskDuration'),
+    scriptSeconds: of('ScriptDuration'),
+    recalcStyleSeconds: of('RecalcStyleDuration'),
+    layoutSeconds: of('LayoutDuration'),
+    otherSeconds: of('TaskOtherDuration'),
+  };
 }
 
 /**

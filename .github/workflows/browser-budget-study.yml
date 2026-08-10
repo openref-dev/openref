@@ -35,9 +35,25 @@ on:
 
 jobs:
   study:
-    name: measure TTI and peak client memory
+    name: study ${{ matrix.sample }}, TTI and the work behind it
     runs-on: ubuntu-24.04
     timeout-minutes: 45
+
+    # THREE INDEPENDENT STUDIES PER PUSH, BECAUSE THE POOL IS WHAT IS BEING SAMPLED.
+    #
+    # The runner pool hands out a processor per job and does not say which. Three studies taken
+    # across three sessions measured 213.9, 148.2 and 196.0 ms on an EPYC 9V74, an EPYC 9V45 and
+    # a Xeon 8370C, all under the same image, the same Chrome and the same measured throttle, and
+    # nothing in the environment id distinguished them. SPEC 20 now derives its thresholds from
+    # the spread across processors rather than from one machine, so the harness has to be able to
+    # see more than one machine in one push instead of waiting for luck across sessions.
+    #
+    # `fail-fast: false` because a study that is over its ceiling is the expected state today and
+    # cancelling the other two would throw away the comparison this exists to make.
+    strategy:
+      fail-fast: false
+      matrix:
+        sample: [1, 2, 3]
 
     steps:
       - name: Checkout
@@ -88,5 +104,5 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: browser-budget-study
+          name: browser-budget-study-${{ matrix.sample }}
           path: browser-budget-study.json

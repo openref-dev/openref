@@ -1,7 +1,8 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { CLAIM_MAP_FILE, SPEC_20_BUDGET_IDS, SPEC_FILE } from '../../src/config';
+import { BUILD_FILE, CLAIM_MAP_FILE, SPEC_20_BUDGET_IDS, SPEC_FILE } from '../../src/config';
+import { planTaskIds } from '../../src/lib/build-manifest';
 import {
   checkClaimMap,
   parseBudgetRows,
@@ -262,7 +263,10 @@ describe('checkClaimMap', () => {
 
 describe('the committed claim map', () => {
   it('should answer every claim the specification makes, against files that are there', () => {
-    // Given the real documents and the real repository, which is what the gate runs on
+    // Given the real documents and the real repository, which is what the gate runs on. THE
+    // OWNER LIST IS READ RATHER THAN WRITTEN OUT: it used to be five ids typed here, and a
+    // second copy of a list is a second thing to forget. The gate reads it from BUILD.md and the
+    // amendments, so this reads it the same way, and a task filed there needs no edit here.
     const spec = readFileSync(join(repoRoot, SPEC_FILE), 'utf8');
     const map = readFileSync(join(repoRoot, CLAIM_MAP_FILE), 'utf8');
 
@@ -272,7 +276,10 @@ describe('the committed claim map', () => {
       budgetIds: SPEC_20_BUDGET_IDS,
       budgetRows: parseBudgetRows(spec),
       map: parseClaimMap(map),
-      taskIds: ['T029', 'T039', 'T040', 'T056', 'TX-VIS'],
+      taskIds: planTaskIds(
+        readFileSync(join(repoRoot, BUILD_FILE), 'utf8'),
+        readFileSync(join(repoRoot, 'ai-docs/BUILD-AMENDMENTS.md'), 'utf8'),
+      ),
       exists: (path) => existsSync(join(repoRoot, path)),
     });
 

@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { BUILD_FILE, CLAIM_MAP_FILE, SPEC_20_BUDGET_IDS, SPEC_FILE } from '../config.js';
 import { aiDocsAbsentMessage, aiDocsPresent } from '../lib/ai-docs.js';
-import { parseContents, splitLines } from '../lib/build-manifest.js';
+import { planTaskIds } from '../lib/build-manifest.js';
 import {
   checkClaimMap,
   parseBudgetRows,
@@ -91,7 +91,7 @@ export const claimsGate: Gate = {
       budgetIds: SPEC_20_BUDGET_IDS,
       budgetRows: parseBudgetRows(spec),
       map: rows,
-      taskIds: taskIdsOf(build, amendments),
+      taskIds: planTaskIds(build, amendments ?? ''),
       exists: (path) => existsSync(join(context.repoRoot, path)),
     });
 
@@ -124,20 +124,3 @@ export const claimsGate: Gate = {
     });
   },
 };
-
-/**
- * Every task id the plan carries, from both files that can hold one.
- *
- * @param build - Text of `ai-docs/BUILD.md`
- * @param amendments - Text of `ai-docs/BUILD-AMENDMENTS.md`, or null when it could not be read
- * @returns Task ids, in no particular order
- */
-function taskIdsOf(build: string, amendments: string | null): string[] {
-  const ids = parseContents(splitLines(build)).map((entry) => entry.id);
-
-  for (const match of (amendments ?? '').matchAll(/^### \[[ x]\] `(TX-[A-Z-]+)`/gm)) {
-    ids.push(match[1] ?? '');
-  }
-
-  return ids;
-}

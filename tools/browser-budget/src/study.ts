@@ -17,6 +17,7 @@ import {
   externalRequestsOf,
   measurePage,
   type PageMeasurement,
+  type ParsedBytes,
   type ResourceRecord,
 } from './measure.js';
 import { spreadOf, type Spread } from './statistics.js';
@@ -91,6 +92,110 @@ function resourceSummaries(runs: readonly PageMeasurement[]): ResourceSummary[] 
     .sort((left, right) => left.endMs - right.endMs);
 }
 
+/** The main thread quantities, each across the runs of one study. */
+export interface WorkSpreads {
+  /** Total main thread task time per page load. */
+  readonly taskMs: Spread;
+  readonly scriptMs: Spread;
+  readonly recalcStyleMs: Spread;
+  readonly layoutMs: Spread;
+  readonly otherMs: Spread;
+  readonly longTaskCount: Spread;
+  readonly longTaskTotalMs: Spread;
+  /**
+   * Task time divided by what the same machine took over the calibration workload.
+   *
+   * NOT A QUANTITY SPEC 20 NAMES, and it is here because the decision the study feeds needs it.
+   * If task time turns out to move with the processor as much as the clock does, the next
+   * question is whether anything can be normalized against the machine, and session 17 already
+   * observed that the throttle verification runs a fixed workload on every run and throws its
+   * timing away after the ratio check. This keeps it: the page's work in units of a million
+   * iterations of that loop, measured under the same throttle, so both the machine and the
+   * throttle divide out. A column, not a budget, and it is labelled as one.
+   */
+  readonly calibratedWork: Spread;
+  /**
+   * Whether every run reported the renderer as reused, or every run as swapped.
+   *
+   * The two readings are both correct and they are not the same measurement, so a study that saw
+   * both took its figures two different ways and says so rather than averaging them.
+   */
+  readonly rendererReusedConsistently: boolean;
+}
+
+/**
+ * The main thread figures of a set of runs, with the calibration column derived per run.
+ *
+ * @param runs - Measurements of one page
+ * @returns One spread per quantity
+ */
+function workSpreads(runs: readonly PageMeasurement[]): WorkSpreads {
+  const reused = runs.map((run) => run.work.rendererReused);
+
+  return {
+    taskMs: spreadOf(runs.map((run) => run.work.taskMs)),
+    scriptMs: spreadOf(runs.map((run) => run.work.scriptMs)),
+    recalcStyleMs: spreadOf(runs.map((run) => run.work.recalcStyleMs)),
+    layoutMs: spreadOf(runs.map((run) => run.work.layoutMs)),
+    otherMs: spreadOf(runs.map((run) => run.work.otherMs)),
+    longTaskCount: spreadOf(runs.map((run) => run.longTaskCount)),
+    longTaskTotalMs: spreadOf(runs.map((run) => run.longTaskTotalMs)),
+    calibratedWork: spreadOf(runs.map((run) => calibratedWorkOf(run))),
+    rendererReusedConsistently: reused.every((value) => value === reused[0]),
+  };
+}
+
+/**
+ * One run's main thread work, in units of a million iterations of the calibration workload.
+ *
+ * @param run - One measurement
+ * @returns The ratio, or 0 when the run carried no verified throttle to calibrate against
+ */
+export function calibratedWorkOf(run: PageMeasurement): number {
+  const throttle = run.throttle;
+  if (throttle === undefined || throttle.throttledMs <= 0 || throttle.iterations <= 0) return 0;
+
+  // The throttled sample rather than the unthrottled one, because the page was measured under
+  // the throttle too, so dividing by it takes the throttle out along with the machine.
+  const msPerMillionIterations = (throttle.throttledMs * 1_000_000) / throttle.iterations;
+
+  return run.work.taskMs / msPerMillionIterations;
+}
+
+/** Each byte column across the runs of one study. */
+export interface ParsedByteSpreads {
+  readonly documentBytes: Spread;
+  readonly cssBytes: Spread;
+  readonly jsBytes: Spread;
+  readonly otherBytes: Spread;
+}
+
+/**
+ * The byte split of a study, one spread per column.
+ *
+ * A SPREAD RATHER THAN ONE FIGURE AND A FLAG, which is what the first version of this was. The
+ * same page serves the same bytes every time, so these columns should not move at all, and a
+ * boolean saying that one of the four did move named neither which nor by how much. Measured
+ * locally on the first run: the document, the CSS and the JS are identical across runs and the
+ * fonts are not, because a face is fetched when the page needs a glyph from it and a run that
+ * settled first has one entry fewer. That is a real difference between runs of the same page and
+ * it belongs in the column it happened to, not in a flag over all four.
+ *
+ * @param runs - Measurements of one page
+ * @returns One spread per column
+ */
+function parsedByteSpreads(runs: readonly PageMeasurement[]): ParsedByteSpreads {
+  const column = (pick: (bytes: ParsedBytes) => number): Spread =>
+    spreadOf(runs.map((run) => pick(run.parsedBytes)));
+
+  return {
+    documentBytes: column((bytes) => bytes.documentBytes),
+    cssBytes: column((bytes) => bytes.cssBytes),
+    jsBytes: column((bytes) => bytes.jsBytes),
+    otherBytes: column((bytes) => bytes.otherBytes),
+  };
+}
+
 /** How a study is varied. */
 export interface StudyOptions {
   /** Throttled runs over the thousand node page. */
@@ -108,6 +213,16 @@ export interface StudyReport {
   /** Measured slowdown per run, proving the throttle took every time rather than once. */
   readonly throttleRatios: readonly number[];
   readonly tti: Spread;
+  /**
+   * What the main thread did, which is what SPEC 20 moves to from elapsed time.
+   *
+   * REPORTED BESIDE TTI ON THE SAME RUNS, deliberately, and not in a study of its own. The
+   * question these figures exist to answer is whether they are steadier than the clock across
+   * processors, and two quantities measured on two sets of navigations could not answer it.
+   */
+  readonly work: WorkSpreads;
+  /** What the page gave the main thread to parse and compile, which no processor changes. */
+  readonly parsedBytes: ParsedByteSpreads;
   /** Where the time went, so a figure over budget says what to look at. */
   readonly ttiTransferMs: Spread;
   readonly ttiParseMs: Spread;
@@ -254,6 +369,8 @@ export async function runStudy(options: StudyOptions = {}): Promise<StudyReport>
     const everyRun = [...ttiMeasurements, ...memoryMeasurements];
 
     return {
+      work: workSpreads(ttiMeasurements),
+      parsedBytes: parsedByteSpreads(ttiMeasurements),
       environment: currentEnvironment(),
       browser: { version: chrome.version, major: chrome.major },
       chromeArgs: CHROME_ARGS,

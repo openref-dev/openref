@@ -126,6 +126,39 @@ export function parseContents(lines: readonly string[]): BuildTaskEntry[] {
   return entries;
 }
 
+/**
+ * A heading in the amendments that declares a task id the plan can hand work to.
+ *
+ * A retrofit, `T015-R1`, and a task with no number yet, `TX-VIS`, are both real owners.
+ * `ai-docs/BUILD.md` cannot gain a task without being regenerated, which is the maintainer's
+ * call, so work scheduled between regenerations lives in the amendments and owns things there.
+ */
+const AMENDMENT_TASK_PATTERN = /^### \[[ x]\] `((?:T\d{3}-R\d*)|(?:TX-[A-Z-]+))`/gm;
+
+/**
+ * Every task id the plan carries, from both files that can hold one.
+ *
+ * ONE DEFINITION RATHER THAN ONE PER GATE, and that is why it moved here on 2026-08-10. The
+ * claims gate and the budget exceptions gate each carried a copy, and the copies had drifted:
+ * one accepted a retrofit as an owner and the other did not, so `T011-R` could excuse a budget
+ * and could not own a claim. Two gates asking the same question of the same two files have to
+ * get the same answer, or the disagreement surfaces as work that is owned in one place and
+ * unowned in the other.
+ *
+ * @param build - Text of `ai-docs/BUILD.md`
+ * @param amendments - Text of `ai-docs/BUILD-AMENDMENTS.md`, empty when it could not be read
+ * @returns Task ids, in no particular order
+ */
+export function planTaskIds(build: string, amendments: string): string[] {
+  const ids = parseContents(splitLines(build)).map((entry) => entry.id);
+
+  for (const match of amendments.matchAll(AMENDMENT_TASK_PATTERN)) {
+    ids.push(match[1] ?? '');
+  }
+
+  return ids;
+}
+
 /** One milestone heading in the CONTENTS block, with the tasks written under it. */
 export interface BuildMilestone {
   readonly id: string;
