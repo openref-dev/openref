@@ -1,317 +1,750 @@
 import type { ContrastPair, ThemeToken } from './token.types';
 
 /**
- * The default token set.
+ * The core token set: the 103 names of `ai-docs/design/CONTRACT.md`, with the values of the
+ * vernier design, which is what `@openref/theme` ships.
  *
- * These are neutral defaults, not a visual language. `ai-docs/design/` does not exist yet, and
- * BUILD T009 is explicit that inventing one here is out of scope: T010 maps a supplied design
- * onto exactly these names once it arrives. Anything chosen here that the design contradicts
- * is a value change, never a contract change.
+ * The names are the contract and are identical in every theme. The values are this theme's.
+ * A theme that renames one, omits one, or defines one in a single colour scheme is not a
+ * conforming theme, which is what the conformance checker in T031 will assert.
  *
  * This file and `styles/tokens.css` are the only places in the package where a literal colour,
  * length or font stack may appear. Everywhere else reads `var(--oref-*)`, and a gate fails the
- * build on a literal that escapes. `tokens.css` is generated from this array and pinned by a
+ * build on a literal that escapes. `tokens.css` is generated from these arrays and pinned by a
  * test, so the two cannot drift.
  */
 export const THEME_TOKENS: readonly ThemeToken[] = [
-  // Colour: surfaces
+  // Colour. Two accent axes, per the contract: what the specification asserts and what
+  // the running application shows. A theme that does not separate them by colour sets both to
+  // one value and carries the separation through position instead.
   {
     name: '--oref-color-bg',
     group: 'color',
-    value: '#ffffff',
-    dark: '#0d1117',
+    value: '#eef1f4',
+    dark: '#080b0f',
     description: 'Page background',
   },
   {
-    name: '--oref-color-bg-subtle',
+    name: '--oref-color-bg-sunken',
     group: 'color',
-    value: '#f6f7f9',
-    dark: '#161b22',
-    description: 'Recessed surface: sidebar, table header, code block',
+    value: '#e6eaee',
+    dark: '#0b1015',
+    description: 'Behind the page: under a rail, a gutter or a sticky bar',
   },
   {
-    name: '--oref-color-bg-raised',
+    name: '--oref-color-surface',
     group: 'color',
     value: '#ffffff',
-    dark: '#161b22',
-    description: 'Raised surface: panel, popover, dialog',
+    dark: '#0f151b',
+    description: 'Raised surface: panel, card, dialog',
   },
   {
-    name: '--oref-color-bg-overlay',
+    name: '--oref-color-surface-inset',
     group: 'color',
-    value: 'rgba(27, 31, 36, 0.5)',
-    dark: 'rgba(1, 4, 9, 0.7)',
-    description: 'Scrim behind a modal surface',
+    value: '#f6f8fa',
+    dark: '#131b22',
+    description: 'Recessed surface: rail, table header, inset panel',
   },
-
-  // Colour: text
+  {
+    name: '--oref-color-surface-code',
+    group: 'color',
+    value: '#f2f5f7',
+    dark: '#060a0d',
+    description: 'Background of a code block',
+  },
   {
     name: '--oref-color-fg',
     group: 'color',
-    value: '#1b1f24',
-    dark: '#e6edf3',
+    value: '#08111a',
+    dark: '#e8eef4',
     description: 'Body text',
+  },
+  {
+    name: '--oref-color-fg-secondary',
+    group: 'color',
+    value: '#465768',
+    dark: '#93a4b3',
+    description: 'Descriptions and metadata',
   },
   {
     name: '--oref-color-fg-muted',
     group: 'color',
-    value: '#57606a',
-    dark: '#9aa7b4',
-    description: 'Secondary text: descriptions, metadata',
+    value: '#5f6e7a',
+    dark: '#79899a',
+    description: 'Micro labels at the smallest size step',
   },
   {
-    name: '--oref-color-fg-subtle',
-    group: 'color',
-    value: '#6a737d',
-    dark: '#8b949e',
-    description: 'Tertiary text: placeholders, disabled labels',
-  },
-
-  // Colour: lines
-  {
-    name: '--oref-color-border',
-    group: 'color',
-    value: '#d0d7de',
-    dark: '#30363d',
-    description: 'Decorative separator, no contrast claim',
-  },
-  {
-    name: '--oref-color-border-strong',
-    group: 'color',
-    value: '#8c959f',
-    dark: '#6e7681',
-    description: 'Boundary of a control, which must stay distinguishable',
-  },
-
-  // Colour: accent and state
-  {
-    name: '--oref-color-accent',
-    group: 'color',
-    value: '#0b5fd0',
-    dark: '#6aa9ff',
-    description: 'Primary action and active navigation',
-  },
-  {
-    name: '--oref-color-accent-fg',
+    name: '--oref-color-fg-inverse',
     group: 'color',
     value: '#ffffff',
-    dark: '#0d1117',
-    description: 'Text drawn on the accent colour',
+    dark: '#060a0d',
+    description: 'Text drawn on an accent or a method colour',
   },
   {
-    name: '--oref-color-focus',
+    name: '--oref-color-line',
     group: 'color',
-    value: '#0b5fd0',
-    dark: '#6aa9ff',
-    description: 'Focus ring, never removed, only restyled',
+    value: '#d9dfe5',
+    dark: '#161f28',
+    description: 'Separator, decorative, no contrast claim',
   },
   {
-    name: '--oref-color-success',
+    name: '--oref-color-line-edge',
     group: 'color',
-    value: '#116329',
-    dark: '#4cc38a',
-    description: 'A 2xx response, a passing check',
+    value: '#bfc9d2',
+    dark: '#22303c',
+    description: 'Edge of a panel, a gutter or a ruler',
   },
   {
-    name: '--oref-color-warning',
+    name: '--oref-color-line-strong',
     group: 'color',
-    value: '#7a4a00',
-    dark: '#e3b341',
-    description: 'A 3xx response, a deprecation, a drift warning',
+    value: '#93a2ae',
+    dark: '#384b5c',
+    description: 'Boundary of a control, which must stay distinguishable',
   },
   {
-    name: '--oref-color-danger',
+    name: '--oref-color-accent-spec',
     group: 'color',
-    value: '#a40e26',
-    dark: '#ff8189',
-    description: 'A 4xx or 5xx response, a drift error',
+    value: '#1f57ab',
+    dark: '#8fbcff',
+    description: 'Everything the specification asserts, and the primary button',
   },
   {
-    name: '--oref-color-info',
+    name: '--oref-color-accent-runtime',
     group: 'color',
-    value: '#0b5fd0',
-    dark: '#6aa9ff',
-    description: 'A 1xx response, an informational note',
+    value: '#8a5200',
+    dark: '#ffb020',
+    description: 'Everything observed in the running application',
   },
-
-  // Colour: HTTP methods
+  {
+    name: '--oref-color-accent-link',
+    group: 'color',
+    value: '#1f57ab',
+    dark: '#8fbcff',
+    description: 'Links, which may differ from both accent layers',
+  },
+  {
+    name: '--oref-color-accent-bg',
+    group: 'color',
+    value: '#eaf1fc',
+    dark: '#0e1a2a',
+    description: 'Calm background of an active or selected element',
+  },
+  {
+    name: '--oref-color-accent-soft',
+    group: 'color',
+    value: '#cfe0f7',
+    dark: '#17293c',
+    description: 'Stronger background for a pressed state and for text selection',
+  },
   {
     name: '--oref-color-method-get',
     group: 'color',
-    value: '#0b5fd0',
-    dark: '#6aa9ff',
+    value: '#1f57ab',
+    dark: '#8fbcff',
     description: 'GET badge',
   },
   {
     name: '--oref-color-method-post',
     group: 'color',
-    value: '#116329',
-    dark: '#4cc38a',
+    value: '#0b6b45',
+    dark: '#3fd18b',
     description: 'POST badge',
   },
   {
     name: '--oref-color-method-put',
     group: 'color',
-    value: '#7a4a00',
-    dark: '#e3b341',
+    value: '#8a5200',
+    dark: '#ffb020',
     description: 'PUT badge',
   },
   {
     name: '--oref-color-method-patch',
     group: 'color',
-    value: '#6639ba',
-    dark: '#c297ff',
+    value: '#5b3ba8',
+    dark: '#b98cff',
     description: 'PATCH badge',
   },
   {
     name: '--oref-color-method-delete',
     group: 'color',
-    value: '#a40e26',
-    dark: '#ff8189',
+    value: '#a92616',
+    dark: '#ff5a47',
     description: 'DELETE badge',
   },
   {
-    name: '--oref-color-method-other',
+    name: '--oref-color-method-sse',
     group: 'color',
-    value: '#57606a',
-    dark: '#9aa7b4',
-    description: 'Any other method, including the open set of OpenAPI 3.2',
+    value: '#00666b',
+    dark: '#38d6d6',
+    description: 'Server sent events badge',
+  },
+  {
+    name: '--oref-color-method-event',
+    group: 'color',
+    value: '#465768',
+    dark: '#93a4b3',
+    description: 'Event channel badge',
   },
 
-  // Spacing, on a 4 px step
-  { name: '--oref-space-0', group: 'space', value: '0', description: 'No space' },
-  { name: '--oref-space-1', group: 'space', value: '0.25rem', description: '4 px' },
-  { name: '--oref-space-2', group: 'space', value: '0.5rem', description: '8 px' },
-  { name: '--oref-space-3', group: 'space', value: '0.75rem', description: '12 px' },
-  { name: '--oref-space-4', group: 'space', value: '1rem', description: '16 px' },
-  { name: '--oref-space-5', group: 'space', value: '1.5rem', description: '24 px' },
-  { name: '--oref-space-6', group: 'space', value: '2rem', description: '32 px' },
-  { name: '--oref-space-7', group: 'space', value: '3rem', description: '48 px' },
-
-  // Typography
+  // Typography. Two self hosted families and a display family, nine size steps, three
+  // leadings and three trackings.
   {
     name: '--oref-font-family-sans',
     group: 'font',
-    value:
-      "system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif",
-    description: 'Interface text. A system stack, so nothing is fetched from a third party',
+    value: "'Space Grotesk', ui-sans-serif, system-ui, sans-serif",
+    description: 'Interface text and prose',
   },
   {
     name: '--oref-font-family-mono',
     group: 'font',
-    value: "ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace",
-    description: 'Paths, schemas, code and samples',
+    value: "'JetBrains Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace",
+    description: 'Paths, types, numbers, code and samples',
   },
-  { name: '--oref-font-size-xs', group: 'font', value: '0.75rem', description: '12 px' },
-  { name: '--oref-font-size-sm', group: 'font', value: '0.875rem', description: '14 px' },
-  { name: '--oref-font-size-md', group: 'font', value: '1rem', description: '16 px, body' },
-  { name: '--oref-font-size-lg', group: 'font', value: '1.125rem', description: '18 px' },
-  { name: '--oref-font-size-xl', group: 'font', value: '1.375rem', description: '22 px' },
-  { name: '--oref-font-size-2xl', group: 'font', value: '1.75rem', description: '28 px' },
-  { name: '--oref-font-weight-regular', group: 'font', value: '400', description: 'Body' },
-  { name: '--oref-font-weight-medium', group: 'font', value: '500', description: 'Emphasis' },
-  { name: '--oref-font-weight-bold', group: 'font', value: '650', description: 'Headings' },
-  { name: '--oref-font-line-tight', group: 'font', value: '1.25', description: 'Headings' },
-  { name: '--oref-font-line-normal', group: 'font', value: '1.5', description: 'Body' },
-  { name: '--oref-font-line-relaxed', group: 'font', value: '1.7', description: 'Long prose' },
+  {
+    name: '--oref-font-family-display',
+    group: 'font',
+    value: "'Space Grotesk', ui-sans-serif, system-ui, sans-serif",
+    description: 'Headings and hero numerals',
+  },
+  {
+    name: '--oref-font-weight-regular',
+    group: 'font',
+    value: '400',
+    description: 'Body',
+  },
+  {
+    name: '--oref-font-weight-medium',
+    group: 'font',
+    value: '500',
+    description: 'Emphasis',
+  },
+  {
+    name: '--oref-font-weight-bold',
+    group: 'font',
+    value: '700',
+    description: 'Headings',
+  },
+  {
+    name: '--oref-font-size-100',
+    group: 'font',
+    value: '11px',
+    description: '11 px, micro label',
+  },
+  {
+    name: '--oref-font-size-200',
+    group: 'font',
+    value: '12px',
+    description: '12 px, small label',
+  },
+  {
+    name: '--oref-font-size-300',
+    group: 'font',
+    value: '13px',
+    description: '13 px, dense table text',
+  },
+  {
+    name: '--oref-font-size-400',
+    group: 'font',
+    value: '14px',
+    description: '14 px, secondary text',
+  },
+  {
+    name: '--oref-font-size-500',
+    group: 'font',
+    value: '16px',
+    description: '16 px, body',
+  },
+  {
+    name: '--oref-font-size-600',
+    group: 'font',
+    value: '21px',
+    description: '21 px, section heading',
+  },
+  {
+    name: '--oref-font-size-700',
+    group: 'font',
+    value: '27px',
+    description: '27 px, page heading',
+  },
+  {
+    name: '--oref-font-size-800',
+    group: 'font',
+    value: '44px',
+    description: '44 px, display',
+  },
+  {
+    name: '--oref-font-size-900',
+    group: 'font',
+    value: '64px',
+    description: '64 px, hero numeral',
+  },
+  {
+    name: '--oref-font-leading-tight',
+    group: 'font',
+    value: '1.25',
+    description: 'Line height of a heading',
+  },
+  {
+    name: '--oref-font-leading-data',
+    group: 'font',
+    value: '1.45',
+    description: 'Line height of a table row or a schema line',
+  },
+  {
+    name: '--oref-font-leading-prose',
+    group: 'font',
+    value: '1.62',
+    description: 'Line height of long prose',
+  },
   {
     name: '--oref-font-tracking-wide',
     group: 'font',
-    value: '0.04em',
-    description: 'Letter spacing of an uppercase label',
+    value: '0.22em',
+    description: 'Letter spacing of a micro label in caps',
+  },
+  {
+    name: '--oref-font-tracking-mid',
+    group: 'font',
+    value: '0.12em',
+    description: 'Letter spacing of a small label in caps',
+  },
+  {
+    name: '--oref-font-tracking-head',
+    group: 'font',
+    value: '-0.02em',
+    description: 'Letter spacing of a heading, negative',
   },
 
-  // Radius
-  { name: '--oref-radius-sm', group: 'radius', value: '3px', description: 'Badge, tag' },
-  { name: '--oref-radius-md', group: 'radius', value: '6px', description: 'Button, input, card' },
-  { name: '--oref-radius-lg', group: 'radius', value: '10px', description: 'Panel, dialog' },
-  { name: '--oref-radius-full', group: 'radius', value: '9999px', description: 'Pill' },
+  // Spacing. Ten steps, tighter at the bottom than a linear scale, because a dense
+  // instrument spends most of its space below 20 px.
+  {
+    name: '--oref-space-100',
+    group: 'space',
+    value: '2px',
+    description: '2 px',
+  },
+  {
+    name: '--oref-space-200',
+    group: 'space',
+    value: '4px',
+    description: '4 px',
+  },
+  {
+    name: '--oref-space-300',
+    group: 'space',
+    value: '6px',
+    description: '6 px',
+  },
+  {
+    name: '--oref-space-400',
+    group: 'space',
+    value: '10px',
+    description: '10 px',
+  },
+  {
+    name: '--oref-space-500',
+    group: 'space',
+    value: '14px',
+    description: '14 px',
+  },
+  {
+    name: '--oref-space-600',
+    group: 'space',
+    value: '20px',
+    description: '20 px',
+  },
+  {
+    name: '--oref-space-700',
+    group: 'space',
+    value: '26px',
+    description: '26 px',
+  },
+  {
+    name: '--oref-space-800',
+    group: 'space',
+    value: '36px',
+    description: '36 px',
+  },
+  {
+    name: '--oref-space-900',
+    group: 'space',
+    value: '52px',
+    description: '52 px',
+  },
+  {
+    name: '--oref-space-1000',
+    group: 'space',
+    value: '80px',
+    description: '80 px',
+  },
 
-  // Elevation
+  // Radius. The scale is core even though this theme rounds nothing, so a component may
+  // write radius-md without breaking in a square theme.
   {
-    name: '--oref-elevation-0',
-    group: 'elevation',
-    value: 'none',
-    description: 'Flat, on the page surface',
+    name: '--oref-radius-none',
+    group: 'radius',
+    value: '0px',
+    description: 'Square, and the only value this theme uses',
   },
   {
-    name: '--oref-elevation-1',
-    group: 'elevation',
-    value: '0 1px 2px rgba(27, 31, 36, 0.12)',
-    dark: '0 1px 2px rgba(1, 4, 9, 0.6)',
-    description: 'Card, table row hover',
+    name: '--oref-radius-sm',
+    group: 'radius',
+    value: '0px',
+    description: 'Badge and tag',
   },
   {
-    name: '--oref-elevation-2',
-    group: 'elevation',
-    value: '0 4px 12px rgba(27, 31, 36, 0.14)',
-    dark: '0 4px 12px rgba(1, 4, 9, 0.7)',
-    description: 'Popover, dropdown',
+    name: '--oref-radius-md',
+    group: 'radius',
+    value: '0px',
+    description: 'Button, input and card',
   },
   {
-    name: '--oref-elevation-3',
-    group: 'elevation',
-    value: '0 12px 32px rgba(27, 31, 36, 0.18)',
-    dark: '0 12px 32px rgba(1, 4, 9, 0.8)',
-    description: 'Dialog',
-  },
-
-  // Motion. Every duration is honoured only outside a reduced motion preference.
-  { name: '--oref-motion-fast', group: 'motion', value: '80ms', description: 'Hover, focus' },
-  {
-    name: '--oref-motion-normal',
-    group: 'motion',
-    value: '160ms',
-    description: 'Disclosure, tab change',
+    name: '--oref-radius-lg',
+    group: 'radius',
+    value: '0px',
+    description: 'Panel and dialog',
   },
   {
-    name: '--oref-motion-none',
-    group: 'motion',
-    value: '0s',
-    description: 'Duration under a reduced motion preference',
-  },
-  {
-    name: '--oref-motion-ease',
-    group: 'motion',
-    value: 'cubic-bezier(0.2, 0, 0.13, 1)',
-    description: 'Default easing',
+    name: '--oref-radius-pill',
+    group: 'radius',
+    value: '0px',
+    description: 'Pill',
   },
 
-  // Layout
+  // Border widths.
   {
-    name: '--oref-layout-sidebar-width',
-    group: 'layout',
-    value: '17rem',
-    description: 'Width of the navigation column',
-  },
-  {
-    name: '--oref-layout-content-max',
-    group: 'layout',
-    value: '54rem',
-    description: 'Greatest measure of the content column',
-  },
-  {
-    name: '--oref-layout-border-width',
-    group: 'layout',
+    name: '--oref-border-hair',
+    group: 'border',
     value: '1px',
-    description: 'Thickness of a separator or a control boundary',
+    description: 'Hairline separator and control boundary',
   },
   {
-    name: '--oref-layout-focus-ring',
-    group: 'layout',
+    name: '--oref-border-mark',
+    group: 'border',
+    value: '3px',
+    description: 'Provenance edge on the left of a row',
+  },
+
+  // Shadows. This theme builds depth from lines and lightness, so both are none.
+  {
+    name: '--oref-shadow-panel',
+    group: 'shadow',
+    value: 'none',
+    description: 'Panel and card',
+  },
+  {
+    name: '--oref-shadow-overlay',
+    group: 'shadow',
+    value: 'none',
+    description: 'Popover, dropdown and dialog',
+  },
+
+  // Focus ring. Never removed, only restyled.
+  {
+    name: '--oref-focus-color',
+    group: 'focus',
+    value: '#8a5200',
+    dark: '#ffb020',
+    description: 'Focus ring, never removed, only restyled',
+  },
+  {
+    name: '--oref-focus-width',
+    group: 'focus',
     value: '2px',
     description: 'Thickness of the focus ring',
   },
+  {
+    name: '--oref-focus-offset',
+    group: 'focus',
+    value: '-2px',
+    description: 'Offset of the focus ring; a negative value draws it inward',
+  },
+
+  // Layout. Core carries the two measurements every theme needs; anything else a theme
+  // needs is its own token.
+  {
+    name: '--oref-layout-rail',
+    group: 'layout',
+    value: '268px',
+    description: 'Width of the navigation rail',
+  },
+  {
+    name: '--oref-layout-measure',
+    group: 'layout',
+    value: '78ch',
+    description: 'Greatest measure of the content column',
+  },
+
+  // Provenance, per SPEC 6.1. Three levels, each with an ink, a background, an edge style
+  // and a three letter code, so the level survives monochrome print.
+  {
+    name: '--oref-prov-declared-fg',
+    group: 'prov',
+    value: '#1f57ab',
+    dark: '#8fbcff',
+    description: 'Declared, an explicit decorator: ink',
+  },
+  {
+    name: '--oref-prov-declared-bg',
+    group: 'prov',
+    value: '#e6eefb',
+    dark: '#0e1a2a',
+    description: 'Declared: background',
+  },
+  {
+    name: '--oref-prov-declared-border-style',
+    group: 'prov',
+    value: 'solid',
+    description: 'Declared: style of the left edge, so the level reads without colour',
+  },
+  {
+    name: '--oref-prov-declared-code',
+    group: 'prov',
+    value: "'DCL'",
+    description: 'Declared: the three letter code, for monochrome print',
+  },
+  {
+    name: '--oref-prov-derived-fg',
+    group: 'prov',
+    value: '#8a5200',
+    dark: '#ffb020',
+    description: 'Derived, metadata under a known key: ink',
+  },
+  {
+    name: '--oref-prov-derived-bg',
+    group: 'prov',
+    value: '#f9efdc',
+    dark: '#1f1607',
+    description: 'Derived: background',
+  },
+  {
+    name: '--oref-prov-derived-border-style',
+    group: 'prov',
+    value: 'dashed',
+    description: 'Derived: style of the left edge',
+  },
+  {
+    name: '--oref-prov-derived-code',
+    group: 'prov',
+    value: "'DRV'",
+    description: 'Derived: the three letter code',
+  },
+  {
+    name: '--oref-prov-inferred-fg',
+    group: 'prov',
+    value: '#5b3ba8',
+    dark: '#b98cff',
+    description: 'Inferred, best effort from the AST plugin: ink',
+  },
+  {
+    name: '--oref-prov-inferred-bg',
+    group: 'prov',
+    value: '#efe9fb',
+    dark: '#170f26',
+    description: 'Inferred: background',
+  },
+  {
+    name: '--oref-prov-inferred-border-style',
+    group: 'prov',
+    value: 'dotted',
+    description: 'Inferred: style of the left edge',
+  },
+  {
+    name: '--oref-prov-inferred-code',
+    group: 'prov',
+    value: "'INF'",
+    description: 'Inferred: the three letter code',
+  },
+
+  // States: response classes and check results.
+  {
+    name: '--oref-state-ok-fg',
+    group: 'state',
+    value: '#0b6b45',
+    dark: '#3fd18b',
+    description: 'A 2xx response, a passing check: ink',
+  },
+  {
+    name: '--oref-state-ok-bg',
+    group: 'state',
+    value: '#e2f2ea',
+    dark: '#08201a',
+    description: 'A 2xx response, a passing check: background',
+  },
+  {
+    name: '--oref-state-warn-fg',
+    group: 'state',
+    value: '#8a5200',
+    dark: '#ffb020',
+    description: 'A 3xx response, a deprecation, a warning: ink',
+  },
+  {
+    name: '--oref-state-warn-bg',
+    group: 'state',
+    value: '#f9efdc',
+    dark: '#1f1607',
+    description: 'A 3xx response, a deprecation, a warning: background',
+  },
+  {
+    name: '--oref-state-crit-fg',
+    group: 'state',
+    value: '#a92616',
+    dark: '#ff5a47',
+    description: 'A 4xx or 5xx response, a failing check: ink',
+  },
+  {
+    name: '--oref-state-crit-bg',
+    group: 'state',
+    value: '#fae7e4',
+    dark: '#230d0c',
+    description: 'A 4xx or 5xx response, a failing check: background',
+  },
+  {
+    name: '--oref-state-info-fg',
+    group: 'state',
+    value: '#1f57ab',
+    dark: '#8fbcff',
+    description: 'A 1xx response, an informational note: ink',
+  },
+  {
+    name: '--oref-state-info-bg',
+    group: 'state',
+    value: '#e6eefb',
+    dark: '#0e1a2a',
+    description: 'A 1xx response, an informational note: background',
+  },
+  {
+    name: '--oref-state-muted-fg',
+    group: 'state',
+    value: '#6b7d8d',
+    dark: '#5f7284',
+    description: 'A state with nothing to report: ink',
+  },
+  {
+    name: '--oref-state-muted-bg',
+    group: 'state',
+    value: '#eaeef1',
+    dark: '#111820',
+    description: 'A state with nothing to report: background',
+  },
+
+  // Drift severity, per SPEC 7.1. The edge width carries the severity as well as the
+  // colour does.
+  {
+    name: '--oref-drift-crit-fg',
+    group: 'drift',
+    value: '#a92616',
+    dark: '#ff5a47',
+    description: 'Drift of severity error: ink',
+  },
+  {
+    name: '--oref-drift-crit-bg',
+    group: 'drift',
+    value: '#fae7e4',
+    dark: '#230d0c',
+    description: 'Drift of severity error: background',
+  },
+  {
+    name: '--oref-drift-crit-border-width',
+    group: 'drift',
+    value: '2px',
+    description: 'Drift of severity error: edge thickness, the widest of the three',
+  },
+  {
+    name: '--oref-drift-crit-border-style',
+    group: 'drift',
+    value: 'solid',
+    description: 'Drift of severity error: edge style',
+  },
+  {
+    name: '--oref-drift-warn-fg',
+    group: 'drift',
+    value: '#8a5200',
+    dark: '#ffb020',
+    description: 'Drift of severity warning: ink',
+  },
+  {
+    name: '--oref-drift-warn-bg',
+    group: 'drift',
+    value: '#f9efdc',
+    dark: '#1f1607',
+    description: 'Drift of severity warning: background',
+  },
+  {
+    name: '--oref-drift-warn-border-width',
+    group: 'drift',
+    value: '1px',
+    description: 'Drift of severity warning: edge thickness',
+  },
+  {
+    name: '--oref-drift-warn-border-style',
+    group: 'drift',
+    value: 'dashed',
+    description: 'Drift of severity warning: edge style',
+  },
+  {
+    name: '--oref-drift-note-fg',
+    group: 'drift',
+    value: '#465768',
+    dark: '#93a4b3',
+    description: 'Drift of severity info: ink',
+  },
+  {
+    name: '--oref-drift-note-bg',
+    group: 'drift',
+    value: '#eaeef1',
+    dark: '#111820',
+    description: 'Drift of severity info: background',
+  },
+  {
+    name: '--oref-drift-note-border-width',
+    group: 'drift',
+    value: '1px',
+    description: 'Drift of severity info: edge thickness',
+  },
+  {
+    name: '--oref-drift-note-border-style',
+    group: 'drift',
+    value: 'dotted',
+    description: 'Drift of severity info: edge style',
+  },
 ];
+
+/**
+ * Tokens this theme adds on top of the core set.
+ *
+ * The contract allows them and names vernier's two. They are kept apart from
+ * {@link THEME_TOKENS} rather than mixed in, because the core set is a contract of exactly 103
+ * names and a theme's own token must never be mistaken for one of them. A component in the
+ * reference must not read a token from this array.
+ */
+export const THEME_SPECIFIC_TOKENS: readonly ThemeToken[] = [
+  {
+    name: '--oref-layout-gutter',
+    group: 'layout',
+    value: '44px',
+    description: 'Width of the ruler gutter between the specification and runtime columns',
+  },
+  {
+    name: '--oref-layout-tick',
+    group: 'layout',
+    value:
+      'repeating-linear-gradient(180deg, var(--oref-color-line-edge) 0 1px, transparent 1px 8px)',
+    description: 'The ruler itself, drawn as a repeating gradient of the edge colour',
+  },
+];
+
+/** Every token the stylesheet declares: the core set followed by this theme's own. */
+export const ALL_TOKENS: readonly ThemeToken[] = [...THEME_TOKENS, ...THEME_SPECIFIC_TOKENS];
 
 /** Token values in the default, light colour scheme, keyed by custom property name. */
 export const LIGHT_TOKEN_VALUES: Readonly<Record<string, string>> = Object.fromEntries(
-  THEME_TOKENS.map((token) => [token.name, token.value]),
+  ALL_TOKENS.map((token) => [token.name, token.value]),
 );
 
 /** Token values with the dark colour scheme applied over the defaults. */
 export const DARK_TOKEN_VALUES: Readonly<Record<string, string>> = Object.fromEntries(
-  THEME_TOKENS.map((token) => [token.name, token.dark ?? token.value]),
+  ALL_TOKENS.map((token) => [token.name, token.dark ?? token.value]),
 );
 
 /**
@@ -320,31 +753,59 @@ export const DARK_TOKEN_VALUES: Readonly<Record<string, string>> = Object.fromEn
  * A pair is listed here because the stylesheet draws one on the other, not because the two
  * exist. Contrast is asserted over this list, so a pair that is added to the stylesheet and
  * not to this list is a gap, and `tokens.spec.ts` fails on a pair naming a token that is gone.
+ *
+ * The three inks against the three surfaces, and the two inks that sit on an accent
+ * background, are required by the design contract rather than chosen here. `fg-muted` is the
+ * ink with the least headroom in every theme, so it is the one to re-check after any palette
+ * change.
  */
 export const CONTRAST_PAIRS: readonly ContrastPair[] = (
   [
     ['--oref-color-fg', '--oref-color-bg', 'text'],
-    ['--oref-color-fg', '--oref-color-bg-subtle', 'text'],
-    ['--oref-color-fg', '--oref-color-bg-raised', 'text'],
+    ['--oref-color-fg', '--oref-color-surface', 'text'],
+    ['--oref-color-fg', '--oref-color-surface-inset', 'text'],
+    ['--oref-color-fg-secondary', '--oref-color-bg', 'text'],
+    ['--oref-color-fg-secondary', '--oref-color-surface', 'text'],
+    ['--oref-color-fg-secondary', '--oref-color-surface-inset', 'text'],
+    ['--oref-color-fg-secondary', '--oref-state-muted-bg', 'text'],
     ['--oref-color-fg-muted', '--oref-color-bg', 'text'],
-    ['--oref-color-fg-muted', '--oref-color-bg-subtle', 'text'],
-    ['--oref-color-fg-subtle', '--oref-color-bg', 'text'],
-    ['--oref-color-accent', '--oref-color-bg', 'text'],
-    ['--oref-color-accent', '--oref-color-bg-subtle', 'text'],
-    ['--oref-color-accent-fg', '--oref-color-accent', 'text'],
-    ['--oref-color-success', '--oref-color-bg', 'text'],
-    ['--oref-color-warning', '--oref-color-bg', 'text'],
-    ['--oref-color-danger', '--oref-color-bg', 'text'],
-    ['--oref-color-info', '--oref-color-bg', 'text'],
-    ['--oref-color-method-get', '--oref-color-bg', 'text'],
-    ['--oref-color-method-post', '--oref-color-bg', 'text'],
-    ['--oref-color-method-put', '--oref-color-bg', 'text'],
-    ['--oref-color-method-patch', '--oref-color-bg', 'text'],
-    ['--oref-color-method-delete', '--oref-color-bg', 'text'],
-    ['--oref-color-method-other', '--oref-color-bg', 'text'],
-    ['--oref-color-border-strong', '--oref-color-bg', 'large'],
-    ['--oref-color-focus', '--oref-color-bg', 'large'],
-    ['--oref-color-border', '--oref-color-bg', 'decorative'],
+    ['--oref-color-fg-muted', '--oref-color-surface', 'text'],
+    ['--oref-color-fg-muted', '--oref-color-surface-inset', 'text'],
+    ['--oref-color-fg', '--oref-color-accent-bg', 'text'],
+    ['--oref-color-fg-muted', '--oref-color-accent-bg', 'text'],
+    ['--oref-color-fg', '--oref-color-accent-soft', 'text'],
+    ['--oref-color-fg', '--oref-color-surface-code', 'text'],
+    ['--oref-color-accent-spec', '--oref-color-bg', 'text'],
+    ['--oref-color-accent-link', '--oref-color-bg', 'text'],
+    ['--oref-color-accent-runtime', '--oref-color-bg', 'text'],
+    ['--oref-color-fg-inverse', '--oref-color-accent-spec', 'text'],
+    ['--oref-color-fg-inverse', '--oref-color-method-get', 'text'],
+    ['--oref-color-fg-inverse', '--oref-color-method-post', 'text'],
+    ['--oref-color-fg-inverse', '--oref-color-method-put', 'text'],
+    ['--oref-color-fg-inverse', '--oref-color-method-patch', 'text'],
+    ['--oref-color-fg-inverse', '--oref-color-method-delete', 'text'],
+    ['--oref-color-fg-inverse', '--oref-color-method-sse', 'text'],
+    ['--oref-color-fg-inverse', '--oref-color-method-event', 'text'],
+    ['--oref-state-ok-fg', '--oref-state-ok-bg', 'text'],
+    ['--oref-state-warn-fg', '--oref-state-warn-bg', 'text'],
+    ['--oref-state-crit-fg', '--oref-state-crit-bg', 'text'],
+    ['--oref-state-info-fg', '--oref-state-info-bg', 'text'],
+    ['--oref-state-muted-fg', '--oref-state-muted-bg', 'large'],
+    ['--oref-prov-declared-fg', '--oref-prov-declared-bg', 'text'],
+    ['--oref-prov-derived-fg', '--oref-prov-derived-bg', 'text'],
+    ['--oref-prov-inferred-fg', '--oref-prov-inferred-bg', 'text'],
+    ['--oref-drift-crit-fg', '--oref-drift-crit-bg', 'text'],
+    ['--oref-drift-warn-fg', '--oref-drift-warn-bg', 'text'],
+    ['--oref-drift-note-fg', '--oref-drift-note-bg', 'text'],
+    // line-strong claims nothing. The supplied palette measures it at 2.31 against the page in
+    // light and 2.19 in dark, so it cannot carry the 3:1 that WCAG 1.4.11 asks of the boundary
+    // of a control, and this theme therefore does not draw one with it. fg-muted does, and it
+    // is claimed at the text threshold two lines above. The palette itself is a question for
+    // the designer, recorded in PROJECT_STATE rather than answered by relabelling the role.
+    ['--oref-color-line-strong', '--oref-color-bg', 'decorative'],
+    ['--oref-focus-color', '--oref-color-bg', 'large'],
+    ['--oref-color-line', '--oref-color-bg', 'decorative'],
+    ['--oref-color-line-edge', '--oref-color-bg', 'decorative'],
   ] as const
 ).flatMap(([foreground, background, role]) =>
   (['light', 'dark'] as const).map((scheme) => ({ foreground, background, role, scheme })),

@@ -30,12 +30,7 @@ export interface CodeSampleView {
  * no runtime facts means no collector ran against a build that has them.
  */
 export type StateNoticeKind =
-  | 'empty'
-  | 'no-runtime'
-  | 'stale-cache'
-  | 'no-results'
-  | 'no-descriptions'
-  | 'unavailable';
+  'empty' | 'no-runtime' | 'stale-cache' | 'no-results' | 'no-descriptions' | 'unavailable';
 
 /**
  * What a reader has asked for, which is not the same as what they get.

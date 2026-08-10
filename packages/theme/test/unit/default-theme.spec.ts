@@ -9,8 +9,8 @@ import {
   defaultTheme,
   LIGHT_TOKEN_VALUES,
   PACKAGE_NAME,
-  THEME_TOKENS,
 } from '../../src/index';
+import { ALL_TOKENS } from '../../src/index';
 
 const SRC = join(import.meta.dirname, '..', '..', 'src');
 const THEME_CSS = join(SRC, 'styles', 'theme.css');
@@ -106,7 +106,7 @@ describe('the default stylesheet', () => {
   it('should use only tokens that the token set declares', () => {
     // Given
     const css = readFileSync(THEME_CSS, 'utf8');
-    const declared = new Set(THEME_TOKENS.map((token) => token.name));
+    const declared = new Set(ALL_TOKENS.map((token) => token.name));
 
     // When
     const used = [...css.matchAll(/var\((--oref-[a-z0-9-]+)/g)].map((match) => match[1] ?? '');
@@ -128,15 +128,18 @@ describe('the default stylesheet', () => {
     expect(unprefixed).toEqual([]);
   });
 
-  it('should honour a reduced motion preference', () => {
-    // Given
+  it('should have no motion to reduce, rather than a block that reduces it', () => {
+    // Given, the token contract carries no motion group, so a duration in this file would be a
+    // literal, and a literal is the one thing it may not contain. Nothing moves, which is a
+    // stronger guarantee than a reduced motion block: there is nothing left to honour.
     const css = readFileSync(THEME_CSS, 'utf8');
 
     // When
-    const honoured = css.includes('@media (prefers-reduced-motion: reduce)');
+    const moving = /(?:^|[\s;{])(?:transition|animation)(?:-[a-z-]+)?\s*:/m.test(css);
 
     // Then
-    expect(honoured).toBe(true);
+    expect(moving).toBe(false);
+    expect(css).not.toContain('@keyframes');
   });
 
   it('should never remove the focus outline, only restyle it', () => {
@@ -148,6 +151,6 @@ describe('the default stylesheet', () => {
 
     // Then
     expect(removed).toBe(false);
-    expect(css).toContain('outline: var(--oref-layout-focus-ring)');
+    expect(css).toContain('outline: var(--oref-focus-width)');
   });
 });

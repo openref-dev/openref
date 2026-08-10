@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { THEME_STYLE_ROOTS, THEME_TOKEN_SOURCE } from '../../src/config';
-import { findCssLiterals } from '../../src/lib/css-literals';
+import { findCssLiterals, findTokenValueLiterals } from '../../src/lib/css-literals';
 import { collectFiles } from '../../src/lib/walk';
 
 const REPO_ROOT = join(import.meta.dirname, '..', '..', '..', '..');
@@ -279,5 +279,197 @@ describe('the shipped stylesheets', () => {
 
     // Then
     expect(declared.length).toBeGreaterThan(10);
+  });
+});
+
+/**
+ * T009-R2: a colour written into a composite token value.
+ *
+ * The plant is the real vernier declaration as it was handed over, hex and all. It is worth
+ * being exact about why it survived: `findCssLiterals` skips any property starting with `--`,
+ * and the token stylesheet is exempt as a whole, so two independent reasons hid it. Either one
+ * alone would have been enough.
+ */
+describe('findTokenValueLiterals', () => {
+  const BROKEN_TICK = [
+    ':root {',
+    '  --oref-color-line-edge: #bfc9d2;',
+    '  --oref-layout-tick: repeating-linear-gradient(',
+    '    180deg,',
+    '    #bfc9d2 0 1px,',
+    '    transparent 1px 8px',
+    '  );',
+    '}',
+    '',
+  ].join('\n');
+
+  const FIXED_TICK = BROKEN_TICK.replace(
+    '    #bfc9d2 0 1px,',
+    '    var(--oref-color-line-edge) 0 1px,',
+  );
+
+  it('should see the colour the vernier gradient repeated, across the lines prettier wrapped it onto', () => {
+    // Given, the plant is the declaration as handed over.
+
+    // When
+    const found = findTokenValueLiterals(BROKEN_TICK);
+
+    // Then
+    expect(found).toHaveLength(1);
+    expect(found[0]?.property).toBe('--oref-layout-tick');
+    expect(found[0]?.literal).toBe('#bfc9d2');
+  });
+
+  it('should name the token that already defines the colour, so the copy fails and not the definition', () => {
+    // Given
+    const [finding] = findTokenValueLiterals(BROKEN_TICK);
+
+    // When
+    const named = finding?.definedBy;
+
+    // Then
+    expect(named).toBe('--oref-color-line-edge');
+    expect(finding?.definedAtLine).toBe(2);
+    expect(finding?.line).toBe(3);
+    expect(finding?.reason).toContain('var(--oref-color-line-edge)');
+  });
+
+  it('should say nothing once the gradient references the token', () => {
+    // Given, the fix that was applied to the handover.
+
+    // When
+    const found = findTokenValueLiterals(FIXED_TICK);
+
+    // Then
+    expect(found).toEqual([]);
+  });
+
+  it('should treat a colour that is the whole value as the definition it is', () => {
+    // Given
+    const css =
+      ':root {\n  --oref-color-line-edge: #bfc9d2;\n  --oref-color-bg: rgba(1, 4, 9, 0.7);\n}\n';
+
+    // When
+    const found = findTokenValueLiterals(css);
+
+    // Then
+    expect(found).toEqual([]);
+  });
+
+  it('should not ask two semantic tokens that agree on a colour to alias one another', () => {
+    // Given, six tokens in the real palette share #8a5200. Forcing five to reference the sixth
+    // would assert a relationship the design does not claim.
+    const css = [
+      ':root {',
+      '  --oref-color-accent-runtime: #8a5200;',
+      '  --oref-focus-color: #8a5200;',
+      '  --oref-state-warn-fg: #8a5200;',
+      '}',
+      '',
+    ].join('\n');
+
+    // When
+    const found = findTokenValueLiterals(css);
+
+    // Then
+    expect(found).toEqual([]);
+  });
+
+  it('should see a colour inside a shadow, which is the other composite a token holds', () => {
+    // Given
+    const css = ':root {\n  --oref-shadow-panel: 0 1px 2px rgba(1, 4, 9, 0.6);\n}\n';
+
+    // When
+    const found = findTokenValueLiterals(css);
+
+    // Then
+    expect(found).toHaveLength(1);
+    expect(found[0]?.literal).toBe('rgba(1, 4, 9, 0.6)');
+    expect(found[0]?.definedBy).toBeUndefined();
+  });
+
+  it('should see a named colour inside a composite value', () => {
+    // Given
+    const css = ':root {\n  --oref-layout-tick: linear-gradient(180deg, rebeccapurple 0 1px);\n}\n';
+
+    // When
+    const found = findTokenValueLiterals(css);
+
+    // Then
+    expect(found.map((literal) => literal.literal)).toEqual(['rebeccapurple']);
+  });
+
+  it('should keep transparent and currentColor out of it, since neither is a colour of its own', () => {
+    // Given
+    const css =
+      ':root {\n  --oref-layout-tick: linear-gradient(180deg, currentColor 0 1px, transparent 1px 8px);\n}\n';
+
+    // When
+    const found = findTokenValueLiterals(css);
+
+    // Then
+    expect(found).toEqual([]);
+  });
+
+  it('should see a literal hiding in a fallback inside a composite value', () => {
+    // Given
+    const css =
+      ':root {\n  --oref-layout-tick: linear-gradient(180deg, var(--oref-color-line-edge, #bfc9d2) 0 1px);\n}\n';
+
+    // When
+    const found = findTokenValueLiterals(css);
+
+    // Then
+    expect(found.map((literal) => literal.literal)).toEqual(['#bfc9d2']);
+  });
+
+  it('should look up the definition within one block, not across the colour schemes', () => {
+    // Given, the same token holds a different colour in each block, so a match from the wrong
+    // block would name a definition that is not in force where the copy sits.
+    const css = [
+      ':root {',
+      '  --oref-color-line-edge: #bfc9d2;',
+      '}',
+      "[data-oref-color-scheme='dark'] {",
+      '  --oref-color-line-edge: #22303c;',
+      '  --oref-layout-tick: linear-gradient(180deg, #22303c 0 1px);',
+      '}',
+      '',
+    ].join('\n');
+
+    // When
+    const found = findTokenValueLiterals(css);
+
+    // Then
+    expect(found).toHaveLength(1);
+    expect(found[0]?.definedBy).toBe('--oref-color-line-edge');
+    expect(found[0]?.definedAtLine).toBe(5);
+  });
+
+  it('should stay silent on the token stylesheet this package ships', () => {
+    // Given, the check earns its place only if the real file passes it.
+    const source = readFileSync(join(REPO_ROOT, THEME_TOKEN_SOURCE), 'utf8');
+
+    // When
+    const found = findTokenValueLiterals(source).map(
+      (literal) => `${String(literal.line)} ${literal.property}: ${literal.literal}`,
+    );
+
+    // Then
+    expect(found).toEqual([]);
+  });
+
+  it('should find something to say about the shipped file when a copy is planted in it', () => {
+    // Given, silence above must be the file being right, not the scan finding nothing anywhere.
+    const source = readFileSync(join(REPO_ROOT, THEME_TOKEN_SOURCE), 'utf8');
+    const planted = source.replace('var(--oref-color-line-edge) 0 1px', '#bfc9d2 0 1px');
+
+    // When
+    const found = findTokenValueLiterals(planted);
+
+    // Then
+    expect(planted).not.toBe(source);
+    expect(found.length).toBeGreaterThan(0);
+    expect(found[0]?.definedBy).toBe('--oref-color-line-edge');
   });
 });

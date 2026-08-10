@@ -39,7 +39,7 @@ describe('resolveTheme', () => {
       name: 'aurora',
       layout,
       components: { AppShell: Stub },
-      tokens: { '--oref-color-accent': '#7c5cff', '--oref-space-2': '8px' },
+      tokens: { '--oref-color-accent-spec': '#7c5cff', '--oref-space-400': '10px' },
       assets: { css: ['./aurora.css'] },
     });
 
@@ -83,9 +83,10 @@ describe('resolveTheme', () => {
 
   it('should refuse a token whose value is not a string', () => {
     // Given, a theme is external input and can be built against another major version.
-    const definition = { name: 'aurora', tokens: { '--oref-space-1': 4 } as unknown } as Parameters<
-      typeof resolveTheme
-    >[0];
+    const definition = {
+      name: 'aurora',
+      tokens: { '--oref-space-200': 4 } as unknown,
+    } as Parameters<typeof resolveTheme>[0];
 
     // When
     const resolve = (): unknown => resolveTheme(definition);

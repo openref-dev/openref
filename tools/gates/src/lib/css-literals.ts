@@ -418,3 +418,195 @@ export function findCssLiterals(css: string): CssLiteral[] {
 
   return found;
 }
+
+/**
+ * A literal found inside the value of a custom property in the token stylesheet.
+ *
+ * THE RULE: in a token declaration, a colour that is the whole value is a definition, and a
+ * colour that is one part of a composite value is a use. A use must be a `var()` reference.
+ *
+ * `--oref-color-line-edge: #bfc9d2` defines that colour and is exactly what the token
+ * stylesheet is for. `--oref-layout-tick: repeating-linear-gradient(180deg, #bfc9d2 0 1px, ...)`
+ * uses it, and writing the hex there makes a second copy of a value a token already defines,
+ * unpinned by anything: the two drift the moment the palette moves. That declaration is real,
+ * it shipped in the vernier handover, and `findCssLiterals` reported nothing for it, twice over.
+ * It skips any property beginning with `--`, on the reasoning that a custom property is a
+ * definition, and the token stylesheet is exempt as a whole in any case.
+ *
+ * THE BROADER RULE WAS MEASURED AND REJECTED. "A colour literal that appears more than once in
+ * the token stylesheet is a second copy" sounds like the same rule and is not. Run over the
+ * real palette it produces eleven findings on a correct file: `#8a5200` is the whole value of
+ * six tokens, among them `accent-runtime`, `focus-color`, `state-warn-fg` and `drift-warn-fg`.
+ * Those are six semantic names that agree on a colour today. Forcing five of them to alias the
+ * sixth would assert that the focus ring is the runtime accent, which the design does not
+ * claim and which the next palette would falsify. So the check is about composition, not about
+ * repetition, and where a composite does repeat a defined colour the finding names the token
+ * that defines it.
+ *
+ * Colour only, deliberately. The lengths inside that same gradient, `1px` and `8px`, are the
+ * geometry of the ruler, and the contract carries no token for either. Flagging them would
+ * force a stylesheet to invent tokens the design system does not have, which is the failure
+ * mode the `%` and `fr` exemptions above already avoid.
+ */
+export interface TokenValueLiteral {
+  /** Custom property whose value holds the literal. */
+  readonly property: string;
+  readonly value: string;
+  /** The colour, as written. */
+  readonly literal: string;
+  readonly line: number;
+  /** A token in the same block whose whole value is that colour, when there is one. */
+  readonly definedBy?: string;
+  readonly definedAtLine?: number;
+  readonly reason: string;
+}
+
+/** One custom property declaration, which prettier may have wrapped across several lines. */
+interface TokenDeclaration {
+  readonly property: string;
+  readonly value: string;
+  readonly line: number;
+  readonly block: number;
+}
+
+/**
+ * Reads every custom property declaration, spanning lines.
+ *
+ * A line based scan would miss the one declaration this check exists for: the gradient is over
+ * a hundred characters, so prettier wraps it, and every hex in it sits on a line that is not a
+ * declaration.
+ */
+function tokenDeclarations(css: string): TokenDeclaration[] {
+  const text = stripComments(css);
+  const out: TokenDeclaration[] = [];
+  let block = 0;
+  let line = 1;
+  let at = 0;
+
+  while (at < text.length) {
+    const character = text[at] ?? '';
+
+    if (character === '\n') {
+      line += 1;
+      at += 1;
+      continue;
+    }
+    if (character === '{' || character === '}') {
+      block += 1;
+      at += 1;
+      continue;
+    }
+    if (!(character === '-' && text.startsWith('--', at))) {
+      at += 1;
+      continue;
+    }
+
+    const colon = text.indexOf(':', at);
+    const property = colon === -1 ? '' : text.slice(at, colon).trim();
+    if (colon === -1 || !/^--[\w-]+$/.test(property)) {
+      at += 1;
+      continue;
+    }
+
+    let end = colon + 1;
+    let depth = 0;
+    while (end < text.length) {
+      const inner = text[end] ?? '';
+      if (inner === '(') depth += 1;
+      else if (inner === ')') depth -= 1;
+      else if ((inner === ';' || inner === '}') && depth === 0) break;
+      end += 1;
+    }
+
+    const value = text
+      .slice(colon + 1, end)
+      .replace(/\s+/g, ' ')
+      .trim();
+    out.push({ property, value, line, block });
+    line += (text.slice(at, end).match(/\n/g) ?? []).length;
+    at = end;
+  }
+
+  return out;
+}
+
+const WHOLE_HEX = /^#[0-9a-fA-F]{3,8}$/;
+const WHOLE_COLOR_FUNCTION =
+  /^(?:rgba?|hsla?|hwb|lab|lch|oklab|oklch|color|color-mix)\([^()]*(?:\([^()]*\)[^()]*)*\)$/i;
+
+/** True when the value is a colour and nothing else, which makes the declaration a definition. */
+function isWholeValueColor(value: string): boolean {
+  if (WHOLE_HEX.test(value)) return true;
+  if (WHOLE_COLOR_FUNCTION.test(value)) return true;
+
+  const lowered = value.toLowerCase();
+  return NAMED_COLORS.has(lowered) && !ALLOWED_COLOR_KEYWORDS.has(lowered);
+}
+
+/** Every colour written literally in a value, in source order. */
+function colorLiterals(value: string): string[] {
+  const found: string[] = [];
+
+  for (const match of value.matchAll(/#[0-9a-fA-F]{3,8}\b/g)) found.push(match[0]);
+  for (const match of value.matchAll(
+    /\b(?:rgba?|hsla?|hwb|lab|lch|oklab|oklch|color-mix)\s*\([^()]*(?:\([^()]*\)[^()]*)*\)/gi,
+  )) {
+    found.push(match[0]);
+  }
+  for (const word of value.split(/[\s,()/]+/)) {
+    const lowered = word.toLowerCase();
+    if (NAMED_COLORS.has(lowered) && !ALLOWED_COLOR_KEYWORDS.has(lowered)) found.push(word);
+  }
+
+  return found;
+}
+
+/**
+ * Finds a colour written into a composite token value.
+ *
+ * @param css - The token stylesheet
+ * @returns Every colour used rather than defined, in source order
+ *
+ * @example
+ * findTokenValueLiterals('.a { --x: linear-gradient(#fff 0 1px); }');
+ */
+export function findTokenValueLiterals(css: string): TokenValueLiteral[] {
+  const declarations = tokenDeclarations(css);
+  const definitions = new Map<string, TokenDeclaration>();
+
+  for (const declaration of declarations) {
+    if (!isWholeValueColor(declaration.value)) continue;
+    const key = `${String(declaration.block)}|${declaration.value.toLowerCase()}`;
+    if (!definitions.has(key)) definitions.set(key, declaration);
+  }
+
+  const found: TokenValueLiteral[] = [];
+
+  for (const declaration of declarations) {
+    if (isWholeValueColor(declaration.value)) continue;
+
+    // The token name is dropped and the fallback kept, exactly as in a normal declaration: a
+    // literal fallback inside a token value is a literal wherever it sits.
+    const remainder = expandVarFallbacks(declaration.value);
+
+    for (const literal of colorLiterals(remainder)) {
+      const definition = definitions.get(`${String(declaration.block)}|${literal.toLowerCase()}`);
+
+      found.push({
+        property: declaration.property,
+        value: declaration.value,
+        literal,
+        line: declaration.line,
+        ...(definition === undefined
+          ? {}
+          : { definedBy: definition.property, definedAtLine: definition.line }),
+        reason:
+          definition === undefined
+            ? `the colour ${literal} is written into a composite value; a token value composes other tokens, never a literal`
+            : `the colour ${literal} is already defined by ${definition.property} on line ${String(definition.line)}; reference it with var(${definition.property})`,
+      });
+    }
+  }
+
+  return found;
+}

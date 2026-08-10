@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { THEME_STYLE_ROOTS, THEME_TOKEN_SOURCE } from '../config.js';
-import { findCssLiterals } from '../lib/css-literals.js';
+import { findCssLiterals, findTokenValueLiterals } from '../lib/css-literals.js';
 import { collectFiles } from '../lib/walk.js';
 import type { Gate, GateFinding, GateResult } from '../types.js';
 
@@ -16,6 +16,11 @@ import type { Gate, GateFinding, GateResult } from '../types.js';
  * A literal inside a `var()` fallback counts. It is what ships when the token is not set, and
  * it is the likeliest place for a hardcoded colour to survive unnoticed. The rule and the
  * reasons for choosing it over the conditional alternative are in `lib/css-literals.ts`.
+ *
+ * The token stylesheet is exempt from that scan and gets its own, per T009-R2. It defines
+ * values, so a colour that is a whole value is what it is for; a colour written into a
+ * composite value, a gradient or a shadow, is a use, and a use must reference a token. That
+ * one is the case a real handover shipped and the first version of this gate could not see.
  */
 export const themeTokensGate: Gate = {
   id: 'theme-tokens',
@@ -32,14 +37,25 @@ export const themeTokensGate: Gate = {
         ['.css'],
         context.repoRoot,
       )) {
-        if (relativePath === THEME_TOKEN_SOURCE) continue;
+        const css = readFileSync(join(context.repoRoot, relativePath), 'utf8');
+
+        if (relativePath === THEME_TOKEN_SOURCE) {
+          scanned += 1;
+
+          for (const literal of findTokenValueLiterals(css)) {
+            failed = true;
+            findings.push({
+              level: 'error',
+              message: `${relativePath}:${String(literal.line)} [token-value] ${literal.property}: ${literal.value} - ${literal.reason}`,
+            });
+          }
+
+          continue;
+        }
 
         scanned += 1;
-        const literals = findCssLiterals(
-          readFileSync(join(context.repoRoot, relativePath), 'utf8'),
-        );
 
-        for (const literal of literals) {
+        for (const literal of findCssLiterals(css)) {
           failed = true;
           findings.push({
             level: 'error',
@@ -66,7 +82,7 @@ export const themeTokensGate: Gate = {
     if (!failed) {
       findings.push({
         level: 'info',
-        message: `${String(scanned)} stylesheet(s) read only tokens; ${THEME_TOKEN_SOURCE} is the one place values are defined`,
+        message: `${String(scanned)} stylesheet(s) read only tokens; ${THEME_TOKEN_SOURCE} is the one place values are defined, and composes rather than repeats them`,
       });
     }
 

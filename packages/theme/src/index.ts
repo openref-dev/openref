@@ -22,9 +22,11 @@ export type {
   TokenGroup,
 } from './tokens/domain/token.types';
 export {
+  ALL_TOKENS,
   CONTRAST_PAIRS,
   DARK_TOKEN_VALUES,
   LIGHT_TOKEN_VALUES,
+  THEME_SPECIFIC_TOKENS,
   THEME_TOKENS,
 } from './tokens/domain/tokens';
 export {

@@ -2,12 +2,15 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
+  ALL_TOKENS,
   COLOR_SCHEME_ATTRIBUTE,
   DARK_TOKEN_VALUES,
   LIGHT_TOKEN_VALUES,
   renderTokensCss,
+  THEME_SPECIFIC_TOKENS,
   THEME_TOKENS,
 } from '../../src/index';
+import { CONTRACT_TOKEN_NAMES } from '../mocks/contract-tokens';
 
 const TOKENS_CSS = join(import.meta.dirname, '..', '..', 'src', 'styles', 'tokens.css');
 const TOKEN_NAME = /^--oref-[a-z0-9]+(?:-[a-z0-9]+)*$/;
@@ -18,6 +21,12 @@ const TOKEN_NAME = /^--oref-[a-z0-9]+(?:-[a-z0-9]+)*$/;
  * Comparing declarations rather than bytes is deliberate. Prettier reformats this file, and a
  * byte comparison would break on a line wrap while saying nothing about the values. What must
  * not drift is what the file declares.
+ *
+ * Two normalizations, and both are prettier's doing rather than a convenience. It collapses a
+ * wrapped value onto several lines, which is the run of whitespace. It also puts a space after
+ * an opening bracket and before a closing one when it wraps a function, so the gradient in
+ * `--oref-layout-tick` comes back with brackets the generator did not write. Neither changes
+ * what the declaration means, and no value in this file is whitespace sensitive.
  */
 function declarations(css: string): Map<string, string>[] {
   const blocks = css.split('}').filter((block) => block.includes('--oref-'));
@@ -25,7 +34,12 @@ function declarations(css: string): Map<string, string>[] {
   return blocks.map((block) => {
     const found = new Map<string, string>();
     for (const match of block.matchAll(/(--oref-[a-z0-9-]+)\s*:\s*([^;]+);/g)) {
-      found.set(match[1] ?? '', (match[2] ?? '').replace(/\s+/g, ' ').trim());
+      const value = (match[2] ?? '')
+        .replace(/\s+/g, ' ')
+        .replace(/\(\s+/g, '(')
+        .replace(/\s+\)/g, ')')
+        .trim();
+      found.set(match[1] ?? '', value);
     }
     return found;
   });
@@ -34,7 +48,7 @@ function declarations(css: string): Map<string, string>[] {
 describe('the token set', () => {
   it('should name every token --oref-{group}-{name}', () => {
     // Given
-    const names = THEME_TOKENS.map((token) => token.name);
+    const names = ALL_TOKENS.map((token) => token.name);
 
     // When
     const malformed = names.filter((name) => !TOKEN_NAME.test(name));
@@ -45,7 +59,7 @@ describe('the token set', () => {
 
   it('should start every token name with its own group', () => {
     // Given
-    const wrong = THEME_TOKENS.filter((token) => !token.name.startsWith(`--oref-${token.group}-`));
+    const wrong = ALL_TOKENS.filter((token) => !token.name.startsWith(`--oref-${token.group}-`));
 
     // When
     const names = wrong.map((token) => token.name);
@@ -56,7 +70,7 @@ describe('the token set', () => {
 
   it('should declare every token exactly once', () => {
     // Given
-    const names = THEME_TOKENS.map((token) => token.name);
+    const names = ALL_TOKENS.map((token) => token.name);
 
     // When
     const duplicates = names.filter((name, index) => names.indexOf(name) !== index);
@@ -67,7 +81,7 @@ describe('the token set', () => {
 
   it('should describe every token, so an author can override it without guessing', () => {
     // Given
-    const undescribed = THEME_TOKENS.filter((token) => token.description.trim() === '');
+    const undescribed = ALL_TOKENS.filter((token) => token.description.trim() === '');
 
     // When
     const names = undescribed.map((token) => token.name);
@@ -76,15 +90,55 @@ describe('the token set', () => {
     expect(names).toEqual([]);
   });
 
-  it('should cover colour, spacing, typography, radius and elevation, per T009', () => {
+  it('should hold exactly the 103 names the design contract fixes', () => {
+    // Given, the contract list is transcribed in the mock, so a rename shows up as a diff here
+    // rather than as a theme that silently stops conforming.
+    const declared = THEME_TOKENS.map((token) => token.name).sort((a, b) => a.localeCompare(b));
+
+    // When
+    const contract = [...CONTRACT_TOKEN_NAMES].sort((a, b) => a.localeCompare(b));
+
+    // Then
+    expect(declared).toEqual(contract);
+    expect(THEME_TOKENS).toHaveLength(103);
+  });
+
+  it('should group the core set the way the contract groups it', () => {
     // Given
-    const required = ['color', 'space', 'font', 'radius', 'elevation'];
+    const required = [
+      'color',
+      'font',
+      'space',
+      'radius',
+      'border',
+      'shadow',
+      'focus',
+      'layout',
+      'prov',
+      'state',
+      'drift',
+    ];
 
     // When
     const groups = new Set(THEME_TOKENS.map((token) => token.group));
 
     // Then
-    expect(required.filter((group) => !groups.has(group as never))).toEqual([]);
+    expect([...groups].sort((a, b) => a.localeCompare(b))).toEqual(
+      [...required].sort((a, b) => a.localeCompare(b)),
+    );
+  });
+
+  it('should keep this theme own tokens out of the core set', () => {
+    // Given, the contract allows a theme its own tokens and names vernier two.
+    const names = THEME_SPECIFIC_TOKENS.map((token) => token.name);
+
+    // When
+    const leaked = names.filter((name) => CONTRACT_TOKEN_NAMES.includes(name));
+
+    // Then
+    expect(leaked).toEqual([]);
+    expect(names).toEqual(['--oref-layout-gutter', '--oref-layout-tick']);
+    expect(ALL_TOKENS).toHaveLength(THEME_TOKENS.length + THEME_SPECIFIC_TOKENS.length);
   });
 
   it('should give the light and dark value maps the same keys', () => {
@@ -100,7 +154,7 @@ describe('the token set', () => {
 
   it('should fall back to the light value for a token with no dark variant', () => {
     // Given
-    const shared = THEME_TOKENS.filter((token) => token.dark === undefined);
+    const shared = ALL_TOKENS.filter((token) => token.dark === undefined);
 
     // When
     const differing = shared.filter((token) => DARK_TOKEN_VALUES[token.name] !== token.value);
@@ -146,14 +200,46 @@ describe('the generated token stylesheet', () => {
     expect(attributeAt).toBeGreaterThan(mediaAt);
   });
 
-  it('should only emit a dark declaration for a token that actually changes', () => {
-    // Given
-    const changing = THEME_TOKENS.filter((token) => token.dark !== undefined).length;
+  it('should give both colour schemes the identical name list', () => {
+    // Given, the contract requires it, and a block that declares only what changes means
+    // something different when it is read on its own: in a theme editor, in a conformance
+    // checker, or copied into a shadow root.
+    const blocks = declarations(readFileSync(TOKENS_CSS, 'utf8'));
+    const [light, media, attribute] = blocks;
 
     // When
-    const blocks = declarations(renderTokensCss());
+    const names = (block: Map<string, string> | undefined): string[] =>
+      [...(block?.keys() ?? [])].sort((a, b) => a.localeCompare(b));
 
     // Then
-    expect(blocks.at(-1)?.size).toBe(changing);
+    expect(blocks).toHaveLength(3);
+    expect(names(media)).toEqual(names(light));
+    expect(names(attribute)).toEqual(names(light));
+    expect(names(light)).toHaveLength(ALL_TOKENS.length);
+  });
+
+  it('should carry the dark values in both dark blocks', () => {
+    // Given
+    const [, media, attribute] = declarations(readFileSync(TOKENS_CSS, 'utf8'));
+
+    // When
+    const bg = DARK_TOKEN_VALUES['--oref-color-bg'];
+
+    // Then
+    expect(media?.get('--oref-color-bg')).toBe(bg);
+    expect(attribute?.get('--oref-color-bg')).toBe(bg);
+  });
+
+  it('should follow the system preference without an attribute', () => {
+    // Given, a reader who told the operating system they want a dark interface has already
+    // answered; the attribute exists to force a scheme, not to be the only way to reach one.
+    const css = readFileSync(TOKENS_CSS, 'utf8');
+
+    // When
+    const query = css.includes('@media (prefers-color-scheme: dark)');
+
+    // Then
+    expect(query).toBe(true);
+    expect(css).toContain(`:root:not([${COLOR_SCHEME_ATTRIBUTE}='light'])`);
   });
 });
