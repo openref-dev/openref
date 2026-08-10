@@ -66,14 +66,26 @@ jobs:
           echo "image ${ImageOS:-unknown} version ${ImageVersion:-unknown} arch ${RUNNER_ARCH:-unknown}"
 
       # The fallbacks are for the push trigger, which carries no inputs.
+      #
+      # `--check` is what makes this a gate rather than a report: the study compares what it
+      # just measured against `tools/browser-budget/baseline.json`, fails on a SPEC 20 ceiling
+      # always, and fails on a jump beyond the recorded spread while the browser major is
+      # unchanged. A browser major that moved is printed as a stale baseline and does not fail,
+      # because an image bump is not a regression and a check that fires on one gets ignored.
+      #
+      # THIS JOB IS RED WHILE TTI IS OVER ITS CEILING, deliberately, in the same way the
+      # `module-floor` job was red for one commit when the claim it checked was false. The
+      # report is uploaded before the check runs, so a red run still hands over its numbers.
       - name: Study
         run: >
           node tools/browser-budget/dist/cli.js
           --tti-runs=${{ inputs.tti-runs || '25' }}
           --memory-runs=${{ inputs.memory-runs || '5' }}
           --out=browser-budget-study.json
+          --check
 
       - name: Upload the report
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: browser-budget-study

@@ -365,6 +365,33 @@ export const SPEC_20_BUDGET_IDS: readonly string[] = [
   ...MEASURED_BUDGETS.map((budget) => budget.id),
 ];
 
+/**
+ * The committed browser study, and the workflow that re-records it.
+ *
+ * The figures only a browser can produce live in a file rather than in a run of `pnpm gates`,
+ * because a CPU throttle is relative to the host and a figure taken on a developer machine
+ * names a machine nobody will run again. The gate checks the record; the workflow takes the
+ * measurement.
+ */
+export const BROWSER_BASELINE_FILE = 'tools/browser-budget/baseline.json';
+
+/** Where a new measurement comes from, named in the message so re-recording is one click. */
+export const BROWSER_STUDY_WORKFLOW = '.github/workflows/browser-budget-study.yml';
+
+/**
+ * The SPEC 20 ceilings a browser figure is judged against.
+ *
+ * HERE RATHER THAN BESIDE THE HARNESS, for the reason the coverage floors are here: a threshold
+ * has exactly one home, so there is exactly one place it could be lowered. `tools/browser-budget`
+ * imports these rather than carrying a second copy.
+ */
+export const BROWSER_CEILINGS = {
+  ttiMs: 150,
+  peakHeapBytes: 250 * 1024 * 1024,
+  externalRequests: 0,
+  servedDocumentBytes: 64 * 1024,
+} as const;
+
 /** The claim map, which answers every SPEC 19 and SPEC 20 claim with what would go red. */
 export const CLAIM_MAP_FILE = 'ai-docs/CLAIM-MAP.md';
 

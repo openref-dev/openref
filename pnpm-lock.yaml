@@ -293,6 +293,9 @@ importers:
 
   tools/browser-budget:
     devDependencies:
+      '@openref/gates':
+        specifier: workspace:*
+        version: link:../gates
       '@openref/nest':
         specifier: workspace:*
         version: link:../../packages/nest

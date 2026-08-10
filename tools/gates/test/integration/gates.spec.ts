@@ -5,6 +5,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
+  BROWSER_BASELINE_FILE,
   FONT_BUDGETS,
   FONT_STYLESHEETS,
   LICENSE_ATTESTATIONS,
@@ -356,10 +357,15 @@ describe('themeFontsGate', () => {
 
 describe('budgetsGate, the three font budgets', () => {
   /**
-   * Builds a repository root holding nothing but one theme's font directory.
+   * Builds a repository root holding one theme's font directory and a browser baseline.
    *
    * The size budgets then find no artifacts and print SKIP, which is what they are supposed to
    * do, and the font budgets are measured on files this test controls the bytes of.
+   *
+   * THE BASELINE IS PLANTED TOO, and it is not decoration. The gate reads the committed browser
+   * study and fails when there is none, per T001's rule that a missing artifact never reads as
+   * a pass. A fixture root with no baseline is a repository that never took the measurement,
+   * which is a different failure from the one each of these cases is about.
    */
   function plantFonts(files: Readonly<Record<string, number>>): string {
     const root = mkdtempSync(join(tmpdir(), 'openref-budgets-'));
@@ -372,7 +378,33 @@ describe('budgetsGate, the three font budgets', () => {
       writeFileSync(join(directory, name), randomBytes(bytes));
     }
 
+    const baselineFile = join(root, BROWSER_BASELINE_FILE);
+    mkdirSync(dirname(baselineFile), { recursive: true });
+    writeFileSync(baselineFile, `${JSON.stringify(plantedBaseline())}\n`);
+
     return root;
+  }
+
+  /** A study whose every figure is inside SPEC 20, so only the fonts decide these cases. */
+  function plantedBaseline(): Record<string, unknown> {
+    const spread = { samples: 25, median: 100, min: 90, max: 110, standardDeviation: 5 };
+
+    return {
+      recordedAt: '2026-08-10',
+      commit: 'planted',
+      environment: { id: 'planted', label: 'planted', cpuModel: 'planted', cpuCount: 4 },
+      browser: { version: '150.0.0.0', major: 150 },
+      chromeArgs: [],
+      throttleRate: 4,
+      throttleRatio: { ...spread, median: 4, min: 4, max: 4, standardDeviation: 0 },
+      ttiMs: spread,
+      ttiPhaseMs: { transfer: 1, parse: 50, script: 40, firstContentfulPaint: 80 },
+      peakHeapBytes: { ...spread, median: 4_000_000, min: 4_000_000, max: 4_000_000 },
+      externalRequests: 0,
+      cspViolations: 0,
+      servedDocumentBytes: 30_000,
+      overBudget: [],
+    };
   }
 
   it('should measure the first paint pair, the latin files and the whole directory apart', async () => {

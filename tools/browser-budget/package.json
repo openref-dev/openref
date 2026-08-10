@@ -14,6 +14,7 @@
     "build": "tsc -p tsconfig.json"
   },
   "devDependencies": {
+    "@openref/gates": "workspace:*",
     "@openref/nest": "workspace:*",
     "@openref/render": "workspace:*",
     "@types/express": "5.0.6",

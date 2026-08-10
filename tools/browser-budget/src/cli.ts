@@ -1,12 +1,20 @@
 /**
- * `node tools/browser-budget/dist/cli.js [--tti-runs=N] [--memory-runs=N] [--out=FILE]`
+ * `node tools/browser-budget/dist/cli.js [--tti-runs=N] [--memory-runs=N] [--out=FILE] [--check]`
  *
  * Runs the study and prints it. This is what CI runs to produce the spread a baseline is set
  * from, and it prints a readable summary as well as the JSON, because the summary is what a
  * maintainer reads in a workflow log and the JSON is what gets committed.
+ *
+ * WITH `--check` IT IS ALSO THE FAILING CHECK. A budget measured and not enforced is a report,
+ * so the study compares what it just measured against `baseline.json`: the SPEC 20 ceilings
+ * always, and the recorded figure when the machine and the browser major are the ones it was
+ * recorded on. An image bump is reported as a stale baseline rather than as a regression, and
+ * re-recording it is a deliberate act.
  */
 
 import { writeFileSync } from 'node:fs';
+import { checkCeilings, compareToBaseline, readBrowserBaseline } from '@openref/gates/baseline';
+import { repositoryRoot } from './repo-root.js';
 import { runStudy } from './study.js';
 import type { StudyReport } from './study.js';
 
@@ -68,6 +76,38 @@ const report = await runStudy({
 });
 
 for (const line of summarize(report)) process.stdout.write(`${line}\n`);
+
+if (args.includes('--check')) {
+  const { baseline, reason } = readBrowserBaseline(repositoryRoot());
+
+  if (baseline === null) {
+    process.stdout.write(`\nno baseline to check against: ${reason ?? 'unknown'}\n`);
+    process.exitCode = 1;
+  } else {
+    const issues = [
+      ...checkCeilings(baseline),
+      ...compareToBaseline(baseline, {
+        environmentId: report.environment.id,
+        browserMajor: report.browser.major,
+        ttiMedianMs: report.tti.median,
+        peakHeapMedianBytes: report.peakHeapBytes.median,
+        externalRequests: report.externalRequests.length,
+        cspViolations: report.cspViolations.length,
+      }),
+    ];
+
+    process.stdout.write('\n=== against the committed baseline ===\n');
+    for (const issue of issues) {
+      process.stdout.write(`  [${issue.kind}] ${issue.budget}: ${issue.message}\n`);
+    }
+
+    if (issues.length === 0) process.stdout.write('  everything inside its budget\n');
+
+    // A STALE BASELINE IS NOT A FAILURE OF THE PRODUCT. It says the two figures are not
+    // comparable, which needs a person and not a red build.
+    if (issues.some((issue) => issue.kind === 'over-budget')) process.exitCode = 1;
+  }
+}
 
 const out = value('out');
 if (out !== undefined) {

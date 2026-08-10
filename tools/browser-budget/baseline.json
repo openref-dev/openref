@@ -1,0 +1,56 @@
+{
+  "recordedAt": "2026-08-10",
+  "commit": "9863b53505dba9658f0c2c37edb4460d4037bac0",
+  "note": "TTI is over its SPEC 20 ceiling and this record says so rather than rounding it. The page was cut from 191,975 served bytes to 29,663 in T012-R2 and TTI moved from a median of 231.0 ms to 213.9 ms on the same runner CPU, about seven percent, so the served document was not what the budget was waiting for. The resource timings in the same study say what it was waiting for: every subresource has arrived by 33 ms and the document does not become interactive until 138 ms, with 38 KB of CSS and a 108 KB bundle to get through at a quarter of the machine's speed. The runner CPU is not fixed within one image: this study ran on an EPYC 9V74 and the one before it on an EPYC 7763, so a small movement between two records is not necessarily a change to the product.",
+  "environment": {
+    "id": "github-actions/ubuntu24/X64",
+    "label": "GitHub Actions runner, image ubuntu24, X64",
+    "cpuModel": "AMD EPYC 9V74 80-Core Processor",
+    "cpuCount": 4
+  },
+  "browser": {
+    "version": "150.0.7871.128",
+    "major": 150
+  },
+  "chromeArgs": [
+    "--no-sandbox",
+    "--disable-dev-shm-usage",
+    "--no-first-run",
+    "--no-default-browser-check",
+    "--disable-extensions",
+    "--disable-background-networking",
+    "--disable-component-update"
+  ],
+  "throttleRate": 4,
+  "throttleRatio": {
+    "samples": 25,
+    "median": 4.19,
+    "min": 4.16,
+    "max": 4.29,
+    "standardDeviation": 0.03
+  },
+  "ttiMs": {
+    "samples": 25,
+    "median": 213.9,
+    "min": 184.3,
+    "max": 934.4,
+    "standardDeviation": 145.2
+  },
+  "ttiPhaseMs": {
+    "transfer": 0.7,
+    "parse": 137.3,
+    "script": 66.4,
+    "firstContentfulPaint": 164
+  },
+  "peakHeapBytes": {
+    "samples": 5,
+    "median": 3676352,
+    "min": 3634716,
+    "max": 3692831,
+    "standardDeviation": 22718.0
+  },
+  "externalRequests": 0,
+  "cspViolations": 0,
+  "servedDocumentBytes": 29663,
+  "overBudget": ["tti"]
+}

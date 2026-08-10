@@ -1,6 +1,14 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { FONT_BUDGET_LIMITS, FONT_BUDGETS, MEASURED_BUDGETS, SIZE_BUDGETS } from '../config.js';
+import {
+  BROWSER_BASELINE_FILE,
+  BROWSER_STUDY_WORKFLOW,
+  FONT_BUDGET_LIMITS,
+  FONT_BUDGETS,
+  MEASURED_BUDGETS,
+  SIZE_BUDGETS,
+} from '../config.js';
+import { checkCeilings, readBrowserBaseline, recordedFigure } from '../lib/browser-baseline.js';
 import {
   evaluateBudget,
   formatBytes,
@@ -149,11 +157,55 @@ export const budgetsGate: Gate = {
       }
     }
 
-    for (const budget of MEASURED_BUDGETS) {
+    // THE BROWSER BUDGETS ARE READ FROM THE RECORD, NOT MEASURED HERE. A CPU throttle is
+    // relative to the host, so a figure taken on whichever machine runs `pnpm gates` would name
+    // a machine nobody will run again. What is checked here is the committed study: that it is
+    // there, that it is a study, and that what it recorded is inside SPEC 20. A missing or
+    // unreadable record fails, per T001: nothing to read reads exactly like nothing to find.
+    const baselineResult = readBrowserBaseline(context.repoRoot);
+
+    if (baselineResult.baseline === null) {
+      failed = true;
+      findings.push({
+        level: 'error',
+        message: `${BROWSER_BASELINE_FILE}: ${baselineResult.reason ?? 'could not be read'}. The browser budgets of SPEC 20 have no measurement behind them until it is re-recorded by ${BROWSER_STUDY_WORKFLOW}`,
+      });
+    } else {
+      const baseline = baselineResult.baseline;
+      const overBudget = new Map(
+        checkCeilings(baseline).map((issue) => [issue.budget, issue.message]),
+      );
+
       findings.push({
         level: 'info',
-        message: `NOT MEASURED HERE ${budget.id}: ${budget.label} <= ${budget.limit} (enforced by ${budget.enforcedBy})`,
+        message:
+          `browser figures recorded ${baseline.recordedAt} on ${baseline.environment.id}, ` +
+          `${baseline.environment.cpuModel} x ${String(baseline.environment.cpuCount)}, ` +
+          `Chrome ${String(baseline.browser.major)}, throttle ${String(baseline.throttleRate)}x measured ` +
+          `${baseline.throttleRatio.median.toFixed(2)}x, commit ${baseline.commit.slice(0, 12)}`,
       });
+
+      for (const budget of MEASURED_BUDGETS) {
+        const recorded = recordedFigure(baseline, budget.id);
+        const over = overBudget.get(budget.id);
+
+        if (over !== undefined) {
+          failed = true;
+          findings.push({
+            level: 'error',
+            message: `OVER BUDGET ${budget.id}: ${budget.label} <= ${budget.limit}, measured ${over}`,
+          });
+          continue;
+        }
+
+        findings.push({
+          level: 'info',
+          message:
+            recorded === null
+              ? `NOT MEASURED HERE ${budget.id}: ${budget.label} <= ${budget.limit} (enforced by ${budget.enforcedBy})`
+              : `MEASURED ${budget.id}: ${recorded} of ${budget.limit} (${budget.enforcedBy}, from ${BROWSER_BASELINE_FILE})`,
+        });
+      }
     }
 
     return Promise.resolve({
