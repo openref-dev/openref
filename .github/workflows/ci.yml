@@ -106,8 +106,15 @@ jobs:
       - name: Build
         run: pnpm run build
 
-      # pnpm itself does not run on the floor, so the switch happens after everything is built
-      # and the check is plain Node with no dependencies.
+      # THE PREVIOUS COMMENT HERE SAID pnpm DOES NOT RUN ON THE FLOOR. IT DOES. pnpm 11.20.0
+      # declares `node >=22.13`, the floor is 22.22.2, and the verify job above installs and
+      # runs the entire suite there on every push. The constraint was invented and then obeyed.
+      #
+      # The switch happens after the build for a reason that survives the correction, and it is
+      # a choice about what is under test rather than a limit: what this job protects is a
+      # consumer LOADING the built package on the oldest supported runtime. Building on the
+      # floor would test the toolchain instead, and the check itself is plain Node with no
+      # dependencies precisely so that nothing but the artefact is in the way.
       - name: Switch to the engines floor
         uses: actions/setup-node@v4
         with:
