@@ -79,6 +79,28 @@ afterAll(async () => {
   await chrome.close();
 });
 
+describe('the harness itself', () => {
+  it(
+    'should refuse to measure a page that did not load, which is how M0 lost six proofs',
+    async () => {
+      // Given a route the fixture does not serve, which is the exact condition the six proofs
+      // in this file ran under for the length of a milestone and read as a pass.
+      const missing = `${guarded.url}/docs/a-route-no-document-has`;
+
+      // When
+      const measuring = measurePage(chrome.browser, {
+        url: missing,
+        throttleRate: 1,
+        globals: [PLANTED_SCRIPT_MARKER],
+      });
+
+      // Then the measurement refuses rather than reporting an empty page as a clean one
+      await expect(measuring).rejects.toThrow(/answered 404/);
+    },
+    TIMEOUT,
+  );
+});
+
 describe('the strict CSP of SPEC 19.2, enforced by a browser', () => {
   it(
     'should report no violation and load no third party resource on the page as it ships',
@@ -89,7 +111,13 @@ describe('the strict CSP of SPEC 19.2, enforced by a browser', () => {
       // When the page is opened with nothing planted
       const measurement = await measure(guarded);
 
-      // Then
+      // Then the page it measured is a page that loaded, which is asserted before the three
+      // absences below rather than assumed by them. `measurePage` refuses a failed navigation
+      // now; this adds the half a status code cannot carry, that the reference is on the page
+      // and that it fetched the files it is supposed to fetch.
+      expect(measurement.requests.length).toBeGreaterThan(1);
+      expect(measurement.parsedBytes.documentBytes).toBeGreaterThan(1024);
+
       expect(measurement.cspViolations).toEqual([]);
       expect(measurement.requests.filter((request) => request.external)).toEqual([]);
       expect(measurement.globals[PLANTED_SCRIPT_MARKER]).toBe(false);

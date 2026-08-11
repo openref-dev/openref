@@ -268,7 +268,8 @@ describe('fixtureLicensesGate', () => {
         !notice.includes(document.license),
     );
 
-    // Then
+    // Then, an empty manifest attributes every document in it, per SPEC 0
+    expect(manifest.documents.length).toBeGreaterThan(0);
     expect(missing.map((document) => document.file)).toEqual([]);
   });
 

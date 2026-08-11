@@ -100,8 +100,15 @@ async function open(path: string, blockLateModules = false): Promise<Session> {
     });
   }
 
-  await page.goto(`${app.url}${path}`, { waitUntil: 'load', timeout: 120_000 });
+  const response = await page.goto(`${app.url}${path}`, { waitUntil: 'load', timeout: 120_000 });
   loaded = true;
+
+  // THE PAGE IS ASSERTED PRESENT HERE, per SPEC 0. The cases below assert that no violation was
+  // reported, that nothing left the origin and that no error was rendered, and an error page
+  // answers all three by loading nothing. The chunk plant is deliberately not covered by this:
+  // it 404s later modules on purpose, and the navigation itself still has to succeed.
+  expect(response?.status()).toBe(200);
+  expect(await page.locator('#oref-app').count()).toBe(1);
 
   return {
     page,

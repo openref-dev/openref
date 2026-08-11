@@ -19,7 +19,25 @@ async function serve(): Promise<void> {
   await app.listen(port, '127.0.0.1');
 
   const url = await app.getUrl();
+
+  // THE JSON LINE IS AN INTERFACE AND THE PROSE IS NOT. `tools/browser-budget/src/spawn.ts`
+  // reads the first line that parses as an object with a url, which is why the machine readable
+  // one is written first and why nothing below it may start with a brace.
   process.stdout.write(`${JSON.stringify({ ready: true, platform, url })}\n`);
+  process.stdout.write(
+    [
+      '',
+      `  OPENREF demo, on ${platform}`,
+      '',
+      `  Reference   ${url}/docs`,
+      `  The API     ${url}/orders`,
+      '',
+      '  Open the reference, pick an operation, and press Send. The request goes to this',
+      '  process. Nothing is fetched from anywhere else.',
+      '',
+      '',
+    ].join('\n'),
+  );
 }
 
 await serve();

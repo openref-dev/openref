@@ -67,7 +67,16 @@ async function open(path: string): Promise<Session> {
     requests.push(request.url());
   });
 
-  await page.goto(`${fixture.url}${path}`, { waitUntil: 'load', timeout: 120_000 });
+  const response = await page.goto(`${fixture.url}${path}`, {
+    waitUntil: 'load',
+    timeout: 120_000,
+  });
+
+  // THE PAGE IS ASSERTED PRESENT HERE, per SPEC 0, because every case below asserts an absence:
+  // no external request, no policy violation, no navigation fetch. A 404 satisfies all three by
+  // loading nothing at all, which is how six proofs of M0 stayed green while proving nothing.
+  expect(response?.status()).toBe(200);
+  expect(await page.locator('#oref-app').count()).toBe(1);
 
   return {
     page,

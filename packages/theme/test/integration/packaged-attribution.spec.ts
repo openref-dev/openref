@@ -82,9 +82,11 @@ describe('the published tarball', () => {
     const present = new Set(readdirSync(join(root, 'fonts')));
 
     // When
-    const unlicensed = manifestOf(root).filter((asset) => !present.has(asset.licenseTextFile));
+    const assets = manifestOf(root);
+    const unlicensed = assets.filter((asset) => !present.has(asset.licenseTextFile));
 
-    // Then
+    // Then, an empty manifest has no unlicensed asset in it, per SPEC 0
+    expect(assets.length).toBeGreaterThan(0);
     expect(unlicensed.map((asset) => asset.file)).toEqual([]);
   });
 
@@ -123,11 +125,11 @@ describe('the published tarball', () => {
     const notice = readFileSync(join(root, 'fonts', 'NOTICE.md'), 'utf8');
 
     // When
-    const unmentioned = readdirSync(join(root, 'fonts'))
-      .filter((file) => file.endsWith('.woff2'))
-      .filter((file) => !notice.includes(file));
+    const shipped = readdirSync(join(root, 'fonts')).filter((file) => file.endsWith('.woff2'));
+    const unmentioned = shipped.filter((file) => !notice.includes(file));
 
-    // Then
+    // Then, a tarball with no font in it names every font it ships, per SPEC 0
+    expect(shipped.length).toBeGreaterThan(0);
     expect(unmentioned).toEqual([]);
   });
 
@@ -137,9 +139,11 @@ describe('the published tarball', () => {
 
     // When
     const css = readFileSync(join(root, 'fonts', 'fonts.css'), 'utf8');
+    const assets = manifestOf(root);
 
-    // Then
-    for (const asset of manifestOf(root)) expect(css).toContain(asset.file);
+    // Then, a loop over an empty manifest asserts nothing and reads as a pass, per SPEC 0
+    expect(assets.length).toBeGreaterThan(0);
+    for (const asset of assets) expect(css).toContain(asset.file);
   });
 
   it('should not lean on the repository root notice, which does not travel', () => {

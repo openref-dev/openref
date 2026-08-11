@@ -22,7 +22,20 @@ function readBundle(): string {
     );
   }
 
-  return readFileSync(bundlePath, 'utf8');
+  const bundle = readFileSync(bundlePath, 'utf8');
+
+  // THE SUBJECT IS ASSERTED PRESENT BEFORE ANYTHING IS ASSERTED ABSENT, per SPEC 0. Three of
+  // the cases below say a marker is not in this file, and a truncated or stubbed build answers
+  // every one of them by containing nothing. Existing is not the same as being the bundle, so
+  // the file is required to carry the renderer's own entry before it is searched for what it
+  // must not carry.
+  if (!bundle.includes('oref-app')) {
+    throw new Error(
+      `the file at ${bundlePath} does not carry the renderer entry, so an absence found in it means nothing`,
+    );
+  }
+
+  return bundle;
 }
 
 describe('client bundle', () => {

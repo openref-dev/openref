@@ -464,7 +464,25 @@ export async function measurePage(
   const countersBefore = await rendererCounters(session);
 
   try {
-    await page.goto(options.url, { waitUntil: 'load', timeout: 180_000 });
+    const response = await page.goto(options.url, { waitUntil: 'load', timeout: 180_000 });
+
+    // THE SUBJECT IS ASSERTED PRESENT BEFORE ANYTHING IS ASSERTED ABSENT, per SPEC 0. Six
+    // security proofs of M0 measured a 404 for the length of a milestone: the routes had been
+    // written out by hand beside a generated document and stopped existing, and a 404 page loads
+    // no assets, so zero external requests and zero policy violations read exactly like a page
+    // that behaves. The status is checked here rather than in each caller because every one of
+    // them asks a question whose cheap answer is an error page.
+    if (response === null) {
+      throw new Error(`no response for ${options.url}, so nothing was measured`);
+    }
+
+    if (!response.ok()) {
+      throw new Error(
+        `${options.url} answered ${String(response.status())}. A page that failed to load asks ` +
+          'for nothing and reports nothing, which is not a measurement and is not a pass',
+      );
+    }
+
     await settle(page, quietMs);
 
     const timings = await page.evaluate((): PageTimings => {

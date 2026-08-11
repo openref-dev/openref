@@ -232,7 +232,9 @@ describe('the dual build', () => {
     // When
     const external = externalSpecifiers(bundle);
 
-    // Then
+    // Then, the file is a bundle before it is a bundle with no imports in it. An empty or
+    // truncated build has no external specifier either, per SPEC 0.
+    expect(bundle).toContain('oref-app');
     expect(external).toEqual([]);
   });
 });

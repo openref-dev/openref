@@ -418,7 +418,9 @@ describe('the page frame', () => {
     // When
     const styled = host.querySelectorAll('[style]');
 
-    // Then
+    // Then, a host that rendered nothing carries no style attribute either, per SPEC 0
+    expect(host.querySelector('.oref-root')).not.toBeNull();
+    expect(host.querySelectorAll('*').length).toBeGreaterThan(20);
     expect(styled).toHaveLength(0);
   });
 });
