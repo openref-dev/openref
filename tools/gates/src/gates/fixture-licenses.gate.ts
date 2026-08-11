@@ -180,6 +180,7 @@ export const fixtureLicensesGate: Gate = {
         id: fixtureLicensesGate.id,
         title: fixtureLicensesGate.title,
         status: 'skip',
+        skipReason: 'artifact-absent',
         findings,
       });
     }

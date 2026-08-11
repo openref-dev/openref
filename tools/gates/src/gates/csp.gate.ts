@@ -49,6 +49,7 @@ export const cspGate: Gate = {
         id: cspGate.id,
         title: cspGate.title,
         status: 'skip',
+        skipReason: 'artifact-absent',
         findings,
       });
     }

@@ -26,7 +26,7 @@ import { fixtureLicensesGate } from '../../src/gates/fixture-licenses.gate';
 import { licensesGate } from '../../src/gates/licenses.gate';
 import { themeFontsGate } from '../../src/gates/theme-fonts.gate';
 import { themeMotionGate } from '../../src/gates/theme-motion.gate';
-import { AI_DOCS_DIR } from '../../src/lib/ai-docs';
+import { AI_DOCS_DIR, aiDocsPresent } from '../../src/lib/ai-docs';
 import { checkBudgetExceptions } from '../../src/lib/budget-exceptions';
 import { parseContents, parseMilestones, splitLines } from '../../src/lib/build-manifest';
 import { runCommand } from '../../src/lib/exec';
@@ -40,6 +40,18 @@ import { readWorkspaceManifests, resolveShippedPackages } from '../../src/lib/wo
 import { GATES, selectGates } from '../../src/run';
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..');
+
+/**
+ * Whether the maintainer's private documents are on this machine.
+ *
+ * Four cases below drive a gate against the real `ai-docs/` and assert it passes. On a clone
+ * that has no such directory the gate skips, correctly and loudly, and the case read that
+ * correct skip as a failure. THE SKIP ITSELF IS NOT WEAKENED BY THIS: the two cases at the foot
+ * of this file prove the skip happens and that an empty `ai-docs/` still fails, and both run
+ * everywhere. What the runner enforces without the directory is that no gate skipped for any
+ * other reason, which is `accountForSkips`.
+ */
+const HAVE_AI_DOCS = aiDocsPresent(repoRoot);
 
 /**
  * A file planted inside `core` that imports from `vue`, which the graph forbids.
@@ -56,7 +68,7 @@ afterEach(() => {
 });
 
 describe('buildManifestGate', () => {
-  it('should pass on the committed BUILD.md', async () => {
+  it.skipIf(!HAVE_AI_DOCS)('should pass on the committed BUILD.md', async () => {
     // Given
     const context = { repoRoot };
 
@@ -282,7 +294,7 @@ describe('fixtureLicensesGate', () => {
 });
 
 describe('themeMotionGate', () => {
-  it('should pass on all four committed theme stylesheets', async () => {
+  it.skipIf(!HAVE_AI_DOCS)('should pass on all four committed theme stylesheets', async () => {
     // Given, three reference themes and the shipped one. Only one of them is code, and a check
     // that saw only that one would report conformance for a third of the problem.
     const context = { repoRoot };
@@ -538,29 +550,32 @@ describe('budgetExceptionsGate', () => {
     ]);
   }, 180_000);
 
-  it('should keep every owner it ever named a task the plan actually carries', () => {
-    // Given, the check that caught this list on its first run: both owners were named before
-    // either retrofit was filed, and the gate refused them until they were. It applies to the
-    // closed entry too, so the record cannot come to point at a task that was renamed away.
-    const build = readFileSync(join(repoRoot, BUILD_FILE), 'utf8');
-    const amendments = readFileSync(join(repoRoot, BUILD_AMENDMENTS_FILE), 'utf8');
-    const owners = [...BUDGET_EXCEPTIONS, ...BUDGET_EXCEPTION_HISTORY].flatMap(
-      (entry) => entry.owners,
-    );
+  it.skipIf(!HAVE_AI_DOCS)(
+    'should keep every owner it ever named a task the plan actually carries',
+    () => {
+      // Given, the check that caught this list on its first run: both owners were named before
+      // either retrofit was filed, and the gate refused them until they were. It applies to the
+      // closed entry too, so the record cannot come to point at a task that was renamed away.
+      const build = readFileSync(join(repoRoot, BUILD_FILE), 'utf8');
+      const amendments = readFileSync(join(repoRoot, BUILD_AMENDMENTS_FILE), 'utf8');
+      const owners = [...BUDGET_EXCEPTIONS, ...BUDGET_EXCEPTION_HISTORY].flatMap(
+        (entry) => entry.owners,
+      );
 
-    // When
-    const filed = owners.filter(
-      (owner) =>
-        parseContents(splitLines(build)).some((entry) => entry.id === owner) ||
-        new RegExp(`^### \\[[ x]\\] \`${owner}\``, 'm').test(amendments),
-    );
+      // When
+      const filed = owners.filter(
+        (owner) =>
+          parseContents(splitLines(build)).some((entry) => entry.id === owner) ||
+          new RegExp(`^### \\[[ x]\\] \`${owner}\``, 'm').test(amendments),
+      );
 
-    // Then
-    expect(owners.length).toBeGreaterThan(0);
-    expect(filed).toEqual(owners);
-  });
+      // Then
+      expect(owners.length).toBeGreaterThan(0);
+      expect(filed).toEqual(owners);
+    },
+  );
 
-  it('should refuse to let M0 close while an entry is still there', () => {
+  it.skipIf(!HAVE_AI_DOCS)('should refuse to let M0 close while an entry is still there', () => {
     // Given, the real BUILD.md with every M0 box ticked, which is what the last M0 task does,
     // and a planted entry standing where `tti` stood until it closed. The rule is what makes an
     // expiry real, so it is proved against a planted entry rather than allowed to lapse with

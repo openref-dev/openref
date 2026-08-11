@@ -40,6 +40,7 @@ export const themeMotionGate: Gate = {
         id: themeMotionGate.id,
         title: themeMotionGate.title,
         status: 'skip',
+        skipReason: 'ai-docs-absent',
         findings: [
           {
             level: 'warning',

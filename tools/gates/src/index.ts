@@ -1,8 +1,11 @@
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { aiDocsPresent } from './lib/ai-docs.js';
+import { accountForSkips, skipAccountingFailed } from './lib/skip-accounting.js';
 import { failedGateIds, runAllGates, STATUS_LABEL } from './run.js';
 
 export { failedGateIds, GATES, runAllGates, selectGates, STATUS_LABEL } from './run.js';
+export { accountForSkips, SKIP_REASONS, skipAccountingFailed } from './lib/skip-accounting.js';
 export type { Gate, GateContext, GateFinding, GateResult, GateStatus } from './types.js';
 
 /**
@@ -20,12 +23,25 @@ async function main(): Promise<void> {
 
   write('\n=== gate summary ===');
   for (const result of results) {
-    write(`  ${STATUS_LABEL[result.status].padEnd(4)} ${result.id}`);
+    const reason = result.skipReason === undefined ? '' : `  (${result.skipReason})`;
+    write(`  ${STATUS_LABEL[result.status].padEnd(4)} ${result.id}${reason}`);
   }
 
+  // THE ONE THING CI CAN ENFORCE ON A CHECKOUT WITH NO PRIVATE DOCUMENTS. Four gates skip
+  // there and document rather than enforce what they read. This says the skipping itself was
+  // in order: every skip named a declared cause, the cause it named is true here, and no gate
+  // that had to skip came out as a pass instead.
+  const accounting = accountForSkips(results, { aiDocsPresent: aiDocsPresent(repoRoot) });
+  write('\n=== skip accounting ===');
+  if (accounting.length === 0) write('  nothing skipped');
+  for (const finding of accounting) write(`  [${finding.level}] ${finding.message}`);
+
   const failed = failedGateIds(results);
-  if (failed.length > 0) {
-    write(`\n${String(failed.length)} gate(s) failed: ${failed.join(', ')}`);
+  const unaccounted = skipAccountingFailed(accounting);
+
+  if (failed.length > 0 || unaccounted) {
+    if (failed.length > 0) write(`\n${String(failed.length)} gate(s) failed: ${failed.join(', ')}`);
+    if (unaccounted) write('\nthe skips in this run are not accounted for');
     write('Fix the code. Never the gate.');
     process.exitCode = 1;
     return;

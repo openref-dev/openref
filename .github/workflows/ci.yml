@@ -50,11 +50,17 @@ jobs:
       - name: Format check
         run: pnpm run format:check
 
-      - name: Lint
-        run: pnpm run lint
-
+      # BUILD BEFORE LINT, BECAUSE TYPED LINTING READS DECLARATION OUTPUT. `projectService`
+      # picks the nearest tsconfig, and a package tsconfig carries no `paths`, so a sibling
+      # `@openref/*` resolves through node_modules to `dist/*.d.ts`. On a clean checkout that
+      # file does not exist yet and every expression touching a workspace type becomes an error
+      # type: 954 errors that say nothing about the code. The maintainer's machine has never
+      # seen this because `dist/` has been on it since the day the package was written.
       - name: Build
         run: pnpm run build
+
+      - name: Lint
+        run: pnpm run lint
 
       - name: Test
         run: pnpm run test

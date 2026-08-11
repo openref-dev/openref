@@ -32,6 +32,7 @@ export const buildManifestGate: Gate = {
         id: buildManifestGate.id,
         title: buildManifestGate.title,
         status: 'skip',
+        skipReason: 'ai-docs-absent',
         findings: [
           {
             level: 'warning',

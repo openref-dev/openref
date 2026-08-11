@@ -75,6 +75,7 @@ export const themeTokensGate: Gate = {
         id: themeTokensGate.id,
         title: themeTokensGate.title,
         status: 'skip',
+        skipReason: 'artifact-absent',
         findings,
       });
     }

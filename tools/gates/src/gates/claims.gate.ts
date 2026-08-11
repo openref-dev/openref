@@ -37,6 +37,7 @@ export const claimsGate: Gate = {
         id: claimsGate.id,
         title: claimsGate.title,
         status: 'skip',
+        skipReason: 'ai-docs-absent',
         findings: [
           {
             level: 'warning',

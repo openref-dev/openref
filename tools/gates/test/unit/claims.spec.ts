@@ -2,6 +2,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { BUILD_FILE, CLAIM_MAP_FILE, SPEC_20_BUDGET_IDS, SPEC_FILE } from '../../src/config';
+import { aiDocsPresent } from '../../src/lib/ai-docs';
 import { planTaskIds } from '../../src/lib/build-manifest';
 import {
   checkClaimMap,
@@ -13,6 +14,17 @@ import {
 } from '../../src/lib/claims';
 
 const repoRoot = join(import.meta.dirname, '..', '..', '..', '..');
+
+/**
+ * Whether the real documents are on this machine.
+ *
+ * Three cases below parse `ai-docs/SPEC.md` itself, on the stated ground that a parse tested
+ * only against a fixture proves nothing about the file it will run on. That ground is sound and
+ * it is why they are bounded rather than rewritten: where the document is absent there is
+ * nothing to prove anything about, and reading it there reported a private directory's absence
+ * as a defect in the parser. The fixture cases beside them are unbounded and run everywhere.
+ */
+const HAVE_AI_DOCS = aiDocsPresent(repoRoot);
 
 const CLAIMS = [
   { id: '19.1', text: 'sanitization' },
@@ -40,7 +52,7 @@ const proved = (id: string, proofs: string[] = ['test/a.spec.ts']): ClaimMapRow 
 const scheduled = (id: string, status: string): ClaimMapRow => ({ id, proofs: [], status });
 
 describe('parseSecurityClaims', () => {
-  it('should read the ten claims out of the specification itself', () => {
+  it.skipIf(!HAVE_AI_DOCS)('should read the ten claims out of the specification itself', () => {
     // Given the real document, because a parse tested only against a fixture proves nothing
     // about the file it will run on
     const spec = readFileSync(join(repoRoot, SPEC_FILE), 'utf8');
@@ -64,17 +76,20 @@ describe('parseSecurityClaims', () => {
 });
 
 describe('parseBudgetRows', () => {
-  it('should read every row of the SPEC 20 table and stop at the prose under it', () => {
-    // Given the real document, whose budget table is followed by several pages about fonts
-    const spec = readFileSync(join(repoRoot, SPEC_FILE), 'utf8');
+  it.skipIf(!HAVE_AI_DOCS)(
+    'should read every row of the SPEC 20 table and stop at the prose under it',
+    () => {
+      // Given the real document, whose budget table is followed by several pages about fonts
+      const spec = readFileSync(join(repoRoot, SPEC_FILE), 'utf8');
 
-    // When
-    const rows = parseBudgetRows(spec);
+      // When
+      const rows = parseBudgetRows(spec);
 
-    // Then
-    expect(rows).toHaveLength(SPEC_20_BUDGET_IDS.length);
-    expect(rows.some((row) => row.includes('TTI'))).toBe(true);
-  });
+      // Then
+      expect(rows).toHaveLength(SPEC_20_BUDGET_IDS.length);
+      expect(rows.some((row) => row.includes('TTI'))).toBe(true);
+    },
+  );
 });
 
 describe('checkClaimMap', () => {
@@ -262,28 +277,31 @@ describe('checkClaimMap', () => {
 });
 
 describe('the committed claim map', () => {
-  it('should answer every claim the specification makes, against files that are there', () => {
-    // Given the real documents and the real repository, which is what the gate runs on. THE
-    // OWNER LIST IS READ RATHER THAN WRITTEN OUT: it used to be five ids typed here, and a
-    // second copy of a list is a second thing to forget. The gate reads it from BUILD.md and the
-    // amendments, so this reads it the same way, and a task filed there needs no edit here.
-    const spec = readFileSync(join(repoRoot, SPEC_FILE), 'utf8');
-    const map = readFileSync(join(repoRoot, CLAIM_MAP_FILE), 'utf8');
+  it.skipIf(!HAVE_AI_DOCS)(
+    'should answer every claim the specification makes, against files that are there',
+    () => {
+      // Given the real documents and the real repository, which is what the gate runs on. THE
+      // OWNER LIST IS READ RATHER THAN WRITTEN OUT: it used to be five ids typed here, and a
+      // second copy of a list is a second thing to forget. The gate reads it from BUILD.md and the
+      // amendments, so this reads it the same way, and a task filed there needs no edit here.
+      const spec = readFileSync(join(repoRoot, SPEC_FILE), 'utf8');
+      const map = readFileSync(join(repoRoot, CLAIM_MAP_FILE), 'utf8');
 
-    // When
-    const issues = checkClaimMap({
-      securityClaims: parseSecurityClaims(spec),
-      budgetIds: SPEC_20_BUDGET_IDS,
-      budgetRows: parseBudgetRows(spec),
-      map: parseClaimMap(map),
-      taskIds: planTaskIds(
-        readFileSync(join(repoRoot, BUILD_FILE), 'utf8'),
-        readFileSync(join(repoRoot, 'ai-docs/BUILD-AMENDMENTS.md'), 'utf8'),
-      ),
-      exists: (path) => existsSync(join(repoRoot, path)),
-    });
+      // When
+      const issues = checkClaimMap({
+        securityClaims: parseSecurityClaims(spec),
+        budgetIds: SPEC_20_BUDGET_IDS,
+        budgetRows: parseBudgetRows(spec),
+        map: parseClaimMap(map),
+        taskIds: planTaskIds(
+          readFileSync(join(repoRoot, BUILD_FILE), 'utf8'),
+          readFileSync(join(repoRoot, 'ai-docs/BUILD-AMENDMENTS.md'), 'utf8'),
+        ),
+        exists: (path) => existsSync(join(repoRoot, path)),
+      });
 
-    // Then
-    expect(issues).toEqual([]);
-  });
+      // Then
+      expect(issues).toEqual([]);
+    },
+  );
 });

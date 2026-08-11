@@ -8,6 +8,20 @@
 export type GateStatus = 'pass' | 'fail' | 'skip';
 
 /**
+ * Why a gate checked nothing.
+ *
+ * A SKIP THAT HAPPENS FOR THE WRONG REASON LOOKS IDENTICAL TO THE RIGHT ONE while the only
+ * record of the cause is prose in a finding. `SKIP theme-motion` in the summary reads the same
+ * whether the maintainer's private documents are absent, which is expected on every clone, or
+ * whether the stylesheets stopped being produced, which is a defect. Naming the cause is what
+ * lets `accountForSkips` tell them apart on a machine that has neither.
+ *
+ * - `ai-docs-absent`: the maintainer's private documents are not in this checkout
+ * - `artifact-absent`: what the gate weighs or scans has not been built yet
+ */
+export type SkipReasonId = 'ai-docs-absent' | 'artifact-absent';
+
+/**
  * Severity of a single message produced by a gate.
  */
 export type FindingLevel = 'error' | 'warning' | 'info';
@@ -28,6 +42,16 @@ export interface GateResult {
   readonly title: string;
   readonly status: GateStatus;
   readonly findings: readonly GateFinding[];
+
+  /**
+   * Why the gate checked nothing. Required whenever `status` is `skip`.
+   *
+   * It is optional in the type and mandatory in the run: `accountForSkips` fails a skip that
+   * names no reason, so a new gate cannot skip silently even though the compiler admits it.
+   * A discriminated union would move that to compile time and was not taken, because it would
+   * restructure all fourteen gates for a check the first run already makes.
+   */
+  readonly skipReason?: SkipReasonId;
 }
 
 /**

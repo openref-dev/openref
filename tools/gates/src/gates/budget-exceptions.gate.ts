@@ -84,6 +84,7 @@ export const budgetExceptionsGate: Gate = {
         id: budgetExceptionsGate.id,
         title: budgetExceptionsGate.title,
         status: 'skip',
+        skipReason: 'ai-docs-absent',
         findings: [
           {
             level: 'warning',

@@ -7,6 +7,7 @@ import {
   REQUIRED_DOC_MIN_BYTES,
   REQUIRED_DOCS,
 } from '../../src/config';
+import { aiDocsPresent } from '../../src/lib/ai-docs';
 import {
   checkBuildManifest,
   checkRequiredDocs,
@@ -15,6 +16,22 @@ import {
   planTaskIds,
   splitLines,
 } from '../../src/lib/build-manifest';
+
+/**
+ * Whether the real documents are on this machine.
+ *
+ * THE GATE SKIPS LOUDLY WITHOUT `ai-docs/` AND THESE TESTS DID NOT, which is how a suite that
+ * had only ever run where the directory is passed for six sessions and went red the first time
+ * it ran anywhere else. Every case below that reads a real document is bounded by this, and the
+ * ones that build their own fixture text are not: those are the parse itself and they run
+ * everywhere.
+ *
+ * This is the same function the gates call, so a test and the gate it covers can never disagree
+ * about what present means. Where the directory is absent this file proves less, and vitest
+ * prints the reduced count. CI documents that rather than enforcing it, and the skip accounting
+ * in the runner is what CI can enforce without the directory.
+ */
+const HAVE_AI_DOCS = aiDocsPresent(join(import.meta.dirname, '..', '..', '..', '..'));
 
 /**
  * A miniature BUILD.md with the same shape as the real one: a CONTENTS block whose
@@ -256,7 +273,7 @@ describe('checkRequiredDocs', () => {
 });
 
 describe('the documents this project is written against', () => {
-  it('should all be present and hold content right now', () => {
+  it.skipIf(!HAVE_AI_DOCS)('should all be present and hold content right now', () => {
     // Given, the same check the gate runs, against the real files.
     const repoRoot = join(import.meta.dirname, '..', '..', '..', '..');
 
@@ -312,30 +329,33 @@ describe('parseMilestones', () => {
     expect(milestones.map((milestone) => milestone.id)).toEqual(['M0']);
   });
 
-  it('should read the real BUILD.md as eight milestones covering every task', () => {
-    // Given
-    const repoRoot = join(import.meta.dirname, '..', '..', '..', '..');
-    const lines = splitLines(readFileSync(join(repoRoot, BUILD_FILE), 'utf8'));
+  it.skipIf(!HAVE_AI_DOCS)(
+    'should read the real BUILD.md as eight milestones covering every task',
+    () => {
+      // Given
+      const repoRoot = join(import.meta.dirname, '..', '..', '..', '..');
+      const lines = splitLines(readFileSync(join(repoRoot, BUILD_FILE), 'utf8'));
 
-    // When
-    const milestones = parseMilestones(lines);
-    const tasks = milestones.flatMap((milestone) => milestone.tasks);
+      // When
+      const milestones = parseMilestones(lines);
+      const tasks = milestones.flatMap((milestone) => milestone.tasks);
 
-    // Then
-    expect(milestones.map((milestone) => milestone.id)).toEqual([
-      'M0',
-      'M1',
-      'M2',
-      'M3',
-      'M4',
-      'M5',
-      'M6',
-      'M7',
-      'RELEASE',
-    ]);
-    expect(tasks).toHaveLength(BUILD_TASK_COUNT);
-    expect(milestones[0]?.tasks.map((task) => task.id)).toContain('T016');
-  });
+      // Then
+      expect(milestones.map((milestone) => milestone.id)).toEqual([
+        'M0',
+        'M1',
+        'M2',
+        'M3',
+        'M4',
+        'M5',
+        'M6',
+        'M7',
+        'RELEASE',
+      ]);
+      expect(tasks).toHaveLength(BUILD_TASK_COUNT);
+      expect(milestones[0]?.tasks.map((task) => task.id)).toContain('T016');
+    },
+  );
 });
 
 /**
@@ -378,20 +398,23 @@ describe('planTaskIds', () => {
     expect(ids).not.toContain('T099');
   });
 
-  it('should give the two gates that call it the same answer for the real files', () => {
-    // Given, the condition that made this one function: `T011-R` owns the live `tti` exception
-    // and now also owns claims, and both readings have to come out the same
-    const repoRoot = join(import.meta.dirname, '..', '..', '..', '..');
-    const build = readFileSync(join(repoRoot, BUILD_FILE), 'utf8');
-    const amendmentsText = readFileSync(join(repoRoot, 'ai-docs/BUILD-AMENDMENTS.md'), 'utf8');
+  it.skipIf(!HAVE_AI_DOCS)(
+    'should give the two gates that call it the same answer for the real files',
+    () => {
+      // Given, the condition that made this one function: `T011-R` owns the live `tti` exception
+      // and now also owns claims, and both readings have to come out the same
+      const repoRoot = join(import.meta.dirname, '..', '..', '..', '..');
+      const build = readFileSync(join(repoRoot, BUILD_FILE), 'utf8');
+      const amendmentsText = readFileSync(join(repoRoot, 'ai-docs/BUILD-AMENDMENTS.md'), 'utf8');
 
-    // When
-    const ids = planTaskIds(build, amendmentsText);
+      // When
+      const ids = planTaskIds(build, amendmentsText);
 
-    // Then
-    expect(ids).toContain('T011-R');
-    expect(ids).toContain('T015-R1');
-    expect(ids).toContain('TX-VIS');
-    expect(ids).toHaveLength(new Set(ids).size);
-  });
+      // Then
+      expect(ids).toContain('T011-R');
+      expect(ids).toContain('T015-R1');
+      expect(ids).toContain('TX-VIS');
+      expect(ids).toHaveLength(new Set(ids).size);
+    },
+  );
 });

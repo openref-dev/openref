@@ -82,10 +82,15 @@ export const budgetsGate: Gate = {
     for (const outcome of report.outcomes.filter((item) => item.source === 'recorded'))
       emit(outcome);
 
+    // Nothing measured is nothing built: the budgets weigh files a build produces, so an empty
+    // report is the artifact being absent rather than every budget being inside its limit.
+    const status = failed ? 'fail' : report.measuredCount === 0 ? 'skip' : 'pass';
+
     return Promise.resolve({
       id: budgetsGate.id,
       title: budgetsGate.title,
-      status: failed ? 'fail' : report.measuredCount === 0 ? 'skip' : 'pass',
+      status,
+      ...(status === 'skip' ? { skipReason: 'artifact-absent' as const } : {}),
       findings,
     });
   },
