@@ -1,8 +1,9 @@
 import { createRequire } from 'node:module';
 import { describe, expect, it } from 'vitest';
-import { Controller, Get, RequestMethod } from '@nestjs/common';
+import { Controller, Get, RequestMethod, UseGuards } from '@nestjs/common';
 import {
   NEST_CORE_VALUE_NAMES,
+  NEST_GUARD_METADATA,
   NEST_REQUEST_METHODS,
   NEST_ROUTE_METADATA,
 } from '../../src/shared/types/nest-surface';
@@ -16,7 +17,8 @@ import {
  *
  * `shared/types/nest-surface.ts` already promised that the structural half is the whole coupling
  * and that a compatibility test reads it. TX-FORROOT added a value half: five names loaded from
- * `@nestjs/core`, three metadata keys, and eight numbers of an enum. All three are the framework's
+ * `@nestjs/core`, four metadata keys since T019 added the guards one, and eight numbers of an
+ * enum. All three kinds are the framework's
  * on-disk format rather than its documentation, so all three are checked here against the copy
  * that is installed, and against both majors by the compatibility matrix.
  *
@@ -88,6 +90,41 @@ describe('the metadata keys the discovery pass reads', () => {
     expect(controllerPath).toBe('orders');
     expect(handlerPath).toBe(':id');
     expect(handlerMethod).toBe(RequestMethod.GET);
+  });
+
+  it('should be where @UseGuards writes, at both levels, on the real decorator', () => {
+    // Given the same treatment for the key T019 added. `@UseGuards` writes the same key on a class
+    // and on a method, and both apply: the guards collector reads each target rather than taking
+    // the nearer one, and this is what says the framework still works that way.
+    class AuthGuard {
+      canActivate(): boolean {
+        return true;
+      }
+    }
+    class AdminGuard {
+      canActivate(): boolean {
+        return true;
+      }
+    }
+
+    @Controller('orders')
+    @UseGuards(AuthGuard)
+    class OrdersController {
+      @Get()
+      @UseGuards(AdminGuard)
+      list(): string {
+        return 'all';
+      }
+    }
+
+    // When
+    const onClass = Reflect.getMetadata(NEST_GUARD_METADATA, OrdersController) as unknown;
+    const descriptor = Object.getOwnPropertyDescriptor(OrdersController.prototype, 'list');
+    const onHandler = Reflect.getMetadata(NEST_GUARD_METADATA, descriptor?.value as object);
+
+    // Then
+    expect(onClass).toEqual([AuthGuard]);
+    expect(onHandler).toEqual([AdminGuard]);
   });
 });
 

@@ -77,6 +77,31 @@ export type {
   SourceCollectorOptions,
   SourceCollectorProblem,
 } from './runtime/infrastructure/collectors/source.collector';
+// The metadata collectors of SPEC 6.2.1, built in T019. These three need no third party package,
+// which is why they are here and the other three are their own published packages.
+export {
+  guardsCollector,
+  GUARDS_COLLECTOR_NAME,
+} from './runtime/infrastructure/collectors/guards.collector';
+export type {
+  GuardsCollector,
+  GuardsCollectorProblem,
+} from './runtime/infrastructure/collectors/guards.collector';
+export {
+  rolesCollector,
+  ROLES_COLLECTOR_NAME,
+  scopesCollector,
+  SCOPES_COLLECTOR_NAME,
+} from './runtime/infrastructure/collectors/metadata.collector';
+export type {
+  MetadataCollector,
+  MetadataCollectorOptions,
+  MetadataCollectorProblem,
+  MetadataCollectorRegistration,
+} from './runtime/infrastructure/collectors/metadata.collector';
+export { readGuards } from './runtime/domain/guards';
+export type { GuardReading } from './runtime/domain/guards';
+
 export {
   closeFunctionLocator,
   locateFunction,

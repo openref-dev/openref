@@ -186,6 +186,19 @@ export const NEST_ROUTE_METADATA = {
 } as const;
 
 /**
+ * The key `@UseGuards` writes, on a controller class and on a handler alike.
+ *
+ * A STRING LITERAL FOR THE REASON THE TABLE ABOVE GIVES, and this one has held since NestJS 5.
+ * `test/unit/nest-value-surface.spec.ts` decorates a class with the real `@UseGuards` and asserts
+ * the key still holds what this says.
+ *
+ * BOTH LEVELS APPLY AND NEITHER OVERRIDES THE OTHER, which is why the collector reads it with
+ * `get` on each target rather than with `getAllAndOverride`. NestJS runs the controller's guards
+ * and then the handler's, so a route with one of each is protected by two.
+ */
+export const NEST_GUARD_METADATA = '__guards__';
+
+/**
  * `RequestMethod` as it is written on a handler, mapped to the method name a document uses.
  *
  * The enum is numeric, so what a handler carries is a number, and the eight below have held

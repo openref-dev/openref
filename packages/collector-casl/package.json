@@ -1,0 +1,49 @@
+{
+  "name": "@openref/collector-casl",
+  "version": "0.0.0",
+  "description": "OPENREF collector for CASL: declarative ability facts from the running application",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "source": "./src/index.ts",
+  "exports": {
+    ".": {
+      "source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "sideEffects": false,
+  "engines": {
+    "node": "^22.22.2 || ^24.15.0 || >=26.0.0"
+  },
+  "scripts": {
+    "build": "tsup"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "peerDependencies": {
+    "@openref/core": "workspace:*",
+    "@openref/nest": "workspace:*",
+    "@casl/ability": "*"
+  },
+  "devDependencies": {
+    "@openref/core": "workspace:*",
+    "@openref/nest": "workspace:*",
+    "tsup": "8.5.1",
+    "typescript": "5.9.3",
+    "@casl/ability": "6.7.3"
+  },
+  "peerDependenciesMeta": {
+    "@casl/ability": {
+      "optional": true
+    }
+  }
+}

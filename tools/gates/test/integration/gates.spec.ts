@@ -180,7 +180,14 @@ describe('licensesGate', () => {
     const result = resolveShippedPackages(manifests);
 
     // Then
+    // THE THREE ECOSYSTEM COLLECTORS JOINED THE LIST IN T019, per SPEC 4, and they are published
+    // rather than bundled on purpose: each exists to read a third party library, so an edge from
+    // `@openref/nest` would put that library in the closure of every consumer. They bundle nothing
+    // themselves and take `@openref/core` and `@openref/nest` as peers.
     expect(result.published).toEqual([
+      '@openref/collector-access-control',
+      '@openref/collector-casl',
+      '@openref/collector-throttler',
       '@openref/core',
       '@openref/nest',
       '@openref/theme',

@@ -56,6 +56,17 @@ const BOUNDARIES = {
   nest: ['core', 'render', 'runner', 'search'],
   theme: [],
   cli: ['core', 'render', 'runner', 'search'],
+
+  // THE THREE ECOSYSTEM COLLECTORS OF SPEC 4, AND THE EDGE RUNS THE OTHER WAY. `nest` does not
+  // depend on any of them and must not: each one exists to read a third party package, and an
+  // edge from `nest` would put that package in the closure of the one every consumer installs.
+  // They depend on `nest` for the collector contract and on `core` for the IR their `collect`
+  // returns, both type-only and both declared as peers, because a host that registers one of these
+  // already has both installed. STANDARDS 3.5's table reads `nest -> collectors`, which is the
+  // direction a reader expects and is not the direction that ships.
+  'collector-throttler': ['core', 'nest'],
+  'collector-casl': ['core', 'nest'],
+  'collector-access-control': ['core', 'nest'],
 };
 
 /**
