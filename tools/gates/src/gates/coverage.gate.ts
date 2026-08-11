@@ -1,8 +1,9 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { COVERAGE_FLOORS, PACKAGE_DIRS } from '../config.js';
+import { COVERAGE_FLOORS } from '../config.js';
 import { aggregateByPackage, checkCoverageFloors, type CoverageSummary } from '../lib/coverage.js';
 import { runCommand } from '../lib/exec.js';
+import { readPackageDirs } from '../lib/package-dirs.js';
 import type { Gate, GateFinding, GateResult } from '../types.js';
 
 const SUMMARY_PATH = 'coverage/coverage-summary.json';
@@ -56,7 +57,7 @@ export const coverageGate: Gate = {
     }
 
     const summary = JSON.parse(readFileSync(summaryPath, 'utf8')) as CoverageSummary;
-    const perPackage = aggregateByPackage(summary, PACKAGE_DIRS);
+    const perPackage = aggregateByPackage(summary, readPackageDirs(context.repoRoot));
     const violations = checkCoverageFloors(perPackage, COVERAGE_FLOORS);
 
     for (const entry of perPackage) {

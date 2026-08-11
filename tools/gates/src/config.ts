@@ -163,17 +163,20 @@ export const BUILD_LINE_COUNT = 1641;
 /** The number of tasks BUILD.md contains, T001 through T065. */
 export const BUILD_TASK_COUNT = 65;
 
-/** Directory names under `packages/`, in dependency order. */
-export const PACKAGE_DIRS: readonly string[] = [
-  'core',
-  'vue',
-  'render',
-  'runner',
-  'search',
-  'nest',
-  'theme',
-  'cli',
-];
+/**
+ * THE LIST OF PACKAGES IS NOT IN THIS FILE ANY MORE, and its absence is the fix for F23.
+ *
+ * It was a hand written array of eight directory names here and another in
+ * `.dependency-cruiser.cjs`, with nothing reconciling either against the disk. Every boundary
+ * rule built its `to` path by filtering that array, so a package missing from it was governed by
+ * no rule in either direction, and the same array drove the CSP scan roots, so its built output
+ * was never opened. Measured on 2026-08-11: a new package under `packages/`, imported by
+ * `packages/core/src`, cruised clean.
+ *
+ * It is read from `packages/` now, by `lib/package-dirs.ts`, which calls the one derivation in
+ * `tools/dependency-rules.cjs`. A list that has to be maintained is a gate whose accuracy is the
+ * hand that last touched it.
+ */
 
 /**
  * Coverage floors from STANDARDS 9.1, keyed by package directory.
@@ -808,10 +811,13 @@ export const FONT_STYLESHEETS: readonly {
   readonly file: string;
 }[] = [{ theme: 'vernier, as shipped', file: 'packages/theme/fonts/fonts.css' }];
 
-/** Directories scanned for CSP violations, relative to the repository root. */
-export const CSP_SCAN_ROOTS: readonly string[] = PACKAGE_DIRS.map((dir) => `packages/${dir}/dist`);
-
-/** Extensions scanned for CSP violations. */
+/**
+ * Extensions scanned for CSP violations.
+ *
+ * The roots are not here beside them: they are one `dist` per package on disk, so they are derived
+ * by `cspScanRoots` in `lib/package-dirs.ts` rather than listed. See the note where `PACKAGE_DIRS`
+ * used to be.
+ */
 export const CSP_SCAN_EXTENSIONS: readonly string[] = [
   '.js',
   '.mjs',

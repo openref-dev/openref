@@ -1,3 +1,4 @@
+import { readdirSync, readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { defineProject } from 'vitest/config';
@@ -5,30 +6,28 @@ import { defineProject } from 'vitest/config';
 const repoRoot = dirname(fileURLToPath(import.meta.url));
 
 /**
- * Workspace package name to directory under `packages/`.
- *
- * Tests resolve workspace packages to their TypeScript sources so that no build
- * step is required before running the suite.
- */
-const WORKSPACE_PACKAGES: Record<string, string> = {
-  '@openref/core': 'core',
-  '@openref/vue': 'vue',
-  '@openref/render': 'render',
-  '@openref/runner': 'runner',
-  '@openref/search': 'search',
-  '@openref/nest': 'nest',
-  '@openref/theme': 'theme',
-  openref: 'cli',
-};
-
-/**
  * Alias map from workspace package name to its source entry point.
+ *
+ * READ FROM THE DISK RATHER THAN LISTED, which is the third copy of the package list F23 was
+ * about. This one fails loudly rather than silently, since a missing alias is an unresolved
+ * import, so it was never the defect the other two were. It is derived anyway because three
+ * hand written copies of one fact is how the two that failed quietly came to exist.
+ *
+ * Each package's own `name` and `source` are the mapping. Tests resolve workspace packages to
+ * their TypeScript sources so that no build step is required before running the suite.
  */
 export const workspaceAliases: Record<string, string> = Object.fromEntries(
-  Object.entries(WORKSPACE_PACKAGES).map(([name, dir]) => [
-    name,
-    resolve(repoRoot, 'packages', dir, 'src', 'index.ts'),
-  ]),
+  readdirSync(resolve(repoRoot, 'packages'), { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => {
+      const directory = resolve(repoRoot, 'packages', entry.name);
+      const manifest = JSON.parse(readFileSync(resolve(directory, 'package.json'), 'utf8')) as {
+        name: string;
+        source: string;
+      };
+
+      return [manifest.name, resolve(directory, manifest.source)];
+    }),
 );
 
 /**

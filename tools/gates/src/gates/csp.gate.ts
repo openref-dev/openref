@@ -1,7 +1,8 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { CSP_SCAN_EXTENSIONS, CSP_SCAN_ROOTS } from '../config.js';
+import { CSP_SCAN_EXTENSIONS } from '../config.js';
 import { scanForCspViolations } from '../lib/csp.js';
+import { cspScanRoots } from '../lib/package-dirs.js';
 import { collectFiles } from '../lib/walk.js';
 import type { Gate, GateFinding, GateResult } from '../types.js';
 
@@ -17,10 +18,11 @@ export const cspGate: Gate = {
 
   run(context): Promise<GateResult> {
     const findings: GateFinding[] = [];
+    const roots = cspScanRoots(context.repoRoot);
     let scanned = 0;
     let failed = false;
 
-    for (const root of CSP_SCAN_ROOTS) {
+    for (const root of roots) {
       for (const relativePath of collectFiles(
         join(context.repoRoot, root),
         CSP_SCAN_EXTENSIONS,
@@ -42,7 +44,7 @@ export const cspGate: Gate = {
     if (scanned === 0) {
       findings.push({
         level: 'info',
-        message: `SKIP no built output under ${CSP_SCAN_ROOTS.join(', ')}; run pnpm build first`,
+        message: `SKIP no built output under ${roots.join(', ')}; run pnpm build first`,
       });
 
       return Promise.resolve({
