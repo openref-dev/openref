@@ -14,6 +14,8 @@
 export enum ErrorCode {
   /** A `$ref` could not be resolved to a target. */
   NORM_REF_UNRESOLVED = 'NORM_REF_UNRESOLVED',
+  /** A `$ref` is not a well formed pointer, so there is no target to look for. */
+  NORM_REF_MALFORMED = 'NORM_REF_MALFORMED',
   /** A cyclic schema exceeded the configured cycle depth. */
   NORM_CYCLE_DEPTH_EXCEEDED = 'NORM_CYCLE_DEPTH_EXCEEDED',
   /** The document declares a schema dialect the common pipeline cannot process. */
@@ -24,6 +26,15 @@ export enum ErrorCode {
   NORM_COMPOSITION_CONFLICT = 'NORM_COMPOSITION_CONFLICT',
   /** The document itself is malformed beyond repair. */
   NORM_DOCUMENT_INVALID = 'NORM_DOCUMENT_INVALID',
+  /** The document is larger than intake will read, per SPEC 5.4. */
+  NORM_DOCUMENT_TOO_LARGE = 'NORM_DOCUMENT_TOO_LARGE',
+  /** Two different `$ref` targets are filed under one schema id, so one would be lost. */
+  NORM_SCHEMA_ID_COLLISION = 'NORM_SCHEMA_ID_COLLISION',
+  /**
+   * A value nests deeper than the declared limit, in normalization or in canonical
+   * serialization. Declared rather than inherited from the call stack, per SPEC 5.3.
+   */
+  NORM_DEPTH_EXCEEDED = 'NORM_DEPTH_EXCEEDED',
 
   /** A collector failed while gathering runtime facts. */
   COLLECT_FAILED = 'COLLECT_FAILED',
@@ -42,6 +53,10 @@ export enum ErrorCode {
   RUN_STREAM_FAILED = 'RUN_STREAM_FAILED',
   /** The runner or the socket client was called in a build that does not carry one yet. */
   RUN_NOT_AVAILABLE = 'RUN_NOT_AVAILABLE',
+  /** The server did not answer inside the configured limit, per SPEC 14.1. */
+  RUN_TIMEOUT = 'RUN_TIMEOUT',
+  /** The response body is larger than the console can hold or show, per SPEC 14.1. */
+  RUN_RESPONSE_TOO_LARGE = 'RUN_RESPONSE_TOO_LARGE',
 
   /** A federated remote could not be reached. */
   FED_REMOTE_UNAVAILABLE = 'FED_REMOTE_UNAVAILABLE',

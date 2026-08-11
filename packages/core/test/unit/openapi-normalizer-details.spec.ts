@@ -581,7 +581,7 @@ describe('normalizeOpenApiDocument optional members', () => {
     if (slot?.kind !== 'inline') return;
 
     const id = slot.schema.normalized?.$ref;
-    expect(id).toMatch(/^Money__[0-9a-f]{8}$/);
+    expect(id).toMatch(/^~x[0-9a-f]{8}~Money$/);
     expect(document.schemas.get(id ?? '')?.normalized).toMatchObject({ format: 'decimal' });
   });
 

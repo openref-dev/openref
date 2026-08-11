@@ -70,9 +70,9 @@ describe('normalizeSchema reference resolution', () => {
       { rootDocument: {}, externalDocuments: { 'shared.yaml': shared } },
     );
 
-    // Then, an external target is registered under an id carrying its document, so two
+    // Then, an external target is registered under an id in the external space, so two
     // documents can each have a Money without colliding
-    expect(graph.schema.$ref).toMatch(/^Money__[0-9a-f]{8}$/);
+    expect(graph.schema.$ref).toMatch(/^~x[0-9a-f]{8}~Money$/);
     expect(graph.schemas.get(graph.schema.$ref ?? '')).toEqual({
       type: 'string',
       format: 'decimal',

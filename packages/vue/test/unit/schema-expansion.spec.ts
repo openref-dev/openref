@@ -269,9 +269,13 @@ describe('schema tree expansion, structure', () => {
 });
 
 describe('schemaDisplayName', () => {
-  it('should strip the deterministic suffix an external target is registered under', () => {
-    // Given, per SPEC 5.1.1 the suffix is an identity mechanism and not a display string.
-    const schema = { id: 'Order__1a2b3c4d', name: 'Order__1a2b3c4d', dialect: 'unknown' } as const;
+  it('should strip the identity marker an external target is registered under', () => {
+    // Given, per SPEC 5.1.1 the marker is an identity mechanism and not a display string.
+    const schema = {
+      id: '~x1a2b3c4d~Order',
+      name: '~x1a2b3c4d~Order',
+      dialect: 'unknown',
+    } as const;
 
     // When
     const name = schemaDisplayName(schema, schema.id);
@@ -289,6 +293,22 @@ describe('schemaDisplayName', () => {
 
     // Then
     expect(name).toBe('Order_Line');
+  });
+
+  it('should show an internal schema that imitates an external id as the name it has', () => {
+    // Given, the display side of F1: a document may call its own schema anything, and the id
+    // it lands under is escaped so that nothing is stripped from it.
+    const schema = {
+      id: '~~x1a2b3c4d~~Order',
+      name: '~~x1a2b3c4d~~Order',
+      dialect: 'unknown',
+    } as const;
+
+    // When
+    const name = schemaDisplayName(schema, schema.id);
+
+    // Then
+    expect(name).toBe('~x1a2b3c4d~Order');
   });
 
   it('should fall back to the id when the entry carries no name', () => {

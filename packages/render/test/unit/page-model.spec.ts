@@ -11,12 +11,12 @@ function namedSchema(id: string, name: string): IRSchema {
 }
 
 describe('typeLabel', () => {
-  it('should name a named schema without its identity suffix', () => {
+  it('should name a named schema without its identity marker', () => {
     // Given
     const schemas = new Map([
-      ['Order__1a2b3c4d', namedSchema('Order__1a2b3c4d', 'Order__1a2b3c4d')],
+      ['~x1a2b3c4d~Order', namedSchema('~x1a2b3c4d~Order', '~x1a2b3c4d~Order')],
     ]);
-    const slot: IRSchemaSlot = { kind: 'named', schemaId: 'Order__1a2b3c4d' };
+    const slot: IRSchemaSlot = { kind: 'named', schemaId: '~x1a2b3c4d~Order' };
 
     // When
     const result = typeLabel(slot, schemas);

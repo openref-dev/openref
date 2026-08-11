@@ -47,10 +47,13 @@ export type {
 } from './send/application/ports/http-transport.port';
 
 export {
+  DEFAULT_MAX_RESPONSE_BYTES,
+  DEFAULT_TIMEOUT_MS,
   FetchHttpTransport,
   type FetchLike,
   type FetchResponseLike,
   type FetchTransportOptions,
+  type ResponseStreamLike,
 } from './send/infrastructure/adapters/fetch-transport.adapter';
 
 export {

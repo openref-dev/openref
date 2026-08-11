@@ -1,3 +1,4 @@
+import { schemaNameFromId } from '@openref/core';
 import type { IRJsonSchema, IRSchema, IRSchemaView } from '@openref/core';
 
 /**
@@ -70,13 +71,17 @@ export interface SchemaExpansionOptions {
 /**
  * Human part of a schema id.
  *
- * An external schema is registered as `<name>__<8 hex of the document uri>`, per SPEC 5.1.1.
- * The suffix is an identity mechanism, not a display string, so nothing rendered shows it.
+ * An external schema is registered under a marked id that carries 8 hex of its document URI,
+ * per SPEC 5.1.1. The marker is an identity mechanism, not a display string, so nothing
+ * rendered shows it.
+ *
+ * The splitting itself belongs to `core`, which owns the construction of the id. It used to be
+ * a regular expression here, and that regular expression could not tell an external target
+ * apart from an internal schema the document had named to look like one, which is the display
+ * side of F1.
  */
 export function schemaDisplayName(schema: IRSchema | undefined, id: string): string {
-  const name = schema?.name ?? id;
-  const suffix = /__[0-9a-f]{8}$/.exec(name);
-  return suffix === null ? name : name.slice(0, suffix.index);
+  return schemaNameFromId(schema?.name ?? id);
 }
 
 /** Resolve a position that holds `$ref` to the body it names, or leave it alone. */

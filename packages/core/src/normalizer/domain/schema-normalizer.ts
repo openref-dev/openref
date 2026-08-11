@@ -36,6 +36,37 @@ import { createSchemaRegistry, type SchemaRegistry } from './schema-registry';
 /** Default limit on how deep a chain of references may be expanded, per SPEC 5.4. */
 export const DEFAULT_CYCLE_DEPTH = 12;
 
+/**
+ * How deeply one registered schema may nest inside itself, per SPEC 5.3.
+ *
+ * This bounds the shape of what is WRITTEN OUT, which is what has to stay hashable. Producing
+ * a named schema does not count against it: that body becomes its own entry in
+ * `document.schemas` and starts a fresh nesting of its own, which is exactly why a chain of
+ * named references costs nothing here.
+ *
+ * The deepest document in the corpus of SPEC 21 is Stripe, at 26 levels counted from the root
+ * of the source document, so the limit is an order of magnitude above anything real that has
+ * been measured, and an order of magnitude below where the canonical serializer stops.
+ */
+export const DEFAULT_MAX_SCHEMA_NESTING = 256;
+
+/**
+ * How many nested calls normalization may make in total, per SPEC 5.3.
+ *
+ * Separate from the nesting limit because the two bound different things. Nesting bounds the
+ * shape of the output. This bounds the stack, and after the registry began queuing named
+ * schemas rather than making them in place, the one shape that still consumes stack in
+ * proportion to the document is a chain of `allOf` branches: merging is the single case that
+ * SPEC 5.1.1 requires to resolve its target rather than point at it.
+ *
+ * Measured on the development machine, with the limit lifted: a chain of plain named
+ * references no longer has a ceiling at all, and a chain of `allOf` merges exhausted the stack
+ * at about 1200 links. This limit stops such a chain at roughly a seventh of that, and it
+ * stops it with a code. Before T016 the bound was the engine's, and it arrived as a bare
+ * `RangeError`, so the fail closed policy held by accident. Found as F2.
+ */
+export const MAX_NORMALIZE_RECURSION = 512;
+
 /** Options for {@link normalizeSchema}. */
 export interface NormalizeSchemaOptions {
   /** Document that internal references, the ones starting with `#`, point into. */
@@ -75,6 +106,8 @@ interface Context {
   /** Unnamed references currently being expanded, innermost last. */
   readonly stack: string[];
   readonly registry: SchemaRegistry;
+  /** How deep the value being written out is, and how deep the call stack is. */
+  readonly depth: { nesting: number; total: number };
 }
 
 function assign<Key extends keyof Draft>(
@@ -237,9 +270,19 @@ function convertReference(
   if (id !== undefined) {
     // Producing the target before pointing at it, so a reference never dangles. The registry
     // is re-entrant: a schema reached from inside its own production stops here.
-    context.registry.ensure(id, reference, () =>
-      convert(resolveTarget(reference, context, path), context, `${path} -> ${reference}`),
-    );
+    //
+    // Nesting restarts at zero for the body, because the body becomes an entry of its own in
+    // `document.schemas` rather than part of the value being written here. The stack does not
+    // restart, because it is genuinely this deep.
+    context.registry.ensure(id, reference, () => {
+      const outerNesting = context.depth.nesting;
+      context.depth.nesting = 0;
+      try {
+        return convert(resolveTarget(reference, context, path), context, `${path} -> ${reference}`);
+      } finally {
+        context.depth.nesting = outerNesting;
+      }
+    });
 
     const { annotations, constraints } = annotationsBeside(source, context, path);
 
@@ -309,7 +352,9 @@ function resolveForMerge(
   path: string,
   context: Context,
 ): IRJsonSchema {
-  const body = context.registry.get(id);
+  // Forced rather than read, because a named body is queued and not made until the walk
+  // returns. Merging is the one caller that cannot wait for that, so it makes the body now.
+  const body = context.registry.force(id);
   if (body !== undefined) return body;
 
   throw new NormalizeError(
@@ -320,7 +365,46 @@ function resolveForMerge(
   );
 }
 
+/**
+ * Counts the two depths, then converts.
+ *
+ * Both limits are declared rather than left to the engine, per SPEC 5.3. A schema that ran out
+ * of stack used to arrive as a bare `RangeError`, which satisfied the fail closed policy by
+ * accident, and it did so LATER than canonical serialization gave out, which left a band of
+ * documents that normalized and could not then be hashed.
+ */
 function convert(input: unknown, context: Context, path: string): IRJsonSchema {
+  const { depth } = context;
+
+  if (depth.nesting >= DEFAULT_MAX_SCHEMA_NESTING) {
+    throw new NormalizeError(
+      `a schema nests deeper than the limit of ${String(DEFAULT_MAX_SCHEMA_NESTING)} at ${path}`,
+      ErrorCode.NORM_DEPTH_EXCEEDED,
+      undefined,
+      { path, nesting: depth.nesting, limit: DEFAULT_MAX_SCHEMA_NESTING },
+    );
+  }
+
+  if (depth.total >= MAX_NORMALIZE_RECURSION) {
+    throw new NormalizeError(
+      `normalization recursed deeper than the limit of ${String(MAX_NORMALIZE_RECURSION)} at ${path}`,
+      ErrorCode.NORM_DEPTH_EXCEEDED,
+      undefined,
+      { path, total: depth.total, limit: MAX_NORMALIZE_RECURSION },
+    );
+  }
+
+  depth.nesting += 1;
+  depth.total += 1;
+  try {
+    return convertNode(input, context, path);
+  } finally {
+    depth.nesting -= 1;
+    depth.total -= 1;
+  }
+}
+
+function convertNode(input: unknown, context: Context, path: string): IRJsonSchema {
   // JSON Schema allows a boolean in place of a schema object.
   if (input === true) return {};
   if (input === false) return { not: {} };
@@ -516,17 +600,23 @@ export function normalizeSchema(input: unknown, options: NormalizeSchemaOptions)
     );
   }
 
-  return convert(
-    input,
-    {
-      rootDocument: options.rootDocument,
-      externalDocuments: options.externalDocuments ?? {},
-      cycleDepth,
-      stack: [],
-      registry: options.registry ?? createSchemaRegistry(),
-    },
-    '$',
-  );
+  const context: Context = {
+    rootDocument: options.rootDocument,
+    externalDocuments: options.externalDocuments ?? {},
+    cycleDepth,
+    stack: [],
+    registry: options.registry ?? createSchemaRegistry(),
+    depth: { nesting: 0, total: 0 },
+  };
+
+  const schema = convert(input, context, '$');
+
+  // Drained here rather than left to whoever reads the registry, because a broken reference
+  // inside a named schema has to be found before this returns. A deferred production that
+  // nobody makes is a normalizer that fails open, which is the one thing it may not do.
+  context.registry.drain();
+
+  return schema;
 }
 
 /**

@@ -34,11 +34,33 @@ export function parseReference(reference: string): ParsedReference {
 }
 
 /**
+ * Percent decodes one pointer segment, or says why it could not.
+ *
+ * `decodeURIComponent` throws a bare `URIError` on a malformed percent sequence, and that used
+ * to leave `core` as a foreign error through every public entry that resolves a reference:
+ * `#/components/schemas/Disc%unt` was enough. Found by T016 as F3. Fail closed said the
+ * normalizer refuses; it did not say what refused it, which is what an error contract is for.
+ */
+function decodeSegment(segment: string, pointer: string): string {
+  try {
+    return decodeURIComponent(segment);
+  } catch (cause) {
+    throw new RefResolutionError(
+      `pointer ${pointer} has a malformed percent sequence in the segment ${segment}`,
+      ErrorCode.NORM_REF_MALFORMED,
+      cause instanceof Error ? cause : undefined,
+      { pointer, segment },
+    );
+  }
+}
+
+/**
  * Splits a pointer into its unescaped segments.
  *
  * @param pointer - Pointer, with or without its leading slash
  * @returns Segments with `~1` decoded to `/` and `~0` decoded to `~`
- * @throws {RefResolutionError} When the pointer is not empty and does not start with a slash
+ * @throws {RefResolutionError} When the pointer is not empty and does not start with a slash,
+ *         or when a segment carries a malformed percent sequence
  */
 export function parseJsonPointer(pointer: string): string[] {
   if (pointer === '' || pointer === '/') return [];
@@ -55,7 +77,7 @@ export function parseJsonPointer(pointer: string): string[] {
   return pointer
     .slice(1)
     .split('/')
-    .map((segment) => decodeURIComponent(segment).replace(/~1/g, '/').replace(/~0/g, '~'));
+    .map((segment) => decodeSegment(segment, pointer).replace(/~1/g, '/').replace(/~0/g, '~'));
 }
 
 /**

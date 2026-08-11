@@ -28,6 +28,26 @@ const SHORT_ESCAPES: Readonly<Record<number, string>> = {
   0x5c: '\\\\',
 };
 
+/**
+ * How deep a value may nest before canonical serialization refuses it, per SPEC 5.3.
+ *
+ * DECLARED, NOT INHERITED FROM THE CALL STACK. Before T016 there was no limit here at all, so
+ * the effective one was whatever the engine's stack allowed, which was measured at about 4000
+ * levels of plain object nesting on the development machine and is not a number any two
+ * machines agree on. The normalizer gave out later than that, at roughly 2300 levels of schema
+ * nesting, which is deeper again once each level is written out. So there was a band of
+ * documents that NORMALIZED AND THEN COULD NOT BE HASHED, taking out the SSR cache key and the
+ * whole render path, and the failure arrived as a bare `RangeError`: fail closed by accident
+ * rather than by design. Found as F2.
+ *
+ * The number sits above what the normalizer can produce and well below what the stack allows.
+ * A schema nested to the normalizer's own limit, `DEFAULT_MAX_SCHEMA_NESTING` of 256, writes
+ * out as about twice that many levels, plus the fixed depth of the IR wrappers around it. The
+ * rest is headroom. The two constants are checked against each other by a test rather than
+ * kept in step by hand, because `core` may not import the normalizer from the hashing path.
+ */
+export const CANONICAL_MAX_DEPTH = 1024;
+
 function notSerializable(what: string, path: string): NormalizeError {
   return new NormalizeError(
     `${what} has no deterministic canonical representation at ${path}`,
@@ -113,7 +133,16 @@ export function quoteString(text: string): string {
   return `${quoted}"`;
 }
 
-function serialize(value: unknown, seen: Set<object>, path: string): string {
+function tooDeep(path: string, depth: number): NormalizeError {
+  return new NormalizeError(
+    `a value nests deeper than the canonical limit of ${String(CANONICAL_MAX_DEPTH)} at ${path}`,
+    ErrorCode.NORM_DEPTH_EXCEEDED,
+    undefined,
+    { path, depth, limit: CANONICAL_MAX_DEPTH },
+  );
+}
+
+function serialize(value: unknown, seen: Set<object>, path: string, depth: number): string {
   if (value === null) return 'null';
 
   switch (typeof value) {
@@ -139,6 +168,10 @@ function serialize(value: unknown, seen: Set<object>, path: string): string {
   if (seen.has(container)) {
     throw notSerializable('a circular reference', path);
   }
+  // Checked at the container rather than at every value, because only a container recurses.
+  if (depth >= CANONICAL_MAX_DEPTH) {
+    throw tooDeep(path, depth);
+  }
   seen.add(container);
 
   try {
@@ -147,7 +180,7 @@ function serialize(value: unknown, seen: Set<object>, path: string): string {
     }
 
     if (container instanceof Map) {
-      return serializeMap(container, seen, path);
+      return serializeMap(container, seen, path, depth);
     }
 
     if (container instanceof Set) {
@@ -171,26 +204,31 @@ function serialize(value: unknown, seen: Set<object>, path: string): string {
           throw notSerializable('undefined inside an array', `${path}[${String(index)}]`);
         }
 
-        items.push(serialize(item, seen, `${path}[${String(index)}]`));
+        items.push(serialize(item, seen, `${path}[${String(index)}]`, depth + 1));
       }
 
       return `[${items.join(',')}]`;
     }
 
-    return serializeObject(container as Record<string, unknown>, seen, path);
+    return serializeObject(container as Record<string, unknown>, seen, path, depth);
   } finally {
     seen.delete(container);
   }
 }
 
-function serializeMap(source: Map<unknown, unknown>, seen: Set<object>, path: string): string {
+function serializeMap(
+  source: Map<unknown, unknown>,
+  seen: Set<object>,
+  path: string,
+  depth: number,
+): string {
   const pairs: { readonly key: string; readonly entry: string }[] = [];
 
   for (const [key, mapValue] of source) {
     if (mapValue === undefined) continue;
 
-    const canonicalKey = serialize(key, seen, `${path}.<key>`);
-    const canonicalValue = serialize(mapValue, seen, `${path}[${canonicalKey}]`);
+    const canonicalKey = serialize(key, seen, `${path}.<key>`, depth + 1);
+    const canonicalValue = serialize(mapValue, seen, `${path}[${canonicalKey}]`, depth + 1);
     pairs.push({ key: canonicalKey, entry: `[${canonicalKey},${canonicalValue}]` });
   }
 
@@ -198,14 +236,19 @@ function serializeMap(source: Map<unknown, unknown>, seen: Set<object>, path: st
   return `[${pairs.map((pair) => pair.entry).join(',')}]`;
 }
 
-function serializeObject(source: Record<string, unknown>, seen: Set<object>, path: string): string {
+function serializeObject(
+  source: Record<string, unknown>,
+  seen: Set<object>,
+  path: string,
+  depth: number,
+): string {
   const keys = Object.keys(source).sort(compareByCodePoint);
   const members: string[] = [];
 
   for (const key of keys) {
     const member = source[key];
     if (member === undefined) continue;
-    members.push(`${quoteString(key)}:${serialize(member, seen, `${path}.${key}`)}`);
+    members.push(`${quoteString(key)}:${serialize(member, seen, `${path}.${key}`, depth + 1)}`);
   }
 
   return `{${members.join(',')}}`;
@@ -218,11 +261,12 @@ function serializeObject(source: Record<string, unknown>, seen: Set<object>, pat
  * @returns Canonical text, suitable as hashing input
  * @throws {NormalizeError} When the value contains something with no deterministic
  *         representation: a non finite number, a bigint, a function, a symbol, a `Set`,
- *         `undefined` inside an array, or a circular reference
+ *         `undefined` inside an array, or a circular reference; and when it nests deeper than
+ *         {@link CANONICAL_MAX_DEPTH}
  *
  * @example
  * canonicalize({ b: 1, a: 2 }); // '{"a":2,"b":1}'
  */
 export function canonicalize(value: unknown): string {
-  return serialize(value, new Set<object>(), '$');
+  return serialize(value, new Set<object>(), '$', 0);
 }

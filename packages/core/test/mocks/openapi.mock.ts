@@ -143,3 +143,146 @@ export function createOpenApi32(): Record<string, unknown> {
     },
   };
 }
+
+/**
+ * The document the determinism suite could not reach before T016.
+ *
+ * The 1000 shuffle check was taken over a fixture with no external reference in it, so every id
+ * it ever produced came from one id space, and the construction of the other space was never
+ * under test. F1 lived from T002 to T016 inside that blind spot. The corpus of SPEC 21 does not
+ * close it either: not one of its documents carries an external `$ref`.
+ *
+ * `common.yaml` hashes to `20b4b690`, which is the digest the forged fixture below imitates.
+ */
+export function createExternalReferenceSource(): {
+  readonly root: Record<string, unknown>;
+  readonly externalDocuments: Readonly<Record<string, unknown>>;
+} {
+  return {
+    root: {
+      openapi: '3.1.0',
+      info: { title: 'Orders API', version: '2.0.0' },
+      paths: {
+        '/orders': {
+          get: {
+            operationId: 'listOrders',
+            responses: {
+              '200': {
+                description: 'ok',
+                content: {
+                  'application/json': { schema: { $ref: 'common.yaml#/components/schemas/Order' } },
+                },
+              },
+              '404': {
+                description: 'gone',
+                content: {
+                  'application/json': { schema: { $ref: '#/components/schemas/Problem' } },
+                },
+              },
+            },
+          },
+          post: {
+            operationId: 'createOrder',
+            requestBody: {
+              content: {
+                'application/json': { schema: { $ref: 'money.yaml#/components/schemas/Money' } },
+              },
+            },
+            responses: {
+              '201': {
+                description: 'made',
+                content: {
+                  'application/json': { schema: { $ref: 'common.yaml#/components/schemas/Order' } },
+                },
+              },
+            },
+          },
+        },
+      },
+      components: {
+        schemas: {
+          Problem: {
+            type: 'object',
+            properties: { detail: { type: 'string' }, status: { type: 'integer' } },
+          },
+          Order: {
+            type: 'object',
+            title: 'the local order',
+            properties: { id: { type: 'string' } },
+          },
+        },
+      },
+    },
+    externalDocuments: {
+      'common.yaml': {
+        components: {
+          schemas: {
+            Order: {
+              type: 'object',
+              title: 'THE REAL ORDER',
+              properties: {
+                id: { type: 'string' },
+                money: { $ref: 'money.yaml#/components/schemas/Money' },
+              },
+            },
+          },
+        },
+      },
+      'money.yaml': {
+        components: {
+          schemas: {
+            Money: { type: 'string', format: 'decimal' },
+          },
+        },
+      },
+    },
+  };
+}
+
+/**
+ * The same document, with an internal schema named to look like the external one's id.
+ *
+ * `~x20b4b690~Order` is exactly the id `common.yaml#/components/schemas/Order` is filed under.
+ * Under the old scheme the equivalent name, `Order__20b4b690`, took that id and the registry
+ * dropped whichever body arrived second, so the graph and the hash followed the order of two
+ * properties. Under SPEC 5.1.1 as amended the name escapes into the internal space and the two
+ * coexist, which is what this fixture is for.
+ */
+export function createForgedExternalIdSource(): {
+  readonly root: Record<string, unknown>;
+  readonly externalDocuments: Readonly<Record<string, unknown>>;
+} {
+  const base = createExternalReferenceSource();
+  const components = base.root.components as { schemas: Record<string, unknown> };
+
+  return {
+    root: {
+      ...base.root,
+      components: {
+        schemas: {
+          ...components.schemas,
+          '~x20b4b690~Order': { type: 'string', title: 'ATTACKER BODY' },
+        },
+      },
+      paths: {
+        ...(base.root.paths as Record<string, unknown>),
+        '/forged': {
+          get: {
+            operationId: 'forged',
+            responses: {
+              '200': {
+                description: 'ok',
+                content: {
+                  'application/json': {
+                    schema: { $ref: '#/components/schemas/~x20b4b690~Order' },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    externalDocuments: base.externalDocuments,
+  };
+}
