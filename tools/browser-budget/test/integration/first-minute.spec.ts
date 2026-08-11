@@ -45,10 +45,14 @@ beforeAll(async () => {
   app = await bootExampleApp();
 }, TIMEOUT);
 
+// THE SAME TIMEOUT AS THE SETUP, per finding F20. Teardown had vitest's default ten seconds
+// while the hook that boots a browser and a Nest application had five minutes, so under load the
+// suite went red on the close rather than on anything it asserts. A flake here is the worst place
+// for one: this is the test that proves the product's first promise.
 afterAll(async () => {
   await app.stop();
   await chrome.close();
-});
+}, TIMEOUT);
 
 /** One navigation, with the policy violations the browser reported. */
 interface Session {
