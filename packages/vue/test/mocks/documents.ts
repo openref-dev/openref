@@ -170,3 +170,39 @@ components:
           bank: '#/components/schemas/Bank'
 `);
 }
+
+/**
+ * A property written the way `@nestjs/swagger` writes one that carries a description.
+ *
+ * The singleton `allOf` around a reference, per SPEC 5.1.1 and retrofit T003-R2. Before that
+ * retrofit this normalized to an anonymous object and the expander had no name to show, which
+ * is what a reader saw in the browser on the demo.
+ */
+export function wrappedReferenceDocument(): IRDocument {
+  return normalize(`
+openapi: 3.0.3
+info: { title: Wrapped, version: '1.0.0' }
+paths: {}
+components:
+  schemas:
+    CustomerDto:
+      type: object
+      description: The target says this.
+      properties:
+        id: { type: string }
+    OrderDto:
+      type: object
+      properties:
+        customer:
+          allOf:
+            - $ref: '#/components/schemas/CustomerDto'
+          description: Who placed it.
+        retries:
+          allOf:
+            - $ref: '#/components/schemas/Retries'
+          default: 1
+    Retries:
+      type: integer
+      default: 7
+`);
+}

@@ -101,6 +101,12 @@ function dereference(
 
   // Annotations written beside the reference belong to the use site, not to the target, so
   // they win over the target's own. Everything else at a `$ref` position is absent by SPEC.
+  //
+  // `default` and `examples` are on the list because SPEC 5.1.1 names them annotations, and
+  // T003-R2 is what made their absence visible: a `default` beside a singleton `allOf` used to
+  // survive into the merged body, and once the merge stopped happening a list missing them
+  // would have dropped the document's own stated value on the floor. 40 of the 180 wrapped
+  // properties of `kubernetes-apps-v1.json` write one.
   return {
     body: {
       ...body,
@@ -110,6 +116,8 @@ function dereference(
       ...(schema.readOnly === undefined ? {} : { readOnly: schema.readOnly }),
       ...(schema.writeOnly === undefined ? {} : { writeOnly: schema.writeOnly }),
       ...(schema.view === undefined ? {} : { view: schema.view }),
+      ...(schema.default === undefined ? {} : { default: schema.default }),
+      ...(schema.examples === undefined ? {} : { examples: schema.examples }),
     },
     schemaId: schema.$ref,
   };

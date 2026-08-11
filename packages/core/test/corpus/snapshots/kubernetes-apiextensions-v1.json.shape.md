@@ -19,12 +19,12 @@ cycles exist, and named cycles do exist, which is why `schemas on a reference cy
 | webhooks | 0 |
 | schemas | 41 |
 | schemas on a reference cycle | 1 |
-| references, `$ref` nodes | 59 |
+| references, `$ref` nodes | 50 |
 | references, `$cycle` nodes | 0 |
 | use sites naming a schema | 104 |
 | use sites inlining a schema | 89 |
-| max anonymous nesting | 7 |
-| max expansion depth | 21 |
+| max anonymous nesting | 3 |
+| max expansion depth | 18 |
 
 ## Nodes per tag
 

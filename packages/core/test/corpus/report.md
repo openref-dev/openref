@@ -14,9 +14,9 @@ site, which is what SPEC 5.1.1 replaced.
 | document | source bytes | IR bytes | ratio | nodes | schemas |
 | --- | --- | --- | --- | --- | --- |
 | adyen-checkout-v71.json | 935759 | 800576 | 0.86 | 28 | 261 |
-| box.json | 1766675 | 1624870 | 0.92 | 296 | 305 |
-| kubernetes-apiextensions-v1.json | 182439 | 252059 | 1.38 | 13 | 41 |
-| kubernetes-apps-v1.json | 934942 | 1728012 | 1.85 | 77 | 166 |
+| box.json | 1766675 | 1611758 | 0.91 | 296 | 305 |
+| kubernetes-apiextensions-v1.json | 182439 | 193490 | 1.06 | 13 | 41 |
+| kubernetes-apps-v1.json | 934942 | 975749 | 1.04 | 77 | 166 |
 | oai-3.2-query-example.yaml | 2969 | 2375 | 0.80 | 1 | 0 |
 | oai-3.2-tags-example.yaml | 1617 | 2096 | 1.30 | 4 | 0 |
 | oai-api-with-examples.yaml | 6444 | 3744 | 0.58 | 2 | 0 |

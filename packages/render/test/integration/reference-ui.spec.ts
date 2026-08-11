@@ -3,12 +3,18 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { createApp } from 'vue';
 import { createMarkdownRenderer } from '../../src/markdown/domain/markdown';
+import { schemaHref } from '../../src/page/domain/links';
 import { NAV_MAX_ROWS } from '../../src/page/domain/nav-rows';
 import { buildNavigation, buildPageModel, type PageModel } from '../../src/page/domain/page-model';
 import { ReferenceApp } from '../../src/components/ReferenceApp';
 import { DEFERRABLE_KEY } from '../../src/components/deferrable';
 import { EAGER_COMPONENTS } from '../../src/components/eager';
-import { cyclicDocument, largeDocument, smallDocument } from '../mocks/documents';
+import {
+  cyclicDocument,
+  largeDocument,
+  smallDocument,
+  wrappedReferenceDocument,
+} from '../mocks/documents';
 import type { IRDocument } from '@openref/core';
 
 /**
@@ -197,6 +203,43 @@ describe('the schema viewer', () => {
     // Then
     expect(page.truncatedSchemas.length).toBeGreaterThan(0);
     expect(links.some((href) => href?.startsWith('/schema/') === true)).toBe(true);
+    await Promise.resolve();
+  });
+
+  it('should type a wrapped reference by its schema name rather than as an anonymous object', async () => {
+    // Given, the property `OrderDto.customer` written as `allOf: [{ $ref }]` with a description.
+    // In the browser on the demo it rendered as a row typed `object` with no name while
+    // `CustomerDto` sat in the same sidebar with a page of its own. Retrofit T003-R2.
+    const document_ = wrappedReferenceDocument();
+    const nodeId = [...document_.nodes.keys()].find((id) => id.startsWith('get')) ?? '';
+    const host = mount(buildPageModel(document_, { nodeId, markdown }));
+
+    // When
+    const row = rowByName(host, 'customer');
+    const type = row?.querySelector('.oref-schema-type')?.textContent;
+
+    // Then, and the presence assertion is the same one that keeps a proof of absence honest:
+    // a row that is not there types nothing and would pass a check for "not object".
+    expect(row).not.toBeNull();
+    expect(type).toBe('CustomerDto');
+    expect(row?.querySelector('.oref-schema-doc')?.textContent).toBe('Who placed it.');
+    await Promise.resolve();
+  });
+
+  it('should link a wrapped reference to its own page when the payload left the target behind', async () => {
+    // Given, a payload too small to carry `CustomerDto`
+    const document_ = wrappedReferenceDocument();
+    const nodeId = [...document_.nodes.keys()].find((id) => id.startsWith('get')) ?? '';
+    const page = buildPageModel(document_, { nodeId, markdown, schemaPayloadLimit: 260 });
+
+    // When
+    const host = mount(page);
+    const link = rowByName(host, 'customer')?.querySelector('.oref-schema-link');
+
+    // Then
+    expect(page.truncatedSchemas).toContain('CustomerDto');
+    expect(link?.getAttribute('href')).toBe(schemaHref('CustomerDto', ''));
+    expect(link?.textContent).toBe('CustomerDto');
     await Promise.resolve();
   });
 

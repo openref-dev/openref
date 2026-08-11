@@ -336,6 +336,55 @@ describe('generateExample recursion', () => {
     expect(example).toBe('00000000-0000-4000-8000-000000000000');
   });
 
+  it('should take a value stated beside a reference rather than the target it points at', () => {
+    // Given, the shape T003-R2 made ordinary: a wrapped property with a `default` of its own.
+    // Forty of the 180 wrapped properties of kubernetes-apps-v1.json are written this way.
+    const document = {
+      components: {
+        schemas: {
+          Replicas: { type: 'integer', default: 3 },
+          Spec: {
+            type: 'object',
+            properties: {
+              replicas: {
+                allOf: [{ $ref: '#/components/schemas/Replicas' }],
+                default: 1,
+                description: 'How many this deployment wants.',
+              },
+            },
+          },
+        },
+      },
+    };
+    const graph = normalizeSchemaGraph(
+      { $ref: '#/components/schemas/Spec' },
+      { rootDocument: document },
+    );
+
+    // When
+    const example = generateExample(graph.schema, { schemas: graph.schemas });
+
+    // Then, the use site's value, not the target's. Following the reference first would have
+    // shown 3, which is a number the document never wrote about this position.
+    expect(example).toEqual({ replicas: 1 });
+  });
+
+  it('should still follow the reference when the use site states no value of its own', () => {
+    // Given
+    const schemas = new Map<string, IRJsonSchema>([['Replicas', { type: 'integer', default: 3 }]]);
+
+    // When
+    const example = generateExample(
+      { $ref: 'Replicas', description: 'A description only.' },
+      {
+        schemas,
+      },
+    );
+
+    // Then
+    expect(example).toBe(3);
+  });
+
   it('should stop at the depth limit for a schema that nests without a marked cycle', () => {
     // Given, hand assembled rather than normalized, so no $cycle marker exists
     const leaf: IRJsonSchema = { type: 'object', properties: { value: { type: 'integer' } } };

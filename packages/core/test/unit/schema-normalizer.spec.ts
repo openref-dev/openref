@@ -421,8 +421,11 @@ describe('normalizeSchema composition', () => {
     // When
     const graph = normalizeSchemaGraph(reference('Alias'), { rootDocument });
 
-    // Then, the merge is a no op, so nothing is copied
-    expect(graph.schemas.get('Alias')?.properties?.id).toEqual({ type: 'string' });
+    // Then, the merge is a no op, so nothing is copied. THIS ASSERTION USED TO SAY THE
+    // OPPOSITE OF ITS OWN TITLE: it read the copied `properties.id` off `Alias` and passed,
+    // which is how the defect T003-R2 fixes survived a test written to catch it. The rule and
+    // its boundaries are in `singleton-allof.spec.ts`.
+    expect(graph.schemas.get('Alias')).toEqual({ $ref: 'Base' });
   });
 
   it('should raise when allOf branches declare conflicting types', () => {

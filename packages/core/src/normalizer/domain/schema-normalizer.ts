@@ -252,6 +252,41 @@ function annotationsBeside(
 }
 
 /**
+ * A singleton `allOf` around a reference, which is that reference, per SPEC 5.1.1.
+ *
+ * `@nestjs/swagger` writes this wrapper the moment a property carries a description, because a
+ * sibling of `$ref` is ignored in OpenAPI 3.0, so the shape is everywhere descriptions are. It
+ * was merged into an anonymous object until T003-R2, and the name of the target went with it:
+ * 180 of the 761 properties of `kubernetes-apps-v1.json` and not one bare reference.
+ *
+ * The condition is narrow on purpose. One branch, that branch a reference to a NAMED schema,
+ * and every key beside the `allOf` an annotation. Two branches merge, an `x-` key merges, and a
+ * branch pointing at an unnamed target was substituted where it stood and is no longer a
+ * reference by the time this is asked. A merge that stopped merging would be a worse defect
+ * than the one this fixes.
+ *
+ * @returns The reference carrying the annotations, or undefined when the position is a merge
+ */
+function singletonReferenceOf(
+  input: Record<string, unknown>,
+  branches: readonly { readonly schema: IRJsonSchema }[],
+  draft: Draft,
+): IRJsonSchema | undefined {
+  const only = branches.length === 1 ? branches[0] : undefined;
+  if (only?.schema.$ref === undefined) return undefined;
+
+  for (const key of Object.keys(input)) {
+    if (key === 'allOf') continue;
+    if (!ANNOTATION_KEYWORDS.includes(key)) return undefined;
+  }
+
+  // The draft holds nothing but annotations here, because any other key would have returned
+  // above. The use site's own annotation wins over one written inside the branch: both describe
+  // this position, and the outer one is the one written about this position last.
+  return { ...only.schema, ...draft };
+}
+
+/**
  * Resolves a reference, per SPEC 5.1.1.
  *
  * A reference to a named schema stays a reference. The target is normalized once, into the
@@ -560,7 +595,14 @@ function convertNode(input: unknown, context: Context, path: string): IRJsonSche
   assign(draft, 'extensions', extensionsOf(input));
 
   if (Object.hasOwn(input, 'allOf')) {
-    const branches = convertBranchList(input.allOf, context, `${path}.allOf`).map((branch) =>
+    const branches = convertBranchList(input.allOf, context, `${path}.allOf`);
+
+    // Asked before anything is resolved, because the whole point is that this position has
+    // nothing to merge and therefore no reason to dereference its target.
+    const alias = singletonReferenceOf(input, branches, draft);
+    if (alias !== undefined) return alias;
+
+    const merged = branches.map((branch) =>
       // A branch that is a bare reference has to be resolved to be merged, per the decision
       // recorded in SPEC 5.1.1. Only a branch the document explicitly asked to merge is
       // resolved; a reference used anywhere else stays a reference.
@@ -568,7 +610,7 @@ function convertNode(input: unknown, context: Context, path: string): IRJsonSche
         ? branch.schema
         : resolveForMerge(branch.schema.$ref, branch.reference, `${path}.allOf`, context),
     );
-    return mergeAllOf([draft, ...branches], `${path}.allOf`);
+    return mergeAllOf([draft, ...merged], `${path}.allOf`);
   }
 
   return draft;

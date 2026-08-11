@@ -102,10 +102,15 @@ function build(
   if (depth >= context.maxDepth) return null;
   if (schema.$cycle !== undefined) return null;
 
-  if (schema.$ref !== undefined) return followReference(schema.$ref, context, fieldName, depth);
-
+  // BEFORE THE REFERENCE IS FOLLOWED, and the order is the rule rather than a preference. A
+  // value written beside a `$ref` belongs to this use site, and after T003-R2 a use site that
+  // reads `allOf: [{ $ref }]` with a `default` beside it is an ordinary shape rather than a
+  // curiosity: 40 of the 180 wrapped properties of `kubernetes-apps-v1.json` carry one. Follow
+  // first and the sample shows the target's value where the document stated another.
   const declared = declaredValue(schema);
   if (declared !== undefined) return declared;
+
+  if (schema.$ref !== undefined) return followReference(schema.$ref, context, fieldName, depth);
 
   const branch = firstBranch(schema);
   if (branch !== undefined) return build(branch, context, fieldName, depth + 1);

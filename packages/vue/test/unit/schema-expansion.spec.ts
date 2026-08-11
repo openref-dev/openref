@@ -13,6 +13,7 @@ import {
   simpleDocument,
   threeSchemaCycleDocument,
   variantDocument,
+  wrappedReferenceDocument,
 } from '../mocks/documents';
 
 /**
@@ -265,6 +266,78 @@ describe('schema tree expansion, structure', () => {
     // Then
     expect(children.map((child) => child.relation)).toEqual(['variant', 'variant']);
     expect(children.map((child) => child.label).sort()).toEqual(['bank', 'card']);
+  });
+});
+
+/**
+ * What the expander shows at a position the document wrapped in a singleton `allOf`.
+ *
+ * The retrofit T003-R2 is in the normalizer, and the reason a reader ever saw the defect is
+ * here: an anonymous object has no name to display and no page to link to, so `OrderDto.customer`
+ * rendered as a row typed `object` while `CustomerDto` sat in the same sidebar with a page of
+ * its own. These assertions are over the expander rather than over the IR, so they say what a
+ * theme is handed.
+ */
+describe('schema tree expansion, a reference the document wrapped in allOf', () => {
+  it('should name the target and carry its id, so a theme can label and link the position', () => {
+    // Given
+    const document = wrappedReferenceDocument();
+    const root = schemaTreeRoot('OrderDto', { schemas: document.schemas });
+
+    // When
+    const children = expandSchemaNode(root!, { schemas: document.schemas });
+    const customer = children.find((child) => child.label === 'customer');
+
+    // Then
+    expect(customer?.schemaId).toBe('CustomerDto');
+    expect(customer?.schemaName).toBe('CustomerDto');
+  });
+
+  it('should open the target rather than showing a leaf, since the body is reachable', () => {
+    // Given
+    const document = wrappedReferenceDocument();
+    const root = schemaTreeRoot('OrderDto', { schemas: document.schemas });
+    const children = expandSchemaNode(root!, { schemas: document.schemas });
+    const customer = children.find((child) => child.label === 'customer');
+
+    // When
+    const grandchildren = expandSchemaNode(customer!, { schemas: document.schemas });
+
+    // Then
+    expect(customer?.expandable).toBe(true);
+    expect(grandchildren.map((child) => child.label)).toEqual(['id']);
+  });
+
+  it('should show the description the use site wrote, not the one the target carries', () => {
+    // Given
+    const document = wrappedReferenceDocument();
+    const root = schemaTreeRoot('OrderDto', { schemas: document.schemas });
+
+    // When
+    const children = expandSchemaNode(root!, { schemas: document.schemas });
+
+    // Then
+    expect(children.find((child) => child.label === 'customer')?.schema.description).toBe(
+      'Who placed it.',
+    );
+    expect(document.schemas.get('CustomerDto')?.normalized?.description).toBe(
+      'The target says this.',
+    );
+  });
+
+  it('should show the default the use site wrote, not the one the target carries', () => {
+    // Given, the annotation set of SPEC 5.1.1 includes `default`, and a use site that states one
+    // used to have it merged into the body. Once the merge stopped, dropping it here would have
+    // lost a value the document stated.
+    const document = wrappedReferenceDocument();
+    const root = schemaTreeRoot('OrderDto', { schemas: document.schemas });
+
+    // When
+    const children = expandSchemaNode(root!, { schemas: document.schemas });
+
+    // Then
+    expect(children.find((child) => child.label === 'retries')?.schema.default).toBe(1);
+    expect(document.schemas.get('Retries')?.normalized?.default).toBe(7);
   });
 });
 

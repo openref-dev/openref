@@ -19,7 +19,7 @@ cycles exist, and named cycles do exist, which is why `schemas on a reference cy
 | webhooks | 0 |
 | schemas | 305 |
 | schemas on a reference cycle | 0 |
-| references, `$ref` nodes | 375 |
+| references, `$ref` nodes | 394 |
 | references, `$cycle` nodes | 0 |
 | use sites naming a schema | 994 |
 | use sites inlining a schema | 687 |

@@ -515,3 +515,54 @@ export function cyclicDocument(): IRDocument {
     },
   });
 }
+
+/**
+ * A response whose properties are written as `@nestjs/swagger` writes a described reference.
+ *
+ * The singleton `allOf` around a reference, per SPEC 5.1.1 and retrofit T003-R2. It is here as
+ * an OpenAPI 3.0 document because that is the dialect that produces the shape: a sibling of
+ * `$ref` is ignored in 3.0, so a tool with a description to attach wraps the reference instead.
+ *
+ * @returns The normalized document
+ */
+export function wrappedReferenceDocument(): IRDocument {
+  return normalizeOpenApiDocument({
+    openapi: '3.0.3',
+    info: { title: 'Orders', version: '1.0.0' },
+    paths: {
+      '/orders/{id}': {
+        get: {
+          operationId: 'getOrder',
+          summary: 'Get an order',
+          responses: {
+            '200': {
+              description: 'The order',
+              content: {
+                'application/json': { schema: { $ref: '#/components/schemas/OrderDto' } },
+              },
+            },
+          },
+        },
+      },
+    },
+    components: {
+      schemas: {
+        CustomerDto: {
+          type: 'object',
+          description: 'The target says this.',
+          properties: { id: { type: 'string' }, email: { type: 'string' } },
+        },
+        OrderDto: {
+          type: 'object',
+          properties: {
+            id: { type: 'string' },
+            customer: {
+              allOf: [{ $ref: '#/components/schemas/CustomerDto' }],
+              description: 'Who placed it.',
+            },
+          },
+        },
+      },
+    },
+  });
+}
