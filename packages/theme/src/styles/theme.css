@@ -1010,3 +1010,42 @@ button.oref-schema-row:hover {
   padding: var(--oref-space-500);
   white-space: pre-wrap;
 }
+
+/*
+ * Text the document supplied is isolated from the text around it.
+ *
+ * T016 finding F13. A bidirectional override, U+202E, carried in a summary, a route or a
+ * description survives every escape this project performs, because it is text and not markup.
+ * Nothing it does is an injection: it reorders what a reader sees. A route rendered as
+ * `/v1/refund` while the document says `/v1/attack`, or a heading that reverses the words of the
+ * chrome after it, is a lie told entirely in legal characters, and no sanitizer can see it.
+ *
+ * ISOLATION AND NOT STRIPPING, and the difference is the whole decision. Removing the
+ * directional controls would break every document written in Arabic or Hebrew, which need them
+ * to say what they mean, so the fix would cost more than the attack. `unicode-bidi: isolate`
+ * costs those documents nothing and confines an unterminated override to the element that
+ * carries it, so it can misrepresent the description it lives in and cannot reach the route, the
+ * method or the navigation beside it.
+ *
+ * It is a class rule rather than an inline style, so it holds under the strict CSP of SPEC 19.2.
+ */
+.oref-body,
+.oref-brand-title,
+.oref-brand-version,
+.oref-description,
+.oref-example,
+.oref-media-schema,
+.oref-nav-label,
+.oref-palette-label,
+.oref-param-doc,
+.oref-param-name,
+.oref-path,
+.oref-response-doc,
+.oref-schema-doc,
+.oref-schema-name,
+.oref-security-scopes,
+.oref-server,
+.oref-subtitle,
+.oref-title {
+  unicode-bidi: isolate;
+}

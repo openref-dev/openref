@@ -859,3 +859,24 @@ button.oref-schema-row:hover {
   padding: 14px;
   white-space: pre-wrap;
 }
+
+.oref-body,
+.oref-brand-title,
+.oref-brand-version,
+.oref-description,
+.oref-example,
+.oref-media-schema,
+.oref-nav-label,
+.oref-palette-label,
+.oref-param-doc,
+.oref-param-name,
+.oref-path,
+.oref-response-doc,
+.oref-schema-doc,
+.oref-schema-name,
+.oref-security-scopes,
+.oref-server,
+.oref-subtitle,
+.oref-title {
+  unicode-bidi: isolate;
+}

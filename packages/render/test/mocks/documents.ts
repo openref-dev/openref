@@ -112,36 +112,31 @@ export function hostileDocument(): IRDocument {
  * do, and gzip pays for the difference. A flat list of unrelated tokens would make the fixture
  * compress worse than any real document, which is the same defect as compressing better.
  */
-const STEMS: readonly string[] = [
-  'account', 'address', 'adjustment', 'agreement', 'alert', 'allocation', 'amount', 'appeal',
-  'attempt', 'balance', 'batch', 'binding', 'bundle', 'capture', 'carrier', 'channel', 'charge',
-  'checkout', 'claim', 'clearing', 'connector', 'consent', 'contract', 'coupon', 'credit',
-  'cursor', 'dispatch', 'dispute', 'endpoint', 'entitlement', 'envelope', 'escalation',
-  'exemption', 'facility', 'gateway', 'grant', 'guarantee', 'holding', 'identity', 'instalment',
-  'instrument', 'intent', 'invoice', 'journal', 'ledger', 'lookup', 'mandate', 'manifest',
-  'merchant', 'mutation', 'notice', 'obligation', 'offset', 'payout', 'penalty', 'permit',
-  'pipeline', 'portfolio', 'posting', 'quota', 'receipt', 'reconciliation', 'refund', 'register',
-  'reservation', 'reversal', 'rollup', 'schedule', 'segment', 'settlement', 'shipment',
-  'snapshot', 'statement', 'subledger', 'surcharge', 'terminal', 'threshold', 'tranche',
-  'transfer', 'treasury', 'valuation', 'voucher', 'waiver', 'warrant', 'window', 'workflow',
-  'wrapper', 'zone',
-];
+const STEMS: readonly string[] = (
+  'account address adjustment agreement alert allocation amount appeal attempt balance batch ' +
+  'binding bundle capture carrier channel charge checkout claim clearing connector consent ' +
+  'contract coupon credit cursor dispatch dispute endpoint entitlement envelope escalation ' +
+  'exemption facility gateway grant guarantee holding identity instalment instrument intent ' +
+  'invoice journal ledger lookup mandate manifest merchant mutation notice obligation offset ' +
+  'payout penalty permit pipeline portfolio posting quota receipt reconciliation refund ' +
+  'register reservation reversal rollup schedule segment settlement shipment snapshot statement ' +
+  'subledger surcharge terminal threshold tranche transfer treasury valuation voucher waiver ' +
+  'warrant window workflow wrapper zone'
+).split(' ');
 
 /** The adjectival half of the same grid. */
-const QUALIFIERS: readonly string[] = [
-  'pending', 'archived', 'draft', 'active', 'expired', 'partial', 'deferred', 'reversed',
-  'provisional', 'recurring', 'external', 'internal', 'primary', 'secondary', 'legacy', 'scoped',
-  'nested', 'linked', 'orphaned', 'disputed', 'settled', 'queued', 'throttled', 'sandboxed',
-  'federated', 'delegated', 'inherited', 'retired', 'staged', 'verified', 'aggregated', 'amended',
-  'anchored', 'audited', 'backdated', 'batched', 'blocked', 'cancelled', 'capped', 'cleared',
-  'closed', 'committed', 'compound', 'conditional', 'consolidated', 'contested', 'converted',
-  'dormant', 'duplicated', 'escrowed', 'evaluated', 'exempt', 'expedited', 'flagged', 'forecast',
-  'frozen', 'granted', 'guaranteed', 'hedged', 'held', 'hosted', 'imported', 'indexed',
-  'inflight', 'initial', 'insured', 'invoiced', 'issued', 'itemised', 'lapsed', 'latent',
-  'matured', 'merged', 'migrated', 'mirrored', 'netted', 'notional', 'offline', 'onboarded',
-  'opening', 'outstanding', 'overdue', 'paused', 'phased', 'posted', 'prepaid', 'prorated',
-  'rebooked', 'reconciled', 'redeemed', 'refunded', 'rejected', 'released', 'renewed', 'replayed',
-];
+const QUALIFIERS: readonly string[] = (
+  'pending archived draft active expired partial deferred reversed provisional recurring ' +
+  'external internal primary secondary legacy scoped nested linked orphaned disputed settled ' +
+  'queued throttled sandboxed federated delegated inherited retired staged verified aggregated ' +
+  'amended anchored audited backdated batched blocked cancelled capped cleared closed committed ' +
+  'compound conditional consolidated contested converted dormant duplicated escrowed evaluated ' +
+  'exempt expedited flagged forecast frozen granted guaranteed hedged held hosted imported ' +
+  'indexed inflight initial insured invoiced issued itemised lapsed latent matured merged ' +
+  'migrated mirrored netted notional offline onboarded opening outstanding overdue paused ' +
+  'phased posted prepaid prorated rebooked reconciled redeemed refunded rejected released ' +
+  'renewed replayed'
+).split(' ');
 
 /** The 8,272 identifiers the grid yields. */
 const TERMS: readonly string[] = QUALIFIERS.flatMap((qualifier) =>
@@ -202,8 +197,19 @@ type Quantile = readonly [number, number];
  * median 18, ninetieth percentile 59, longest 470.
  */
 const OPERATION_LENGTHS: readonly Quantile[] = [
-  [0.0, 0], [0.1, 8], [0.2, 11], [0.3, 12], [0.4, 14], [0.5, 18], [0.6, 22], [0.7, 30],
-  [0.8, 36], [0.9, 59], [0.95, 81], [0.99, 161], [1.0, 470],
+  [0.0, 0],
+  [0.1, 8],
+  [0.2, 11],
+  [0.3, 12],
+  [0.4, 14],
+  [0.5, 18],
+  [0.6, 22],
+  [0.7, 30],
+  [0.8, 36],
+  [0.9, 59],
+  [0.95, 81],
+  [0.99, 161],
+  [1.0, 470],
 ];
 
 /**
@@ -214,7 +220,12 @@ const OPERATION_LENGTHS: readonly Quantile[] = [
  * the right mean and the wrong shape.
  */
 const SCHEMA_LENGTHS: readonly Quantile[] = [
-  [0.0, 0], [0.5, 0], [0.75, 8], [0.9, 21], [0.99, 100], [1.0, 285],
+  [0.0, 0],
+  [0.5, 0],
+  [0.75, 8],
+  [0.9, 21],
+  [0.99, 100],
+  [1.0, 285],
 ];
 
 /**
@@ -225,7 +236,13 @@ const SCHEMA_LENGTHS: readonly Quantile[] = [
  * document wearing the same node count.
  */
 const PROPERTY_LENGTHS: readonly Quantile[] = [
-  [0.0, 0], [0.25, 6], [0.5, 11], [0.75, 20], [0.9, 32], [0.99, 132], [1.0, 298],
+  [0.0, 0],
+  [0.25, 6],
+  [0.5, 11],
+  [0.75, 20],
+  [0.9, 32],
+  [0.99, 132],
+  [1.0, 298],
 ];
 
 /** Schemas per operation, measured at 1893 over 1082 across the same three documents. */

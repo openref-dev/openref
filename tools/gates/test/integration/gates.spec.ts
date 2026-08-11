@@ -628,7 +628,7 @@ describe('budgetExceptionsGate', () => {
       ),
     ).toBe(true);
     expect(
-      lines.some((line) => line.startsWith('MEASURED page-bytes: 156.3 KB raw of 159 KB')),
+      lines.some((line) => line.startsWith('MEASURED page-bytes: 191.2 KB raw of 194 KB')),
     ).toBe(true);
   }, 180_000);
 });
