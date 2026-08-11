@@ -1,7 +1,7 @@
 {
   "recordedAt": "2026-08-11",
-  "commit": "80e673065cafa44f29d0785bd60236091eeeebd0",
-  "note": "RE-RECORDED BECAUSE THE INPUT CHANGED, NOT BECAUSE THE PRODUCT DID. T016 finding F10: every thousand node budget was taken on a fixture carrying one description of four words repeated a thousand times and one schema, and the replacement carries what the three largest corpus documents measure, 1.75 schemas per operation and 217,058 words over a vocabulary of 10,355. The served document is 65,326 bytes against 29,682 before, and none of that is a regression: it is prose the old fixture did not have. THE JS MOVED FOR A DIFFERENT REASON, 98,124 to 98,193, and that 69 bytes is the T016 fixes to core arriving in the bundle, since the record it replaces predates them. WHAT DID NOT MOVE IS THE PART THAT CARRIES A THRESHOLD: the long task count read a median of 2 on all three studies of this run, as it did on all six of the last, and the three byte columns were identical to the byte across 75 navigations. Two of these figures are gated and two are not, and which is which is a measurement rather than a preference: wall clock TTI and total main thread task time move with the processor a shared pool hands out, by about a quarter of their medians, so SPEC 20 records both and gates neither. THE THREE STUDIES OF THIS RUN: 260.3 ms and 281.6 ms on two AMD EPYC 9V74, 283.7 ms on an AMD EPYC 7763, all Chrome 150.0.7871.128 at a measured throttle of about 4.2x. The line recorded here is the first of them. The runner CPU is not fixed within one image, so re-recording against a study taken on another processor compares nothing.",
+  "commit": "fc3c295b666ab2703163c1996aeb12a6211fe947",
+  "note": "RE-RECORDED BECAUSE THE INPUT CHANGED, NOT BECAUSE THE PRODUCT DID. T016 finding F10: every thousand node budget was taken on a fixture carrying one description of four words repeated a thousand times and one schema, and the replacement carries what the three largest corpus documents measure, 1.75 schemas per operation and 217,058 words over a vocabulary of 10,355. The served document is 65,326 bytes against 29,682 before, and none of that is a regression: it is prose the old fixture did not have. TWO OTHER COLUMNS MOVED FOR THEIR OWN REASONS, both small and both named here so a later reader does not attribute them to the fixture: the JS is up 69 bytes because the record this replaces predates the T016 fixes to core, and the CSS is up 342 because F13 added the bidirectional isolation rule to the theme. WHAT DID NOT MOVE IS THE PART THAT CARRIES A THRESHOLD: the three byte columns were identical to the byte across 75 navigations, and the long task count read 1, 2 and 1 across the three studies, at or under the cap of 2 on every one. Two of these figures are gated and two are not, and which is which is a measurement rather than a preference: wall clock TTI and total main thread task time move with the processor a shared pool hands out, by about a quarter of their medians, so SPEC 20 records both and gates neither. THE THREE STUDIES OF THIS RUN: 217.7 ms on an AMD EPYC 9V74, 274.9 on an AMD EPYC 7763 and 210.0 on an Intel Xeon 6973P-C, all Chrome 150.0.7871.128 at a measured throttle of about 4.2x, which is a spread of 30 percent of the median across three machines in one dispatch. The line recorded here is the first of them. The runner CPU is not fixed within one image, so re-recording against a study taken on another processor compares nothing.",
   "environment": {
     "id": "github-actions/ubuntu24/X64",
     "label": "GitHub Actions runner, image ubuntu24, X64",
@@ -25,49 +25,49 @@
   "throttleRate": 4,
   "throttleRatio": {
     "samples": 25,
-    "median": 4.21,
-    "min": 4.16,
-    "max": 4.33,
-    "standardDeviation": 0.05
+    "median": 4.15,
+    "min": 4.11,
+    "max": 4.27,
+    "standardDeviation": 0.03
   },
   "ttiMs": {
     "samples": 25,
-    "median": 260.3,
-    "min": 203.7,
-    "max": 1013.3,
-    "standardDeviation": 154.9
+    "median": 217.7,
+    "min": 169.6,
+    "max": 237.5,
+    "standardDeviation": 18.6
   },
   "ttiPhaseMs": {
-    "transfer": 0.7,
-    "parse": 144.7,
-    "script": 126.4,
-    "firstContentfulPaint": 180.0
+    "transfer": 1.3,
+    "parse": 119.2,
+    "script": 96.7,
+    "firstContentfulPaint": 148.0
   },
   "mainThreadMs": {
     "samples": 25,
-    "median": 266.4,
-    "min": 250.1,
-    "max": 972.8,
-    "standardDeviation": 141.5
+    "median": 220.1,
+    "min": 197.5,
+    "max": 242.5,
+    "standardDeviation": 12.1
   },
   "longTaskCount": {
     "samples": 25,
-    "median": 2,
+    "median": 1,
     "min": 1,
-    "max": 4,
-    "standardDeviation": 0.5
+    "max": 2,
+    "standardDeviation": 0.4
   },
   "parsedBytes": {
     "documentBytes": 65326,
-    "cssBytes": 32264,
+    "cssBytes": 32606,
     "jsBytes": 98193
   },
   "peakHeapBytes": {
     "samples": 5,
-    "median": 3390804,
-    "min": 3366736,
-    "max": 3430859,
-    "standardDeviation": 24800
+    "median": 3380763,
+    "min": 3373647,
+    "max": 3386952,
+    "standardDeviation": 5035
   },
   "externalRequests": 0,
   "cspViolations": 0,

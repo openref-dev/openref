@@ -131,7 +131,7 @@ describe('checkCeilings', () => {
     // Given the derivation the cap was chosen by: measured 195,783 bytes with 2,873 of room, so
     // another region of `theme.css` the size of the page frame, 3,287 bytes, has to fail
     const record = baseline({
-      parsedBytes: { documentBytes: 65_326, cssBytes: 32_264 + 3_287, jsBytes: 98_193 },
+      parsedBytes: { documentBytes: 65_326, cssBytes: 32_606 + 3_287, jsBytes: 98_193 },
     });
 
     // When
@@ -145,7 +145,7 @@ describe('checkCeilings', () => {
   it('should let a navigation sized addition through, which is the room ordinary work gets', () => {
     // Given, the same allowance `theme-css-raw` was derived with
     const record = baseline({
-      parsedBytes: { documentBytes: 65_326, cssBytes: 32_264 + 2_520, jsBytes: 98_193 },
+      parsedBytes: { documentBytes: 65_326, cssBytes: 32_606 + 2_520, jsBytes: 98_193 },
     });
 
     // When
@@ -424,7 +424,7 @@ describe('the committed baseline', () => {
   it('should hold the figures the three gated caps were derived from', () => {
     // Given, so the derivation in `config.ts` is checked against the record rather than
     // remembered. Re-derived on 2026-08-11 from the representative input of T016 finding F10:
-    // the same commit measures 195,783 bytes on it and 160,070 on the fixture it replaced, and
+    // the same commit measures 196,125 bytes on it and 160,070 on the fixture it replaced, and
     // the difference is prose the old one did not have rather than a change to the product.
     const { baseline: record } = readBrowserBaseline(repoRoot);
     if (record === null) throw new Error('no baseline');
@@ -432,10 +432,10 @@ describe('the committed baseline', () => {
     // When
     const bytes = pageBytesOf(record.parsedBytes);
 
-    // Then, 195,783 with 2,873 of headroom, which is more than a navigation sized addition of
+    // Then, 196,125 with 2,531 of headroom, which is more than a navigation sized addition of
     // 2,520 and less than a page frame sized one of 3,287
-    expect(bytes).toBe(195_783);
-    expect(BROWSER_CEILINGS.pageBytes - bytes).toBe(2_873);
+    expect(bytes).toBe(196_125);
+    expect(BROWSER_CEILINGS.pageBytes - bytes).toBe(2_531);
 
     // And the served document, 65,326 with 8,402 of headroom. It is derived loosely on purpose:
     // the regression it exists to catch is the navigation blob returning, and this document's
@@ -443,7 +443,12 @@ describe('the committed baseline', () => {
     expect(record.parsedBytes.documentBytes).toBe(65_326);
     expect(BROWSER_CEILINGS.servedDocumentBytes - record.parsedBytes.documentBytes).toBe(8_402);
 
-    // And the count that did not move when the page doubled
-    expect(record.longTaskCount.median).toBe(BROWSER_CEILINGS.longTaskCount);
+    // And the count that did not move when the page doubled. It is pinned to what the record
+    // says and checked against the cap, rather than asserted equal to it: the two were the same
+    // number until 2026-08-11 by coincidence, and reading that coincidence as the contract would
+    // fail the build for a page that got better. The cap stays at 2 because the three studies of
+    // the representative page read 1, 2 and 1, so 2 is still what this page does on a bad run.
+    expect(record.longTaskCount.median).toBe(1);
+    expect(record.longTaskCount.max).toBeLessThanOrEqual(BROWSER_CEILINGS.longTaskCount);
   });
 });

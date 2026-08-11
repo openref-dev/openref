@@ -625,7 +625,7 @@ export const BROWSER_STUDY_WORKFLOW = '.github/workflows/browser-budget-study.ym
  * the load fails it. It is a coarse instrument and it says so: it cannot see an existing long
  * task getting worse without splitting.
  *
- * `pageBytes` is 194 KB against 195,783 measured, 191.2 KB, so the headroom is 2,873 bytes. It
+ * `pageBytes` is 194 KB against 196,125 measured, 191.5 KB, so the headroom is 2,531 bytes. It
  * is derived the way `theme-css-raw` was: another region of `theme.css` the size of the page
  * frame, 3,287 bytes, or of the try-it console, 3,669, has to fail it, and a navigation sized
  * addition of 2,520 has to fit. THIS IS THE TIGHTEST ROW IN THE TABLE AND IT IS MEANT TO BE. It

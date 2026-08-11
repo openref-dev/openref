@@ -624,11 +624,11 @@ describe('budgetExceptionsGate', () => {
     // Then
     expect(
       lines.some((line) =>
-        line.startsWith('MEASURED long-tasks: 2 of 2, as a median of 25 navigations'),
+        line.startsWith('MEASURED long-tasks: 1 of 2, as a median of 25 navigations'),
       ),
     ).toBe(true);
     expect(
-      lines.some((line) => line.startsWith('MEASURED page-bytes: 191.2 KB raw of 194 KB')),
+      lines.some((line) => line.startsWith('MEASURED page-bytes: 191.5 KB raw of 194 KB')),
     ).toBe(true);
   }, 180_000);
 });
