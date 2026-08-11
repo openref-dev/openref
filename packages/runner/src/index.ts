@@ -53,6 +53,7 @@ export {
   type FetchLike,
   type FetchResponseLike,
   type FetchTransportOptions,
+  type ResponseReaderLike,
   type ResponseStreamLike,
 } from './send/infrastructure/adapters/fetch-transport.adapter';
 

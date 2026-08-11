@@ -1,6 +1,7 @@
 import { gzipSync } from 'node:zlib';
 import { normalizeOpenApiDocument, type IRDocument } from '@openref/core';
 import { describe, expect, it } from 'vitest';
+import { largeDocument } from '../../../render/test/mocks/documents';
 import {
   buildSearchIndex,
   collectSearchDocuments,
@@ -15,6 +16,12 @@ import {
  * SPEC 20 budgets the index at 250 KB gzip for 1000 nodes, and the committed budgets gate
  * prints that budget as NOT MEASURED HERE with T007 named as the task that enforces it. This
  * file is where that enforcement lives, so the number is asserted here or nowhere.
+ *
+ * THE INPUT IS THE SPEC 20 FIXTURE AND NOT A LOCAL ONE. It used to be a local generator giving
+ * a thousand operations one description, and gzip is exactly the measurement repetition
+ * flatters: it read 43 KB against the 250 KB cap, which is 5.8x of headroom no real document
+ * has. `index-budget-input.spec.ts` is what keeps the replacement honest, by holding its cost
+ * per record inside the band the real corpus documents measure.
  */
 
 /** SPEC 20: search index, 1000 nodes, gzip. */
@@ -65,40 +72,6 @@ const sample = documentWith([
     },
   },
 ]);
-
-/** A document with a thousand operations, which is the size SPEC 20 budgets. */
-function largeDocument(count: number): IRDocument {
-  const paths: Record<string, unknown> = {};
-
-  for (let index = 0; index < count; index += 1) {
-    paths[`/resources/group${String(index % 40)}/item-${String(index)}`] = {
-      get: {
-        summary: `Fetch item ${String(index)} from group ${String(index % 40)}`,
-        description:
-          'Returns a single item together with its metadata, its current status and the ' +
-          'links needed to page through the collection it belongs to.',
-        tags: [`group-${String(index % 40)}`, 'items'],
-        responses: {
-          '200': {
-            description: 'ok',
-            content: {
-              'application/json': { schema: { $ref: '#/components/schemas/Order' } },
-            },
-          },
-        },
-      },
-    };
-  }
-
-  return normalizeOpenApiDocument({
-    openapi: '3.1.0',
-    info: { title: 'Large API', version: '1' },
-    paths,
-    components: {
-      schemas: { Order: { type: 'object', properties: { id: { type: 'string' } } } },
-    },
-  });
-}
 
 describe('collectSearchDocuments', () => {
   it('should index an operation with its route, method, tags and schema names', () => {
@@ -189,15 +162,18 @@ describe('buildSearchIndex', () => {
   });
 
   it('should stay at or under 250 KB gzip for 1000 nodes, per SPEC 20', () => {
-    // Given
+    // Given the document SPEC 20 names: 1000 operations, 1750 schemas, 2750 index records.
     const document = largeDocument(1000);
 
     // When
     const index = buildSearchIndex(document);
     const compressed = gzipSync(Buffer.from(index.serialized, 'utf8')).byteLength;
 
-    // Then
-    expect(index.documentCount).toBeGreaterThanOrEqual(1000);
+    // Then, measured 176,714 bytes against the 250 KB cap, which is 1.45x of room. The cap is
+    // not re-derived down to that, because the record count of a real document of this node
+    // count varies with its schema density and the corpus spans 0.75 to 9.3 schemas per
+    // operation; the fixture sits at the 1.75 the three largest documents average.
+    expect(index.documentCount).toBe(2750);
     expect(compressed).toBeLessThanOrEqual(INDEX_BUDGET_BYTES);
   }, 120_000);
 });

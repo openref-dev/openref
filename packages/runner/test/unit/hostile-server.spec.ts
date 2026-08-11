@@ -261,3 +261,28 @@ describe('try-it against a server that breaks the response mid flight', () => {
     await expect(send).rejects.toMatchObject({ code: ErrorCode.RUN_NOT_AVAILABLE });
   });
 });
+
+/**
+ * The declared transport type against the runtime's own `fetch`, per T016 finding F11.
+ *
+ * FOUND BY THE TYPE CHECKER AND NOT BY A TEST, which is why the pin is here now. The cancellation
+ * and body limits above arrived with `signal?: unknown` and `getReader(): ...` on the declared
+ * transport, and both read as accommodating. A parameter position is contravariant, so both were
+ * the opposite: the browser's own `fetch` stopped satisfying `FetchLike`, and the integration
+ * suite that hands the console a real `fetch` stopped compiling. The unit suite went on passing,
+ * because every test in it supplies a stub built to the declared shape rather than a real one.
+ */
+describe('the declared transport type', () => {
+  it('should accept the runtime fetch, which is the only implementation a host actually has', () => {
+    // Given, and the assignment IS the assertion. There is no cast on it, so `pnpm lint` fails
+    // the moment `FetchLike` describes something the runtime's `fetch` is not.
+    const transport: FetchLike = fetch;
+
+    // When
+    const built = new FetchHttpTransport({ fetch: transport });
+
+    // Then, so the test cannot pass vacuously on a runtime that has no fetch to assign
+    expect(transport).toBeTypeOf('function');
+    expect(built).toBeInstanceOf(FetchHttpTransport);
+  });
+});

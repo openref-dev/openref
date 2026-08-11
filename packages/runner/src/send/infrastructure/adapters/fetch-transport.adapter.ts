@@ -56,12 +56,22 @@ export interface FetchResponseLike {
   text(): Promise<string>;
 }
 
-/** The part of a `ReadableStream` this adapter uses. */
+/** The part of a `ReadableStreamDefaultReader` this adapter uses. */
+export interface ResponseReaderLike {
+  read(): Promise<{ done: boolean; value?: Uint8Array | undefined }>;
+  cancel(): Promise<void>;
+}
+
+/**
+ * The part of a `ReadableStream` this adapter uses.
+ *
+ * `getReader` is declared as taking anything rather than nothing, because a real `ReadableStream`
+ * declares it as an overload set whose first member takes an argument. A parameter list of none
+ * reads as the most permissive thing to write and is the least permissive thing to assign to: it
+ * put the browser's own `Response` outside this type, and with it the browser's own `fetch`.
+ */
 export interface ResponseStreamLike {
-  getReader(): {
-    read(): Promise<{ done: boolean; value?: Uint8Array }>;
-    cancel(): Promise<void>;
-  };
+  getReader(...args: never[]): ResponseReaderLike;
 }
 
 /** What `fetch` is, reduced to how this adapter calls it. */
@@ -73,7 +83,7 @@ export type FetchLike = (
     body?: string;
     redirect?: 'follow';
     credentials?: 'omit';
-    signal?: unknown;
+    signal?: AbortSignal;
   },
 ) => Promise<FetchResponseLike>;
 
@@ -93,9 +103,18 @@ function globalFetch(): FetchLike | null {
   return typeof candidate === 'function' ? (candidate as FetchLike) : null;
 }
 
-/** Builds the cancellation signal, where the runtime has one to build. */
-function timeoutSignal(timeoutMs: number): unknown {
-  const factory = (globalThis as { AbortSignal?: { timeout?: (ms: number) => unknown } })
+/**
+ * Builds the cancellation signal, where the runtime has one to build.
+ *
+ * THE DECLARED TYPE IS `AbortSignal` AND NOT `unknown`, and the difference is not cosmetic. The
+ * first version of this said `unknown`, which reads as accommodating and is the opposite: a
+ * parameter position is contravariant, so the real `fetch` stopped being assignable to
+ * `FetchLike` and any caller handing this adapter the browser's own `fetch` failed to compile.
+ * The runtime check below stays, because a runtime old enough to lack `AbortSignal.timeout` is
+ * exactly the one the declared type cannot speak for.
+ */
+function timeoutSignal(timeoutMs: number): AbortSignal | undefined {
+  const factory = (globalThis as { AbortSignal?: { timeout?: (ms: number) => AbortSignal } })
     .AbortSignal;
   return factory?.timeout?.(timeoutMs);
 }

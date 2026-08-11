@@ -1,127 +1,109 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { gzipSync } from 'node:zlib';
-import { normalizeOpenApiDocument } from '@openref/core';
+import { normalizeOpenApiDocument, parseSpecification } from '@openref/core';
 import { describe, expect, it } from 'vitest';
+import { largeDocument } from '../../../render/test/mocks/documents';
 import { buildSearchIndex } from '../../src/index';
 
 /**
- * What the search index budget is taken on, per T016.
+ * What the search index budget is measured on, per T016 finding F10.
  *
- * SPEC 20 sets the index at 250 KB gzip for 1000 nodes, and `index-builder.spec.ts` measures
- * that on a document of 1000 operations whose description is ONE STRING REPEATED 1000 TIMES.
- * Gzip is exactly the measurement that repetition flatters, so the figure it produces, 43 KB,
- * says almost nothing about a document with 1000 different descriptions in it.
+ * A BUDGET IS ONLY AS HONEST AS THE INPUT IT IS TAKEN ON, and this file is the check that says
+ * so out loud. SPEC 20 caps the index at 250 KB gzip for 1000 nodes. Until 2026-08-11 it
+ * measured that on a document of 1000 operations sharing ONE description and carrying ONE
+ * schema. Gzip is precisely the measurement repetition flatters, so the figure it produced, 43
+ * KB, said almost nothing about a document with a thousand different descriptions in it, and the
+ * budget read as 5.8x of headroom that no real reference has.
  *
- * THIS FILE IS A RECORD OF AN OPEN QUESTION AND NOT A PASSING BUDGET. It pins the measured gap
- * so that it lives in the suite rather than in a note nobody re-reads. The question it asks is
- * in `ai-docs/PROJECT_STATE.md` and is the maintainer's: whether the budget means the committed
- * fixture, in which case it is met and this file records the limit of what it proves, or
- * whether it means a document of 1000 nodes, in which case the index is over it and the work is
- * real. The threshold is not touched either way.
- *
- * If the index is later made smaller, or the fixture made representative, the assertions below
- * fail and force the question to be answered again rather than letting it lapse.
+ * THE FIX IS NOT A NUMBER, IT IS A COMPARISON WITH REAL DOCUMENTS. The fixture is synthetic
+ * because a budget has to be reproducible without the corpus, but a synthetic input can be made
+ * cheap again by accident at any time, and nothing about its own size would say so. So the check
+ * here is relative: the cost of one index record on the fixture has to sit inside the band the
+ * real corpus documents measure. A fixture that stops being representative fails this whether it
+ * got cheaper or dearer, which is the property the absolute cap could never have.
  */
 
-/** SPEC 20: search index, 1000 nodes, gzip. */
-const INDEX_BUDGET_BYTES = 250 * 1024;
-
-const STEMS = (
-  'account address amount balance batch billing cancel capture card channel charge client code ' +
-  'collection confirm connector consent country coupon currency customer delivery discount ' +
-  'dispute document entity event expiry fee filter gateway identity instrument invoice ledger ' +
-  'limit mandate merchant method notification order package partner payment payout plan policy ' +
-  'price product profile provider quota rate receipt refund region report reservation resource ' +
-  'response risk schedule scope session settlement shipment source split status subscription ' +
-  'tax tenant terminal ticket token transfer usage user vendor wallet webhook workflow'
-).split(' ');
-
-/** The description every operation of the committed budget fixture carries. */
-const REPEATED_DESCRIPTION =
-  'Returns a single item together with its metadata, its current status and the ' +
-  'links needed to page through the collection it belongs to.';
+/** Corpus documents with enough operations for a per record figure to mean anything. */
+const REAL_DOCUMENTS = ['stripe.yaml', 'box.json', 'twilio-api-v2010.yaml'] as const;
 
 /**
- * Prose over a vocabulary that grows with the document.
+ * The band, measured 2026-08-11 over five corpus documents.
  *
- * A real reference of 1000 operations names hundreds of resources, fields and error codes, so
- * its index carries a term list that grows with it. A fixture whose whole vocabulary is one
- * sentence has no term list to speak of.
+ * stripe 71.9 bytes per record, box 83.6, twilio 69.1, kubernetes-apps 81.8, adyen 51.4. The
+ * bounds are set outside the widest pair rather than around the three read below, so that adding
+ * a corpus document does not move them, and they are wide enough that ordinary drift in the
+ * index format does not trip them while a fixture losing its vocabulary does.
  */
-function variedProse(seed: number, words: number): string {
-  const out: string[] = [];
-  let state = seed >>> 0;
+const MIN_BYTES_PER_RECORD = 45;
+const MAX_BYTES_PER_RECORD = 95;
 
-  for (let index = 0; index < words; index += 1) {
-    state = (state * 1664525 + 1013904223) >>> 0;
-    const stem = STEMS[state % STEMS.length] ?? 'item';
-    out.push(`${stem}${String(state % 20000)}`);
-  }
+function corpusDocument(file: string): ReturnType<typeof normalizeOpenApiDocument> {
+  const path = join(
+    import.meta.dirname,
+    '..',
+    '..',
+    '..',
+    'core',
+    'test',
+    'corpus',
+    'documents',
+    file,
+  );
 
-  return `${out.join(' ')}.`;
+  return normalizeOpenApiDocument(parseSpecification(readFileSync(path, 'utf8')));
 }
 
-function documentOf(
-  count: number,
-  description: (index: number) => string,
-): ReturnType<typeof normalizeOpenApiDocument> {
-  const paths: Record<string, unknown> = {};
-
-  for (let index = 0; index < count; index += 1) {
-    paths[`/resources/group${String(index % 40)}/item-${String(index)}`] = {
-      get: {
-        summary: `Fetch item ${String(index)} from group ${String(index % 40)}`,
-        description: description(index),
-        tags: [`group-${String(index % 40)}`, 'items'],
-        responses: {
-          '200': {
-            description: 'ok',
-            content: { 'application/json': { schema: { $ref: '#/components/schemas/Order' } } },
-          },
-        },
-      },
-    };
-  }
-
-  return normalizeOpenApiDocument({
-    openapi: '3.1.0',
-    info: { title: 'Large API', version: '1' },
-    paths,
-    components: { schemas: { Order: { type: 'object', properties: { id: { type: 'string' } } } } },
-  });
-}
-
-function gzipBytesOf(count: number, description: (index: number) => string): number {
-  const index = buildSearchIndex(documentOf(count, description));
-  return gzipSync(Buffer.from(index.serialized, 'utf8')).byteLength;
+function bytesPerRecord(document: ReturnType<typeof normalizeOpenApiDocument>): number {
+  const index = buildSearchIndex(document);
+  return gzipSync(Buffer.from(index.serialized, 'utf8')).byteLength / index.documentCount;
 }
 
 describe('the input the search index budget is measured on', () => {
-  it('should compress the committed fixture far below the budget, because it repeats itself', () => {
-    // Given, 1000 operations sharing one description.
+  it('should cost about what a real document costs, per index record', () => {
+    // Given the fixture SPEC 20 names and the real documents it stands in for
     // When
-    const bytes = gzipBytesOf(1000, () => REPEATED_DESCRIPTION);
+    const fixture = bytesPerRecord(largeDocument(1000));
 
-    // Then, comfortably inside, and the comfort is the repetition rather than the index
-    expect(bytes).toBeLessThan(INDEX_BUDGET_BYTES / 4);
+    // Then, measured 64.3 bytes per record against a corpus band of 51.4 to 83.6. This is the
+    // assertion that would have caught the old fixture: one description repeated a thousand
+    // times cost 43.0 bytes per record with a vocabulary of four words.
+    expect(fixture).toBeGreaterThan(MIN_BYTES_PER_RECORD);
+    expect(fixture).toBeLessThan(MAX_BYTES_PER_RECORD);
   }, 120_000);
 
-  it('should exceed the same budget on a document of the same size with ordinary variety', () => {
-    // Given, 1000 operations with 60 words of description each, over a vocabulary that grows
-    // with the document, which is what a reference of this size looks like.
+  it('should sit inside the band the real corpus documents measure', () => {
+    // Given, so the band above is read off the corpus in this run rather than trusted from a
+    // comment. A corpus document drifting out of it means the band is wrong, not the fixture.
     // When
-    const bytes = gzipBytesOf(1000, (index) => variedProse(index + 1, 60));
-
-    // Then, over. Recorded, not excused: no threshold moved and no exception was written.
-    expect(bytes).toBeGreaterThan(INDEX_BUDGET_BYTES);
-  }, 120_000);
-
-  it('should grow with description length rather than level off', () => {
-    // Given, so that the gap above reads as a slope and not as one unlucky fixture.
-    // When
-    const shorter = gzipBytesOf(1000, (index) => variedProse(index + 1, 24));
-    const longer = gzipBytesOf(1000, (index) => variedProse(index + 1, 120));
+    const measured = REAL_DOCUMENTS.map((file) => bytesPerRecord(corpusDocument(file)));
 
     // Then
-    expect(longer).toBeGreaterThan(shorter * 2);
-  }, 240_000);
+    for (const cost of measured) {
+      expect(cost).toBeGreaterThan(MIN_BYTES_PER_RECORD);
+      expect(cost).toBeLessThan(MAX_BYTES_PER_RECORD);
+    }
+  }, 300_000);
+
+  it('should carry a vocabulary that grows with the document, which is what gzip prices', () => {
+    // Given the property the old fixture lacked and the reason its figure was meaningless
+    const document = largeDocument(1000);
+    const words = new Set<string>();
+
+    // When
+    for (const node of document.nodes.values()) {
+      for (const word of `${node.summary ?? ''} ${node.description ?? ''}`
+        .toLowerCase()
+        .match(/[a-z0-9_]+/gu) ?? []) {
+        words.add(word);
+      }
+    }
+
+    // Then, the three largest corpus documents carry 1889 distinct words across 1082 operations.
+    // The old fixture carried four. Bounded on both sides: a fixture whose every token is unique
+    // is as unrepresentative as one that repeats, and it was measuring 439 KB when this was
+    // first looked at.
+    expect(words.size).toBeGreaterThan(1200);
+    expect(words.size).toBeLessThan(4000);
+  }, 120_000);
 });

@@ -154,7 +154,10 @@ describe('the palette on a page that carries a slice', () => {
 
     const input = host.querySelector<HTMLInputElement>('.oref-palette-input');
     if (input === null) throw new Error('the palette did not open');
-    input.value = '/resource-150';
+    // Read off the document rather than written out, so the assertion is about the palette
+    // reaching past the slice and not about what the fixture happens to name its routes.
+    const far = [...document_.nodes.values()][150];
+    input.value = far !== undefined && 'path' in far ? far.path : '';
     input.dispatchEvent(new Event('input', { bubbles: true }));
     await settle();
 
