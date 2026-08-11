@@ -52,23 +52,35 @@ describe('every corpus document is navigable', () => {
     expect(files.length).toBeGreaterThanOrEqual(15);
   });
 
-  it.each(files)('%s: every navigation entry points at something that exists', (file) => {
-    // Given
-    const document = normalize(file);
-    const page = buildPageModel(document, { markdown });
+  it.each(files)(
+    '%s: every navigation entry points at something that exists',
+    (file) => {
+      // Given
+      const document = normalize(file);
+      const page = buildPageModel(document, { markdown });
 
-    // When
-    const rows = flattenNavigation(page.navigation);
-    const dangling = rows.filter(
-      (row) =>
-        (row.nodeId !== null && !document.nodes.has(row.nodeId)) ||
-        (row.schemaId !== null && !document.schemas.has(row.schemaId)),
-    );
+      // When
+      const rows = flattenNavigation(page.navigation);
+      const dangling = rows.filter(
+        (row) =>
+          (row.nodeId !== null && !document.nodes.has(row.nodeId)) ||
+          (row.schemaId !== null && !document.schemas.has(row.schemaId)),
+      );
 
-    // Then
-    expect(dangling.map((row) => row.id)).toEqual([]);
-    expect(rows.length).toBeGreaterThan(0);
-  });
+      // Then
+      expect(dangling.map((row) => row.id)).toEqual([]);
+      expect(rows.length).toBeGreaterThan(0);
+    },
+    // A HANG CATCHER AND NOT A LATENCY BUDGET, loose by orders of magnitude on purpose, which is
+    // what TX-CLOCK asks any elapsed threshold to say about itself. The two cases below it do
+    // strictly more work over the same documents and both declare this; this one inherited
+    // vitest's 5 s default instead, which was an omission rather than a decision and read as one
+    // the first time the suite ran anywhere but the maintainer's machine. `stripe.yaml` normalizes
+    // a 6 MB document, and under V8 coverage instrumentation on a runner that does not fit in 5 s.
+    // The coverage gate is where it showed, because it is the only run that takes the integration
+    // suite and the instrumentation together.
+    180_000,
+  );
 
   it.each(files)(
     '%s: renders an operation page and a schema page',
