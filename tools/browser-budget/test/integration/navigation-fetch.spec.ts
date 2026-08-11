@@ -14,7 +14,14 @@
  */
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { bootFixture, launchChrome, TTI_PAGE } from '../../src/index';
+import { normalizeOpenApiDocument } from '@openref/core';
+import {
+  bootFixture,
+  largeSpecification,
+  launchChrome,
+  TTI_NODE_COUNT,
+  TTI_PAGE,
+} from '../../src/index';
 import type { BootedFixture, LaunchedChrome } from '../../src/index';
 import type { Page, Request } from 'playwright-core';
 
@@ -123,7 +130,16 @@ describe('a cold page of the thousand node document', () => {
   it(
     'should find an operation the page never carried, one keystroke deep',
     async () => {
-      // Given the overview, whose slice holds group headers and no operation at all
+      // Given the overview, whose slice holds group headers and no operation at all, and a
+      // route read off the fixture rather than written out. The literal that used to be here,
+      // `/resource-742`, stopped existing when T016 replaced the fixture, and a query that
+      // matches nothing looks exactly like an index that never arrived.
+      const document_ = normalizeOpenApiDocument(largeSpecification(TTI_NODE_COUNT));
+      const far = [...document_.nodes.values()][742];
+      const route = far !== undefined && 'path' in far ? far.path : '';
+      const id = far?.id ?? '';
+      expect(route).not.toBe('');
+
       const session = await open('/docs');
 
       try {
@@ -131,12 +147,12 @@ describe('a cold page of the thousand node document', () => {
 
         // When the reader opens the palette and types a path
         await session.page.locator('.oref-palette-open').click();
-        await session.page.locator('.oref-palette-input').fill('/resource-742');
+        await session.page.locator('.oref-palette-input').fill(route);
 
         // Then the operation is found, which means the whole index arrived
         await session.page.waitForSelector('.oref-palette-hit', { timeout: 30_000 });
         const first = await session.page.locator('.oref-palette-link').first().getAttribute('href');
-        expect(first).toContain('resource-742');
+        expect(first).toContain(id);
 
         // And again, nothing left the origin
         expect(external(session)).toEqual([]);

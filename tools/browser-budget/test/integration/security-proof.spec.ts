@@ -21,6 +21,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   bootFixture,
+  firstNodePage,
   launchChrome,
   measurePage,
   PLANTED_ORIGIN,
@@ -40,9 +41,18 @@ let chrome: LaunchedChrome;
 let guarded: BootedFixture;
 let unguarded: BootedFixture;
 
-/** The page every case is measured on, chosen so it is a node page rather than the overview. */
-function proofPage(fixture: BootedFixture): string {
-  return `${fixture.url}/docs/get-resource-0`;
+/**
+ * The page every case is measured on, chosen so it is a node page rather than the overview.
+ *
+ * READ OFF THE SERVED DOCUMENT RATHER THAN WRITTEN OUT. It used to be the literal
+ * `/docs/get-resource-0`, and when T016 replaced the budget fixture with a representative one
+ * the route stopped existing: every proof here went on running against a 404, which loads no
+ * assets, so a page that asks for nothing reported zero external requests and zero policy
+ * violations and looked like a pass. The plants are what caught it, because a plant that cannot
+ * be seen fails, and that is the whole reason each claim is made twice.
+ */
+async function proofPage(fixture: BootedFixture): Promise<string> {
+  return await firstNodePage(fixture.url);
 }
 
 async function measure(
@@ -50,7 +60,7 @@ async function measure(
   transformHtml?: (html: string) => string,
 ): Promise<PageMeasurement> {
   return measurePage(chrome.browser, {
-    url: proofPage(fixture),
+    url: await proofPage(fixture),
     throttleRate: 1,
     globals: [PLANTED_SCRIPT_MARKER],
     ...(transformHtml === undefined ? {} : { transformHtml }),
