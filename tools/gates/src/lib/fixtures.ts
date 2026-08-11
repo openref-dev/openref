@@ -24,6 +24,8 @@
  * a different allowed set rather than a third piece of machinery.
  */
 
+import type { FieldPartition } from './field-partition.js';
+
 /** Licenses a vendored fixture may carry, per SPEC 0 zone 3. */
 export const FIXTURE_ALLOWED_LICENSES: readonly string[] = [
   'MIT',
@@ -62,6 +64,68 @@ export const FIXTURE_FORBIDDEN_CLAUSES: readonly (readonly [RegExp, string])[] =
   [/-ND(-|$)/i, 'no derivatives clause forbids the modification a corpus requires'],
   [/^Commons-Clause/i, 'the Commons Clause restricts the field of use'],
 ];
+
+/**
+ * What every field of the zone 3 corpus manifest is for, as data rather than as doc comments.
+ *
+ * The comments below on `title` and `bytes` said the right thing and could not be walked. This
+ * is the same statement in a form a test holds the committed file to, so the eighteenth document
+ * cannot quietly introduce a field nothing reads. `checkFixtures` is the reader named here.
+ */
+export const CORPUS_MANIFEST_PARTITION: FieldPartition = {
+  record: 'packages/core/test/corpus/manifest.json',
+  asserted: {
+    file: 'matched against the files actually present, both directions',
+    sourceUrl: 'checked non empty, since attribution with no source is not attribution',
+    retrievedAt: 'checked non empty',
+    license: 'checked against the zone 3 allow list and the forbidden clause patterns',
+    copyrightHolder: 'checked non empty',
+    modified: 'drives whether modifications is required',
+    bytes: 'compared with the size of the file on disk',
+    sha256: 'compared with the digest of the file on disk',
+  },
+  recordedNotAsserted: {
+    title:
+      "prose about someone else's document, for the NOTICE and for a reader of the manifest. " +
+      'There is nothing to check it against, and inventing a check would only pin the prose',
+  },
+};
+
+/**
+ * The same partition for the zone 4 font manifest, which carries six more fields.
+ *
+ * `unicodeRange` IS ASSERTED AND ITS READER IS NOT A GATE. `packages/theme/test/unit/fonts.spec.ts`
+ * matches it against the `unicode-range` of the face in the stylesheet, and a committed test that
+ * goes red is what the question asks for. Where the reader lives is not the question.
+ */
+export const FONT_MANIFEST_PARTITION: FieldPartition = {
+  record: 'packages/theme/fonts/manifest.json',
+  asserted: {
+    file: 'matched against the files actually present, both directions',
+    sourceUrl: 'checked non empty',
+    retrievedAt: 'checked non empty',
+    license: 'checked against the zone 4 allow list and the forbidden clause patterns',
+    copyrightHolder: 'checked non empty',
+    modified: 'drives whether modifications is required, and the reserved name rule',
+    modifications: 'required and checked non empty whenever modified is true',
+    bytes: 'compared with the size of the file on disk',
+    sha256: 'compared with the digest of the file on disk',
+    family: 'the name the reserved font name rule is applied to',
+    shipsAs: 'the name a modified subset actually ships under, refused when it is the reserved one',
+    licenseTextFile: 'names the licence text the reserved font name is read out of',
+    reservedFontName: 'compared with the reserved font name declared by that licence text',
+    unicodeRange: 'packages/theme/test/unit/fonts.spec.ts, against the stylesheet face it names',
+  },
+  recordedNotAsserted: {
+    title:
+      'prose naming the family for a reader of the manifest and for the NOTICE, with nothing ' +
+      'to check it against',
+    version:
+      'the upstream release the file was taken from. Nothing in the bytes carries it: a woff2 ' +
+      'subset drops the name table this would be read out of, so a check would compare the ' +
+      'record with itself. It is here for a human deciding whether to re-fetch',
+  },
+};
 
 /** One entry of the corpus manifest. */
 export interface FixtureManifestEntry {

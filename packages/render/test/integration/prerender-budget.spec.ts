@@ -17,6 +17,21 @@ import { largeDocument } from '../mocks/documents';
  * A wall clock assertion is loose by nature and machine dependent, which is why the suite
  * also asserts the shape of the work: the navigation is rendered once per page and the
  * cache answers the second call without rendering at all.
+ *
+ * THIS BUDGET CATCHES A HANG AND NOT A LATENCY, AND IS LOOSE BY AN ORDER OF MAGNITUDE ON
+ * PURPOSE. It measures about 145 ms of its 2000 on a workstation, and that fourteenfold headroom
+ * is the design rather than slack waiting to be taken up: what has to fail here is a render that
+ * did not finish at all, through a cycle, a wait that should not exist, or a parse that went
+ * exponential. It names no machine deliberately. Recording the processor is worth doing where a
+ * figure is compared with a previous figure; this one is compared with a ceiling an order of
+ * magnitude above anything a sound implementation produces on any machine, and telling a
+ * regression from a slow runner is something elapsed time on unfixed hardware cannot do. That
+ * was established over six studies on five processors and is why SPEC 20 stopped setting elapsed
+ * thresholds; a latency budget written next to that conclusion would contradict it.
+ *
+ * SPEC 20 says the same, and it is repeated here because the reader of a threshold opens the
+ * file and not the specification. `TX-CLOCK` in the amendments owns the three elapsed thresholds
+ * this does not close.
  */
 const NODE_COUNT = 1000;
 const BUDGET_MS = 2000;
