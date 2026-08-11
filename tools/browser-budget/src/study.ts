@@ -24,11 +24,24 @@ import { spreadOf, type Spread } from './statistics.js';
 import { CHROME_ARGS } from './chrome.js';
 import { THROTTLE_RATE } from './throttle.js';
 
-/** The operation page of the generated document that TTI is measured on. */
-export const TTI_PAGE = '/docs/get-resource-500';
+/**
+ * The operation page of the generated document the page budgets are measured on.
+ *
+ * The five hundredth node of the fixture, so the page is one out of the middle of the navigation
+ * rather than the first. Both this route and the marker below are pinned by
+ * `test/unit/specification.spec.ts`, because they are read off the fixture and the fixture is
+ * allowed to change; what is not allowed is for it to change and leave this measuring a 404.
+ */
+export const TTI_PAGE = '/docs/get-v1-hosted-transfer-id';
 
-/** Text that page must carry, so a changed identity scheme fails loudly. */
-export const TTI_PAGE_MARKER = 'Resource 500';
+/**
+ * Text that page must carry, so a changed identity scheme fails loudly.
+ *
+ * IT HAS DONE ITS JOB ONCE. When the fixture was replaced with a representative one on
+ * 2026-08-11 the routes changed with it, and this guard stopped the study rather than letting it
+ * record twenty five navigations of an error page as a budget.
+ */
+export const TTI_PAGE_MARKER = 'Read hosted transfer';
 
 /**
  * Fewest bytes a page of the memory document can be and still be one.
