@@ -45,17 +45,37 @@ describe('the collector contract', () => {
     expectTypeOf<IRuntimeCollector['name']>().toEqualTypeOf<string>();
   });
 
-  it('should hand a collector the five things SPEC 6.2 says it gets, and no more', () => {
+  it('should hand a collector what SPEC 6.2 says it gets, and no more', () => {
     // Given
     type Given = keyof CollectorContext;
 
+    // THE LIST GREW BY TWO IN T018 AND THE GROWTH IS THE SANCTIONED DIRECTION. The interface a
+    // third party implements is still `name` and `collect`, pinned above and unchanged; what grew
+    // is what they are handed. A collector only ever reads a context, so one compiled against the
+    // shorter list still compiles and still runs, which is why this is an addition rather than a
+    // major version. Removing or retyping a field here is not, and this assertion is where that
+    // would be caught.
+    //
+    // `declaredOn` and `handlerName` are here because SPEC 6.3's `source` needs both: the class
+    // the method is written on, which is the base class for an inherited handler, and the name the
+    // prototype holds rather than whatever a wrapping decorator called its wrapper.
+
     // Then
     expectTypeOf<Given>().toEqualTypeOf<
-      'node' | 'controller' | 'handler' | 'reflector' | 'moduleRef' | 'fact'
+      | 'node'
+      | 'controller'
+      | 'declaredOn'
+      | 'handler'
+      | 'handlerName'
+      | 'reflector'
+      | 'moduleRef'
+      | 'fact'
     >();
     expectTypeOf<CollectorContext['node']>().toEqualTypeOf<IRNode>();
     expectTypeOf<CollectorContext['controller']>().toEqualTypeOf<ControllerLike>();
+    expectTypeOf<CollectorContext['declaredOn']>().toEqualTypeOf<ControllerLike>();
     expectTypeOf<CollectorContext['handler']>().toEqualTypeOf<HandlerLike>();
+    expectTypeOf<CollectorContext['handlerName']>().toEqualTypeOf<string>();
     expectTypeOf<CollectorContext['reflector']>().toEqualTypeOf<ReflectorLike>();
     expectTypeOf<CollectorContext['moduleRef']>().toEqualTypeOf<ModuleRefLike>();
   });

@@ -208,3 +208,6 @@ export {
   stringForFormat,
 } from './examples/domain/field-heuristics';
 export { isSafePattern, matchesPattern, sampleFromPattern } from './examples/domain/pattern';
+
+export { expandSourceLink } from './source-link/domain/source-link';
+export type { SourceLinkExpansion } from './source-link/domain/source-link';

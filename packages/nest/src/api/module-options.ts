@@ -63,14 +63,61 @@ export interface OpenRefDocumentOptions extends OpenRefSetupOptions {
   readonly visibility?: OpenRefVisibility;
 }
 
+/**
+ * The deep link of SPEC 6.3, when the revision has to be given rather than read.
+ *
+ * THE OBJECT FORM EXISTS FOR THE BUILD THAT HAS NO `.git`, which is most container images: the
+ * tree is copied in, the git directory is not, and `git rev-parse` has nothing to answer with. The
+ * revision is then known to the pipeline and to nobody else, so it is passed in. Everywhere else
+ * the string form is the one to use and the revision is read from the repository.
+ */
+export interface OpenRefSourceLink {
+  /** Template holding `{ref}`, `{file}` and `{line}`, per SPEC 6.3. */
+  readonly template: string;
+  /** The git revision, when it cannot be read from the build environment. */
+  readonly ref?: string;
+}
+
 /** The runtime intelligence surface of SPEC 6, which is what `forRoot` exists for. */
 export interface OpenRefRuntimeOptions {
   /** The collectors of SPEC 6.2, in the order they should contribute. */
   readonly collectors?: readonly CollectorRegistration[];
-  /** Deep link template of SPEC 6.3, such as `https://host/blob/{ref}/{file}#L{line}`. */
-  readonly sourceLink?: string;
+  /**
+   * Deep link template of SPEC 6.3, such as `https://host/blob/{ref}/{file}#L{line}`.
+   *
+   * A string is the template with the revision read from git. See {@link OpenRefSourceLink} for
+   * when to give the revision instead.
+   */
+  readonly sourceLink?: string | OpenRefSourceLink;
   /** Whether the health route of SPEC 13.3 answers. Defaults to true. */
   readonly health?: boolean;
+}
+
+/**
+ * Reads either form of `sourceLink` into one shape.
+ *
+ * @param sourceLink - Whatever the host configured
+ * @returns The template and the revision it was given, or undefined when nothing was configured
+ * @throws {InvalidOptionsError} When the object form carries no template
+ */
+export function readSourceLink(
+  sourceLink: string | OpenRefSourceLink | undefined,
+): OpenRefSourceLink | undefined {
+  if (sourceLink === undefined) return undefined;
+  if (typeof sourceLink === 'string') {
+    if (sourceLink === '') {
+      throw invalid('runtime.sourceLink is an empty string, which links nothing. Omit it instead');
+    }
+    return { template: sourceLink };
+  }
+
+  if (typeof sourceLink.template !== 'string' || sourceLink.template === '') {
+    throw invalid('runtime.sourceLink was given as an object, so it needs a non empty template');
+  }
+
+  return sourceLink.ref === undefined
+    ? { template: sourceLink.template }
+    : { template: sourceLink.template, ref: sourceLink.ref };
 }
 
 /** Everything `forRoot` accepts. */
@@ -150,6 +197,10 @@ export function assertRootOptions(options: OpenRefRootOptions): void {
 
     assertVisibility(entry);
   }
+
+  // Checked here rather than where it is used, so a malformed template is an error at boot rather
+  // than a document that renders with no links and no explanation.
+  readSourceLink(options.runtime?.sourceLink);
 }
 
 /**

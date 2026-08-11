@@ -22,7 +22,12 @@ import {
   type RuntimePassResult,
 } from '../runtime/application/services/runtime-pass.service';
 import { nestCoreVersion } from '../runtime/infrastructure/adapters/nest-core.adapter';
+import {
+  findRepositoryRoot,
+  resolveGitRef,
+} from '../runtime/infrastructure/adapters/repository.adapter';
 import { ErrorCode, InvalidOptionsError, type IRDocument } from '@openref/core';
+import { readSourceLink } from './module-options';
 import type { OpenRefDocumentOptions, OpenRefRootOptions } from './module-options';
 import type {
   DiscoveryServiceLike,
@@ -182,14 +187,42 @@ export class MountedReferences {
   collect(document: IRDocument): RuntimePassResult {
     const runtime = this.options.runtime;
     const version = nestCoreVersion();
+    const template = this.sourceLinkTemplate();
 
     return runRuntimePass(document, {
       collectors: runtime?.collectors ?? [],
       discovery: this.dependencies.discovery,
       reflector: this.dependencies.reflector,
       moduleRef: this.dependencies.moduleRef,
-      ...(runtime?.sourceLink === undefined ? {} : { sourceLinkTemplate: runtime.sourceLink }),
+      ...(template === undefined ? {} : { sourceLinkTemplate: template }),
       ...(version === undefined ? {} : { nestVersion: version }),
     });
+  }
+
+  /**
+   * The template as it goes into the document, with `{ref}` already resolved.
+   *
+   * THE REVISION IS SUBSTITUTED HERE AND NOT AT RENDER TIME, because it is a property of the
+   * build environment and the renderer does not run in one. `IRRuntimeMeta.sourceLinkTemplate`
+   * then holds a template with two placeholders left, `{file}` and `{line}`, which is exactly
+   * what a node's own `source` fills. The alternative, carrying the revision as a second field
+   * of the meta, would put the same string in the document once and ask every consumer to
+   * remember to combine them.
+   *
+   * WHEN NO REVISION CAN BE FOUND THE PLACEHOLDER STAYS, deliberately. `expandSourceLink` then
+   * refuses the link and names `{ref}` and the option that supplies it, which is a reader being
+   * told why there is no link rather than a link to a branch nobody asked for.
+   *
+   * @returns The template, or undefined when the host configured none
+   */
+  private sourceLinkTemplate(): string | undefined {
+    const configured = readSourceLink(this.options.runtime?.sourceLink);
+    if (configured === undefined) return undefined;
+    if (!configured.template.includes('{ref}')) return configured.template;
+
+    const root = findRepositoryRoot(process.cwd());
+    const ref = configured.ref ?? (root === undefined ? undefined : resolveGitRef(root));
+
+    return ref === undefined ? configured.template : configured.template.replaceAll('{ref}', ref);
   }
 }

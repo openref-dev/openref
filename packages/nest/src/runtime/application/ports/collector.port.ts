@@ -43,11 +43,38 @@ export interface CollectorContext {
    */
   readonly node: IRNode;
 
-  /** The controller class the route was declared on. */
+  /** The controller class the route was registered as, which is what the document names. */
   readonly controller: ControllerLike;
+
+  /**
+   * The class the handler is written on, which is {@link controller} unless it was inherited.
+   *
+   * ADDED IN T018, AND THE ADDITION IS WHAT THE CONTRACT'S OWN NOTE ANTICIPATES: growing a
+   * collector's abilities is a change to the context rather than to the interface every third
+   * party implements. A collector only ever reads this, so one written against the context
+   * without it still compiles and still runs.
+   *
+   * TWO CLASSES BECAUSE THEY ANSWER TWO QUESTIONS, and a source link needs the second one. When
+   * `OrdersController extends CrudController` and the handler is `CrudController.findAll`, the
+   * document says `OrdersController` and the file holding the method body is the base class's.
+   * Linking to the subclass's file would land a reader on a class that does not contain the
+   * method they clicked.
+   */
+  readonly declaredOn: ControllerLike;
 
   /** The route handler itself, which is the target most Nest metadata is set on. */
   readonly handler: HandlerLike;
+
+  /**
+   * The method name, as the prototype holds it.
+   *
+   * NOT `handler.name`, WHICH IS ONLY USUALLY THE SAME. A decorator that replaces the property
+   * descriptor rather than only setting metadata hands over a wrapper, and a wrapper's `name` is
+   * whatever the decorator's author called it or the empty string. The property name is what
+   * NestJS routes by and what `@nestjs/swagger` puts in the operation id, so it is the one a
+   * reader recognises.
+   */
+  readonly handlerName: string;
 
   /** Nest's `Reflector`, narrowed in `shared/types/nest-surface.ts`. */
   readonly reflector: ReflectorLike;

@@ -32,9 +32,11 @@ function targetOf(id = 'get-orders'): CollectorTarget {
   return {
     node: { ...node, id },
     controller: OrdersController,
+    declaredOn: OrdersController,
     handler: function list(): void {
       /* the route handler, present so a collector has an identity to read metadata off */
     },
+    handlerName: 'list',
   };
 }
 

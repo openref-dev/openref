@@ -24,7 +24,7 @@ import 'reflect-metadata';
 import { Controller, Get, Module, Param } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { ApiOkResponse, ApiProperty, DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
-import { OpenRefModule } from '@openref/nest';
+import { OpenRefModule, sourceCollector } from '@openref/nest';
 import type { INestApplication } from '@nestjs/common';
 
 /** One order. */
@@ -55,7 +55,24 @@ class OrdersController {
 // nothing and registers the runtime pass of SPEC 6, which is the only thing that can reach the
 // controller classes; the document is handed to `setup` below, once the application exists. This
 // arm covers that wiring on NestJS 10, which is the other half of what the matrix is for.
-@Module({ controllers: [OrdersController], imports: [OpenRefModule.forRoot({})] })
+//
+// THIS ARM DELIBERATELY HAS NO SOURCE MAPS, which makes it the other half of what T018 has to be
+// right about. The example application is compiled with maps and its links reach a line of
+// TypeScript. Here there is no map, so the emitted JavaScript is the source: the link reaches a
+// line of `dist/serve.js`, which is true rather than translated, and no TypeScript line number is
+// invented from a file that has none. It is also the only arm on CommonJS, where V8 names a
+// script by plain path rather than by a file url.
+@Module({
+  controllers: [OrdersController],
+  imports: [
+    OpenRefModule.forRoot({
+      runtime: {
+        collectors: [sourceCollector()],
+        sourceLink: 'https://github.com/sur-ser/openref/blob/{ref}/{file}#L{line}',
+      },
+    }),
+  ],
+})
 // eslint-disable-next-line @typescript-eslint/no-extraneous-class
 class AppModule {}
 
@@ -65,7 +82,7 @@ class AppModule {}
  * @param platform - Adapter to boot on
  * @returns The application, not yet listening
  */
-async function createApp(platform: string): Promise<INestApplication> {
+export async function createApp(platform: string): Promise<INestApplication> {
   let app: INestApplication;
 
   if (platform === 'fastify') {
@@ -100,4 +117,8 @@ async function serve(): Promise<void> {
   process.stdout.write(`${JSON.stringify({ ready: true, platform, url })}\n`);
 }
 
-void serve();
+// BOOTED ONLY WHEN THIS FILE IS THE PROGRAM, so that a test can require it for `createApp` alone.
+// `app-process.ts` and `tools/browser-budget` both run it as `node dist/serve.js`, where this is
+// true; `test/integration/source-links.spec.ts` requires it, where it is not, and reads the runtime
+// pass out of the container instead of starting a listener it has no handle on.
+if (require.main === module) void serve();

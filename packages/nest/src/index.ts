@@ -39,12 +39,13 @@ export type { OpenRefSetupOptions } from './api/openref.module';
 export { OPENREF_REFERENCES } from './shared/constants/tokens';
 export { MountedReferences } from './api/mounted-references';
 export type { MountedReference } from './api/mounted-references';
-export { assertRootOptions } from './api/module-options';
+export { assertRootOptions, readSourceLink } from './api/module-options';
 export type {
   OpenRefDocumentOptions,
   OpenRefRootAsyncOptions,
   OpenRefRootOptions,
   OpenRefRuntimeOptions,
+  OpenRefSourceLink,
   OpenRefVisibility,
 } from './api/module-options';
 
@@ -64,6 +65,32 @@ export type {
 } from './runtime/infrastructure/adapters/controller-discovery.adapter';
 export { pairRoutes } from './runtime/domain/route-pairing';
 export type { PairingProblem, PairingResult } from './runtime/domain/route-pairing';
+
+// The source link of SPEC 6.3, built in T018. The pure half, expanding a template into a URL,
+// lives in `@openref/core` so that `render` can reach it too.
+export {
+  sourceCollector,
+  SOURCE_COLLECTOR_NAME,
+} from './runtime/infrastructure/collectors/source.collector';
+export type {
+  SourceCollector,
+  SourceCollectorOptions,
+  SourceCollectorProblem,
+} from './runtime/infrastructure/collectors/source.collector';
+export {
+  closeFunctionLocator,
+  locateFunction,
+} from './runtime/infrastructure/adapters/function-location.adapter';
+export type {
+  FunctionLocation,
+  FunctionLocationResult,
+} from './runtime/infrastructure/adapters/function-location.adapter';
+export {
+  findRepositoryRoot,
+  resetRepositoryCache,
+  resolveGitRef,
+} from './runtime/infrastructure/adapters/repository.adapter';
+export { repositoryRelative } from './runtime/domain/repository-path';
 
 export { ReferenceService } from './reference/application/services/reference.service';
 export type { ReferenceServiceOptions } from './reference/application/services/reference.service';

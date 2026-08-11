@@ -88,7 +88,13 @@ export function pairRoutes(
       // keyed lookups, but rule 3 can pair two controllers under different prefixes with one
       // document path. The node is claimed once, and the loser is reported rather than dropped.
       if (unclaimed.delete(operation.id)) {
-        targets.push({ node: operation, controller: route.controller, handler: route.handler });
+        targets.push({
+          node: operation,
+          controller: route.controller,
+          declaredOn: route.declaredOn,
+          handler: route.handler,
+          handlerName: route.handlerName,
+        });
       } else {
         ambiguous.push({
           subject: describe(route),

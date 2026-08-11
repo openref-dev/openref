@@ -44,7 +44,11 @@ import type { IRNode } from '@openref/core';
 export interface CollectorTarget {
   readonly node: IRNode;
   readonly controller: ControllerLike;
+  /** The class the handler is written on, which differs from `controller` only when inherited. */
+  readonly declaredOn: ControllerLike;
   readonly handler: HandlerLike;
+  /** The method name as the prototype holds it, which a wrapper's `name` may not be. */
+  readonly handlerName: string;
 }
 
 /** What the host supplies once, for the whole pass. */
@@ -190,7 +194,9 @@ export class CollectorRegistry {
     return {
       node: target.node,
       controller: target.controller,
+      declaredOn: target.declaredOn,
       handler: target.handler,
+      handlerName: target.handlerName,
       reflector: this.options.reflector,
       moduleRef: this.options.moduleRef,
       fact: <T>(value: T, confidence: IRConfidence): IRFact<T> => ({
