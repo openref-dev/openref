@@ -128,10 +128,10 @@ describe('checkCeilings', () => {
   });
 
   it('should sum the three byte columns and refuse a page frame sized addition', () => {
-    // Given the derivation the cap was chosen by: measured 160,070 bytes with 2,746 of room, so
+    // Given the derivation the cap was chosen by: measured 195,783 bytes with 2,873 of room, so
     // another region of `theme.css` the size of the page frame, 3,287 bytes, has to fail
     const record = baseline({
-      parsedBytes: { documentBytes: 29_682, cssBytes: 32_264 + 3_287, jsBytes: 98_124 },
+      parsedBytes: { documentBytes: 65_326, cssBytes: 32_264 + 3_287, jsBytes: 98_193 },
     });
 
     // When
@@ -145,7 +145,7 @@ describe('checkCeilings', () => {
   it('should let a navigation sized addition through, which is the room ordinary work gets', () => {
     // Given, the same allowance `theme-css-raw` was derived with
     const record = baseline({
-      parsedBytes: { documentBytes: 29_682, cssBytes: 32_264 + 2_520, jsBytes: 98_124 },
+      parsedBytes: { documentBytes: 65_326, cssBytes: 32_264 + 2_520, jsBytes: 98_193 },
     });
 
     // When
@@ -225,7 +225,7 @@ describe('compareToBaseline', () => {
     const study = {
       ...measured,
       longTaskMedian: 3,
-      parsedBytes: { documentBytes: 29_682, cssBytes: 32_264, jsBytes: 120_000 },
+      parsedBytes: { documentBytes: 65_326, cssBytes: 32_264, jsBytes: 120_000 },
     };
 
     // When
@@ -421,18 +421,29 @@ describe('the committed baseline', () => {
     expect(recordedFigure(record, 'prerender')).toBeNull();
   });
 
-  it('should hold the figures the two gated caps were derived from', () => {
+  it('should hold the figures the three gated caps were derived from', () => {
     // Given, so the derivation in `config.ts` is checked against the record rather than
-    // remembered: 160,070 bytes with 2,746 of headroom, and a long task count of 2
+    // remembered. Re-derived on 2026-08-11 from the representative input of T016 finding F10:
+    // the same commit measures 195,783 bytes on it and 160,070 on the fixture it replaced, and
+    // the difference is prose the old one did not have rather than a change to the product.
     const { baseline: record } = readBrowserBaseline(repoRoot);
     if (record === null) throw new Error('no baseline');
 
     // When
     const bytes = pageBytesOf(record.parsedBytes);
 
-    // Then
-    expect(bytes).toBe(160_070);
-    expect(BROWSER_CEILINGS.pageBytes - bytes).toBe(2_746);
+    // Then, 195,783 with 2,873 of headroom, which is more than a navigation sized addition of
+    // 2,520 and less than a page frame sized one of 3,287
+    expect(bytes).toBe(195_783);
+    expect(BROWSER_CEILINGS.pageBytes - bytes).toBe(2_873);
+
+    // And the served document, 65,326 with 8,402 of headroom. It is derived loosely on purpose:
+    // the regression it exists to catch is the navigation blob returning, and this document's
+    // is 546,162 bytes, so a fifth of it fails this cap twice over.
+    expect(record.parsedBytes.documentBytes).toBe(65_326);
+    expect(BROWSER_CEILINGS.servedDocumentBytes - record.parsedBytes.documentBytes).toBe(8_402);
+
+    // And the count that did not move when the page doubled
     expect(record.longTaskCount.median).toBe(BROWSER_CEILINGS.longTaskCount);
   });
 });

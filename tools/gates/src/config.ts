@@ -541,7 +541,7 @@ export const MEASURED_BUDGETS: readonly MeasuredBudget[] = [
   {
     id: 'page-bytes',
     label: 'Document, CSS and JS the 1000 node page hands the main thread, raw',
-    limit: '159 KB',
+    limit: '194 KB',
     enforcedBy: 'T015-R1',
   },
   {
@@ -564,7 +564,7 @@ export const MEASURED_BUDGETS: readonly MeasuredBudget[] = [
   {
     id: 'served-document',
     label: 'Served document, 1000 nodes, raw bytes',
-    limit: '64 KB',
+    limit: '72 KB',
     enforcedBy: 'T015',
   },
   {
@@ -625,7 +625,7 @@ export const BROWSER_STUDY_WORKFLOW = '.github/workflows/browser-budget-study.ym
  * the load fails it. It is a coarse instrument and it says so: it cannot see an existing long
  * task getting worse without splitting.
  *
- * `pageBytes` is 159 KB against 160,070 measured, 156.3 KB, so the headroom is 2,746 bytes. It
+ * `pageBytes` is 194 KB against 195,783 measured, 191.2 KB, so the headroom is 2,873 bytes. It
  * is derived the way `theme-css-raw` was: another region of `theme.css` the size of the page
  * frame, 3,287 bytes, or of the try-it console, 3,669, has to fail it, and a navigation sized
  * addition of 2,520 has to fit. THIS IS THE TIGHTEST ROW IN THE TABLE AND IT IS MEANT TO BE. It
@@ -633,19 +633,28 @@ export const BROWSER_STUDY_WORKFLOW = '.github/workflows/browser-budget-study.ym
  * produced, so it is the only one that can see a resource nobody weighed, and a cap with the
  * usual ten percent of room would let a whole stylesheet in without a word.
  *
- * IT CAME DOWN FROM 172 KB WITH T011-R, and following the artifact down is the whole discipline
- * of this row. The closing study of that task measured 29,682 document, 32,264 CSS and 98,124 JS
- * on three runs over two processors and 75 navigations, identical to the byte on all of them.
- * The JS fell by 12,974 bytes because four features left the first paint, and a cap left at 172
- * would have let every one of them back in without a word, which is more than the split removed.
+ * IT CAME DOWN FROM 172 KB TO 159 WITH T011-R AND WENT UP TO 194 WITH T016, and the two moves
+ * are not the same kind of move. The first followed the artifact: four features left the first
+ * paint and the JS fell by 12,974 bytes, so a cap left at 172 would have let every one of them
+ * back in. The second follows the INPUT. T016 finding F10 replaced a fixture of one repeated
+ * description and one schema with one a real reference resembles, and the served document went
+ * from 29,682 bytes to 65,326 without a line of product code changing. A cap left at 159 would
+ * have been red on the honest measurement of a page that had not got worse.
+ *
+ * THIS IS THE ONE MOVE IN THIS FILE THAT LOOKS LIKE THE FORBIDDEN ONE, so it is spelled out.
+ * Raising a threshold to make a build pass is the rule this project breaks most often. What
+ * makes this different is that the artifact did not change and the measurement did: the same
+ * commit measures 195,783 bytes on the new input and 160,070 on the old one, and the new input
+ * is the one SPEC 20 now states and a test holds. Re-derived by the same rule as before, from
+ * the new measurement, with the same two regressions named.
  */
 export const BROWSER_CEILINGS = {
   peakHeapBytes: 250 * 1024 * 1024,
   externalRequests: 0,
   cspViolations: 0,
-  servedDocumentBytes: 64 * 1024,
+  servedDocumentBytes: 72 * 1024,
   longTaskCount: 2,
-  pageBytes: 159 * 1024,
+  pageBytes: 194 * 1024,
 } as const;
 
 /**
@@ -670,8 +679,17 @@ export const BROWSER_CEILINGS = {
  * is in `BUDGET_EXCEPTION_HISTORY` below, with the reason it closed.
  *
  * WHAT WAS DELIBERATELY NEVER HERE: `served-document`. It was named alongside `tti` when this
- * list was asked for, and it measures 29.0 KB against 64 KB. Listing a budget that passes would
+ * list was asked for, and it measures 63.8 KB against 72 KB. Listing a budget that passes would
  * record a debt that does not exist, and the staleness rule would fail the build for saying so.
+ *
+ * WHAT WAS CONSIDERED FOR IT ON 2026-08-11 AND IS NOT HERE EITHER: `search-index`. The T016
+ * instruction was to file the index as a debt owned by a reopened T007 and expiring at M3, on a
+ * reading that it was 1.76x over. It is not over. That reading came from a probe whose every
+ * word was unique, a vocabulary of about 1.8 million for a document of a thousand operations,
+ * which is as unrepresentative as the repeated description it was written to expose. On the
+ * input SPEC 20 now states the index measures 176,714 bytes against 250 KB, and five real
+ * corpus documents put a thousand index records between 67 and 84 KB gzip. An entry here would
+ * have recorded a debt that does not exist, and the staleness rule would have failed for it.
  */
 export const BUDGET_EXCEPTIONS: readonly BudgetException[] = [];
 

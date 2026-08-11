@@ -47,15 +47,26 @@ const HYDRATION_CEILING_MS = 1500;
 const MEMORY_CEILING_BYTES = 250 * 1024 * 1024;
 
 /**
- * SPEC 20, the served document of the thousand node page, in raw bytes.
+ * The served document of the thousand node page, in raw bytes, as THIS harness measures it.
  *
  * RAW RATHER THAN GZIP, alone among the size budgets, and that is the whole point of it. The
  * page this budget was written about was 191,975 raw bytes and 13,534 gzip: the navigation
  * blob compressed to nothing, so every existing budget would have shrugged at it while the
  * browser spent 143 ms of a 150 ms budget parsing it. What costs the reader here is bytes
  * parsed, so bytes parsed is what is bounded.
+ *
+ * IT IS NOT THE SPEC 20 NUMBER ANY MORE, AND SAYING SO IS THE POINT. This file used to claim
+ * that it and the browser study were "one measurement in two places", and on the old fixture
+ * that was nearly true: 28,217 here against 29,682 there, five percent apart. On the
+ * representative fixture of T016 the two are 49,114 here and 65,326 in Chrome, 16,083 bytes
+ * apart, and neither `basePath` nor the real asset lists nor a nonce accounts for more than 259
+ * of it. WHAT THE REST IS HAS NOT BEEN FOUND, and it is recorded as an open finding rather than
+ * papered over with one threshold covering both. The gated SPEC 20 ceiling is 72 KB and is
+ * checked against Chrome, where a reader actually pays. This one is derived from what this
+ * harness measures, measured 49,114 plus about ten percent, so that it goes on being the cheap
+ * early warning it was built to be instead of a number with 47 percent of slack in it.
  */
-const DOCUMENT_CEILING_BYTES = 64 * 1024;
+const DOCUMENT_CEILING_BYTES = 54 * 1024;
 
 /**
  * The largest document in the corpus, which is what SPEC 20's figure is about.
@@ -151,9 +162,9 @@ describe('the cost of a page of a thousand nodes', () => {
   }, 300_000);
 
   it('should serve a document the browser can parse inside the TTI budget', async () => {
-    // Given the page SPEC 20 writes both the TTI budget and this one about. They are one
-    // measurement in two places: this fails in every CI run and costs a second, and the browser
-    // study measures what it actually costs a reader.
+    // Given the page SPEC 20 writes both the TTI budget and this one about. This one fails in
+    // every CI run and costs a second; the browser study measures what it actually costs a
+    // reader, and the two are not the same number, which is written out at the ceiling above.
     const document_ = largeDocument(NODE_COUNT);
     const nodeId = [...document_.nodes.keys()][500] ?? '';
 
