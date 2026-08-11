@@ -15,13 +15,23 @@ name: Browser budget study
 # not a budget. When this pin is raised, the baseline is re-recorded in the same commit.
 
 on:
-  # TWO TRIGGERS, AND THE SECOND IS NOT REDUNDANT. `workflow_dispatch` only exists once the
-  # file is on the default branch, so the very first study, the one that sets the first
-  # baseline, cannot use it. A branch prefix reserved for the purpose is what makes a study
-  # runnable before it has ever been merged, and it stays useful afterwards for a study that
-  # has to run against a change that is not on main yet.
-  push:
-    branches: ['budget-study/**']
+  # THE `budget-study/**` PUSH TRIGGER IS GONE BECAUSE THE CONDITION THAT NEEDED IT IS GONE.
+  # It existed for one reason: `workflow_dispatch` and `schedule` only exist once the file is
+  # on the default branch, and the default branch was an unrelated initial commit that no work
+  # descended from, so the very first study, the one that set the first baseline, could not be
+  # dispatched. A reserved branch prefix was the only way to run a study before main was real.
+  # Main is now the work, and both triggers below are available, so the prefix names nothing.
+  #
+  # ONE CORRECTION RECORDED HERE RATHER THAN LEFT AS FOLKLORE: this study was described as a
+  # 45 minute cost on every push. Neither half held. The 45 is `timeout-minutes`, a hang
+  # catcher, and the studies it bounds run in about 1m45s; and the trigger was scoped to a
+  # branch prefix, so it never fired on ordinary work and was never gating it.
+  #
+  # THE SCHEDULE IS THE PART THAT ADDS COVER. Nothing in this study is caused by a commit. It
+  # drifts when the runner pool hands out a different processor, when the image bumps, or when
+  # Chrome ships a major, and none of those events is a push. Weekly is chosen against the
+  # decay of the check rather than against cost: a browser major that moves prints as a stale
+  # baseline and does not fail, so the only thing that finds it is a run that happens anyway.
   workflow_dispatch:
     inputs:
       tti-runs:
@@ -32,6 +42,10 @@ on:
         description: Unthrottled runs over the 6.4 MB document
         required: false
         default: '5'
+  schedule:
+    # Mondays 04:00 UTC. A scheduled run carries no inputs, which is why the step below keeps
+    # its fallbacks rather than relying on the defaults declared above.
+    - cron: '0 4 * * 1'
 
 jobs:
   study:
@@ -39,7 +53,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 45
 
-    # THREE INDEPENDENT STUDIES PER PUSH, BECAUSE THE POOL IS WHAT IS BEING SAMPLED.
+    # THREE INDEPENDENT STUDIES PER RUN, BECAUSE THE POOL IS WHAT IS BEING SAMPLED.
     #
     # The runner pool hands out a processor per job and does not say which. Three studies taken
     # across three sessions measured 213.9, 148.2 and 196.0 ms on an EPYC 9V74, an EPYC 9V45 and
@@ -81,7 +95,9 @@ jobs:
           google-chrome --version
           echo "image ${ImageOS:-unknown} version ${ImageVersion:-unknown} arch ${RUNNER_ARCH:-unknown}"
 
-      # The fallbacks are for the push trigger, which carries no inputs.
+      # The fallbacks are for the schedule, which carries no inputs. `inputs.tti-runs` is the
+      # empty string on a scheduled run, not the declared default, so the default has to be
+      # written twice or the study silently measures zero navigations.
       #
       # `--check` is what makes this a gate rather than a report: the study compares what it
       # just measured against `tools/browser-budget/baseline.json`, fails on a SPEC 20 ceiling
