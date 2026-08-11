@@ -34,6 +34,37 @@ export const UPSTREAM_PACKAGES: readonly string[] = [
 export { OpenRefModule } from './api/openref.module';
 export type { OpenRefSetupOptions } from './api/openref.module';
 
+// The full form of SPEC 13.2, from TX-FORROOT. `forRoot` is the entry point that collects
+// runtime facts, because it is a module and can therefore be given the container.
+export { OPENREF_REFERENCES } from './shared/constants/tokens';
+export { MountedReferences } from './api/mounted-references';
+export type { MountedReference } from './api/mounted-references';
+export { assertRootOptions } from './api/module-options';
+export type {
+  OpenRefDocumentOptions,
+  OpenRefRootAsyncOptions,
+  OpenRefRootOptions,
+  OpenRefRuntimeOptions,
+  OpenRefVisibility,
+} from './api/module-options';
+
+export { runRuntimePass } from './runtime/application/services/runtime-pass.service';
+export type {
+  RuntimePassOptions,
+  RuntimePassResult,
+} from './runtime/application/services/runtime-pass.service';
+export {
+  discoverRoutes,
+  joinPath,
+} from './runtime/infrastructure/adapters/controller-discovery.adapter';
+export type {
+  DiscoveredRoute,
+  DiscoveryProblem,
+  DiscoveryResult,
+} from './runtime/infrastructure/adapters/controller-discovery.adapter';
+export { pairRoutes } from './runtime/domain/route-pairing';
+export type { PairingProblem, PairingResult } from './runtime/domain/route-pairing';
+
 export { ReferenceService } from './reference/application/services/reference.service';
 export type { ReferenceServiceOptions } from './reference/application/services/reference.service';
 
@@ -106,10 +137,19 @@ export {
 } from './http/infrastructure/adapters/reference-adapter.factory';
 
 export { isNestApplication } from './shared/types/nest-surface';
+export {
+  NEST_CORE_VALUE_NAMES,
+  NEST_REQUEST_METHODS,
+  NEST_ROUTE_METADATA,
+} from './shared/types/nest-surface';
 export type {
   ControllerLike,
+  DiscoveryServiceLike,
+  DynamicModuleLike,
   HandlerLike,
+  HttpAdapterHostLike,
   HttpAdapterLike,
+  InstanceWrapperLike,
   ModuleRefLike,
   NestApplicationLike,
   ReflectorLike,

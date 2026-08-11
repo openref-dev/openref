@@ -51,8 +51,11 @@ class OrdersController {
   }
 }
 
-// An empty class is how NestJS declares a module. There is no other spelling.
-@Module({ controllers: [OrdersController] })
+// An empty class is how NestJS declares a module. There is no other spelling. `forRoot` mounts
+// nothing and registers the runtime pass of SPEC 6, which is the only thing that can reach the
+// controller classes; the document is handed to `setup` below, once the application exists. This
+// arm covers that wiring on NestJS 10, which is the other half of what the matrix is for.
+@Module({ controllers: [OrdersController], imports: [OpenRefModule.forRoot({})] })
 // eslint-disable-next-line @typescript-eslint/no-extraneous-class
 class AppModule {}
 

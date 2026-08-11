@@ -80,6 +80,20 @@ export interface ReferenceServiceOptions {
   readonly colorScheme?: 'light' | 'dark';
   /** Where an unexpected failure is reported. */
   readonly onError?: ErrorReporter;
+  /**
+   * The runtime pass of SPEC 6, applied between normalization and everything derived from it.
+   *
+   * A HOOK RATHER THAN AN ALREADY NORMALIZED DOCUMENT, so that normalization stays in one place
+   * and every caller gets the same parsing, the same failures and the same fail closed policy.
+   * `forRoot` is the only caller: `setup` is not a module and cannot reach the container, which
+   * is the whole difference between the two entry points.
+   *
+   * WHATEVER IT RETURNS IS TAKEN AS THE DOCUMENT, INCLUDING ITS HASH. The cache of SPEC 12 and
+   * the navigation route are keyed by that hash, so an implementation that attaches facts and
+   * leaves the hash alone serves a reader the page from before the pass. `runRuntimePass` retakes
+   * it with `hashDocument`, which is the one canonical way.
+   */
+  readonly augment?: (document: IRDocument) => IRDocument;
 }
 
 /** Answers the routes of SPEC 13.3 for one mounted document. */
@@ -104,7 +118,8 @@ export class ReferenceService {
   constructor(options: ReferenceServiceOptions) {
     this.options = options;
     this.basePath = options.basePath;
-    this.document = normalizeDocument(options.document);
+    const normalized = normalizeDocument(options.document);
+    this.document = options.augment === undefined ? normalized : options.augment(normalized);
     this.catalog = buildAssetCatalog(options.assets.sources);
     this.cache = options.cache ?? createMemoryRenderCache();
 

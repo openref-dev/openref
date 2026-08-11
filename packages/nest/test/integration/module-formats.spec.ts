@@ -66,6 +66,16 @@ const CONSUMERS = {
 } as const;
 
 /**
+ * A consumer with no NestJS at all, which is a supported way to use this package.
+ *
+ * `tools/browser-budget` depends on `@openref/nest` and boots Express directly, because what the
+ * budgets measure is what a browser receives and NestJS puts nothing on the wire. `@nestjs/core`
+ * is not resolvable from there, so it is also the one place in this repository where "the package
+ * loads without the framework" can be run rather than reasoned about.
+ */
+const FRAMEWORK_FREE_CONSUMER = join(repoRoot, 'tools', 'browser-budget');
+
+/**
  * Runs a snippet in a fresh Node process, inside a real consumer project.
  *
  * @param source - Program text
@@ -75,6 +85,30 @@ const CONSUMERS = {
 function runInNode(source: string, kind: 'module' | 'commonjs'): string {
   return execFileSync(process.execPath, [`--input-type=${kind}`, '-e', source], {
     cwd: CONSUMERS[kind],
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'pipe'],
+  }).trim();
+}
+
+/**
+ * Runs a snippet in the consumer that has no NestJS, with `NODE_PATH` cleared.
+ *
+ * CLEARING IT IS WHAT MAKES THE TEST MEASURE WHAT IT CLAIMS. pnpm exports a `NODE_PATH` pointing
+ * at its flat virtual store, so a child process it started can resolve every package in the
+ * workspace regardless of what the consumer declares. A real consumer has no such variable, and
+ * with it left in place this test would report that NestJS is reachable from a project that does
+ * not depend on it, which is the opposite of the thing being checked.
+ *
+ * @param source - Program text
+ * @returns Whatever it printed
+ */
+function runInFrameworkFreeConsumer(source: string): string {
+  const environment = { ...process.env };
+  delete environment.NODE_PATH;
+
+  return execFileSync(process.execPath, ['--input-type=module', '-e', source], {
+    cwd: FRAMEWORK_FREE_CONSUMER,
+    env: environment,
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'pipe'],
   }).trim();
@@ -222,6 +256,59 @@ describe('the dual build', () => {
     // Then
     expect(reachedByRequire).toEqual([]);
     expect(reachedByImport).toEqual([...ESM_ONLY_DEPENDENCIES]);
+  });
+
+  it('should load with no NestJS installed, reaching @nestjs/core only from inside forRoot', () => {
+    // Given, TX-FORROOT's measurement: `tools/browser-budget` imports this package and boots
+    // Express with no NestJS in its tree, which is how the browser budgets prove the package
+    // puts no framework on the wire, and `@nestjs/core` is not resolvable from there. The load
+    // is therefore lazy, and this is what keeps it lazy: a refactor that hoists it to the top of
+    // the file breaks nothing in the unit suite and nothing here would go red without this.
+    const esm = built('dist/index.js');
+    const cjs = built('dist/index.cjs');
+
+    // When
+    const statik = [esm, cjs].flatMap((file) => [
+      ...file.matchAll(/(?:^|[^.\w])(?:import|export)\s[^;]*?["'](@nestjs\/[^"']+)["']/g),
+      ...file.matchAll(/(?:^|[^.\w])require\(\s*["'](@nestjs\/[^"']+)["']\s*\)/g),
+    ]);
+    // The CommonJS build shims `import.meta.url` into an expression carrying its own brackets,
+    // so the argument cannot be matched as a bracket free run. One line is enough: both builds
+    // emit the whole call on one.
+    const lazy = [esm, cjs].filter((file) =>
+      /createRequire[^\n]*\)\(\s*["']@nestjs\/core["']\s*\)/.test(file),
+    );
+
+    // Then, the file is a build before it is a build with no static import in it, per SPEC 0
+    expect(esm).toContain('forRoot');
+    expect(statik.map((match) => match[1])).toEqual([]);
+    expect(lazy).toHaveLength(2);
+  });
+
+  it('should serve its route table from a consumer that cannot resolve NestJS at all', () => {
+    // Given, run rather than reasoned about: this consumer has no `@nestjs/core` in its tree, so
+    // a static import anywhere in the package's graph would make the import below throw. The
+    // static assertion above says the same thing about the file; this says it about a process.
+    const source = [
+      "const { createRequire } = await import('node:module');",
+      'let resolvable = true;',
+      "try { createRequire(process.cwd() + '/x.js')('@nestjs/core'); } catch { resolvable = false; }",
+      "const { OpenRefModule, referenceRoutes } = await import('@openref/nest');",
+      "const routes = referenceRoutes('/docs').map((route) => route.id);",
+      'console.log(JSON.stringify({ resolvable, setup: typeof OpenRefModule.setup, routes: routes.length }));',
+    ].join('\n');
+
+    // When
+    const printed = JSON.parse(runInFrameworkFreeConsumer(source)) as {
+      resolvable: boolean;
+      setup: string;
+      routes: number;
+    };
+
+    // Then, the first field is what makes the other two mean anything
+    expect(printed.resolvable).toBe(false);
+    expect(printed.setup).toBe('function');
+    expect(printed.routes).toBeGreaterThan(0);
   });
 
   it('should keep the browser bundle free of any external import at all', () => {
