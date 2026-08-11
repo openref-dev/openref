@@ -20,8 +20,12 @@
     "typescript": "5.9.3"
   },
   "exports": {
-    ".": "./dist/index.js",
+    ".": {
+      "source": "./src/index.ts",
+      "import": "./dist/index.js"
+    },
     "./baseline": {
+      "source": "./src/baseline-api.ts",
       "types": "./dist/baseline-api.d.ts",
       "import": "./dist/baseline-api.js"
     }
