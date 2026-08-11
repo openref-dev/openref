@@ -106,4 +106,31 @@ export {
 } from './http/infrastructure/adapters/reference-adapter.factory';
 
 export { isNestApplication } from './shared/types/nest-surface';
-export type { HttpAdapterLike, NestApplicationLike } from './shared/types/nest-surface';
+export type {
+  ControllerLike,
+  HandlerLike,
+  HttpAdapterLike,
+  ModuleRefLike,
+  NestApplicationLike,
+  ReflectorLike,
+} from './shared/types/nest-surface';
+
+// The collector contract of SPEC 6.2, public API and frozen from T017. A third party writes a
+// collector against these names, so any change to them is a major version.
+export { isRuntimeCollector, isSkippedCollector } from './runtime/application/ports/collector.port';
+export type {
+  CollectorContext,
+  CollectorRegistration,
+  IRuntimeCollector,
+  SkippedCollector,
+} from './runtime/application/ports/collector.port';
+export {
+  CollectorRegistry,
+  COLLECTOR_HEALTH_CHECK_ID,
+} from './runtime/application/services/collector-registry.service';
+export type {
+  CollectorRegistryOptions,
+  CollectorTarget,
+} from './runtime/application/services/collector-registry.service';
+export { FACT_FIELDS, LIST_FIELDS, mergeContributions } from './runtime/domain/merge';
+export type { Contribution } from './runtime/domain/merge';
