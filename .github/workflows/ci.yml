@@ -1,8 +1,11 @@
 name: CI
 
+# A GATE SUITE THAT WAITS FOR A MERGE PROTECTS NOTHING DURING THE WORK. This file ran on
+# `push: [main]` and `pull_request` for six sessions, and every session's work happened on a
+# branch that was neither, so not one gate ever executed here. Every branch, every push.
 on:
   push:
-    branches: [main]
+    branches: ['**']
   pull_request:
 
 concurrency:
@@ -11,9 +14,22 @@ concurrency:
 
 jobs:
   verify:
-    name: install, lint, build, test, gates
+    name: install, lint, build, test, gates on Node ${{ matrix.node }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
+
+    # THE FLOOR IS THE VERSION THAT MATTERS AND IS THE ONE THAT HAD NEVER BEEN TESTED. The
+    # manifests promise `^22.22.2 || ^24.15.0 || >=26.0.0`, the maintainer's machine is on
+    # 24.14.1, and this job used to run 24 alone. So the promise made to the reader on the
+    # oldest supported runtime was carried by nothing at all.
+    #
+    # Both ends are here rather than the floor alone: dropping 24 to add 22 would trade one
+    # blind spot for another, and a suite that only ever ran on one version is what this
+    # change exists to end.
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ['22.22.2', '24']
 
     steps:
       - name: Checkout
@@ -25,7 +41,7 @@ jobs:
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
-          node-version: 24
+          node-version: ${{ matrix.node }}
           cache: pnpm
 
       - name: Install
