@@ -6,11 +6,20 @@
  * reader most wants. What a guard decides depends on the request, so it is not a property of the
  * route; what class stands in front of the route is. The reference shows the second and says so.
  *
- * A ROUTE WITH NO GUARDS OF ITS OWN GETS NO `guards` FIELD, rather than an empty list. The two
- * read differently and only one of them is true: an empty list says "this route was examined and
- * nothing protects it", which would be a claim about global guards this collector cannot make.
- * `app.useGlobalGuards` leaves nothing on any route, so a globally protected application looks
- * exactly like an unprotected one from here, and the honest answer is silence.
+ * A ROUTE WITH NO GUARDS AT EITHER SCOPE GETS NO `guards` FIELD, rather than an empty list. The
+ * two read differently and only one of them is true: an empty list says "this route was examined
+ * and nothing protects it", and the collector can only say that about what it is able to read.
+ *
+ * A GLOBAL GUARD IS REPORTED ON EVERY ROUTE, AT `scope: 'global'`, per SPEC 6.2.1 and
+ * TX-GLOBALGUARD. Until 2026-08-12 this file said the opposite, that a globally protected
+ * application "looks exactly like an unprotected one from here, and the honest answer is
+ * silence". It was measured to be the wrong answer on the first outside application this package
+ * ever met: every route behind one `APP_GUARD` provider, zero guards reported on all 73, and
+ * `security-drift` printing a clean line on an application that documents no security at all.
+ * Silence about a fact the container will hand over on request is not honesty, it is a missing
+ * reading. What stays is the scope beside the name, because "protected by a decision about this
+ * route" and "protected by a decision about the application" are different answers to the
+ * question a reader is asking.
  *
  * THE FACTS ARE `derived`, per the SPEC 6.1 table, which names a guard's class name as the
  * example of that level. Nothing here can reach `declared`: that level belongs to a decorator
@@ -18,7 +27,7 @@
  * to document it.
  */
 
-import type { IRGuard, IRNodeRuntime } from '@openref/core';
+import type { IRGuard, IRGuardScope, IRNodeRuntime } from '@openref/core';
 import type { CollectorContext, IRuntimeCollector } from '../../application/ports/collector.port';
 import { readGuards } from '../../domain/guards';
 
@@ -62,19 +71,35 @@ export function guardsCollector(): GuardsCollector {
         });
       }
 
-      if (reading.names.length === 0) return undefined;
+      // THE ROUTE'S OWN GUARDS COME FIRST, and the order is what a reader scans rather than what
+      // NestJS runs: a global guard runs before either of them. What is being answered here is
+      // "what was decided about this endpoint", and the nearer decision is the one that names it.
+      const guards: readonly IRGuard[] = [
+        ...named(reading.names, 'route'),
+        ...named(context.globalGuards, 'global'),
+      ];
 
-      const guards: readonly IRGuard[] = reading.names.map((name) => ({
-        name,
-        confidence: 'derived',
-        collector: GUARDS_COLLECTOR_NAME,
-      }));
-
-      return { guards };
+      return guards.length === 0 ? undefined : { guards };
     },
 
     problems(): readonly GuardsCollectorProblem[] {
       return problems;
     },
   };
+}
+
+/**
+ * Turns class names at one scope into facts.
+ *
+ * @param names - Class names, already deduplicated within their scope
+ * @param scope - Where they were registered
+ * @returns One `derived` fact per name
+ */
+function named(names: readonly string[], scope: IRGuardScope): readonly IRGuard[] {
+  return names.map((name) => ({
+    name,
+    scope,
+    confidence: 'derived',
+    collector: GUARDS_COLLECTOR_NAME,
+  }));
 }

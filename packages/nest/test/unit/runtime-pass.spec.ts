@@ -9,6 +9,8 @@ import type {
   ReflectorLike,
 } from '../../src/shared/types/nest-surface';
 import type { IRuntimeCollector } from '../../src/runtime/application/ports/collector.port';
+import { errorsCollector } from '../../src/runtime/infrastructure/collectors/errors.collector';
+import { guardsCollector } from '../../src/runtime/infrastructure/collectors/guards.collector';
 import { specification } from '../mocks/fixtures';
 
 /**
@@ -43,6 +45,27 @@ const moduleRef: ModuleRefLike = { get: () => undefined };
 
 const discovery: DiscoveryServiceLike = {
   getControllers: () => [{ metatype: OrdersController, instance: new OrdersController() }],
+  getProviders: () => [],
+};
+
+/** A guard nobody declared on any route, which is how an application wide policy is written. */
+class ReadonlyGuard {
+  canActivate(): boolean {
+    return true;
+  }
+}
+
+/** The same container, plus one provider registered under `APP_GUARD`, per SPEC 6.2.1. */
+const withGlobalGuard: DiscoveryServiceLike = {
+  getControllers: () => [{ metatype: OrdersController, instance: new OrdersController() }],
+  getProviders: () => [
+    {
+      token: 'APP_GUARD (UUID: 5c034508718fe21f57dcd)',
+      subtype: 'guard',
+      metatype: ReadonlyGuard,
+      instance: new ReadonlyGuard(),
+    },
+  ],
 };
 
 /** A collector that reports one scope, so there is something to look for in the IR. */
@@ -140,7 +163,7 @@ describe('runRuntimePass', () => {
     // When
     const result = runRuntimePass(before, {
       collectors: [scopes],
-      discovery: { getControllers: () => [] },
+      discovery: { getControllers: () => [], getProviders: () => [] },
       reflector,
       moduleRef,
     });
@@ -225,7 +248,7 @@ describe('runRuntimePass, the health report', () => {
     // Given an application serving nothing the document describes
     const result = runRuntimePass(document(), {
       collectors: [scopes],
-      discovery: { getControllers: () => [] },
+      discovery: { getControllers: () => [], getProviders: () => [] },
       reflector,
       moduleRef,
     });
@@ -261,7 +284,7 @@ describe('runRuntimePass, the health report', () => {
     const guards: IRuntimeCollector = {
       name: 'guardsCollector',
       collect: () => ({
-        guards: [{ name: 'JwtAuthGuard', confidence: 'derived', collector: 'guardsCollector' }],
+        guards: [{ name: 'JwtAuthGuard', scope: 'route', confidence: 'derived', collector: 'guardsCollector' }],
       }),
     };
     const withSecurity = document();
@@ -288,5 +311,102 @@ describe('runRuntimePass, the health report', () => {
     const found = result.document.health?.drift.filter((issue) => issue.rule === 'security-drift');
     expect(found).toHaveLength(1);
     expect(found?.[0]?.classification).toEqual({ bucket: 'contradiction' });
+  });
+
+  it('should put a guard registered under APP_GUARD on a route that declares none', () => {
+    // Given the shape TX-GLOBALGUARD was found on. The controller carries no `__guards__`, and
+    // the container holds one provider whose token is the rewritten `APP_GUARD` one.
+    const result = runRuntimePass(document(), {
+      collectors: [guardsCollector()],
+      discovery: withGlobalGuard,
+      reflector,
+      moduleRef,
+    });
+
+    // Then the fact reaches the node, at the level SPEC 6.2.1 puts it
+    const node = [...result.document.nodes.values()][0];
+    expect(node?.runtime?.guards).toEqual([
+      {
+        name: 'ReadonlyGuard',
+        scope: 'global',
+        confidence: 'derived',
+        collector: 'guardsCollector',
+      },
+    ]);
+
+    // And the rule that carries the product's central claim fires, which is the whole point: on
+    // this document it printed a clean line while every route was behind that guard
+    const drift = result.document.health?.drift.filter((issue) => issue.rule === 'security-drift');
+    expect(drift).toHaveLength(1);
+    expect(drift?.[0]?.runtimeValue).toBe('ReadonlyGuard (application wide)');
+  });
+
+  it('should derive 401 and 403 from a global guard, the same as from a route one', () => {
+    // Given. SPEC 6.4 derives the pair from the existence of a guard and not from its scope, so a
+    // globally guarded application gains them on every operation. That is the cost the amendment
+    // names out loud, and this is where it would be lost if a later change filtered by scope.
+    // `errorsCollector` is registered because the derivation only fills a record an error
+    // collector opened, per SPEC 6.4: no collector, no facts.
+    const result = runRuntimePass(document(), {
+      collectors: [guardsCollector(), errorsCollector()],
+      discovery: withGlobalGuard,
+      reflector,
+      moduleRef,
+    });
+
+    // Then
+    const node = [...result.document.nodes.values()][0];
+    expect(node?.runtime?.errors?.runtimeDerived.map((contract) => contract.status)).toEqual([
+      401, 403,
+    ]);
+  });
+
+  it('should report an unnameable global guard once for the application, not once per route', () => {
+    // Given `{ provide: APP_GUARD, useValue: { canActivate } }`, which protects everything with
+    // something that has no class name. A row saying `Object` would be a name nobody wrote.
+    const anonymous: DiscoveryServiceLike = {
+      getControllers: () => [{ metatype: OrdersController, instance: new OrdersController() }],
+      getProviders: () => [{ subtype: 'guard', instance: { canActivate: () => true } }],
+    };
+
+    // When
+    const result = runRuntimePass(document(), {
+      collectors: [guardsCollector()],
+      discovery: anonymous,
+      reflector,
+      moduleRef,
+    });
+
+    // Then, one problem for the application rather than one per node
+    expect(result.discoveryProblems).toHaveLength(1);
+    expect(result.discoveryProblems[0]?.subject).toBe('the application');
+    expect(result.discoveryProblems[0]?.reason).toContain('APP_GUARD');
+    expect([...result.document.nodes.values()][0]?.runtime?.guards).toBeUndefined();
+  });
+
+  it('should recognise a global guard by its token when the subtype is absent', () => {
+    // Given a wrapper carrying only the rewritten token. `subtype` is undocumented and the token
+    // prefix is the shape a host wrote, so either alone is enough: requiring both would take the
+    // reading quiet on a guarded application the first time one of them moved.
+    const byToken: DiscoveryServiceLike = {
+      getControllers: () => [{ metatype: OrdersController, instance: new OrdersController() }],
+      getProviders: () => [
+        { token: 'APP_GUARD (UUID: 5c034508718fe21f57dcd)', instance: new ReadonlyGuard() },
+        { token: 'OrdersService', instance: new OrdersController() },
+      ],
+    };
+
+    // When
+    const result = runRuntimePass(document(), {
+      collectors: [guardsCollector()],
+      discovery: byToken,
+      reflector,
+      moduleRef,
+    });
+
+    // Then, and the ordinary provider beside it is not mistaken for one
+    expect([...result.document.nodes.values()][0]?.runtime?.guards?.map((one) => one.name)).toEqual(
+      ['ReadonlyGuard'],
+    );
   });
 });

@@ -120,6 +120,7 @@ function harness(specs: readonly RouteSpec[]): {
     discovery: {
       getControllers: () =>
         specs.map((spec) => ({ metatype: spec.controller, instance: new spec.controller() })),
+      getProviders: () => [],
     },
     reflector: {
       get: (key, target) => metadata.get(target)?.[String(key)] ?? undefined,

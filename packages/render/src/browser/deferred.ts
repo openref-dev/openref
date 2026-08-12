@@ -236,6 +236,14 @@ export function deferredComponents(options: DeferredOptions): DeferrableComponen
     tryIt: deferUntilReached(
       {
         name: 'TryItPanel',
+        // `focusin` IS WHY ANY TEST OF THE DEFERRED CONSOLE HAS TO PLANT THE CHUNK. The console
+        // has ten or more fields ahead of Send, so a reader arriving on the keyboard arms this
+        // loader at the first of them, which is many tab presses before the gesture a case is
+        // usually about. Without `open(page, true)` the case is a race between the chunk arriving
+        // and the remaining presses, and it fails intermittently in exactly that way rather than
+        // reporting the thing it asserts. Found 2026-08-12, after the same case went red twice
+        // before the cause was named. The rule is about the mechanism and not about one test: the
+        // gate can be armed by a gesture unrelated to the one under test.
         selector: '.oref-section-tryit',
         events: ['pointerdown', 'click', 'focusin'],
       },

@@ -243,7 +243,7 @@ export function runtimeDocument(options: RuntimeFixtureOptions = {}): IRDocument
       file: 'src/orders.controller.ts',
       line: 42,
     },
-    guards: [{ name: 'JwtAuthGuard', confidence: 'derived', collector: 'guardsCollector' }],
+    guards: [{ name: 'JwtAuthGuard', scope: 'route', confidence: 'derived', collector: 'guardsCollector' }],
     scopes: { value: ['orders:read'], confidence: 'declared', collector: 'scopesCollector' },
     rateLimit: {
       value: { limit: 100, ttlMs: 60_000 },

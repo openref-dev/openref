@@ -55,6 +55,13 @@ export interface CollectorTarget {
 export interface CollectorRegistryOptions {
   readonly reflector: ReflectorLike;
   readonly moduleRef: ModuleRefLike;
+  /**
+   * Guards registered for the whole application, read once by the pass, per SPEC 6.2.1.
+   *
+   * Optional here and never optional in the context: a caller that has no container to ask, which
+   * is every unit test of one collector, should not have to write an empty list to say so.
+   */
+  readonly globalGuards?: readonly string[];
   /** Template for the source link of SPEC 6.3, carried through to the document meta. */
   readonly sourceLinkTemplate?: string;
   /** Version of NestJS the host is running, for the document meta. */
@@ -199,6 +206,7 @@ export class CollectorRegistry {
       handlerName: target.handlerName,
       reflector: this.options.reflector,
       moduleRef: this.options.moduleRef,
+      globalGuards: this.options.globalGuards ?? [],
       fact: <T>(value: T, confidence: IRConfidence): IRFact<T> => ({
         value,
         confidence,

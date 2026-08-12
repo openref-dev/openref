@@ -98,7 +98,7 @@ export function createDocumentFixture(): IRDocument {
         file: 'src/orders.ts',
         line: 42,
       },
-      guards: [{ name: 'JwtAuthGuard', confidence: 'derived', collector: 'guardsCollector' }],
+      guards: [{ name: 'JwtAuthGuard', scope: 'route', confidence: 'derived', collector: 'guardsCollector' }],
       scopes: { value: ['orders:read'], confidence: 'declared', collector: 'scopesCollector' },
     },
   };

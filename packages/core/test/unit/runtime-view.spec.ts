@@ -68,7 +68,7 @@ describe('hasRuntimeFacts', () => {
     // Given, one record per field, each carrying only that field
     const records: Readonly<Record<string, IRNodeRuntime>> = {
       source: { source: { controller: 'OrdersController', handler: 'findAll' } },
-      guards: { guards: [{ name: 'JwtAuthGuard', confidence: 'derived', collector: 'guards' }] },
+      guards: { guards: [{ name: 'JwtAuthGuard', scope: 'route', confidence: 'derived', collector: 'guards' }] },
       scopes: { scopes: { value: ['orders:read'], confidence: 'declared', collector: 'scopes' } },
       roles: { roles: { value: ['admin'], confidence: 'derived', collector: 'roles' } },
       rateLimit: {

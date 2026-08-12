@@ -598,8 +598,8 @@ export function runtimeDocument(): IRDocument {
       line: 42,
     },
     guards: [
-      { name: 'JwtAuthGuard', confidence: 'derived', collector: 'guardsCollector' },
-      { name: 'RolesGuard', confidence: 'derived', collector: 'guardsCollector' },
+      { name: 'JwtAuthGuard', scope: 'route', confidence: 'derived', collector: 'guardsCollector' },
+      { name: 'RolesGuard', scope: 'route', confidence: 'derived', collector: 'guardsCollector' },
     ],
     scopes: { value: ['orders:read'], confidence: 'declared', collector: 'scopesCollector' },
     roles: { value: ['admin'], confidence: 'derived', collector: 'rolesCollector' },

@@ -164,7 +164,7 @@ describe('deriveRuntimeErrorContracts', () => {
   it('should derive 401 and 403 from guards, and say nothing about what a guard decides', () => {
     // Given a guarded route
     const runtime: IRNodeRuntime = {
-      guards: [{ name: 'ScopesGuard', confidence: 'derived', collector: 'guardsCollector' }],
+      guards: [{ name: 'ScopesGuard', scope: 'route', confidence: 'derived', collector: 'guardsCollector' }],
     };
 
     // When
@@ -201,7 +201,7 @@ describe('deriveRuntimeErrorContracts', () => {
   it('should derive both rules at once when both facts are present', () => {
     // Given a throttled route behind a guard, which is the example application's listing route
     const runtime: IRNodeRuntime = {
-      guards: [{ name: 'ScopesGuard', confidence: 'derived', collector: 'guardsCollector' }],
+      guards: [{ name: 'ScopesGuard', scope: 'route', confidence: 'derived', collector: 'guardsCollector' }],
       rateLimit: {
         value: { limit: 30, ttlMs: 60_000 },
         confidence: 'derived',
@@ -238,7 +238,7 @@ describe('withRuntimeErrorContracts', () => {
   it('should fill the runtime derived group and leave the other two alone', () => {
     // Given a node an error collector already examined
     const runtime: IRNodeRuntime = {
-      guards: [{ name: 'ScopesGuard', confidence: 'derived', collector: 'guardsCollector' }],
+      guards: [{ name: 'ScopesGuard', scope: 'route', confidence: 'derived', collector: 'guardsCollector' }],
       errors: {
         declared: [contract({ status: 404 })],
         runtimeDerived: [],
@@ -287,7 +287,7 @@ describe('withRuntimeErrorContracts', () => {
     // `declared` group on the node, and an empty declared group is a claim: examined, nothing
     // declared. Deriving would make that claim on behalf of a collector that never ran.
     const runtime: IRNodeRuntime = {
-      guards: [{ name: 'ScopesGuard', confidence: 'derived', collector: 'guardsCollector' }],
+      guards: [{ name: 'ScopesGuard', scope: 'route', confidence: 'derived', collector: 'guardsCollector' }],
       rateLimit: {
         value: { limit: 30, ttlMs: 60_000 },
         confidence: 'derived',

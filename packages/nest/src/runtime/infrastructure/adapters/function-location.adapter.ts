@@ -353,7 +353,7 @@ const maps = new Map<string, LoadedMap | undefined>();
  * @returns The map and its base URL, or undefined when it cannot be read
  */
 function mapFor(script: ParsedScript): LoadedMap | undefined {
-  const key = `${script.url} ${script.sourceMapURL}`;
+  const key = `${script.url}\0${script.sourceMapURL}`;
   if (maps.has(key)) return maps.get(key);
 
   const loaded = loadMap(script);

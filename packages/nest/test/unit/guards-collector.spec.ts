@@ -49,6 +49,7 @@ function contextOf(
   controller: ControllerLike,
   handler: HandlerLike,
   entries: ReadonlyMap<unknown, readonly unknown[]>,
+  globalGuards: readonly string[] = [],
 ): CollectorContext {
   return {
     node: { id: 'orders.list' } as unknown as IRNode,
@@ -58,6 +59,7 @@ function contextOf(
     handlerName: 'list',
     reflector: reflectorOf(entries),
     moduleRef: { get: () => undefined },
+    globalGuards,
     fact: <T>(value: T, confidence: IRConfidence): IRFact<T> => ({
       value,
       confidence,
@@ -150,9 +152,9 @@ describe('guardsCollector', () => {
     );
   });
 
-  it('should report nothing at all on a route with no guards of its own', () => {
-    // Given. An empty list would claim the route was examined and nothing protects it, and this
-    // collector cannot see a global guard, so that claim would be false on a protected app.
+  it('should report nothing at all on a route with no guards at either scope', () => {
+    // Given. An empty list would claim the route was examined and nothing protects it, and the
+    // absence of a field is the honest answer for a route nothing was found on.
     const collector = guardsCollector();
     const context = contextOf(OrdersController, list, new Map<unknown, readonly unknown[]>());
 
@@ -162,6 +164,82 @@ describe('guardsCollector', () => {
     // Then
     expect(produced).toBeUndefined();
     expect(collector.problems()).toEqual([]);
+  });
+
+  it('should report a globally registered guard on a route that declares none', () => {
+    // Given the arrangement TX-GLOBALGUARD was found on: the whole application behind one
+    // `{ provide: APP_GUARD, useClass: ReadonlyGuard }` and not one `@UseGuards` anywhere
+    const collector = guardsCollector();
+    const context = contextOf(OrdersController, list, new Map<unknown, readonly unknown[]>(), [
+      'ReadonlyGuard',
+    ]);
+
+    // When
+    const produced = collector.collect(context);
+
+    // Then
+    expect(produced?.guards).toEqual([
+      {
+        name: 'ReadonlyGuard',
+        scope: 'global',
+        confidence: 'derived',
+        collector: GUARDS_COLLECTOR_NAME,
+      },
+    ]);
+  });
+
+  it('should keep the scope of each guard, with the route own ones first', () => {
+    // Given a route that declares its own guard inside an application that registers one globally.
+    // A reader deciding whether this endpoint is protected on purpose needs to know which is which.
+    const collector = guardsCollector();
+    const context = contextOf(
+      OrdersController,
+      list,
+      new Map<unknown, readonly unknown[]>([[list, [AdminGuard]]]),
+      ['ReadonlyGuard'],
+    );
+
+    // When
+    const produced = collector.collect(context);
+
+    // Then
+    expect(produced?.guards?.map((guard) => [guard.name, guard.scope])).toEqual([
+      ['AdminGuard', 'route'],
+      ['ReadonlyGuard', 'global'],
+    ]);
+  });
+
+  it('should report one class twice when it is registered globally and named on the route', () => {
+    // Given. Two registrations of one class are two decisions, and collapsing them would answer
+    // "is it protected" while losing "did anyone decide that about this route".
+    const collector = guardsCollector();
+    const context = contextOf(
+      OrdersController,
+      list,
+      new Map<unknown, readonly unknown[]>([[list, [AuthGuard]]]),
+      ['AuthGuard'],
+    );
+
+    // When
+    const produced = collector.collect(context);
+
+    // Then
+    expect(produced?.guards?.map((guard) => guard.scope)).toEqual(['route', 'global']);
+  });
+
+  it('should emit derived for a global guard too, and never a higher level', () => {
+    // Given. SPEC 6.2.1 puts it at the same level as a controller guard: both are read from a
+    // registration rather than from a decorator somebody wrote in order to document the route.
+    const collector = guardsCollector();
+    const context = contextOf(OrdersController, list, new Map<unknown, readonly unknown[]>(), [
+      'ReadonlyGuard',
+    ]);
+
+    // When
+    const produced = collector.collect(context);
+
+    // Then
+    expect(produced?.guards?.map((guard) => guard.confidence)).toEqual(['derived']);
   });
 
   it('should count a guard it cannot name rather than dropping it', () => {

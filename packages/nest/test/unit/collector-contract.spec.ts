@@ -60,6 +60,11 @@ describe('the collector contract', () => {
     // `declaredOn` and `handlerName` are here because SPEC 6.3's `source` needs both: the class
     // the method is written on, which is the base class for an inherited handler, and the name the
     // prototype holds rather than whatever a wrapping decorator called its wrapper.
+    //
+    // AND BY ONE MORE IN TX-GLOBALGUARD, WHICH IS THE SAME DIRECTION AGAIN. `globalGuards` is the
+    // list of classes registered under `APP_GUARD`, read once for the application by the pass,
+    // because it is one registration and identical on every node. This assertion is what made the
+    // addition visible rather than silent, which is what it is for.
 
     // Then
     expectTypeOf<Given>().toEqualTypeOf<
@@ -70,6 +75,7 @@ describe('the collector contract', () => {
       | 'handlerName'
       | 'reflector'
       | 'moduleRef'
+      | 'globalGuards'
       | 'fact'
     >();
     expectTypeOf<CollectorContext['node']>().toEqualTypeOf<IRNode>();
@@ -79,6 +85,7 @@ describe('the collector contract', () => {
     expectTypeOf<CollectorContext['handlerName']>().toEqualTypeOf<string>();
     expectTypeOf<CollectorContext['reflector']>().toEqualTypeOf<ReflectorLike>();
     expectTypeOf<CollectorContext['moduleRef']>().toEqualTypeOf<ModuleRefLike>();
+    expectTypeOf<CollectorContext['globalGuards']>().toEqualTypeOf<readonly string[]>();
   });
 
   it('should return the runtime contract of SPEC 6.3, or nothing', () => {
@@ -155,7 +162,7 @@ describe('the merge partition', () => {
       {
         collector: 'testCollector',
         runtime: {
-          guards: [{ name: 'JwtAuthGuard', confidence: 'derived', collector: 'testCollector' }],
+          guards: [{ name: 'JwtAuthGuard', scope: 'route', confidence: 'derived', collector: 'testCollector' }],
           drift: [
             {
               rule: 'scope-drift',

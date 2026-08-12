@@ -31,6 +31,7 @@ import {
   type DiscoveryProblem,
 } from '../../infrastructure/adapters/controller-discovery.adapter';
 import { pairRoutes, type PairingResult } from '../../domain/route-pairing';
+import { readGlobalGuards } from '../../domain/guards';
 import type { DiscoveryServiceLike } from '../../../shared/types/nest-surface';
 
 /** Everything the pass needs, gathered by whoever has access to the container. */
@@ -76,9 +77,34 @@ export function runRuntimePass(
   document: IRDocument,
   options: RuntimePassOptions,
 ): RuntimePassResult {
-  const registry = new CollectorRegistry(options.collectors, options);
+  // THE GLOBAL GUARDS ARE READ ONCE, HERE, per SPEC 6.2.1. They are one registration for the whole
+  // application, so the container is walked once rather than once per node, and the answer is
+  // handed to every collector through its context instead of each one finding its own way to it.
+  const global = readGlobalGuards(options.discovery);
+  const registry = new CollectorRegistry(options.collectors, {
+    ...options,
+    globalGuards: global.names,
+  });
   const discovered = discoverRoutes(options.discovery, options.reflector);
   const pairing = pairRoutes(document.nodes.values(), discovered.routes);
+
+  // AN UNNAMEABLE GLOBAL GUARD IS ONE PROBLEM FOR THE APPLICATION AND NOT ONE PER ROUTE, which is
+  // why it is recorded here and not by the collector. `{ provide: APP_GUARD, useValue: { ... } }`
+  // protects every route with something the reference cannot name, and a reader is owed the fact
+  // that it is there rather than a row that says `Object`.
+  const problems =
+    global.anonymous === 0
+      ? discovered.problems
+      : [
+          ...discovered.problems,
+          {
+            subject: 'the application',
+            reason:
+              `${String(global.anonymous)} guard(s) are registered under APP_GUARD and have no ` +
+              'class name to report, so they protect every route and are absent from the ' +
+              'reference. A plain object under useValue, or an anonymous class, produces this',
+          },
+        ];
 
   // THE ERROR DERIVATION RUNS HERE AND NOT IN A COLLECTOR, per SPEC 6.4. The runtime derived group
   // follows from a rate limit and from guards, and both of those are produced by other collectors,
@@ -127,7 +153,7 @@ export function runRuntimePass(
   return {
     document: { ...withFacts, hash: hashDocument(withFacts) },
     nodesWithFacts: runtimeByNode.size,
-    discoveryProblems: discovered.problems,
+    discoveryProblems: problems,
     pairing,
     registry,
   };

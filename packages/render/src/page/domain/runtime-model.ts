@@ -33,6 +33,7 @@ import {
   type IRDriftSeverity,
   type IRErrorContracts,
   type IRGuard,
+  type IRGuardScope,
   type IRHealthReport,
   type IRNodeRuntime,
   type IRRateLimit,
@@ -229,19 +230,41 @@ export function streamingLabel(streaming: IRStreaming): string {
 }
 
 /**
- * Guards as one row per provenance rather than one per guard.
+ * The two guard rows of SPEC 6.2.1, in the order a reader needs them.
+ *
+ * A ROW PER SCOPE, THE WAY `errorRows` DRAWS A ROW PER GROUP, and for the same reason. A guard
+ * declared on the route and a guard registered for the whole application are the same fact about
+ * whether the endpoint is protected and different facts about who decided it, and a reader
+ * deciding whether an endpoint is protected on purpose needs the second one. One row holding both
+ * would answer the first question and lose the second, which is exactly what T021 refused to do
+ * to the three error groups.
+ *
+ * THE ROUTE'S OWN ROW IS STILL CALLED `Guards`, unqualified. Every application that had a guard
+ * row before this existed had a route level one, and renaming it would churn every page for a
+ * distinction that is carried by the row that was added rather than by the row that was there.
+ */
+const GUARD_SCOPES = [
+  ['route', 'Guards'],
+  ['global', 'Guards, global'],
+] as const satisfies readonly (readonly [IRGuardScope, string])[];
+
+/**
+ * Guards at one scope, as one value per provenance rather than one per guard.
  *
  * Three guards read by one collector are one observation of three names, and three marks saying
  * the same thing about where they came from is noise. Two collectors reporting guards at
  * different confidence are two observations, and those stay apart.
  *
- * @param guards - Guards observed on the route
+ * @param guards - Guards observed on the route, at every scope
+ * @param scope - The scope this row draws
  * @returns One value per distinct provenance, in the order the guards were merged
  */
-function guardValues(guards: readonly IRGuard[]): RuntimeValueModel[] {
+function guardValues(guards: readonly IRGuard[], scope: IRGuardScope): RuntimeValueModel[] {
   const values: RuntimeValueModel[] = [];
 
   for (const guard of guards) {
+    if (guard.scope !== scope) continue;
+
     const at = values.findIndex(
       (value) => value.markTitle === `${guard.confidence}, ${guard.collector}`,
     );
@@ -267,8 +290,11 @@ function guardValues(guards: readonly IRGuard[]): RuntimeValueModel[] {
  */
 function rowsOf(runtime: IRNodeRuntime, template: string | undefined): RuntimeRowModel[] {
   const rows: RuntimeRowModel[] = [];
-  const guards = guardValues(runtime.guards ?? []);
-  if (guards.length > 0) rows.push({ label: 'Guards', values: guards });
+
+  for (const [scope, label] of GUARD_SCOPES) {
+    const values = guardValues(runtime.guards ?? [], scope);
+    if (values.length > 0) rows.push({ label, values });
+  }
 
   const scalar = [
     ['Scopes', runtime.scopes, (value: readonly string[]) => value.join(', ')],

@@ -177,6 +177,45 @@ describe('buildRuntimeModel', () => {
     expect(guards?.values[0]?.text).toBe('JwtAuthGuard, RolesGuard');
   });
 
+  it('should draw a globally registered guard on its own row, per SPEC 6.2.1', () => {
+    // Given a route with its own guard inside an application that registers one for everything.
+    // One row holding both would answer "is it protected" and lose "did anyone decide that here",
+    // which is the same thing T021 refused to do to the three groups of error contracts.
+    const document = runtimeDocument();
+    const node = document.nodes.get(NODE);
+    const guarded = new Map(document.nodes);
+    guarded.set(NODE, {
+      ...node,
+      runtime: {
+        ...node?.runtime,
+        guards: [
+          ...(node?.runtime?.guards ?? []),
+          {
+            name: 'ReadonlyGuard',
+            scope: 'global',
+            confidence: 'derived',
+            collector: 'guardsCollector',
+          },
+        ],
+      },
+    } as IRNode);
+
+    // When
+    const rows = buildRuntimeModel({ ...document, nodes: guarded }, NODE, '')?.rows ?? [];
+
+    // Then, two rows, and the route's own one keeps its unqualified label
+    expect(rows.filter((row) => row.label.startsWith('Guards')).map((row) => row.label)).toEqual([
+      'Guards',
+      'Guards, global',
+    ]);
+    expect(rows.find((row) => row.label === 'Guards')?.values[0]?.text).toBe(
+      'JwtAuthGuard, RolesGuard',
+    );
+    expect(rows.find((row) => row.label === 'Guards, global')?.values[0]?.text).toBe(
+      'ReadonlyGuard',
+    );
+  });
+
   it('should expand the source link against the template the document carries', () => {
     // Given
     const document = runtimeDocument();

@@ -83,6 +83,24 @@ export interface CollectorContext {
   readonly moduleRef: ModuleRefLike;
 
   /**
+   * Class names of the guards registered for the whole application, per SPEC 6.2.1.
+   *
+   * ADDED IN TX-GLOBALGUARD, AND THE SECOND TIME THE CONTRACT'S OWN NOTE HELD: growing a
+   * collector's abilities is a change to this context rather than to the interface every third
+   * party implements, so a collector written before it still compiles and still runs.
+   *
+   * IT IS ON THE CONTEXT RATHER THAN LOOKED UP BY THE COLLECTOR because the answer is one
+   * registration for the whole application and identical on every node. A collector walking the
+   * container per node would ask a thousand times for a list that cannot have changed, and every
+   * third party collector that wanted the same fact would have to walk it again.
+   *
+   * EMPTY MEANS NONE WERE REGISTERED, and there is no third state. The pass reads them once and
+   * always passes a list, so a collector cannot be handed `undefined` and left to guess whether
+   * that means "none" or "not looked at".
+   */
+  readonly globalGuards: readonly string[];
+
+  /**
    * Builds a fact, filling in the name of the collector that is running.
    *
    * SUGAR OVER THE REGISTRY'S STAMP AND NOT A SECOND MECHANISM. The registry rewrites the

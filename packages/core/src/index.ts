@@ -69,6 +69,7 @@ export type {
   IRErrorContractOrigin,
   IRErrorContracts,
   IRGuard,
+  IRGuardScope,
   IRNodeRuntime,
   IRRateLimit,
   IRRuntimeMeta,

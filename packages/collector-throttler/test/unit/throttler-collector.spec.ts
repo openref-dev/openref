@@ -55,6 +55,7 @@ function contextOf(): CollectorContext {
     handlerName: 'list',
     reflector: { get: () => undefined, getAllAndOverride: () => undefined },
     moduleRef: { get: () => undefined },
+    globalGuards: [],
     fact: <T>(value: T, confidence: IRConfidence): IRFact<T> => ({
       value,
       confidence,

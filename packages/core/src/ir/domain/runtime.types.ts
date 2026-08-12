@@ -16,9 +16,23 @@ export interface IRSourceLocation {
   readonly line?: number;
 }
 
+/**
+ * How widely a guard was registered, per SPEC 6.2.1.
+ *
+ * TWO VALUES BECAUSE A READER ASKS TWO QUESTIONS AND THE SECOND ONE DEPENDS ON THIS. "Is this
+ * endpoint protected" is answered the same way by both, and "what did somebody decide about this
+ * endpoint" is not: `@UseGuards` on a controller or a handler is a decision about that route,
+ * and `{ provide: APP_GUARD }` is a decision about the application that this route inherits.
+ * Controller and handler are not told apart, because both are the route's own declaration and
+ * NestJS applies them together.
+ */
+export type IRGuardScope = 'route' | 'global';
+
 /** A guard observed on a route. Only the class name is knowable, never the logic. */
 export interface IRGuard {
   readonly name: string;
+  /** Whether it was declared on this route or registered for the whole application. */
+  readonly scope: IRGuardScope;
   readonly confidence: IRConfidence;
   readonly collector: string;
 }

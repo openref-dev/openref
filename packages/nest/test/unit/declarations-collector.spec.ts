@@ -63,6 +63,7 @@ function contextOf(route: Route, collectorName = 'declarationsCollector'): Colle
     handlerName: 'list',
     reflector: reflectorOf(route),
     moduleRef: { get: () => undefined },
+    globalGuards: [],
     fact: <T>(value: T, confidence: IRConfidence): IRFact<T> => ({
       value,
       confidence,

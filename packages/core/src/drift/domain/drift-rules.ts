@@ -183,7 +183,13 @@ const SECURITY_DRIFT: OperationRule = {
     if (guards.length === 0) return OUT_OF_SCOPE;
 
     const basis = collected(strongestConfidence(guards));
-    const named = guards.map((guard) => guard.name).join(', ');
+    // THE SCOPE TRAVELS WITH THE NAME INTO THE FINDING, per SPEC 6.2.1. A finding reading
+    // `ReadonlyGuard` sends a reader to look for `@UseGuards` on a handler that has none, and on
+    // an application whose whole policy is one `APP_GUARD` provider that is every finding it
+    // produces. The row has to say where to go and look.
+    const named = guards
+      .map((guard) => (guard.scope === 'global' ? `${guard.name} (application wide)` : guard.name))
+      .join(', ');
     const schemes = context.observation?.guardSchemes;
     const mapped = guards
       .map((guard) => schemes?.get(guard.name))

@@ -158,12 +158,12 @@ describe('CollectorRegistry', () => {
     // Given, three guards on a route are three facts and not one disagreement
     const guards = collectorOf('guardsCollector', () => ({
       guards: [
-        { name: 'JwtAuthGuard', confidence: 'derived' as const, collector: 'guardsCollector' },
+        { name: 'JwtAuthGuard', scope: 'route', confidence: 'derived' as const, collector: 'guardsCollector' },
       ],
     }));
     const more = collectorOf('caslCollector', () => ({
       guards: [
-        { name: 'PoliciesGuard', confidence: 'derived' as const, collector: 'caslCollector' },
+        { name: 'PoliciesGuard', scope: 'route', confidence: 'derived' as const, collector: 'caslCollector' },
       ],
     }));
 
@@ -178,7 +178,7 @@ describe('CollectorRegistry', () => {
     // Given
     const guards = collectorOf('guardsCollector', () => ({
       guards: [
-        { name: 'JwtAuthGuard', confidence: 'derived' as const, collector: 'guardsCollector' },
+        { name: 'JwtAuthGuard', scope: 'route', confidence: 'derived' as const, collector: 'guardsCollector' },
       ],
     }));
 
@@ -187,6 +187,35 @@ describe('CollectorRegistry', () => {
 
     // Then
     expect(result?.guards).toHaveLength(1);
+  });
+
+  it('should keep one class at two scopes as two facts, per SPEC 6.2.1', () => {
+    // Given a class registered under `APP_GUARD` and also named in `@UseGuards` on this route.
+    // These are two registrations and two decisions, and the deduplication key has to say so:
+    // without the scope in it one of them is dropped, and the one that survives is whichever
+    // arrived first, which answers "is it protected" while losing "did anyone decide it here".
+    const guards = collectorOf('guardsCollector', () => ({
+      guards: [
+        {
+          name: 'AuthGuard',
+          scope: 'route' as const,
+          confidence: 'derived' as const,
+          collector: 'guardsCollector',
+        },
+        {
+          name: 'AuthGuard',
+          scope: 'global' as const,
+          confidence: 'derived' as const,
+          collector: 'guardsCollector',
+        },
+      ],
+    }));
+
+    // When
+    const result = registryOf([guards]).collect(targetOf());
+
+    // Then
+    expect(result?.guards?.map((guard) => guard.scope)).toEqual(['route', 'global']);
   });
 
   it('should return undefined when no collector had anything to say', () => {

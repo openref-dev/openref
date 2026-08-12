@@ -47,6 +47,7 @@ function contextOf(metadata: unknown): CollectorContext {
       getAllAndOverride: (key: unknown) => (key === ABILITY_KEY ? metadata : undefined),
     },
     moduleRef: { get: () => undefined },
+    globalGuards: [],
     fact: <T>(value: T, confidence: IRConfidence): IRFact<T> => ({
       value,
       confidence,

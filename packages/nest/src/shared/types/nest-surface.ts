@@ -113,18 +113,38 @@ export interface InstanceWrapperLike {
   readonly instance?: unknown;
   readonly metatype?: unknown;
   readonly name?: string | symbol;
+  /**
+   * The DI token the provider was registered under.
+   *
+   * IT IS NOT THE TOKEN THE HOST WROTE, FOR AN ENHANCER, and that is the whole reason this field
+   * is read rather than `name`. NestJS rewrites `{ provide: APP_GUARD }` to a unique token of the
+   * form `APP_GUARD (UUID: ...)`, because several providers may claim the same enhancer token in
+   * one application and a container maps one token to one provider. The prefix is what survives,
+   * which is why {@link isGlobalEnhancerToken} matches on it rather than on equality.
+   */
+  readonly token?: unknown;
+  /** `'guard'`, `'interceptor'`, `'pipe'` or `'filter'` on a provider registered as an enhancer. */
+  readonly subtype?: string;
 }
 
 /**
  * Nest's `DiscoveryService`, narrowed to the one enumeration the runtime pass performs.
  *
- * ONE METHOD, AND IT IS THE REASON THE VALUE LOAD EXISTS AT ALL. There is no route from a
- * structural type to the list of controller classes: the list lives in the container, and
- * `DiscoveryService` is the only public way to ask for it. `getProviders` is deliberately absent,
- * because a collector that needs a provider resolves it through {@link ModuleRefLike} by token.
+ * ONE METHOD WAS THE REASON THE VALUE LOAD EXISTS AT ALL. There is no route from a structural
+ * type to the list of controller classes: the list lives in the container, and `DiscoveryService`
+ * is the only public way to ask for it.
+ *
+ * `getProviders` ARRIVED IN TX-GLOBALGUARD, AND THE NOTE IT REPLACES SAID IT NEVER WOULD. That
+ * note read "a collector that needs a provider resolves it through `ModuleRefLike` by token",
+ * which is true of every provider a host wrote and false of the one this package had to find: a
+ * guard registered under `APP_GUARD` is not resolvable by that token, because NestJS rewrites it
+ * to a unique one per registration. Nothing but an enumeration answers "which providers are
+ * enhancers", and the enumeration is public API on both supported majors.
  */
 export interface DiscoveryServiceLike {
   getControllers(): readonly InstanceWrapperLike[];
+  /** Every provider in the container, which is the only route to the global enhancers. */
+  getProviders(): readonly InstanceWrapperLike[];
 }
 
 /** Nest's `HttpAdapterHost`, narrowed to the accessor the route table needs. */
@@ -197,6 +217,52 @@ export const NEST_ROUTE_METADATA = {
  * and then the handler's, so a route with one of each is protected by two.
  */
 export const NEST_GUARD_METADATA = '__guards__';
+
+/**
+ * The four tokens NestJS registers an application wide enhancer under, per SPEC 6.2.1.
+ *
+ * STRING LITERALS FOR THE REASON THE TABLES ABOVE GIVE, and these four are exported by
+ * `@nestjs/core` as the plain strings written here, unchanged since NestJS 6.
+ * `test/unit/nest-value-surface.spec.ts` asks the installed framework whether it still says so.
+ *
+ * ONLY `APP_GUARD` IS READ TODAY, and the other three are named here rather than omitted so that
+ * the next person meets the whole family at once instead of finding them one at a time. SPEC
+ * 6.2.1 says what each would cost: an interceptor has no field in `IRNodeRuntime` to land in, a
+ * pipe changes the error contract rather than the guard row, and a filter is already refused by
+ * SPEC 6.4 because a registration has no status.
+ */
+export const NEST_ENHANCER_TOKENS = {
+  guard: 'APP_GUARD',
+  interceptor: 'APP_INTERCEPTOR',
+  pipe: 'APP_PIPE',
+  filter: 'APP_FILTER',
+} as const;
+
+/**
+ * The `subtype` NestJS stamps on the wrapper of a provider registered under `APP_GUARD`.
+ *
+ * READ ALONGSIDE THE TOKEN AND NOT INSTEAD OF IT. `subtype` is the framework's own answer and is
+ * the cheaper check; the token prefix is what the framework's own docs describe a host as writing.
+ * Requiring only one of the two would rest the whole reading on a single undocumented field, and
+ * accepting either keeps a guard visible if one of them moves in a future minor.
+ */
+export const NEST_GUARD_ENHANCER_SUBTYPE = 'guard';
+
+/**
+ * Reports whether a wrapper's token is the rewritten form of one enhancer token.
+ *
+ * NestJS turns `{ provide: APP_GUARD, useClass: X }` into a provider whose token is
+ * `APP_GUARD (UUID: 5c034508718fe21f57dcd)`, so equality finds nothing and the prefix is the
+ * whole of what a reader of the container gets back. Measured on NestJS 11 rather than read out
+ * of the documentation, which describes the token a host writes and not the one it becomes.
+ *
+ * @param token - Whatever the wrapper carried
+ * @param enhancer - One of {@link NEST_ENHANCER_TOKENS}
+ * @returns True when this provider was registered under that enhancer token
+ */
+export function isEnhancerToken(token: unknown, enhancer: string): boolean {
+  return typeof token === 'string' && (token === enhancer || token.startsWith(`${enhancer} (`));
+}
 
 /**
  * The key `@Sse` writes, and the whole of how a streaming route is recognised.

@@ -30,7 +30,7 @@ function reflectorOver(metadata: Map<unknown, Record<string, unknown>>): Reflect
 }
 
 function discoveryOver(wrappers: readonly InstanceWrapperLike[]): DiscoveryServiceLike {
-  return { getControllers: () => wrappers };
+  return { getControllers: () => wrappers, getProviders: () => [] };
 }
 
 describe('joinPath', () => {
