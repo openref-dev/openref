@@ -487,11 +487,21 @@ const MISSING_OPERATION_ID: OperationRule = {
     if (raw !== undefined && raw !== '' && !isGeneratedOperationId(raw)) return CLEAN;
 
     const source = operation.runtime?.source;
-    const specValue = raw === undefined || raw === '' ? 'no operationId' : raw;
+    const absent = raw === undefined || raw === '';
+    const specValue = absent ? 'no operationId' : raw;
+
+    // THE MESSAGE SAYS WHICH OF THE TWO IT IS, FOUND IN T025. It read "gives this operation no
+    // stable operationId" for both, so on a `@nestjs/swagger` document, where every operation has
+    // a generated one, every finding printed a sentence saying there is no id beside a column
+    // holding the id. A reader who checks is told the reference cannot see what they can, and the
+    // edit the row asks for is a different edit in the two cases.
+    const message = absent
+      ? 'The specification gives this operation no operationId at all.'
+      : 'The operationId is the one the generator produced, so it changes when the method does.';
 
     if (source === undefined) {
       return found({
-        message: 'The specification gives this operation no stable operationId.',
+        message,
         specValue,
         suggestion: "add @ApiOperation({ operationId: 'yourName' }) to the handler",
         edit: 'nothing-to-write',
@@ -503,7 +513,7 @@ const MISSING_OPERATION_ID: OperationRule = {
     // reading SPEC 6.3 gives `source` when it says that field carries no confidence: the class
     // name and the method name are read literally rather than worked out.
     return found({
-      message: 'The specification gives this operation no stable operationId.',
+      message,
       runtimeValue: `${source.controller}.${source.handler}`,
       specValue,
       suggestion:

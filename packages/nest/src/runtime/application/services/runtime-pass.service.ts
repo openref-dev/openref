@@ -67,6 +67,51 @@ export interface RuntimePassResult {
 }
 
 /**
+ * Drops any finding a collector attached that names a node this document does not hold.
+ *
+ * FOUND IN T025 BY WRITING A COLLECTOR THAT REPORTS ONE. `IRDriftIssue.nodeId` is a free string
+ * that a collector fills in, and nothing checked it against the document, so a stale id from a
+ * cache, a typo, or a remote's id arriving in a federated record all reached the page. There the
+ * finding renders with `nodeHref(nodeId)` behind it, so a reader is offered a link to an operation
+ * that does not exist and lands on a 404 they blame on the reference.
+ *
+ * IT IS DROPPED AND RECORDED, NOT DROPPED QUIETLY. A finding that cannot be shown is a defect in
+ * whatever produced it, and `doctor` is where a defect in an instrument goes, per SPEC 7. Silently
+ * discarding it would leave a collector author with a finding that never appears and no reason.
+ *
+ * @param runtime - The merged facts of one node
+ * @param document - The document being augmented, which is what a node id has to exist in
+ * @param problems - Accumulator, so the drop is reported once per finding rather than per reader
+ * @returns The same facts with the unreachable findings removed
+ */
+function withoutGhostFindings(
+  runtime: IRNodeRuntime,
+  document: IRDocument,
+  problems: DiscoveryProblem[],
+): IRNodeRuntime {
+  const drift = runtime.drift;
+  if (drift === undefined) return runtime;
+
+  const reachable = drift.filter(
+    (issue) => issue.nodeId === undefined || document.nodes.has(issue.nodeId),
+  );
+  if (reachable.length === drift.length) return runtime;
+
+  for (const issue of drift) {
+    if (issue.nodeId === undefined || document.nodes.has(issue.nodeId)) continue;
+
+    problems.push({
+      subject: `the finding "${issue.message}"`,
+      reason:
+        `a collector reported it against node "${issue.nodeId}", which this document does not ` +
+        'hold, so it was dropped rather than drawn as a link to an operation that is not there',
+    });
+  }
+
+  return { ...runtime, drift: reachable };
+}
+
+/**
  * Runs the collectors over every route of the application.
  *
  * @param document - The normalized document, before any runtime fact
@@ -88,24 +133,6 @@ export function runRuntimePass(
   const discovered = discoverRoutes(options.discovery, options.reflector);
   const pairing = pairRoutes(document.nodes.values(), discovered.routes);
 
-  // AN UNNAMEABLE GLOBAL GUARD IS ONE PROBLEM FOR THE APPLICATION AND NOT ONE PER ROUTE, which is
-  // why it is recorded here and not by the collector. `{ provide: APP_GUARD, useValue: { ... } }`
-  // protects every route with something the reference cannot name, and a reader is owed the fact
-  // that it is there rather than a row that says `Object`.
-  const problems =
-    global.anonymous === 0
-      ? discovered.problems
-      : [
-          ...discovered.problems,
-          {
-            subject: 'the application',
-            reason:
-              `${String(global.anonymous)} guard(s) are registered under APP_GUARD and have no ` +
-              'class name to report, so they protect every route and are absent from the ' +
-              'reference. A plain object under useValue, or an anonymous class, produces this',
-          },
-        ];
-
   // THE ERROR DERIVATION RUNS HERE AND NOT IN A COLLECTOR, per SPEC 6.4. The runtime derived group
   // follows from a rate limit and from guards, and both of those are produced by other collectors,
   // one of them from a package that ships separately. A collector reading another collector's
@@ -113,11 +140,35 @@ export function runRuntimePass(
   // both-orders test checks. Deriving from the merged record instead reads exactly what a reader
   // will see, and it is a pure function of `core` rather than anything this pass knows.
   const runtimeByNode = new Map<string, IRNodeRuntime>();
+  const ghosts: DiscoveryProblem[] = [];
   for (const target of pairing.targets) {
     const runtime = registry.collect(target);
     if (runtime !== undefined)
-      runtimeByNode.set(target.node.id, withRuntimeErrorContracts(runtime));
+      runtimeByNode.set(
+        target.node.id,
+        withRuntimeErrorContracts(withoutGhostFindings(runtime, document, ghosts)),
+      );
   }
+
+  // AN UNNAMEABLE GLOBAL GUARD IS ONE PROBLEM FOR THE APPLICATION AND NOT ONE PER ROUTE, which is
+  // why it is recorded here and not by the collector. `{ provide: APP_GUARD, useValue: { ... } }`
+  // protects every route with something the reference cannot name, and a reader is owed the fact
+  // that it is there rather than a row that says `Object`.
+  const problems: readonly DiscoveryProblem[] = [
+    ...discovered.problems,
+    ...ghosts,
+    ...(global.anonymous === 0
+      ? []
+      : [
+          {
+            subject: 'the application',
+            reason:
+              `${String(global.anonymous)} guard(s) are registered under APP_GUARD and have no ` +
+              'class name to report, so they protect every route and are absent from the ' +
+              'reference. A plain object under useValue, or an anonymous class, produces this',
+          },
+        ]),
+  ];
 
   const nodes = new Map<string, IRNode>();
   for (const [id, node] of document.nodes) {

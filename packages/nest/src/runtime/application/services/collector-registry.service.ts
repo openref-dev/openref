@@ -199,7 +199,20 @@ export class CollectorRegistry {
    */
   private contextFor(collector: IRuntimeCollector, target: CollectorTarget): CollectorContext {
     return {
-      node: target.node,
+      // FROZEN, BECAUSE `readonly` IS A COMPILE TIME OPINION AND A COLLECTOR IS SOMEBODY ELSE'S
+      // CODE. Found in T025 by writing one that assigns to `context.node.id`: it compiles in a
+      // third party package behind one cast, and the pass keys facts by that id, hashes the
+      // document and serves it, so the edit reaches every reader with nothing anywhere saying a
+      // collector did it. This is the same argument that makes the registry restamp `collector`
+      // on every fact rather than trust the type.
+      //
+      // SHALLOW, AND THAT IS THE PROPORTION RATHER THAN AN OVERSIGHT. It closes assignment to the
+      // node's own fields, which is what a collector reaches for and what the pass reads; a deep
+      // freeze of every parameter, response and schema of every node would put a walk of the whole
+      // document into the boot to defend against a collector editing a nested array in place.
+      // In an ES module a write to a frozen field throws, so the registry retires that collector
+      // with the reason, which is the fail-open behaviour SPEC 6.2 already asks for.
+      node: Object.freeze(target.node),
       controller: target.controller,
       declaredOn: target.declaredOn,
       handler: target.handler,

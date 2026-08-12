@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { expandSourceLink, type IRDocument, type IROperation } from '@openref/core';
 import { runRuntimePass } from '../../src/runtime/application/services/runtime-pass.service';
@@ -182,6 +183,19 @@ function sourcesOf(
   return new Map([...result.document.nodes].map(([id, node]) => [id, node.runtime]));
 }
 
+/**
+ * A file that really is tracked by this repository, and its path from the root.
+ *
+ * IT IS THIS FILE, AND IT IS DERIVED FROM `import.meta.url` RATHER THAN FROM `process.cwd()`.
+ * T025 changed both cases that used to name `packages/nest/src/a.ts` relative to the working
+ * directory: that path does not exist, and the collector now refuses to link an untracked file
+ * because `{ref}` is the sha of HEAD and a file that is not in that commit is a link to a 404.
+ * The working directory was the second half of the same fragility, since it is the repository
+ * root under the workspace runner and the package root under a filtered one.
+ */
+const TRACKED_FILE = fileURLToPath(import.meta.url);
+const TRACKED_RELATIVE = 'packages/nest/test/unit/source-collector.spec.ts';
+
 describe('sourceCollector', () => {
   it('should attribute the right handler when two controllers share a method name', () => {
     // Given the case T018 names, and the one a match on the method name alone would get wrong.
@@ -277,13 +291,16 @@ describe('sourceCollector', () => {
 
     // When
     const sources = sourcesOf(specs, () => ({
-      location: { file: `${process.cwd()}/packages/nest/src/a.ts` },
+      // A FILE THAT REALLY IS TRACKED, CHANGED IN T025. It used to name `src/a.ts`, which does
+      // not exist, and the collector now refuses to link an untracked path because `{ref}` is the
+      // sha of HEAD and a file that is not in that commit is a link to a 404.
+      location: { file: TRACKED_FILE },
       reason: 'the source map could not be read',
     }));
 
     // Then
     const source = sources.get('OrdersController_findAll')?.source;
-    expect(source?.file).toBe('packages/nest/src/a.ts');
+    expect(source?.file).toBe(TRACKED_RELATIVE);
     expect(source?.line).toBeUndefined();
   });
 
@@ -294,7 +311,7 @@ describe('sourceCollector', () => {
       { controller: OrdersController, prefix: 'orders', handlers: [{ name: 'findAll', path: '' }] },
     ];
     const sources = sourcesOf(specs, () => ({
-      location: { file: `${process.cwd()}/packages/nest/src/a.ts` },
+      location: { file: TRACKED_FILE },
     }));
     const source = sources.get('OrdersController_findAll')?.source;
 
@@ -306,7 +323,7 @@ describe('sourceCollector', () => {
     );
 
     // Then
-    expect(link.url).toBe('https://github.com/org/repo/blob/a1b2c3d/packages/nest/src/a.ts');
+    expect(link.url).toBe(`https://github.com/org/repo/blob/a1b2c3d/${TRACKED_RELATIVE}`);
     expect(link.url).not.toContain('NaN');
     expect(link.withoutLine).toBe(true);
   });

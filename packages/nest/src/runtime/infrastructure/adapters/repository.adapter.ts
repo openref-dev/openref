@@ -94,6 +94,52 @@ export function resolveGitRef(root: string): string | undefined {
   return found;
 }
 
+/** Superproject answers already read, keyed by repository root. */
+const superprojects = new Map<string, boolean>();
+
+/**
+ * Reports whether a repository root is a submodule of another repository.
+ *
+ * FOUND IN T025 AND IT IS A LINK TO THE WRONG FILE RATHER THAN A MISSING ONE. `findRepositoryRoot`
+ * stops at the first `.git` above the handler, and a submodule has one, so a handler vendored into
+ * `vendor/` gets a path relative to the SUBMODULE's root and the SUBMODULE's revision. The host
+ * configured one template, pointing at the superproject's forge, so those two are then substituted
+ * into somebody else's repository: a sha that does not exist there and a path that may exist there
+ * and be a different file. That is worse than no link, which is the case SPEC 6.3 already decides.
+ *
+ * `--show-superproject-working-tree` PRINTS THE PARENT'S WORKING TREE AND NOTHING FOR A PLAIN
+ * REPOSITORY, measured on git 2.x, 2026-08-12. A worktree is deliberately not caught by it: a
+ * worktree has a `.git` file like a submodule and is the same repository, so its ref and its paths
+ * are the right ones and its links work.
+ *
+ * @param root - The repository root
+ * @returns True when this repository is a submodule of another
+ */
+export function isSubmoduleRoot(root: string): boolean {
+  const cached = superprojects.get(root);
+  if (cached !== undefined) return cached;
+
+  let found = false;
+  try {
+    const output = execFileSync('git', ['rev-parse', '--show-superproject-working-tree'], {
+      cwd: root,
+      encoding: 'utf8',
+      timeout: 5000,
+      stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim();
+
+    found = output !== '';
+  } catch {
+    // An old git without the flag, or no git at all. FAIL OPEN TOWARDS LINKING, because the
+    // ordinary repository is the overwhelming case and refusing every link when the question
+    // cannot be asked would trade the feature for the edge.
+    found = false;
+  }
+
+  superprojects.set(root, found);
+  return found;
+}
+
 /**
  * Forgets what was found, so a test can measure the walk again.
  *
@@ -103,6 +149,7 @@ export function resolveGitRef(root: string): string | undefined {
 export function resetRepositoryCache(): void {
   roots.clear();
   refs.clear();
+  superprojects.clear();
 }
 
 /**

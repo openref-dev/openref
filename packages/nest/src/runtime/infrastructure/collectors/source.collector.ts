@@ -37,7 +37,7 @@ import type { IRNodeRuntime, IRSourceLocation } from '@openref/core';
 import type { CollectorContext, IRuntimeCollector } from '../../application/ports/collector.port';
 import type { HandlerLike } from '../../../shared/types/nest-surface';
 import { locateFunction, type FunctionLocationResult } from '../adapters/function-location.adapter';
-import { findRepositoryRoot } from '../adapters/repository.adapter';
+import { findRepositoryRoot, isSubmoduleRoot } from '../adapters/repository.adapter';
 import { repositoryRelative } from '../../domain/repository-path';
 
 /** The name this collector stamps on everything it reports, per SPEC 6.2. */
@@ -157,6 +157,20 @@ function sourceFor(
       reason:
         `the handler is at "${found.location.file}", which is outside the repository at ` +
         `"${root}". A link built from it would leave the forge's own tree`,
+    });
+    return { controller, handler };
+  }
+
+  // A SUBMODULE'S ROOT IS A REPOSITORY AND IT IS NOT THE ONE THE TEMPLATE NAMES, per SPEC 6.3 and
+  // T025. The path and the revision would both be the submodule's, substituted into the
+  // superproject's forge URL, so the link resolves to a different repository's file or to nothing.
+  if (configuredRoot === undefined && isSubmoduleRoot(root)) {
+    problems.push({
+      subject,
+      reason:
+        `the handler is inside the submodule at "${root}", whose paths and revision belong to a ` +
+        'different repository than the one sourceLink names. Set repositoryRoot on ' +
+        'sourceCollector, or configure a template for that repository',
     });
     return { controller, handler };
   }
