@@ -18,7 +18,6 @@
 
 import { createHash } from 'node:crypto';
 import {
-  canonicalize,
   ErrorCode,
   InvalidOptionsError,
   IR_VERSION,
@@ -227,13 +226,18 @@ export class ReferenceService {
   }
 
   /**
-   * The specification as the host handed it over, serialized deterministically.
+   * The specification as the host handed it over, serialized in the order it was written.
    *
    * The source document rather than the IR, because this route is what an SDK generator and
-   * a diff tool read, and neither wants this project's internal model. Canonical key order
-   * rather than the authored order, for the reason canonical serialization exists everywhere
-   * else here: object key order in JavaScript is not the order anything wrote, so two runs
-   * would otherwise be free to produce different bytes.
+   * a diff tool read, and neither wants this project's internal model.
+   *
+   * SERIALIZED AS CONSTRUCTED, NOT CANONICALIZED, per SPEC 12. This called `canonicalize`,
+   * which sorts keys by code point because a hash needs one order out of many equal ones, and
+   * the sorting reached the one route whose whole purpose is to hand back what the author
+   * wrote: every schema's `properties` came out alphabetical, so a generated SDK listed fields
+   * in an order nobody chose and a diff against the author's own file was noise. Two runs
+   * still produce identical bytes, and they do so because the host hands over the same object
+   * and `JSON.stringify` walks it the same way, which is where determinism belongs.
    *
    * @param request - The request, for its validators
    * @param format - `json` or `yaml`
@@ -245,7 +249,7 @@ export class ReferenceService {
     if (cached !== null) return cached;
 
     if (this.specificationJson === null) {
-      this.specificationJson = canonicalize(this.source);
+      this.specificationJson = JSON.stringify(this.source);
       this.specificationYaml = stringifyYaml(JSON.parse(this.specificationJson));
     }
 
@@ -308,7 +312,10 @@ export class ReferenceService {
       return notFoundReply('navigation');
     }
 
-    this.navigationJson ??= canonicalize({
+    // Serialized as constructed, per SPEC 12: `buildNavigation` is deterministic code over a
+    // deterministic IR, so two runs give one string without anything being sorted on the way
+    // out, and the entries reach the reader in the order the document put them in.
+    this.navigationJson ??= JSON.stringify({
       documentHash: this.document.hash,
       navigation: buildNavigation(this.document),
     });
@@ -331,7 +338,9 @@ export class ReferenceService {
    * @returns The report
    */
   private health(): ReferenceReply {
-    const body = canonicalize({
+    // A literal object, serialized as written, per SPEC 12. Sorting it would put `document`
+    // before `status` for no reason a reader of this route benefits from.
+    const body = JSON.stringify({
       status: 'ok',
       document: {
         id: this.document.id,

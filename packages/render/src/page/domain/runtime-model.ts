@@ -326,7 +326,9 @@ function rowsOf(runtime: IRNodeRuntime, template: string | undefined): RuntimeRo
  *
  * ONLY `declared` SURVIVES BEING EMPTY. It is the group a person writes, so an empty one says
  * the route was read and nobody wrote anything on it. The other two are a derivation and a host
- * wide list, and neither asserts anything by being empty.
+ * wide list, and neither asserts anything by being empty. The row says that about the handler
+ * and offers the decorator as the edit, because a value column that reports on the collector
+ * instead of on the application is instrumentation standing where documentation goes.
  *
  * @param errors - The record, or nothing when no error collector ran
  * @returns The rows worth drawing
@@ -342,23 +344,46 @@ function errorRows(errors: IRErrorContracts | undefined): RuntimeRowModel[] {
     if (contracts.length === 0) {
       if (key !== 'declared') continue;
 
+      // THE ROW STATES A FACT ABOUT THE OPERATION AND NAMES THE DECORATOR AS THE FIX, per SPEC
+      // 6.4. It read "examined, nothing declared with @ApiErrors", which describes the instrument
+      // in a column where every other row describes the application, and it put the decorator in
+      // the finding rather than in the edit that answers it.
       rows.push({
         label,
-        values: [{ ...EMPTY_VALUE, note: 'examined, nothing declared with @ApiErrors' }],
+        values: [
+          {
+            ...EMPTY_VALUE,
+            text: 'This handler declares no errors',
+            note: 'Add @ApiErrors to list the ones it answers with',
+          },
+        ],
       });
       continue;
     }
 
+    // A SENTENCE TWO CONTRACTS SHARE IS SHOWN ONCE, ON THE FIRST OF THEM, per SPEC 6.4. 401 and
+    // 403 are derived from one fact and their `detail` differs by nothing at all, so the pair
+    // read as a repetition rather than as two contracts. Only the row loses the second copy: the
+    // contract keeps its own field, because it travels alone in a drift finding and its RFC 9457
+    // body pins `detail` with a `const`.
+    let shown = '';
+
     rows.push({
       label,
-      values: contracts.map((contract) => ({
-        status: String(contract.status),
-        statusClass: `oref-status ${statusClass(String(contract.status))}`,
-        text: contract.title,
-        href: '',
-        note: contract.detail ?? '',
-        ...mark(contract.confidence, contract.collector),
-      })),
+      values: contracts.map((contract) => {
+        const detail = contract.detail ?? '';
+        const note = detail === shown ? '' : detail;
+        shown = detail;
+
+        return {
+          status: String(contract.status),
+          statusClass: `oref-status ${statusClass(String(contract.status))}`,
+          text: contract.title,
+          href: '',
+          note,
+          ...mark(contract.confidence, contract.collector),
+        };
+      }),
     });
   }
 

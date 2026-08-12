@@ -1,3 +1,4 @@
+import { normalizeOpenApiDocument } from '@openref/core';
 import { describe, expect, it } from 'vitest';
 import { createMemoryRenderCache } from '../../src/cache/infrastructure/adapters/memory-render-cache.adapter';
 import {
@@ -169,18 +170,69 @@ describe('renderPage', () => {
 });
 
 describe('serializePageModel', () => {
-  it('should serialize canonically, so two runs produce one string', async () => {
-    // Given
-    const document = smallDocument();
+  it('should produce one string from two independently built models', async () => {
+    // Given two models built from scratch over one document. TWO MODELS AND NOT ONE MODEL TWICE:
+    // serializing the same object twice is green under any implementation, so it asserts nothing
+    // about the property this budget and the static build rest on.
     const markdown = await createMarkdownRenderer();
-    const model = buildPageModel(document, { markdown });
+    const models = [
+      buildPageModel(smallDocument(), { markdown }),
+      buildPageModel(smallDocument(), { markdown }),
+    ];
 
     // When
-    const results = [serializePageModel(model), serializePageModel(model)];
+    const results = models.map((model) => serializePageModel(model));
 
     // Then
     expect(results[0]).toBe(results[1]);
     expect(results[0]?.startsWith('{')).toBe(true);
+  });
+
+  it('should ship a schema in the order its author wrote it, not in alphabetical order', async () => {
+    // Given a schema whose properties are deliberately not alphabetical, which is what an address
+    // is. The server renders the tree from the model in memory and the browser renders it from
+    // this JSON, so a serializer that sorts keys makes the two disagree the moment the client
+    // renders anything, and the tree reorders itself under a reader who opened a position. Found
+    // in a browser on the demo, recorded in SPEC 12.
+    const authored = ['line1', 'city', 'postalCode', 'country', 'geo'];
+    const document = normalizeOpenApiDocument({
+      openapi: '3.1.0',
+      info: { title: 'Addresses', version: '1.0.0' },
+      paths: {
+        '/a': {
+          get: {
+            operationId: 'getA',
+            responses: {
+              '200': {
+                description: 'ok',
+                content: {
+                  'application/json': { schema: { $ref: '#/components/schemas/AddressDto' } },
+                },
+              },
+            },
+          },
+        },
+      },
+      components: {
+        schemas: {
+          AddressDto: {
+            type: 'object',
+            properties: Object.fromEntries(authored.map((name) => [name, { type: 'string' }])),
+          },
+        },
+      },
+    });
+    const markdown = await createMarkdownRenderer();
+    // The id is the one SPEC 5.1 derives from the method and the path, not the `operationId`.
+    const model = buildPageModel(document, { markdown, nodeId: 'get-a' });
+
+    // When
+    const parsed = JSON.parse(serializePageModel(model)) as {
+      schemas: Record<string, { normalized?: { properties?: Record<string, unknown> } }>;
+    };
+
+    // Then
+    expect(Object.keys(parsed.schemas.AddressDto?.normalized?.properties ?? {})).toEqual(authored);
   });
 });
 

@@ -134,6 +134,98 @@ describe('the width of the content column', () => {
   );
 });
 
+/**
+ * The gaps inside one runtime row, measured.
+ *
+ * The row draws a status, a title, a detail and a provenance mark, and it drew them with nothing
+ * between any two of them: `429Too Many RequestsA rate limit of ... DRV`. A separator written
+ * into the model's strings would be design living where a theme cannot reach it, so the gap is
+ * the layout's, which means only a layout can report it. The title is a bare text node, so it is
+ * measured through a range rather than through an element.
+ *
+ * @param path - Page to open
+ * @returns The gap after the status, and the gap between two stacked contracts
+ */
+async function runtimeGaps(path: string): Promise<{ afterStatus: number; betweenItems: number }> {
+  const context = await chrome.browser.newContext({ viewport: WIDE });
+  const page = await context.newPage();
+
+  await page.goto(`${app.url}${path}`, { waitUntil: 'load' });
+
+  const measured = await page.evaluate(() => {
+    interface BoxLike {
+      readonly left: number;
+      readonly right: number;
+      readonly top: number;
+      readonly bottom: number;
+    }
+    interface NodeLike {
+      readonly nodeType: number;
+      readonly textContent: string | null;
+    }
+    interface ElementLike extends NodeLike {
+      readonly childNodes: Iterable<NodeLike>;
+      getBoundingClientRect(): BoxLike;
+      querySelector(selector: string): ElementLike | null;
+    }
+    interface RangeLike {
+      selectNode(node: NodeLike): void;
+      getBoundingClientRect(): BoxLike;
+    }
+    const root = globalThis as unknown as {
+      document: {
+        createRange(): RangeLike;
+        querySelectorAll(selector: string): readonly ElementLike[];
+      };
+    };
+
+    const items = [...root.document.querySelectorAll('.oref-section-runtime .oref-runtime-item')];
+    const withStatus = items.filter((item) => item.querySelector('.oref-status') !== null);
+    const first = withStatus[0];
+    const status = first?.querySelector('.oref-status');
+    const title = [...(first?.childNodes ?? [])].find(
+      (node) => node.nodeType === 3 && (node.textContent ?? '').trim() !== '',
+    );
+
+    if (first === undefined || status === undefined || status === null || title === undefined) {
+      return { afterStatus: -1, betweenItems: -1 };
+    }
+
+    const range = root.document.createRange();
+    range.selectNode(title);
+
+    const second = withStatus[1];
+
+    return {
+      afterStatus: range.getBoundingClientRect().left - status.getBoundingClientRect().right,
+      betweenItems:
+        second === undefined
+          ? -1
+          : second.getBoundingClientRect().top - first.getBoundingClientRect().bottom,
+    };
+  });
+
+  await context.close();
+
+  return measured;
+}
+
+describe('the runtime block of an operation page', () => {
+  it(
+    'should separate the parts of a fact and the contracts stacked under one label',
+    async () => {
+      // Given the example on an operation whose collectors produced error contracts
+      const measured = await runtimeGaps(`${EXAMPLE_BASE_PATH}/get-orders`);
+
+      // Then the status does not run into the title, and one contract does not run into the next.
+      // Both were zero, which is what made the block read as a log line.
+      expect(measured.afterStatus).toBeGreaterThanOrEqual(4);
+      expect(measured.betweenItems).toBeGreaterThanOrEqual(4);
+    },
+    TIMEOUT,
+  );
+});
+
 describe('the two columns of an operation page', () => {
   it(
     'should give the specification and the runtime equal width',

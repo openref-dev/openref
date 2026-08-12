@@ -29,6 +29,30 @@ export const PARAMETER_LOCATIONS: readonly IRParameterLocation[] = [
   'cookie',
 ];
 
+/**
+ * Parameters in the order a reference shows them: grouped by location, document order within.
+ *
+ * ONE ORDER, NAMED ONCE, BECAUSE TWO SURFACES SHOW THE SAME LIST. The parameter table renders
+ * `OperationView.parameters`, which this constant groups; the try-it console renders
+ * `RunnerOperationView.parameters`, which used to be the document's own order. On the demo the
+ * table read `... perPage, page, sort, createdBefore, createdAfter, X-Request-Id` and the form
+ * under it read `... maxAmount, X-Request-Id, perPage, page, ...`, so the one header parameter
+ * sat in the middle of the query ones and a reader filling the form after reading the table had
+ * to find every field twice.
+ *
+ * THE ORDER THE AUTHOR WROTE SURVIVES INSIDE A LOCATION, which is the half of this that is not
+ * a preference. Grouping moves a parameter only past parameters that are somewhere else, so the
+ * query string the runner builds is unchanged.
+ *
+ * @param parameters - Parameters as the node carries them
+ * @returns The same parameters, grouped
+ */
+export function orderedParameters(parameters: readonly IRParameter[]): readonly IRParameter[] {
+  return PARAMETER_LOCATIONS.flatMap((location) =>
+    parameters.filter((parameter) => parameter.in === location),
+  );
+}
+
 /** A security requirement with its scheme already looked up. */
 export interface ResolvedSecurityRequirement {
   readonly schemeId: string;

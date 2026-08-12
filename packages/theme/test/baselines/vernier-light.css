@@ -88,9 +88,19 @@
 
 .oref-nav,
 .oref-nav-scroll,
-.oref-runtime-item,
 .oref-schema-page {
   display: block;
+}
+
+.oref-runtime-item {
+  align-items: baseline;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 6px;
+}
+
+.oref-runtime-item + .oref-runtime-item {
+  margin-top: 6px;
 }
 
 .oref-nav-list {

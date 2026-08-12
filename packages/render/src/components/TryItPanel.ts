@@ -38,6 +38,19 @@
  * - `disabled`: live, and cannot send. This build carries no runner, or a request is in flight.
  * - neither: live and ready.
  *
+ * AND THE NOTICE BESIDE IT NAMES THE ACTION RATHER THAN PROMISING A STATE, which is the second
+ * half of the same finding and was reported as F14 not being fixed at all. It is fixed, and a
+ * real press on the real demo proves it in `first-minute.spec.ts`. What a reader saw was this
+ * notice: it said the console becomes active once the page is interactive, the page is
+ * interactive a moment after it loads, and the sentence never changed, because what changes it
+ * is this component mounting and this component mounts only when somebody reaches for it. A
+ * permanent excuse beside a control marked unavailable reads as a broken product. SPEC 11.
+ *
+ * AND THE BUTTON IS DESCRIBED BY THAT NOTICE, which is the same sentence for a reader who never
+ * sees it. `aria-disabled` is what keeps the button focusable, so the state the notice explains
+ * is exactly the state a keyboard reader arrives in, and a control announced as unavailable with
+ * the reason sitting in an unassociated sibling is announced without the reason at all.
+ *
  * THE CLICK HANDLER READS THE REFS RATHER THAN THE RENDER IT WAS CREATED IN, and that is load
  * bearing rather than style. The replay dispatches the reader's click from `onMounted`, before
  * the re-render that `mounted.value = true` schedules has flushed, so the listener on the
@@ -57,6 +70,10 @@ import {
   type RunnerSecuritySchemeView,
 } from '@openref/vue';
 import { eventValue, type ValueEvent } from '../shared/dom';
+// THE SAME FUNCTION THE PAGE MODEL AND THE RESPONSE TABLE USE, per `shared/status.ts`. This file
+// carried a second copy taking a number, so a status was classed twice by two pieces of
+// arithmetic that had to agree, and the console's chunk paid for the copy.
+import { statusClass } from '../shared/status';
 
 /** Rows of the body editor, fixed so the control reserves the same height on both sides. */
 const BODY_ROWS = 8;
@@ -65,6 +82,23 @@ const BODY_ROWS = 8;
 function fieldId(nodeId: string, kind: string, name: string): string {
   return `oref-field-${nodeId}-${kind}-${name}`.replace(/[^A-Za-z0-9_-]/g, '-');
 }
+
+/**
+ * Id of the notice beside Send, so the button can point at it.
+ *
+ * THE SENTENCE HAS TO REACH A READER WHO NEVER SEES IT, which is the keyboard half of F14.
+ * `aria-disabled` leaves the button focusable, so it is reachable by tab while the console is
+ * still the server's markup, and a control announced as unavailable with no reason attached is
+ * the same dead end for a screen reader that the old notice was for everybody else. Described
+ * by rather than labelled by: the label is Send, and the notice is what a reader needs after it.
+ *
+ * A CONSTANT RATHER THAN ONE PER NODE, because a page is one operation: the panel is mounted by
+ * the node page for the node it is about, so two consoles cannot share a document. The fields
+ * carry the node id because their ids also have to survive being read back by name, and this one
+ * is only ever pointed at from the element beside it. It is the class's own name, which an id is
+ * allowed to be, and it costs the deferred chunk nothing to build.
+ */
+const NOTICE_ID = 'oref-tryit-notice';
 
 /** Key a typed value is held under, matching what the runner reads. */
 function valueKey(location: string, name: string): string {
@@ -89,12 +123,6 @@ function isRunnableScheme(scheme: RunnerSecuritySchemeView): boolean {
   if (scheme.type === 'apiKey') return scheme.in === 'header' || scheme.in === 'query';
 
   return scheme.type === 'http' && (scheme.scheme ?? '').toLowerCase() === 'bearer';
-}
-
-function statusClass(status: number): string {
-  const first = Math.floor(status / 100);
-
-  return first >= 1 && first <= 5 ? `oref-status-${String(first)}xx` : 'oref-status-default';
 }
 
 function field(label: string, id: string, control: VNode, note: string | null): VNode {
@@ -292,7 +320,7 @@ export const TryItPanel = defineComponent({
         h('div', { class: 'oref-run-summary' }, [
           h(
             'span',
-            { class: `oref-status ${statusClass(result.status)}` },
+            { class: `oref-status ${statusClass(String(result.status))}` },
             `${String(result.status)} ${result.statusText}`.trim(),
           ),
           h('span', { class: 'oref-run-time' }, `${String(Math.round(result.durationMs))} ms`),
@@ -346,6 +374,9 @@ export const TryItPanel = defineComponent({
               // for. Before mount it would take the reader's press away from the gate.
               disabled: mounted.value && (!sendable.value || runner.pending.value),
               'aria-disabled': mounted.value ? null : 'true',
+              // Points at the notice exactly while the notice is drawn, so the description is
+              // never a reference to an element that is not in the document.
+              'aria-describedby': sendable.value ? null : NOTICE_ID,
               onClick: () => {
                 if (!canSend()) return;
 
@@ -358,16 +389,22 @@ export const TryItPanel = defineComponent({
             ? null
             : h(
                 'span',
-                { class: 'oref-tryit-notice' },
-                // Two different states, and only one of them lasts. Before mount the page is
-                // simply not interactive yet. After it, the console is disabled because this
-                // build carries no runner, which is a property of how the reference was
-                // published and not of anything the reader can set. The message says so: a
-                // notice that read as an error or as a missing setting would send a reader
-                // looking for a switch that does not exist.
+                { class: 'oref-tryit-notice', id: NOTICE_ID },
+                // Two different states, and neither of them is a promise about a moment the
+                // reader will not see. Before mount the notice names the action that brings the
+                // console, per SPEC 11: the shell is interactive within a moment of the load, so
+                // "once the page is interactive" was a sentence that stopped being true
+                // immediately and never changed, because what changes it is this component
+                // mounting, and this component mounts only when somebody reaches for it. A
+                // reader who never reached read a permanent excuse beside a control marked
+                // unavailable, and read the product as broken. After mount the console is
+                // disabled because this build carries no runner, which is a property of how the
+                // reference was published and not of anything the reader can set. The message
+                // says so: a notice that read as an error or as a missing setting would send a
+                // reader looking for a switch that does not exist.
                 mounted.value
                   ? 'This build carries no request runner, so the console is read only. The application hosting this reference composes one in.'
-                  : 'The console becomes active once the page is interactive.',
+                  : 'The console loads when you press Send.',
               ),
         ]),
       );

@@ -203,6 +203,25 @@ describe('ReferenceService, specification', () => {
     expect(String(reply.body)).toContain('openapi: 3.1.0');
   });
 
+  it('should serve the keys in the order the author wrote them rather than sorted', async () => {
+    // Given the fixture's `Order`, whose properties are written `id` then `amount`, which is
+    // not the order a sort by code point produces. SPEC 12: canonical form is the hash's tool,
+    // and this route exists to hand back what the author wrote. Serialized canonically, every
+    // schema in the document an SDK generator reads came out alphabetical.
+    const reference = service();
+
+    // When
+    const json = String((await reference.handle('openapi-json', request())).body);
+    const yaml = String((await reference.handle('openapi-yaml', request())).body);
+    const parsed = JSON.parse(json) as {
+      components: { schemas: { Order: { properties: Record<string, unknown> } } };
+    };
+
+    // Then, in both serializations, because the YAML is written from the same parse
+    expect(Object.keys(parsed.components.schemas.Order.properties)).toEqual(['id', 'amount']);
+    expect(yaml.indexOf('id:')).toBeLessThan(yaml.indexOf('amount:'));
+  });
+
   it('should produce the same bytes twice, so a CI job can diff two runs', async () => {
     // Given
     const reference = service();

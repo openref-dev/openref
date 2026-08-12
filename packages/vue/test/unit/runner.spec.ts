@@ -9,6 +9,7 @@ import { renderToString } from 'vue/server-renderer';
 import { describe, expect, it } from 'vitest';
 import {
   createDocState,
+  materializeNode,
   provideDocState,
   provideRunner,
   runnerOperationOf,
@@ -94,6 +95,53 @@ describe('runnerOperationOf', () => {
     expect(run?.path).toBe('/orders');
     expect(run?.servers).toEqual(['https://api.example.com']);
     expect(run?.parameters.map((parameter) => parameter.name)).toEqual(['limit', 'X-Trace']);
+  });
+
+  it('should list parameters in the order the parameter table lists them', () => {
+    // Given an operation whose parameters interleave the locations, which is what the demo's
+    // `List orders` does: one header parameter written among the query ones. The table renders
+    // `materializeNode`, which groups; the console rendered the document's own order, so the
+    // header field sat in the middle of the query fields and a reader filling the form after
+    // reading the table had to find every one of them twice. Found in a browser on the demo.
+    const document = normalizeOpenApiDocument({
+      openapi: '3.1.0',
+      info: { title: 'Interleaved', version: '1.0.0' },
+      paths: {
+        '/orders/{id}': {
+          get: {
+            operationId: 'readOrder',
+            parameters: [
+              { name: 'currency', in: 'query', schema: { type: 'string' } },
+              { name: 'X-Request-Id', in: 'header', schema: { type: 'string' } },
+              { name: 'perPage', in: 'query', schema: { type: 'integer' } },
+              { name: 'id', in: 'path', required: true, schema: { type: 'string' } },
+            ],
+            responses: { '200': { description: 'ok' } },
+          },
+        },
+      },
+    });
+    // The id is the one SPEC 5.1 derives from the method and the path, not the `operationId`.
+    const node = document.nodes.get('get-orders-id');
+    if (node?.kind !== 'operation') throw new Error('the fixture lost its operation');
+
+    // When
+    const run = runnerOperationOf(node, document);
+    const view = materializeNode(node, document);
+    if (view.kind !== 'operation') throw new Error('the fixture lost its operation');
+    const table = [...view.parameters.values()].flat();
+
+    // Then the console and the table read the same list in the same order, and the order the
+    // author wrote is untouched inside a location: `currency` still precedes `perPage`
+    expect(run.parameters.map((parameter) => parameter.name)).toEqual([
+      'id',
+      'currency',
+      'perPage',
+      'X-Request-Id',
+    ]);
+    expect(run.parameters.map((parameter) => parameter.name)).toEqual(
+      table.map((parameter) => parameter.name),
+    );
   });
 
   it('should carry the document servers when the operation overrides none', () => {

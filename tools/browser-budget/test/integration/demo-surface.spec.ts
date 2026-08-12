@@ -238,6 +238,27 @@ describe('the demo application behind that surface', () => {
     expect(body.split('\n')[0]).toBe('sku,quantity,unitAmount');
   });
 
+  it('should say the sentence 401 and 403 share once and not twice', async () => {
+    // Given the operation the defect was reported against. SPEC 6.4 derives 401 and 403 from one
+    // fact, so their `detail` differs by nothing at all, and the block printed it under each of
+    // them: two codes, one explanation, stacked, reading as repetition rather than as two
+    // contracts. Read off the served markup, because that is where a reader met it.
+    const response = await fetch(`${app.url}${EXAMPLE_BASE_PATH}/get-orders`);
+    const html = await response.text();
+    const sentence = 'so it can refuse a caller before the handler runs';
+
+    // When, counted over the rendered markup and not over the whole document: the page also
+    // carries the model it was rendered from, as JSON, and the model is where each contract
+    // rightly keeps its own copy of the field.
+    const markup = html.split('<script type="application/json"')[0] ?? '';
+    const said = markup.split(sentence).length - 1;
+
+    // Then both contracts are still on the page, and the sentence is drawn once
+    expect(markup).toContain('>401<');
+    expect(markup).toContain('>403<');
+    expect(said).toBe(1);
+  });
+
   it('should render a page for every operation, so the README sends nobody to a 404', async () => {
     // Given, the finding that closed M0: a proof measured a route that no longer existed, and a
     // 404 loads nothing, so it passed. A README is the same shape one layer up.

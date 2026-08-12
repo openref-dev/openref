@@ -11,7 +11,7 @@
  * current code would not produce is worse than no cache: nothing about it looks wrong.
  */
 
-import { canonicalize, IR_VERSION, type IRDocument } from '@openref/core';
+import { IR_VERSION, type IRDocument } from '@openref/core';
 import { createSSRApp } from 'vue';
 import { renderToString } from 'vue/server-renderer';
 import type {
@@ -35,7 +35,7 @@ import {
  * Bumped by hand when a change to a component changes the bytes of an unchanged document.
  * It is part of the cache key, so bumping it invalidates every stored page at once.
  */
-export const RENDER_VERSION = 3;
+export const RENDER_VERSION = 4;
 
 /** How one page is rendered. */
 export interface RenderPageOptions {
@@ -91,16 +91,26 @@ async function markdownFor(options: RenderPageOptions): Promise<IMarkdownRendere
 /**
  * Serializes the page model for the client.
  *
- * `canonicalize` rather than `JSON.stringify`, for the same reason hashing uses it: object
- * key order in JavaScript is not the order anything wrote them in, so two runs over one
- * document would otherwise be free to produce different bytes. Identical bytes are what
- * the cache test asserts and what makes a static build reproducible.
+ * KEY ORDER IS PRESERVED, AND `canonicalize` IS THEREFORE THE WRONG TOOL HERE. It sorts keys
+ * by code point, per SPEC 5.3, which is exactly right for a hash and wrong for a payload: the
+ * `properties` object of every schema that travels with a page is authored order, and sorting
+ * it rewrites what the author said. The server draws the schema tree from the model in memory
+ * and the browser draws it from this JSON, so the two disagreed the moment the client rendered
+ * anything: `AddressDto` read `line1, city, postalCode, country, geo` until a reader opened a
+ * position and `city, country, geo, line1, postalCode` afterwards. Found in a browser on the
+ * demo, recorded in SPEC 12.
+ *
+ * DETERMINISM IS STILL HERE AND COMES FROM SOMEWHERE ELSE. A page model is a pure function of
+ * a deterministic IR built by deterministic code, so two runs insert the same keys in the same
+ * order and `JSON.stringify` writes the same bytes. That is what the cache test asserts and
+ * what makes a static build reproducible, and it is asserted over two independently built
+ * models rather than over one model serialized twice, which would pass either way.
  *
  * @param model - The page model
- * @returns Canonical JSON
+ * @returns JSON in the order the model was built in
  */
 export function serializePageModel(model: PageModel): string {
-  return canonicalize(model);
+  return JSON.stringify(model);
 }
 
 /**

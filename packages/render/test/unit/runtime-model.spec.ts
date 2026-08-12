@@ -53,9 +53,12 @@ describe('buildRuntimeModel', () => {
     // When
     const model = buildRuntimeModel(document, NODE, '');
 
-    // Then, one row, and it says so in words rather than being blank
+    // Then, one row, and it says so in words rather than being blank. The words are about the
+    // application and not about the collector, per SPEC 6.4: the value states what the handler
+    // does and the aside names the decorator that changes it.
     expect(model?.rows.map((row) => row.label)).toEqual(['Errors, declared']);
-    expect(model?.rows[0]?.values[0]?.note).toContain('examined');
+    expect(model?.rows[0]?.values[0]?.text).toBe('This handler declares no errors');
+    expect(model?.rows[0]?.values[0]?.note).toContain('@ApiErrors');
   });
 
   it('should leave out an empty derived group and an empty global one', () => {
@@ -82,6 +85,66 @@ describe('buildRuntimeModel', () => {
 
     // Then
     expect(labels).toEqual(['Errors, declared']);
+  });
+
+  it('should show a detail two contracts share once, on the first of them', () => {
+    // Given the pair SPEC 6.4 derives from one fact: 401 and 403 differ by their title and by
+    // nothing else, so the block printed the same sentence twice under two codes and read as a
+    // repetition rather than as two contracts. Found in a browser on the demo.
+    const shared = 'This route is behind ScopesGuard, so it can refuse a caller.';
+    const derived = [401, 403].map((status) => ({
+      status,
+      title: status === 401 ? 'Unauthorized' : 'Forbidden',
+      detail: shared,
+      origin: 'runtime-derived' as const,
+      confidence: 'derived' as const,
+      collector: 'guardsCollector',
+    }));
+    const document = withRuntime(NODE, {
+      errors: { declared: [], runtimeDerived: derived, global: [] },
+    });
+
+    // When
+    const row = buildRuntimeModel(document, NODE, '')?.rows.find(
+      (candidate) => candidate.label === 'Errors, runtime-derived',
+    );
+
+    // Then both contracts are still here, with their own status and their own mark, and the
+    // sentence is on the first of them only
+    expect(row?.values.map((value) => value.status)).toEqual(['401', '403']);
+    expect(row?.values.map((value) => value.code)).toEqual(['DRV', 'DRV']);
+    expect(row?.values.map((value) => value.note)).toEqual([shared, '']);
+  });
+
+  it('should keep a detail that only looks like the one above it', () => {
+    // Given two contracts in one group whose details differ by a word. This is the plant for the
+    // case above: a deduplication that compared anything looser than the whole string would drop
+    // a sentence a reader needs, and nothing else would notice.
+    const document = withRuntime(NODE, {
+      errors: {
+        declared: [],
+        runtimeDerived: [],
+        global: [401, 403].map((status) => ({
+          status,
+          title: status === 401 ? 'Unauthorized' : 'Forbidden',
+          detail: `The caller is ${status === 401 ? 'unknown' : 'known'} to this application.`,
+          origin: 'global' as const,
+          confidence: 'declared' as const,
+          collector: 'errorsCollector',
+        })),
+      },
+    });
+
+    // When
+    const row = buildRuntimeModel(document, NODE, '')?.rows.find(
+      (candidate) => candidate.label === 'Errors, global',
+    );
+
+    // Then
+    expect(row?.values.map((value) => value.note)).toEqual([
+      'The caller is unknown to this application.',
+      'The caller is known to this application.',
+    ]);
   });
 
   it('should carry each fact with the confidence and the collector that produced it', () => {

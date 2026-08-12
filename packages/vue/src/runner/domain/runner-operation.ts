@@ -8,6 +8,7 @@
  */
 
 import type { IRDocument, IROperation } from '@openref/core';
+import { orderedParameters } from '../../state/domain/node-view';
 import type {
   RunnerOperationView,
   RunnerParameterView,
@@ -76,7 +77,10 @@ export function runnerOperationOf(
     nodeId: operation.id,
     method: operation.method,
     path: operation.path,
-    parameters: operation.parameters.map(parameterView),
+    // GROUPED BY LOCATION, WHICH IS THE ORDER THE PARAMETER TABLE ALREADY USED. `orderedParameters`
+    // is the one place that order is written, so the table a reader reads and the form they fill
+    // cannot come to disagree again.
+    parameters: orderedParameters(operation.parameters).map(parameterView),
     servers,
     security: securityViews(operation, document),
     bodyMediaTypes: (operation.requestBody?.content ?? []).map((media) => media.mediaType),

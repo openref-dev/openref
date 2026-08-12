@@ -75,8 +75,9 @@ describe('the navigation route', () => {
     // Then
     expect(reply.status).toBe(200);
     expect(payload.documentHash).toBe(reference.document.hash);
-    // Compared as values rather than as bytes: the reply is canonicalized, per the rule that
-    // everything this project serializes is, so its keys are sorted and the builder's are not.
+    // Compared as values rather than as bytes, which is enough now that the payload is
+    // serialized as constructed: `buildNavigation` is what the route serializes, so a byte
+    // comparison here would be one artefact against itself. SPEC 12.
     expect(payload.navigation).toEqual(buildNavigation(reference.document));
 
     // And every group arrives with its children, which is what the page did not have

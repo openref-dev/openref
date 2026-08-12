@@ -26,7 +26,12 @@ export { createDocState } from './state/domain/doc-state';
 export type { DocState, DocStateOptions } from './state/domain/doc-state';
 export { DOC_STATE_KEY, provideDocState, useDocState } from './state/api/context';
 
-export { materializeNode, PARAMETER_LOCATIONS, resolveSchemaSlot } from './state/domain/node-view';
+export {
+  materializeNode,
+  orderedParameters,
+  PARAMETER_LOCATIONS,
+  resolveSchemaSlot,
+} from './state/domain/node-view';
 export type {
   ChannelView,
   NodeView,

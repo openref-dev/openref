@@ -147,9 +147,25 @@
  * file is what made the duplication visible rather than tidy. */
 .oref-nav,
 .oref-nav-scroll,
-.oref-runtime-item,
 .oref-schema-page {
   display: block;
+}
+
+/* THE PARTS OF A RUNTIME FACT ARE SEPARATED BY THE LAYOUT, NOT BY PUNCTUATION IN THE MODEL. The
+ * row printed `429Too Many RequestsA rate limit of ... DRV`, four spans with nothing between
+ * them, and the block that carries the product's whole argument read as a log line. A separator
+ * written into the server's strings would be design living where a theme cannot reach it, and
+ * this is the design's own gap. It wraps because a detail is a sentence and a mark is three
+ * letters, and they do not belong on one line at every width. */
+.oref-runtime-item {
+  align-items: baseline;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--oref-space-200) var(--oref-space-300);
+}
+
+.oref-runtime-item + .oref-runtime-item {
+  margin-top: var(--oref-space-300);
 }
 
 /*

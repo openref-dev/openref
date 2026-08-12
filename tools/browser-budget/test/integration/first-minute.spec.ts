@@ -40,6 +40,18 @@ let app: SpawnedServer;
 /** The operation page the example serves, which is the one carrying a console. */
 const NODE_PAGE = `${EXAMPLE_BASE_PATH}/get-orders-id`;
 
+/**
+ * The page a reader opens first, which is the collection and not the item.
+ *
+ * IT IS HERE BECAUSE THE PAGE THE PROOF USED WAS NOT THE PAGE THE READER LOOKED AT. F14 was
+ * reported as unfixed on 2026-08-12 and it is fixed; the press was proved on `get-orders-id`,
+ * whose one path parameter is required and empty, so what the case asserts is the runner's
+ * refusal. A refusal proves the click handler ran. It does not prove that a reader who presses
+ * Send on the page they arrived at gets an answer, and `get-orders` needs nothing filled in, so
+ * on that page the same gesture is a whole request. Two pages, two outcomes, one gesture.
+ */
+const LIST_PAGE = `${EXAMPLE_BASE_PATH}/get-orders`;
+
 beforeAll(async () => {
   chrome = await launchChrome();
   app = await bootExampleApp();
@@ -254,6 +266,173 @@ describe('the first minute', () => {
           .poll(() => session.page.locator('.oref-run-error').count(), { timeout: 30_000 })
           .toBe(1);
         expect(await session.page.locator('.oref-run-error').textContent()).toContain('required');
+      } finally {
+        await session.close();
+        expect(session.violations).toEqual([]);
+      }
+    },
+    TIMEOUT,
+  );
+
+  it(
+    'should answer a reader who presses Send on the page they arrived at, with a response',
+    async () => {
+      // Given the collection page, untouched, which is the one the defect was reported against
+      const session = await open(LIST_PAGE);
+
+      try {
+        // Then the notice beside Send names the action rather than promising a state the reader
+        // will never see arrive: the shell is interactive within a moment of the load and this
+        // sentence is removed by the console mounting, which happens only when somebody reaches
+        // for it. SPEC 11.
+        const notice = session.page.locator('.oref-section-tryit .oref-tryit-notice');
+        expect(await notice.textContent()).toBe('The console loads when you press Send.');
+
+        // When they press Send once, with the mouse, as the first gesture on the page
+        await pressWithTheMouse(session.page, '.oref-send');
+
+        // Then the console arrived on that press and sent the request, and the controller
+        // answered. Nothing was filled in, because nothing on this operation is required.
+        await expect
+          .poll(() => session.page.locator('.oref-run-body').count(), { timeout: 30_000 })
+          .toBe(1);
+        expect(
+          await session.page.locator('.oref-run-summary .oref-status').textContent(),
+        ).toContain('200');
+        expect(await session.page.locator('.oref-run-error').count()).toBe(0);
+
+        // And the notice is gone rather than still standing beside a console that is now live
+        expect(await notice.count()).toBe(0);
+      } finally {
+        await session.close();
+        expect(session.violations).toEqual([]);
+      }
+    },
+    TIMEOUT,
+  );
+
+  it(
+    'should give a reader who reaches Send by keyboard the sentence beside it',
+    async () => {
+      // Given the page a reader arrives at, with the chunk plant on, and the second half of F14:
+      // what makes the button focusable while the console is still the server's markup is
+      // `aria-disabled`, so the state the notice explains is exactly the state a keyboard reader
+      // lands in. This is a browser question rather than a tree question, per the standing rule:
+      // whether tab reaches a control carrying `aria-disabled` is decided by the user agent.
+      //
+      // THE PLANT IS WHAT MAKES THE STATE HOLD STILL, and the reason is worth reading. The
+      // console's gate listens for `focusin` as well as for a press, so a reader tabbing towards
+      // Send passes through ten fields and arms the loader on the first of them. Without the
+      // plant this case is a race between the chunk and the remaining tab presses: it asserts the
+      // deferred state on a slow machine and a live console on a fast one, which is a case that
+      // fails for a reason that has nothing to do with what it is about.
+      const session = await open(LIST_PAGE, true);
+
+      try {
+        // When they tab, one press per attempt, until the focus is on Send. THE PRESS AND THE
+        // READING ARE ONE ATTEMPT ON PURPOSE: hydration replaces the element the focus was on,
+        // so a reach asserted in one call and read in the next is a reach that can be true and
+        // gone by the time it is read.
+        let described = 'the keyboard never reached Send';
+
+        for (let press = 0; press < 60; press += 1) {
+          await session.page.keyboard.press('Tab');
+
+          // Then the focused control carries its description, and the description is the notice
+          // itself rather than a second copy of the sentence written for a screen reader, which
+          // would be a string free to drift from the visible one.
+          const state = await session.page.evaluate(() => {
+            // The DOM is described here rather than imported, the way `frame.spec.ts` does it:
+            // this package compiles against Node's libraries and this callback runs in Chrome.
+            interface ElementLike {
+              readonly classList: { contains(name: string): boolean };
+              readonly textContent: string | null;
+              getAttribute(name: string): string | null;
+            }
+            const root = globalThis as unknown as {
+              document: {
+                readonly activeElement: ElementLike | null;
+                getElementById(id: string): ElementLike | null;
+              };
+            };
+
+            const send = root.document.activeElement;
+            if (send?.classList.contains('oref-send') !== true) return null;
+
+            const id = send.getAttribute('aria-describedby') ?? '';
+
+            return root.document.getElementById(id)?.textContent ?? 'no description';
+          });
+
+          if (state !== null) {
+            described = state;
+            break;
+          }
+        }
+
+        expect(described).toBe('The console loads when you press Send.');
+      } finally {
+        await session.close();
+        expect(session.violations).toEqual([]);
+      }
+    },
+    TIMEOUT,
+  );
+
+  it(
+    'should list the console fields in the order the parameter table lists them',
+    async () => {
+      // Given the page with ten parameters, nine of them query and one a header written among
+      // them. The table groups by location and the form used to follow the document, so the
+      // header field sat in the middle of the query fields.
+      const session = await open(LIST_PAGE);
+
+      try {
+        await reachForTheConsole(session.page);
+        await expect
+          .poll(() => session.page.locator('.oref-send').isDisabled(), { timeout: 30_000 })
+          .toBe(false);
+
+        // When the two lists are read off the page
+        const table = await session.page.locator('.oref-param-name code').allTextContents();
+        const form = await session.page
+          .locator('.oref-tryit-form .oref-field-label')
+          .allTextContents();
+
+        // Then they are one order. `Server` is the console's own field and is not a parameter.
+        expect(table.length).toBeGreaterThan(1);
+        expect(form.filter((label) => label !== 'Server')).toEqual(table);
+      } finally {
+        await session.close();
+        expect(session.violations).toEqual([]);
+      }
+    },
+    TIMEOUT,
+  );
+
+  it(
+    'should keep a schema in the order its author wrote it when a reader expands one',
+    async () => {
+      // Given the schema page for an address, whose fields are in the order an address reads.
+      // The server draws the tree from the model in memory and the browser draws it from the
+      // page's JSON, so a payload with its keys sorted makes the tree reorder itself under a
+      // reader who opens a position, and the order it reorders into is alphabetical. Only a
+      // browser can fail this: the server markup is right either way.
+      const session = await open(`${EXAMPLE_BASE_PATH}/schema/AddressDto`);
+      const authored = ['AddressDto', 'line1', 'city', 'postalCode', 'country', 'geo'];
+      const names = (): Promise<string[]> =>
+        session.page.locator('.oref-schema-name').allTextContents();
+
+      try {
+        // Then the served markup is the author's order
+        expect(await names()).toEqual(authored);
+
+        // When the reader opens a position, which is the first client render of the tree
+        await session.page.locator('.oref-schema-row[data-oref-path="AddressDto/geo"]').click();
+        await session.page.waitForTimeout(500);
+
+        // Then the five fields are still in the order the author wrote them
+        expect((await names()).slice(0, authored.length)).toEqual(authored);
       } finally {
         await session.close();
         expect(session.violations).toEqual([]);
