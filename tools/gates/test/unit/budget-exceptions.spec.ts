@@ -239,21 +239,48 @@ describe('the committed exception list', () => {
     expect(unknown).toEqual([]);
   });
 
-  it('should be empty, with the one entry it ever held kept in the history', () => {
-    // Given, `tti` was the only entry ever written. It closed on 2026-08-10 because SPEC 20
-    // stopped gating elapsed time, which is neither a debt paid nor a debt dropped, and the
-    // record is what keeps those three apart. The served document was named alongside it when
-    // the list was asked for and never entered it: it measures 29.0 KB against 64 KB, and
-    // listing a budget that passes would record a debt that does not exist.
+  it('should hold one live entry and the one that closed, and confuse neither for the other', () => {
+    // Given two entries written a day apart and ended differently. `tti` was the first and it
+    // closed on 2026-08-10 because SPEC 20 stopped gating elapsed time, which is neither a debt
+    // paid nor a debt dropped, and the record is what keeps those three apart. `page-bytes` is
+    // the second, live since 2026-08-11: T020 through T023 took the page to 199,612 bytes
+    // against 198,656 on the same input, so the cap stayed and the debt got a name. The served
+    // document was named alongside `tti` when the list was first asked for and has never
+    // entered either, because listing a budget that passes records a debt that does not exist.
+    const live = BUDGET_EXCEPTIONS.map((entry) => entry.budget);
     const closed = BUDGET_EXCEPTION_HISTORY.map((entry) => entry.budget);
 
     // When
-    const servedDocument = closed.includes('served-document');
+    const servedDocument = [...live, ...closed].includes('served-document');
+    const pageBytes = BUDGET_EXCEPTIONS.find((entry) => entry.budget === 'page-bytes');
 
     // Then
-    expect(BUDGET_EXCEPTIONS).toEqual([]);
+    expect(live).toEqual(['page-bytes']);
     expect(closed).toEqual(['tti']);
     expect(servedDocument).toBe(false);
+
+    // And the terms, which are what make it an exception rather than a raised threshold. The
+    // owner is a task the plan carries and the expiry is a milestone that has not closed, both
+    // of which `checkBudgetExceptions` enforces against the real files; what is pinned here is
+    // that they are the ones the maintainer decided on.
+    expect(pageBytes?.owners).toEqual(['T012-R4']);
+    expect(pageBytes?.clearBy).toBe('M2');
+  });
+
+  it('should say in the entry itself that the six marks are not what pays it back', () => {
+    // Given the failure mode this entry is one step away from: 1,224 of the 1,716 bytes the
+    // stylesheet grew are the six rules that give provenance and severity an edge style, so the
+    // cheapest kilobyte on the page is the one that makes the levels of SPEC 6.1 and SPEC 7.2
+    // legible with no colour seen at all. An entry that recorded only the number would read to
+    // the next person as an instruction to find bytes wherever they are cheapest.
+    const entry = BUDGET_EXCEPTIONS.find((budget) => budget.budget === 'page-bytes');
+
+    // When
+    const line = entry === undefined ? '' : describeException(entry);
+
+    // Then
+    expect(line).toContain('1,224');
+    expect(line).toContain('not an instruction to delete them');
   });
 
   it('should describe the closed entry with its figure and the reason it ended', () => {

@@ -650,6 +650,18 @@ export const BROWSER_STUDY_WORKFLOW = '.github/workflows/browser-budget-study.ym
  * commit measures 195,783 bytes on the new input and 160,070 on the old one, and the new input
  * is the one SPEC 20 now states and a test holds. Re-derived by the same rule as before, from
  * the new measurement, with the same two regressions named.
+ *
+ * IT IS OVER SINCE 2026-08-11 AND IT STAYS AT 194 KB, which is the whole point of the sentence
+ * above being written before the budget was ever exceeded. T020 through T023 took the record to
+ * 199,612 bytes on the same input, so the headroom of 2,531 is now a deficit of 956, and the
+ * number here did not move. The debt is an entry in `BUDGET_EXCEPTIONS` below, owned by T012-R4
+ * and due to clear by M2, and the budgets gate prints the failure on every run.
+ *
+ * `longTaskCount` STAYS AT 2 AND HAS NO ROOM LEFT, recorded here because a count with no
+ * headroom is one change away from a red build and nothing else in this file would say so. The
+ * six studies of 2026-08-12 read 2, 2, 2, 0, 1 and 2 against a cap of 2, where the same page
+ * without the runtime block read 1. Nothing is over, so there is no entry: an exception for a
+ * budget that is inside its limit fails the staleness rule, and rightly.
  */
 export const BROWSER_CEILINGS = {
   peakHeapBytes: 250 * 1024 * 1024,
@@ -678,8 +690,26 @@ export const BROWSER_CEILINGS = {
  * have, a milestone that closes while the entry is still here, or a budget that is inside its
  * limit again all fail the build.
  *
- * THE LIST IS EMPTY TODAY AND THAT IS NOT THE SAME AS NEVER HAVING HELD ANYTHING. Its one entry
- * is in `BUDGET_EXCEPTION_HISTORY` below, with the reason it closed.
+ * THE LIST HOLDS ONE ENTRY, FILED 2026-08-11 AT THE CLOSE OF T023, and it is the second this
+ * repository has written. The first is in `BUDGET_EXCEPTION_HISTORY` below, with the reason it
+ * closed.
+ *
+ * WHY AN ENTRY AND NOT A RECOMPUTED CAP, since `page-bytes` was recomputed once already and the
+ * two moves look alike from a distance. The direction is what tells them apart. In T016 the
+ * INPUT changed: a fixture of one repeated description was replaced by one a real reference
+ * resembles, the served document went from 29,682 bytes to 65,326 with no product code touched,
+ * and a cap left where it was would have been red on the honest measurement of a page that had
+ * not got worse. Here the ARTEFACT changed: the input is the same document, and the page grew
+ * 3,487 bytes because it now carries the runtime block and the Health panel. Recomputing the cap
+ * to fit a heavier page is loosening a threshold under a result, which is the move ABSOLUTE RULE
+ * 3 names and the one this repository breaks most often.
+ *
+ * WHY NOT A NARROWER PANEL EITHER, which was the third option and is the worst of the three.
+ * 1,224 of the 1,716 bytes the stylesheet grew are six rules that give provenance and severity an
+ * edge style, so that the three confidence levels of SPEC 6.1 and the three severities of SPEC
+ * 7.2 are legible with no colour seen at all. Cutting them buys the kilobyte by taking the
+ * accessibility claim the whole runtime surface rests on. The entry below says so, and T012-R4
+ * says it again in the words of the fix.
  *
  * WHAT WAS DELIBERATELY NEVER HERE: `served-document`. It was named alongside `tti` when this
  * list was asked for, and it measures 63.8 KB against 72 KB. Listing a budget that passes would
@@ -694,7 +724,33 @@ export const BROWSER_CEILINGS = {
  * corpus documents put a thousand index records between 67 and 84 KB gzip. An entry here would
  * have recorded a debt that does not exist, and the staleness rule would have failed for it.
  */
-export const BUDGET_EXCEPTIONS: readonly BudgetException[] = [];
+export const BUDGET_EXCEPTIONS: readonly BudgetException[] = [
+  {
+    budget: 'page-bytes',
+    measured: '199,612 bytes, 194.9 KB, over by 956',
+    target: '194 KB, 198,656 bytes',
+    owners: ['T012-R4'],
+    clearBy: 'M2',
+    recordedAt: '2026-08-11',
+    diagnosis:
+      'Measured on the runner at commit f457f52, and the same three columns came back identical ' +
+      'to the byte on six studies across two dispatches, three processors and a workstation: ' +
+      '65,234 document, 34,304 CSS, 100,074 JS. Against the record it replaces the page grew ' +
+      '3,487 bytes, CSS up 1,698 and JS up 1,881 while the document fell 92, and what it gained ' +
+      'is the runtime block and the Health panel of T023. THE CHEAP BYTES WERE ALREADY SPENT ' +
+      'BEFORE THIS WAS FILED: the block is one list of labelled rows rather than five shapes, ' +
+      'worth 1.4 KB of the first paint for the same information; every branch that could move to ' +
+      'the server did; the panel is behind a dynamic import gated on the one page in a thousand ' +
+      'that draws it; and seven pairs of rules in theme.css with identical bodies became one rule ' +
+      'each, which is 787 of the bytes. WHAT IS LEFT COSTS THE FEATURE: 1,224 of the 1,716 bytes ' +
+      'the stylesheet grew are the six rules that give provenance and severity an edge style, ' +
+      'which is how the levels of SPEC 6.1 and SPEC 7.2 are told apart with no colour seen at ' +
+      'all. This entry is not an instruction to delete them and T012-R4 states the same in its ' +
+      'own terms. It clears by M2 because T031 and T032 rework the theme surface, and a second ' +
+      'theme is the first thing that can answer whether a level can be carried by fewer ' +
+      'declarations without losing what the declarations do.',
+  },
+];
 
 /**
  * Exceptions that are closed, kept with the reason they closed.

@@ -1,17 +1,17 @@
 {
-  "recordedAt": "2026-08-11",
-  "commit": "fc3c295b666ab2703163c1996aeb12a6211fe947",
-  "note": "RE-RECORDED BECAUSE THE INPUT CHANGED, NOT BECAUSE THE PRODUCT DID. T016 finding F10: every thousand node budget was taken on a fixture carrying one description of four words repeated a thousand times and one schema, and the replacement carries what the three largest corpus documents measure, 1.75 schemas per operation and 217,058 words over a vocabulary of 10,355. The served document is 65,326 bytes against 29,682 before, and none of that is a regression: it is prose the old fixture did not have. TWO OTHER COLUMNS MOVED FOR THEIR OWN REASONS, both small and both named here so a later reader does not attribute them to the fixture: the JS is up 69 bytes because the record this replaces predates the T016 fixes to core, and the CSS is up 342 because F13 added the bidirectional isolation rule to the theme. WHAT DID NOT MOVE IS THE PART THAT CARRIES A THRESHOLD: the three byte columns were identical to the byte across 75 navigations, and the long task count read 1, 2 and 1 across the three studies, at or under the cap of 2 on every one. Two of these figures are gated and two are not, and which is which is a measurement rather than a preference: wall clock TTI and total main thread task time move with the processor a shared pool hands out, by about a quarter of their medians, so SPEC 20 records both and gates neither. THE THREE STUDIES OF THIS RUN: 217.7 ms on an AMD EPYC 9V74, 274.9 on an AMD EPYC 7763 and 210.0 on an Intel Xeon 6973P-C, all Chrome 150.0.7871.128 at a measured throttle of about 4.2x, which is a spread of 30 percent of the median across three machines in one dispatch. The line recorded here is the first of them. The runner CPU is not fixed within one image, so re-recording against a study taken on another processor compares nothing.",
+  "recordedAt": "2026-08-12",
+  "commit": "f457f523bec1eba72eca3b4cf7629f337a4652ff",
+  "note": "RE-RECORDED BECAUSE THE PRODUCT CHANGED, WHICH IS THE OPPOSITE OF WHY THE LAST ONE WAS. The record this replaces predated T020 through T023, so `pnpm gates` was green on a page that no longer exists: the runtime block and the Health panel are not in it. A budget passing because its baseline predates the work is a check with no subject. THE PAGE IS OVER `page-bytes` AND THE CAP DID NOT MOVE. 199,612 bytes against 198,656, over by 956, and the debt is an entry in `BUDGET_EXCEPTIONS` in tools/gates/src/config.ts, owned by T012-R4 and due to clear by M2. Raising the cap to fit was refused, for the reason that makes the last raise legitimate and this one not: in T016 the input changed and the artefact did not, here the artefact changed and the input did not. THE THREE BYTE COLUMNS WERE MEASURED SIX TIMES AND ARE IDENTICAL TO THE BYTE ON ALL SIX, across two dispatches, three processors and a workstation: 65,234 document, 34,304 CSS, 100,074 JS. That is the property this class of figure has and the reason it is the one that carries a threshold. Against the record it replaces the page grew 3,487 bytes: CSS up 1,698, JS up 1,881, and the document down 92. WHICH STUDY THIS IS, BY A RULE SET BEFORE THE NUMBERS WERE READ: of the three studies of the second dispatch it is the one taken on the AMD EPYC 9V74, the same processor model the record it replaces names, so the wall clock line stays comparable with what it replaces. That is the rule T015-R1 used, for the same reason. LONG TASKS ARE AT THEIR CAP AND THE RECORDED LINE UNDERSTATES IT, said here rather than left to a median. The six studies read 2, 2, 2, 0, 1 and 2; this one reads 1. The cap is 2, nothing is over it, and there is no headroom left in a count whose smallest step is one. The record this replaces read 1 on a page that had no runtime block. TWO THINGS MOVED AT ONCE AND NEITHER CAN BE GIVEN THE CREDIT: the page gained 3,487 bytes and the runner image moved Chrome from 150 to 151 between the two records, so the wall clock going 217.7 to 297.6 ms and the main thread task time 220.1 to 308.3 on one processor model is not attributable to either alone. Both are recorded and gated by nothing, per SPEC 20, precisely so that a figure this unstable cannot stop a build. The other two studies of this dispatch read 241.6 ms on an Intel Xeon under Chrome 151 and 279.4 on an EPYC 7763 under Chrome 150. THE CHROME MAJOR MOVING IS ITSELF WHY THE RELATIVE CHECK IS SUPPRESSED against the old record, and this record re-establishes it at 151.",
   "environment": {
     "id": "github-actions/ubuntu24/X64",
     "label": "GitHub Actions runner, image ubuntu24, X64",
     "cpuModel": "AMD EPYC 9V74 80-Core Processor",
     "cpuCount": 4,
-    "totalMemoryBytes": 16766423040
+    "totalMemoryBytes": 16766410752
   },
   "browser": {
-    "version": "150.0.7871.128",
-    "major": 150
+    "version": "151.0.7922.108",
+    "major": 151
   },
   "chromeArgs": [
     "--no-sandbox",
@@ -25,51 +25,51 @@
   "throttleRate": 4,
   "throttleRatio": {
     "samples": 25,
-    "median": 4.15,
-    "min": 4.11,
-    "max": 4.27,
-    "standardDeviation": 0.03
+    "median": 4.24,
+    "min": 4.17,
+    "max": 4.53,
+    "standardDeviation": 0.09
   },
   "ttiMs": {
     "samples": 25,
-    "median": 217.7,
-    "min": 169.6,
-    "max": 237.5,
-    "standardDeviation": 18.6
+    "median": 297.6,
+    "min": 226.4,
+    "max": 363.5,
+    "standardDeviation": 43.2
   },
   "ttiPhaseMs": {
-    "transfer": 1.3,
-    "parse": 119.2,
-    "script": 96.7,
-    "firstContentfulPaint": 148.0
+    "transfer": 1.0,
+    "parse": 160.4,
+    "script": 133.0,
+    "firstContentfulPaint": 208.0
   },
   "mainThreadMs": {
     "samples": 25,
-    "median": 220.1,
-    "min": 197.5,
-    "max": 242.5,
-    "standardDeviation": 12.1
+    "median": 308.3,
+    "min": 270.1,
+    "max": 372.8,
+    "standardDeviation": 27.9
   },
   "longTaskCount": {
     "samples": 25,
     "median": 1,
     "min": 1,
-    "max": 2,
-    "standardDeviation": 0.4
+    "max": 1,
+    "standardDeviation": 0
   },
   "parsedBytes": {
-    "documentBytes": 65326,
-    "cssBytes": 32606,
-    "jsBytes": 98193
+    "documentBytes": 65234,
+    "cssBytes": 34304,
+    "jsBytes": 100074
   },
   "peakHeapBytes": {
     "samples": 5,
-    "median": 3380763,
-    "min": 3373647,
-    "max": 3386952,
-    "standardDeviation": 5035
+    "median": 3379653,
+    "min": 3375245,
+    "max": 3385097,
+    "standardDeviation": 4367
   },
   "externalRequests": 0,
   "cspViolations": 0,
-  "overBudget": []
+  "overBudget": ["page-bytes"]
 }

@@ -505,20 +505,28 @@ describe('budgetsGate, the three font budgets', () => {
 });
 
 describe('budgetExceptionsGate', () => {
-  it('should pass on an empty list and still print what the list used to hold', async () => {
-    // Given, the list is empty since 2026-08-10 and its one entry is in the history. An entry
-    // that simply vanished would leave a reader unable to tell a debt that was paid from a debt
-    // somebody stopped counting, and this one was neither.
+  it('should pass on a sound list and print the live debt beside the one that closed', async () => {
+    // Given one entry live since 2026-08-11 and one closed on 2026-08-10. Both are printed on
+    // every run and neither is allowed to read as the other: an entry that simply vanished would
+    // leave a reader unable to tell a debt that was paid from a debt somebody stopped counting,
+    // and the one that closed was neither.
     const context = { repoRoot };
 
     // When
     const result = await budgetExceptionsGate.run(context);
     const printed = result.findings.map((finding) => finding.message).join('\n');
 
-    // Then
+    // Then, sound terms are a pass. The budget is still over and the budgets gate still says so.
     expect(result.findings.filter((finding) => finding.level === 'error')).toEqual([]);
     expect(result.status).toBe('pass');
-    expect(printed).toContain('no budget is excepted');
+
+    // And the live entry names its figure, its owner and its expiry on the line, because a debt
+    // that is out of sight is a raised threshold with extra steps.
+    expect(printed).toContain('EXCEPTED page-bytes');
+    expect(printed).toContain('owned by T012-R4');
+    expect(printed).toContain('must clear by M2');
+
+    // And the closed one is still there with the reason it ended.
     expect(printed).toContain('CLOSED tti');
     expect(printed).toContain('NO LONGER EXISTS IN GATED FORM');
   }, 180_000);
@@ -534,9 +542,12 @@ describe('budgetExceptionsGate', () => {
     expect(order[position - 1]).toBe(budgetsGate.id);
   });
 
-  it('should have nothing for the budgets gate to except, and no budget over', async () => {
-    // Given, the state the closure rests on: with an empty list, an over budget stops the build
-    // again, so a budget that is over and unexcused cannot hide behind this gate passing.
+  it('should print every budget that is over, and except only the one that has terms', async () => {
+    // Given the state after T023: exactly one budget is over, it has an entry, and the entry is
+    // what keeps the build moving. What must stay true is that the excusing is one to one. A
+    // second budget going over would not be covered by this entry, would print without the
+    // EXCEPTED half and would fail the gate, which is the property that makes an exception a
+    // named debt rather than a hole.
     const context = { repoRoot };
 
     // When
@@ -547,8 +558,12 @@ describe('budgetExceptionsGate', () => {
     );
 
     // Then
-    expect(BUDGET_EXCEPTIONS).toEqual([]);
-    expect(over).toEqual([]);
+    expect(BUDGET_EXCEPTIONS.map((entry) => entry.budget)).toEqual(['page-bytes']);
+    expect(over).toHaveLength(1);
+    expect(over[0]?.level).toBe('warning');
+    expect(over[0]?.message).toContain('OVER BUDGET, EXCEPTED page-bytes');
+    expect(over[0]?.message).toContain('199612 bytes against 198656');
+    expect(over[0]?.message).toContain('Owned by T012-R4, must clear by M2');
     expect(result.status).toBe('pass');
     // And the two rows SPEC 20 records without gating say so on the line, because a printed
     // figure that reads like a checked one is the defect class SPEC 0 names.
@@ -620,24 +635,30 @@ describe('budgetExceptionsGate', () => {
     expect(issues[0]?.message).toContain('T011-R');
   });
 
-  it('should hold M0 to the two counts that replaced the entry', async () => {
-    // Given the exit condition as it stands after the closure: nothing is excused, so M0 closes
-    // only if `long-tasks` and `page-bytes` are inside their caps on the committed record.
+  it('should print the two counts M0 exited on, and say which of them has since gone over', async () => {
+    // Given the exit condition M0 closed against: `long-tasks` and `page-bytes` inside their
+    // caps on a study taken on the runner, both true on 2026-08-11 when T016 was ticked. ONE OF
+    // THEM IS NO LONGER TRUE and that does not reopen M0: T023 took the page over `page-bytes`,
+    // the debt was filed with an owner and an expiry of M2, and an entry expiring at a later
+    // milestone is exactly what the T016 clause allows. What this pins is that the figures are
+    // still read from the record and printed on every run, which is what the exit rested on.
     const context = { repoRoot };
 
     // When
     const result = await budgetsGate.run(context);
     const lines = result.findings.map((finding) => finding.message);
 
-    // Then
+    // Then the count is inside its cap, with nothing left over: four of the six studies of
+    // 2026-08-12 read 2 against a cap of 2, and the recorded one reads 1.
     expect(
       lines.some((line) =>
         line.startsWith('MEASURED long-tasks: 1 of 2, as a median of 25 navigations'),
       ),
     ).toBe(true);
-    expect(
-      lines.some((line) => line.startsWith('MEASURED page-bytes: 191.5 KB raw of 194 KB')),
-    ).toBe(true);
+
+    // And the bytes are over, printed as over, and printed with the terms rather than quietly.
+    expect(lines.some((line) => line.startsWith('OVER BUDGET, EXCEPTED page-bytes'))).toBe(true);
+    expect(lines.some((line) => line.startsWith('MEASURED page-bytes'))).toBe(false);
   }, 180_000);
 });
 
@@ -670,17 +691,24 @@ describe('the gates that read ai-docs', () => {
       expect(result.findings[0]?.message).toContain("AWAITING THE MAINTAINER'S DECISION");
     }
 
-    // And the fourth: with an empty list it needs no plan to validate, so it passes on a
-    // checkout with no ai-docs rather than skipping. What it still does there is check the
-    // record of what closed, which depends on nothing outside this package.
+    // And the fourth, which is conditional on more than the cause. With an entry live it has
+    // terms to validate and no plan to validate them against, so it skips there too, and it says
+    // UNVALIDATED rather than printing the entry as if it had been checked. With an empty list
+    // it needs no plan and passes, which is why `budget-exceptions` is permitted this reason and
+    // not forced by it.
     const empty = mkdtempSync(join(tmpdir(), 'openref-nodocs-'));
     const exceptions = await budgetExceptionsGate.run({ repoRoot: empty });
     rmSync(empty, { recursive: true, force: true });
+    const printed = exceptions.findings.map((finding) => finding.message).join('\n');
 
-    expect(exceptions.status).toBe('pass');
-    expect(exceptions.findings.map((finding) => finding.message).join('\n')).toContain(
-      'CLOSED tti',
-    );
+    expect(exceptions.status).toBe('skip');
+    expect(exceptions.skipReason).toBe('ai-docs-absent');
+    expect(printed).toContain('UNVALIDATED page-bytes');
+
+    // And the record of what closed is still printed and still checked, because neither depends
+    // on a document outside this package. It was dropped on this branch until 2026-08-11, when
+    // the first entry since `tti` made the branch reachable and the omission visible.
+    expect(printed).toContain('CLOSED tti');
   }, 180_000);
 
   it('should go on failing on a missing document when the directory is there', async () => {

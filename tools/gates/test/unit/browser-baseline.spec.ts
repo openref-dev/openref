@@ -421,33 +421,36 @@ describe('the committed baseline', () => {
     expect(recordedFigure(record, 'prerender')).toBeNull();
   });
 
-  it('should hold the figures the three gated caps were derived from', () => {
+  it('should hold the figures the three gated caps are judged against', () => {
     // Given, so the derivation in `config.ts` is checked against the record rather than
-    // remembered. Re-derived on 2026-08-11 from the representative input of T016 finding F10:
-    // the same commit measures 196,125 bytes on it and 160,070 on the fixture it replaced, and
-    // the difference is prose the old one did not have rather than a change to the product.
+    // remembered. The cap was derived on 2026-08-11 from the representative input of T016
+    // finding F10, at 196,125 bytes with 2,531 of headroom. THE HEADROOM IS GONE AND THE CAP HAS
+    // NOT MOVED: T020 through T023 took the record to 199,612 on the same input, so what this
+    // now pins is a deficit rather than a margin, and the deficit is what `BUDGET_EXCEPTIONS`
+    // carries. A cap recomputed to restore the margin would be the forbidden move, because here
+    // the artefact changed and the input did not.
     const { baseline: record } = readBrowserBaseline(repoRoot);
     if (record === null) throw new Error('no baseline');
 
     // When
     const bytes = pageBytesOf(record.parsedBytes);
 
-    // Then, 196,125 with 2,531 of headroom, which is more than a navigation sized addition of
-    // 2,520 and less than a page frame sized one of 3,287
-    expect(bytes).toBe(196_125);
-    expect(BROWSER_CEILINGS.pageBytes - bytes).toBe(2_531);
+    // Then, 199,612 against 198,656, over by 956, measured identically to the byte on six
+    // studies across two dispatches, three processors and a workstation
+    expect(bytes).toBe(199_612);
+    expect(BROWSER_CEILINGS.pageBytes - bytes).toBe(-956);
 
-    // And the served document, 65,326 with 8,402 of headroom. It is derived loosely on purpose:
+    // And the served document, 65,234 with 8,494 of headroom. It is derived loosely on purpose:
     // the regression it exists to catch is the navigation blob returning, and this document's
     // is 546,162 bytes, so a fifth of it fails this cap twice over.
-    expect(record.parsedBytes.documentBytes).toBe(65_326);
-    expect(BROWSER_CEILINGS.servedDocumentBytes - record.parsedBytes.documentBytes).toBe(8_402);
+    expect(record.parsedBytes.documentBytes).toBe(65_234);
+    expect(BROWSER_CEILINGS.servedDocumentBytes - record.parsedBytes.documentBytes).toBe(8_494);
 
-    // And the count that did not move when the page doubled. It is pinned to what the record
-    // says and checked against the cap, rather than asserted equal to it: the two were the same
-    // number until 2026-08-11 by coincidence, and reading that coincidence as the contract would
-    // fail the build for a page that got better. The cap stays at 2 because the three studies of
-    // the representative page read 1, 2 and 1, so 2 is still what this page does on a bad run.
+    // And the count that has run out of room without going over. It is pinned to what the record
+    // says and checked against the cap, rather than asserted equal to it: the two have been the
+    // same number and have been different, and reading either as the contract would fail the
+    // build for a page that got better. The recorded study reads 1, and the note says what a
+    // median hides, which is that four of the six studies read 2 against a cap of 2.
     expect(record.longTaskCount.median).toBe(1);
     expect(record.longTaskCount.max).toBeLessThanOrEqual(BROWSER_CEILINGS.longTaskCount);
   });

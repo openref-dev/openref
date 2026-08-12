@@ -79,13 +79,31 @@ export const budgetExceptionsGate: Gate = {
     // THRESHOLD. Owners and milestones are read out of BUILD.md and the amendments, both of
     // which live in `ai-docs/`. Where that is absent this gate reports what it could not check
     // rather than waving the entries through, and the budgets gate goes on printing them.
+    //
+    // THE HALF THAT NEEDS NO PLAN STILL RUNS HERE, and it did not until 2026-08-11. The history
+    // is checked against the live list and against SPEC 20's budget ids, neither of which is in
+    // `ai-docs/`, so skipping it was skipping a check that had everything it needed. It was
+    // invisible for as long as the live list was empty, because the branch above returns first,
+    // and the first entry written since made it reachable. A history problem fails here rather
+    // than being reported as a skip: what could not be checked is the terms, not the record.
     if (!aiDocsPresent(context.repoRoot)) {
+      const historyIssues = checkExceptionHistory(
+        BUDGET_EXCEPTION_HISTORY,
+        BUDGET_EXCEPTIONS,
+        SPEC_20_BUDGET_IDS,
+      );
+
       return Promise.resolve({
         id: budgetExceptionsGate.id,
         title: budgetExceptionsGate.title,
-        status: 'skip',
-        skipReason: 'ai-docs-absent',
+        ...(historyIssues.length === 0
+          ? { status: 'skip' as const, skipReason: 'ai-docs-absent' as const }
+          : { status: 'fail' as const }),
         findings: [
+          ...historyIssues.map((issue) => ({
+            level: 'error' as const,
+            message: `[${issue.rule}] ${issue.message}`,
+          })),
           {
             level: 'warning',
             message: aiDocsAbsentMessage(budgetExceptionsGate.title, [
@@ -97,6 +115,7 @@ export const budgetExceptionsGate: Gate = {
             level: 'warning' as const,
             message: `UNVALIDATED ${describeException(entry)}`,
           })),
+          ...closed,
         ],
       });
     }
