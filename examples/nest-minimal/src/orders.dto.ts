@@ -215,3 +215,21 @@ export class ProblemDto {
   })
   detail!: string;
 }
+
+/**
+ * One event on the order stream.
+ *
+ * IT EXISTS BECAUSE A STREAM CANNOT SAY WHAT IT CARRIES BY ITSELF. `Observable<MessageEvent<
+ * OrderEventDto>>` is `Observable` once TypeScript has compiled, so the item type of the SSE route
+ * is declared with `@ApiStream({ itemType: OrderEventDto })` and read from there, per SPEC 13.6.
+ */
+export class OrderEventDto {
+  @ApiProperty({ description: 'What happened.', example: 'order.shipped' })
+  type!: string;
+
+  @ApiProperty({ description: 'Which order it happened to.', example: 'ord_1024' })
+  orderId!: string;
+
+  @ApiProperty({ description: 'When, as an RFC 3339 timestamp.' })
+  at!: string;
+}

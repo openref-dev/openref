@@ -102,6 +102,77 @@ export type {
 export { readGuards } from './runtime/domain/guards';
 export type { GuardReading } from './runtime/domain/guards';
 
+// The decorators of SPEC 13.4 and the two collectors that read them, built in T020. These are the
+// `declared` level of SPEC 6.1: what a person wrote down in order to document the endpoint.
+export {
+  ApiAudience,
+  ApiErrors,
+  ApiExample,
+  ApiSample,
+  ApiScopes,
+  ApiStream,
+} from './api/decorators/api-decorators';
+export type {
+  ApiExampleOptions,
+  ApiSampleOptions,
+  ApiStreamKind,
+  ApiStreamOptions,
+} from './api/decorators/api-decorators';
+export {
+  OPENREF_EXTENSIONS,
+  OPENREF_METADATA,
+  OPENREF_STREAM_ITEM_METADATA,
+} from './api/decorators/metadata';
+export type { OpenRefDecorator } from './api/decorators/metadata';
+export {
+  declarationsCollector,
+  DECLARATIONS_COLLECTOR_NAME,
+} from './runtime/infrastructure/collectors/declarations.collector';
+export type {
+  DeclarationsCollector,
+  DeclarationsCollectorProblem,
+} from './runtime/infrastructure/collectors/declarations.collector';
+export {
+  streamCollector,
+  STREAM_COLLECTOR_NAME,
+} from './runtime/infrastructure/collectors/stream.collector';
+export type {
+  StreamCollector,
+  StreamCollectorProblem,
+  StreamItemSource,
+} from './runtime/infrastructure/collectors/stream.collector';
+
+// The error contracts of SPEC 6.4, built in T021. The collector builds the two groups a person
+// writes; the third is derived after the merge by `withRuntimeErrorContracts` in `core`.
+export {
+  errorsCollector,
+  ERRORS_COLLECTOR_NAME,
+} from './runtime/infrastructure/collectors/errors.collector';
+export type {
+  ErrorCatalog,
+  ErrorCatalogEntry,
+  ErrorsCollector,
+  ErrorsCollectorOptions,
+  ErrorsCollectorProblem,
+} from './runtime/infrastructure/collectors/errors.collector';
+
+// The generic factories of SPEC 13.5, and the registry their bodies live in until the document
+// takes them at intake.
+export { envelope, paginated } from './schemas/api/generics';
+export type {
+  EnvelopeOptions,
+  SchemaReference,
+  SyntheticSchemaOptions,
+} from './schemas/api/generics';
+export {
+  mergeSyntheticSchemas,
+  schemaNameOf,
+  schemaRef,
+  syntheticSchemas,
+  SyntheticSchemaRegistry,
+} from './schemas/domain/synthetic-schemas';
+export type { SchemaBody, SchemaClass, SyntheticSchema } from './schemas/domain/synthetic-schemas';
+
 export {
   closeFunctionLocator,
   locateFunction,
@@ -224,5 +295,10 @@ export type {
   CollectorRegistryOptions,
   CollectorTarget,
 } from './runtime/application/services/collector-registry.service';
-export { FACT_FIELDS, LIST_FIELDS, mergeContributions } from './runtime/domain/merge';
+export {
+  FACT_FIELDS,
+  GROUPED_FIELDS,
+  LIST_FIELDS,
+  mergeContributions,
+} from './runtime/domain/merge';
 export type { Contribution } from './runtime/domain/merge';

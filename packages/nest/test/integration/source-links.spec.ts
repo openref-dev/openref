@@ -4,6 +4,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { expandSourceLink, type IRSourceLocation } from '@openref/core';
+import { SPAWNED_PROCESS_TIMEOUT_MS } from '../../../../vitest.spawn-timeout.ts';
 
 /**
  * T018's done-when, stated as a test: every operation in the example app links to its real source
@@ -75,11 +76,32 @@ await app.close();
 `;
 
 /**
+ * The one boot of each arm, kept because booting a NestJS application is this file's whole cost.
+ *
+ * ADDED WHEN THE COVERAGE GATE WENT RED AND NOTHING ELSE DID. The program takes no input and only
+ * reads, so a second boot pays the first one's price to answer the same question. Seven spawns
+ * across this file and `runtime-facts.spec.ts` sat inside vitest's five second default until the
+ * example gained a throttler and three more collectors, and then two cases here timed out under
+ * the coverage run, which is the only run that takes the integration suite and V8 instrumentation
+ * together. Session 22's fourth breakage is the same shape, and the honest repair is the same:
+ * remove the work rather than raise the bound.
+ *
+ * REMOVING THE WORK WAS NOT THE WHOLE ANSWER, AND THE SECOND HALF ARRIVED AS F25's SECOND PART.
+ * One boot is still a boot, and this file went red once more on an unchanged commit with the next
+ * two runs green. Every case below therefore declares {@link SPAWNED_PROCESS_TIMEOUT_MS}, which is
+ * the bound for a case whose cost is a child process rather than its assertion. The default is
+ * untouched, so a timeout anywhere else in the suite still means what it always meant.
+ */
+let cached: Report | undefined;
+
+/**
  * Boots the example and reads its report.
  *
  * @returns What the application said about its own sources
  */
 function report(): Report {
+  if (cached !== undefined) return cached;
+
   if (!existsSync(join(example, 'dist', 'main.js'))) {
     throw new Error('examples/nest-minimal is not built. Run pnpm build; a skip is not a pass');
   }
@@ -90,7 +112,9 @@ function report(): Report {
     stdio: ['ignore', 'pipe', 'pipe'],
   });
 
-  return JSON.parse(printed) as Report;
+  cached = JSON.parse(printed) as Report;
+
+  return cached;
 }
 
 /**
@@ -109,57 +133,71 @@ function lineAt(file: string, line: number): string {
 }
 
 describe('the example app', () => {
-  it('should give every operation a source with a repository relative file and a line', () => {
-    // Given the built example, booted as a consumer boots it
-    const found = report();
+  it(
+    'should give every operation a source with a repository relative file and a line',
+    { timeout: SPAWNED_PROCESS_TIMEOUT_MS },
+    () => {
+      // Given the built example, booted as a consumer boots it
+      const found = report();
 
-    // Then every operation has one, and nothing is left over
-    expect(found.operations).toBeGreaterThan(0);
-    expect(found.sources).toHaveLength(found.operations);
-    expect(found.problems).toEqual([]);
+      // Then every operation has one, and nothing is left over
+      expect(found.operations).toBeGreaterThan(0);
+      expect(found.sources).toHaveLength(found.operations);
+      expect(found.problems).toEqual([]);
 
-    for (const source of found.sources) {
-      expect(source.controller).toBe('OrdersController');
-      expect(source.file).toBe('examples/nest-minimal/src/orders.controller.ts');
-      expect(source.file?.startsWith('/')).toBe(false);
-      expect(source.line).toBeGreaterThan(0);
-    }
-  });
+      for (const source of found.sources) {
+        expect(source.controller).toBe('OrdersController');
+        expect(source.file).toBe('examples/nest-minimal/src/orders.controller.ts');
+        expect(source.file?.startsWith('/')).toBe(false);
+        expect(source.line).toBeGreaterThan(0);
+      }
+    },
+  );
 
-  it('should put each line on the method it names, read back out of the file', () => {
-    // Given. This is the assertion `sourceMap: false` fails, and the only one that does: without
-    // the map every link would still be produced, pointing at `dist/serve.js`.
-    const found = report();
+  it(
+    'should put each line on the method it names, read back out of the file',
+    { timeout: SPAWNED_PROCESS_TIMEOUT_MS },
+    () => {
+      // Given. This is the assertion `sourceMap: false` fails, and the only one that does: without
+      // the map every link would still be produced, pointing at `dist/serve.js`.
+      const found = report();
 
-    // When, Then
-    for (const source of found.sources) {
-      expect(source.file).toBeDefined();
-      expect(source.line).toBeDefined();
+      // When, Then
+      for (const source of found.sources) {
+        expect(source.file).toBeDefined();
+        expect(source.line).toBeDefined();
 
-      const text = lineAt(source.file ?? '', source.line ?? 0);
-      expect(text.startsWith(`${source.handler}(`)).toBe(true);
-    }
-  });
+        const text = lineAt(source.file ?? '', source.line ?? 0);
+        expect(text.startsWith(`${source.handler}(`)).toBe(true);
+      }
+    },
+  );
 
-  it('should expand every source into a link with the revision this build was made from', () => {
-    // Given
-    const found = report();
+  it(
+    'should expand every source into a link with the revision this build was made from',
+    { timeout: SPAWNED_PROCESS_TIMEOUT_MS },
+    () => {
+      // Given
+      const found = report();
 
-    // Then the template has had `{ref}` filled in from git, so what is left is per node
-    expect(found.template).toBeDefined();
-    expect(found.template).not.toContain('{ref}');
-    expect(found.template).toMatch(/^https:\/\/github\.com\/[^/]+\/openref\/blob\/[0-9a-f]{40}\//);
+      // Then the template has had `{ref}` filled in from git, so what is left is per node
+      expect(found.template).toBeDefined();
+      expect(found.template).not.toContain('{ref}');
+      expect(found.template).toMatch(
+        /^https:\/\/github\.com\/[^/]+\/openref\/blob\/[0-9a-f]{40}\//,
+      );
 
-    for (const source of found.sources) {
-      const link = expandSourceLink(found.template ?? '', source);
+      for (const source of found.sources) {
+        const link = expandSourceLink(found.template ?? '', source);
 
-      expect(link.reason).toBeUndefined();
-      expect(link.withoutLine).toBeUndefined();
-      expect(link.url).toContain('/examples/nest-minimal/src/orders.controller.ts#L');
-      expect(link.url).not.toContain('NaN');
-      expect(link.url).not.toContain('{');
-    }
-  });
+        expect(link.reason).toBeUndefined();
+        expect(link.withoutLine).toBeUndefined();
+        expect(link.url).toContain('/examples/nest-minimal/src/orders.controller.ts#L');
+        expect(link.url).not.toContain('NaN');
+        expect(link.url).not.toContain('{');
+      }
+    },
+  );
 });
 
 /**
@@ -196,60 +234,80 @@ createApp('express').then(async (app) => {
 });
 `;
 
+/** The CommonJS arm's one boot, cached for the reason {@link cached} gives. */
+let cachedCjs: Report | undefined;
+
+/**
+ * Boots the NestJS 10 CommonJS fixture and reads its report.
+ *
+ * @returns What that application said about its own sources
+ */
+function cjsReport(): Report {
+  if (cachedCjs !== undefined) return cachedCjs;
+
+  if (!existsSync(join(compat, 'dist', 'serve.js'))) {
+    throw new Error('compat/nest10-cjs is not built. Run pnpm build; a skip is not a pass');
+  }
+
+  const printed = execFileSync(process.execPath, ['--input-type=commonjs', '-e', CJS_PROGRAM], {
+    cwd: compat,
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+
+  cachedCjs = JSON.parse(printed) as Report;
+
+  return cachedCjs;
+}
+
 describe('the NestJS 10 CommonJS arm, which is built with no source maps', () => {
-  it('should locate a handler on CommonJS, where V8 names a script by path not by url', () => {
-    // Given the other arm of the SPEC 23 matrix. The example is ESM and its scripts arrive as
-    // `file:` urls; a CommonJS module arrives as a plain absolute path, which is a branch of the
-    // locator that nothing else in the suite reaches.
-    if (!existsSync(join(compat, 'dist', 'serve.js'))) {
-      throw new Error('compat/nest10-cjs is not built. Run pnpm build; a skip is not a pass');
-    }
+  it(
+    'should locate a handler on CommonJS, where V8 names a script by path not by url',
+    { timeout: SPAWNED_PROCESS_TIMEOUT_MS },
+    () => {
+      // Given the other arm of the SPEC 23 matrix. The example is ESM and its scripts arrive as
+      // `file:` urls; a CommonJS module arrives as a plain absolute path, which is a branch of the
+      // locator that nothing else in the suite reaches.
+      // When
+      const found = cjsReport();
 
-    // When
-    const printed = execFileSync(process.execPath, ['--input-type=commonjs', '-e', CJS_PROGRAM], {
-      cwd: compat,
-      encoding: 'utf8',
-      stdio: ['ignore', 'pipe', 'pipe'],
-    });
-    const found = JSON.parse(printed) as Report;
+      // Then the class and the method are named, and the file is the compiled one, because that is
+      // where the code is when nothing said otherwise
+      expect(found.operations).toBeGreaterThan(0);
+      expect(found.sources).toHaveLength(found.operations);
 
-    // Then the class and the method are named, and the file is the compiled one, because that is
-    // where the code is when nothing said otherwise
-    expect(found.operations).toBeGreaterThan(0);
-    expect(found.sources).toHaveLength(found.operations);
+      for (const source of found.sources) {
+        expect(source.controller).toBe('OrdersController');
+        expect(source.file).toBe('compat/nest10-cjs/dist/serve.js');
+        expect(source.file?.startsWith('/')).toBe(false);
+      }
+    },
+  );
 
-    for (const source of found.sources) {
-      expect(source.controller).toBe('OrdersController');
-      expect(source.file).toBe('compat/nest10-cjs/dist/serve.js');
-      expect(source.file?.startsWith('/')).toBe(false);
-    }
-  });
+  it(
+    'should point the line at the emitted file, since with no map the script is the source',
+    { timeout: SPAWNED_PROCESS_TIMEOUT_MS },
+    () => {
+      // Given the same boot. WITHOUT A SOURCE MAP THERE IS NOTHING TO TRANSLATE AND NOTHING IS
+      // GUESSED: the file this arm reports is the JavaScript, so the line it reports is a line of
+      // that JavaScript, and the two agree. The dishonest answer would be a TypeScript line number
+      // taken from a JavaScript file, and the empty answer would be a file link where a precise one
+      // was available. This asserts the pair by reading the line the link points at.
+      const found = cjsReport();
 
-  it('should point the line at the emitted file, since with no map the script is the source', () => {
-    // Given the same boot. WITHOUT A SOURCE MAP THERE IS NOTHING TO TRANSLATE AND NOTHING IS
-    // GUESSED: the file this arm reports is the JavaScript, so the line it reports is a line of
-    // that JavaScript, and the two agree. The dishonest answer would be a TypeScript line number
-    // taken from a JavaScript file, and the empty answer would be a file link where a precise one
-    // was available. This asserts the pair by reading the line the link points at.
-    const printed = execFileSync(process.execPath, ['--input-type=commonjs', '-e', CJS_PROGRAM], {
-      cwd: compat,
-      encoding: 'utf8',
-      stdio: ['ignore', 'pipe', 'pipe'],
-    });
-    const found = JSON.parse(printed) as Report;
+      // When
+      const links = found.sources.map((source) => expandSourceLink(found.template ?? '', source));
 
-    // When
-    const links = found.sources.map((source) => expandSourceLink(found.template ?? '', source));
+      // Then
+      for (const source of found.sources) {
+        expect(lineAt(source.file ?? '', source.line ?? 0)).toContain(`${source.handler}(`);
+      }
 
-    // Then
-    for (const source of found.sources) {
-      expect(lineAt(source.file ?? '', source.line ?? 0)).toContain(`${source.handler}(`);
-    }
-
-    for (const link of links) {
-      expect(link.withoutLine).toBeUndefined();
-      expect(link.url).not.toContain('NaN');
-      expect(link.url).toContain('/compat/nest10-cjs/dist/serve.js#L');
-    }
-  });
+      for (const link of links) {
+        expect(link.withoutLine).toBeUndefined();
+        expect(link.url).not.toContain('NaN');
+        expect(link.url).toContain('/compat/nest10-cjs/dist/serve.js#L');
+      }
+    },
+  );
 });

@@ -1,5 +1,5 @@
 /**
- * The three components a page can compile after it is interactive, named as a contract.
+ * The four components a page can compile after it is interactive, named as a contract.
  *
  * WHY AN INJECTED REGISTRY RATHER THAN AN IMPORT. A bundler splits on the import graph and on
  * nothing else. `NodePanel` importing `TryItPanel` at the top of the file puts the console in
@@ -37,6 +37,16 @@ export interface DeferrableComponents {
   readonly tryIt: Component;
   /** The command palette, which is a button until it is opened. */
   readonly commandPalette: Component;
+  /**
+   * The Health panel, which is on the overview page and on no other.
+   *
+   * IT IS THE ONE ENTRY HERE THAT NEEDS NO JAVASCRIPT TO WORK. Its disclosure is `details` and
+   * `summary`, which the user agent opens by itself, so a reader who never loads this chunk
+   * loses nothing at all: the server's markup is the whole feature. What the deferral buys is
+   * that the panel of one page in a thousand is not in the bundle the other nine hundred and
+   * ninety nine download, which is what SPEC 20 caps.
+   */
+  readonly healthPanel: Component;
 }
 
 /** How a component tree reaches the three. */
@@ -56,7 +66,8 @@ export function useDeferrable(): DeferrableComponents {
     throw new InvalidOptionsError(
       'no deferrable component registry was provided. The server render provides the eager one ' +
         'and hydrateReference provides the deferred one; a tree with neither would render ' +
-        'without the schema viewer, the try-it console and the palette, and say nothing',
+        'without the schema viewer, the try-it console, the palette and the Health panel, and ' +
+        'say nothing',
       ErrorCode.CONFIG_INVALID_OPTIONS,
     );
   }

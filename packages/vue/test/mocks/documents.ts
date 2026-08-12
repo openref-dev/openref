@@ -1,5 +1,10 @@
-import type { IRDocument } from '@openref/core';
-import { normalizeOpenApiDocument, parseSpecification } from '@openref/core';
+import type { IRDocument, IRNode, IRNodeRuntime } from '@openref/core';
+import {
+  buildHealthReport,
+  hashDocument,
+  normalizeOpenApiDocument,
+  parseSpecification,
+} from '@openref/core';
 
 /**
  * Fixtures for the headless layer.
@@ -205,4 +210,82 @@ components:
       type: integer
       default: 7
 `);
+}
+
+/** What a fixture leaves out, so a test can name the state it is about. */
+export interface RuntimeFixtureOptions {
+  /** False to leave the host's source link template unconfigured, which is the ordinary case. */
+  readonly sourceLink?: boolean;
+  /** True to add the registry's own check line for a collector that did not run. */
+  readonly failedCollector?: boolean;
+}
+
+/**
+ * `simpleDocument` with an application behind it, per SPEC 6.
+ *
+ * The facts are attached the way the runtime pass attaches them and the report is built by the
+ * real engine, so what a composable is tested against is the shape the engine produces rather
+ * than one a fixture author imagined.
+ *
+ * @param options - What to leave out
+ * @returns The document, with its hash retaken over the facts
+ */
+export function runtimeDocument(options: RuntimeFixtureOptions = {}): IRDocument {
+  const base = simpleDocument();
+  // Named rather than found: this fixture's own tests read `get-orders` by name, and a search
+  // would quietly put the facts on `get-health` the day another operation is added above it.
+  const target = 'get-orders';
+
+  const runtime: IRNodeRuntime = {
+    source: {
+      controller: 'OrdersController',
+      handler: 'findAll',
+      file: 'src/orders.controller.ts',
+      line: 42,
+    },
+    guards: [{ name: 'JwtAuthGuard', confidence: 'derived', collector: 'guardsCollector' }],
+    scopes: { value: ['orders:read'], confidence: 'declared', collector: 'scopesCollector' },
+    rateLimit: {
+      value: { limit: 100, ttlMs: 60_000 },
+      confidence: 'derived',
+      collector: 'throttlerCollector',
+    },
+    errors: { declared: [], runtimeDerived: [], global: [] },
+  };
+
+  const nodes = new Map<string, IRNode>();
+  for (const [id, node] of base.nodes) nodes.set(id, id === target ? { ...node, runtime } : node);
+
+  const template = 'https://github.com/org/repo/blob/abc123/{file}#L{line}';
+  const withFacts: IRDocument = {
+    ...base,
+    nodes,
+    runtime: {
+      collectors: ['guardsCollector', 'scopesCollector', 'throttlerCollector'],
+      ...(options.sourceLink === false ? {} : { sourceLinkTemplate: template }),
+    },
+  };
+
+  const health = buildHealthReport(withFacts, {
+    observation: { handledNodeIds: new Set(base.nodes.keys()) },
+    // THE REGISTRY OWNS THIS LINE AND THE RULES DO NOT, per SPEC 7: a collector that threw is a
+    // failed tool, and a drift row would send a reader to fix code that is not broken.
+    ...(options.failedCollector === true
+      ? {
+          checks: [
+            {
+              id: 'runtime-collectors',
+              label: 'collectors ran',
+              passed: 2,
+              total: 3,
+              severity: 'warning' as const,
+            },
+          ],
+        }
+      : {}),
+  });
+
+  const complete: IRDocument = { ...withFacts, health };
+
+  return { ...complete, hash: hashDocument(complete) };
 }

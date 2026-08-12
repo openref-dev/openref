@@ -140,6 +140,31 @@ async function reachForTheConsole(page: Page): Promise<void> {
   await page.locator('.oref-section-tryit').click({ position: { x: 4, y: 4 } });
 }
 
+/**
+ * Presses one element with the mouse, at its own coordinates, with no actionability check.
+ *
+ * NOT `locator.click`, AND THAT IS THE POINT OF THE CASE BELOW. Playwright reads
+ * `aria-disabled` as disabled and waits for a control carrying it to become enabled, so the
+ * gesture F14 is about, a reader pressing Send while the console is still the server's markup,
+ * cannot be expressed through the locator API at all: it would wait for the state the press is
+ * supposed to produce. The browser has no such policy, so the press is driven through the mouse
+ * where the element actually is.
+ *
+ * @param page - The open page
+ * @param selector - What to press
+ */
+async function pressWithTheMouse(page: Page, selector: string): Promise<void> {
+  const target = page.locator(selector);
+  await target.scrollIntoViewIfNeeded();
+
+  const box = await target.boundingBox();
+  if (box === null) throw new Error(`${selector} has no box to press`);
+
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.up();
+}
+
 describe('the first minute', () => {
   it(
     'should serve a page that already reads as documentation before any script runs',
@@ -201,6 +226,36 @@ describe('the first minute', () => {
         await session.close();
         // THE DYNAMIC IMPORT UNDER THE STRICT POLICY, which is the half the study cannot reach:
         // no reader touches a deferred feature during a measurement run.
+        expect(session.violations).toEqual([]);
+      }
+    },
+    TIMEOUT,
+  );
+
+  it(
+    'should answer the reader who reaches for the console by pressing Send',
+    async () => {
+      // Given a page nobody has touched, and a reader who fills nothing in and presses the one
+      // control the console is for. THIS IS F14, and this file is where it can fail: the
+      // suppression of a click on a disabled control is a browser behaviour, and a dispatched
+      // event in jsdom reaches the listener either way.
+      const session = await open(NODE_PAGE);
+
+      try {
+        // When they press it once
+        await pressWithTheMouse(session.page, '.oref-send');
+
+        // Then the console arrived on that press, and acted on it. `id` is a required path
+        // parameter and is empty, so the runner refuses, and a refusal is something only the
+        // click handler can have produced. Before the fix the chunk arrived on the pointerdown,
+        // the browser generated no click on the disabled button, and the reader got a console
+        // that had woken up and done nothing.
+        await expect
+          .poll(() => session.page.locator('.oref-run-error').count(), { timeout: 30_000 })
+          .toBe(1);
+        expect(await session.page.locator('.oref-run-error').textContent()).toContain('required');
+      } finally {
+        await session.close();
         expect(session.violations).toEqual([]);
       }
     },

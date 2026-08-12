@@ -3,7 +3,7 @@ import type {
   IRDocument,
   IRDriftIssue,
   IRDriftRule,
-  IRErrorContract,
+  IRErrorContracts,
   IRHealthReport,
   IRNavNode,
   IRNodeRuntime,
@@ -135,7 +135,7 @@ describe('slot registry contract', () => {
       responses: readonly IRResponse[];
     }>();
     expectTypeOf<SlotProps<'ErrorContract'>>().toEqualTypeOf<{
-      errors: readonly IRErrorContract[];
+      errors: IRErrorContracts;
       available: boolean;
     }>();
     expectTypeOf<SlotProps<'SchemaTree'>>().toEqualTypeOf<{

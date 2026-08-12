@@ -16,7 +16,7 @@ Then open <http://127.0.0.1:3000/docs>.
 
 ## What to look at
 
-The renderer is not the point. These five are, because each one is a place a reference either
+The renderer is not the point. These seven are, because each one is a place a reference either
 works or quietly gives up:
 
 | Open                     | What it shows                                                          |
@@ -26,6 +26,8 @@ works or quietly gives up:
 | `Read one order`         | four levels of nesting, order to customer to address to coordinates     |
 | `List orders`            | nine query parameters and a header, with their serialization rules      |
 | `Download the receipt`   | a response that is not JSON, rendered as the text it is                 |
+| `List orders by page`    | a generic wrapper, `paginated(OrderDto)`, with no wrapper DTO written   |
+| `Watch orders`           | an SSE route whose item type is declared, because nothing can infer it  |
 
 `Create an order` also documents six status codes, each with the body shape it answers with.
 
@@ -35,14 +37,34 @@ Open any operation and press Send. The request goes to this application, at the 
 document declares, with nothing to configure first. `Read one order` takes an order identifier:
 `ord_1024` and `ord_1025` both exist.
 
-## What it does not show yet
+## What the application knows, not just what the document says
 
-The four pillars of this project are not in this demo, because the code behind them is M1 and
-later. What is here is a well rendered specification, which several tools already do.
+This is the part a specification renderer cannot do, and it grows with M1 in this same
+application rather than in a second demo.
 
-Guards and the scopes they require, request limits, error contracts read from the application,
-the link to the handler's source, drift between the specification and the running code: all of
-that arrives in M1, in this same application. There will not be a second demo.
+| What                    | Where it comes from                                                    |
+| ----------------------- | ---------------------------------------------------------------------- |
+| the handler's source    | V8 and the source map, as a deep link to the line in this repository    |
+| the guard on each route | `@UseGuards(ScopesGuard)`, read as a class name and never as logic      |
+| the scopes it requires  | this application's own key on `List orders`, `@ApiScopes` on the paged route |
+| the rate limit          | `@Throttle` on `List orders`, reported in milliseconds                  |
+| the item type of a stream | `@ApiStream` on `Watch orders`, because reflection cannot recover it  |
+| the errors it promises  | `@ApiErrors` on `Read one order` and `Create an order`, in their own group |
+| the errors it can answer with anyway | the guard and the rate limit, in a second group nobody wrote |
+
+Each fact is shown with where it came from and how sure it is. Four of the seven operations are
+guarded and declare no scopes, which is deliberate: that is a policy written in code that will
+never be readable, and `doctor` reports it rather than letting it look like a route that needs no
+scopes at all.
+
+Error contracts come in three groups that are never one list: what the endpoint promises with
+`@ApiErrors`, what follows from what is standing in front of it, and what the whole application can
+answer with. `Read one order` promises a 404 and is observed to be able to answer 401 and 403;
+`List orders` promises nothing and is observed to be able to answer 429. A reference that merged
+those into one list of status codes could not tell you which is which, and that difference is the
+product.
+
+The drift report between the specification and the running code arrives in the rest of M1.
 
 ## The one line
 

@@ -26,6 +26,7 @@ import {
   parseSpecification,
   type IRDocument,
 } from '@openref/core';
+import { mergeSyntheticSchemas } from '../../../schemas/domain/synthetic-schemas';
 import {
   buildNavigation,
   createMemoryRenderCache,
@@ -101,6 +102,9 @@ export class ReferenceService {
   /** The normalized document. Everything served is derived from this. */
   readonly document: IRDocument;
 
+  /** The source document, parsed and with the synthetic schemas of SPEC 13.5 merged in. */
+  private readonly source: unknown;
+
   private readonly basePath: string;
   private readonly catalog: AssetCatalog;
   private readonly cache: IRenderCache;
@@ -118,7 +122,12 @@ export class ReferenceService {
   constructor(options: ReferenceServiceOptions) {
     this.options = options;
     this.basePath = options.basePath;
-    const normalized = normalizeDocument(options.document);
+    // THE SYNTHETIC SCHEMAS OF SPEC 13.5 GO IN HERE, ONCE, BEFORE ANYTHING READS THE DOCUMENT.
+    // Both readers are downstream of this line: the normalizer below, and the `openapi.json`
+    // route, which serves this object rather than the host's. A merge on only one of the two
+    // paths would mean the page and the file a generator downloads described different documents.
+    this.source = mergeSyntheticSchemas(sourceObject(options.document));
+    const normalized = normalizeOpenApiDocument(this.source);
     this.document = options.augment === undefined ? normalized : options.augment(normalized);
     this.catalog = buildAssetCatalog(options.assets.sources);
     this.cache = options.cache ?? createMemoryRenderCache();
@@ -236,8 +245,7 @@ export class ReferenceService {
     if (cached !== null) return cached;
 
     if (this.specificationJson === null) {
-      const source = sourceObject(this.options.document);
-      this.specificationJson = canonicalize(source);
+      this.specificationJson = canonicalize(this.source);
       this.specificationYaml = stringifyYaml(JSON.parse(this.specificationJson));
     }
 
@@ -441,17 +449,6 @@ function notModified(request: ReferenceRequest, tag: string): ReferenceReply | n
  */
 function sourceObject(input: unknown): unknown {
   return typeof input === 'string' ? parseSpecification(input, { source: 'document' }) : input;
-}
-
-/**
- * Normalizes the document, at setup time.
- *
- * @param input - What the host passed as `document`
- * @returns The IR
- * @throws {NormalizeError} When the document is not a specification this version can read
- */
-function normalizeDocument(input: unknown): IRDocument {
-  return normalizeOpenApiDocument(sourceObject(input));
 }
 
 /**

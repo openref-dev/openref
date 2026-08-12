@@ -98,7 +98,11 @@
   min-height: 100%;
 }
 
-.oref-layout::after {
+/* One ruler, drawn twice: between the rail and the page, and between what the specification
+ * declares and what the application does. Both are the same frame element at two scales, which
+ * is the whole of the double scale this design is named for, so they are the same rule. */
+.oref-layout::after,
+.oref-node-columns::after {
   background-image: var(--oref-layout-tick);
   content: '';
   grid-column: 2;
@@ -108,11 +112,27 @@
   width: var(--oref-border-hair);
 }
 
+/* The rail is painted on the column and not on the panel, which is finding F18.
+ *
+ * The panel is sticky and scrolls on its own, so its box is exactly as tall as the tree inside
+ * it, and the inset surface stopped after the last group with the page behind it showing below.
+ * vernier names the permanent rail as one of the five things this direction does that the other
+ * two do not, so a rail that ends two thirds of the way down is a deviation from the handover
+ * rather than a detail. The column is drawn the way the ruler gutter above already is: a
+ * generated box in the grid area, full height by construction, with the panel over it. */
+.oref-layout::before {
+  background: var(--oref-color-surface-inset);
+  border-right: var(--oref-border-hair) solid var(--oref-color-line);
+  content: '';
+  grid-column: 1;
+  grid-row: 1;
+  height: 100%;
+  width: 100%;
+}
+
 /* Navigation. The tree never leaves the screen: a permanent rail, sticky, scrolled on its own. */
 
 .oref-sidebar {
-  background: var(--oref-color-surface-inset);
-  border-right: var(--oref-border-hair) solid var(--oref-color-line);
   grid-column: 1;
   grid-row: 1;
   max-height: 100vh;
@@ -122,7 +142,13 @@
   top: 0;
 }
 
-.oref-nav {
+/* FOUR RULES WHOSE WHOLE BODY WAS `display: block` ARE ONE RULE. Written out separately they
+ * were three chances for one decision to be spelled three ways, and the SPEC 20 raw cap on this
+ * file is what made the duplication visible rather than tidy. */
+.oref-nav,
+.oref-nav-scroll,
+.oref-runtime-item,
+.oref-schema-page {
   display: block;
 }
 
@@ -143,10 +169,6 @@
 
 .oref-nav-list.oref-nav-rendered {
   min-height: 0;
-}
-
-.oref-nav-scroll {
-  display: block;
 }
 
 .oref-nav-entry {
@@ -231,7 +253,9 @@
 }
 
 /* What a closed group holds, which is the only thing that says it holds anything. */
-.oref-nav-count {
+.oref-check-count,
+.oref-nav-count,
+.oref-rule-count {
   color: var(--oref-color-fg-muted);
   font-variant-numeric: tabular-nums;
 }
@@ -248,14 +272,19 @@
 
 /* Content */
 
+/* THE FRAME IS THE TRACK AND THE COLUMN DECLARES NO WIDTH, which is finding F17 resolved in
+ * `ai-docs/design/vernier/notes.md`. `--oref-layout-measure` bounds a paragraph and was never
+ * the frame; applied here it left about four hundred pixels of bare sunken surface at the right
+ * of a 1600 px window. The rail, the ruler gutter and this column account for the window between
+ * them at every width, and the measure stays where it belongs, on `.oref-description`. */
 .oref-content {
   background: var(--oref-color-bg);
   grid-column: 3;
   grid-row: 1;
-  max-width: var(--oref-layout-measure);
   padding: var(--oref-space-800) var(--oref-space-700);
 }
 
+.oref-health-score,
 .oref-title {
   font-family: var(--oref-font-family-display);
   font-size: var(--oref-font-size-700);
@@ -281,7 +310,8 @@
 /* A section heading is a micro label rather than a second title. The design leans on the
  * heading scale for the page and on caps for the strips inside it. */
 
-.oref-section {
+.oref-section,
+.oref-section-health {
   border-top: var(--oref-border-hair) solid var(--oref-color-line);
   margin-top: var(--oref-space-800);
   padding-top: var(--oref-space-600);
@@ -446,7 +476,14 @@
   padding-inline-start: var(--oref-space-500);
 }
 
-.oref-media-head {
+/* A row whose parts sit on one baseline, for the reason above.
+ *
+ * `.oref-rule-head` IS DELIBERATELY NOT IN THIS LIST. It is a `summary`, and `display: flex` on
+ * a summary removes the disclosure marker the user agent draws, which is the only thing saying
+ * the group opens. */
+.oref-media-head,
+.oref-response-head,
+.oref-run-summary {
   align-items: baseline;
   display: flex;
   gap: var(--oref-space-400);
@@ -458,21 +495,23 @@
   font-size: var(--oref-font-size-200);
 }
 
-.oref-media-schema {
+/* The muted monospace aside: a media type's schema name, a palette hint, a timing, the label of
+ * a header or a runtime row, a note beside a fact. One shape, one rule, for the reason above. */
+.oref-media-schema,
+.oref-palette-hint,
+.oref-run-header-name,
+.oref-run-time,
+.oref-runtime-label,
+.oref-runtime-note {
   color: var(--oref-color-fg-muted);
   font-family: var(--oref-font-family-mono);
   font-size: var(--oref-font-size-200);
 }
 
-.oref-response {
+.oref-response,
+.oref-rule {
   border-top: var(--oref-border-hair) solid var(--oref-color-line);
   padding: var(--oref-space-500) 0;
-}
-
-.oref-response-head {
-  align-items: baseline;
-  display: flex;
-  gap: var(--oref-space-400);
 }
 
 .oref-response-doc {
@@ -509,6 +548,13 @@
 
 /* Security and servers */
 
+/* Every list in this theme that is a list of rows rather than a list of items, in one rule for
+ * the reason above. `.oref-schema-list` takes its indent back below, after this. */
+.oref-check-list,
+.oref-drift-list,
+.oref-palette-list,
+.oref-schema-list,
+.oref-schema-tree,
 .oref-security-list,
 .oref-server-list {
   list-style: none;
@@ -516,6 +562,7 @@
   padding: 0;
 }
 
+.oref-check,
 .oref-security-item,
 .oref-server {
   align-items: baseline;
@@ -645,17 +692,6 @@
  * are given the same shape here rather than the browser's idea of a button.
  */
 
-.oref-schema-page {
-  display: block;
-}
-
-.oref-schema-tree,
-.oref-schema-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
 .oref-schema-list {
   border-inline-start: var(--oref-border-hair) solid var(--oref-color-line);
   margin-inline-start: var(--oref-space-400);
@@ -728,7 +764,9 @@ button.oref-schema-row:hover {
   font-size: var(--oref-font-size-200);
 }
 
-.oref-schema-link {
+.oref-drift-subject,
+.oref-schema-link,
+.oref-source-link {
   color: var(--oref-color-accent-link);
   text-decoration: underline;
 }
@@ -819,12 +857,6 @@ button.oref-schema-row:hover {
   width: 100%;
 }
 
-.oref-palette-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
 .oref-palette-hit {
   margin: 0;
 }
@@ -846,12 +878,6 @@ button.oref-schema-row:hover {
   font-size: var(--oref-font-size-300);
 }
 
-.oref-palette-hint {
-  color: var(--oref-color-fg-muted);
-  font-family: var(--oref-font-family-mono);
-  font-size: var(--oref-font-size-200);
-}
-
 .oref-palette-empty {
   color: var(--oref-color-fg-muted);
   font-size: var(--oref-font-size-300);
@@ -869,6 +895,7 @@ button.oref-schema-row:hover {
  * what appears over content, and nothing in this console does: the response is revealed in
  * place, below the button that asked for it. */
 
+.oref-section-runtime,
 .oref-section-tryit {
   border-top: var(--oref-border-mark) solid var(--oref-color-accent-runtime);
 }
@@ -911,6 +938,7 @@ button.oref-schema-row:hover {
   resize: vertical;
 }
 
+.oref-drift-rule,
 .oref-field-note {
   color: var(--oref-color-fg-muted);
   font-size: var(--oref-font-size-100);
@@ -939,7 +967,12 @@ button.oref-schema-row:hover {
   text-transform: uppercase;
 }
 
-.oref-send:disabled {
+/* Both states look the same and are not the same thing, per finding F14. `:disabled` is a live
+   console that cannot send; `[aria-disabled]` is a console that has not been fetched yet, and
+   it carries no `disabled` attribute precisely so the reader's press on it still reaches the
+   page and brings the console in. */
+.oref-send:disabled,
+.oref-send[aria-disabled='true'] {
   background: var(--oref-color-surface-inset);
   border-color: var(--oref-color-fg-muted);
   color: var(--oref-color-fg-muted);
@@ -967,32 +1000,17 @@ button.oref-schema-row:hover {
   padding-top: var(--oref-space-500);
 }
 
-.oref-run-summary {
-  align-items: baseline;
-  display: flex;
-  gap: var(--oref-space-400);
-}
-
-.oref-run-time {
-  color: var(--oref-color-fg-muted);
-  font-family: var(--oref-font-family-mono);
-  font-size: var(--oref-font-size-200);
-}
-
-.oref-run-headers {
+.oref-run-headers,
+.oref-runtime {
   display: grid;
   grid-template-columns: max-content minmax(0, 1fr);
   gap: var(--oref-space-200) var(--oref-space-400);
   margin: var(--oref-space-400) 0 0;
 }
 
-.oref-run-header-name {
-  color: var(--oref-color-fg-muted);
-  font-family: var(--oref-font-family-mono);
-  font-size: var(--oref-font-size-200);
-}
-
-.oref-run-header-value {
+.oref-drift-side,
+.oref-run-header-value,
+.oref-runtime-value {
   color: var(--oref-color-fg-secondary);
   font-family: var(--oref-font-family-mono);
   font-size: var(--oref-font-size-200);
@@ -1009,6 +1027,104 @@ button.oref-schema-row:hover {
   overflow-wrap: anywhere;
   padding: var(--oref-space-500);
   white-space: pre-wrap;
+}
+
+/* The runtime half of the double scale, and the Health panel.
+ *
+ * TWO EQUAL COLUMNS WITH THE RULER BETWEEN THEM is what this design does that the other two do
+ * not, so the grid is the same three tracks the page frame uses, one scale down. A node with no
+ * runtime facts gets no columns at all rather than an empty second one: the renderer emits none,
+ * and SPEC 6.3 is why.
+ */
+
+.oref-node-columns {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) var(--oref-layout-gutter) minmax(0, 1fr);
+}
+
+.oref-column-spec,
+.oref-column-runtime {
+  grid-row: 1;
+}
+
+.oref-column-runtime {
+  grid-column: 3;
+}
+
+/* A mark carrying a level: the provenance of a fact, and the severity of a finding.
+ *
+ * THE LEVEL IS THREE PROPERTIES AND NOT A COLOUR, per SPEC 6.1 and the design's own glyph table.
+ * The style of the left edge is what tells the three apart with no colour seen at all, solid,
+ * dashed and dotted, and the three letter code the renderer prints is what tells them apart with
+ * nothing seen at all. Colour is the third carrier and the only optional one.
+ *
+ * EACH LEVEL READS ITS OWN TOKENS DIRECTLY RATHER THAN THROUGH AN ALIAS. A shared rule reading
+ * one invented property, with six rules setting it per level, was written first, and it is
+ * smaller written out: a custom property this file invents is not a token the contract declares,
+ * and `default-theme.spec.ts` refuses one, which is the rule that keeps L0 theming real. */
+.oref-prov-declared {
+  background: var(--oref-prov-declared-bg);
+  border-inline-start: var(--oref-border-mark) var(--oref-prov-declared-border-style)
+    var(--oref-prov-declared-fg);
+  color: var(--oref-prov-declared-fg);
+}
+
+.oref-prov-derived {
+  background: var(--oref-prov-derived-bg);
+  border-inline-start: var(--oref-border-mark) var(--oref-prov-derived-border-style)
+    var(--oref-prov-derived-fg);
+  color: var(--oref-prov-derived-fg);
+}
+
+.oref-prov-inferred {
+  background: var(--oref-prov-inferred-bg);
+  border-inline-start: var(--oref-border-mark) var(--oref-prov-inferred-border-style)
+    var(--oref-prov-inferred-fg);
+  color: var(--oref-prov-inferred-fg);
+}
+
+/* `text-decoration` is the one declaration here that answers the user agent rather than the
+ * design: `abbr[title]` carries a dotted underline of its own, and a dotted underline under a
+ * mark whose left edge is also dotted is two things saying one. */
+.oref-prov {
+  font-size: var(--oref-font-size-100);
+  padding: 0 var(--oref-space-200);
+  text-decoration: none;
+}
+
+.oref-drift-crit {
+  background: var(--oref-drift-crit-bg);
+  border-inline-start: var(--oref-drift-crit-border-width) var(--oref-drift-crit-border-style)
+    var(--oref-drift-crit-fg);
+}
+
+.oref-drift-warn {
+  background: var(--oref-drift-warn-bg);
+  border-inline-start: var(--oref-drift-warn-border-width) var(--oref-drift-warn-border-style)
+    var(--oref-drift-warn-fg);
+}
+
+.oref-drift-note {
+  background: var(--oref-drift-note-bg);
+  border-inline-start: var(--oref-drift-note-border-width) var(--oref-drift-note-border-style)
+    var(--oref-drift-note-fg);
+}
+
+/* A finding is a stack and not a card, per the handover, so every child of it is its own line
+ * and the fix is the full width line beneath the discrepancy. */
+.oref-drift {
+  display: grid;
+  gap: var(--oref-space-200);
+  padding: var(--oref-space-400) var(--oref-space-500);
+}
+
+.oref-drift-fix {
+  color: var(--oref-color-accent-runtime);
+  margin: 0;
+}
+
+.oref-rule-head {
+  cursor: pointer;
 }
 
 /*
@@ -1033,6 +1149,10 @@ button.oref-schema-row:hover {
 .oref-brand-title,
 .oref-brand-version,
 .oref-description,
+.oref-drift-fix,
+.oref-drift-message,
+.oref-drift-side,
+.oref-drift-subject,
 .oref-example,
 .oref-media-schema,
 .oref-nav-label,
@@ -1041,6 +1161,8 @@ button.oref-schema-row:hover {
 .oref-param-name,
 .oref-path,
 .oref-response-doc,
+.oref-runtime-item,
+.oref-runtime-note,
 .oref-schema-doc,
 .oref-schema-name,
 .oref-security-scopes,

@@ -7,6 +7,7 @@ import {
   closeFunctionLocator,
   locateFunction,
 } from '../../src/runtime/infrastructure/adapters/function-location.adapter';
+import { SPAWNED_PROCESS_TIMEOUT_MS } from '../../../../vitest.spawn-timeout.ts';
 
 /**
  * The locator, checked against a file whose line numbers this test can count.
@@ -90,65 +91,69 @@ describe('locateFunction', () => {
     expect(read.location?.line).not.toBe(list.location?.line);
   });
 
-  it('should read the line back through a source map beside a compiled file', () => {
-    // Given a real `tsc` build, which is what a deployed NestJS application is. The line in the
-    // emitted JavaScript is not the line in the TypeScript, so an answer that matches the source
-    // is an answer that went through the map.
-    // `realpathSync` because macOS puts the temporary directory behind a symlink, and the map
-    // records the path the compiler resolved rather than the one it was handed.
-    const root = realpathSync(mkdtempSync(join(tmpdir(), 'openref-sourcemap-')));
-    built = root;
-    mkdirSync(join(root, 'src'), { recursive: true });
-    writeFileSync(
-      join(root, 'src', 'demo.ts'),
-      [
-        '/** A comment, so that the emitted line and the source line differ. */',
-        'export class Demo {',
-        '  alpha(): number {',
-        '    return 1;',
-        '  }',
-        '',
-        '  beta(): number {',
-        '    return 2;',
-        '  }',
-        '}',
-        '',
-      ].join('\n'),
-      'utf8',
-    );
-    writeFileSync(
-      join(root, 'tsconfig.json'),
-      JSON.stringify({
-        compilerOptions: {
-          target: 'ES2022',
-          module: 'NodeNext',
-          moduleResolution: 'NodeNext',
-          outDir: 'dist',
-          rootDir: 'src',
-          sourceMap: true,
-        },
-      }),
-      'utf8',
-    );
-    writeFileSync(join(root, 'package.json'), JSON.stringify({ type: 'module' }), 'utf8');
-    execFileSync(join(import.meta.dirname, '..', '..', '..', '..', 'node_modules', '.bin', 'tsc'), [
-      '-p',
-      join(root, 'tsconfig.json'),
-    ]);
+  it(
+    'should read the line back through a source map beside a compiled file',
+    { timeout: SPAWNED_PROCESS_TIMEOUT_MS },
+    () => {
+      // Given a real `tsc` build, which is what a deployed NestJS application is. The line in the
+      // emitted JavaScript is not the line in the TypeScript, so an answer that matches the source
+      // is an answer that went through the map.
+      // `realpathSync` because macOS puts the temporary directory behind a symlink, and the map
+      // records the path the compiler resolved rather than the one it was handed.
+      const root = realpathSync(mkdtempSync(join(tmpdir(), 'openref-sourcemap-')));
+      built = root;
+      mkdirSync(join(root, 'src'), { recursive: true });
+      writeFileSync(
+        join(root, 'src', 'demo.ts'),
+        [
+          '/** A comment, so that the emitted line and the source line differ. */',
+          'export class Demo {',
+          '  alpha(): number {',
+          '    return 1;',
+          '  }',
+          '',
+          '  beta(): number {',
+          '    return 2;',
+          '  }',
+          '}',
+          '',
+        ].join('\n'),
+        'utf8',
+      );
+      writeFileSync(
+        join(root, 'tsconfig.json'),
+        JSON.stringify({
+          compilerOptions: {
+            target: 'ES2022',
+            module: 'NodeNext',
+            moduleResolution: 'NodeNext',
+            outDir: 'dist',
+            rootDir: 'src',
+            sourceMap: true,
+          },
+        }),
+        'utf8',
+      );
+      writeFileSync(join(root, 'package.json'), JSON.stringify({ type: 'module' }), 'utf8');
+      execFileSync(
+        join(import.meta.dirname, '..', '..', '..', '..', 'node_modules', '.bin', 'tsc'),
+        ['-p', join(root, 'tsconfig.json')],
+      );
 
-    // When
-    return import(join(root, 'dist', 'demo.js')).then((module) => {
-      const demo = (module as { Demo: { prototype: { alpha(): number; beta(): number } } }).Demo;
-      const alpha = locateFunction(demo.prototype.alpha);
-      const beta = locateFunction(demo.prototype.beta);
+      // When
+      return import(join(root, 'dist', 'demo.js')).then((module) => {
+        const demo = (module as { Demo: { prototype: { alpha(): number; beta(): number } } }).Demo;
+        const alpha = locateFunction(demo.prototype.alpha);
+        const beta = locateFunction(demo.prototype.beta);
 
-      // Then the TypeScript line and the TypeScript file, not the emitted ones
-      expect(alpha.location?.file).toBe(join(root, 'src', 'demo.ts'));
-      expect(alpha.location?.file.endsWith('.ts')).toBe(true);
-      expect(alpha.location?.line).toBe(3);
-      expect(beta.location?.line).toBe(7);
-    });
-  });
+        // Then the TypeScript line and the TypeScript file, not the emitted ones
+        expect(alpha.location?.file).toBe(join(root, 'src', 'demo.ts'));
+        expect(alpha.location?.file.endsWith('.ts')).toBe(true);
+        expect(alpha.location?.line).toBe(3);
+        expect(beta.location?.line).toBe(7);
+      });
+    },
+  );
 
   it('should refuse a bound function rather than pointing at the binding', () => {
     // Given. V8 has no `[[FunctionLocation]]` for a bound function, and the honest answer is that

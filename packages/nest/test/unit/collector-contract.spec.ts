@@ -2,6 +2,7 @@ import type { IRConfidence, IRFact, IRNode, IRNodeRuntime } from '@openref/core'
 import { describe, expect, expectTypeOf, it } from 'vitest';
 import {
   FACT_FIELDS,
+  GROUPED_FIELDS,
   isRuntimeCollector,
   isSkippedCollector,
   LIST_FIELDS,
@@ -110,7 +111,11 @@ describe('the merge partition', () => {
   it('should name every field of the runtime contract, so a new one cannot be dropped in silence', () => {
     // Given the two lists the merge folds over, plus `source`, which competes on neither axis
     // because there is nothing to be uncertain about: the handler was found or it was not.
-    type Handled = 'source' | (typeof FACT_FIELDS)[number] | (typeof LIST_FIELDS)[number];
+    type Handled =
+      | 'source'
+      | (typeof FACT_FIELDS)[number]
+      | (typeof LIST_FIELDS)[number]
+      | (typeof GROUPED_FIELDS)[number];
 
     // Then, this is the partition check of TX-PARTITION at the type level. A field added to
     // `IRNodeRuntime` in core and not added to a list here fails to compile, rather than being
@@ -151,22 +156,53 @@ describe('the merge partition', () => {
         collector: 'testCollector',
         runtime: {
           guards: [{ name: 'JwtAuthGuard', confidence: 'derived', collector: 'testCollector' }],
-          errors: [
+          drift: [
             {
-              status: 404,
-              title: 'not_found',
-              origin: 'declared',
-              confidence: 'declared',
-              collector: 'testCollector',
+              rule: 'scope-drift',
+              severity: 'warning',
+              message: 'scopes differ',
+              suggestion: 'list the scopes on the security requirement',
+              classification: { bucket: 'manual', reason: 'structural-ambiguity' },
+              edit: 'narrowed-assertion',
+              basis: { kind: 'collected', confidence: 'derived' },
             },
           ],
-          drift: [{ rule: 'scope-drift', severity: 'warning', message: 'scopes differ' }],
         },
       },
     ]);
 
     // Then
     expect(Object.keys(everything ?? {}).sort()).toEqual([...LIST_FIELDS].sort());
+  });
+
+  it('should fold each named grouped field, which is the third shape a runtime field has', () => {
+    // Given a contribution carrying every grouped field at once. `errors` LEFT `LIST_FIELDS` IN
+    // T021 and this case is what stops the move from being invisible: a field that is three lists
+    // is folded three times, and a partition that still called it a list would fold it once and
+    // drop two thirds of it without failing to compile.
+    const everything = mergeContributions([
+      {
+        collector: 'testCollector',
+        runtime: {
+          errors: {
+            declared: [
+              {
+                status: 404,
+                title: 'not_found',
+                origin: 'declared',
+                confidence: 'declared',
+                collector: 'testCollector',
+              },
+            ],
+            runtimeDerived: [],
+            global: [],
+          },
+        },
+      },
+    ]);
+
+    // Then
+    expect(Object.keys(everything ?? {}).sort()).toEqual([...GROUPED_FIELDS].sort());
   });
 });
 

@@ -247,20 +247,40 @@ export const SchemaView = defineComponent({
         ? `oref-schema-marker ${row.open ? 'oref-open' : 'oref-closed'}`
         : 'oref-schema-marker oref-schema-leaf';
 
+      // ONE POSITION, ONE LABEL, which is finding F15 and shows up twice on the same row.
+      //
+      // An inline root has no name of its own: `label` is the caller's word for the position,
+      // `application/json` on a body, borrowed so the tree has a root to draw, and the block
+      // around the tree has already printed it.
+      //
+      // A named root has one, and prints it as its name and again as its type, because the type
+      // of a position that is a named schema is that schema's name. `ProblemDto ProblemDto` was
+      // on the demo. Where the two coincide the row keeps one of them, and it keeps the link
+      // when there is one, since that carries the way to the schema's own page.
+      const type = typeOf(node);
+      const link = isElsewhere(node) && node.schemaId !== undefined;
+      const borrowed = row.level === 1 && props.slot.kind === 'inline';
+      const same = node.label === type;
+
+      const showName = !borrowed && !(same && link);
+      const showType = !(same && showName);
+
       return [
         h('span', { class: marker, 'aria-hidden': 'true' }),
-        h('span', { class: 'oref-schema-name' }, node.label),
+        showName ? h('span', { class: 'oref-schema-name' }, node.label) : null,
         node.required ? h('span', { class: 'oref-required' }, 'required') : null,
-        isElsewhere(node) && node.schemaId !== undefined
-          ? h(
-              'a',
-              {
-                class: 'oref-schema-type oref-schema-link',
-                href: schemaHref(node.schemaId, props.basePath),
-              },
-              typeOf(node),
-            )
-          : h('span', { class: 'oref-schema-type' }, typeOf(node)),
+        !showType
+          ? null
+          : link
+            ? h(
+                'a',
+                {
+                  class: 'oref-schema-type oref-schema-link',
+                  href: schemaHref(node.schemaId, props.basePath),
+                },
+                type,
+              )
+            : h('span', { class: 'oref-schema-type' }, type),
         node.schema.deprecated === true
           ? h('span', { class: 'oref-badge oref-deprecated' }, 'deprecated')
           : null,

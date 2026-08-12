@@ -44,6 +44,7 @@ export {
 export type { IHighlighter } from './highlight/domain/highlight';
 
 export { escapeHtml, escapeJsonForScript } from './shared/html';
+export { statusClass } from './shared/status';
 export { eventValue } from './shared/dom';
 export type { ValueEvent, ValueTarget } from './shared/dom';
 
@@ -67,15 +68,28 @@ export {
 } from './page/domain/page-model';
 export type { NavEntryModel } from './page/domain/nav-entry';
 export type {
+  DriftModel,
+  HealthCheckModel,
+  HealthModel,
+  HealthRuleModel,
   MediaTypeModel,
   NodeModel,
   PageModel,
   PageModelOptions,
   ParameterModel,
   ResponseModel,
+  RuntimeModel,
+  RuntimeRowModel,
+  RuntimeValueModel,
   SchemaPageModel,
   SecurityModel,
 } from './page/domain/page-model';
+export {
+  buildHealthModel,
+  buildRuntimeModel,
+  rateLimitLabel,
+  streamingLabel,
+} from './page/domain/runtime-model';
 export {
   buildSchemaPayload,
   SCHEMA_PAYLOAD_LIMIT,

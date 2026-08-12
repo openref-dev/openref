@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { cspScanRoots, readPackageDirs } from '../../src/lib/package-dirs.js';
+import { SPAWNED_PROCESS_TIMEOUT_MS } from '../../../../vitest.spawn-timeout.ts';
 
 /**
  * The check that the boundary rules govern every package there is, planted both ways.
@@ -151,35 +152,39 @@ describe('buildConfig', () => {
     }
   });
 
-  it('should produce rules that a cruise actually fires, over a tree it has never seen', () => {
-    // Given a synthetic tree holding the declared packages and one import that crosses a boundary.
-    // The builder is the committed one and only the tree is made up, so what is checked here is
-    // the configuration rather than a restatement of the rule.
-    const tree = plantTree(Object.keys(rules.BOUNDARIES));
+  it(
+    'should produce rules that a cruise actually fires, over a tree it has never seen',
+    { timeout: SPAWNED_PROCESS_TIMEOUT_MS },
+    () => {
+      // Given a synthetic tree holding the declared packages and one import that crosses a boundary.
+      // The builder is the committed one and only the tree is made up, so what is checked here is
+      // the configuration rather than a restatement of the rule.
+      const tree = plantTree(Object.keys(rules.BOUNDARIES));
 
-    writeFileSync(
-      join(tree, 'tsconfig.json'),
-      `${JSON.stringify({ compilerOptions: { target: 'ES2022', module: 'ESNext', moduleResolution: 'Bundler' } })}\n`,
-      'utf8',
-    );
-    writeFileSync(
-      join(tree, 'cruiser.cjs'),
-      `module.exports = require(${JSON.stringify(join(repoRoot, 'tools', 'dependency-rules.cjs'))}).buildConfig(__dirname);\n`,
-      'utf8',
-    );
-    writeFileSync(join(tree, 'packages', 'theme', 'src', 'token.ts'), 'export const a = 1;\n');
-    writeFileSync(
-      join(tree, 'packages', 'core', 'src', 'plant.ts'),
-      "import { a } from '../../theme/src/token';\nexport const b = a;\n",
-      'utf8',
-    );
+      writeFileSync(
+        join(tree, 'tsconfig.json'),
+        `${JSON.stringify({ compilerOptions: { target: 'ES2022', module: 'ESNext', moduleResolution: 'Bundler' } })}\n`,
+        'utf8',
+      );
+      writeFileSync(
+        join(tree, 'cruiser.cjs'),
+        `module.exports = require(${JSON.stringify(join(repoRoot, 'tools', 'dependency-rules.cjs'))}).buildConfig(__dirname);\n`,
+        'utf8',
+      );
+      writeFileSync(join(tree, 'packages', 'theme', 'src', 'token.ts'), 'export const a = 1;\n');
+      writeFileSync(
+        join(tree, 'packages', 'core', 'src', 'plant.ts'),
+        "import { a } from '../../theme/src/token';\nexport const b = a;\n",
+        'utf8',
+      );
 
-    // When
-    const fired = cruise(tree);
+      // When
+      const fired = cruise(tree);
 
-    // Then
-    expect(fired).toContain('boundary-core');
-  });
+      // Then
+      expect(fired).toContain('boundary-core');
+    },
+  );
 });
 
 describe('readPackageDirs', () => {

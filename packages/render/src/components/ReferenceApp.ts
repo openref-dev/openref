@@ -11,7 +11,7 @@
  * from a use site to travel with the page is shown by linking to it.
  */
 
-import { defineComponent, h, provide, type PropType, type VNode } from 'vue';
+import { defineComponent, h, provide, type Component, type PropType, type VNode } from 'vue';
 import { MarkdownBlock } from './MarkdownBlock';
 import { NavigationTree } from './NavigationTree';
 import { NodePanel } from './NodePanel';
@@ -28,7 +28,7 @@ export const APP_ROOT_ID = 'oref-app';
 /** Target of the skip link, so a keyboard reader can pass the navigation in one key. */
 export const MAIN_ID = 'oref-main';
 
-function overview(page: PageModel): VNode {
+function overview(page: PageModel, healthPanel: Component): VNode {
   return h('article', { class: 'oref-overview' }, [
     h('h1', { class: 'oref-title' }, page.title),
     h(MarkdownBlock, { html: page.descriptionHtml }),
@@ -44,10 +44,16 @@ function overview(page: PageModel): VNode {
             ),
           ),
         ]),
+    // THE HEALTH PANEL LIVES HERE AND NOWHERE ELSE, per SPEC 7.3. The report is a statement
+    // about the whole document and this is the page about the whole document; a node page shows
+    // the same report one subject at a time, inside its runtime block. It is absent rather than
+    // scored zero when nothing measured the document, which is the same rule as the runtime
+    // block's: nobody asked and nothing is claimed.
+    page.health === null ? null : h(healthPanel, { health: page.health }),
   ]);
 }
 
-function main(page: PageModel, basePath: string): VNode {
+function main(page: PageModel, basePath: string, healthPanel: Component): VNode {
   if (page.node !== null) {
     return h(NodePanel, {
       node: page.node,
@@ -66,7 +72,7 @@ function main(page: PageModel, basePath: string): VNode {
     });
   }
 
-  return overview(page);
+  return overview(page, healthPanel);
 }
 
 /** Renders a whole page from its model. */
@@ -127,7 +133,7 @@ export const ReferenceApp = defineComponent({
             ]),
           ]),
           h('main', { class: 'oref-content', id: MAIN_ID, tabindex: -1 }, [
-            main(page, props.basePath),
+            main(page, props.basePath, deferrable.healthPanel),
           ]),
         ]),
       ]);

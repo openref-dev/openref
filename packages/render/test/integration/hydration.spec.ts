@@ -125,7 +125,10 @@ describe('readPageState', () => {
     // render cache key, and a page model that grew a field without the version moving would be
     // served from a cache written by code that did not produce it. T013 added `run` and took it
     // to 2; T012-R2 made the navigation a slice and took it to 3, and that one had to move,
-    // because a cached page written before it carries an index of the whole document.
-    expect(state?.pageModelVersion).toBe(3);
+    // because a cached page written before it carries an index of the whole document. T023 added
+    // `runtime` and `health` and took it to 4, and that one had to move for the same reason
+    // reversed: a page cached before the runtime pass ran carries neither, and would be served
+    // to a reader as an application that says nothing about itself.
+    expect(state?.pageModelVersion).toBe(4);
   });
 });

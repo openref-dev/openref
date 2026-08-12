@@ -437,6 +437,74 @@ describe('the command palette', () => {
   });
 });
 
+/**
+ * Findings F15 and F19, which are one defect a layer apart: two components each own a piece of
+ * the same header, and neither asks whether the other has already said it.
+ *
+ * They are here rather than beside the markup tests because what they assert is what a reader
+ * sees on the assembled page. Each was measured in a browser on the demo before it was written
+ * down: `List orders` as a heading and again as a subtitle, `application/json array` above a row
+ * reading `application/json array`, and `ProblemDto ProblemDto` on one row of the schema tree.
+ */
+describe('a page that says each thing once', () => {
+  it('should not print the summary as a subtitle when the title was taken from it', () => {
+    // Given an operation with a summary and no title of its own, which is most operations and
+    // is what `@nestjs/swagger` writes.
+    const host = mount(buildPageModel(smallDocument(), { nodeId: 'get-orders', markdown }));
+
+    // When
+    const title = host.querySelector('.oref-operation-title')?.textContent;
+    const subtitle = host.querySelector('.oref-subtitle');
+
+    // Then
+    expect(title).toBe('List orders');
+    expect(subtitle).toBeNull();
+  });
+
+  it('should print a summary that differs from the title', () => {
+    // Given the same page with a title of its own, so the subtitle carries something the
+    // heading does not. The rule is about the repetition, not about the element.
+    const page = buildPageModel(smallDocument(), { nodeId: 'get-orders', markdown });
+    const node = page.node;
+    if (node === null) throw new Error('the fixture page has no node');
+
+    // When
+    const host = mount({ ...page, node: { ...node, title: 'Orders, newest first' } });
+
+    // Then
+    expect(host.querySelector('.oref-operation-title')?.textContent).toBe('Orders, newest first');
+    expect(host.querySelector('.oref-subtitle')?.textContent).toBe('List orders');
+  });
+
+  it('should let the media block name the media type and the tree name the schema', () => {
+    // Given a response whose body is an inline array, which is where F15 was seen
+    const host = mount(buildPageModel(smallDocument(), { nodeId: 'get-orders', markdown }));
+
+    // When
+    const head = host.querySelector('.oref-media-head')?.textContent ?? '';
+    const root = host.querySelector('.oref-schema-tree .oref-schema-row')?.textContent ?? '';
+
+    // Then the head says what it is written in, the root row says what shape it has, and
+    // neither says the other's word.
+    expect(head).toBe('application/json');
+    expect(root).toBe('array');
+  });
+
+  it('should print a named schema once on the row where it is both the name and the type', () => {
+    // Given a body that is a reference to a named schema. The type of such a position is the
+    // schema's name, so the row had the same string in both of its slots.
+    const host = mount(buildPageModel(smallDocument(), { nodeId: 'post-orders', markdown }));
+
+    // When
+    const root = host.querySelector('.oref-schema-tree .oref-schema-row');
+    const text = root?.textContent ?? '';
+
+    // Then
+    expect(text).toContain('Order');
+    expect(text.match(/Order/g) ?? []).toHaveLength(1);
+  });
+});
+
 describe('the page frame', () => {
   it('should put a skip link first, pointing at the content', () => {
     // Given, a skip link that is not first in the tab order does nothing for the reader it is

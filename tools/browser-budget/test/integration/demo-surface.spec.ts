@@ -80,7 +80,7 @@ function deref(schema: SchemaLike): SchemaLike {
 }
 
 describe('the demo API surface', () => {
-  it('should carry the four operations the README sends a reader to', () => {
+  it('should carry the six paths the README sends a reader to', () => {
     // Given the paths the served document declares
     const paths = Object.keys(specification.paths).sort();
 
@@ -88,9 +88,27 @@ describe('the demo API surface', () => {
     expect(paths).toEqual([
       '/orders',
       '/orders/categories',
+      '/orders/events',
+      '/orders/page',
       '/orders/{id}',
       '/orders/{id}/receipt',
     ]);
+  });
+
+  it('should carry the synthetic schema of the generic wrapper, per SPEC 13.5', () => {
+    // Given `@ApiOkResponse(paginated(OrderDto))` on the paged route. THE POINT IS THAT IT IS IN
+    // THE DOCUMENT: the schema is merged at intake, so a generator downloading `openapi.json`
+    // reads the same wrapper the page renders, and there is no hand written DTO behind it.
+    const wrapper = specification.components.schemas.PaginatedOrderDto ?? {};
+
+    // Then
+    expect(Object.keys(wrapper.properties ?? {}).sort()).toEqual([
+      'items',
+      'page',
+      'perPage',
+      'total',
+    ]);
+    expect(wrapper.properties?.items?.items?.$ref).toBe('#/components/schemas/OrderDto');
   });
 
   it('should nest four levels deep, from an order down to a pair of coordinates', () => {
@@ -188,6 +206,7 @@ describe('the demo application behind that surface', () => {
       { what: 'categories', response: await fetch(`${app.url}/orders/categories`) },
       { what: 'read', response: await fetch(`${app.url}/orders/ord_1024`) },
       { what: 'receipt', response: await fetch(`${app.url}/orders/ord_1024/receipt`) },
+      { what: 'page', response: await fetch(`${app.url}/orders/page`) },
       {
         what: 'create',
         response: await fetch(`${app.url}/orders`, {
@@ -204,7 +223,7 @@ describe('the demo application behind that surface', () => {
 
     // Then
     expect(calls.filter((call) => !call.response.ok).map((call) => call.what)).toEqual([]);
-    expect(calls).toHaveLength(5);
+    expect(calls).toHaveLength(6);
   });
 
   it('should serve the receipt as the content type it documents', async () => {
@@ -225,8 +244,10 @@ describe('the demo application behind that surface', () => {
     const pages = [
       'get-orders',
       'get-orders-categories',
+      'get-orders-events',
       'get-orders-id',
       'get-orders-id-receipt',
+      'get-orders-page',
       'post-orders',
     ];
 
@@ -243,6 +264,6 @@ describe('the demo application behind that surface', () => {
     expect(statuses.filter((entry) => !entry.html.includes('oref-app')).map((e) => e.page)).toEqual(
       [],
     );
-    expect(statuses).toHaveLength(5);
+    expect(statuses).toHaveLength(7);
   });
 });

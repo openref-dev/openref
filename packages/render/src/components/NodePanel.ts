@@ -10,7 +10,9 @@
 import type { IRSchema } from '@openref/core';
 import { defineComponent, h, type Component, type PropType, type VNode } from 'vue';
 import { MarkdownBlock } from './MarkdownBlock';
+import { RuntimePanel } from './RuntimePanel';
 import { useDeferrable } from './deferrable';
+import { statusClass } from '../shared/status';
 import type { MediaTypeModel, NodeModel, ParameterModel } from '../page/domain/page-model';
 
 /** What every media type block needs to put a schema viewer under itself. */
@@ -32,11 +34,6 @@ function methodClass(method: string): string {
   return known.includes(method) ? `oref-method-${method.toLowerCase()}` : 'oref-method-other';
 }
 
-function statusClass(statusCode: string): string {
-  const first = statusCode.slice(0, 1);
-  return /^[1-5]$/.test(first) ? `oref-status-${first}xx` : 'oref-status-default';
-}
-
 function parameterRow(parameter: ParameterModel): VNode {
   const flags: VNode[] = [];
   if (parameter.required) flags.push(h('span', { class: 'oref-required' }, 'required'));
@@ -52,11 +49,22 @@ function parameterRow(parameter: ParameterModel): VNode {
   ]);
 }
 
+/**
+ * One request or response body: what it is written in, what shape it has, an example.
+ *
+ * THE HEAD NAMES THE MEDIA TYPE AND THE TREE NAMES THE SCHEMA, which is finding F15 and is a
+ * rule rather than a tidy-up. `typeLabel` here and the type on the root row of the tree are the
+ * same computation over the same slot, so a block that showed both printed one fact twice, the
+ * second line nested inside the first. The label therefore stays only where there is no tree
+ * under it to carry it.
+ */
 function mediaTypeBlock(media: MediaTypeModel, key: string, context: SchemaContext): VNode {
   return h('div', { class: 'oref-media', key }, [
     h('div', { class: 'oref-media-head' }, [
       h('code', { class: 'oref-media-type' }, media.mediaType),
-      media.typeLabel === '' ? null : h('span', { class: 'oref-media-schema' }, media.typeLabel),
+      media.typeLabel === '' || media.schema !== null
+        ? null
+        : h('span', { class: 'oref-media-schema' }, media.typeLabel),
     ]),
     media.schema === null
       ? null
@@ -102,6 +110,10 @@ export const NodePanel = defineComponent({
         schemaView: deferrable.schemaView,
       };
       const parts: (VNode | null)[] = [];
+      // What the specification says, which is everything between the header and the console.
+      // It is collected separately from the header so that it can be put in a column of its own
+      // when there is a runtime column to stand beside.
+      const spec: (VNode | null)[] = [];
 
       const address =
         node.method === null
@@ -118,14 +130,20 @@ export const NodePanel = defineComponent({
           h('h1', { class: 'oref-operation-title oref-title' }, node.title),
           address,
           node.deprecated ? h('span', { class: 'oref-badge oref-deprecated' }, 'deprecated') : null,
-          node.summary === '' ? null : h('p', { class: 'oref-subtitle' }, node.summary),
+          // F15's shape one layer up, and finding F19. An operation with no title of its own
+          // takes one from its summary, so on most documents these two are the same string and
+          // the header printed it as a heading and again as a subtitle. The subtitle survives
+          // only where it says something the heading does not.
+          node.summary === '' || node.summary === node.title
+            ? null
+            : h('p', { class: 'oref-subtitle' }, node.summary),
         ]),
       );
 
       parts.push(h(MarkdownBlock, { html: node.descriptionHtml }));
 
       if (node.security.length > 0) {
-        parts.push(
+        spec.push(
           section('Security', 'oref-section-security', [
             h(
               'ul',
@@ -145,7 +163,7 @@ export const NodePanel = defineComponent({
       }
 
       if (node.parameters.length > 0) {
-        parts.push(
+        spec.push(
           section('Parameters', 'oref-section-parameters', [
             h('table', { class: 'oref-table' }, [
               h('thead', {}, [
@@ -163,7 +181,7 @@ export const NodePanel = defineComponent({
       }
 
       if (node.requestBody.length > 0) {
-        parts.push(
+        spec.push(
           section(
             'Request body',
             'oref-section-request',
@@ -175,7 +193,7 @@ export const NodePanel = defineComponent({
       }
 
       if (node.responses.length > 0) {
-        parts.push(
+        spec.push(
           section(
             'Responses',
             'oref-section-responses',
@@ -199,6 +217,27 @@ export const NodePanel = defineComponent({
               ]),
             ),
           ),
+        );
+      }
+
+      // THE TWO COLUMNS ARE THE THESIS OF THIS DESIGN AND NOT AN ARRANGEMENT OF IT: what is
+      // declared and what is observed stand side by side at equal width, with the ruler gutter
+      // between them, and vernier's component inventory names that as the one thing this
+      // direction does that the other two do not.
+      //
+      // A NODE WITH NO RUNTIME FACTS GETS NO COLUMNS AT ALL, rather than an empty second one.
+      // That is SPEC 6.3 applied to the frame instead of to the block: half a page of blank
+      // surface beside the specification says the reference is broken, and it is the state
+      // every reader who has registered no collector would be in.
+      if (node.runtime === null) parts.push(...spec);
+      else {
+        parts.push(
+          h('div', { class: 'oref-node-columns' }, [
+            h('div', { class: 'oref-column-spec' }, spec),
+            h('div', { class: 'oref-column-runtime' }, [
+              h(RuntimePanel, { runtime: node.runtime }),
+            ]),
+          ]),
         );
       }
 

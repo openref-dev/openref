@@ -1,4 +1,7 @@
-import { Body, Controller, Get, Header, Param, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Header, Param, Post, Query, Sse, UseGuards } from '@nestjs/common';
+import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
+import { ApiAudience, ApiErrors, ApiSample, ApiScopes, ApiStream, paginated } from '@openref/nest';
+import { from, map, type Observable } from 'rxjs';
 import {
   ApiExtraModels,
   ApiHeader,
@@ -14,9 +17,12 @@ import {
   CategoryDto,
   CreateOrderDto,
   OrderDto,
+  OrderEventDto,
   ProblemDto,
   WalletPaymentDto,
 } from './orders.dto.js';
+import { OrderConflictError, OrderNotFoundError } from './orders.errors.js';
+import { Scopes, ScopesGuard } from './orders.security.js';
 
 const CATEGORIES: CategoryDto[] = [
   {
@@ -85,9 +91,17 @@ const ORDERS: OrderDto[] = [
  *
  * THE ROUTE ORDER IS LOAD BEARING. `/orders/categories` is declared before `/orders/:id`,
  * because NestJS matches in declaration order and `:id` would otherwise swallow it.
+ *
+ * THE CONTROLLER IS GUARDED AND ONLY TWO ROUTES DECLARE SCOPES, AND THAT ASYMMETRY IS THE POINT
+ * OF SPEC 6.1 RATHER THAN AN OVERSIGHT. `list` and `create` say what they need under a key the
+ * application named, so the reference reports it. The other four are behind the same guard and say
+ * nothing, so whatever the guard decides for them is written in code and will never be read: that
+ * is the case `doctor` names, and it is the one state this project refuses to let look like a
+ * route that needs no scopes at all.
  */
 @ApiTags('orders')
 @ApiExtraModels(CardPaymentDto, BankTransferDto, WalletPaymentDto)
+@UseGuards(ScopesGuard)
 @Controller('orders')
 export class OrdersController {
   /**
@@ -104,6 +118,14 @@ export class OrdersController {
    * @returns The orders that matched
    */
   @Get()
+  // The three facts of SPEC 6.2 that this application has to declare before anything can read
+  // them: a scope under the application's own key, a rate limit the throttler enforces, and the
+  // guard that enforces it. `@UseGuards(ThrottlerGuard)` is what makes the limit real; without it
+  // `@Throttle` would be metadata describing an enforcement that does not happen, and a reference
+  // reporting that would be exactly the guess this project does not make.
+  @Scopes('orders:read')
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  @UseGuards(ThrottlerGuard)
   @ApiOperation({ summary: 'List orders', description: 'Every order, newest first.' })
   @ApiQuery({ name: 'currency', required: false, description: 'ISO 4217 code, such as EUR.' })
   @ApiQuery({
@@ -144,6 +166,53 @@ export class OrdersController {
   }
 
   /**
+   * The same orders, one page at a time.
+   *
+   * IT IS HERE FOR `paginated(OrderDto)`, WHICH IS SPEC 13.5's WHOLE POINT. `Page<OrderDto>` is
+   * `Object` once TypeScript has compiled, so the usual answer is a hand written `OrderPageDto`
+   * per inner type. The factory builds `PaginatedOrderDto` instead, deterministically, and the
+   * schema is merged into the document at intake. There is deliberately no wrapper DTO in
+   * `orders.dto.ts` to compare it against: one would be the thing this replaces.
+   *
+   * @returns The first page of orders
+   */
+  @Get('page')
+  @ApiScopes('orders:read')
+  @ApiOperation({ summary: 'List orders by page', description: 'The same orders, wrapped.' })
+  @ApiOkResponse(paginated(OrderDto))
+  page(): { items: OrderDto[]; total: number; page: number; perPage: number } {
+    return { items: ORDERS, total: ORDERS.length, page: 1, perPage: 20 };
+  }
+
+  /**
+   * Orders as they happen.
+   *
+   * THE ITEM TYPE IS DECLARED AND NOT REFLECTED, per SPEC 13.6. Nothing at runtime can recover
+   * `OrderEventDto` from the return type of this method, so `@ApiStream` says it, the stream
+   * collector reads it at `declared`, and a route that said nothing would be reported by `doctor`
+   * rather than described with a guess.
+   *
+   * @returns One event per second, three of them, then the stream ends
+   */
+  @Sse('events')
+  @ApiStream({ itemType: OrderEventDto, kind: 'sse', terminator: '[DONE]' })
+  @ApiSample({
+    lang: 'bash',
+    label: 'curl',
+    source: 'curl -N http://localhost:3000/orders/events',
+  })
+  @ApiOperation({ summary: 'Watch orders', description: 'One message per order event.' })
+  events(): Observable<MessageEvent> {
+    const events: OrderEventDto[] = ORDERS.map((order) => ({
+      type: `order.${order.status}`,
+      orderId: order.id,
+      at: '2026-08-11T00:00:00Z',
+    }));
+
+    return from(events).pipe(map((data) => ({ data }) as MessageEvent));
+  }
+
+  /**
    * The catalogue, which contains itself.
    *
    * @returns The top level categories, each carrying its own children
@@ -165,6 +234,13 @@ export class OrdersController {
    * @returns The order, or a made up one when the id is unknown, since this is an example
    */
   @Get(':id')
+  // THE DECLARATION AND THE OBSERVATION SIT SIDE BY SIDE HERE, WHICH IS THE POINT OF SPEC 6.4.
+  // `@ApiErrors` is a promise this route makes, and it lands in the Declared group at `declared`.
+  // The 401 and 403 that also appear on this route are not promises: they follow from `ScopesGuard`
+  // standing in front of it, they land in the Runtime-derived group at `derived`, and nobody wrote
+  // them down. Merging the two lists would make the reference unable to tell a reader which is
+  // which, and that difference is the whole product.
+  @ApiErrors(OrderNotFoundError)
   @ApiOperation({ summary: 'Read one order' })
   @ApiOkResponse({ type: OrderDto })
   @ApiResponse({ status: 404, description: 'No order with that identifier.', type: ProblemDto })
@@ -195,6 +271,10 @@ export class OrdersController {
    * @returns The receipt as comma separated values
    */
   @Get(':id/receipt')
+  // MARKED, NOT HIDDEN, per SPEC 13.4. The marking travels in the served specification as
+  // `x-openref-audience`, where the agent surface of T058 is required to respect it. What keeps a
+  // reference away from a reader is the visibility of the mounted document, which is a guard.
+  @ApiAudience('internal')
   @Header('Content-Type', 'text/csv; charset=utf-8')
   @Header('X-Content-Type-Options', 'nosniff')
   @ApiOperation({ summary: 'Download the receipt', description: 'One row per order line.' })
@@ -225,6 +305,13 @@ export class OrdersController {
    * @returns The created order
    */
   @Post()
+  // A METHOD'S SCOPES REPLACE A CLASS'S RATHER THAN ADDING TO THEM, which is why writing is
+  // spelled out here instead of being assumed on top of reading.
+  @Scopes('orders:write')
+  // Declared through a class carrying its own static `status` rather than through the catalog,
+  // which is the second level of SPEC 6.4 and the one an application with a base error class gets
+  // for free.
+  @ApiErrors(OrderConflictError)
   @ApiOperation({ summary: 'Create an order' })
   @ApiResponse({ status: 201, description: 'Created.', type: OrderDto })
   @ApiResponse({ status: 400, description: 'The body did not parse.', type: ProblemDto })

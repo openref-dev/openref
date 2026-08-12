@@ -1,11 +1,12 @@
 import { createRequire } from 'node:module';
 import { describe, expect, it } from 'vitest';
-import { Controller, Get, RequestMethod, UseGuards } from '@nestjs/common';
+import { Controller, Get, RequestMethod, Sse, UseGuards } from '@nestjs/common';
 import {
   NEST_CORE_VALUE_NAMES,
   NEST_GUARD_METADATA,
   NEST_REQUEST_METHODS,
   NEST_ROUTE_METADATA,
+  NEST_SSE_METADATA,
 } from '../../src/shared/types/nest-surface';
 import {
   loadNestCore,
@@ -125,6 +126,29 @@ describe('the metadata keys the discovery pass reads', () => {
     // Then
     expect(onClass).toEqual([AuthGuard]);
     expect(onHandler).toEqual([AdminGuard]);
+  });
+
+  it('should be where @Sse writes, which is __sse__ and not sse', () => {
+    // Given the key T020 added, measured rather than guessed: a collector looking for a key named
+    // after the decorator finds nothing on every streaming route and reports that the application
+    // has none, which is the quietest way to be wrong about a whole feature.
+    @Controller('jobs')
+    class JobsController {
+      @Sse('events')
+      events(): string {
+        return 'stream';
+      }
+    }
+
+    // When
+    const descriptor = Object.getOwnPropertyDescriptor(JobsController.prototype, 'events');
+    const handler = descriptor?.value as object;
+
+    // Then, and the route half of what `@Sse` writes is asserted beside it, because a streaming
+    // route is discovered as a GET like any other
+    expect(Reflect.getMetadata(NEST_SSE_METADATA, handler)).toBe(true);
+    expect(Reflect.getMetadata(NEST_ROUTE_METADATA.path, handler)).toBe('events');
+    expect(Reflect.getMetadata(NEST_ROUTE_METADATA.method, handler)).toBe(RequestMethod.GET);
   });
 });
 

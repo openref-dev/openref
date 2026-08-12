@@ -171,3 +171,122 @@ describe('runRuntimePass', () => {
     expect(second.document.hash).toBe(first.document.hash);
   });
 });
+
+/**
+ * The Documentation Health report of SPEC 7.2, as the pass hangs it on the document.
+ *
+ * WHAT IS BEING GUARDED HERE IS THE INPUT TO `orphan-operation` AND NOT THE RULE ITSELF, which is
+ * tested in `core` against hand built documents. The pass is the only thing that knows which nodes
+ * the application actually serves, and getting that wrong does not produce a missing finding: it
+ * produces a finding telling a reader to delete documentation that is correct.
+ */
+describe('runRuntimePass, the health report', () => {
+  it('should hang a report on the document and take the hash over it', () => {
+    // Given
+    // When
+    const result = runRuntimePass(document(), {
+      collectors: [scopes],
+      discovery,
+      reflector,
+      moduleRef,
+    });
+
+    // Then a document whose hash predates its own panel is a cache key that never changes
+    expect(result.document.health?.operationCount).toBe(1);
+    expect(result.document.hash).toBe(hashDocument(result.document));
+  });
+
+  it('should count the collector registry as a check of its own', () => {
+    // Given a collector that declined, per SPEC 7
+    const result = runRuntimePass(document(), {
+      collectors: [scopes, { name: 'throttlerCollector', skipped: '@nestjs/throttler is absent' }],
+      discovery,
+      reflector,
+      moduleRef,
+    });
+
+    // When
+    const check = result.document.health?.checks[0];
+
+    // Then a failed collector is a health check and never a drift finding, per SPEC 7
+    expect(check).toEqual({
+      id: 'runtime-collectors',
+      label: 'Runtime collectors that ran',
+      passed: 1,
+      total: 2,
+      severity: 'warning',
+    });
+    expect(result.document.health?.drift.some((issue) => issue.rule === 'orphan-operation')).toBe(
+      false,
+    );
+  });
+
+  it('should call a node with no handler an orphan', () => {
+    // Given an application serving nothing the document describes
+    const result = runRuntimePass(document(), {
+      collectors: [scopes],
+      discovery: { getControllers: () => [] },
+      reflector,
+      moduleRef,
+    });
+
+    // When
+    const orphans = result.document.health?.drift.filter(
+      (issue) => issue.rule === 'orphan-operation',
+    );
+
+    // Then
+    expect(orphans).toHaveLength(1);
+    expect(orphans?.[0]?.classification).toEqual({ bucket: 'contradiction' });
+  });
+
+  it('should not call a paired node an orphan just because no collector had anything to say', () => {
+    // Given, THE MISTAKE THIS PINS IS READING `node.runtime` INSTEAD OF THE PAIRING. A route that
+    // was found and that every collector declined to describe still has a handler, and a document
+    // whose host registered no collectors would otherwise report every operation as removed.
+    const result = runRuntimePass(document(), { collectors: [], discovery, reflector, moduleRef });
+
+    // When
+    const orphans = result.document.health?.drift.filter(
+      (issue) => issue.rule === 'orphan-operation',
+    );
+
+    // Then
+    expect(result.nodesWithFacts).toBe(0);
+    expect(orphans).toEqual([]);
+  });
+
+  it('should carry the guard to scheme mapping through to security-drift', () => {
+    // Given a guarded route, a document requiring a different scheme, and the host's mapping
+    const guards: IRuntimeCollector = {
+      name: 'guardsCollector',
+      collect: () => ({
+        guards: [{ name: 'JwtAuthGuard', confidence: 'derived', collector: 'guardsCollector' }],
+      }),
+    };
+    const withSecurity = document();
+    const secured = new Map(withSecurity.nodes);
+    for (const [id, node] of secured) {
+      if (node.kind === 'operation') {
+        secured.set(id, { ...node, security: [{ schemeId: 'apiKey', scopes: [] }] });
+      }
+    }
+
+    // When
+    const result = runRuntimePass(
+      { ...withSecurity, nodes: secured },
+      {
+        collectors: [guards],
+        discovery,
+        reflector,
+        moduleRef,
+        guardSecuritySchemes: { JwtAuthGuard: 'bearer' },
+      },
+    );
+
+    // Then without the mapping this operation is quiet, because a guard class name names no scheme
+    const found = result.document.health?.drift.filter((issue) => issue.rule === 'security-drift');
+    expect(found).toHaveLength(1);
+    expect(found?.[0]?.classification).toEqual({ bucket: 'contradiction' });
+  });
+});

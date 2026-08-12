@@ -33,6 +33,14 @@ const DOCUMENT_TEXT_CLASSES: readonly string[] = [
   'oref-brand-title',
   'oref-brand-version',
   'oref-description',
+  // The runtime and drift surfaces of T023. Their text comes from the application rather than
+  // from the specification file, which makes no difference to this attack: a controller name, a
+  // scope, an error title and the two sides of a finding are all strings this project prints and
+  // does not write, and an override in any of them reorders the row it lives in.
+  'oref-drift-fix',
+  'oref-drift-message',
+  'oref-drift-side',
+  'oref-drift-subject',
   'oref-example',
   'oref-media-schema',
   'oref-nav-label',
@@ -41,6 +49,8 @@ const DOCUMENT_TEXT_CLASSES: readonly string[] = [
   'oref-param-name',
   'oref-path',
   'oref-response-doc',
+  'oref-runtime-item',
+  'oref-runtime-note',
   'oref-schema-doc',
   'oref-schema-name',
   'oref-security-scopes',

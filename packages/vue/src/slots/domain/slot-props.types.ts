@@ -3,7 +3,7 @@ import type {
   IRDocument,
   IRDriftIssue,
   IRDriftRule,
-  IRErrorContract,
+  IRErrorContracts,
   IRHealthReport,
   IRNavNode,
   IRNodeRuntime,
@@ -100,10 +100,16 @@ export interface SlotPropsMap {
   /**
    * Error contracts, in the three groups SPEC 6.4 keeps apart.
    *
-   * `available` separates "no collector ran" from "this operation declares no errors". One
-   * list with no such distinction would read as the second while meaning the first.
+   * THE GROUPS ARRIVE AS THREE FIELDS AND NEVER AS ONE TAGGED LIST, which is T021's decision and
+   * the reason this prop changed shape. A theme handed `readonly IRErrorContract[]` renders it in
+   * one `v-for` and the difference between a promise and an observation is gone, with nothing in
+   * the type system having been broken. A theme handed {@link IRErrorContracts} has to write the
+   * concatenation itself to lose the distinction, which makes losing it a decision.
+   *
+   * `available` separates "no collector ran" from "this operation declares no errors". An empty
+   * `declared` group with `available` true is the second and says so.
    */
-  ErrorContract: { errors: readonly IRErrorContract[]; available: boolean };
+  ErrorContract: { errors: IRErrorContracts; available: boolean };
 
   /** The schema tree, one level at a time, with the viewer's own cycle stops. */
   SchemaTree: { root: SchemaTreeNode; view: IRSchemaView };

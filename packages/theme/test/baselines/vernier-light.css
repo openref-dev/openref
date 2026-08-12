@@ -55,7 +55,8 @@
   min-height: 100%;
 }
 
-.oref-layout::after {
+.oref-layout::after,
+.oref-node-columns::after {
   background-image: repeating-linear-gradient(180deg, #bfc9d2 0 1px, transparent 1px 8px);
   content: '';
   grid-column: 2;
@@ -65,9 +66,17 @@
   width: 1px;
 }
 
-.oref-sidebar {
+.oref-layout::before {
   background: #f6f8fa;
   border-right: 1px solid #d9dfe5;
+  content: '';
+  grid-column: 1;
+  grid-row: 1;
+  height: 100%;
+  width: 100%;
+}
+
+.oref-sidebar {
   grid-column: 1;
   grid-row: 1;
   max-height: 100vh;
@@ -77,7 +86,10 @@
   top: 0;
 }
 
-.oref-nav {
+.oref-nav,
+.oref-nav-scroll,
+.oref-runtime-item,
+.oref-schema-page {
   display: block;
 }
 
@@ -90,10 +102,6 @@
 
 .oref-nav-list.oref-nav-rendered {
   min-height: 0;
-}
-
-.oref-nav-scroll {
-  display: block;
 }
 
 .oref-nav-entry {
@@ -168,7 +176,9 @@
   white-space: nowrap;
 }
 
-.oref-nav-count {
+.oref-check-count,
+.oref-nav-count,
+.oref-rule-count {
   color: #5f6e7a;
   font-variant-numeric: tabular-nums;
 }
@@ -183,10 +193,10 @@
   background: #eef1f4;
   grid-column: 3;
   grid-row: 1;
-  max-width: 78ch;
   padding: 36px 26px;
 }
 
+.oref-health-score,
 .oref-title {
   font-family: 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
   font-size: 27px;
@@ -209,7 +219,8 @@
   max-width: 78ch;
 }
 
-.oref-section {
+.oref-section,
+.oref-section-health {
   border-top: 1px solid #d9dfe5;
   margin-top: 36px;
   padding-top: 20px;
@@ -361,7 +372,9 @@
   padding-inline-start: 14px;
 }
 
-.oref-media-head {
+.oref-media-head,
+.oref-response-head,
+.oref-run-summary {
   align-items: baseline;
   display: flex;
   gap: 10px;
@@ -373,21 +386,21 @@
   font-size: 12px;
 }
 
-.oref-media-schema {
+.oref-media-schema,
+.oref-palette-hint,
+.oref-run-header-name,
+.oref-run-time,
+.oref-runtime-label,
+.oref-runtime-note {
   color: #5f6e7a;
   font-family: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
   font-size: 12px;
 }
 
-.oref-response {
+.oref-response,
+.oref-rule {
   border-top: 1px solid #d9dfe5;
   padding: 14px 0;
-}
-
-.oref-response-head {
-  align-items: baseline;
-  display: flex;
-  gap: 10px;
 }
 
 .oref-response-doc {
@@ -422,6 +435,11 @@
   color: #6b7d8d;
 }
 
+.oref-check-list,
+.oref-drift-list,
+.oref-palette-list,
+.oref-schema-list,
+.oref-schema-tree,
 .oref-security-list,
 .oref-server-list {
   list-style: none;
@@ -429,6 +447,7 @@
   padding: 0;
 }
 
+.oref-check,
 .oref-security-item,
 .oref-server {
   align-items: baseline;
@@ -531,17 +550,6 @@
   transform: translateY(0);
 }
 
-.oref-schema-page {
-  display: block;
-}
-
-.oref-schema-tree,
-.oref-schema-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
 .oref-schema-list {
   border-inline-start: 1px solid #d9dfe5;
   margin-inline-start: 10px;
@@ -603,7 +611,9 @@ button.oref-schema-row:hover {
   font-size: 12px;
 }
 
-.oref-schema-link {
+.oref-drift-subject,
+.oref-schema-link,
+.oref-source-link {
   color: #1f57ab;
   text-decoration: underline;
 }
@@ -680,12 +690,6 @@ button.oref-schema-row:hover {
   width: 100%;
 }
 
-.oref-palette-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
 .oref-palette-hit {
   margin: 0;
 }
@@ -707,18 +711,13 @@ button.oref-schema-row:hover {
   font-size: 13px;
 }
 
-.oref-palette-hint {
-  color: #5f6e7a;
-  font-family: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
-  font-size: 12px;
-}
-
 .oref-palette-empty {
   color: #5f6e7a;
   font-size: 13px;
   padding: 14px;
 }
 
+.oref-section-runtime,
 .oref-section-tryit {
   border-top: 3px solid #8a5200;
 }
@@ -761,6 +760,7 @@ button.oref-schema-row:hover {
   resize: vertical;
 }
 
+.oref-drift-rule,
 .oref-field-note {
   color: #5f6e7a;
   font-size: 11px;
@@ -789,7 +789,8 @@ button.oref-schema-row:hover {
   text-transform: uppercase;
 }
 
-.oref-send:disabled {
+.oref-send:disabled,
+.oref-send[aria-disabled='true'] {
   background: #f6f8fa;
   border-color: #5f6e7a;
   color: #5f6e7a;
@@ -816,32 +817,17 @@ button.oref-schema-row:hover {
   padding-top: 14px;
 }
 
-.oref-run-summary {
-  align-items: baseline;
-  display: flex;
-  gap: 10px;
-}
-
-.oref-run-time {
-  color: #5f6e7a;
-  font-family: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
-  font-size: 12px;
-}
-
-.oref-run-headers {
+.oref-run-headers,
+.oref-runtime {
   display: grid;
   grid-template-columns: max-content minmax(0, 1fr);
   gap: 4px 10px;
   margin: 10px 0 0;
 }
 
-.oref-run-header-name {
-  color: #5f6e7a;
-  font-family: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
-  font-size: 12px;
-}
-
-.oref-run-header-value {
+.oref-drift-side,
+.oref-run-header-value,
+.oref-runtime-value {
   color: #465768;
   font-family: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
   font-size: 12px;
@@ -860,10 +846,82 @@ button.oref-schema-row:hover {
   white-space: pre-wrap;
 }
 
+.oref-node-columns {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 44px minmax(0, 1fr);
+}
+
+.oref-column-spec,
+.oref-column-runtime {
+  grid-row: 1;
+}
+
+.oref-column-runtime {
+  grid-column: 3;
+}
+
+.oref-prov-declared {
+  background: #e6eefb;
+  border-inline-start: 3px solid #1f57ab;
+  color: #1f57ab;
+}
+
+.oref-prov-derived {
+  background: #f9efdc;
+  border-inline-start: 3px dashed #8a5200;
+  color: #8a5200;
+}
+
+.oref-prov-inferred {
+  background: #efe9fb;
+  border-inline-start: 3px dotted #5b3ba8;
+  color: #5b3ba8;
+}
+
+.oref-prov {
+  font-size: 11px;
+  padding: 0 4px;
+  text-decoration: none;
+}
+
+.oref-drift-crit {
+  background: #fae7e4;
+  border-inline-start: 2px solid #a92616;
+}
+
+.oref-drift-warn {
+  background: #f9efdc;
+  border-inline-start: 1px dashed #8a5200;
+}
+
+.oref-drift-note {
+  background: #eaeef1;
+  border-inline-start: 1px dotted #465768;
+}
+
+.oref-drift {
+  display: grid;
+  gap: 4px;
+  padding: 10px 14px;
+}
+
+.oref-drift-fix {
+  color: #8a5200;
+  margin: 0;
+}
+
+.oref-rule-head {
+  cursor: pointer;
+}
+
 .oref-body,
 .oref-brand-title,
 .oref-brand-version,
 .oref-description,
+.oref-drift-fix,
+.oref-drift-message,
+.oref-drift-side,
+.oref-drift-subject,
 .oref-example,
 .oref-media-schema,
 .oref-nav-label,
@@ -872,6 +930,8 @@ button.oref-schema-row:hover {
 .oref-param-name,
 .oref-path,
 .oref-response-doc,
+.oref-runtime-item,
+.oref-runtime-note,
 .oref-schema-doc,
 .oref-schema-name,
 .oref-security-scopes,

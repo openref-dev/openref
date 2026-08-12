@@ -196,6 +196,9 @@ export class MountedReferences {
       moduleRef: this.dependencies.moduleRef,
       ...(template === undefined ? {} : { sourceLinkTemplate: template }),
       ...(version === undefined ? {} : { nestVersion: version }),
+      ...(runtime?.guardSecuritySchemes === undefined
+        ? {}
+        : { guardSecuritySchemes: runtime.guardSecuritySchemes }),
     });
   }
 

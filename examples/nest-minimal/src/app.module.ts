@@ -1,6 +1,18 @@
 import { Module } from '@nestjs/common';
-import { OpenRefModule, sourceCollector } from '@openref/nest';
+import { ThrottlerModule } from '@nestjs/throttler';
+import {
+  declarationsCollector,
+  errorsCollector,
+  guardsCollector,
+  OpenRefModule,
+  scopesCollector,
+  sourceCollector,
+  streamCollector,
+} from '@openref/nest';
+import { throttlerCollector } from '@openref/collector-throttler';
 import { OrdersController } from './orders.controller.js';
+import { ORDER_ERRORS } from './orders.errors.js';
+import { SCOPES_KEY } from './orders.security.js';
 
 /**
  * The whole application: one controller, and the runtime intelligence of SPEC 6.
@@ -21,14 +33,52 @@ import { OrdersController } from './orders.controller.js';
  * The revision is read from git. A build with no `.git` passes it instead, as
  * `sourceLink: { template, ref }`.
  *
+ * SEVEN COLLECTORS, AND EACH ONE HAS SOMETHING IN THIS APPLICATION TO READ. That is the whole
+ * reason the guard, the scope key and the throttled route exist in `orders.controller.ts`: a
+ * collector registered against an application with nothing for it to find reports nothing, and
+ * reporting nothing is indistinguishable from working. `scopesCollector` is given this
+ * application's key, because SPEC 6.1 forbids guessing one and there is deliberately no default.
+ *
+ * `throttlerCollector` COMES FROM ITS OWN PACKAGE, per SPEC 4 and 6.2.1. A collector that reads a
+ * third party library is published separately so that installing `@openref/nest` never puts a
+ * throttler in the closure of an application that does not rate limit anything.
+ *
  * An empty class is how NestJS declares a module. There is no other spelling.
  */
 @Module({
   controllers: [OrdersController],
   imports: [
+    // The store behind `@Throttle`. Without it `ThrottlerGuard` has no options to enforce, so the
+    // rate limit the reference reports would be a number nothing acts on.
+    ThrottlerModule.forRoot([{ ttl: 60_000, limit: 100 }]),
     OpenRefModule.forRoot({
       runtime: {
-        collectors: [sourceCollector()],
+        collectors: [
+          sourceCollector(),
+          guardsCollector(),
+          // The `declared` level of SPEC 6.1, which is what `@ApiScopes` writes, and the four
+          // level priority of SPEC 13.6. Both read keys this package defines, so neither takes a
+          // metadata key: there is nothing about them for an application to name.
+          declarationsCollector(),
+          streamCollector(),
+          scopesCollector({ metadataKey: SCOPES_KEY }),
+          throttlerCollector(),
+          // SPEC 6.4. The catalog is this application's, for the reason `orders.errors.ts` gives,
+          // and `global` is what the host says every endpoint can answer with. Nothing observes a
+          // global exception filter to get that list: a filter says how an error is rendered if
+          // one reaches the top, not that any endpoint produces one, so the honest source of an
+          // application wide contract is the application saying so.
+          errorsCollector({
+            catalogs: [ORDER_ERRORS],
+            global: [
+              {
+                status: 500,
+                title: 'Internal Server Error',
+                type: 'https://example.com/errors/internal',
+              },
+            ],
+          }),
+        ],
         sourceLink: 'https://github.com/sur-ser/openref/blob/{ref}/{file}#L{line}',
       },
     }),

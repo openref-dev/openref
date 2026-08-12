@@ -3,6 +3,7 @@ import { mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { SPAWNED_PROCESS_TIMEOUT_MS } from '../../../../vitest.spawn-timeout.ts';
 
 const PACKAGE_ROOT = join(import.meta.dirname, '..', '..');
 
@@ -51,7 +52,7 @@ beforeAll(() => {
 
   const tarball = output.trim().split('\n').at(-1) ?? '';
   execFileSync('tar', ['-xzf', join(packed, tarball), '-C', packed]);
-}, 120_000);
+}, SPAWNED_PROCESS_TIMEOUT_MS);
 
 afterAll(() => {
   if (packed !== '') rmSync(packed, { recursive: true, force: true });

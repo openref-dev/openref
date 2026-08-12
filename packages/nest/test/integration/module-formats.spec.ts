@@ -4,6 +4,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
+import { SPAWNED_PROCESS_TIMEOUT_MS } from '../../../../vitest.spawn-timeout.ts';
 
 /**
  * The dual build of SPEC 23, checked by loading it rather than by reading the configuration.
@@ -156,39 +157,50 @@ function packageOf(specifier: string): string {
 }
 
 describe('the dual build', () => {
-  it('should resolve and expose its surface to an ESM consumer', () => {
-    // Given
-    const source = `
+  it(
+    'should resolve and expose its surface to an ESM consumer',
+    { timeout: SPAWNED_PROCESS_TIMEOUT_MS },
+    () => {
+      // Given
+      const source = `
       const module = await import('@openref/nest');
       console.log(JSON.stringify({ name: module.PACKAGE_NAME, setup: typeof module.OpenRefModule.setup }));
     `;
 
-    // When
-    const printed = runInNode(source, 'module');
+      // When
+      const printed = runInNode(source, 'module');
 
-    // Then
-    expect(JSON.parse(printed)).toEqual({ name: '@openref/nest', setup: 'function' });
-  });
+      // Then
+      expect(JSON.parse(printed)).toEqual({ name: '@openref/nest', setup: 'function' });
+    },
+  );
 
-  it('should resolve and expose its surface to a CommonJS consumer', () => {
-    // Given
-    const source = `
+  it(
+    'should resolve and expose its surface to a CommonJS consumer',
+    { timeout: SPAWNED_PROCESS_TIMEOUT_MS },
+    () => {
+      // Given
+      const source = `
       const module = require('@openref/nest');
       console.log(JSON.stringify({ name: module.PACKAGE_NAME, setup: typeof module.OpenRefModule.setup }));
     `;
 
-    // When
-    const printed = runInNode(source, 'commonjs');
+      // When
+      const printed = runInNode(source, 'commonjs');
 
-    // Then
-    expect(JSON.parse(printed)).toEqual({ name: '@openref/nest', setup: 'function' });
-  });
+      // Then
+      expect(JSON.parse(printed)).toEqual({ name: '@openref/nest', setup: 'function' });
+    },
+  );
 
-  it('should render a page from CommonJS, which is the path the ESM only dependencies sit on', () => {
-    // Given, the highlighter and the markdown renderer, the two paths that touch `shiki` and
-    // `marked`. This exercises them from the CommonJS half; what it cannot do any more is fail
-    // when they are reached with `require`, since every supported Node allows that.
-    const source = `
+  it(
+    'should render a page from CommonJS, which is the path the ESM only dependencies sit on',
+    { timeout: SPAWNED_PROCESS_TIMEOUT_MS },
+    () => {
+      // Given, the highlighter and the markdown renderer, the two paths that touch `shiki` and
+      // `marked`. This exercises them from the CommonJS half; what it cannot do any more is fail
+      // when they are reached with `require`, since every supported Node allows that.
+      const source = `
       const { ReferenceService } = require('@openref/nest');
       const service = new ReferenceService({
         document: {
@@ -208,120 +220,141 @@ describe('the dual build', () => {
       });
     `;
 
-    // When
-    const printed = runInNode(source, 'commonjs');
+      // When
+      const printed = runInNode(source, 'commonjs');
 
-    // Then
-    expect(JSON.parse(printed)).toEqual({ status: 200, html: true });
-  });
+      // Then
+      expect(JSON.parse(printed)).toEqual({ status: 200, html: true });
+    },
+  );
 
-  it('should declare every package its built output reaches for', () => {
-    // Given
-    const declared = new Set([
-      ...Object.keys(manifest.dependencies ?? {}),
-      ...Object.keys(manifest.peerDependencies ?? {}),
-    ]);
+  it(
+    'should declare every package its built output reaches for',
+    { timeout: SPAWNED_PROCESS_TIMEOUT_MS },
+    () => {
+      // Given
+      const declared = new Set([
+        ...Object.keys(manifest.dependencies ?? {}),
+        ...Object.keys(manifest.peerDependencies ?? {}),
+      ]);
 
-    // When
-    const reached = [
-      ...new Set(
-        [
-          ...externalSpecifiers(built('dist/index.js')),
-          ...externalSpecifiers(built('dist/index.cjs')),
-        ].map(packageOf),
-      ),
-    ].sort((a, b) => a.localeCompare(b));
-    const undeclared = reached.filter((name) => !declared.has(name));
+      // When
+      const reached = [
+        ...new Set(
+          [
+            ...externalSpecifiers(built('dist/index.js')),
+            ...externalSpecifiers(built('dist/index.cjs')),
+          ].map(packageOf),
+        ),
+      ].sort((a, b) => a.localeCompare(b));
+      const undeclared = reached.filter((name) => !declared.has(name));
 
-    // Then
-    expect(undeclared).toEqual([]);
-    expect(reached.length).toBeGreaterThan(0);
-  });
+      // Then
+      expect(undeclared).toEqual([]);
+      expect(reached.length).toBeGreaterThan(0);
+    },
+  );
 
-  it('should reach every ESM only dependency through import() and never through require()', () => {
-    // Given, the assertion that does not depend on which Node runs it. `require(esm)` is
-    // native from Node 20.19, so a runtime check of this on a modern runtime passes whether or
-    // not the dynamic imports are there, and the reader this protects is on an older one. The
-    // built CommonJS file either reaches for these with `import(` or it does not.
-    const cjs = built('dist/index.cjs');
+  it(
+    'should reach every ESM only dependency through import() and never through require()',
+    { timeout: SPAWNED_PROCESS_TIMEOUT_MS },
+    () => {
+      // Given, the assertion that does not depend on which Node runs it. `require(esm)` is
+      // native from Node 20.19, so a runtime check of this on a modern runtime passes whether or
+      // not the dynamic imports are there, and the reader this protects is on an older one. The
+      // built CommonJS file either reaches for these with `import(` or it does not.
+      const cjs = built('dist/index.cjs');
 
-    // When
-    const reachedByRequire = ESM_ONLY_DEPENDENCIES.filter((name) =>
-      new RegExp(`require\\(\\s*["']${name}["']`).test(cjs),
-    );
-    const reachedByImport = ESM_ONLY_DEPENDENCIES.filter((name) =>
-      new RegExp(`import\\(\\s*["']${name}["']`).test(cjs),
-    );
+      // When
+      const reachedByRequire = ESM_ONLY_DEPENDENCIES.filter((name) =>
+        new RegExp(`require\\(\\s*["']${name}["']`).test(cjs),
+      );
+      const reachedByImport = ESM_ONLY_DEPENDENCIES.filter((name) =>
+        new RegExp(`import\\(\\s*["']${name}["']`).test(cjs),
+      );
 
-    // Then
-    expect(reachedByRequire).toEqual([]);
-    expect(reachedByImport).toEqual([...ESM_ONLY_DEPENDENCIES]);
-  });
+      // Then
+      expect(reachedByRequire).toEqual([]);
+      expect(reachedByImport).toEqual([...ESM_ONLY_DEPENDENCIES]);
+    },
+  );
 
-  it('should load with no NestJS installed, reaching @nestjs/core only from inside forRoot', () => {
-    // Given, TX-FORROOT's measurement: `tools/browser-budget` imports this package and boots
-    // Express with no NestJS in its tree, which is how the browser budgets prove the package
-    // puts no framework on the wire, and `@nestjs/core` is not resolvable from there. The load
-    // is therefore lazy, and this is what keeps it lazy: a refactor that hoists it to the top of
-    // the file breaks nothing in the unit suite and nothing here would go red without this.
-    const esm = built('dist/index.js');
-    const cjs = built('dist/index.cjs');
+  it(
+    'should load with no NestJS installed, reaching @nestjs/core only from inside forRoot',
+    { timeout: SPAWNED_PROCESS_TIMEOUT_MS },
+    () => {
+      // Given, TX-FORROOT's measurement: `tools/browser-budget` imports this package and boots
+      // Express with no NestJS in its tree, which is how the browser budgets prove the package
+      // puts no framework on the wire, and `@nestjs/core` is not resolvable from there. The load
+      // is therefore lazy, and this is what keeps it lazy: a refactor that hoists it to the top of
+      // the file breaks nothing in the unit suite and nothing here would go red without this.
+      const esm = built('dist/index.js');
+      const cjs = built('dist/index.cjs');
 
-    // When
-    const statik = [esm, cjs].flatMap((file) => [
-      ...file.matchAll(/(?:^|[^.\w])(?:import|export)\s[^;]*?["'](@nestjs\/[^"']+)["']/g),
-      ...file.matchAll(/(?:^|[^.\w])require\(\s*["'](@nestjs\/[^"']+)["']\s*\)/g),
-    ]);
-    // The CommonJS build shims `import.meta.url` into an expression carrying its own brackets,
-    // so the argument cannot be matched as a bracket free run. One line is enough: both builds
-    // emit the whole call on one.
-    const lazy = [esm, cjs].filter((file) =>
-      /createRequire[^\n]*\)\(\s*["']@nestjs\/core["']\s*\)/.test(file),
-    );
+      // When
+      const statik = [esm, cjs].flatMap((file) => [
+        ...file.matchAll(/(?:^|[^.\w])(?:import|export)\s[^;]*?["'](@nestjs\/[^"']+)["']/g),
+        ...file.matchAll(/(?:^|[^.\w])require\(\s*["'](@nestjs\/[^"']+)["']\s*\)/g),
+      ]);
+      // The CommonJS build shims `import.meta.url` into an expression carrying its own brackets,
+      // so the argument cannot be matched as a bracket free run. One line is enough: both builds
+      // emit the whole call on one.
+      const lazy = [esm, cjs].filter((file) =>
+        /createRequire[^\n]*\)\(\s*["']@nestjs\/core["']\s*\)/.test(file),
+      );
 
-    // Then, the file is a build before it is a build with no static import in it, per SPEC 0
-    expect(esm).toContain('forRoot');
-    expect(statik.map((match) => match[1])).toEqual([]);
-    expect(lazy).toHaveLength(2);
-  });
+      // Then, the file is a build before it is a build with no static import in it, per SPEC 0
+      expect(esm).toContain('forRoot');
+      expect(statik.map((match) => match[1])).toEqual([]);
+      expect(lazy).toHaveLength(2);
+    },
+  );
 
-  it('should serve its route table from a consumer that cannot resolve NestJS at all', () => {
-    // Given, run rather than reasoned about: this consumer has no `@nestjs/core` in its tree, so
-    // a static import anywhere in the package's graph would make the import below throw. The
-    // static assertion above says the same thing about the file; this says it about a process.
-    const source = [
-      "const { createRequire } = await import('node:module');",
-      'let resolvable = true;',
-      "try { createRequire(process.cwd() + '/x.js')('@nestjs/core'); } catch { resolvable = false; }",
-      "const { OpenRefModule, referenceRoutes } = await import('@openref/nest');",
-      "const routes = referenceRoutes('/docs').map((route) => route.id);",
-      'console.log(JSON.stringify({ resolvable, setup: typeof OpenRefModule.setup, routes: routes.length }));',
-    ].join('\n');
+  it(
+    'should serve its route table from a consumer that cannot resolve NestJS at all',
+    { timeout: SPAWNED_PROCESS_TIMEOUT_MS },
+    () => {
+      // Given, run rather than reasoned about: this consumer has no `@nestjs/core` in its tree, so
+      // a static import anywhere in the package's graph would make the import below throw. The
+      // static assertion above says the same thing about the file; this says it about a process.
+      const source = [
+        "const { createRequire } = await import('node:module');",
+        'let resolvable = true;',
+        "try { createRequire(process.cwd() + '/x.js')('@nestjs/core'); } catch { resolvable = false; }",
+        "const { OpenRefModule, referenceRoutes } = await import('@openref/nest');",
+        "const routes = referenceRoutes('/docs').map((route) => route.id);",
+        'console.log(JSON.stringify({ resolvable, setup: typeof OpenRefModule.setup, routes: routes.length }));',
+      ].join('\n');
 
-    // When
-    const printed = JSON.parse(runInFrameworkFreeConsumer(source)) as {
-      resolvable: boolean;
-      setup: string;
-      routes: number;
-    };
+      // When
+      const printed = JSON.parse(runInFrameworkFreeConsumer(source)) as {
+        resolvable: boolean;
+        setup: string;
+        routes: number;
+      };
 
-    // Then, the first field is what makes the other two mean anything
-    expect(printed.resolvable).toBe(false);
-    expect(printed.setup).toBe('function');
-    expect(printed.routes).toBeGreaterThan(0);
-  });
+      // Then, the first field is what makes the other two mean anything
+      expect(printed.resolvable).toBe(false);
+      expect(printed.setup).toBe('function');
+      expect(printed.routes).toBeGreaterThan(0);
+    },
+  );
 
-  it('should keep the browser bundle free of any external import at all', () => {
-    // Given, everything a page needs is in the file. An import left in it would be a request
-    // to somewhere, and SPEC 19.4 puts outgoing requests from the client at zero.
-    const bundle = built('dist/browser/openref.js');
+  it(
+    'should keep the browser bundle free of any external import at all',
+    { timeout: SPAWNED_PROCESS_TIMEOUT_MS },
+    () => {
+      // Given, everything a page needs is in the file. An import left in it would be a request
+      // to somewhere, and SPEC 19.4 puts outgoing requests from the client at zero.
+      const bundle = built('dist/browser/openref.js');
 
-    // When
-    const external = externalSpecifiers(bundle);
+      // When
+      const external = externalSpecifiers(bundle);
 
-    // Then, the file is a bundle before it is a bundle with no imports in it. An empty or
-    // truncated build has no external specifier either, per SPEC 0.
-    expect(bundle).toContain('oref-app');
-    expect(external).toEqual([]);
-  });
+      // Then, the file is a bundle before it is a bundle with no imports in it. An empty or
+      // truncated build has no external specifier either, per SPEC 0.
+      expect(bundle).toContain('oref-app');
+      expect(external).toEqual([]);
+    },
+  );
 });

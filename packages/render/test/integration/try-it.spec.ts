@@ -157,12 +157,19 @@ async function reachForConsole(arrived: () => boolean, description: string): Pro
  * Whether the console has hydrated, read off what hydration changes.
  *
  * THE PRESENCE OF THE BUTTON PROVES NOTHING, which is why this reads its state instead. The
- * server renders the whole console including a disabled send button, so an element query is
- * satisfied by the markup that was already there and a test built on one would pass with the
- * chunk never fetched.
+ * server renders the whole console including a send button, so an element query is satisfied by
+ * the markup that was already there and a test built on one would pass with the chunk never
+ * fetched.
+ *
+ * AND SINCE F14 THE NATIVE ATTRIBUTE PROVES NOTHING EITHER, in the other direction. The served
+ * button is deliberately not `disabled`, or the reader's press on it would reach no listener in
+ * a browser, so `.disabled === false` is true of markup nothing has hydrated. What separates
+ * the two is `aria-disabled`, which the server writes and the mounted console does not.
  */
 function consoleIsLive(): boolean {
-  return document.querySelector<HTMLButtonElement>('.oref-send')?.disabled === false;
+  const button = document.querySelector<HTMLButtonElement>('.oref-send');
+
+  return button !== null && !button.disabled && !button.hasAttribute('aria-disabled');
 }
 
 /** Types into a control the way a reader does, and lets Vue see it. */
@@ -331,14 +338,61 @@ describe('the try-it console, end to end against a real server', () => {
     // Given, a reference published read only, which is a supported build.
     await openPage('get-orders-id', origin);
 
-    // When
+    // When the console has actually arrived, which is where this case belongs. Asserting on the
+    // page before anybody reaches for the console reads the markup the server wrote, and that
+    // markup says the same thing on a build that does carry a runner.
     hydrateReference();
     await settle();
+    await reachForConsole(
+      () => (document.querySelector('.oref-tryit-notice')?.textContent ?? '').includes('composes'),
+      'the notice never changed from the one the server rendered',
+    );
 
-    // Then
+    // Then the native attribute is on it, which is what a live console that cannot send looks
+    // like, and the deferred marker is gone.
     const button = document.querySelector<HTMLButtonElement>('.oref-send');
     expect(button?.disabled).toBe(true);
+    expect(button?.hasAttribute('aria-disabled')).toBe(false);
     expect(document.querySelector('.oref-tryit-notice')).not.toBeNull();
+  });
+
+  it('should send on the press that woke the console, and not ask for a second one', async () => {
+    // Given a page nobody has touched yet, so the console is still the server's markup. THIS IS
+    // F14. The reader reaches for the console with the one control the console is for.
+    await openPage('get-orders-id', origin);
+    const runner = createRunner({
+      visibility: 'internal',
+      storage: 'memory',
+      transport: new FetchHttpTransport({ fetch: globalThis.fetch }),
+    });
+    hydrateReference({ runner });
+    await settle();
+
+    const button = document.querySelector<HTMLButtonElement>('.oref-send');
+    if (button === null) throw new Error('the page rendered no send button');
+
+    // The state the whole finding is about: served markup marks the button disabled to a
+    // reader and to assistive technology, and does not carry the attribute that would stop a
+    // browser from ever generating the click.
+    expect(button.getAttribute('aria-disabled')).toBe('true');
+    expect(button.disabled).toBe(false);
+
+    // When they press it once, which is one pointerdown and one click. Nothing is filled in,
+    // because filling a field is itself a touch of the region and would open the gate before
+    // the press this case is about.
+    button.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+    button.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+
+    // Then the console acted on that press: `id` is required and empty, so the runner refuses,
+    // and a refusal is something only the click handler can produce. Before the fix the gate
+    // opened on the pointerdown, the click never existed to be captured, and the console
+    // arrived and sat there waiting for a second press.
+    for (let attempt = 0; attempt < 100; attempt += 1) {
+      await settle();
+      if (document.querySelector('.oref-run-error') !== null) break;
+    }
+
+    expect(document.querySelector('.oref-run-error')?.textContent).toContain('required');
   });
 
   it('should say the console awaits a host runner rather than reporting a fault', async () => {

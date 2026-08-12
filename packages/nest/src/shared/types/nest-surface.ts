@@ -199,6 +199,75 @@ export const NEST_ROUTE_METADATA = {
 export const NEST_GUARD_METADATA = '__guards__';
 
 /**
+ * The key `@Sse` writes, and the whole of how a streaming route is recognised.
+ *
+ * MEASURED RATHER THAN GUESSED, AND IT IS NOT `sse`. Applying the real `@Sse('events')` to a
+ * handler leaves `path` = `'events'`, `method` = `0` and `__sse__` = `true`, so a collector
+ * looking for a key named after the decorator would find nothing on every streaming route and
+ * report that the application has none. `test/unit/nest-value-surface.spec.ts` decorates a class
+ * with the real decorator and asserts this still holds, the way it does for the other keys.
+ *
+ * SPEC 13.6: this key says the route streams. It says nothing about what it streams, which is
+ * the four level priority the stream collector reads and is a separate question by construction.
+ */
+export const NEST_SSE_METADATA = '__sse__';
+
+/**
+ * The key `@nestjs/swagger` keeps operation extensions under.
+ *
+ * WRITTEN DIRECTLY, AND THAT IS WHY `@nestjs/swagger` IS NOT A PEER OF THIS PACKAGE. `ApiExtension`
+ * merges every `x-` key an operation has been given into one object under this key, and the
+ * generator reads that object when it builds the operation. Writing the same object ourselves puts
+ * `x-openref-audience` and `x-codeSamples` into the document with no value coupling to a third
+ * package, which the rule above would otherwise have to admit. Probed end to end through a real
+ * `SwaggerModule.createDocument` on 2026-08-11: both extensions came out on the operation.
+ *
+ * MERGED AND NEVER REPLACED. The object is shared with every other `x-` key, including ones a host
+ * wrote with the real decorator, so anything written here reads the object first.
+ */
+export const SWAGGER_EXTENSION_METADATA = 'swagger/apiExtension';
+
+/**
+ * The metadata API a decorator needs, which comes from `reflect-metadata` rather than from NestJS.
+ *
+ * DECLARED HERE FOR THE REASON EVERYTHING ELSE IN THIS FILE IS. It is a coupling to something in
+ * the consumer's environment that this package does not install, so it is named in the one place
+ * a compatibility check reads rather than reached for at a call site. NestJS itself requires
+ * `reflect-metadata` and every application imports it before `NestFactory.create`, so it is
+ * present wherever a decorator of this package can be applied.
+ *
+ * NOT OPTIONAL, AND A MISSING ONE IS AN ERROR RATHER THAN A NO-OP. A decorator that silently
+ * writes nothing produces a reference that is missing facts with nothing anywhere saying why,
+ * which is the failure this project refuses everywhere else.
+ */
+export interface MetadataReflect {
+  defineMetadata(key: unknown, value: unknown, target: object): void;
+  getMetadata(key: unknown, target: object): unknown;
+}
+
+/**
+ * The metadata API, or an error naming what is missing.
+ *
+ * @returns `Reflect`, narrowed to the two members a decorator uses
+ * @throws {Error} When `reflect-metadata` has not been loaded
+ */
+export function metadataReflect(): MetadataReflect {
+  const candidate = Reflect as Partial<MetadataReflect>;
+
+  if (
+    typeof candidate.defineMetadata !== 'function' ||
+    typeof candidate.getMetadata !== 'function'
+  ) {
+    throw new Error(
+      'the decorators of @openref/nest need reflect-metadata, and it has not been loaded. ' +
+        "NestJS requires it too: import 'reflect-metadata' once, before NestFactory.create",
+    );
+  }
+
+  return candidate as MetadataReflect;
+}
+
+/**
  * `RequestMethod` as it is written on a handler, mapped to the method name a document uses.
  *
  * The enum is numeric, so what a handler carries is a number, and the eight below have held

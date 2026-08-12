@@ -18,7 +18,7 @@ import {
   useSocket,
   useTheme,
 } from '../../src/index';
-import { mutuallyRecursiveDocument, simpleDocument } from '../mocks/documents';
+import { mutuallyRecursiveDocument, runtimeDocument, simpleDocument } from '../mocks/documents';
 import { withDocState } from '../mocks/render';
 
 function fakeIndex(hits: readonly SearchHit[]): ISearchPort {
@@ -442,7 +442,7 @@ describe('useTheme', () => {
 
 describe('useRuntime', () => {
   it('should report that no collector ran, rather than that the node has no guards', async () => {
-    // Given, collectors arrive in M1.
+    // Given, a document normalized outside any application, which is most documents.
     const state = createDocState({ document: simpleDocument() });
 
     // When
@@ -455,11 +455,66 @@ describe('useRuntime', () => {
     expect(runtime.drift.value).toEqual([]);
     expect(runtime.meta.value).toBeUndefined();
   });
+
+  it('should tell a theme there is nothing to draw rather than nothing to say', async () => {
+    // Given, SPEC 6.3: the block is absent and not empty, and the predicate saying so is the one
+    // `@openref/core` exports, so a theme and the renderer cannot come to disagree about it.
+    const state = createDocState({ document: simpleDocument() });
+
+    // When
+    const runtime = await withDocState(state, () => useRuntime('get-orders'));
+
+    // Then
+    expect(runtime.hasFacts.value).toBe(false);
+  });
+
+  it('should hand every fact over with its provenance still on it', async () => {
+    // Given an application that answered, at all three levels of SPEC 6.1
+    const state = createDocState({ document: runtimeDocument() });
+
+    // When
+    const runtime = await withDocState(state, () => useRuntime('get-orders'));
+
+    // Then, wrappers rather than bare values: dropping the provenance has to be a decision
+    expect(runtime.hasFacts.value).toBe(true);
+    expect(runtime.scopes.value).toEqual({
+      value: ['orders:read'],
+      confidence: 'declared',
+      collector: 'scopesCollector',
+    });
+    expect(runtime.rateLimit.value?.confidence).toBe('derived');
+    expect(runtime.errors.value?.declared).toEqual([]);
+    expect(runtime.source.value?.handler).toBe('findAll');
+  });
+
+  it('should expand the source link, or say why there is none', async () => {
+    // Given a document whose host configured no template, which is the ordinary case
+    const state = createDocState({ document: runtimeDocument({ sourceLink: false }) });
+
+    // When
+    const runtime = await withDocState(state, () => useRuntime('get-orders'));
+
+    // Then, the reason and never a link with a placeholder still in it
+    expect(runtime.sourceLink.value?.url).toBeUndefined();
+    expect(runtime.sourceLink.value?.reason).toContain('no source link template');
+  });
+
+  it('should read the findings of one node out of the document report', async () => {
+    // Given, the rules of SPEC 7.1 run once over the document, so the findings live there
+    const state = createDocState({ document: runtimeDocument() });
+
+    // When
+    const runtime = await withDocState(state, () => useRuntime('get-orders'));
+
+    // Then
+    expect(runtime.drift.value.length).toBeGreaterThan(0);
+    expect(runtime.drift.value.every((issue) => issue.nodeId === 'get-orders')).toBe(true);
+  });
 });
 
 describe('useHealth', () => {
   it('should report that nothing measured the document rather than a score of zero', async () => {
-    // Given, the drift engine arrives in M1.
+    // Given a document no drift engine ever ran over.
     const state = createDocState({ document: simpleDocument() });
 
     // When
@@ -470,6 +525,35 @@ describe('useHealth', () => {
     expect(health.score.value).toBeUndefined();
     expect(health.checks.value).toEqual([]);
     expect(health.drift.value).toEqual([]);
+    expect(health.byRule.value).toEqual([]);
+  });
+
+  it('should group the findings by rule, which is what a panel can list', async () => {
+    // Given, SPEC 7.3: four hundred findings are still at most ten rules
+    const state = createDocState({ document: runtimeDocument() });
+
+    // When
+    const health = await withDocState(state, () => useHealth());
+
+    // Then
+    expect(health.available.value).toBe(true);
+    expect(health.byRule.value.length).toBeGreaterThan(0);
+    expect(health.byRule.value.length).toBeLessThanOrEqual(10);
+    const counted = [...health.counts.value.values()].reduce((sum, count) => sum + count, 0);
+    expect(counted).toBe(health.drift.value.length);
+  });
+
+  it('should keep a failed collector among the checks and out of the findings', async () => {
+    // Given, SPEC 7: a broken tool is a health check and never a drift row, because a drift row
+    // sends a reader to edit their own code and this is not something they can fix there.
+    const state = createDocState({ document: runtimeDocument({ failedCollector: true }) });
+
+    // When
+    const health = await withDocState(state, () => useHealth());
+
+    // Then
+    expect(health.checks.value.map((check) => check.id)).toContain('runtime-collectors');
+    expect(health.drift.value.map((issue) => issue.rule)).not.toContain('runtime-collectors');
   });
 });
 

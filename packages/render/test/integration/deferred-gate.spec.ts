@@ -58,6 +58,23 @@ function press(element: Element): void {
   element.dispatchEvent(new MouseEvent('click', { bubbles: true }));
 }
 
+/**
+ * The send button, which is how this file tells a hydrated console from the served markup.
+ *
+ * SINCE F14 THE NATIVE ATTRIBUTE IS NOT THE MARKER. The served button is deliberately not
+ * `disabled`, because a browser dispatches no mouse event on one that is, and the reader's press
+ * on Send is the gesture that has to bring the console in. What the server writes instead is
+ * `aria-disabled`, and the mounted console does not write it.
+ *
+ * @returns The button
+ */
+function sendButton(): HTMLButtonElement {
+  const button = document.querySelector<HTMLButtonElement>('.oref-send');
+  if (button === null) throw new Error('the page rendered no send button');
+
+  return button;
+}
+
 /** A runner that answers nothing, since what is asserted is when it arrives. */
 function stubRunner(): IRunnerPort {
   return {
@@ -82,7 +99,7 @@ describe('the deferral gate', () => {
     // Then the server's markup is still what is in the document, untouched
     expect(loadRunner).not.toHaveBeenCalled();
     expect(document.querySelector('.oref-palette-input')).toBeNull();
-    expect(document.querySelector<HTMLButtonElement>('.oref-send')?.disabled).toBe(true);
+    expect(sendButton().getAttribute('aria-disabled')).toBe('true');
   });
 
   it('should open the palette on one press, not on the second', async () => {
@@ -134,7 +151,26 @@ describe('the deferral gate', () => {
     // Then the console arrives enabled, which is the whole of T014 read through the chunk: the
     // runner is not a second arrival a reader has to wait for after the console appears.
     await vi.waitFor(() => {
-      expect(document.querySelector<HTMLButtonElement>('.oref-send')?.disabled).toBe(false);
+      expect(sendButton().hasAttribute('aria-disabled')).toBe(false);
+    });
+    expect(sendButton().disabled).toBe(false);
+    expect(loadRunner).toHaveBeenCalledTimes(1);
+  });
+
+  it('should open on a press of Send, which is the control the console is for', async () => {
+    // Given, and the press is aimed at the button rather than at the region around it. THIS IS
+    // F14: the served button used to carry `disabled`, so a browser generated no click on it,
+    // the gate had only a pointerdown to replay and the console listens for a click.
+    document.documentElement.innerHTML = await serveNodePage();
+    const loadRunner = vi.fn(() => Promise.resolve(stubRunner()));
+    hydrateReference({ loadRunner });
+
+    // When
+    press(sendButton());
+
+    // Then
+    await vi.waitFor(() => {
+      expect(sendButton().hasAttribute('aria-disabled')).toBe(false);
     });
     expect(loadRunner).toHaveBeenCalledTimes(1);
   });

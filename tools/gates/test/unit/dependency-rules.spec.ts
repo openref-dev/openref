@@ -3,6 +3,7 @@ import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
+import { SPAWNED_PROCESS_TIMEOUT_MS } from '../../../../vitest.spawn-timeout.ts';
 
 /**
  * The two dependency rules that key on `dependencyTypes`, checked by planting a violation.
@@ -155,125 +156,145 @@ afterEach(() => {
 });
 
 describe('no-dev-dep-in-src', () => {
-  it('should report a devDependency imported by published source', () => {
-    // Given the exact plant that found F22: a package declaring jsdom as a devDependency, and a
-    // file under its src importing it. Before the fix this cruised with zero dependencies.
-    const fired = cruiseProbe(
-      {
-        name: 'probe',
-        version: '0.0.0',
-        private: true,
-        type: 'module',
-        devDependencies: { jsdom: '30.0.1' },
-      },
-      [
+  it(
+    'should report a devDependency imported by published source',
+    { timeout: SPAWNED_PROCESS_TIMEOUT_MS },
+    () => {
+      // Given the exact plant that found F22: a package declaring jsdom as a devDependency, and a
+      // file under its src importing it. Before the fix this cruised with zero dependencies.
+      const fired = cruiseProbe(
         {
-          path: 'src/plant.ts',
-          source: "import { JSDOM } from 'jsdom';\nexport const a = JSDOM;\n",
+          name: 'probe',
+          version: '0.0.0',
+          private: true,
+          type: 'module',
+          devDependencies: { jsdom: '30.0.1' },
         },
-      ],
-    );
+        [
+          {
+            path: 'src/plant.ts',
+            source: "import { JSDOM } from 'jsdom';\nexport const a = JSDOM;\n",
+          },
+        ],
+      );
 
-    // When, Then
-    expect(fired).toContain('no-dev-dep-in-src');
-  });
+      // When, Then
+      expect(fired).toContain('no-dev-dep-in-src');
+    },
+  );
 
-  it('should report a type-only import too, because that one reaches the published types', () => {
-    // Given. The JavaScript is erased, so this is not a consumer's install breaking, it is their
-    // typecheck breaking on a `.d.ts` naming a package they were never told to have.
-    const fired = cruiseProbe(
-      {
-        name: 'probe',
-        version: '0.0.0',
-        private: true,
-        type: 'module',
-        devDependencies: { jsdom: '30.0.1' },
-      },
-      [
+  it(
+    'should report a type-only import too, because that one reaches the published types',
+    { timeout: SPAWNED_PROCESS_TIMEOUT_MS },
+    () => {
+      // Given. The JavaScript is erased, so this is not a consumer's install breaking, it is their
+      // typecheck breaking on a `.d.ts` naming a package they were never told to have.
+      const fired = cruiseProbe(
         {
-          path: 'src/plant.ts',
-          source: "import type { JSDOM } from 'jsdom';\nexport type A = JSDOM;\n",
+          name: 'probe',
+          version: '0.0.0',
+          private: true,
+          type: 'module',
+          devDependencies: { jsdom: '30.0.1' },
         },
-      ],
-    );
+        [
+          {
+            path: 'src/plant.ts',
+            source: "import type { JSDOM } from 'jsdom';\nexport type A = JSDOM;\n",
+          },
+        ],
+      );
 
-    // When, Then
-    expect(fired).toContain('no-dev-dep-in-src');
-  });
+      // When, Then
+      expect(fired).toContain('no-dev-dep-in-src');
+    },
+  );
 
-  it('should allow a peer that is also a devDependency, which is how a peer is tested', () => {
-    // Given the shape `packages/nest` actually has, and the reason the rule carries an exception
-    // at all: the peer is declared to the consumer, and the devDependency is how this repository
-    // gets a copy to build and test against. Pinned so that removing the exception, or widening it
-    // until it swallows the two cases above, is a test failure rather than a quiet change.
-    const fired = cruiseProbe(
-      {
-        name: 'probe',
-        version: '0.0.0',
-        private: true,
-        type: 'module',
-        peerDependencies: { jsdom: '^30.0.0' },
-        devDependencies: { jsdom: '30.0.1' },
-      },
-      [
+  it(
+    'should allow a peer that is also a devDependency, which is how a peer is tested',
+    { timeout: SPAWNED_PROCESS_TIMEOUT_MS },
+    () => {
+      // Given the shape `packages/nest` actually has, and the reason the rule carries an exception
+      // at all: the peer is declared to the consumer, and the devDependency is how this repository
+      // gets a copy to build and test against. Pinned so that removing the exception, or widening it
+      // until it swallows the two cases above, is a test failure rather than a quiet change.
+      const fired = cruiseProbe(
         {
-          path: 'src/plant.ts',
-          source: "import { JSDOM } from 'jsdom';\nexport const a = JSDOM;\n",
+          name: 'probe',
+          version: '0.0.0',
+          private: true,
+          type: 'module',
+          peerDependencies: { jsdom: '^30.0.0' },
+          devDependencies: { jsdom: '30.0.1' },
         },
-      ],
-    );
+        [
+          {
+            path: 'src/plant.ts',
+            source: "import { JSDOM } from 'jsdom';\nexport const a = JSDOM;\n",
+          },
+        ],
+      );
 
-    // When, Then
-    expect(fired).toEqual([]);
-  });
+      // When, Then
+      expect(fired).toEqual([]);
+    },
+  );
 });
 
 describe('no-duplicate-dep-types', () => {
-  it('should report a package declared in dependencies and devDependencies at once', () => {
-    // Given the defect this rule is for: two declarations of one package, after which which copy
-    // a consumer ends up with is the resolver's choice rather than anybody's decision.
-    const fired = cruiseProbe(
-      {
-        name: 'probe',
-        version: '0.0.0',
-        private: true,
-        type: 'module',
-        dependencies: { marked: '18.0.9' },
-        devDependencies: { marked: '18.0.9' },
-      },
-      [
+  it(
+    'should report a package declared in dependencies and devDependencies at once',
+    { timeout: SPAWNED_PROCESS_TIMEOUT_MS },
+    () => {
+      // Given the defect this rule is for: two declarations of one package, after which which copy
+      // a consumer ends up with is the resolver's choice rather than anybody's decision.
+      const fired = cruiseProbe(
         {
-          path: 'src/plant.ts',
-          source: "import { marked } from 'marked';\nexport const a = marked;\n",
+          name: 'probe',
+          version: '0.0.0',
+          private: true,
+          type: 'module',
+          dependencies: { marked: '18.0.9' },
+          devDependencies: { marked: '18.0.9' },
         },
-      ],
-    );
+        [
+          {
+            path: 'src/plant.ts',
+            source: "import { marked } from 'marked';\nexport const a = marked;\n",
+          },
+        ],
+      );
 
-    // When, Then
-    expect(fired).toContain('no-duplicate-dep-types');
-  });
+      // When, Then
+      expect(fired).toContain('no-duplicate-dep-types');
+    },
+  );
 
-  it('should not report a peer that is also a devDependency', () => {
-    // Given the same sanctioned pattern seen from the other rule: two groups, one declaration,
-    // two audiences. Read from a test path, so the sibling rule is not what keeps this empty.
-    const fired = cruiseProbe(
-      {
-        name: 'probe',
-        version: '0.0.0',
-        private: true,
-        type: 'module',
-        peerDependencies: { marked: '^18.0.0' },
-        devDependencies: { marked: '18.0.9' },
-      },
-      [
+  it(
+    'should not report a peer that is also a devDependency',
+    { timeout: SPAWNED_PROCESS_TIMEOUT_MS },
+    () => {
+      // Given the same sanctioned pattern seen from the other rule: two groups, one declaration,
+      // two audiences. Read from a test path, so the sibling rule is not what keeps this empty.
+      const fired = cruiseProbe(
         {
-          path: 'test/plant.ts',
-          source: "import { marked } from 'marked';\nexport const a = marked;\n",
+          name: 'probe',
+          version: '0.0.0',
+          private: true,
+          type: 'module',
+          peerDependencies: { marked: '^18.0.0' },
+          devDependencies: { marked: '18.0.9' },
         },
-      ],
-    );
+        [
+          {
+            path: 'test/plant.ts',
+            source: "import { marked } from 'marked';\nexport const a = marked;\n",
+          },
+        ],
+      );
 
-    // When, Then
-    expect(fired).toEqual([]);
-  });
+      // When, Then
+      expect(fired).toEqual([]);
+    },
+  );
 });

@@ -89,6 +89,15 @@ export interface OpenRefRuntimeOptions {
    * when to give the revision instead.
    */
   readonly sourceLink?: string | OpenRefSourceLink;
+  /**
+   * Which security scheme each guard class stands for, per SPEC 13.2.
+   *
+   * THERE IS NO DEFAULT AND NONE IS GUESSED, for the reason SPEC 7.1 gives. `security-drift` in
+   * its contradiction state asks whether the document points at the right scheme, and `JwtAuthGuard`
+   * is a class name rather than a scheme name: deriving one from the other would be the guess SPEC
+   * 6.1 refuses. Without this the rule reports only the silence state, which needs no mapping.
+   */
+  readonly guardSecuritySchemes?: Readonly<Record<string, string>>;
   /** Whether the health route of SPEC 13.3 answers. Defaults to true. */
   readonly health?: boolean;
 }
@@ -201,6 +210,30 @@ export function assertRootOptions(options: OpenRefRootOptions): void {
   // Checked here rather than where it is used, so a malformed template is an error at boot rather
   // than a document that renders with no links and no explanation.
   readSourceLink(options.runtime?.sourceLink);
+  assertGuardSecuritySchemes(options.runtime?.guardSecuritySchemes);
+}
+
+/**
+ * Refuses a guard to scheme mapping that would silently do nothing.
+ *
+ * AN EMPTY SCHEME NAME IS THE CASE WORTH REFUSING. It reads as "this guard maps to nothing", which
+ * is what leaving the guard out of the map already says, and `security-drift` comparing against an
+ * empty string would report every operation as pointing at the wrong scheme.
+ *
+ * @param mapping - Whatever the host configured, if anything
+ * @throws {InvalidOptionsError} When a guard name or a scheme name is empty
+ */
+function assertGuardSecuritySchemes(mapping: Readonly<Record<string, string>> | undefined): void {
+  if (mapping === undefined) return;
+
+  for (const [guard, scheme] of Object.entries(mapping)) {
+    if (guard === '' || typeof scheme !== 'string' || scheme === '') {
+      throw invalid(
+        'runtime.guardSecuritySchemes maps a guard to an empty security scheme name. A guard ' +
+          'that stands for no scheme is left out of the map instead, which is what says so',
+      );
+    }
+  }
 }
 
 /**

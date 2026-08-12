@@ -32,6 +32,15 @@ on:
   # Chrome ships a major, and none of those events is a push. Weekly is chosen against the
   # decay of the check rather than against cost: a browser major that moves prints as a stale
   # baseline and does not fail, so the only thing that finds it is a run that happens anyway.
+  #
+  # IF THIS EVER SITS RED, IT COMES OFF THE SCHEDULE. It is not muted, not marked
+  # `continue-on-error`, and not left failing while everyone learns to ignore it. Decided when
+  # the schedule was added and written here on 2026-08-11, because this file is where somebody
+  # looking at a red weekly run will be. A scheduled job that is always red is worse than one
+  # that does not exist: it trains a reader to skip the one notification that would have told
+  # them the baseline had gone stale, and it does that quietly. Taking it off the schedule
+  # leaves `workflow_dispatch`, so the study is still one command away while whatever made it
+  # red is fixed.
   workflow_dispatch:
     inputs:
       tti-runs:

@@ -97,15 +97,22 @@ describe('the try-it console in the server render', () => {
     expect(state).not.toContain('Authorization');
   });
 
-  it('should render the send button disabled, since the server has no runner', async () => {
+  it('should mark the send button disabled without disabling it, per F14', async () => {
     // Given, and the same markup is what the first client render produces, so hydration matches.
     const html = await renderNode('get-orders');
 
     // When
     const button = /<button class="oref-send"[^>]*>/.exec(html)?.[0] ?? '';
 
-    // Then
-    expect(button).toContain('disabled');
+    // Then it says it is disabled, to a reader through the theme and to assistive technology
+    // through the attribute.
+    expect(button).toContain('aria-disabled="true"');
+
+    // And it does not carry the attribute that would make it unusable as the trigger it is.
+    // Chrome dispatches no mouse event at all on a form control with `disabled`, so a served
+    // console whose send button carried it could be woken by pressing anywhere except the one
+    // control the reader reaches for, which is what F14 measured in a real browser.
+    expect(/\sdisabled(\s|=|>)/.test(button)).toBe(false);
   });
 
   it('should say the document declares no server rather than render a form that cannot send', () => {

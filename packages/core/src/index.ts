@@ -57,11 +57,17 @@ export type {
 } from './ir/domain/node.types';
 
 export type {
+  IRDriftBasis,
+  IRDriftBucket,
+  IRDriftClassification,
+  IRDriftEdit,
   IRDriftIssue,
+  IRDriftManualReason,
   IRDriftRule,
   IRDriftSeverity,
   IRErrorContract,
   IRErrorContractOrigin,
+  IRErrorContracts,
   IRGuard,
   IRNodeRuntime,
   IRRateLimit,
@@ -211,3 +217,34 @@ export { isSafePattern, matchesPattern, sampleFromPattern } from './examples/dom
 
 export { expandSourceLink } from './source-link/domain/source-link';
 export type { SourceLinkExpansion } from './source-link/domain/source-link';
+
+export { classifyDrift, isMechanicallyFixable } from './drift/domain/classification';
+export {
+  DTO_FIELD_RULE,
+  MAX_DTO_FIELD_DEPTH,
+  OPERATION_DRIFT_RULES,
+  runDriftRules,
+} from './drift/domain/drift-rules';
+export type { DriftObservation, RuleResult } from './drift/domain/drift-rules';
+export {
+  buildHealthReport,
+  collectDrift,
+  driftForNode,
+  groupDriftByRule,
+  healthScore,
+} from './drift/domain/health';
+export type { DriftRuleGroup, HealthReportOptions } from './drift/domain/health';
+
+export { hasRuntimeFacts, RUNTIME_FACT_FIELDS } from './runtime/domain/runtime-view';
+export type { RuntimeFactField } from './runtime/domain/runtime-view';
+
+export {
+  deriveRuntimeErrorContracts,
+  EMPTY_ERROR_CONTRACTS,
+  errorContractGroup,
+  groupErrorContracts,
+  hasErrorContracts,
+  problemDetailsSchema,
+  PROBLEM_JSON_MEDIA_TYPE,
+  withRuntimeErrorContracts,
+} from './error-contracts/domain/error-contracts';

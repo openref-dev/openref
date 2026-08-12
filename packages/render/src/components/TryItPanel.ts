@@ -19,6 +19,32 @@
  * mismatch on every operation page. The form is the same either way; only whether the send
  * button is enabled changes, and it changes after mount.
  *
+ * SEND IS NEVER NATIVELY DISABLED WHILE THIS PANEL IS STILL DEFERRED, WHICH IS FINDING F14 AND
+ * IS THE ONE RULE HERE THAT IS ABOUT A BROWSER RATHER THAN ABOUT THIS COMPONENT. The console is
+ * fetched when the reader reaches for it, and Send is the control they reach with. A form
+ * control carrying the `disabled` attribute receives no mouse event in Chrome: pointer events
+ * are still dispatched, so the gate does open and the chunk does arrive, but `click` is never
+ * generated at all, so there is no click to capture and none to replay, and the press that
+ * woke the console sends nothing. Measured on the example application: `pointerover` and
+ * `pointerdown` reach the document, `mousedown` and `click` do not.
+ *
+ * So while the console has not hydrated the button is a real target that says it is disabled,
+ * `aria-disabled="true"` with no `disabled` attribute, which is also what makes it focusable
+ * and therefore reachable from the keyboard. Three states, and reading them is how a test
+ * tells a live console from the markup that was served:
+ *
+ * - `aria-disabled` and no `disabled`: deferred. The markup is the server's, and a press on it
+ *   opens the gate, fetches the chunk and is replayed into the console that arrives.
+ * - `disabled`: live, and cannot send. This build carries no runner, or a request is in flight.
+ * - neither: live and ready.
+ *
+ * THE CLICK HANDLER READS THE REFS RATHER THAN THE RENDER IT WAS CREATED IN, and that is load
+ * bearing rather than style. The replay dispatches the reader's click from `onMounted`, before
+ * the re-render that `mounted.value = true` schedules has flushed, so the listener on the
+ * element is still the one this render created. A guard closing over the values of that render
+ * would read the state of a console that had not mounted yet and swallow the click it exists
+ * to deliver.
+ *
  * THE RESPONSE IS TEXT, NEVER MARKUP. Status, headers and body come from a third party server
  * and are rendered as text children, which Vue escapes. Nothing on this path touches
  * `innerHTML`, and `security.spec.ts` plants a script tag in a response body to prove it.
@@ -132,6 +158,11 @@ export const TryItPanel = defineComponent({
     function setCredential(schemeId: string, value: string): void {
       credentials.value = { ...credentials.value, [schemeId]: value };
       runner.setCredential(schemeId, value);
+    }
+
+    /** Whether the console can act on a press right now, read at the moment of the press. */
+    function canSend(): boolean {
+      return sendable.value && !runner.pending.value;
     }
 
     async function send(): Promise<void> {
@@ -311,8 +342,13 @@ export const TryItPanel = defineComponent({
             {
               class: 'oref-send',
               type: 'button',
-              disabled: !sendable.value || runner.pending.value,
+              // Live and unable to send, which is the only state the native attribute is right
+              // for. Before mount it would take the reader's press away from the gate.
+              disabled: mounted.value && (!sendable.value || runner.pending.value),
+              'aria-disabled': mounted.value ? null : 'true',
               onClick: () => {
+                if (!canSend()) return;
+
                 void send();
               },
             },

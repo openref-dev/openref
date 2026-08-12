@@ -1,5 +1,5 @@
 /**
- * The three features that arrive when the reader reaches for them, and not before.
+ * The four features that arrive when the reader reaches for them, and not before.
  *
  * WHAT IS DEFERRED IS THE DOWNLOAD AND THE COMPILE, NOT ONLY THE HYDRATION, and the difference
  * is the whole of this file. Vue 3.5 ships lazy hydration, and read from its source rather than
@@ -262,6 +262,21 @@ export function deferredComponents(options: DeferredOptions): DeferrableComponen
       },
       root,
       async () => (await import('../components/CommandPalette')).CommandPalette,
+    ),
+
+    healthPanel: deferUntilReached(
+      {
+        name: 'HealthPanel',
+        selector: '.oref-section-health',
+        // `click` IS DELIBERATELY NOT IN THIS LIST, and it is the only entry here where it is
+        // absent. The panel's disclosure is a `summary`, whose activation behaviour the user
+        // agent runs on the reader's own click; a replayed click would run it a second time and
+        // shut the group the reader had just opened. `pointerdown` opens the gate earlier than a
+        // click anyway, and replaying it does nothing to a `summary`.
+        events: ['pointerdown', 'focusin'],
+      },
+      root,
+      async () => (await import('../components/HealthPanel')).HealthPanel,
     ),
   };
 }

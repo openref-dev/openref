@@ -1,4 +1,11 @@
-import { normalizeOpenApiDocument, type IRDocument } from '@openref/core';
+import {
+  buildHealthReport,
+  hashDocument,
+  normalizeOpenApiDocument,
+  type IRDocument,
+  type IRNode,
+  type IRNodeRuntime,
+} from '@openref/core';
 
 /**
  * Documents the render tests work against.
@@ -565,4 +572,99 @@ export function wrappedReferenceDocument(): IRDocument {
       },
     },
   });
+}
+
+/**
+ * `smallDocument` with an application behind it: facts on one operation, a report over both.
+ *
+ * THE FACTS ARE ATTACHED THE WAY THE RUNTIME PASS ATTACHES THEM and the report is built by the
+ * real engine, because what the renderer has to be right about is the shape the engine produces.
+ * A hand written report would let the panel be tested against findings no rule emits.
+ *
+ * The GET operation carries every kind of fact SPEC 6.3 names, at all three confidence levels, so
+ * one page exercises the whole block; the POST carries none, so the same document also shows what
+ * a node with nothing to say looks like.
+ *
+ * @returns The document, with its hash retaken over the facts
+ */
+export function runtimeDocument(): IRDocument {
+  const base = smallDocument();
+
+  const runtime: IRNodeRuntime = {
+    source: {
+      controller: 'OrdersController',
+      handler: 'findAll',
+      file: 'src/orders.controller.ts',
+      line: 42,
+    },
+    guards: [
+      { name: 'JwtAuthGuard', confidence: 'derived', collector: 'guardsCollector' },
+      { name: 'RolesGuard', confidence: 'derived', collector: 'guardsCollector' },
+    ],
+    scopes: { value: ['orders:read'], confidence: 'declared', collector: 'scopesCollector' },
+    roles: { value: ['admin'], confidence: 'derived', collector: 'rolesCollector' },
+    rateLimit: {
+      value: { limit: 100, ttlMs: 60_000 },
+      confidence: 'derived',
+      collector: 'throttlerCollector',
+    },
+    streaming: {
+      value: { transport: 'sse' },
+      confidence: 'inferred',
+      collector: 'streamCollector',
+    },
+    errors: {
+      declared: [],
+      runtimeDerived: [
+        {
+          status: 429,
+          title: 'Too Many Requests',
+          detail: 'at most 100 per minute',
+          origin: 'runtime-derived',
+          confidence: 'derived',
+          collector: 'throttlerCollector',
+        },
+      ],
+      global: [],
+    },
+  };
+
+  const factsOn = runtimeNodeId(base);
+  const nodes = new Map<string, IRNode>();
+  for (const [id, node] of base.nodes) {
+    nodes.set(id, id === factsOn ? { ...node, runtime } : node);
+  }
+
+  const withFacts: IRDocument = {
+    ...base,
+    nodes,
+    runtime: {
+      collectors: ['guardsCollector', 'scopesCollector', 'throttlerCollector'],
+      sourceLinkTemplate: 'https://github.com/org/repo/blob/abc123/{file}#L{line}',
+    },
+  };
+
+  const health = buildHealthReport(withFacts, {
+    observation: { handledNodeIds: new Set(base.nodes.keys()) },
+  });
+
+  const complete: IRDocument = { ...withFacts, health };
+
+  return { ...complete, hash: hashDocument(complete) };
+}
+
+/**
+ * Which node of {@link runtimeDocument} carries the facts.
+ *
+ * A function rather than a literal, because a node id is a slug the normalizer builds out of a
+ * method and a path template, and a test that typed one out would be asserting the slug rule from
+ * a second place.
+ *
+ * @param document - The document, or nothing to read it off `runtimeDocument`
+ * @returns The id of the GET operation
+ */
+export function runtimeNodeId(document?: IRDocument): string {
+  const source = document ?? smallDocument();
+
+  return [...source.nodes.keys()].find((id) => id.startsWith('get')) ?? '';
 }

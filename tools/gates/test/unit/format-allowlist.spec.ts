@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
+import { SPAWNED_PROCESS_TIMEOUT_MS } from '../../../../vitest.spawn-timeout.ts';
 
 /**
  * `pnpm format` takes an allowlist, not an ignore list.
@@ -71,58 +72,70 @@ describe('the format allowlist', () => {
     expect(normalized[0]).toBe(normalized[1]);
   });
 
-  it('should reach no vendored corpus document, whatever the ignore file says', () => {
-    // Given, prettier reports the files it would actually act on
-    const script = scripts()['format:check'] ?? '';
-    const paths = pathsOf(script);
+  it(
+    'should reach no vendored corpus document, whatever the ignore file says',
+    () => {
+      // Given, prettier reports the files it would actually act on
+      const script = scripts()['format:check'] ?? '';
+      const paths = pathsOf(script);
 
-    // When
-    let listed: string;
-    try {
-      listed = execFileSync(
-        'pnpm',
-        ['exec', 'prettier', '--list-different', '--no-error-on-unmatched-pattern', ...paths],
-        { cwd: repoRoot, encoding: 'utf8' },
-      );
-    } catch (error) {
-      // A non zero exit only means some file is unformatted, which is not what is asked here.
-      listed = (error as { stdout?: string }).stdout ?? '';
-    }
+      // When
+      let listed: string;
+      try {
+        listed = execFileSync(
+          'pnpm',
+          ['exec', 'prettier', '--list-different', '--no-error-on-unmatched-pattern', ...paths],
+          { cwd: repoRoot, encoding: 'utf8' },
+        );
+      } catch (error) {
+        // A non zero exit only means some file is unformatted, which is not what is asked here.
+        listed = (error as { stdout?: string }).stdout ?? '';
+      }
 
-    // Then
-    expect(listed).not.toContain('test/corpus/documents');
-  }, 120_000);
+      // Then
+      expect(listed).not.toContain('test/corpus/documents');
+    },
+    SPAWNED_PROCESS_TIMEOUT_MS,
+  );
 
-  it('should hold the corpus out on its own, with the ignore file taken away', () => {
-    // Given, an empty ignore file, so only the allowlist is doing any work. This is the
-    // property under test: .prettierignore already excludes the corpus, and an ignore list
-    // that happens to be right today is exactly what failed twice before.
-    const emptyIgnore = join(mkdtempSync(join(tmpdir(), 'oref-fmt-')), 'ignore');
-    writeFileSync(emptyIgnore, '', 'utf8');
+  it(
+    'should hold the corpus out on its own, with the ignore file taken away',
+    () => {
+      // Given, an empty ignore file, so only the allowlist is doing any work. This is the
+      // property under test: .prettierignore already excludes the corpus, and an ignore list
+      // that happens to be right today is exactly what failed twice before.
+      const emptyIgnore = join(mkdtempSync(join(tmpdir(), 'oref-fmt-')), 'ignore');
+      writeFileSync(emptyIgnore, '', 'utf8');
 
-    // When
-    const everything = prettierFileList(['.'], emptyIgnore);
-    const allowed = prettierFileList(pathsOf(scripts()['format:check'] ?? ''), emptyIgnore);
+      // When
+      const everything = prettierFileList(['.'], emptyIgnore);
+      const allowed = prettierFileList(pathsOf(scripts()['format:check'] ?? ''), emptyIgnore);
 
-    // Then, prettier reaches the corpus when nothing but the allowlist stands in its way,
-    // and the allowlist is what keeps it out
-    expect(everything.some((file) => file.includes('test/corpus/documents'))).toBe(true);
-    expect(allowed.some((file) => file.includes('test/corpus/documents'))).toBe(false);
-  }, 180_000);
+      // Then, prettier reaches the corpus when nothing but the allowlist stands in its way,
+      // and the allowlist is what keeps it out
+      expect(everything.some((file) => file.includes('test/corpus/documents'))).toBe(true);
+      expect(allowed.some((file) => file.includes('test/corpus/documents'))).toBe(false);
+    },
+    SPAWNED_PROCESS_TIMEOUT_MS,
+  );
 
-  it('should leave the specification and the instructions alone without the ignore file', () => {
-    // Given
-    const emptyIgnore = join(mkdtempSync(join(tmpdir(), 'oref-fmt-')), 'ignore');
-    writeFileSync(emptyIgnore, '', 'utf8');
+  it(
+    'should leave the specification and the instructions alone without the ignore file',
+    () => {
+      // Given
+      const emptyIgnore = join(mkdtempSync(join(tmpdir(), 'oref-fmt-')), 'ignore');
+      writeFileSync(emptyIgnore, '', 'utf8');
 
-    // When
-    const allowed = prettierFileList(pathsOf(scripts()['format:check'] ?? ''), emptyIgnore);
+      // When
+      const allowed = prettierFileList(pathsOf(scripts()['format:check'] ?? ''), emptyIgnore);
 
-    // Then, BUILD.md addresses tasks by absolute line number and prettier reflows markdown
-    expect(allowed.some((file) => file.includes('ai-docs/'))).toBe(false);
-    expect(allowed.some((file) => file.endsWith('CLAUDE.md'))).toBe(false);
-    expect(allowed.some((file) => file.endsWith('pnpm-lock.yaml'))).toBe(false);
-  }, 180_000);
+      // Then, BUILD.md addresses tasks by absolute line number and prettier reflows markdown
+      expect(allowed.some((file) => file.includes('ai-docs/'))).toBe(false);
+      expect(allowed.some((file) => file.endsWith('CLAUDE.md'))).toBe(false);
+      expect(allowed.some((file) => file.endsWith('pnpm-lock.yaml'))).toBe(false);
+    },
+    SPAWNED_PROCESS_TIMEOUT_MS,
+  );
 });
 
 /** Files prettier would act on for a set of patterns, one per line. */

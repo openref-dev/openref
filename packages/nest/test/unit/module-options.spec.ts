@@ -130,4 +130,31 @@ describe('assertRootOptions', () => {
       assertRootOptions(bad);
     }).toThrow(/pass it in a documents entry/);
   });
+
+  it('should accept a guard to scheme mapping, which SPEC 7.1 leaves to the host', () => {
+    // Given
+    const good: OpenRefRootOptions = {
+      ...options(),
+      runtime: { guardSecuritySchemes: { JwtAuthGuard: 'bearer' } },
+    };
+
+    // When, Then
+    expect(() => {
+      assertRootOptions(good);
+    }).not.toThrow();
+  });
+
+  it('should refuse a guard mapped to an empty scheme name rather than compare against it', () => {
+    // Given, an empty name reads as "this guard stands for nothing", which is what leaving the
+    // guard out of the map already says, and `security-drift` would report every operation
+    const bad: OpenRefRootOptions = {
+      ...options(),
+      runtime: { guardSecuritySchemes: { JwtAuthGuard: '' } },
+    };
+
+    // When, Then
+    expect(() => {
+      assertRootOptions(bad);
+    }).toThrow(/empty security scheme name/);
+  });
 });

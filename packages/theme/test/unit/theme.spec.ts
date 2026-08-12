@@ -67,6 +67,9 @@ const NOT_CLASSES = new Set([
   'oref-method-',
   'oref-status-',
   'oref-hl-',
+  // The provenance mark, whose level is a value: `oref-prov-${confidence}` is built from the
+  // three of SPEC 6.1 and the full names are in the stylesheet.
+  'oref-prov-',
   // Data attributes the reference UI reads back off an element: the chunk a list is, the depth
   // a navigation row sits at, the option the palette has selected, the schema a page shows, and
   // the position a schema row is. `oref-path` is not here, because it is also a class.
@@ -84,11 +87,12 @@ const NOT_CLASSES = new Set([
 /**
  * Families whose members the renderer builds at runtime from a prefix.
  *
- * `oref-method-${method}`, `oref-status-${class}xx` and one syntax class per shiki colour. The
+ * `oref-method-${method}`, `oref-status-${class}xx`, `oref-prov-${confidence}` and one syntax
+ * class per shiki colour. The
  * full names are in the stylesheet and never in the renderer's source, so they are matched by
  * their prefix. The prefix itself is in the source, which is what `NOT_CLASSES` covers.
  */
-const GENERATED_PREFIXES = ['oref-method-', 'oref-status-', 'oref-hl-'];
+const GENERATED_PREFIXES = ['oref-method-', 'oref-status-', 'oref-hl-', 'oref-prov-'];
 
 /**
  * Section modifiers the renderer emits beside `oref-section`, which this theme needs no rule

@@ -30,11 +30,21 @@ import {
 import type { RunnerOperationView } from '@openref/vue';
 import type { NavEntryModel } from './nav-entry';
 import { sliceNavigation } from './nav-payload';
+import { buildHealthModel, buildRuntimeModel } from './runtime-model';
+import type {
+  DriftModel,
+  HealthCheckModel,
+  HealthModel,
+  HealthRuleModel,
+  RuntimeModel,
+  RuntimeRowModel,
+  RuntimeValueModel,
+} from './runtime-model';
 import { buildSchemaPayload } from './schema-payload';
 import type { IMarkdownRenderer } from '../../markdown/domain/markdown';
 
 /** Version of the page model shape, part of the cache key. */
-export const PAGE_MODEL_VERSION = 3;
+export const PAGE_MODEL_VERSION = 4;
 
 /** Media types an example is generated for. */
 const JSON_MEDIA_TYPE = /^application\/(?:[\w.+-]+\+)?json$/i;
@@ -117,6 +127,14 @@ export interface NodeModel {
    * it.
    */
   readonly run: RunnerOperationView | null;
+  /**
+   * What the running application knows about this operation, or null when nothing does.
+   *
+   * NULL RATHER THAN AN EMPTY BLOCK, per SPEC 6.3. A reader arriving from plain
+   * `@nestjs/swagger` has registered no collectors, and a page of labelled slots with dashes in
+   * them reads as a broken product rather than as a feature nobody switched on.
+   */
+  readonly runtime: RuntimeModel | null;
 }
 
 /** Everything one page renders from. */
@@ -163,6 +181,14 @@ export interface PageModel {
   readonly schemas: Readonly<Record<string, IRSchema>>;
   /** Ids referenced from this page and left behind by the bound, shown as links. */
   readonly truncatedSchemas: readonly string[];
+  /**
+   * The Health panel of SPEC 7.3, carried by the overview page and by no other.
+   *
+   * The report is a statement about the whole document, so it belongs on the page that is about
+   * the whole document. A node page carries its own findings inside its runtime block instead,
+   * which is the same report read one subject at a time.
+   */
+  readonly health: HealthModel | null;
 }
 
 /** What building a page model needs. */
@@ -189,6 +215,8 @@ interface ModelContext {
   readonly document: IRDocument;
   readonly markdown: IMarkdownRenderer;
   readonly schemaBodies: ReadonlyMap<string, IRJsonSchema>;
+  /** Mount point, which a finding's jump to its subject is built from. */
+  readonly basePath: string;
 }
 
 function schemaBodiesOf(document: IRDocument): ReadonlyMap<string, IRJsonSchema> {
@@ -371,6 +399,8 @@ function nodeModel(context: ModelContext, nodeId: string): NodeModel | null {
     descriptionHtml: markdown.render(node.description),
   };
 
+  const runtime = buildRuntimeModel(document, nodeId, context.basePath);
+
   if (view.kind === 'channel') {
     return {
       ...base,
@@ -382,6 +412,7 @@ function nodeModel(context: ModelContext, nodeId: string): NodeModel | null {
       responses: [],
       security: [],
       run: null,
+      runtime,
     };
   }
 
@@ -409,6 +440,7 @@ function nodeModel(context: ModelContext, nodeId: string): NodeModel | null {
       scopes: requirement.scopes,
     })),
     run: runnerOperationOf(view.node, document),
+    runtime,
   };
 }
 
@@ -425,7 +457,13 @@ function nodeModel(context: ModelContext, nodeId: string): NodeModel | null {
  */
 export function buildPageModel(document: IRDocument, options: PageModelOptions): PageModel {
   const { markdown } = options;
-  const context: ModelContext = { document, markdown, schemaBodies: schemaBodiesOf(document) };
+  const basePath = options.basePath ?? '';
+  const context: ModelContext = {
+    document,
+    markdown,
+    schemaBodies: schemaBodiesOf(document),
+    basePath,
+  };
   const requestedNode = options.nodeId ?? null;
   const node = requestedNode === null ? null : nodeModel(context, requestedNode);
   const requestedSchema = node === null ? (options.schemaId ?? null) : null;
@@ -452,7 +490,7 @@ export function buildPageModel(document: IRDocument, options: PageModelOptions):
     title: document.info.title,
     version: document.info.version,
     descriptionHtml: markdown.render(document.info.description),
-    basePath: options.basePath ?? '',
+    basePath,
     servers: document.servers.map((server) => server.url),
     navigation: navigation.entries,
     navigationComplete: navigation.complete,
@@ -463,7 +501,20 @@ export function buildPageModel(document: IRDocument, options: PageModelOptions):
     schema,
     schemas: payload.schemas,
     truncatedSchemas: payload.truncated,
+    // THE PANEL TRAVELS WITH THE OVERVIEW AND WITH NOTHING ELSE. A report of four hundred
+    // findings shipped on every node page would be the largest thing on a page it is not about,
+    // and the pages a reader spends their time on are the node pages.
+    health: node === null && schema === null ? buildHealthModel(document, basePath) : null,
   };
 }
 
-export type { NavEntryModel };
+export type {
+  DriftModel,
+  HealthCheckModel,
+  HealthModel,
+  HealthRuleModel,
+  NavEntryModel,
+  RuntimeModel,
+  RuntimeRowModel,
+  RuntimeValueModel,
+};
