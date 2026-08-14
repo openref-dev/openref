@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { hydrateReference, readPageState } from '../../src/browser/index';
 import { renderHtmlDocument } from '../../src/page/domain/shell';
 import { renderPage } from '../../src/render/application/services/render.service';
-import { smallDocument } from '../mocks/documents';
+import { runtimeDocument, smallDocument } from '../mocks/documents';
 
 /**
  * Server markup and client markup have to agree.
@@ -55,6 +55,48 @@ describe('hydrateReference', () => {
 
     // Then
     expect(hydrated).toBe(true);
+    const messages = [...warn.mock.calls, ...error.mock.calls].map((call) => String(call[0]));
+    expect(messages.filter((message) => message.includes('Hydration'))).toEqual([]);
+  });
+
+  /**
+   * The Health panel, whose findings the state block no longer carries.
+   *
+   * THIS IS THE CASE THAT MAKES F43's FIX SAFE RATHER THAN CHEAP. Taking the report out of the
+   * state block means the client renders the panel position from a boolean and has nothing to
+   * draw the contents from, so the question is what hydration does to markup the client vdom has
+   * no children for. It adopts it: a vnode with no children takes neither of the two branches
+   * Vue hydrates children with. If it had instead taken the array branch, every finding would
+   * have been removed from the page by the very hydration that was supposed to leave it alone,
+   * and the page would look right until a reader opened a group.
+   */
+  it('should keep every finding in the panel after hydrating it from a boolean', async () => {
+    // Given an overview page with a Health panel on it
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const built = runtimeDocument();
+    const page = await renderPage(built);
+    document.documentElement.innerHTML = renderHtmlDocument(page, {
+      nonce: 'r4nd0mNONCEvalue',
+      assets: { stylesheets: ['/assets/theme.css'], modules: ['/assets/openref.js'] },
+    });
+
+    const panel = document.querySelector('.oref-section-health');
+    const before = panel?.querySelectorAll('.oref-drift').length ?? 0;
+    expect(before).toBeGreaterThan(0);
+
+    // And the state block it hydrates from says only that the panel is there
+    expect(page.stateJson).toContain('"healthRendered":true');
+    expect(page.stateJson).not.toContain(built.health?.drift[0]?.message ?? 'nothing');
+
+    // When
+    const hydrated = hydrateReference();
+
+    // Then the markup the server wrote is still the markup on the page, and untorn
+    expect(hydrated).toBe(true);
+    const after = document.querySelector('.oref-section-health');
+    expect(after?.querySelectorAll('.oref-drift')).toHaveLength(before);
+    expect(after?.querySelectorAll('details').length).toBeGreaterThan(0);
     const messages = [...warn.mock.calls, ...error.mock.calls].map((call) => String(call[0]));
     expect(messages.filter((message) => message.includes('Hydration'))).toEqual([]);
   });
@@ -128,7 +170,18 @@ describe('readPageState', () => {
     // because a cached page written before it carries an index of the whole document. T023 added
     // `runtime` and `health` and took it to 4, and that one had to move for the same reason
     // reversed: a page cached before the runtime pass ran carries neither, and would be served
-    // to a reader as an application that says nothing about itself.
-    expect(state?.pageModelVersion).toBe(4);
+    // to a reader as an application that says nothing about itself. F43 took the report back out
+    // of the state block and put `healthRendered` in its place, which is 5: a page cached before
+    // it carries a report the client would try to draw with a component that no longer draws.
+    // T027 replaced `run.bodyMediaTypes`, a list of strings, with `run.body`, a list carrying the
+    // editor each media type asks for, and that is 6: a page cached before it hydrates a console
+    // that cannot decide which of the three body editors to draw. T028 put the OAuth2 flows on
+    // every security scheme and the cause on the two a browser cannot send, and that is 7: a page
+    // cached before it draws no sign in for an `oauth2` scheme and nothing at all where
+    // `mutualTLS` should say what it needs, which is the absence the field exists to prevent.
+    // T033 added `proxyPath`, the fact the runner factory reads to choose the proxy transport,
+    // and that is 9 (8 was TX-SLOTWIRE): a page cached before it sends directly on a host whose
+    // proxy is up, which is the defence existing and not being offered.
+    expect(state?.pageModelVersion).toBe(9);
   });
 });

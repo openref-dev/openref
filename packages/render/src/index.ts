@@ -44,6 +44,15 @@ export {
 export type { IHighlighter } from './highlight/domain/highlight';
 
 export { escapeHtml, escapeJsonForScript } from './shared/html';
+export {
+  callbackParams,
+  completeSignIn,
+  writeSignInNotice,
+  OAUTH_MARKER,
+  SIGN_IN_NOTICE_KEY,
+  type SignInNotice,
+} from './shared/oauth-landing';
+export { navigateTo, readSignInNotice, redirectTargets } from './shared/oauth-console';
 export { statusClass } from './shared/status';
 export { eventValue } from './shared/dom';
 export type { ValueEvent, ValueTarget } from './shared/dom';
@@ -66,24 +75,35 @@ export {
   PAGE_MODEL_VERSION,
   typeLabel,
 } from './page/domain/page-model';
-export type { NavEntryModel } from './page/domain/nav-entry';
+// THE PROJECTION TYPES LIVE IN `@openref/vue` SINCE `TX-SLOTWIRE` and are re-exported here, so
+// that a consumer of the renderer still finds them where they were. They moved because the slot
+// contract is declared in terms of them and the headless layer may not import this package.
 export type {
+  CodeSampleModel,
   DriftModel,
   HealthCheckModel,
   HealthModel,
   HealthRuleModel,
   MediaTypeModel,
+  NavEntryModel,
+  NodeHeaderModel,
   NodeModel,
+  PageKind,
   PageModel,
-  PageModelOptions,
+  PaletteHitModel,
   ParameterModel,
   ResponseModel,
   RuntimeModel,
+  RuntimeRowKind,
   RuntimeRowModel,
   RuntimeValueModel,
   SchemaPageModel,
   SecurityModel,
-} from './page/domain/page-model';
+} from '@openref/vue';
+// THE THEME CONTRACT TYPES RIDE THE SAME RE-EXPORT, since T033: `@openref/nest` takes a theme
+// as an option and its one upstream for renderer shapes is this package, not `@openref/vue`.
+export type { ThemeAssets, ThemeDefinition, ThemeTokens } from '@openref/vue';
+export type { PageModelOptions } from './page/domain/page-model';
 export {
   buildHealthModel,
   buildRuntimeModel,
@@ -128,14 +148,36 @@ export {
 export { assertNonce, renderHtmlDocument, STATE_ELEMENT_ID } from './page/domain/shell';
 export type { ShellAssets, ShellOptions } from './page/domain/shell';
 
-export { APP_ROOT_ID, MAIN_ID, ReferenceApp } from './components/ReferenceApp';
+// EVERY DEFAULT OF THE 21 SLOTS IS EXPORTED, and that is what makes an L1 theme composable
+// rather than all or nothing: a theme that wants to wrap the reference's own header, or to draw
+// its own tree beside the shipped one, needs the component it is replacing.
+export { APP_ROOT_ID, ReferenceApp } from './components/ReferenceApp';
+export { AppShell, MAIN_ID } from './components/AppShell';
+export { AuthPanel } from './components/AuthPanel';
+export { CodeSample } from './components/CodeSample';
 export { CommandPalette } from './components/CommandPalette';
+export { DocumentOverview } from './components/DocumentOverview';
+export { DriftCard } from './components/DriftCard';
+export { HealthPanel } from './components/HealthPanel';
 export { MarkdownBlock } from './components/MarkdownBlock';
 export { NavigationTree } from './components/NavigationTree';
 export { NodePanel } from './components/NodePanel';
-export { TryItPanel } from './components/TryItPanel';
+export { OperationHeader } from './components/OperationHeader';
+export { PaletteOverlay } from './components/PaletteOverlay';
+export { ParamTable } from './components/ParamTable';
+export { ProvenanceTag } from './components/ProvenanceTag';
+export { ResponseList } from './components/ResponseList';
+export { ResponseView } from './components/ResponseView';
+export { RuntimePanel } from './components/RuntimePanel';
 export { SchemaPanel } from './components/SchemaPanel';
+export { SchemaTree } from './components/SchemaTree';
 export { SchemaView } from './components/SchemaView';
+export { SendButton } from './components/SendButton';
+export { ServerSelect } from './components/ServerSelect';
+export { ShapeForm } from './components/ShapeForm';
+export { StateNotice } from './components/StateNotice';
+export { StreamLog } from './components/StreamLog';
+export { TryItPanel } from './components/TryItPanel';
 
 export {
   renderAllPages,

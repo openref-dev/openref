@@ -87,6 +87,22 @@ export class CollectorRegistry {
   private readonly declined: readonly { readonly collector: string; readonly reason: string }[];
   private readonly retired = new Map<string, Retirement>();
   private readonly options: CollectorRegistryOptions;
+  /**
+   * The global guard names, frozen once, because every context is handed this same array.
+   *
+   * FOUND BY SWEEPING FOR F38's SHAPE RATHER THAN BY MEETING IT. The node is frozen because a
+   * collector is somebody else's code; this list is the other thing the context hands over that
+   * the product reads afterwards, and it is one array shared by every collector on every node.
+   * A collector calling `push` or setting `length` on it changes what `guardsCollector` reports
+   * for the rest of the application, and every route after that point would name a guard nobody
+   * registered. `readonly string[]` says it cannot happen, and one cast in a third party package
+   * is all that costs.
+   *
+   * FROZEN ONCE HERE RATHER THAN PER CONTEXT, because it is one value for the whole pass: a
+   * thousand nodes would otherwise pay for a thousand calls that all freeze the same array. The
+   * strings inside it need nothing, since a string cannot be edited in place.
+   */
+  private readonly globalGuards: readonly string[];
 
   /**
    * @param registrations - The collectors, in the order they were declared
@@ -94,6 +110,7 @@ export class CollectorRegistry {
    */
   constructor(registrations: readonly CollectorRegistration[], options: CollectorRegistryOptions) {
     this.options = options;
+    this.globalGuards = Object.freeze([...(options.globalGuards ?? [])]);
     this.collectors = registrations.filter(isRuntimeCollector);
     this.declined = registrations
       .filter(isSkippedCollector)
@@ -219,7 +236,9 @@ export class CollectorRegistry {
       handlerName: target.handlerName,
       reflector: this.options.reflector,
       moduleRef: this.options.moduleRef,
-      globalGuards: this.options.globalGuards ?? [],
+      // FROZEN, AND A COPY OF WHAT THE HOST HANDED OVER. See the field: it is one array every
+      // collector on every node is given, so an edit to it is an edit to the rest of the pass.
+      globalGuards: this.globalGuards,
       fact: <T>(value: T, confidence: IRConfidence): IRFact<T> => ({
         value,
         confidence,

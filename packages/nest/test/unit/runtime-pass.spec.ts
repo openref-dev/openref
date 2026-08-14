@@ -284,7 +284,14 @@ describe('runRuntimePass, the health report', () => {
     const guards: IRuntimeCollector = {
       name: 'guardsCollector',
       collect: () => ({
-        guards: [{ name: 'JwtAuthGuard', scope: 'route', confidence: 'derived', collector: 'guardsCollector' }],
+        guards: [
+          {
+            name: 'JwtAuthGuard',
+            scope: 'route',
+            confidence: 'derived',
+            collector: 'guardsCollector',
+          },
+        ],
       }),
     };
     const withSecurity = document();

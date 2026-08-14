@@ -32,12 +32,10 @@ describe('resolveTheme', () => {
     expect(theme.slots.overridden()).toEqual([]);
   });
 
-  it('should carry the layout, tokens and assets a theme declared', () => {
+  it('should carry the components, tokens and assets a theme declared', () => {
     // Given
-    const layout = (): Promise<unknown> => Promise.resolve({});
     const definition = defineTheme({
       name: 'aurora',
-      layout,
       components: { AppShell: Stub },
       tokens: { '--oref-color-accent-spec': '#7c5cff', '--oref-space-400': '10px' },
       assets: { css: ['./aurora.css'] },
@@ -48,9 +46,48 @@ describe('resolveTheme', () => {
 
     // Then
     expect(theme.name).toBe('aurora');
-    expect(theme.layout).toBe(layout);
     expect(theme.assets.css).toEqual(['./aurora.css']);
     expect(theme.slots.resolve('AppShell')).toBe(Stub);
+  });
+
+  it('should resolve the layout into the AppShell slot rather than beside it', () => {
+    // Given, `layout` is the authoring surface and `AppShell` is the position, and until
+    // `TX-SLOTWIRE` they were two mechanisms for one place: the checker checked one and the
+    // renderer would have had to decide between them.
+    const definition = defineTheme({
+      name: 'aurora',
+      layout: () => Promise.resolve({ default: Stub }),
+    });
+
+    // When
+    const theme = resolveTheme(definition);
+
+    // Then
+    expect(theme.slots.overridden()).toEqual(['AppShell']);
+    expect(theme.slots.resolve('AppShell')).not.toBeUndefined();
+  });
+
+  it('should refuse a theme that declares its shell twice', () => {
+    // Given, one position and two ways to fill it is the defect this whole task is about, so it
+    // is refused by name rather than resolved by precedence.
+    const definition = defineTheme({
+      name: 'aurora',
+      layout: () => Promise.resolve({ default: Stub }),
+      components: { AppShell: Stub },
+    });
+
+    // When
+    let thrown: unknown;
+    try {
+      resolveTheme(definition);
+    } catch (error: unknown) {
+      thrown = error;
+    }
+
+    // Then
+    expect(thrown).toBeInstanceOf(ThemeContractError);
+    expect((thrown as ThemeContractError).message).toContain('twice');
+    expect((thrown as ThemeContractError).message).toContain('AppShell');
   });
 
   it('should refuse a theme with no name', () => {

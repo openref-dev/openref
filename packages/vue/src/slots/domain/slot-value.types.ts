@@ -2,44 +2,48 @@
  * Values that exist only because a slot carries them.
  *
  * Each of these is part of the frozen slot contract, so it lives beside the contract rather
- * than in whichever feature will eventually produce it. A type declared next to its producer
- * would be unavailable until that producer is built, and the props would have to change shape
- * when it arrives, which is the one thing a frozen contract must not do.
+ * than in whichever feature produces it.
  */
-
-/**
- * One rendered call sample, per SPEC 18.
- *
- * The generator arrives in M6 and `x-codeSamples` is read from the specification before that.
- * Both produce this shape, which is also the shape the extension writes, so a sample from the
- * document and a sample from the generator are indistinguishable to a theme.
- */
-export interface CodeSampleView {
-  /** Language identifier, as a highlighter understands it, for example `bash` or `python`. */
-  readonly lang: string;
-  /** What the tab says, for example `cURL`. */
-  readonly label: string;
-  readonly source: string;
-}
 
 /**
  * Why a region is showing a notice instead of content.
  *
- * The five the design names, plus `unavailable` for a feature this build does not carry. That
- * last one is not a synonym for `no-runtime`: a build with no runner is a build decision, while
- * no runtime facts means no collector ran against a build that has them.
+ * RESTATED FROM THE NOTICES THAT EXIST, in `TX-SLOTWIRE`, rather than from the six words the
+ * design guessed at. Each of these is a sentence a reader can be shown today, and each is drawn
+ * by one position of the shipped renderer:
+ *
+ * - `nav-unavailable`: the rest of the navigation could not be fetched, so the sidebar lists
+ *   what the page arrived with
+ * - `search-empty`, `search-no-results`, `search-partial`: the three states of the command
+ *   palette, the third being a page still searching the slice it shipped with
+ * - `no-server`: the document declares no server, so there is nowhere to send a request
+ * - `no-body-fields`: a media type is declared with no properties, so the console has no fields
+ *   to offer for it
+ * - `schema-missing`: a schema page was opened for an id this document does not declare
+ * - `no-schema`: a position declares no schema, so the viewer has no tree to draw
+ *
+ * WHAT IS NOT HERE IS THE SENTENCE BESIDE SEND. It is `SendButton.notice`, because the button
+ * points at it with `aria-describedby` and a control announced as unavailable with the reason in
+ * an unassociated sibling is announced without the reason at all, per SPEC 11.
  */
 export type StateNoticeKind =
-  'empty' | 'no-runtime' | 'stale-cache' | 'no-results' | 'no-descriptions' | 'unavailable';
+  | 'nav-unavailable'
+  | 'search-empty'
+  | 'search-no-results'
+  | 'search-partial'
+  | 'no-server'
+  | 'no-body-fields'
+  | 'schema-missing'
+  | 'no-schema';
 
 /**
- * What a reader has asked for, which is not the same as what they get.
+ * What a bounded stream window has seen, per SPEC 14.6.
  *
- * `system` means no choice was made and the operating system decides, which is the default the
- * theme implements with `prefers-color-scheme`. The two explicit values write
- * `data-oref-color-scheme` and override it.
+ * `dropped` is what scrolled out of the window, which is named rather than silently absent: a
+ * list that simply started later reads as a stream that started later.
  */
-export type ColorSchemePreference = 'system' | 'light' | 'dark';
-
-/** The scheme actually being painted, once the preference and the system have been resolved. */
-export type ColorScheme = 'light' | 'dark';
+export interface StreamCounts {
+  readonly received: number;
+  readonly invalid: number;
+  readonly dropped: number;
+}

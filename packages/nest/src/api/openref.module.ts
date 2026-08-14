@@ -87,6 +87,12 @@ export class OpenRefModule {
     const references = referencesIn(app);
     let pass: RuntimePassResult | undefined;
 
+    // The theme's own `assets.css` and `bundle` are the defaults, per SPEC 10.4 consumed at
+    // T033, and the narrower options override them.
+    const theme = options.theme;
+    const stylesheets = options.stylesheets ?? theme?.definition.assets?.css;
+    const clientBundle = options.clientBundle ?? theme?.bundle;
+
     const service = new ReferenceService({
       document: options.document,
       basePath,
@@ -101,14 +107,16 @@ export class OpenRefModule {
       assets:
         options.assetPlan ??
         loadDefaultAssets({
-          ...(options.stylesheets === undefined ? {} : { stylesheets: options.stylesheets }),
-          ...(options.clientBundle === undefined ? {} : { clientBundle: options.clientBundle }),
+          ...(stylesheets === undefined ? {} : { stylesheets }),
+          ...(clientBundle === undefined ? {} : { clientBundle }),
         }),
+      ...(theme === undefined ? {} : { theme }),
       ...(options.cache === undefined ? {} : { cache: options.cache }),
       ...(options.highlight === undefined ? {} : { highlight: options.highlight }),
       ...(options.lang === undefined ? {} : { lang: options.lang }),
       ...(options.colorScheme === undefined ? {} : { colorScheme: options.colorScheme }),
       ...(options.onError === undefined ? {} : { onError: options.onError }),
+      ...(options.proxy === undefined ? {} : { proxy: options.proxy }),
     });
 
     const adapter = createReferenceAdapter(app.getHttpAdapter(), {
@@ -116,8 +124,8 @@ export class OpenRefModule {
       ...(options.onError === undefined ? {} : { onError: options.onError }),
     });
 
-    for (const { id, pattern } of referenceRoutes(basePath)) {
-      adapter.get(pattern, (request) => service.handle(id, request));
+    for (const { id, pattern, method } of referenceRoutes(basePath)) {
+      adapter[method](pattern, (request) => service.handle(id, request));
     }
 
     // Recorded so a host that mounted through `setup` can still read the pass by document id,

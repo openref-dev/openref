@@ -1,4 +1,5 @@
 import type { IRDocument } from '../../ir/domain/document.types';
+import { freezeDocument } from '../../ir/domain/freeze';
 import { canonicalize } from './canonical';
 import { sha256Hex } from './sha256';
 
@@ -36,4 +37,23 @@ export function hash(value: unknown): string {
  */
 export function hashDocument(document: IRDocument): string {
   return hash({ ...document, hash: '' });
+}
+
+/**
+ * Stamps a document with its own hash and freezes it.
+ *
+ * THE TWO ARE ONE STEP BECAUSE THEY ARE ONE CLAIM. A hash says "this is what the content is",
+ * and it keeps saying so after somebody writes to the content, which is what makes an edit
+ * after this point invisible to every cache keyed by the value. Producing a document therefore
+ * ends here, and every producer that stamps a hash by hand is a producer that can forget the
+ * other half. See `ir/domain/freeze.ts` for what the freeze covers and what it costs.
+ *
+ * @param document - Document to finalize; its `hash` field is replaced
+ * @returns A new document object, frozen at every depth
+ *
+ * @example
+ * const served = finalizeDocument({ ...built, hash: '' });
+ */
+export function finalizeDocument(document: IRDocument): IRDocument {
+  return freezeDocument({ ...document, hash: hashDocument(document) });
 }

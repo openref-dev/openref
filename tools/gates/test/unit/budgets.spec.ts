@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { SIZE_BUDGETS } from '../../src/config';
+import { CLIENT_JS_GESTURES, SIZE_BUDGETS } from '../../src/config';
 import { evaluateBudget, formatBytes, gzipSizeOf } from '../../src/lib/budgets';
 
 describe('gzipSizeOf', () => {
@@ -154,6 +154,52 @@ describe('the two caps on the theme stylesheets', () => {
     // Then
     expect(ids).toEqual([]);
     expect(SIZE_BUDGETS.some((budget) => budget.quantity === 'parse')).toBe(true);
+  });
+});
+
+describe('the deferred half, divided by gesture', () => {
+  const gestureBudgets = SIZE_BUDGETS.filter((budget) => budget.partition?.gesture !== undefined);
+
+  it('should give every declared gesture both quantities and nothing else', () => {
+    // Given, T011-R measured a plant that failed the raw cap and passed the gzip one, so a
+    // gesture carrying one of the two would be blind in whichever direction it dropped.
+    const pairs = new Map<string, string[]>();
+    for (const budget of gestureBudgets) {
+      const gesture = budget.partition?.gesture ?? '';
+      pairs.set(gesture, [...(pairs.get(gesture) ?? []), budget.quantity]);
+    }
+
+    // When
+    const declared = CLIENT_JS_GESTURES.map((gesture) => gesture.id);
+
+    // Then
+    expect([...pairs.keys()].sort()).toEqual([...declared].sort());
+    for (const quantities of pairs.values())
+      expect([...quantities].sort()).toEqual(['parse', 'transfer']);
+  });
+
+  it('should weigh the same roots and the same side as the budget it replaced', () => {
+    // Given, six budgets over one bundle: two copies of the root list is how budgets over one
+    // artifact come to bound different file sets while reading as views of one.
+    const roots = new Set(gestureBudgets.map((budget) => budget.roots.join(',')));
+    const sides = new Set(gestureBudgets.map((budget) => budget.partition?.side));
+
+    // Then
+    expect(roots.size).toBe(1);
+    expect([...sides]).toEqual(['deferred']);
+  });
+
+  it('should leave no budget over the whole deferred side, which is what the split replaced', () => {
+    // Given the state this replaced: one cap over everything behind a dynamic import, which
+    // stopped describing one thing when the runner outgrew the components. A budget over the
+    // union left beside the six would go red for a reason no reader could act on.
+    const union = SIZE_BUDGETS.filter(
+      (budget) => budget.partition?.side === 'deferred' && budget.partition.gesture === undefined,
+    );
+
+    // Then
+    expect(union).toEqual([]);
+    expect(gestureBudgets.length).toBe(CLIENT_JS_GESTURES.length * 2);
   });
 });
 

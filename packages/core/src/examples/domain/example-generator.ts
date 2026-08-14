@@ -23,16 +23,34 @@ import { matchesPattern, sampleFromPattern } from './pattern';
  * cache key. Every ordering decision here is the canonical one, keys by code point, so the
  * result does not depend on the order a document happened to be written in.
  *
- * Values come, in order: from `const`, from the first declared example, from `default`, from
- * the first `enum` member, then from `format`, then from the field name dictionary, then from
- * the type. Constraints are applied last, to whatever was chosen.
+ * Values come, in order: from `const`, from the declared examples, from `default`, from the
+ * `enum` members, then from `format`, then from the field name dictionary, then from the type.
+ * Constraints are applied last, to whatever was chosen.
+ *
+ * TWO ELEMENTS OF AN ARRAY DIFFER WHEREVER THE SCHEMA LEAVES ROOM, per T005-R1. The second
+ * element exists to show a reader that the position is a list rather than a single object, and
+ * a byte identical copy of the first shows nothing. The variation is seeded from the element
+ * position and the node it lands on, never from a clock or a random source: element `i` of an
+ * array is generated at variant `i` (accumulated through nesting), and every leaf consumes the
+ * variant deterministically, so the same schema in the same position always produces the same
+ * value. Where the schema pins the value, a `const` or a single member `enum`, the elements
+ * are identical, which is the schema's statement and not a defect.
+ *
+ * A RECURSION STOP IS A FACT ABOUT THE SCHEMA AND IS SHOWN AS ONE, per the same retrofit. The
+ * cycle guard used to emit `null`, which put the guard itself into a sample a reader is
+ * invited to copy and send. A stop is not a value: inside an array the stopped element is
+ * dropped, so a recursive list ends as `[]`, and on an object the stopped property is omitted,
+ * so a recursive object simply does not continue. The sample stays valid against the schema
+ * wherever a finite valid sample exists; where none does, a required property whose type
+ * recurses into itself, the omission is still the least wrong sample, because any value
+ * present there would be one the schema rejects and the reader copies.
  */
 
 /** How many elements an array example holds, per SPEC 5.5. */
 export const ARRAY_EXAMPLE_LENGTH = 2;
 
 /**
- * Depth at which generation stops and emits `null`.
+ * Depth at which generation stops.
  *
  * A normalized schema is already finite, because the normalizer folds a cycle into `$cycle`
  * before it can repeat. This is the second line of defence, for a schema assembled by hand or
@@ -60,6 +78,17 @@ export interface GenerateExampleOptions {
   readonly schemas?: ReadonlyMap<string, IRJsonSchema>;
 }
 
+/**
+ * The recursion stop, distinct from every JSON value.
+ *
+ * `null` is a value a schema can declare and a reader can copy, so the guard must not produce
+ * it. The stop propagates up until a container can express it structurally: an array drops the
+ * element, an object omits the property.
+ */
+const STOP: unique symbol = Symbol('example-stop');
+
+type Generated = IRJsonValue | typeof STOP;
+
 interface Context {
   readonly view: IRSchemaView;
   readonly maxDepth: number;
@@ -77,7 +106,7 @@ interface Context {
  *
  * @example
  * generateExample({ type: 'string', format: 'date-time' }); // '2026-01-01T00:00:00Z'
- * generateExample({ type: 'array', items: { type: 'integer' } }); // [1, 1]
+ * generateExample({ type: 'array', items: { type: 'integer' } }); // [1, 2]
  */
 export function generateExample(
   schema: IRJsonSchema,
@@ -90,7 +119,12 @@ export function generateExample(
     open: new Set(),
   };
 
-  return build(schema, context, options.fieldName, 0);
+  const value = build(schema, context, options.fieldName, 0, 0);
+
+  // A whole example that is nothing but a stop has no container to express the stop in, and
+  // the public contract returns a JSON value. `null` here is the degenerate case, not the
+  // guard leaking: there is no sample to show at all.
+  return value === STOP ? null : value;
 }
 
 function build(
@@ -98,36 +132,39 @@ function build(
   context: Context,
   fieldName: string | undefined,
   depth: number,
-): IRJsonValue {
-  if (depth >= context.maxDepth) return null;
-  if (schema.$cycle !== undefined) return null;
+  variant: number,
+): Generated {
+  if (depth >= context.maxDepth) return STOP;
+  if (schema.$cycle !== undefined) return STOP;
 
   // BEFORE THE REFERENCE IS FOLLOWED, and the order is the rule rather than a preference. A
   // value written beside a `$ref` belongs to this use site, and after T003-R2 a use site that
   // reads `allOf: [{ $ref }]` with a `default` beside it is an ordinary shape rather than a
   // curiosity: 40 of the 180 wrapped properties of `kubernetes-apps-v1.json` carry one. Follow
   // first and the sample shows the target's value where the document stated another.
-  const declared = declaredValue(schema);
+  const declared = declaredValue(schema, variant);
   if (declared !== undefined) return declared;
 
-  if (schema.$ref !== undefined) return followReference(schema.$ref, context, fieldName, depth);
+  if (schema.$ref !== undefined) {
+    return followReference(schema.$ref, context, fieldName, depth, variant);
+  }
 
-  const branch = firstBranch(schema);
-  if (branch !== undefined) return build(branch, context, fieldName, depth + 1);
+  const branch = pickBranch(schema, variant);
+  if (branch !== undefined) return build(branch, context, fieldName, depth + 1, variant);
 
   switch (resolveType(schema)) {
     case 'object':
-      return buildObject(schema, context, depth);
+      return buildObject(schema, context, depth, variant);
     case 'array':
-      return buildArray(schema, context, fieldName, depth);
+      return buildArray(schema, context, fieldName, depth, variant);
     case 'string':
-      return buildString(schema, fieldName);
+      return buildString(schema, fieldName, variant);
     case 'integer':
-      return buildNumber(schema, fieldName, true);
+      return buildNumber(schema, fieldName, true, variant);
     case 'number':
-      return buildNumber(schema, fieldName, false);
+      return buildNumber(schema, fieldName, false, variant);
     case 'boolean':
-      return true;
+      return variant % 2 === 0;
     case 'null':
       return null;
     default:
@@ -138,49 +175,69 @@ function build(
 /**
  * Follows a reference into the document's named schemas, per SPEC 5.1.1.
  *
- * A reference already being generated further up is a cycle and stops at `null`. That is what
- * makes a recursive type produce a finite example without the generator having to know which
- * references close a loop.
+ * A reference already being generated further up is a cycle and stops. A reference with no
+ * schema map to resolve against is a different fact, an unknown type rather than a recursion,
+ * and stays `null`: the generator will not invent a value for a type it cannot see.
  */
 function followReference(
   id: string,
   context: Context,
   fieldName: string | undefined,
   depth: number,
-): IRJsonValue {
-  if (context.open.has(id)) return null;
+  variant: number,
+): Generated {
+  if (context.open.has(id)) return STOP;
 
   const target = context.schemas.get(id);
   if (target === undefined) return null;
 
   context.open.add(id);
   try {
-    return build(target, context, fieldName, depth + 1);
+    return build(target, context, fieldName, depth + 1, variant);
   } finally {
     context.open.delete(id);
   }
 }
 
 /**
- * Takes the value the document itself states, if it states one.
+ * Takes the value the document itself states, if it states one, at the variant asked for.
  *
- * A written example beats anything generated, and `enum` taking its first member is the rule
- * SPEC 5.5 names outright.
+ * A `const` pins every element and stays fixed. Declared `examples` and `enum` members are the
+ * document's own variation space, so element `i` reads member `i` modulo the length, which is
+ * the first member for a single entry list and the first element either way. A `default` is
+ * one value by nature: it answers the first element, and later elements fall through to the
+ * generated value rather than repeat it, per the T005-R1 rule that elements differ wherever
+ * the schema leaves room.
  */
-function declaredValue(schema: IRJsonSchema): IRJsonValue | undefined {
+function declaredValue(schema: IRJsonSchema, variant: number): IRJsonValue | undefined {
   if (schema.const !== undefined) return schema.const;
-  if (schema.examples !== undefined && schema.examples.length > 0) return schema.examples[0];
-  if (schema.default !== undefined) return schema.default;
-  if (schema.enum !== undefined && schema.enum.length > 0) return schema.enum[0];
+  if (schema.examples !== undefined && schema.examples.length > 0) {
+    return schema.examples[variant % schema.examples.length];
+  }
+  if (variant === 0 && schema.default !== undefined) return schema.default;
+  if (schema.enum !== undefined && schema.enum.length > 0) {
+    return schema.enum[variant % schema.enum.length];
+  }
   return undefined;
 }
 
-/** Picks the branch a composed schema is exemplified by: the first one, deterministically. */
-function firstBranch(schema: IRJsonSchema): IRJsonSchema | undefined {
-  if (schema.variants !== undefined && schema.variants.length > 0)
-    return schema.variants[0]?.schema;
-  if (schema.oneOf !== undefined && schema.oneOf.length > 0) return schema.oneOf[0];
-  if (schema.anyOf !== undefined && schema.anyOf.length > 0) return schema.anyOf[0];
+/**
+ * Picks the branch a composed schema is exemplified by.
+ *
+ * The first one for the first element, and member `variant` modulo the length after that: a
+ * union is room the schema leaves for variation, so the second element of a list of
+ * `oneOf: [Cat, Dog]` shows the dog rather than a second cat.
+ */
+function pickBranch(schema: IRJsonSchema, variant: number): IRJsonSchema | undefined {
+  if (schema.variants !== undefined && schema.variants.length > 0) {
+    return schema.variants[variant % schema.variants.length]?.schema;
+  }
+  if (schema.oneOf !== undefined && schema.oneOf.length > 0) {
+    return schema.oneOf[variant % schema.oneOf.length];
+  }
+  if (schema.anyOf !== undefined && schema.anyOf.length > 0) {
+    return schema.anyOf[variant % schema.anyOf.length];
+  }
   return undefined;
 }
 
@@ -233,6 +290,7 @@ function buildObject(
   schema: IRJsonSchema,
   context: Context,
   depth: number,
+  variant: number,
 ): Record<string, IRJsonValue> {
   const properties = schema.properties ?? {};
   const names = Object.keys(properties)
@@ -249,7 +307,16 @@ function buildObject(
   for (const name of limited) {
     const property = properties[name];
     if (property === undefined) continue;
-    result[name] = build(property, context, name, depth + 1);
+
+    const value = build(property, context, name, depth + 1, variant);
+
+    // A stopped property is omitted rather than written as a value, required or not. For an
+    // optional property the omission is simply a valid sample that does not continue. For a
+    // required one no finite valid sample exists at all, and between a missing member and a
+    // present value the schema rejects, the omission is the one that does not hand the reader
+    // something to copy.
+    if (value === STOP) continue;
+    result[name] = value;
   }
 
   // A schema that declares no properties but does declare a shape for additional ones still
@@ -259,7 +326,8 @@ function buildObject(
     typeof schema.additionalProperties === 'object' &&
     schema.maxProperties !== 0
   ) {
-    result.additionalProp = build(schema.additionalProperties, context, undefined, depth + 1);
+    const value = build(schema.additionalProperties, context, undefined, depth + 1, variant);
+    if (value !== STOP) result.additionalProp = value;
   }
 
   return result;
@@ -270,6 +338,7 @@ function buildArray(
   context: Context,
   fieldName: string | undefined,
   depth: number,
+  variant: number,
 ): IRJsonValue[] {
   const prefix = schema.prefixItems ?? [];
   const wanted = clampCount(prefix.length === 0 ? ARRAY_EXAMPLE_LENGTH : prefix.length, schema);
@@ -279,7 +348,17 @@ function buildArray(
   for (let index = 0; index < wanted; index += 1) {
     const item = prefix[index] ?? schema.items;
     if (item === undefined) break;
-    elements.push(build(item, context, singularOf(fieldName), depth + 1));
+
+    // The seed of the variation: element `i` is generated at variant `variant + i`, so the
+    // second element differs from the first wherever a leaf below leaves room, and an array
+    // nested inside the second element starts one variant along rather than repeating the
+    // first element's inner list.
+    const value = build(item, context, singularOf(fieldName), depth + 1, variant + index);
+
+    // A stopped element is dropped, so a recursive list shows as a list that ends, `[]`,
+    // rather than as the guard's `null` presented as a member a reader would copy.
+    if (value === STOP) continue;
+    elements.push(value);
   }
 
   if (schema.uniqueItems !== true) return elements;
@@ -327,11 +406,11 @@ function stableKey(value: IRJsonValue): string {
     .join(',')}}`;
 }
 
-function buildString(schema: IRJsonSchema, fieldName: string | undefined): string {
+function buildString(schema: IRJsonSchema, fieldName: string | undefined, variant: number): string {
   const candidate =
-    stringForFormat(schema.format) ??
-    stringForFieldName(fieldName) ??
-    (typeof GENERIC_STRING === 'string' ? GENERIC_STRING : 'string');
+    stringForFormat(schema.format, variant) ??
+    stringForFieldName(fieldName, variant) ??
+    genericString(variant);
 
   const constrained = applyLength(schema, candidate);
 
@@ -345,6 +424,17 @@ function buildString(schema: IRJsonSchema, fieldName: string | undefined): strin
   // candidate is wrong in a way the reader can see, which is better than returning something
   // that looks generated and is equally wrong.
   return constrained;
+}
+
+/**
+ * The string used when nothing more specific is known, numbered from the second element on.
+ *
+ * The first element keeps the bare word so a lone value reads as it always has; later elements
+ * carry their ordinal, which is what shows a reader the position is a list.
+ */
+function genericString(variant: number): string {
+  const base = typeof GENERIC_STRING === 'string' ? GENERIC_STRING : 'string';
+  return variant === 0 ? base : `${base}-${String(variant + 1)}`;
 }
 
 /** Applies `minLength` and `maxLength` to a candidate string. */
@@ -364,13 +454,23 @@ function applyLength(schema: IRJsonSchema, candidate: string): string {
   return value;
 }
 
+/**
+ * A number for the position, the variant added before the bounds are applied.
+ *
+ * Adding the variant is the whole of the numeric variation rule: it is valid for every numeric
+ * format, and the bounds below clamp it back wherever the schema leaves no room, which is the
+ * honest outcome for a range one value wide.
+ */
 function buildNumber(
   schema: IRJsonSchema,
   fieldName: string | undefined,
   integral: boolean,
+  variant: number,
 ): number {
-  const preferred =
+  const base =
     numberForFormat(schema.format) ?? numberForFieldName(fieldName) ?? (integral ? 1 : 1.5);
+
+  const preferred = base + variant;
 
   return applyBounds(schema, integral ? Math.round(preferred) : preferred, integral);
 }

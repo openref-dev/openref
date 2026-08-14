@@ -78,6 +78,8 @@ export function assetPlan(): AssetPlan {
 export interface RecordedRoute {
   readonly pattern: string;
   readonly handler: (request: unknown, reply: unknown) => void;
+  /** The method it was registered under, which is `post` for the proxy of SPEC 14.5 alone. */
+  readonly method: 'get' | 'post';
 }
 
 /** A fake NestJS http adapter that records what was registered on it. */
@@ -98,7 +100,11 @@ export function fakeHttpAdapter(platform = 'express'): FakeHttpAdapter {
     routes,
     getType: () => platform,
     get(pattern, handler) {
-      routes.push({ pattern, handler });
+      routes.push({ pattern, handler, method: 'get' });
+      return undefined;
+    },
+    post(pattern, handler) {
+      routes.push({ pattern, handler, method: 'post' });
       return undefined;
     },
   };

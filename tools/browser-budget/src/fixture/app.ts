@@ -128,6 +128,10 @@ export function createFixture(
         getType: () => 'express',
         get: (path: string, handler: (request: unknown, reply: unknown) => void) =>
           app.get(path, handler),
+        // The proxy route of SPEC 14.5, which this fixture registers and never enables: the
+        // module mounts it on every reference, and it answers 403 until a host turns it on.
+        post: (path: string, handler: (request: unknown, reply: unknown) => void) =>
+          app.post(path, handler),
       }),
     },
     { document: specificationFor(document) },

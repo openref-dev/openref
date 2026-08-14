@@ -23,8 +23,19 @@
  * uses, so opening a group first and the palette second costs one request between them. Until
  * it arrives the palette searches what the page shipped, which is a short list rather than an
  * empty one, and says that it is still loading.
+ *
+ * THE STATE IS HERE AND THE MARKUP IS THE SLOT, since `TX-SLOTWIRE`. This is the deferred host:
+ * it holds what is open, what was typed and which row is selected, and it owns the search, which
+ * is the part that must not be in the first paint. What it hands the `CommandPalette` slot is
+ * that state and four callbacks, so a theme replaces the overlay without acquiring the index, the
+ * shortcut or the store.
+ *
+ * A HIT IS THE PALETTE'S OWN ROW AND NOT A `SearchHit`. This searches the navigation slice and
+ * never consults the search port, so the method and the path arrive joined into the one `hint`
+ * string the sidebar draws, which is what the position can actually supply.
  */
 
+import { useSlot, type PaletteHitModel } from '@openref/vue';
 import {
   computed,
   defineComponent,
@@ -36,27 +47,20 @@ import {
   type PropType,
   type VNode,
 } from 'vue';
+import { PaletteOverlay } from './PaletteOverlay';
 import { nodeHref, schemaHref } from '../page/domain/links';
 import { flattenNavigation, type NavRow } from '../page/domain/nav-rows';
 import { searchNavigation } from '../page/domain/nav-search';
 import { NAVIGATION_KEY, type NavigationStore } from '../page/api/nav-context';
-import type { NavEntryModel } from '../page/domain/page-model';
-import { listenerHost, type KeyEvent, type QueryRoot } from '../shared/dom';
-
-/** Id of the listbox, so the input can own it by name. */
-const LIST_ID = 'oref-palette-list';
-
-/** Id of one option, so `aria-activedescendant` can name it. */
-function optionId(index: number): string {
-  return `oref-palette-option-${String(index)}`;
-}
+import type { NavEntryModel } from '@openref/vue';
+import { listenerHost, type KeyEvent } from '../shared/dom';
 
 function hrefOf(row: NavRow, basePath: string): string {
   if (row.nodeId !== null) return nodeHref(row.nodeId, basePath);
   return row.schemaId === null ? basePath : schemaHref(row.schemaId, basePath);
 }
 
-/** Renders the search dialog and the key that opens it. */
+/** Holds the palette's state and the search, and hands both to whatever draws it. */
 export const CommandPalette = defineComponent({
   name: 'OrefCommandPalette',
 
@@ -66,12 +70,11 @@ export const CommandPalette = defineComponent({
   },
 
   setup(props) {
+    const overlay = useSlot('CommandPalette', PaletteOverlay);
     const store = inject<NavigationStore | null>(NAVIGATION_KEY, null);
     const openState = ref(false);
     const query = ref('');
     const selected = ref(0);
-    const inputRef = ref<{ focus(): void } | null>(null);
-    const listRef = ref<QueryRoot | null>(null);
 
     // Flattened once and only when the palette is first opened, because a closed palette should
     // cost nothing on a page nobody searches from. Every entry present is searched, whatever the
@@ -79,7 +82,14 @@ export const CommandPalette = defineComponent({
     const rows = computed<NavRow[]>(() =>
       openState.value ? flattenNavigation(store?.entries.value ?? props.entries) : [],
     );
-    const hits = computed(() => searchNavigation(rows.value, query.value));
+    const hits = computed<PaletteHitModel[]>(() =>
+      searchNavigation(rows.value, query.value).map((hit) => ({
+        id: hit.row.id,
+        label: hit.row.label,
+        hint: hit.row.hint,
+        href: hrefOf(hit.row, props.basePath),
+      })),
+    );
     const partial = computed(() => store !== null && !store.complete.value);
 
     function open(): void {
@@ -118,142 +128,22 @@ export const CommandPalette = defineComponent({
       listenerHost()?.removeEventListener('keydown', onGlobalKey);
     });
 
-    /** Follows the option the arrows selected, by activating its link. */
-    function activate(): void {
-      const container = listRef.value;
-      if (container === null) return;
-
-      const wanted = optionId(selected.value);
-      for (const element of container.querySelectorAll('[data-oref-option]')) {
-        if (element.getAttribute('data-oref-option') !== wanted) continue;
-        element.focus();
-        return;
-      }
-    }
-
-    function onInputKey(event: KeyEvent): void {
-      const total = hits.value.length;
-
-      if (event.key === 'ArrowDown' && total > 0) {
-        event.preventDefault();
-        selected.value = (selected.value + 1) % total;
-        return;
-      }
-
-      if (event.key === 'ArrowUp' && total > 0) {
-        event.preventDefault();
-        selected.value = (selected.value - 1 + total) % total;
-        return;
-      }
-
-      if (event.key === 'Enter' && total > 0) {
-        event.preventDefault();
-        activate();
-      }
-    }
-
-    function onInput(event: { readonly target: unknown }): void {
-      const target = event.target as { value?: unknown } | null;
-      query.value = typeof target?.value === 'string' ? target.value : '';
-      selected.value = 0;
-    }
-
-    function renderHit(row: NavRow, index: number): VNode {
-      const current = index === selected.value;
-
-      return h(
-        'li',
-        {
-          class: ['oref-palette-hit', current ? 'oref-active' : ''],
-          key: row.id,
-          id: optionId(index),
-          role: 'option',
-          'aria-selected': current,
+    return (): VNode =>
+      h(overlay.value, {
+        open: openState.value,
+        query: query.value,
+        selected: selected.value,
+        hits: hits.value,
+        partial: partial.value,
+        onOpen: open,
+        onClose: close,
+        onQuery: (text: string): void => {
+          query.value = text;
+          selected.value = 0;
         },
-        [
-          h(
-            'a',
-            {
-              class: 'oref-palette-link',
-              href: hrefOf(row, props.basePath),
-              'data-oref-option': optionId(index),
-              tabindex: -1,
-            },
-            [
-              h('span', { class: 'oref-palette-label' }, row.label),
-              row.hint === '' ? null : h('span', { class: 'oref-palette-hint' }, row.hint),
-            ],
-          ),
-        ],
-      );
-    }
-
-    return (): VNode | null => {
-      if (!openState.value) {
-        // The button is what makes the feature discoverable, and it is what a pointer user
-        // needs: a shortcut nobody is told about is a shortcut nobody uses.
-        return h(
-          'button',
-          {
-            class: 'oref-palette-open',
-            type: 'button',
-            onClick: open,
-            'aria-keyshortcuts': 'Control+K Meta+K',
-          },
-          'Search',
-        );
-      }
-
-      return h('div', { class: 'oref-palette-scrim', onClick: close }, [
-        h(
-          'div',
-          {
-            class: 'oref-palette',
-            role: 'dialog',
-            'aria-modal': 'true',
-            'aria-label': 'Search the reference',
-            onClick: (event: { stopPropagation(): void }): void => {
-              event.stopPropagation();
-            },
-          },
-          [
-            h('input', {
-              class: 'oref-palette-input',
-              type: 'text',
-              value: query.value,
-              autofocus: true,
-              ref: inputRef,
-              role: 'combobox',
-              'aria-expanded': 'true',
-              'aria-controls': LIST_ID,
-              'aria-autocomplete': 'list',
-              'aria-label': 'Search operations and schemas',
-              ...(hits.value.length === 0
-                ? {}
-                : { 'aria-activedescendant': optionId(selected.value) }),
-              onInput,
-              onKeydown: onInputKey,
-            }),
-            h(
-              'ul',
-              { class: 'oref-palette-list', id: LIST_ID, role: 'listbox', ref: listRef },
-              hits.value.length === 0
-                ? [
-                    h(
-                      'li',
-                      { class: 'oref-palette-empty' },
-                      query.value.trim() === ''
-                        ? 'Type to search'
-                        : partial.value
-                          ? 'Nothing matches what this page arrived with. The rest of the index is still loading.'
-                          : 'Nothing matches',
-                    ),
-                  ]
-                : hits.value.map((hit, index) => renderHit(hit.row, index)),
-            ),
-          ],
-        ),
-      ]);
-    };
+        onSelect: (index: number): void => {
+          selected.value = index;
+        },
+      });
   },
 });

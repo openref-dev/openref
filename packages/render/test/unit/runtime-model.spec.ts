@@ -112,7 +112,7 @@ describe('buildRuntimeModel', () => {
     // Then both contracts are still here, with their own status and their own mark, and the
     // sentence is on the first of them only
     expect(row?.values.map((value) => value.status)).toEqual(['401', '403']);
-    expect(row?.values.map((value) => value.code)).toEqual(['DRV', 'DRV']);
+    expect(row?.values.map((value) => value.confidence)).toEqual(['derived', 'derived']);
     expect(row?.values.map((value) => value.note)).toEqual([shared, '']);
   });
 
@@ -148,19 +148,24 @@ describe('buildRuntimeModel', () => {
   });
 
   it('should carry each fact with the confidence and the collector that produced it', () => {
-    // Given the document with an application behind it
+    // Given the document with an application behind it. THE TWO FACTS TRAVEL AND THE THREE
+    // STRINGS DRAWN FROM THEM DO NOT, since `TX-SLOTWIRE`: `ProvenanceTag` is declared in terms
+    // of `confidence` and `collector`, so a value carrying a formatted class and a formatted
+    // tooltip could not supply its own position's props.
     const document = runtimeDocument();
 
     // When
     const model = buildRuntimeModel(document, NODE, '');
     const marked = (model?.rows ?? []).flatMap((row) =>
-      row.values.filter((value) => value.code !== ''),
+      row.values.filter((value) => value.confidence !== null),
     );
 
     // Then every fact carries a provenance, and every provenance names its collector
     expect(marked.length).toBeGreaterThan(0);
-    expect(marked.every((value) => value.markTitle.includes(', '))).toBe(true);
-    expect(new Set(marked.map((value) => value.code))).toEqual(new Set(['DCL', 'DRV', 'INF']));
+    expect(marked.every((value) => value.collector !== '')).toBe(true);
+    expect(new Set(marked.map((value) => value.confidence))).toEqual(
+      new Set(['declared', 'derived', 'inferred']),
+    );
   });
 
   it('should fold guards read by one collector into one row and not one row each', () => {

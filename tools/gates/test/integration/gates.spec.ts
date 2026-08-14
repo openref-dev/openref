@@ -10,7 +10,9 @@ import {
   BUDGET_EXCEPTION_HISTORY,
   BUILD_AMENDMENTS_FILE,
   BUILD_FILE,
+  CLIENT_JS_GESTURES,
   FONT_BUDGETS,
+  SHIPPED_CLIENT_BUNDLES,
   SPEC_20_BUDGET_IDS,
   FONT_STYLESHEETS,
   LICENSE_ATTESTATIONS,
@@ -36,6 +38,9 @@ import {
   hashLicenseText,
   type PnpmLicenseReport,
 } from '../../src/lib/licenses';
+import { partitionByGesture, partitionModuleGraph } from '../../src/lib/module-graph';
+import { RUNNER_CODE_MARKERS } from '../../src/lib/runner-binding';
+import { collectFiles } from '../../src/lib/walk';
 import { readWorkspaceManifests, resolveShippedPackages } from '../../src/lib/workspace';
 import { GATES, selectGates } from '../../src/run';
 
@@ -184,6 +189,9 @@ describe('licensesGate', () => {
     // rather than bundled on purpose: each exists to read a third party library, so an edge from
     // `@openref/nest` would put that library in the closure of every consumer. They bundle nothing
     // themselves and take `@openref/core` and `@openref/nest` as peers.
+    // AND THE SIXTH PUBLISHED PACKAGE ARRIVED IN T032. `@openref/theme-telltale` is the second
+    // theme, and SPEC 4 lists it beside the first: a theme is published because a consumer chooses
+    // it, which is the same reason `@openref/theme` is.
     expect(result.published).toEqual([
       '@openref/collector-access-control',
       '@openref/collector-casl',
@@ -191,10 +199,27 @@ describe('licensesGate', () => {
       '@openref/core',
       '@openref/nest',
       '@openref/theme',
+      '@openref/theme-telltale',
       '@openref/vue',
       'openref',
     ]);
-    expect(result.bundled).toEqual(['@openref/render', '@openref/runner', '@openref/search']);
+    // AND `@openref/theme-kit` JOINED THE BUNDLED SET IN T032 WITHOUT BEING BUNDLED, which is this
+    // heuristic meeting its first counterexample and is recorded rather than smoothed over.
+    // `resolveShippedPackages` reads any edge from a published package to a private workspace one
+    // as bundling, and says why: an internal package sits in `devDependencies` precisely because it
+    // is inlined rather than installed. `@openref/theme-telltale` names theme-kit in
+    // `devDependencies` to run the conformance checker over itself in a test, and its `tsup.config`
+    // never bundles it: nothing in that package's `src` imports it. The classification is
+    // conservative in the safe direction, since it only widens the licence zone, so it is left
+    // alone here. What it is evidence for is a product question, filed against `T064`: the first
+    // consumer that needs theme-kit without the rest has appeared, which is the condition SPEC 4
+    // names for publishing it.
+    expect(result.bundled).toEqual([
+      '@openref/render',
+      '@openref/runner',
+      '@openref/search',
+      '@openref/theme-kit',
+    ]);
     expect(result.shipped).not.toContain('@openref/gates');
   });
 
@@ -302,9 +327,10 @@ describe('fixtureLicensesGate', () => {
 });
 
 describe('themeMotionGate', () => {
-  it.skipIf(!HAVE_AI_DOCS)('should pass on all four committed theme stylesheets', async () => {
-    // Given, three reference themes and the shipped one. Only one of them is code, and a check
-    // that saw only that one would report conformance for a third of the problem.
+  it.skipIf(!HAVE_AI_DOCS)('should pass on all five committed theme stylesheets', async () => {
+    // Given, three reference designs and the two shipped themes. Three of the five are documents
+    // rather than code, and a check that saw only the code would report conformance for a fraction
+    // of the problem. It was four until T032 shipped the second theme.
     const context = { repoRoot };
 
     // When
@@ -315,8 +341,9 @@ describe('themeMotionGate', () => {
     expect(result.status).toBe('pass');
     expect(THEME_TOKEN_STYLESHEETS.map((sheet) => sheet.theme)).toEqual([
       'vernier, as shipped',
+      'telltale, as shipped',
       'vernier, as designed',
-      'telltale',
+      'telltale, as designed',
       'forge',
     ]);
   });
@@ -343,9 +370,10 @@ describe('themeMotionGate', () => {
 });
 
 describe('themeFontsGate', () => {
-  it('should pass on the committed stylesheet and the fonts beside it', async () => {
+  it('should pass on both committed stylesheets and the fonts beside them', async () => {
     // Given, the ranges were rewritten by hand after the defect of 2026-08-10, and this is what
-    // stops them being written by hand again without anything noticing.
+    // stops them being written by hand again without anything noticing. Two themes ship faces
+    // since T032, and the count below is what makes the second one's absence a failure here.
     const context = { repoRoot };
 
     // When
@@ -354,7 +382,8 @@ describe('themeFontsGate', () => {
     // Then
     expect(result.findings.filter((finding) => finding.level === 'error')).toEqual([]);
     expect(result.status).toBe('pass');
-    expect(result.findings[0]?.message).toContain('10 face(s)');
+    expect(result.findings[0]?.message).toContain('16 face(s)');
+    expect(result.findings[0]?.message).toContain('2 stylesheet(s)');
   });
 
   it('should fail on a stylesheet it was told about and cannot read', async () => {
@@ -501,6 +530,69 @@ describe('budgetsGate, the three font budgets', () => {
     expect(over.map((finding) => finding.message.split(',')[0])).toEqual([
       'OVER fonts-first-paint',
     ]);
+  });
+});
+
+describe('the deferred half of the shipped bundle, divided by gesture', () => {
+  /**
+   * Walks the real built bundle and divides its deferred side the way the budgets do.
+   *
+   * @returns The division, or null when the bundle has not been built on this machine
+   */
+  function divide(): ReturnType<typeof partitionByGesture> | null {
+    const bundle = SHIPPED_CLIENT_BUNDLES[0];
+    if (bundle === undefined) return null;
+
+    const present = bundle.roots.flatMap((root) =>
+      collectFiles(join(repoRoot, root), ['.js', '.mjs'], repoRoot),
+    );
+    if (present.length === 0) return null;
+
+    return partitionByGesture(
+      repoRoot,
+      partitionModuleGraph(repoRoot, bundle.file, present),
+      CLIENT_JS_GESTURES,
+    );
+  }
+
+  it('should put the runner where the Send budget says it is, and in no other gesture', () => {
+    // Given the one attribution in this division that the module graph cannot make. The entry
+    // hands the renderer a `loadRunner` function, so `import('@openref/runner')` is written in
+    // the entry and the runner reads as a dynamic root beside the three components, while the
+    // only caller is the console's loader. The declaration says Send pays for it; this reads the
+    // built files and asks whether the runner is actually there.
+    const divided = divide();
+    if (divided === null) return;
+
+    const marker = RUNNER_CODE_MARKERS[0]?.literal ?? '';
+    const carries = (files: readonly string[]): boolean =>
+      files.some((file) => readFileSync(join(repoRoot, file), 'utf8').includes(marker));
+
+    // When
+    const send = divided.byGesture.get('send')?.files ?? [];
+    const others = [...divided.byGesture]
+      .filter(([id]) => id !== 'send')
+      .map(([, split]) => split.files);
+
+    // Then
+    expect(carries(send)).toBe(true);
+    for (const files of others) expect(carries(files)).toBe(false);
+  });
+
+  it('should leave no deferred chunk that no gesture downloads', () => {
+    // Given the property that replaced the single cap over the union: the three gestures have to
+    // cover the deferred side between them, or a chunk is behind a dynamic import with no budget
+    // over it at all, which is what one cap used to prevent by accident.
+    const divided = divide();
+    if (divided === null) return;
+
+    // Then
+    expect(divided.unclaimed).toEqual([]);
+    for (const [, split] of divided.byGesture) {
+      expect(split.missingRoots).toEqual([]);
+      expect(split.ambiguousRoots).toEqual([]);
+      expect(split.files.length).toBeGreaterThan(0);
+    }
   });
 });
 

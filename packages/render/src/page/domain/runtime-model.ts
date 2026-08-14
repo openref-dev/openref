@@ -29,7 +29,6 @@ import {
   type IRConfidence,
   type IRDocument,
   type IRDriftIssue,
-  type IRDriftRule,
   type IRDriftSeverity,
   type IRErrorContracts,
   type IRGuard,
@@ -39,96 +38,25 @@ import {
   type IRRateLimit,
   type IRStreaming,
 } from '@openref/core';
+import type {
+  DriftModel,
+  HealthModel,
+  RuntimeModel,
+  RuntimeRowKind,
+  RuntimeRowModel,
+  RuntimeValueModel,
+} from '@openref/vue';
 import { nodeHref, schemaHref } from './links';
 import { statusClass } from '../../shared/status';
 
 /**
- * One value on a runtime row.
+ * THE SHAPES THESE FUNCTIONS BUILD LIVE IN `@openref/vue`, since `TX-SLOTWIRE`.
  *
- * Every field is present and empty rather than absent, so the component tests one thing per
- * field instead of narrowing a union. `confidence` is the exception and is null when the value
- * carries no provenance, because a source location has none to carry: V8 either answered or did
- * not, and SPEC 6.3 gives it no collector for that reason.
+ * They are the projection a theme is handed, and the slot contract is declared in terms of them,
+ * so they belong to the package a theme is written against rather than to the one that builds
+ * them. What is here is the building, which needs the document, the link expander and the status
+ * vocabulary, and none of that may cross into the headless layer.
  */
-export interface RuntimeValueModel {
-  /** Status code of an error contract, drawn before the text. Empty on every other row. */
-  readonly status: string;
-  /** Whole class of the status code, so the two columns colour a code the same way. */
-  readonly statusClass: string;
-  readonly text: string;
-  /** Where the text links to. Empty when the value is not a link. */
-  readonly href: string;
-  /** A short aside after the text: an error's detail, or why there is no source link. */
-  readonly note: string;
-  /**
-   * The three letter code of the provenance, per SPEC 6.1, which is the half of the mark a
-   * reader reads. Empty when the value carries no provenance, which is the source row: V8 either
-   * answered or did not, so there is no collector to name and nothing to doubt.
-   */
-  readonly code: string;
-  /** Whole class of the mark, which carries the level as an edge style as well as a colour. */
-  readonly markClass: string;
-  /** The level and the collector in words, which is the mark's accessible name and its tooltip. */
-  readonly markTitle: string;
-}
-
-/** One labelled row of the runtime block. */
-export interface RuntimeRowModel {
-  readonly label: string;
-  readonly values: readonly RuntimeValueModel[];
-}
-
-/** One finding, as a row. */
-export interface DriftModel {
-  readonly rule: IRDriftRule;
-  /** Class carrying the severity, which the design names crit, warn and note. */
-  readonly severityClass: string;
-  readonly message: string;
-  /** What each side says, already labelled, so the component draws a list and not two cases. */
-  readonly sides: readonly string[];
-  readonly suggestion: string;
-  /** Where the subject is. Empty on the page that is already about the subject. */
-  readonly href: string;
-  /** What the finding is about, for a row on a page that is not about it. Empty otherwise. */
-  readonly subject: string;
-}
-
-/** The runtime block of one node. */
-export interface RuntimeModel {
-  readonly rows: readonly RuntimeRowModel[];
-  readonly drift: readonly DriftModel[];
-}
-
-/** One line of the check list, which is one question asked of the whole document. */
-export interface HealthCheckModel {
-  readonly label: string;
-  /** `124 / 127`, or `n/a` for a check nothing in this document could be asked. */
-  readonly count: string;
-}
-
-/** Everything one rule found, which is what the panel lists. */
-export interface HealthRuleModel {
-  readonly rule: IRDriftRule;
-  /** How many findings the rule produced, as the closed group prints it. */
-  readonly count: string;
-  readonly findings: readonly DriftModel[];
-}
-
-/** The Health panel of SPEC 7.2, which the overview page carries. */
-export interface HealthModel {
-  /**
-   * Heading of the panel, carrying what was asked and how much came back.
-   *
-   * IT IS A STRING FROM THE MODEL AND NOT THREE ELEMENTS IN THE COMPONENT. The panel's chunk is
-   * measured against the tightest cap in SPEC 20, and a heading assembled here costs the page it
-   * appears on thirty bytes while costing every other page nothing.
-   */
-  readonly title: string;
-  /** The percentage of SPEC 7.2, as it is printed. */
-  readonly score: string;
-  readonly checks: readonly HealthCheckModel[];
-  readonly rules: readonly HealthRuleModel[];
-}
 
 /**
  * Group keys and labels, in the order SPEC 6.4 lists them.
@@ -138,17 +66,10 @@ export interface HealthModel {
  * row, and nothing in the type system would object, which is exactly what T021 made structural.
  */
 const ERROR_GROUPS = [
-  ['declared', 'Errors, declared'],
-  ['runtimeDerived', 'Errors, runtime-derived'],
-  ['global', 'Errors, global'],
-] as const satisfies readonly (readonly [keyof IRErrorContracts, string])[];
-
-/** The three letter code of each level, per the design contract. */
-const CODES: Readonly<Record<IRConfidence, string>> = {
-  declared: 'DCL',
-  derived: 'DRV',
-  inferred: 'INF',
-};
+  ['declared', 'errors-declared', 'Errors, declared'],
+  ['runtimeDerived', 'errors-runtime-derived', 'Errors, runtime-derived'],
+  ['global', 'errors-global', 'Errors, global'],
+] as const satisfies readonly (readonly [keyof IRErrorContracts, RuntimeRowKind, string])[];
 
 /** Which drift token group a severity paints from. `crit`, `warn` and `note` are the design's. */
 const SEVERITY_CLASSES: Readonly<Record<IRDriftSeverity, string>> = {
@@ -172,27 +93,29 @@ const EMPTY_VALUE = {
   text: '',
   href: '',
   note: '',
-  code: '',
-  markClass: '',
-  markTitle: '',
+  confidence: null,
+  collector: '',
 } as const satisfies RuntimeValueModel;
 
 /**
- * The provenance half of a value: the code, the class carrying the edge style, and the words.
+ * The provenance of a value, as the two facts and not as the three strings drawn from them.
+ *
+ * THE CODE, THE CLASS AND THE TOOLTIP MOVED INTO THE COMPONENT IN `TX-SLOTWIRE`, and the reason
+ * is the `ProvenanceTag` slot: its props are `confidence` and `collector`, so a value carrying
+ * `DCL`, `oref-prov oref-prov-declared` and `declared, guardsCollector` could not supply them
+ * without the position parsing back what this had already formatted. The page pays less for it
+ * too, which was not the reason and is measurable: three strings per value became two shorter
+ * ones in every node page's state block.
  *
  * @param confidence - Level of the fact
  * @param collector - Name of the collector that produced it
- * @returns The three fields the mark is drawn from
+ * @returns The two fields a provenance mark is drawn from
  */
 function mark(
   confidence: IRConfidence,
   collector: string,
-): Pick<RuntimeValueModel, 'code' | 'markClass' | 'markTitle'> {
-  return {
-    code: CODES[confidence],
-    markClass: `oref-prov oref-prov-${confidence}`,
-    markTitle: `${confidence}, ${collector}`,
-  };
+): Pick<RuntimeValueModel, 'confidence' | 'collector'> {
+  return { confidence, collector };
 }
 
 /**
@@ -244,9 +167,9 @@ export function streamingLabel(streaming: IRStreaming): string {
  * distinction that is carried by the row that was added rather than by the row that was there.
  */
 const GUARD_SCOPES = [
-  ['route', 'Guards'],
-  ['global', 'Guards, global'],
-] as const satisfies readonly (readonly [IRGuardScope, string])[];
+  ['route', 'guards', 'Guards'],
+  ['global', 'guards-global', 'Guards, global'],
+] as const satisfies readonly (readonly [IRGuardScope, RuntimeRowKind, string])[];
 
 /**
  * Guards at one scope, as one value per provenance rather than one per guard.
@@ -266,7 +189,7 @@ function guardValues(guards: readonly IRGuard[], scope: IRGuardScope): RuntimeVa
     if (guard.scope !== scope) continue;
 
     const at = values.findIndex(
-      (value) => value.markTitle === `${guard.confidence}, ${guard.collector}`,
+      (value) => value.confidence === guard.confidence && value.collector === guard.collector,
     );
 
     if (at === -1) {
@@ -291,22 +214,23 @@ function guardValues(guards: readonly IRGuard[], scope: IRGuardScope): RuntimeVa
 function rowsOf(runtime: IRNodeRuntime, template: string | undefined): RuntimeRowModel[] {
   const rows: RuntimeRowModel[] = [];
 
-  for (const [scope, label] of GUARD_SCOPES) {
+  for (const [scope, kind, label] of GUARD_SCOPES) {
     const values = guardValues(runtime.guards ?? [], scope);
-    if (values.length > 0) rows.push({ label, values });
+    if (values.length > 0) rows.push({ kind, label, values });
   }
 
   const scalar = [
-    ['Scopes', runtime.scopes, (value: readonly string[]) => value.join(', ')],
-    ['Roles', runtime.roles, (value: readonly string[]) => value.join(', ')],
-    ['Rate limit', runtime.rateLimit, rateLimitLabel],
-    ['Streaming', runtime.streaming, streamingLabel],
-  ] as const;
+    ['scopes', 'Scopes', runtime.scopes, (value: readonly string[]) => value.join(', ')],
+    ['roles', 'Roles', runtime.roles, (value: readonly string[]) => value.join(', ')],
+    ['rate-limit', 'Rate limit', runtime.rateLimit, rateLimitLabel],
+    ['streaming', 'Streaming', runtime.streaming, streamingLabel],
+  ] as const satisfies readonly (readonly [RuntimeRowKind, string, unknown, unknown])[];
 
-  for (const [label, fact, format] of scalar) {
+  for (const [kind, label, fact, format] of scalar) {
     if (fact === undefined) continue;
 
     rows.push({
+      kind,
       label,
       // The cast is over the union of the four value types above, each of which is paired with
       // the formatter that reads it. TypeScript cannot see the pairing through a tuple list, and
@@ -328,6 +252,7 @@ function rowsOf(runtime: IRNodeRuntime, template: string | undefined): RuntimeRo
     const expansion = expandSourceLink(template ?? '', source);
 
     rows.push({
+      kind: 'source',
       label: 'Source',
       values: [
         {
@@ -364,7 +289,7 @@ function errorRows(errors: IRErrorContracts | undefined): RuntimeRowModel[] {
 
   const rows: RuntimeRowModel[] = [];
 
-  for (const [key, label] of ERROR_GROUPS) {
+  for (const [key, kind, label] of ERROR_GROUPS) {
     const contracts = errors[key];
 
     if (contracts.length === 0) {
@@ -375,6 +300,7 @@ function errorRows(errors: IRErrorContracts | undefined): RuntimeRowModel[] {
       // in a column where every other row describes the application, and it put the decorator in
       // the finding rather than in the edit that answers it.
       rows.push({
+        kind,
         label,
         values: [
           {
@@ -395,6 +321,7 @@ function errorRows(errors: IRErrorContracts | undefined): RuntimeRowModel[] {
     let shown = '';
 
     rows.push({
+      kind,
       label,
       values: contracts.map((contract) => {
         const detail = contract.detail ?? '';

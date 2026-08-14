@@ -7,14 +7,25 @@ import { defineConfig } from 'tsup';
  * packages inside itself: `render`, `runner` and `search` are private and are bundled here.
  *
  * Third party code is not bundled with them. `skipNodeModulesBundle` keeps every published
- * dependency external, and `noExternal` makes the workspace packages the one exception.
- * Inlining the third party tree instead would copy Vue, the sanitizer and the highlighter
- * into this file, which duplicates them for anyone who also depends on them, defeats their
- * own conditional exports, and puts a server side `new Function` from a CSS parser into an
- * artifact that is scanned for exactly that.
+ * dependency external, and `noExternal` makes the three internal workspace packages the one
+ * exception. Inlining the third party tree instead would copy Vue, the sanitizer and the
+ * highlighter into this file, which duplicates them for anyone who also depends on them,
+ * defeats their own conditional exports, and puts a server side `new Function` from a CSS
+ * parser into an artifact that is scanned for exactly that.
  *
  * The consequence is that every third party dependency of a bundled package has to be a
  * dependency of this one. That is honest: those packages are installed because this one is.
+ *
+ * THE THREE INTERNAL PACKAGES ARE NAMED SINCE T031, AND THE PATTERN USED TO BE `@openref/*`.
+ * That pattern also caught `@openref/core`, `@openref/theme` and `@openref/vue`, which are
+ * published: a consumer installed each of them, because they are declared dependencies, and got
+ * a second copy inlined here that nothing imported. It was invisible while nobody stood on the
+ * boundary. T031 publishes `@openref/vue` as the package a theme is written against, and a
+ * theme's components reach the page through `inject`, whose keys are `Symbol()` values with
+ * module identity: with two copies of that module in one process, `provide` writes one key and
+ * `inject` reads another, so `useDocState` throws and `useSlot` resolves nothing. That is the
+ * eighth class of SPEC 0 arriving from the other side, and it is why the exception list is now
+ * the three packages the sentence above always claimed it was.
  *
  * THE BROWSER BUILD is the artifact a page loads, and it lives here rather than in
  * `@openref/render` because this is the first package that may see the runner. See
@@ -37,7 +48,7 @@ export default defineConfig([
     clean: true,
     treeshake: true,
     skipNodeModulesBundle: true,
-    noExternal: [/^@openref\//],
+    noExternal: [/^@openref\/(render|runner|search)$/],
     outExtension: ({ format }) => ({ js: format === 'cjs' ? '.cjs' : '.js' }),
   },
   {
@@ -59,6 +70,50 @@ export default defineConfig([
     splitting: true,
     noExternal: [/^vue$/, /^@vue\//, /^@openref\//],
     outExtension: () => ({ js: '.js' }),
+    esbuildOptions(options) {
+      options.conditions = ['source'];
+    },
+  },
+  {
+    // THE WEB COMPONENT OUTPUTS OF SPEC 10.3, since T033: the same element twice, an ES module
+    // and an IIFE, for host pages with and without module support. ONE FILE EACH, deliberately:
+    // an embed has no asset catalog to rewrite chunk names through, so the deferred features
+    // are inlined and the embed pays its whole cost once, which the compatibility table says
+    // out loud rather than hiding in a chunk that 404s on a foreign page.
+    entry: { 'openref-element': 'src/browser/element-entry.ts' },
+    outDir: 'dist/browser-wc',
+    format: ['esm'],
+    platform: 'browser',
+    target: 'es2022',
+    dts: false,
+    sourcemap: false,
+    clean: false,
+    minify: true,
+    treeshake: true,
+    splitting: false,
+    noExternal: [/^vue$/, /^@vue\//, /^@openref\//],
+    outExtension: () => ({ js: '.js' }),
+    esbuildOptions(options) {
+      options.conditions = ['source'];
+    },
+  },
+  {
+    // THE SAME ELEMENT AS AN IIFE, in a directory of its own: the bundle registry models one
+    // entry file plus its chunk closure per directory, and two independent twins in one root
+    // would each read the other as an unreachable file.
+    entry: { 'openref-element': 'src/browser/element-entry.ts' },
+    outDir: 'dist/browser-iife',
+    format: ['iife'],
+    platform: 'browser',
+    target: 'es2022',
+    dts: false,
+    sourcemap: false,
+    clean: false,
+    minify: true,
+    treeshake: true,
+    splitting: false,
+    noExternal: [/^vue$/, /^@vue\//, /^@openref\//],
+    outExtension: () => ({ js: '.iife.js' }),
     esbuildOptions(options) {
       options.conditions = ['source'];
     },

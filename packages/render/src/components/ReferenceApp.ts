@@ -1,5 +1,5 @@
 /**
- * Root of the rendered reference: header, navigation, current node.
+ * Root of the rendered reference: the frame, the navigation, the page.
  *
  * It takes the whole page model as one prop, so the server render and the client
  * hydration are the same call with the same argument. Anything that differed between the
@@ -8,72 +8,32 @@
  *
  * A page shows one of three things: the document overview, one node, or one named schema. The
  * third exists because the navigation ends in a `Schemas` group and because a schema too far
- * from a use site to travel with the page is shown by linking to it.
+ * from a use site to travel with the page is shown by linking to it. All three are slots, since
+ * `TX-SLOTWIRE`: the registry named components for one of the three pages until then, which is a
+ * contract with a hole in the middle rather than a small contract.
+ *
+ * THIS IS WHERE THE REGISTRY IS ASKED WHAT THE THEME PUT THERE. Every position below resolves
+ * through `useSlot`, and a slot with no override falls through to the component this package
+ * ships, which is what makes an L1 theme a change of markup rather than a fork. Before
+ * `TX-SLOTWIRE` nothing on any page a reader opened ever consulted the registry.
  */
 
+import { useSlot } from '@openref/vue';
 import { defineComponent, h, provide, type Component, type PropType, type VNode } from 'vue';
-import { MarkdownBlock } from './MarkdownBlock';
+import { AppShell, MAIN_ID } from './AppShell';
+import { DocumentOverview } from './DocumentOverview';
 import { NavigationTree } from './NavigationTree';
 import { NodePanel } from './NodePanel';
 import { SchemaPanel } from './SchemaPanel';
 import { useDeferrable } from './deferrable';
-import { overviewHref } from '../page/domain/links';
 import { createNavigationStore, NAVIGATION_KEY } from '../page/api/nav-context';
 import type { NavigationLoader } from '../page/domain/nav-source';
-import type { PageModel } from '../page/domain/page-model';
+import type { PageModel } from '@openref/vue';
 
 /** Element the client mounts on, and the id the shell writes. */
 export const APP_ROOT_ID = 'oref-app';
 
-/** Target of the skip link, so a keyboard reader can pass the navigation in one key. */
-export const MAIN_ID = 'oref-main';
-
-function overview(page: PageModel, healthPanel: Component): VNode {
-  return h('article', { class: 'oref-overview' }, [
-    h('h1', { class: 'oref-title' }, page.title),
-    h(MarkdownBlock, { html: page.descriptionHtml }),
-    page.servers.length === 0
-      ? null
-      : h('section', { class: 'oref-section oref-section-servers' }, [
-          h('h2', { class: 'oref-section-title' }, 'Servers'),
-          h(
-            'ul',
-            { class: 'oref-server-list' },
-            page.servers.map((url) =>
-              h('li', { class: 'oref-server', key: url }, [h('code', {}, url)]),
-            ),
-          ),
-        ]),
-    // THE HEALTH PANEL LIVES HERE AND NOWHERE ELSE, per SPEC 7.3. The report is a statement
-    // about the whole document and this is the page about the whole document; a node page shows
-    // the same report one subject at a time, inside its runtime block. It is absent rather than
-    // scored zero when nothing measured the document, which is the same rule as the runtime
-    // block's: nobody asked and nothing is claimed.
-    page.health === null ? null : h(healthPanel, { health: page.health }),
-  ]);
-}
-
-function main(page: PageModel, basePath: string, healthPanel: Component): VNode {
-  if (page.node !== null) {
-    return h(NodePanel, {
-      node: page.node,
-      schemas: page.schemas,
-      truncated: page.truncatedSchemas,
-      basePath,
-    });
-  }
-
-  if (page.schema !== null) {
-    return h(SchemaPanel, {
-      schema: page.schema,
-      schemas: page.schemas,
-      truncated: page.truncatedSchemas,
-      basePath,
-    });
-  }
-
-  return overview(page, healthPanel);
-}
+export { MAIN_ID };
 
 /** Renders a whole page from its model. */
 export const ReferenceApp = defineComponent({
@@ -95,47 +55,102 @@ export const ReferenceApp = defineComponent({
 
   setup(props) {
     const deferrable = useDeferrable();
+    const shell = useSlot('AppShell', AppShell);
+    const navTree = useSlot('NavTree', NavigationTree);
+    const overview = useSlot('DocumentOverview', DocumentOverview);
+    const schemaPage = useSlot('SchemaPage', SchemaPanel);
 
     // Created once, for the life of this page, and handed to both components that ask about
     // the navigation so that they share one copy and one fetch.
-    provide(
-      NAVIGATION_KEY,
-      createNavigationStore({
-        entries: props.page.navigation,
-        complete: props.page.navigationComplete,
-        ...(props.loadNavigation === undefined ? {} : { loader: props.loadNavigation }),
-      }),
-    );
+    //
+    // THE TREE IS HANDED WHAT IT HOLDS RATHER THAN THE STORE ITSELF, since `TX-SLOTWIRE`, because
+    // `NavTree` is a slot and a theme cannot inject a key private to this package. The palette
+    // still injects it: it is the deferred host of its own slot, it lives in this package, and
+    // moving its state up would put the search in the first paint.
+    const navigation = createNavigationStore({
+      entries: props.page.navigation,
+      complete: props.page.navigationComplete,
+      ...(props.loadNavigation === undefined ? {} : { loader: props.loadNavigation }),
+    });
+    provide(NAVIGATION_KEY, navigation);
+
+    /** The content column: whichever of the three pages this is. */
+    function content(page: PageModel, healthPanel: Component): VNode {
+      if (page.node !== null) {
+        return h(NodePanel, {
+          node: page.node,
+          schemas: page.schemas,
+          truncated: page.truncatedSchemas,
+          basePath: props.basePath,
+        });
+      }
+
+      if (page.schema !== null) {
+        return h(schemaPage.value, {
+          schema: page.schema,
+          basePath: props.basePath,
+          // Not contract props: the viewer needs the page's bounded schema slice to expand, and
+          // `SchemaPanel` is the default that draws it. A theme override reads the two it was
+          // promised and Vue passes the rest through as attributes.
+          schemas: page.schemas,
+          truncated: page.truncatedSchemas,
+        });
+      }
+
+      return h(
+        overview.value,
+        {
+          title: page.title,
+          descriptionHtml: page.descriptionHtml,
+          servers: page.servers,
+          basePath: props.basePath,
+        },
+        {
+          // THE CONDITION IS `healthRendered` AND NOT `health`, and that is what lets the report
+          // stay on the server, per SPEC 7.2. The two fillings of this position draw the same
+          // element: the server's from the report, the browser's from the section already under
+          // it. The client is therefore handed a boolean where it used to be handed every
+          // finding a second time.
+          default: () => (page.healthRendered ? [h(healthPanel, { health: page.health })] : []),
+        },
+      );
+    }
 
     return (): VNode => {
       const page = props.page;
 
       return h('div', { class: 'oref-root', 'data-oref-document': page.documentHash }, [
-        // First in the document and first in the tab order, which is the only place a skip link
-        // works. It is visible on focus and out of the way otherwise, which the theme decides.
-        h('a', { class: 'oref-skip', href: `#${MAIN_ID}` }, 'Skip to content'),
-        h('header', { class: 'oref-header' }, [
-          h('a', { class: 'oref-brand', href: overviewHref(props.basePath) }, [
-            h('span', { class: 'oref-brand-title' }, page.title),
-            h('span', { class: 'oref-brand-version' }, page.version),
-          ]),
-          h(deferrable.commandPalette, { entries: page.navigation, basePath: props.basePath }),
-        ]),
-        h('div', { class: 'oref-layout' }, [
-          h('aside', { class: 'oref-sidebar' }, [
-            h('nav', { class: 'oref-nav', 'aria-label': 'API reference' }, [
-              h(NavigationTree, {
-                entries: page.navigation,
+        h(
+          shell.value,
+          {
+            title: page.title,
+            version: page.version,
+            basePath: props.basePath,
+            activeNodeId: page.activeNodeId,
+            activeSchemaId: page.activeSchemaId,
+            page: page.node !== null ? 'node' : page.schema !== null ? 'schema' : 'overview',
+          },
+          {
+            nav: () => [
+              h(navTree.value, {
+                entries: navigation.entries.value,
                 activeNodeId: page.activeNodeId,
                 activeSchemaId: page.activeSchemaId,
                 basePath: props.basePath,
+                complete: navigation.complete.value,
+                total: page.navigationRows,
+                load: () => navigation.load(),
               }),
-            ]),
-          ]),
-          h('main', { class: 'oref-content', id: MAIN_ID, tabindex: -1 }, [
-            main(page, props.basePath, deferrable.healthPanel),
-          ]),
-        ]),
+            ],
+            palette: () => [
+              h(deferrable.commandPalette, {
+                entries: page.navigation,
+                basePath: props.basePath,
+              }),
+            ],
+            default: () => [content(page, deferrable.healthPanel)],
+          },
+        ),
       ]);
     };
   },

@@ -44,6 +44,8 @@ export interface HttpAdapterLike {
   getType(): string;
   /** Registers a GET route. Both platform adapters accept a path and a handler. */
   get(path: string, handler: (request: unknown, reply: unknown) => void): unknown;
+  /** Registers a POST route, which the same origin proxy of SPEC 14.5 answers on. */
+  post(path: string, handler: (request: unknown, reply: unknown) => void): unknown;
 }
 
 /**

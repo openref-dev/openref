@@ -20,16 +20,23 @@
  *
  * A GROUP THE PAGE DID NOT SHIP OPENS BY FETCHING. Since T012-R2 a page carries the navigation
  * it can draw rather than the document's whole index, per `nav-payload.ts`, so a closed group
- * is a header with a count and no children. Opening one asks the store for the rest, once, and
- * a fetch that fails leaves the group closed and says so rather than showing an empty group,
- * which is what "no children" would otherwise look like.
+ * is a header with a count and no children. Opening one asks for the rest, once, and a fetch
+ * that fails leaves the group closed and says so rather than showing an empty group, which is
+ * what "no children" would otherwise look like.
+ *
+ * IT READS ITS ENTRIES FROM ITS PROPS AND NOT FROM THE STORE, since `TX-SLOTWIRE`. `NavTree` is
+ * a slot, and a position whose data arrived through an injection key private to this package is
+ * a position a theme cannot fill. What it is handed is what the store holds at that moment, plus
+ * the one function that can fetch the rest.
  *
  * Class names come from the vocabulary the default theme already declares, so that the markup
  * this package emits and the stylesheet that package ships agree without either one importing
  * the other.
  */
 
-import { computed, defineComponent, h, inject, ref, type PropType, type VNode } from 'vue';
+import { useSlot } from '@openref/vue';
+import { computed, defineComponent, h, ref, type PropType, type VNode } from 'vue';
+import { StateNotice } from './StateNotice';
 import { nodeHref, schemaHref } from '../page/domain/links';
 import {
   chunkAt,
@@ -40,8 +47,7 @@ import {
   flattenNavigation,
   type NavRow,
 } from '../page/domain/nav-rows';
-import { NAVIGATION_KEY, type NavigationStore } from '../page/api/nav-context';
-import type { NavEntryModel } from '../page/domain/page-model';
+import type { NavEntryModel } from '@openref/vue';
 
 /** What this component needs from a scroll event target, and nothing else. */
 interface ScrollTarget {
@@ -81,19 +87,28 @@ export const NavigationTree = defineComponent({
     activeNodeId: { type: String as PropType<string | null>, default: null },
     activeSchemaId: { type: String as PropType<string | null>, default: null },
     basePath: { type: String, default: '' },
+    /** True when these entries are the whole navigation, so nothing has to be fetched. */
+    complete: { type: Boolean, default: true },
+    /** Rows in the whole navigation, so a partial tree can say what it is not showing. */
+    total: { type: Number, default: 0 },
+    /** Fetches the rest, once. Answers false when there is nothing to fetch or it failed. */
+    load: {
+      type: Function as PropType<() => Promise<boolean>>,
+      default: async () => Promise.resolve(false),
+    },
   },
 
   setup(props) {
-    const store = inject<NavigationStore | null>(NAVIGATION_KEY, null);
+    const notice = useSlot('StateNotice', StateNotice);
 
     // WHAT IS OPEN IS READ OFF THE SLICE, ONCE. The page ships the children of the groups it
     // renders open, so the first client render reproduces the server's rows from the same
     // data. Reading it later, after a fetch has filled every group, would open the document
     // entire and the markup would stop matching what it is hydrating.
     const expanded = ref(expandedInSlice(props.entries));
+    const failed = ref(false);
 
-    const entries = computed(() => store?.entries.value ?? props.entries);
-    const rows = computed(() => flattenNavigation(entries.value, expanded.value));
+    const rows = computed(() => flattenNavigation(props.entries, expanded.value));
     const chunks = computed(() => chunkRows(rows.value));
 
     // Where the window starts is a pure function of the page, so the server and the first client
@@ -109,7 +124,10 @@ export const NavigationTree = defineComponent({
       }
 
       // Only a fetch can open a group whose children never travelled with the page.
-      if (store !== null && !store.complete.value && !(await store.load())) return;
+      if (!props.complete && !(await props.load())) {
+        failed.value = true;
+        return;
+      }
 
       expanded.value = new Set(expanded.value).add(row.id);
     }
@@ -198,12 +216,12 @@ export const NavigationTree = defineComponent({
         ),
         // Rendered only after a failure, so it is absent from the server's markup and from the
         // first client render, and hydration has nothing to disagree about.
-        store?.failed.value === true
-          ? h(
-              'p',
-              { class: 'oref-nav-error', role: 'status' },
-              'The rest of the navigation could not be loaded. This page still lists what it arrived with.',
-            )
+        failed.value
+          ? h(notice.value, {
+              kind: 'nav-unavailable',
+              message:
+                'The rest of the navigation could not be loaded. This page still lists what it arrived with.',
+            })
           : null,
       ]);
   },

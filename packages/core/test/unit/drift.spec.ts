@@ -102,7 +102,9 @@ describe('security-drift', () => {
     // Given a guarded route and a document asserting no security at all
     const document = documentOf([
       operation({
-        runtime: { guards: [{ name: 'ScopesGuard', scope: 'route', confidence: 'derived', collector: 'g' }] },
+        runtime: {
+          guards: [{ name: 'ScopesGuard', scope: 'route', confidence: 'derived', collector: 'g' }],
+        },
       }),
     ]);
 
@@ -121,7 +123,9 @@ describe('security-drift', () => {
     const document = documentOf([
       operation({
         security: [{ schemeId: 'bearer', scopes: [] }],
-        runtime: { guards: [{ name: 'ScopesGuard', scope: 'route', confidence: 'derived', collector: 'g' }] },
+        runtime: {
+          guards: [{ name: 'ScopesGuard', scope: 'route', confidence: 'derived', collector: 'g' }],
+        },
       }),
     ]);
 
@@ -141,7 +145,9 @@ describe('security-drift', () => {
     const document = documentOf([
       operation({
         security: [{ schemeId: 'apiKey', scopes: [] }],
-        runtime: { guards: [{ name: 'ScopesGuard', scope: 'route', confidence: 'derived', collector: 'g' }] },
+        runtime: {
+          guards: [{ name: 'ScopesGuard', scope: 'route', confidence: 'derived', collector: 'g' }],
+        },
       }),
     ]);
 
@@ -164,7 +170,9 @@ describe('security-drift', () => {
     const document = documentOf([
       operation({
         security: [{ schemeId: 'apiKey', scopes: [] }],
-        runtime: { guards: [{ name: 'ScopesGuard', scope: 'route', confidence: 'derived', collector: 'g' }] },
+        runtime: {
+          guards: [{ name: 'ScopesGuard', scope: 'route', confidence: 'derived', collector: 'g' }],
+        },
       }),
     ]);
 
@@ -728,7 +736,11 @@ describe('the classification of every rule in SPEC 7.1', () => {
     const documents: readonly IRDocument[] = [
       documentOf([
         operation({
-          runtime: { guards: [{ name: 'ScopesGuard', scope: 'route', confidence: 'derived', collector: 'g' }] },
+          runtime: {
+            guards: [
+              { name: 'ScopesGuard', scope: 'route', confidence: 'derived', collector: 'g' },
+            ],
+          },
         }),
       ]),
       documentOf([

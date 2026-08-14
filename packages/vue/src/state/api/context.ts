@@ -1,6 +1,7 @@
 import { ErrorCode, ThemeContractError } from '@openref/core';
-import { inject, provide } from 'vue';
+import { computed, inject, provide } from 'vue';
 import type { InjectionKey } from 'vue';
+import { SLOT_REGISTRY_KEY } from '../../slots/api/context';
 import type { DocState } from '../domain/doc-state';
 
 /**
@@ -17,6 +18,10 @@ export const DOC_STATE_KEY: InjectionKey<DocState> = Symbol('openref.docState');
 /**
  * Makes a state available to everything below this component.
  *
+ * IT PROVIDES THE SLOT REGISTRY TOO, from the theme this state resolved. `useSlot` reads the
+ * registry on its own key since `TX-SLOTWIRE`, because the renderer has a theme and no document;
+ * a headless tree has both, and providing them together here is what keeps that path one call.
+ *
  * @param state - State built by `createDocState`
  *
  * @example
@@ -24,6 +29,10 @@ export const DOC_STATE_KEY: InjectionKey<DocState> = Symbol('openref.docState');
  */
 export function provideDocState(state: DocState): void {
   provide(DOC_STATE_KEY, state);
+  provide(
+    SLOT_REGISTRY_KEY,
+    computed(() => state.theme.value.slots),
+  );
 }
 
 /**

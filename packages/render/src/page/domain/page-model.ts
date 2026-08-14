@@ -16,6 +16,7 @@ import {
   type IRJsonSchema,
   type IRMediaType,
   type IRNavNode,
+  type IROperation,
   type IRParameter,
   type IRSchema,
   type IRSchemaSlot,
@@ -27,169 +28,60 @@ import {
   runnerOperationOf,
   schemaDisplayName,
 } from '@openref/vue';
-import type { RunnerOperationView } from '@openref/vue';
-import type { NavEntryModel } from './nav-entry';
+import type {
+  CodeSampleModel,
+  MediaTypeModel,
+  NavEntryModel,
+  NodeModel,
+  PageModel,
+  ParameterModel,
+  ResponseModel,
+  SchemaPageModel,
+} from '@openref/vue';
 import { sliceNavigation } from './nav-payload';
 import { buildHealthModel, buildRuntimeModel } from './runtime-model';
-import type {
-  DriftModel,
-  HealthCheckModel,
-  HealthModel,
-  HealthRuleModel,
-  RuntimeModel,
-  RuntimeRowModel,
-  RuntimeValueModel,
-} from './runtime-model';
 import { buildSchemaPayload } from './schema-payload';
 import type { IMarkdownRenderer } from '../../markdown/domain/markdown';
 
-/** Version of the page model shape, part of the cache key. */
-export const PAGE_MODEL_VERSION = 4;
+/**
+ * Version of the page model shape, part of the cache key.
+ *
+ * 9 SINCE T033: `proxyPath`, the same origin proxy endpoint of SPEC 14.5, optional and absent
+ * when the host serves no proxy. It is the fact the runner factory reads to choose the proxy
+ * transport, per the T033 amendment: the server knows whether the proxy is mounted and the
+ * browser cannot, so the page carries the fact, about 27 bytes where a host has one and none
+ * where it does not. A page cached before this serves a console that sends directly on a host
+ * whose proxy is up, which is the defence existing and not being offered.
+ *
+ * 8 SINCE `TX-SLOTWIRE`. Two changes, and both are about what a slot can be handed. A runtime
+ * value carries `confidence` and `collector` where it carried `code`, `markClass` and
+ * `markTitle`, because `ProvenanceTag` is declared in terms of the two facts and not of the three
+ * strings the reference draws from them; and a node carries `codeSamples`, per SPEC 18. A page
+ * cached before that draws a runtime block with no provenance marks at all, which is the half of
+ * SPEC 6.1 a reader uses to decide how much to trust a row.
+ *
+ * 7 WAS T028. Every scheme in `run.security` now carries the flows it declares and, for the two
+ * a browser cannot send, the sentence saying why. A page cached before that draws a console with
+ * no sign in for an `oauth2` scheme and, worse, nothing at all where `mutualTLS` should say what
+ * it needs, which is the failure the field was added to prevent.
+ *
+ * 6 was T027: `run.bodyMediaTypes`, a list of strings, became `run.body`, a list of media types
+ * each carrying the editor its schema asks for and the fields it is made of.
+ */
+export const PAGE_MODEL_VERSION = 9;
 
 /** Media types an example is generated for. */
 const JSON_MEDIA_TYPE = /^application\/(?:[\w.+-]+\+)?json$/i;
 
-/** One parameter row. */
-export interface ParameterModel {
-  readonly name: string;
-  readonly location: string;
-  readonly required: boolean;
-  readonly deprecated: boolean;
-  readonly typeLabel: string;
-  readonly descriptionHtml: string;
-  /** Where the schema viewer starts for this row, null when the parameter declares none. */
-  readonly schema: IRSchemaSlot | null;
-}
-
-/** One media type of a body or a response, with its example already highlighted. */
-export interface MediaTypeModel {
-  readonly mediaType: string;
-  readonly typeLabel: string;
-  /** Highlighted example, empty when the media type is not one an example is generated for. */
-  readonly exampleHtml: string;
-  /** Where the schema viewer starts for this media type, null when it declares no schema. */
-  readonly schema: IRSchemaSlot | null;
-  /** Which half of a schema this position shows, so the viewer filters the same way. */
-  readonly view: IRSchemaView;
-}
-
-/** A named schema shown on a page of its own. */
-export interface SchemaPageModel {
-  /** Key into the shipped schema map, suffix and all. */
-  readonly id: string;
-  /** What a reader is shown, which is never the identity suffix of an external target. */
-  readonly name: string;
-  readonly descriptionHtml: string;
-  readonly deprecated: boolean;
-  /** True when the id names nothing in the document, so the page says so instead of blanking. */
-  readonly missing: boolean;
-}
-
-/** One response row. */
-export interface ResponseModel {
-  readonly statusCode: string;
-  readonly descriptionHtml: string;
-  readonly content: readonly MediaTypeModel[];
-}
-
-/** One security requirement, resolved against the document's schemes. */
-export interface SecurityModel {
-  readonly schemeId: string;
-  readonly type: string;
-  readonly scopes: readonly string[];
-}
-
-/** The node a page is about. */
-export interface NodeModel {
-  readonly id: string;
-  readonly kind: string;
-  readonly title: string;
-  readonly deprecated: boolean;
-  /** HTTP method, uppercase, absent for a channel. */
-  readonly method: string | null;
-  /** Path template, absent for a channel. */
-  readonly path: string | null;
-  /** Channel address, absent for an operation. */
-  readonly address: string | null;
-  readonly summary: string;
-  readonly descriptionHtml: string;
-  readonly tags: readonly string[];
-  readonly parameters: readonly ParameterModel[];
-  readonly requestBody: readonly MediaTypeModel[];
-  readonly responses: readonly ResponseModel[];
-  readonly security: readonly SecurityModel[];
-  /**
-   * What the try-it console needs to send this operation, or null for a channel.
-   *
-   * The projection travels with the page rather than the IR, which is what lets a console work
-   * on a static file. It carries no credential and never will: those live in the runner, behind
-   * the storage policy of SPEC 14.4, and a page that carried one would be a page that published
-   * it.
-   */
-  readonly run: RunnerOperationView | null;
-  /**
-   * What the running application knows about this operation, or null when nothing does.
-   *
-   * NULL RATHER THAN AN EMPTY BLOCK, per SPEC 6.3. A reader arriving from plain
-   * `@nestjs/swagger` has registered no collectors, and a page of labelled slots with dashes in
-   * them reads as a broken product rather than as a feature nobody switched on.
-   */
-  readonly runtime: RuntimeModel | null;
-}
-
-/** Everything one page renders from. */
-export interface PageModel {
-  readonly pageModelVersion: number;
-  readonly documentId: string;
-  readonly documentHash: string;
-  readonly title: string;
-  readonly version: string;
-  readonly descriptionHtml: string;
-  /**
-   * Where the reference is mounted, without a trailing slash.
-   *
-   * THE PAGE CARRIES ITS OWN MOUNT POINT because the client has to build the same links the
-   * server built and has no other way to know it. Before T012-R2 the omission was invisible:
-   * the server wrote every link and hydration kept them, so a client rendered link only
-   * appeared when a reader scrolled the sidebar far enough to bring an unrendered chunk in.
-   * The navigation fetch made it visible immediately, by asking the wrong origin path.
-   */
-  readonly basePath: string;
-  readonly servers: readonly string[];
-  /**
-   * The navigation this page carries, which is a slice of the document's, per
-   * `nav-payload.ts`.
-   */
-  readonly navigation: readonly NavEntryModel[];
-  /** True when `navigation` is the whole of it, so nothing is fetched and nothing is missing. */
-  readonly navigationComplete: boolean;
-  /** Rows in the whole navigation, so the sidebar can say what it is not showing. */
-  readonly navigationRows: number;
-  readonly activeNodeId: string | null;
-  /** Set on a schema page, so the navigation can mark the entry that is open. */
-  readonly activeSchemaId: string | null;
-  /** Null on the overview page, which shows the document rather than a node. */
-  readonly node: NodeModel | null;
-  /** Set only on a schema page. */
-  readonly schema: SchemaPageModel | null;
-  /**
-   * The schemas this page carries, bounded per `schema-payload.ts`.
-   *
-   * The viewer expands on the client, so the bodies travel with the page rather than the
-   * document travelling with every page.
-   */
-  readonly schemas: Readonly<Record<string, IRSchema>>;
-  /** Ids referenced from this page and left behind by the bound, shown as links. */
-  readonly truncatedSchemas: readonly string[];
-  /**
-   * The Health panel of SPEC 7.3, carried by the overview page and by no other.
-   *
-   * The report is a statement about the whole document, so it belongs on the page that is about
-   * the whole document. A node page carries its own findings inside its runtime block instead,
-   * which is the same report read one subject at a time.
-   */
-  readonly health: HealthModel | null;
-}
+/**
+ * THE SHAPES THIS BUILDS LIVE IN `@openref/vue`, since `TX-SLOTWIRE`.
+ *
+ * `PageModel` and everything under it is the projection a theme is handed, and the slot contract
+ * is declared in terms of it, so it belongs to the package a theme is written against. The
+ * building stays here, because it needs markdown, a sanitizer, a highlighter and the example
+ * generator, and none of those may cross into the headless layer. Both are re-exported from this
+ * package's index, so nothing that used them had to move.
+ */
 
 /** What building a page model needs. */
 export interface PageModelOptions {
@@ -202,6 +94,12 @@ export interface PageModelOptions {
   readonly basePath?: string;
   /** Greatest serialized size of the schema payload. Defaults to the measured limit. */
   readonly schemaPayloadLimit?: number;
+  /**
+   * The same origin proxy endpoint, when the host mounted one, per SPEC 14.5.
+   *
+   * Only the server knows, so it enters the model here or the browser never learns it.
+   */
+  readonly proxyPath?: string;
 }
 
 /**
@@ -332,6 +230,26 @@ function mediaTypeModel(
   };
 }
 
+/**
+ * Call samples of an operation, highlighted here rather than in the browser.
+ *
+ * SAME RULE AS EVERY OTHER BLOCK OF CODE ON A PAGE, per SPEC 12: the highlighter is 300 KB and
+ * stays on the server, so what travels is the markup it produced. A sample in a language the
+ * highlighter does not know renders as plain text, which is what `renderCode` already does for
+ * a fenced block in an unknown language.
+ *
+ * @param node - The operation
+ * @param context - The markdown renderer, which owns the highlighter
+ * @returns One entry per sample the document wrote
+ */
+function codeSampleModels(node: IROperation, context: ModelContext): CodeSampleModel[] {
+  return (node.codeSamples ?? []).map((sample) => ({
+    lang: sample.lang,
+    label: sample.label,
+    sourceHtml: context.markdown.renderCode(sample.source, sample.lang),
+  }));
+}
+
 function parameterModel(parameter: IRParameter, context: ModelContext): ParameterModel {
   return {
     name: parameter.name,
@@ -411,6 +329,7 @@ function nodeModel(context: ModelContext, nodeId: string): NodeModel | null {
       requestBody: [],
       responses: [],
       security: [],
+      codeSamples: [],
       run: null,
       runtime,
     };
@@ -439,6 +358,7 @@ function nodeModel(context: ModelContext, nodeId: string): NodeModel | null {
       type: requirement.scheme?.type ?? 'unknown',
       scopes: requirement.scopes,
     })),
+    codeSamples: codeSampleModels(view.node, context),
     run: runnerOperationOf(view.node, document),
     runtime,
   };
@@ -476,6 +396,11 @@ export function buildPageModel(document: IRDocument, options: PageModelOptions):
         ? [{ kind: 'named', schemaId: schema.id }]
         : [];
 
+  // THE PANEL TRAVELS WITH THE OVERVIEW AND WITH NOTHING ELSE. A report of four hundred findings
+  // shipped on every node page would be the largest thing on a page it is not about, and the
+  // pages a reader spends their time on are the node pages.
+  const health = node === null && schema === null ? buildHealthModel(document, basePath) : null;
+
   const payload = buildSchemaPayload(document, slots, options.schemaPayloadLimit);
   const navigation = sliceNavigation(
     buildNavigation(document),
@@ -491,6 +416,7 @@ export function buildPageModel(document: IRDocument, options: PageModelOptions):
     version: document.info.version,
     descriptionHtml: markdown.render(document.info.description),
     basePath,
+    ...(options.proxyPath === undefined ? {} : { proxyPath: options.proxyPath }),
     servers: document.servers.map((server) => server.url),
     navigation: navigation.entries,
     navigationComplete: navigation.complete,
@@ -501,20 +427,18 @@ export function buildPageModel(document: IRDocument, options: PageModelOptions):
     schema,
     schemas: payload.schemas,
     truncatedSchemas: payload.truncated,
-    // THE PANEL TRAVELS WITH THE OVERVIEW AND WITH NOTHING ELSE. A report of four hundred
-    // findings shipped on every node page would be the largest thing on a page it is not about,
-    // and the pages a reader spends their time on are the node pages.
-    health: node === null && schema === null ? buildHealthModel(document, basePath) : null,
+    health,
+    healthRendered: health !== null,
   };
 }
 
 export type {
-  DriftModel,
-  HealthCheckModel,
-  HealthModel,
-  HealthRuleModel,
+  CodeSampleModel,
+  MediaTypeModel,
   NavEntryModel,
-  RuntimeModel,
-  RuntimeRowModel,
-  RuntimeValueModel,
+  NodeModel,
+  PageModel,
+  ParameterModel,
+  ResponseModel,
+  SchemaPageModel,
 };

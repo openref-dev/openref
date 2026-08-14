@@ -23,6 +23,7 @@ import {
   IR_VERSION,
   normalizeOpenApiDocument,
   parseSpecification,
+  ProxyBlockedError,
   type IRDocument,
 } from '@openref/core';
 import { mergeSyntheticSchemas } from '../../../schemas/domain/synthetic-schemas';
@@ -31,12 +32,14 @@ import {
   createMemoryRenderCache,
   createOpenRefHighlighter,
   plainHighlighter,
+  OAUTH_MARKER,
   PAGE_MODEL_VERSION,
   RENDER_VERSION,
   renderHtmlDocument,
   renderPage,
   type IHighlighter,
   type IRenderCache,
+  type ThemeDefinition,
 } from '@openref/render';
 import { buildSearchIndex } from '@openref/search';
 import { stringify as stringifyYaml } from 'yaml';
@@ -45,6 +48,7 @@ import {
   ASSET_PARAM,
   NAVIGATION_PARAM,
   NODE_PARAM,
+  PROXY_SEGMENT,
   SCHEMA_PARAM,
   type ReferenceRouteId,
 } from '../../domain/routes';
@@ -61,6 +65,15 @@ import type {
   ReferenceReply,
   ReferenceRequest,
 } from '../../../http/application/ports/reference-http.port';
+import { buildAllowlist } from '../../../proxy/domain/allowlist';
+import type { ProxyLogRecord } from '../../../proxy/domain/forwarding';
+import type {
+  IAddressResolver,
+  IOutboundHttp,
+} from '../../../proxy/application/ports/proxy-outbound.port';
+import { ProxyService, type ProxyRequest } from '../../../proxy/application/services/proxy.service';
+import { NodeAddressResolver } from '../../../proxy/infrastructure/adapters/node-address-resolver.adapter';
+import { NodeOutboundHttp } from '../../../proxy/infrastructure/adapters/node-outbound.adapter';
 
 /** How the service is built. */
 export interface ReferenceServiceOptions {
@@ -94,6 +107,59 @@ export interface ReferenceServiceOptions {
    * it with `hashDocument`, which is the one canonical way.
    */
   readonly augment?: (document: IRDocument) => IRDocument;
+  /**
+   * The same origin proxy of SPEC 14.5, off unless a host turns it on.
+   *
+   * OFF IS THE DEFAULT AND IT IS TWO REFUSALS DEEP. A host that says nothing gets a proxy route
+   * that answers 403, and a host that turns it on for a document declaring no absolute server
+   * gets the same, because the allowlist is derived from those servers and an empty allowlist
+   * means off rather than open. Neither state is an error and both say which one they are.
+   */
+  readonly proxy?: ProxyOptions;
+  /** The theme in force, validated here so both entry points pass one choke point. */
+  readonly theme?: OpenRefThemeOptions;
+}
+
+/**
+ * The theme in force for one mounted reference, per SPEC 10.4 and the T033 amendment.
+ *
+ * A PAIR AND NOT A DEFINITION ALONE, because a theme with components is two artefacts by
+ * construction. The definition renders the server half; the components reach a reader only
+ * inside a browser entry BUILT with the same definition, so there is one bundle and therefore
+ * one `@openref/vue` instance, which is what keeps `inject` reading the key `provide` wrote.
+ * Selection is a build time and server side fact: the host names the theme, the server serves
+ * the entry built for it, and the browser resolves nothing.
+ */
+export interface OpenRefThemeOptions {
+  /** The definition, as the theme package exports it. The server renders with it. */
+  readonly definition: ThemeDefinition;
+  /**
+   * Browser entry built with the same definition, as a package specifier or an absolute path.
+   *
+   * Required the moment the definition carries a `layout` or any `components`: a page rendered
+   * with an override and hydrated by the default entry is a hydration mismatch on that
+   * position, which is silent. An L0 theme, tokens and stylesheets alone, needs none, because
+   * its markup IS the default entry's markup.
+   */
+  readonly bundle?: string;
+}
+
+/** How the proxy of SPEC 14.5 is configured for one mounted document. */
+export interface ProxyOptions {
+  /** Turns the proxy on. Absent or false means every proxied request is refused. */
+  readonly enabled?: boolean;
+  /** Whether a cookie crosses in either direction. Off by default, per SPEC 19.10. */
+  readonly forwardCookies?: boolean;
+  /** How long one proxied exchange may take. */
+  readonly timeoutMs?: number;
+  /** How many bytes of proxied response body are read. */
+  readonly maxResponseBytes?: number;
+  /** Where one line per proxied request goes. Absent writes nothing anywhere. */
+  readonly log?: (record: ProxyLogRecord) => void;
+  /** Name resolution, injected so the SSRF defence is tested rather than the network. */
+  readonly resolver?: IAddressResolver;
+  /** The outbound client, injected for the same reason. */
+  readonly outbound?: IOutboundHttp;
 }
 
 /** Answers the routes of SPEC 13.3 for one mounted document. */
@@ -111,6 +177,9 @@ export class ReferenceService {
   private readonly moduleHrefs: readonly string[];
   private readonly options: ReferenceServiceOptions;
 
+  /** The proxy of SPEC 14.5, or null when the host did not turn it on. */
+  private readonly proxyService: ProxyService | null;
+
   private highlighter: Promise<IHighlighter> | null = null;
   private specificationJson: string | null = null;
   private specificationYaml: string | null = null;
@@ -119,6 +188,7 @@ export class ReferenceService {
 
   /** @param options - Document, mount point, assets and rendering choices */
   constructor(options: ReferenceServiceOptions) {
+    assertThemePair(options.theme);
     this.options = options;
     this.basePath = options.basePath;
     // THE SYNTHETIC SCHEMAS OF SPEC 13.5 GO IN HERE, ONCE, BEFORE ANYTHING READS THE DOCUMENT.
@@ -142,6 +212,7 @@ export class ReferenceService {
 
     this.stylesheetHrefs = options.assets.stylesheetNames.map(hrefOf);
     this.moduleHrefs = [hrefOf(options.assets.moduleName)];
+    this.proxyService = buildProxy(this.document, options.proxy);
   }
 
   /**
@@ -169,6 +240,10 @@ export class ReferenceService {
         return Promise.resolve(this.navigation(request));
       case 'health':
         return Promise.resolve(this.health());
+      case 'oauth-callback':
+        return Promise.resolve(this.oauthCallback(request));
+      case 'proxy':
+        return this.proxied(request);
       case 'asset':
         return Promise.resolve(this.asset(request));
     }
@@ -205,13 +280,21 @@ export class ReferenceService {
       basePath: this.basePath,
       cache: this.cache,
       highlighter: await this.highlighterFor(),
+      // THE FACT THE RUNNER FACTORY READS, per the T033 amendment. Only this side knows whether
+      // the proxy is mounted, so the page carries it, and a host with none carries nothing.
+      ...(this.proxyService === null ? {} : { proxyPath: `${this.basePath}/${PROXY_SEGMENT}` }),
+      ...(this.options.theme === undefined ? {} : { theme: this.options.theme.definition }),
     });
 
+    const tokens = this.options.theme?.definition.tokens;
     const html = renderHtmlDocument(rendered, {
       ...(request.nonce === undefined ? {} : { nonce: request.nonce }),
       assets: { stylesheets: this.stylesheetHrefs, modules: this.moduleHrefs },
       ...(this.options.lang === undefined ? {} : { lang: this.options.lang }),
       ...(this.options.colorScheme === undefined ? {} : { colorScheme: this.options.colorScheme }),
+      // THE L0 SURFACE OF SPEC 10.4, consumed since T033: the theme's token values, as the one
+      // inline form a strict CSP can authorize, after the links so they win the cascade.
+      ...(tokens === undefined ? {} : { tokens }),
     });
 
     return {
@@ -325,6 +408,124 @@ export class ReferenceService {
       headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': IMMUTABLE },
       body: this.navigationJson,
     };
+  }
+
+  /**
+   * The OAuth2 redirect uri of SPEC 14.4: put the reader back where they were.
+   *
+   * THIS ROUTE HOLDS NO SESSION, READS NO CODE AND TOUCHES NO TOKEN. It exists because a redirect
+   * uri has to be one fixed path registered with the provider, and the reader was on an operation
+   * page. It sends them back to that page with the answer still attached, and the exchange happens
+   * in the browser, where the PKCE verifier is. A server that took part in the exchange would be a
+   * server holding somebody's token, which a documentation tool has no business doing.
+   *
+   * THE RETURN PATH COMES OUT OF `state` AND IS CHECKED BEFORE IT IS USED. It is base64url after
+   * the first dot, written by the runner. A value that is not a path under this mount is refused
+   * and the reader goes to the overview instead: a redirect uri that forwards to whatever its
+   * query says is an open redirector, and this one is registered with an authorization server,
+   * which is the worst place to have one.
+   *
+   * @param request - The request, for the query the authorization server answered with
+   * @returns A 302 back to the page the reader started from
+   */
+  private oauthCallback(request: ReferenceRequest): ReferenceReply {
+    const query = request.query ?? {};
+    const target = this.returnPathOf(query.state ?? '');
+
+    const forwarded = new URLSearchParams();
+    forwarded.set(OAUTH_MARKER, '1');
+    for (const [name, value] of Object.entries(query)) forwarded.append(name, value);
+
+    const separator = target.includes('?') ? '&' : '?';
+
+    return {
+      status: 302,
+      headers: {
+        location: `${target}${separator}${forwarded.toString()}`,
+        // NO STORE, BECAUSE THE URL BEING REDIRECTED TO CARRIES AN AUTHORIZATION CODE. It is
+        // single use and about to be spent, and a cache holding it is a cache holding a credential.
+        'cache-control': NO_STORE,
+        'content-type': 'text/plain; charset=utf-8',
+      },
+      body: '',
+    };
+  }
+
+  /**
+   * The same origin proxy of SPEC 14.5.
+   *
+   * EVERY ANSWER THIS ROUTE GIVES IS THE PROXY'S OWN, AND NEVER THE API'S STATUS ON THE OUTSIDE.
+   * A refusal is a 403 from this server and a forwarded answer is a 200 carrying the API's status
+   * inside the envelope, which is what keeps "the API said 403" and "the proxy refused" from being
+   * the same thing on the wire. The console shows one as a response and the other as a refusal,
+   * and a reader who cannot tell them apart is a reader debugging the wrong system.
+   *
+   * @param request - The request, for the envelope in its body
+   * @returns The answer, always `no-store`
+   */
+  private async proxied(request: ReferenceRequest): Promise<ReferenceReply> {
+    if (this.proxyService === null) {
+      return proxyRefusal(
+        'the proxy is not enabled on this reference. It is off unless a host turns it on, and ' +
+          'off refuses every request rather than passing it through',
+      );
+    }
+
+    const envelope = readProxyEnvelope(request.body ?? '');
+    if (envelope === null) {
+      return proxyRefusal('the request body is not a proxy envelope this route can read');
+    }
+
+    try {
+      const result = await this.proxyService.forward(envelope);
+
+      return {
+        status: 200,
+        headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': NO_STORE },
+        body: JSON.stringify({
+          status: result.status,
+          statusText: result.statusText,
+          headers: result.headers,
+          body: result.body,
+        }),
+      };
+    } catch (cause: unknown) {
+      if (cause instanceof ProxyBlockedError) return proxyRefusal(cause.message);
+
+      // AN UNEXPECTED FAILURE IS A 502 AND CARRIES NO DETAIL, because what went wrong here is a
+      // fact about a network this reader is not on. The reporter gets the object.
+      this.options.onError?.(cause);
+
+      return {
+        status: 502,
+        headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': NO_STORE },
+        body: JSON.stringify({ error: 'the proxied request did not complete' }),
+      };
+    }
+  }
+
+  /** The page a callback goes back to, or this mount's overview when the state names none. */
+  private returnPathOf(state: string): string {
+    const encoded = state.slice(state.indexOf('.') + 1);
+    const overview = this.basePath === '' ? '/' : this.basePath;
+    if (encoded === '' || !state.includes('.')) return overview;
+
+    // LENIENT ON THE WAY IN AND STRICT ON THE WAY OUT. `Buffer.from` accepts a string that is not
+    // base64url rather than throwing, so nothing is decided by whether this failed; what decides
+    // is the shape of what came out, which is checked below.
+    const decoded = Buffer.from(encoded, 'base64url').toString('utf8');
+
+    // A PATH UNDER THIS MOUNT AND NOTHING ELSE. `//host` is a protocol relative url that a browser
+    // follows off site, a backslash is treated as a slash by some of them, and anything with a
+    // scheme in it is another origin. Each is checked rather than one of them, because this is the
+    // check that keeps a registered redirect uri from becoming somebody's open redirector.
+    const path = decoded.split('#')[0] ?? '';
+    if (!path.startsWith('/') || path.startsWith('//') || path.includes('\\')) return overview;
+    if (this.basePath !== '' && !path.startsWith(`${this.basePath}/`) && path !== this.basePath) {
+      return overview;
+    }
+
+    return path;
   }
 
   /**
@@ -458,6 +659,121 @@ function notModified(request: ReferenceRequest, tag: string): ReferenceReply | n
  */
 function sourceObject(input: unknown): unknown {
   return typeof input === 'string' ? parseSpecification(input, { source: 'document' }) : input;
+}
+
+/**
+ * The proxy for one document, or null when it is off.
+ *
+ * THE ALLOWLIST IS THE DOCUMENT'S OWN SERVERS AND NOTHING ELSE, document level and operation
+ * level alike, because those are exactly the addresses the console can offer to send to. A host
+ * cannot widen it, and a page cannot: the list is built here, from the IR this server normalized.
+ *
+ * @param document - The normalized document
+ * @param options - What the host configured, if anything
+ * @returns The proxy, or null when the host did not enable one
+ */
+/**
+ * Refuses a theme whose two halves cannot meet, before anything is rendered with it.
+ *
+ * The pair rule of {@link OpenRefThemeOptions}: component overrides exist only as code, code
+ * reaches a reader only inside a browser entry built with the definition, and a definition
+ * that carries overrides while naming no such entry would render pages the shipped entry
+ * cannot hydrate. Refused rather than half applied, the way `NOT_YET_BUILT` refuses an option
+ * that does nothing, and for the same reason.
+ *
+ * @param theme - What the host passed, or nothing
+ * @throws InvalidOptionsError when overrides are declared and no bundle carries them
+ */
+function assertThemePair(theme?: OpenRefThemeOptions): void {
+  if (theme === undefined || theme.bundle !== undefined) return;
+
+  const definition = theme.definition;
+  const overrides =
+    definition.layout !== undefined || Object.keys(definition.components ?? {}).length > 0;
+  if (!overrides) return;
+
+  throw new InvalidOptionsError(
+    `the theme "${definition.name}" declares component overrides and names no browser bundle built with them. ` +
+      'A page rendered with an override and hydrated by the default entry is a silent hydration ' +
+      'mismatch, so the pair is refused rather than half applied: pass theme.bundle, the entry ' +
+      'artefact the theme package ships, or a definition carrying tokens and stylesheets alone',
+    ErrorCode.CONFIG_INVALID_OPTIONS,
+    undefined,
+    { theme: definition.name },
+  );
+}
+
+function buildProxy(document: IRDocument, options?: ProxyOptions): ProxyService | null {
+  if (options?.enabled !== true) return null;
+
+  const servers = [
+    ...document.servers.map((server) => server.url),
+    ...[...document.nodes.values()].flatMap((node) => node.servers.map((server) => server.url)),
+  ];
+
+  return new ProxyService({
+    allowlist: buildAllowlist(servers),
+    resolver: options.resolver ?? new NodeAddressResolver(),
+    outbound: options.outbound ?? new NodeOutboundHttp(),
+    ...(options.forwardCookies === undefined ? {} : { forwardCookies: options.forwardCookies }),
+    ...(options.timeoutMs === undefined ? {} : { timeoutMs: options.timeoutMs }),
+    ...(options.maxResponseBytes === undefined
+      ? {}
+      : { maxResponseBytes: options.maxResponseBytes }),
+    ...(options.log === undefined ? {} : { log: options.log }),
+  });
+}
+
+/**
+ * Reads the envelope a page sends to the proxy, refusing anything that is not one.
+ *
+ * NOTHING IS DEFAULTED HERE. A missing method or a missing url is a refusal rather than a `GET` to
+ * somewhere, because a defaulted field in this object is the proxy deciding what to send on behalf
+ * of a page that did not say.
+ *
+ * @param text - The request body
+ * @returns The envelope, or null when the body is not one
+ */
+function readProxyEnvelope(text: string): ProxyRequest | null {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    return null;
+  }
+
+  if (typeof parsed !== 'object' || parsed === null) return null;
+  const candidate = parsed as Record<string, unknown>;
+
+  if (typeof candidate.method !== 'string' || typeof candidate.url !== 'string') return null;
+
+  const headers: Record<string, string> = {};
+  if (typeof candidate.headers === 'object' && candidate.headers !== null) {
+    for (const [name, value] of Object.entries(candidate.headers)) {
+      if (typeof value === 'string') headers[name] = value;
+    }
+  }
+
+  return {
+    method: candidate.method,
+    url: candidate.url,
+    headers,
+    body: typeof candidate.body === 'string' ? candidate.body : null,
+  };
+}
+
+/**
+ * The 403 a refused proxy request gets.
+ *
+ * @param reason - What to tell the reader
+ * @returns The reply
+ */
+function proxyRefusal(reason: string): ReferenceReply {
+  return {
+    status: 403,
+    headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': NO_STORE },
+    body: JSON.stringify({ error: reason }),
+  };
 }
 
 /**

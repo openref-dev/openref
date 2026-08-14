@@ -14,6 +14,15 @@ export interface ReferenceRequest {
   /** Request headers, lower cased. */
   readonly headers: Readonly<Record<string, string>>;
   /**
+   * Query parameters, already decoded by the router.
+   *
+   * ONE ROUTE READS THIS AND IT IS THE OAuth2 CALLBACK, which is answered by whatever an
+   * authorization server put in the url. Every other route here is addressed by its path, which is
+   * why this arrived only in M2 and why it is optional: an adapter that does not supply it serves
+   * every route but that one.
+   */
+  readonly query?: Readonly<Record<string, string>>;
+  /**
    * CSP nonce the host generated for this response.
    *
    * Absent means the host serves no nonce policy, which is a supported deployment: the shell
@@ -21,6 +30,15 @@ export interface ReferenceRequest {
    * present so the policy scan can read it.
    */
   readonly nonce?: string;
+  /**
+   * The request body as text, for the one route that takes one.
+   *
+   * ONE ROUTE READS THIS AND IT IS THE PROXY OF SPEC 14.5. Every other route here is addressed by
+   * its path and answers a `GET`, which is why this arrived only in M2. An adapter that supplies
+   * nothing serves every route but that one, and that one then refuses rather than sending a
+   * request built out of an absent body.
+   */
+  readonly body?: string;
 }
 
 /** What a handler answers with. */
@@ -50,4 +68,18 @@ export interface IReferenceHttpAdapter {
    * @param handler - What answers it
    */
   get(pattern: string, handler: ReferenceHandler): void;
+
+  /**
+   * Registers one route that takes a body.
+   *
+   * THE BODY IS READ OFF THE SOCKET RATHER THAN OUT OF A PARSER, and that is a decision about what
+   * this package may assume of a host. `express.json()` and `@fastify/formbody` are middleware a
+   * host installs or does not, and a proxy route that worked only where one was installed would be
+   * a feature whose presence depends on somebody else's configuration. The adapter reads the
+   * stream itself, bounded, and hands over text.
+   *
+   * @param pattern - Absolute path pattern in the `:name` dialect
+   * @param handler - What answers it
+   */
+  post(pattern: string, handler: ReferenceHandler): void;
 }

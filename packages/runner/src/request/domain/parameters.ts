@@ -1,18 +1,14 @@
 /**
- * Parameter serialization, M0 subset.
+ * What a parameter is, and what has to be true of it before the matrix renders it.
  *
- * SPEC 14.1 scopes M0 to plain path, query and header parameters and puts the full
- * `style x explode x location x value type` matrix in M2, where a contract test covers every
- * cell of it. This file therefore handles exactly one column of that matrix, the default style
- * for each location with a scalar value, AND REFUSES EVERYTHING ELSE BY NAME.
- *
- * Refusing is the whole point. A parameter declared `deepObject` that is quietly serialized as
- * `form` produces a request that looks sent and is wrong, and the reader has no way to tell.
- * A `SerializationError` naming the style and the milestone is a worse demo and a true one.
+ * The rendering itself is `serialize.ts`, which is the whole of SPEC 14.2. This file holds the
+ * two questions that are about the reader rather than about the style: did they fill in something
+ * that is required, and where is what they filled in kept.
  */
 
 import { ErrorCode, SerializationError } from '@openref/core';
-import type { IRParameter, IRParameterLocation, IRParameterStyle } from '@openref/core';
+import type { IRParameter, IRParameterLocation } from '@openref/core';
+import type { RunnerValue, SerializableParameter } from './serialize';
 
 /**
  * A parameter as sending it requires.
@@ -26,106 +22,48 @@ export type RunnableParameter = Pick<
   'name' | 'in' | 'required' | 'style' | 'explode'
 > & {
   readonly allowReserved?: boolean;
-};
-
-/** Style OpenAPI defaults to at each location, which is the only one M0 serializes. */
-const DEFAULT_STYLE: Readonly<Record<IRParameterLocation, IRParameterStyle>> = {
-  path: 'simple',
-  query: 'form',
-  header: 'simple',
-  cookie: 'form',
-};
+  /** `allowEmptyValue` of OpenAPI, which is what lets a required parameter be sent empty. */
+  readonly allowEmptyValue?: boolean;
+} & SerializableParameter;
 
 /**
- * Reserved characters of RFC 3986, which `allowReserved` leaves as they are.
+ * Refuses a required parameter the reader left out, and tells that apart from an empty one.
  *
- * `encodeURIComponent` escapes all of them, so honouring the flag means putting these back
- * rather than writing a second encoder. Doing neither and encoding regardless would change the
- * request, which is the same defect as guessing at a style.
- */
-const RESERVED = new Map<string, string>([
-  ['%3A', ':'],
-  ['%2F', '/'],
-  ['%3F', '?'],
-  ['%23', '#'],
-  ['%5B', '['],
-  ['%5D', ']'],
-  ['%40', '@'],
-  ['%21', '!'],
-  ['%24', '$'],
-  ['%26', '&'],
-  ['%27', "'"],
-  ['%28', '('],
-  ['%29', ')'],
-  ['%2A', '*'],
-  ['%2B', '+'],
-  ['%2C', ','],
-  ['%3B', ';'],
-  ['%3D', '='],
-]);
-
-/**
- * Percent encodes one value.
+ * TWO DIFFERENT REQUESTS, AND UNTIL T026 THEY WERE ONE. The M0 runner held one string per
+ * parameter and dropped the empty ones, so a reader who cleared a field and a reader who never
+ * touched it sent the same request. Absent now means there is no entry at all and the parameter
+ * does not appear; empty means the reader supplied a value with nothing in it, and `q=` is what
+ * the server is asked.
  *
- * @param value - The value as the reader typed it
- * @param allowReserved - Whether the parameter declares `allowReserved`
- * @returns The encoded value
- */
-export function encodeValue(value: string, allowReserved: boolean): string {
-  const encoded = encodeURIComponent(value);
-  if (!allowReserved) return encoded;
-
-  return encoded.replace(/%[0-9A-F]{2}/g, (match) => RESERVED.get(match) ?? match);
-}
-
-/**
- * Refuses a parameter M0 cannot serialize faithfully.
+ * AN EMPTY VALUE STILL DOES NOT SATISFY `required`, UNLESS THE DOCUMENT SAYS IT DOES. That is
+ * what `allowEmptyValue` is for, and reading it is better than inventing a rule: a parameter the
+ * operation says it cannot answer without is not answered by an empty string, and the one
+ * document that can overrule that is the one that declared the parameter.
  *
  * @param parameter - The parameter as the IR carries it
- * @throws {SerializationError} When the location or the style is outside the M0 subset
+ * @param value - What the reader supplied, or undefined when they supplied nothing
+ * @throws {SerializationError} When a required parameter has no usable value
  */
-export function assertRunnable(parameter: RunnableParameter): void {
-  if (parameter.in === 'cookie') {
-    throw new SerializationError(
-      `parameter '${parameter.name}' is a cookie parameter, which a browser will not let a ` +
-        'script set; cookie parameters arrive with the same origin proxy in M2',
-      ErrorCode.RUN_SERIALIZATION_FAILED,
-      undefined,
-      { parameter: parameter.name, in: parameter.in },
-    );
-  }
+export function assertRequired(parameter: RunnableParameter, value: RunnerValue | undefined): void {
+  if (!parameter.required) return;
 
-  const expected = DEFAULT_STYLE[parameter.in];
-  if (parameter.style !== expected) {
-    throw new SerializationError(
-      `parameter '${parameter.name}' declares style '${parameter.style}', and M0 serializes ` +
-        `only the default style '${expected}' for a ${parameter.in} parameter; the full ` +
-        'serialization matrix arrives in M2',
-      ErrorCode.RUN_SERIALIZATION_FAILED,
-      undefined,
-      { parameter: parameter.name, in: parameter.in, style: parameter.style },
-    );
-  }
-}
-
-/**
- * Refuses a required parameter the reader left empty.
- *
- * Fail closed rather than sending the request without it. A path parameter left empty would
- * send a request to a different route, and a required query parameter left empty asks the
- * server a question the operation says it cannot answer.
- *
- * @param parameter - The parameter as the IR carries it
- * @param value - The value the reader typed, empty when they typed nothing
- * @throws {SerializationError} When a required parameter has no value
- */
-export function assertRequired(parameter: RunnableParameter, value: string): void {
-  if (parameter.required && value === '') {
+  if (value === undefined) {
     throw new SerializationError(
       `parameter '${parameter.name}' is required and has no value`,
       ErrorCode.RUN_SERIALIZATION_FAILED,
       undefined,
       { parameter: parameter.name, in: parameter.in },
+    );
+  }
+
+  const empty = value.kind === 'primitive' ? value.value === '' : value.value.length === 0;
+  if (empty && parameter.allowEmptyValue !== true) {
+    throw new SerializationError(
+      `parameter '${parameter.name}' is required and was left empty; the operation declares no ` +
+        'allowEmptyValue for it',
+      ErrorCode.RUN_SERIALIZATION_FAILED,
+      undefined,
+      { parameter: parameter.name, in: parameter.in, kind: value.kind },
     );
   }
 }

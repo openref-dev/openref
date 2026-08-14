@@ -189,7 +189,45 @@ export {
 export { repositoryRelative } from './runtime/domain/repository-path';
 
 export { ReferenceService } from './reference/application/services/reference.service';
-export type { ReferenceServiceOptions } from './reference/application/services/reference.service';
+export type {
+  OpenRefThemeOptions,
+  ProxyOptions,
+  ReferenceServiceOptions,
+} from './reference/application/services/reference.service';
+
+// The same origin proxy of SPEC 14.5, built in T029. The policy is exported because a host that
+// builds its own outbound client still has to answer the same question about an address, and a
+// second implementation of it would be a second answer.
+export { addressRefusal, isAddressLiteral, parseIpv4, parseIpv6 } from './proxy/domain/address';
+export type { AddressRefusal } from './proxy/domain/address';
+export { buildAllowlist, decideTarget } from './proxy/domain/allowlist';
+export type { AllowedTarget, ProxyAllowlist, TargetDecision } from './proxy/domain/allowlist';
+export {
+  forwardableRequestHeaders,
+  forwardableResponseHeaders,
+  isForwardedHeader,
+  proxyLogRecord,
+} from './proxy/domain/forwarding';
+export type { ForwardingOptions, ProxyLogRecord } from './proxy/domain/forwarding';
+export {
+  DEFAULT_PROXY_MAX_RESPONSE_BYTES,
+  DEFAULT_PROXY_TIMEOUT_MS,
+  ProxyService,
+} from './proxy/application/services/proxy.service';
+export type {
+  ProxyRequest,
+  ProxyResult,
+  ProxyServiceOptions,
+} from './proxy/application/services/proxy.service';
+export type {
+  IAddressResolver,
+  IOutboundHttp,
+  OutboundRequest,
+  OutboundResponse,
+} from './proxy/application/ports/proxy-outbound.port';
+export { NodeAddressResolver } from './proxy/infrastructure/adapters/node-address-resolver.adapter';
+export { NodeOutboundHttp } from './proxy/infrastructure/adapters/node-outbound.adapter';
+export { MAX_REQUEST_BODY_BYTES, readRequestBody } from './http/domain/request-body';
 
 export {
   assetHref,
@@ -198,11 +236,16 @@ export {
   HEALTH_SEGMENT,
   NODE_PARAM,
   normalizeRoute,
+  PROXY_SEGMENT,
   referenceRoutes,
   SCHEMA_PARAM,
   SEARCH_INDEX_SEGMENT,
 } from './reference/domain/routes';
-export type { ReferenceRoute, ReferenceRouteId } from './reference/domain/routes';
+export type {
+  ReferenceRoute,
+  ReferenceRouteId,
+  ReferenceRouteMethod,
+} from './reference/domain/routes';
 
 export {
   buildAssetCatalog,

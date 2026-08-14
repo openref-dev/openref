@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { h } from 'vue';
 import { NormalizeError } from '@openref/core';
 import { ReferenceService } from '../../src/reference/application/services/reference.service';
 import { assetPlan, specification } from '../mocks/fixtures';
@@ -317,5 +318,93 @@ describe('ReferenceService, assets', () => {
     // Then
     expect(reply.status).toBe(200);
     expect(reply.headers['content-type']).toBe('font/woff2');
+  });
+});
+
+describe('ReferenceService, the theme option of T033', () => {
+  it('should refuse a theme with component overrides and no bundle built with them', () => {
+    // Given, the pair rule: overrides are code, code reaches a reader only inside an entry
+    // built with the definition, and a definition alone would render pages the shipped entry
+    // hydrates into a silent mismatch
+    const act = (): unknown =>
+      new ReferenceService({
+        document: specification(),
+        basePath: '/docs',
+        assets: assetPlan(),
+        theme: {
+          definition: {
+            name: 'half-a-theme',
+            components: { DocumentOverview: () => null },
+          },
+        },
+      });
+
+    // Then
+    expect(act).toThrow(/names no browser bundle/);
+  });
+
+  it('should accept the pair, and an L0 definition alone', () => {
+    // Given
+    const paired = (): unknown =>
+      new ReferenceService({
+        document: specification(),
+        basePath: '/docs',
+        assets: assetPlan(),
+        theme: {
+          definition: { name: 'paired', components: { DocumentOverview: () => null } },
+          bundle: '@openref/theme-telltale/entry',
+        },
+      });
+    const tokensOnly = (): unknown =>
+      new ReferenceService({
+        document: specification(),
+        basePath: '/docs',
+        assets: assetPlan(),
+        theme: { definition: { name: 'l0', tokens: { '--oref-color-accent': '#0088ff' } } },
+      });
+
+    // Then
+    expect(paired).not.toThrow();
+    expect(tokensOnly).not.toThrow();
+  });
+
+  it('should write the L0 tokens into the page as the nonce carrying style element', async () => {
+    // Given
+    const themed = new ReferenceService({
+      document: specification(),
+      basePath: '/docs',
+      assets: assetPlan(),
+      highlight: false,
+      theme: { definition: { name: 'l0', tokens: { '--oref-color-accent': '#0088ff' } } },
+    });
+
+    // When
+    const reply = await themed.handle('overview', request());
+
+    // Then
+    expect(reply.body).toContain(':root{--oref-color-accent:#0088ff}');
+  });
+
+  it('should render the server half with the theme, so an override reaches the served page', async () => {
+    // Given, a definition whose override marks the overview position
+    const themed = new ReferenceService({
+      document: specification(),
+      basePath: '/docs',
+      assets: assetPlan(),
+      highlight: false,
+      theme: {
+        definition: {
+          name: 'marked',
+          components: { DocumentOverview: () => h('div', { class: 'theme-proof-mark' }) },
+        },
+        bundle: '@openref/theme-telltale/entry',
+      },
+    });
+
+    // When
+    const reply = await themed.handle('overview', request());
+
+    // Then
+    expect(reply.body).toContain('theme-proof-mark');
   });
 });

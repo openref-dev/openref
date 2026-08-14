@@ -132,8 +132,9 @@ describe('generateExample by format and field name', () => {
     // When
     const example = generateExample(schema);
 
-    // Then
-    expect(example).toEqual({ emails: ['user@example.com', 'user@example.com'] });
+    // Then, the second element is the dictionary's second email, per the variation rule of
+    // SPEC 5.5: an element position reads the entry at its own index
+    expect(example).toEqual({ emails: ['user@example.com', 'user2@example.com'] });
   });
 });
 
@@ -310,8 +311,9 @@ describe('generateExample recursion', () => {
     // when one leads back to a schema it is already generating
     const example = generateExample(graph.schema, { schemas: graph.schemas });
 
-    // Then
-    expect(example).toEqual({ child: null, value: 'string' });
+    // Then, the stop is shown as a stop: the recursive property is omitted rather than
+    // written as null, which was the guard leaking into a sample a reader copies, per T005-R1
+    expect(example).toEqual({ value: 'string' });
   });
 
   it('should emit null for a reference it has no schema map to follow', () => {
@@ -396,8 +398,8 @@ describe('generateExample recursion', () => {
     // When
     const example = generateExample(schema, { maxDepth: 4 });
 
-    // Then
-    expect(example).toEqual({ child: { child: { child: { child: null } } } });
+    // Then, the object at the limit ends rather than carrying a null the schema never declared
+    expect(example).toEqual({ child: { child: { child: {} } } });
   });
 });
 
@@ -485,6 +487,228 @@ describe('generateExample views and composition', () => {
 
     // When
     const example = generateExample(schema);
+
+    // Then
+    expect(example).toBeNull();
+  });
+});
+
+describe('generateExample variation across array elements, per T005-R1', () => {
+  it('should make the two elements differ where the schema leaves room, and deterministically', () => {
+    // Given, the finding F16 was two byte identical elements: as deterministic as anything can
+    // be, and showing a reader nothing about the position being a list
+    const schema: IRJsonSchema = { type: 'array', items: { type: 'integer' } };
+
+    // When
+    const first = generateExample(schema);
+    const second = generateExample(schema);
+
+    // Then
+    expect(first).toEqual([1, 2]);
+    expect(second).toEqual(first);
+  });
+
+  it('should vary a generic string by its ordinal, so a list reads as one', () => {
+    // Given
+    const schema: IRJsonSchema = { type: 'array', items: { type: 'string' } };
+
+    // When
+    const example = generateExample(schema);
+
+    // Then
+    expect(example).toEqual(['string', 'string-2']);
+  });
+
+  it('should vary a format value through the format table, keeping the format', () => {
+    // Given
+    const schema: IRJsonSchema = {
+      type: 'array',
+      items: { type: 'string', format: 'date-time' },
+    };
+
+    // When
+    const example = generateExample(schema);
+
+    // Then
+    expect(example).toEqual(['2026-01-01T00:00:00Z', '2026-01-02T00:00:00Z']);
+  });
+
+  it('should vary the leaves of an object element, seeded by the element position', () => {
+    // Given
+    const schema: IRJsonSchema = {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: { customerEmail: { type: 'string' }, age: { type: 'integer' } },
+      },
+    };
+
+    // When
+    const example = generateExample(schema);
+
+    // Then
+    expect(example).toEqual([
+      { age: 30, customerEmail: 'user@example.com' },
+      { age: 31, customerEmail: 'user2@example.com' },
+    ]);
+  });
+
+  it('should walk a declared enum by element position, which is the document own variation space', () => {
+    // Given
+    const schema: IRJsonSchema = {
+      type: 'array',
+      items: { type: 'string', enum: ['red', 'green', 'blue'] },
+    };
+
+    // When
+    const example = generateExample(schema);
+
+    // Then
+    expect(example).toEqual(['red', 'green']);
+  });
+
+  it('should keep elements identical where the schema pins them, a const or a single member enum', () => {
+    // Given, identical elements here are the schema's statement and not the defect: SPEC 5.5
+    // asks for difference only where the schema leaves room for one
+    const constant: IRJsonSchema = { type: 'array', items: { const: 'fixed' } };
+    const single: IRJsonSchema = { type: 'array', items: { type: 'string', enum: ['only'] } };
+
+    // When
+    const examples = [generateExample(constant), generateExample(single)];
+
+    // Then
+    expect(examples[0]).toEqual(['fixed', 'fixed']);
+    expect(examples[1]).toEqual(['only', 'only']);
+  });
+
+  it('should walk the declared examples list before generating anything', () => {
+    // Given
+    const schema: IRJsonSchema = {
+      type: 'array',
+      items: { type: 'string', examples: ['first written', 'second written'] },
+    };
+
+    // When
+    const example = generateExample(schema);
+
+    // Then
+    expect(example).toEqual(['first written', 'second written']);
+  });
+
+  it('should give the default to the first element only, since repeating it shows a copy', () => {
+    // Given, a default is one value by nature. The first element is it; the second falls
+    // through to the generated value, because the schema leaves room and a copy shows nothing.
+    const schema: IRJsonSchema = {
+      type: 'array',
+      items: { type: 'integer', default: 7 },
+    };
+
+    // When
+    const example = generateExample(schema);
+
+    // Then
+    expect(example).toEqual([7, 2]);
+  });
+
+  it('should show a second branch of a union, which is room the schema leaves', () => {
+    // Given
+    const schema: IRJsonSchema = {
+      type: 'array',
+      items: {
+        oneOf: [
+          { type: 'object', properties: { meow: { type: 'boolean' } } },
+          { type: 'object', properties: { bark: { type: 'boolean' } } },
+        ],
+      },
+    };
+
+    // When
+    const example = generateExample(schema);
+
+    // Then
+    expect(example).toEqual([{ meow: true }, { bark: false }]);
+  });
+
+  it('should alternate booleans, since two values is all the room the type has', () => {
+    // Given
+    const schema: IRJsonSchema = { type: 'array', items: { type: 'boolean' } };
+
+    // When
+    const example = generateExample(schema);
+
+    // Then
+    expect(example).toEqual([true, false]);
+  });
+
+  it('should clamp the varied number back where the bounds leave no room', () => {
+    // Given, a range one value wide: variation has nowhere to go and honesty is two copies
+    const schema: IRJsonSchema = {
+      type: 'array',
+      items: { type: 'integer', minimum: 5, maximum: 5 },
+    };
+
+    // When
+    const example = generateExample(schema);
+
+    // Then
+    expect(example).toEqual([5, 5]);
+  });
+
+  it('should seed nested arrays from the outer element, so the second outer list is not a copy', () => {
+    // Given
+    const schema: IRJsonSchema = {
+      type: 'array',
+      items: { type: 'array', items: { type: 'integer' } },
+    };
+
+    // When
+    const example = generateExample(schema);
+
+    // Then, outer element i starts its inner list at variant i: [ [1,2], [2,3] ]
+    expect(example).toEqual([
+      [1, 2],
+      [2, 3],
+    ]);
+  });
+});
+
+describe('generateExample recursion stops shown as stops, per T005-R1', () => {
+  it('should end a recursive list as an empty list rather than nulls, the CategoryDto shape', () => {
+    // Given, the shape F16 saw in a browser: children recursing into the same schema, and the
+    // cycle guard printing null inside null into a sample a reader is invited to copy
+    const document = {
+      components: {
+        schemas: {
+          CategoryDto: {
+            type: 'object',
+            properties: {
+              name: { type: 'string' },
+              children: {
+                type: 'array',
+                items: { $ref: '#/components/schemas/CategoryDto' },
+              },
+            },
+          },
+        },
+      },
+    };
+    const graph = normalizeSchemaGraph(
+      { $ref: '#/components/schemas/CategoryDto' },
+      { rootDocument: document },
+    );
+
+    // When
+    const example = generateExample(graph.schema, { schemas: graph.schemas });
+
+    // Then, the list ends where the type recurses, and the sample stays valid against the
+    // schema it was generated from: no null appears anywhere in it
+    expect(example).toEqual({ children: [], name: 'Example name' });
+    expect(canonicalize(example)).not.toContain('null');
+  });
+
+  it('should keep a whole example null when the schema itself is nothing but a stop', () => {
+    // Given, there is no container to express the stop in, and the contract returns a value
+    const example = generateExample({ $cycle: 'Node' });
 
     // Then
     expect(example).toBeNull();

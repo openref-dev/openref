@@ -121,15 +121,22 @@ export class MountedReferences {
     const basePath = normalizeRoute(entry.route);
     let pass: RuntimePassResult | undefined;
 
+    // The entry's own theme wins over the root default, per SPEC 13.2, and the theme's
+    // `assets.css` and `bundle` are the defaults the narrower options override.
+    const theme = entry.theme ?? this.options.theme;
+    const stylesheets = entry.stylesheets ?? theme?.definition.assets?.css;
+    const clientBundle = entry.clientBundle ?? theme?.bundle;
+
     const service = new ReferenceService({
       document: entry.document,
       basePath,
       assets:
         entry.assetPlan ??
         loadDefaultAssets({
-          ...(entry.stylesheets === undefined ? {} : { stylesheets: entry.stylesheets }),
-          ...(entry.clientBundle === undefined ? {} : { clientBundle: entry.clientBundle }),
+          ...(stylesheets === undefined ? {} : { stylesheets }),
+          ...(clientBundle === undefined ? {} : { clientBundle }),
         }),
+      ...(theme === undefined ? {} : { theme }),
       augment: (document: IRDocument): IRDocument => {
         pass = this.collect(document);
         return pass.document;

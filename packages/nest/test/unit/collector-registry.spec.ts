@@ -158,12 +158,22 @@ describe('CollectorRegistry', () => {
     // Given, three guards on a route are three facts and not one disagreement
     const guards = collectorOf('guardsCollector', () => ({
       guards: [
-        { name: 'JwtAuthGuard', scope: 'route', confidence: 'derived' as const, collector: 'guardsCollector' },
+        {
+          name: 'JwtAuthGuard',
+          scope: 'route',
+          confidence: 'derived' as const,
+          collector: 'guardsCollector',
+        },
       ],
     }));
     const more = collectorOf('caslCollector', () => ({
       guards: [
-        { name: 'PoliciesGuard', scope: 'route', confidence: 'derived' as const, collector: 'caslCollector' },
+        {
+          name: 'PoliciesGuard',
+          scope: 'route',
+          confidence: 'derived' as const,
+          collector: 'caslCollector',
+        },
       ],
     }));
 
@@ -178,7 +188,12 @@ describe('CollectorRegistry', () => {
     // Given
     const guards = collectorOf('guardsCollector', () => ({
       guards: [
-        { name: 'JwtAuthGuard', scope: 'route', confidence: 'derived' as const, collector: 'guardsCollector' },
+        {
+          name: 'JwtAuthGuard',
+          scope: 'route',
+          confidence: 'derived' as const,
+          collector: 'guardsCollector',
+        },
       ],
     }));
 

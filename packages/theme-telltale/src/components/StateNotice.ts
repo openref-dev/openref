@@ -1,0 +1,35 @@
+import { h, type VNode } from 'vue';
+import type { StateNoticeKind } from '@openref/vue';
+
+/**
+ * Empty and degraded states, which are content rather than an absence of it.
+ *
+ * THE SENTENCE ARRIVES AS A PROP AND THE KIND IS WHAT THIS THEME DRAWS FROM. `message` is what the
+ * position that raised the notice wanted said; `kind` is what this theme marks it with, and it is
+ * the field a stylesheet can key on. A theme that matched on the sentence would be matching on
+ * English, which is the same defect as telling a runtime row apart by its label.
+ *
+ * Eight kinds, and the list is closed. The record is total over `StateNoticeKind` rather than
+ * defaulted, so a ninth kind added to the contract fails to compile here instead of rendering a
+ * mark this theme made up.
+ */
+const MARKS: Readonly<Record<StateNoticeKind, string>> = {
+  'nav-unavailable': 'NAV',
+  'search-empty': 'FIND',
+  'search-no-results': 'FIND',
+  'search-partial': 'FIND',
+  'no-server': 'SRV',
+  'no-body-fields': 'BODY',
+  'schema-missing': 'SCH',
+  'no-schema': 'SCH',
+};
+
+export default function StateNotice(props: {
+  readonly kind: StateNoticeKind;
+  readonly message: string;
+}): VNode {
+  return h('p', { class: ['tt-notice', `tt-notice-${props.kind}`], role: 'status' }, [
+    h('span', { class: 'tt-notice-mark' }, MARKS[props.kind]),
+    h('span', { class: 'tt-notice-text' }, props.message),
+  ]);
+}

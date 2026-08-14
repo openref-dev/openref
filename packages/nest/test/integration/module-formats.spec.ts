@@ -256,6 +256,43 @@ describe('the dual build', () => {
   );
 
   it(
+    'should leave every published workspace package external rather than inlining a second copy',
+    { timeout: SPAWNED_PROCESS_TIMEOUT_MS },
+    () => {
+      // Given, SPEC 4's rule since T031: `render`, `runner` and `search` are private and are
+      // bundled in here, and `core`, `theme` and `vue` are published, so a consumer installs each
+      // of them and must not also get a copy inlined into this file.
+      //
+      // WHY IT IS A CHECK AND NOT A CONVENTION. `@openref/vue` provides three injection keys that
+      // are `Symbol()` values, so their identity is the identity of the module that created them.
+      // Two copies in one process means a theme's components `inject` a key nothing ever
+      // `provide`d: `useDocState` throws and `useSlot` resolves nothing, while every test of the
+      // theme passes, because in a test there is only ever one copy. The tsup pattern was
+      // `@openref/*` until T031 and this is the assertion that keeps it from going back.
+      // The three injection keys of `@openref/vue`, which is the sharpest evidence available: if
+      // the package were inlined, these string arguments would be in this file, and the copy that
+      // created them would not be the one a theme injects from.
+      const INJECTION_KEYS = ['openref.docState', 'openref.runner', 'openref.slots'];
+
+      // When
+      const reached = new Set(
+        [
+          ...externalSpecifiers(built('dist/index.js')),
+          ...externalSpecifiers(built('dist/index.cjs')),
+        ].map(packageOf),
+      );
+      const inlinedKeys = INJECTION_KEYS.filter((key) =>
+        [built('dist/index.js'), built('dist/index.cjs')].some((file) => file.includes(key)),
+      );
+
+      // Then
+      expect(reached).toContain('@openref/vue');
+      expect(reached).toContain('@openref/core');
+      expect(inlinedKeys).toEqual([]);
+    },
+  );
+
+  it(
     'should reach every ESM only dependency through import() and never through require()',
     { timeout: SPAWNED_PROCESS_TIMEOUT_MS },
     () => {

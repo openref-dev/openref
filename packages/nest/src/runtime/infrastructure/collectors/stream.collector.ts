@@ -81,6 +81,7 @@ export function streamCollector(): StreamCollector {
         transport,
         ...(resolved.slot === undefined ? {} : { itemSchema: resolved.slot }),
         ...(declared?.heartbeatMs === undefined ? {} : { heartbeatMs: declared.heartbeatMs }),
+        ...(declared?.terminator === undefined ? {} : { terminator: declared.terminator }),
       };
 
       // THE CONFIDENCE OF THE WHOLE FACT IS THE CONFIDENCE OF ITS WEAKEST STATED PART, which here

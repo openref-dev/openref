@@ -38,6 +38,7 @@ export type {
   IRChannel,
   IRChannelDirection,
   IRChannelOperation,
+  IRCodeSample,
   IREncoding,
   IRExample,
   IRHeader,
@@ -105,7 +106,8 @@ export {
   normalizeNumber,
   quoteString,
 } from './hashing/domain/canonical';
-export { hash, hashDocument } from './hashing/domain/hash';
+export { finalizeDocument, hash, hashDocument } from './hashing/domain/hash';
+export { freezeDocument } from './ir/domain/freeze';
 export { sha256Hex, utf8Encode } from './hashing/domain/sha256';
 
 export {
@@ -218,6 +220,9 @@ export { isSafePattern, matchesPattern, sampleFromPattern } from './examples/dom
 
 export { expandSourceLink } from './source-link/domain/source-link';
 export type { SourceLinkExpansion } from './source-link/domain/source-link';
+
+export { unsendableSchemeCause } from './security/domain/scheme-support';
+export type { SecuritySchemeShape, UnsendableCause } from './security/domain/scheme-support';
 
 export { classifyDrift, isMechanicallyFixable } from './drift/domain/classification';
 export {

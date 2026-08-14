@@ -77,14 +77,23 @@ export interface IRNavNode {
 /** Kind of a security scheme. */
 export type IRSecuritySchemeType = 'apiKey' | 'http' | 'oauth2' | 'openIdConnect' | 'mutualTLS';
 
-/** One OAuth2 flow with its scopes. */
+/**
+ * One OAuth2 flow with its scopes.
+ *
+ * `pkceRequired` WAS HERE AND WAS REMOVED BY T028, WITH NOTHING PUT IN ITS PLACE. No producer ever
+ * filled it and no consumer ever read it, and the only two things it could have meant were both
+ * wrong. Read as true it says what SPEC 14.4 already says unconditionally; read as false or absent
+ * it says PKCE is optional, which is a switch for turning off the one rule the authorization code
+ * flow is not allowed to negotiate. A field whose only reachable use is to weaken a mandatory rule
+ * is a defect rather than a feature nobody got round to.
+ */
 export interface IROAuthFlow {
   readonly authorizationUrl?: string;
   readonly tokenUrl?: string;
   readonly refreshUrl?: string;
+  /** OpenAPI 3.2 `deviceAuthorizationUrl`, where the device flow of RFC 8628 starts. */
+  readonly deviceAuthorizationUrl?: string;
   readonly scopes: Readonly<Record<string, string>>;
-  /** Whether PKCE is required, when the document says so. */
-  readonly pkceRequired?: boolean;
 }
 
 /** OAuth2 flows, keyed by flow name as written in the document. */
@@ -93,6 +102,8 @@ export interface IROAuthFlows {
   readonly password?: IROAuthFlow;
   readonly clientCredentials?: IROAuthFlow;
   readonly authorizationCode?: IROAuthFlow;
+  /** OpenAPI 3.2 `deviceAuthorization`. */
+  readonly deviceAuthorization?: IROAuthFlow;
 }
 
 /** A security scheme the API can be called with. */

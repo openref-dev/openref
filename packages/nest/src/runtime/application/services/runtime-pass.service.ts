@@ -8,7 +8,7 @@
  * THE HASH IS RECOMPUTED, AND THAT IS NOT AN OPTIMIZATION DETAIL. The SPEC 12 cache is keyed by
  * document hash and so is the navigation route, so a document carrying runtime facts under the
  * hash of the document without them would serve a reader a page from before the pass ran, and
- * would keep serving it. `hashDocument` is the one canonical way to take it, per CLAUDE.md.
+ * would keep serving it. `finalizeDocument` takes it and freezes what it measured, per CLAUDE.md.
  *
  * FAIL OPEN, LIKE THE REGISTRY IT DRIVES. A collector pass is an augmentation of a document that
  * already renders. If discovery finds nothing, the document is returned unchanged and the report
@@ -17,7 +17,7 @@
 
 import {
   buildHealthReport,
-  hashDocument,
+  finalizeDocument,
   withRuntimeErrorContracts,
   type DriftObservation,
   type IRDocument,
@@ -202,7 +202,7 @@ export function runRuntimePass(
   };
 
   return {
-    document: { ...withFacts, hash: hashDocument(withFacts) },
+    document: finalizeDocument(withFacts),
     nodesWithFacts: runtimeByNode.size,
     discoveryProblems: problems,
     pairing,

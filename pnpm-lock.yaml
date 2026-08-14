@@ -102,6 +102,9 @@ importers:
       '@openref/nest':
         specifier: workspace:*
         version: link:../../packages/nest
+      '@openref/theme-telltale':
+        specifier: workspace:*
+        version: link:../../packages/theme-telltale
       reflect-metadata:
         specifier: 0.2.2
         version: 0.2.2
@@ -213,6 +216,9 @@ importers:
       '@openref/theme':
         specifier: workspace:*
         version: link:../theme
+      '@openref/vue':
+        specifier: workspace:*
+        version: link:../vue
       isomorphic-dompurify:
         specifier: 3.22.0
         version: 3.22.0(@noble/hashes@1.8.0)
@@ -340,6 +346,58 @@ importers:
       typescript:
         specifier: 5.9.3
         version: 5.9.3
+
+  packages/theme-kit:
+    dependencies:
+      '@openref/core':
+        specifier: workspace:*
+        version: link:../core
+      '@openref/vue':
+        specifier: workspace:*
+        version: link:../vue
+      vue:
+        specifier: 3.5.41
+        version: 3.5.41(typescript@5.9.3)
+    devDependencies:
+      tsup:
+        specifier: 8.5.1
+        version: 8.5.1(postcss@8.5.26)(supports-color@7.2.0)(typescript@5.9.3)(yaml@2.9.0)
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+
+  packages/theme-telltale:
+    devDependencies:
+      '@openref/core':
+        specifier: workspace:*
+        version: link:../core
+      '@openref/nest':
+        specifier: workspace:*
+        version: link:../nest
+      '@openref/render':
+        specifier: workspace:*
+        version: link:../render
+      '@openref/runner':
+        specifier: workspace:*
+        version: link:../runner
+      '@openref/search':
+        specifier: workspace:*
+        version: link:../search
+      '@openref/theme-kit':
+        specifier: workspace:*
+        version: link:../theme-kit
+      '@openref/vue':
+        specifier: workspace:*
+        version: link:../vue
+      tsup:
+        specifier: 8.5.1
+        version: 8.5.1(postcss@8.5.26)(supports-color@7.2.0)(typescript@5.9.3)(yaml@2.9.0)
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+      vue:
+        specifier: 3.5.41
+        version: 3.5.41(typescript@5.9.3)
 
   packages/vue:
     dependencies:

@@ -38,6 +38,29 @@ export const NAVIGATION_SEGMENT = '_navigation';
 /** Segment serving the health report. */
 export const HEALTH_SEGMENT = 'health';
 
+/**
+ * Segments an authorization server returns a reader to, per SPEC 13.3 and 14.4.
+ *
+ * TWO SEGMENTS AND NOT A WILDCARD, for the reason the header of this file gives about Express 4,
+ * Express 5 and Fastify disagreeing on how a wildcard is spelled. The path is fixed anyway: it is
+ * registered with the provider, so it cannot vary per operation.
+ */
+export const OAUTH_SEGMENT = '_oauth';
+
+/** Segment of the OAuth2 redirect uri, under {@link OAUTH_SEGMENT}. */
+export const OAUTH_CALLBACK_SEGMENT = 'callback';
+
+/**
+ * Segment the same origin proxy of SPEC 14.5 answers on.
+ *
+ * REGISTERED ON EVERY MOUNT, INCLUDING THE ONES WHERE THE PROXY IS OFF, and the reason is that
+ * "off" has to be something a request can be told. A route that exists only when the proxy is
+ * enabled makes the two states indistinguishable from outside: a 404 is what a mount with no
+ * proxy answers and also what a mount whose proxy route failed to register answers. This one
+ * answers 403 with the reason, which is a fact about the deployment rather than about the url.
+ */
+export const PROXY_SEGMENT = '_proxy';
+
 /** Name of the parameter carrying an asset file name. */
 export const ASSET_PARAM = 'asset';
 
@@ -59,14 +82,28 @@ export type ReferenceRouteId =
   | 'search-index'
   | 'navigation'
   | 'health'
+  | 'oauth-callback'
+  | 'proxy'
   | 'schema'
   | 'node';
+
+/** How a route is reached. */
+export type ReferenceRouteMethod = 'get' | 'post';
 
 /** One registered route. */
 export interface ReferenceRoute {
   readonly id: ReferenceRouteId;
   /** Absolute path pattern, in the `:name` parameter dialect both adapters share. */
   readonly pattern: string;
+  /**
+   * The method it answers on.
+   *
+   * ONE ROUTE IS NOT A `GET` AND IT IS THE PROXY. Everything else here is a document addressed by
+   * its path, which is what made the method implicit until M2. The proxy takes a request in its
+   * body, so it is a `POST`, and the field exists rather than being inferred from the id because
+   * the registration loop reads it.
+   */
+  readonly method: ReferenceRouteMethod;
 }
 
 /**
@@ -116,16 +153,22 @@ export function referenceRoutes(basePath: string): readonly ReferenceRoute[] {
   const at = (suffix: string): string => `${basePath}${suffix}`;
 
   return [
-    { id: 'overview', pattern: basePath === '' ? '/' : basePath },
-    { id: 'overview', pattern: at('/') },
-    { id: 'openapi-json', pattern: at('/openapi.json') },
-    { id: 'openapi-yaml', pattern: at('/openapi.yaml') },
-    { id: 'asset', pattern: at(`/${ASSET_SEGMENT}/:${ASSET_PARAM}`) },
-    { id: 'search-index', pattern: at(`/${SEARCH_INDEX_SEGMENT}`) },
-    { id: 'navigation', pattern: at(`/${NAVIGATION_SEGMENT}/:${NAVIGATION_PARAM}`) },
-    { id: 'health', pattern: at(`/${HEALTH_SEGMENT}`) },
-    { id: 'schema', pattern: at(`/schema/:${SCHEMA_PARAM}`) },
-    { id: 'node', pattern: at(`/:${NODE_PARAM}`) },
+    { id: 'overview', pattern: basePath === '' ? '/' : basePath, method: 'get' },
+    { id: 'overview', pattern: at('/'), method: 'get' },
+    { id: 'openapi-json', pattern: at('/openapi.json'), method: 'get' },
+    { id: 'openapi-yaml', pattern: at('/openapi.yaml'), method: 'get' },
+    { id: 'asset', pattern: at(`/${ASSET_SEGMENT}/:${ASSET_PARAM}`), method: 'get' },
+    { id: 'search-index', pattern: at(`/${SEARCH_INDEX_SEGMENT}`), method: 'get' },
+    { id: 'navigation', pattern: at(`/${NAVIGATION_SEGMENT}/:${NAVIGATION_PARAM}`), method: 'get' },
+    { id: 'health', pattern: at(`/${HEALTH_SEGMENT}`), method: 'get' },
+    {
+      id: 'oauth-callback',
+      pattern: at(`/${OAUTH_SEGMENT}/${OAUTH_CALLBACK_SEGMENT}`),
+      method: 'get',
+    },
+    { id: 'proxy', pattern: at(`/${PROXY_SEGMENT}`), method: 'post' },
+    { id: 'schema', pattern: at(`/schema/:${SCHEMA_PARAM}`), method: 'get' },
+    { id: 'node', pattern: at(`/:${NODE_PARAM}`), method: 'get' },
   ];
 }
 

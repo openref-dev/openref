@@ -40,11 +40,13 @@ export interface DeferrableComponents {
   /**
    * The Health panel, which is on the overview page and on no other.
    *
-   * IT IS THE ONE ENTRY HERE THAT NEEDS NO JAVASCRIPT TO WORK. Its disclosure is `details` and
-   * `summary`, which the user agent opens by itself, so a reader who never loads this chunk
-   * loses nothing at all: the server's markup is the whole feature. What the deferral buys is
-   * that the panel of one page in a thousand is not in the bundle the other nine hundred and
-   * ninety nine download, which is what SPEC 20 caps.
+   * IT IS THE ONE ENTRY HERE THAT THE BROWSER DOES NOT FILL WITH THE FEATURE. Its disclosure is
+   * `details` and `summary`, which the user agent opens by itself, so the server's markup is the
+   * whole feature and there is nothing for a client render to add. The browser therefore fills
+   * this position with an element that adopts the section it was handed, and the report stays on
+   * the server: a component here would have to be given the findings, and giving them to it meant
+   * shipping every one of them a second time to redraw markup the reader was already reading.
+   * Recorded in SPEC 7.2 and 12 on 2026-08-12.
    */
   readonly healthPanel: Component;
 }

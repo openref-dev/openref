@@ -64,7 +64,7 @@ describe('referenceRoutes', () => {
     const last = routes[routes.length - 1];
 
     // Then
-    expect(last).toEqual({ id: 'node', pattern: '/docs/:nodeId' });
+    expect(last).toEqual({ id: 'node', pattern: '/docs/:nodeId', method: 'get' });
   });
 
   it('should put every static path before the parameter that would swallow it', () => {
@@ -99,6 +99,8 @@ describe('referenceRoutes', () => {
       '/docs/_search-index',
       '/docs/_navigation/:documentHash',
       '/docs/health',
+      '/docs/_oauth/callback',
+      '/docs/_proxy',
       '/docs/schema/:schemaId',
       '/docs/:nodeId',
     ]);

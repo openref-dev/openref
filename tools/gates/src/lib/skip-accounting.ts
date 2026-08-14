@@ -73,7 +73,7 @@ export const SKIP_REASONS: readonly SkipReason[] = [
   {
     id: 'artifact-absent',
     description: 'what the gate reads is produced by a build that has not run',
-    permitted: ['budgets', 'csp', 'theme-tokens', 'fixture-licenses'],
+    permitted: ['budgets', 'csp', 'browser-resolution', 'theme-tokens', 'fixture-licenses'],
     forced: [],
   },
 ];

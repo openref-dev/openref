@@ -1,0 +1,57 @@
+{
+  "name": "@openref/theme-telltale",
+  "version": "0.0.0",
+  "description": "OPENREF telltale theme, a level 2 theme written against the published contract",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "source": "./src/index.ts",
+  "exports": {
+    ".": {
+      "source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    },
+    "./tokens.css": "./dist/styles/tokens.css",
+    "./theme.css": "./dist/styles/theme.css",
+    "./styles/*": "./dist/styles/*",
+    "./fonts.css": "./fonts/fonts.css",
+    "./fonts/*": "./fonts/*",
+    "./entry": "./dist/entry/entry.js"
+  },
+  "files": [
+    "dist",
+    "fonts/**",
+    "THEME-BOUNDARY.md"
+  ],
+  "sideEffects": false,
+  "engines": {
+    "node": "^22.22.2 || ^24.15.0 || >=26.0.0"
+  },
+  "scripts": {
+    "build": "tsup"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "peerDependencies": {
+    "@openref/core": "workspace:*",
+    "@openref/vue": "workspace:*",
+    "vue": "^3.5.0"
+  },
+  "devDependencies": {
+    "@openref/core": "workspace:*",
+    "@openref/nest": "workspace:*",
+    "@openref/render": "workspace:*",
+    "@openref/runner": "workspace:*",
+    "@openref/search": "workspace:*",
+    "@openref/theme-kit": "workspace:*",
+    "@openref/vue": "workspace:*",
+    "tsup": "8.5.1",
+    "typescript": "5.9.3",
+    "vue": "3.5.41"
+  }
+}

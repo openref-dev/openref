@@ -14,7 +14,13 @@ import type { SearchHit } from '../state/application/ports/search.port';
  */
 export interface UseSearch {
   readonly query: Ref<string>;
-  /** Whether an index was supplied. A theme hides the search box when this is false. */
+  /**
+   * Whether an index was supplied. A theme hides the search box when this is false.
+   *
+   * False on every page the shipped reference serves until M3 wires the served index into the
+   * palette. A host that composes its own state and supplies the port gets a working search
+   * today; the reference this project ships supplies none.
+   */
   readonly available: boolean;
   readonly hits: ComputedRef<readonly SearchHit[]>;
   readonly hasQuery: ComputedRef<boolean>;

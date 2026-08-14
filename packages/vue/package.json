@@ -14,10 +14,17 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
       "require": "./dist/index.cjs"
+    },
+    "./runner": {
+      "source": "./src/runner.ts",
+      "types": "./dist/runner.d.ts",
+      "import": "./dist/runner.js",
+      "require": "./dist/runner.cjs"
     }
   },
   "files": [
-    "dist"
+    "dist",
+    "PUBLIC-API.md"
   ],
   "sideEffects": false,
   "engines": {

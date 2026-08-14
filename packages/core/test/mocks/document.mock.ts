@@ -98,7 +98,14 @@ export function createDocumentFixture(): IRDocument {
         file: 'src/orders.ts',
         line: 42,
       },
-      guards: [{ name: 'JwtAuthGuard', scope: 'route', confidence: 'derived', collector: 'guardsCollector' }],
+      guards: [
+        {
+          name: 'JwtAuthGuard',
+          scope: 'route',
+          confidence: 'derived',
+          collector: 'guardsCollector',
+        },
+      ],
       scopes: { value: ['orders:read'], confidence: 'declared', collector: 'scopesCollector' },
     },
   };
@@ -188,7 +195,6 @@ export function createDocumentFixture(): IRDocument {
             authorizationUrl: 'https://auth.example.com/authorize',
             tokenUrl: 'https://auth.example.com/token',
             scopes: { 'orders:read': 'Read orders', 'orders:write': 'Write orders' },
-            pkceRequired: true,
           },
         },
       },

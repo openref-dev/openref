@@ -11,7 +11,7 @@
  * state block, which is data rather than code and still carries the nonce.
  */
 
-import { ErrorCode, InvalidOptionsError } from '@openref/core';
+import { compareByCodePoint, ErrorCode, InvalidOptionsError } from '@openref/core';
 import type { RenderedPage } from '../../cache/application/ports/render-cache.port';
 import { APP_ROOT_ID } from '../../components/ReferenceApp';
 import { escapeHtml, escapeJsonForScript } from '../../shared/html';
@@ -51,6 +51,17 @@ export interface ShellOptions {
   readonly lang?: string;
   /** Forces a colour scheme through `data-oref-color-scheme` instead of the system one. */
   readonly colorScheme?: 'light' | 'dark';
+  /**
+   * Design token values of the theme in force, per SPEC 10.4's L0 surface. Consumed since T033.
+   *
+   * Written as one `style` element carrying `:root` declarations, under the response nonce,
+   * which is the one inline form a strict CSP can authorize. It comes after the stylesheet
+   * links, so a value stated here wins the cascade against the theme's own file, which is what
+   * a default that is also an override has to do. The boundary is the field's, stated in
+   * `@openref/vue`: one flat record, no cascade and no media query in it, so a theme that
+   * needs two colour modes ships a stylesheet and leaves this empty.
+   */
+  readonly tokens?: Readonly<Record<string, string>>;
 }
 
 /**
@@ -92,6 +103,67 @@ function nonceValue(nonce: string | undefined): string {
   return nonce === undefined ? '' : assertNonce(nonce);
 }
 
+/** Token names are `--oref-{group}-{name}`, the same shape `@openref/vue` validates. */
+const TOKEN_NAME = /^--oref-[a-z0-9]+(?:-[a-z0-9]+)*$/;
+
+/**
+ * What a token value may hold on its way into a style element.
+ *
+ * AN INJECTION GUARD AND NOT THE CONTRACT CHECK. `resolveTheme` validated the theme where it
+ * was resolved; this refuses the characters that would let a value close the element or open
+ * a block, because a style element cannot be escaped the way text can, only refused. Newlines
+ * are out with them: no CSS value this surface is for needs one, and a value that brings one
+ * is bringing structure, not style.
+ */
+const TOKEN_VALUE = /^[^<>{}\r\n]*$/;
+
+/**
+ * The theme's token values as one nonce carrying style element, or nothing.
+ *
+ * Sorted by code point, so the same record always produces the same bytes whatever order a
+ * host wrote it in, which is the same rule every other ordering in the document follows.
+ *
+ * @param tokens - Token values, possibly absent or empty
+ * @param nonce - Nonce for this response, or undefined
+ * @returns The element, or an empty string when there is nothing to declare
+ * @throws InvalidOptionsError when a name or a value could not be written safely
+ */
+function tokenStyleElement(
+  tokens: Readonly<Record<string, string>> | undefined,
+  nonce: string | undefined,
+): string {
+  const names = Object.keys(tokens ?? {}).sort(compareByCodePoint);
+  if (tokens === undefined || names.length === 0) return '';
+
+  const declarations = names
+    .map((name) => {
+      const value = tokens[name] ?? '';
+
+      if (!TOKEN_NAME.test(name)) {
+        throw new InvalidOptionsError(
+          `theme token "${name}" is not of the form --oref-{group}-{name}; refusing to write it into the document`,
+          ErrorCode.CONFIG_INVALID_OPTIONS,
+          undefined,
+          { token: name },
+        );
+      }
+
+      if (!TOKEN_VALUE.test(value)) {
+        throw new InvalidOptionsError(
+          `theme token "${name}" carries a value that cannot be written into a style element; refusing rather than escaping`,
+          ErrorCode.CONFIG_INVALID_OPTIONS,
+          undefined,
+          { token: name },
+        );
+      }
+
+      return `${name}:${value}`;
+    })
+    .join(';');
+
+  return `<style nonce="${nonceValue(nonce)}">:root{${declarations}}</style>`;
+}
+
 /**
  * Assembles the full HTML document for one response.
  *
@@ -112,6 +184,8 @@ export function renderHtmlDocument(page: RenderedPage, options: ShellOptions = {
     .map((href) => `<link rel="stylesheet" href="${escapeHtml(href)}">`)
     .join('');
 
+  const tokens = tokenStyleElement(options.tokens, nonce);
+
   const modules = (assets.modules ?? [])
     .map(
       (src) =>
@@ -131,6 +205,7 @@ export function renderHtmlDocument(page: RenderedPage, options: ShellOptions = {
     '<meta name="viewport" content="width=device-width, initial-scale=1">' +
     `<title>${escapeHtml(page.title)}</title>` +
     stylesheets +
+    tokens +
     '</head>' +
     '<body class="oref-body">' +
     `<div id="${APP_ROOT_ID}">${page.appHtml}</div>` +

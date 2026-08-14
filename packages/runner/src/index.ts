@@ -13,24 +13,52 @@ export const PACKAGE_NAME = '@openref/runner';
  */
 export const UPSTREAM_PACKAGES: readonly string[] = [CORE_PACKAGE];
 
+export { assertRequired, parameterKey, type RunnableParameter } from './request/domain/parameters';
+
 export {
-  assertRequired,
-  assertRunnable,
+  assertCellDefined,
   encodeValue,
-  parameterKey,
-  type RunnableParameter,
-} from './request/domain/parameters';
+  serializeParameter,
+  type RunnerValue,
+  type RunnerValueKind,
+  type SerializableParameter,
+  type SerializedParameter,
+} from './request/domain/serialize';
 
 export {
   buildRequest,
-  isJsonMediaType,
   joinUrl,
+  DEFAULT_BOUNDARY,
   type AuthContribution,
+  type OAuthFlowKind,
+  type RunnableOAuthFlow,
   type RequestInputs,
   type RequestPlan,
+  type RunnableBodyMediaType,
   type RunnableOperation,
+  type RunnableStream,
   type RunnableSecurityScheme,
 } from './request/domain/request-plan';
+
+export {
+  serializeBody,
+  formEncode,
+  payloadByteLength,
+  utf8Length,
+  isFormUrlencoded,
+  isJsonMediaType,
+  isMultipart,
+  isNdjsonMediaType,
+  isTextualMediaType,
+  DEFAULT_MAX_BODY_BYTES,
+  type BodyBytes,
+  type BodyEditor,
+  type BodySerializationOptions,
+  type RunnerBody,
+  type RunnerBodyField,
+  type RunnerFile,
+  type SerializedBody,
+} from './request/domain/body';
 
 export {
   applyCredentials,
@@ -40,6 +68,55 @@ export {
   type CredentialStorageMode,
   type KeyValueStorage,
 } from './auth/domain/credentials';
+
+export { base64Text, base64UrlBytes, base64UrlText } from './auth/domain/base64';
+
+export {
+  createPkceChallenge,
+  pkceChallengeFor,
+  randomToken,
+  PKCE_METHOD,
+  type PkceChallenge,
+  type RandomBytes,
+} from './auth/domain/pkce';
+
+export {
+  authorizationUrl,
+  clientCredentialsPlan,
+  codeExchangePlan,
+  deviceAuthorizationPlan,
+  devicePollPlan,
+  parseDeviceAuthorization,
+  parseTokenResponse,
+  passwordPlan,
+  readAuthorizationCode,
+  readImplicitToken,
+  refreshPlan,
+  REDIRECT_FLOWS,
+  type CallbackParams,
+  type DeviceAuthorization,
+  type OAuthClient,
+  type OAuthToken,
+  type PendingAuthorization,
+  type TokenFailureReason,
+  type TokenOutcome,
+} from './auth/domain/oauth';
+
+export {
+  discoverProvider,
+  discoveryPlan,
+  readDiscoveryDocument,
+  type DiscoveredProvider,
+} from './auth/domain/discovery';
+
+export {
+  OAuthSessionService,
+  PENDING_AUTHORIZATION_KEY,
+  type OAuthSessionOptions,
+  type RenewOutcome,
+  type SessionStatus,
+  type SignInOutcome,
+} from './auth/application/services/oauth-session.service';
 
 export type {
   IHttpTransport,
@@ -58,12 +135,52 @@ export {
 } from './send/infrastructure/adapters/fetch-transport.adapter';
 
 export {
+  ProxyHttpTransport,
+  type ProxyTransportOptions,
+} from './send/infrastructure/adapters/proxy-transport.adapter';
+
+export {
   createRunner,
   RequestRunner,
   type PrefilledCredentials,
   type RunHeader,
+  type RunNotice,
   type RunResult,
   type RunnerOptions,
   type RunnerSendInput,
   type RunnerVisibility,
 } from './send/application/services/runner.service';
+
+export type {
+  IStreamTransport,
+  StreamOpenResult,
+} from './stream/application/ports/stream-transport.port';
+
+export {
+  DEFAULT_MAX_ELEMENT_CHARS,
+  ElementTooLargeError,
+  StreamDecoder,
+  type StreamFormat,
+  type StreamFrame,
+} from './stream/domain/decoder';
+
+export { checkStreamItem, type StreamItemSchema } from './stream/domain/item-check';
+
+export {
+  DEFAULT_STREAM_IDLE_TIMEOUT_MS,
+  noStreamTransport,
+  runStream,
+  type StreamElement,
+  type StreamEnd,
+  type StreamEndReason,
+  type StreamHandle,
+  type StreamHandlers,
+  type StreamOpened,
+  type StreamRunContext,
+  type StreamRunOptions,
+} from './stream/application/services/stream.service';
+
+export {
+  FetchStreamTransport,
+  type FetchStreamTransportOptions,
+} from './stream/infrastructure/adapters/fetch-stream.adapter';

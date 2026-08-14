@@ -71,10 +71,27 @@ export const clientRunnerGate: Gate = {
 
       const initialSource = sourceOf(split.initial);
       const deferredSource = sourceOf(split.deferred);
-      const { missing, eager } = auditRunnerBinding({
-        initial: initialSource,
-        deferred: deferredSource,
-      });
+      // AN INLINED BUNDLE IS AUDITED FOR PRESENCE AND NOT FOR THE SPLIT, per its registry
+      // entry: one file by design means everything is in the first paint, the whole cost is
+      // bounded by its own budget, and reading the inlining as eagerness would fail the shape
+      // the artefact exists to have. The whole file stands on both sides so every presence
+      // marker is looked for where the audit expects it, and the eagerness half is set aside
+      // below with its reason printed rather than silently.
+      const whole = `${initialSource}\n${deferredSource}`;
+      const audited = auditRunnerBinding(
+        bundle.inlined === true
+          ? { initial: whole, deferred: whole }
+          : { initial: initialSource, deferred: deferredSource },
+      );
+      const missing = audited.missing;
+      const eager = bundle.inlined === true ? [] : audited.eager;
+
+      if (bundle.inlined === true) {
+        findings.push({
+          level: 'info',
+          message: `${bundle.label}: inlined by design, so the deferral audit does not apply; the whole cost is bounded by its own budget`,
+        });
+      }
 
       for (const marker of missing) {
         failed = true;

@@ -1,0 +1,199 @@
+/*
+ * telltale design tokens, per SPEC 10.1, STANDARDS 4.4 and ai-docs/design/CONTRACT.md.
+ *
+ * The 109 names of the core token set in both colour modes, plus six this theme adds for
+ * positions no other theme has. Values come from the design handoff filed at
+ * ai-docs/design/telltale/tokens.css; tokens.spec.ts holds this file to the contract and to the
+ * cascade, and contrast.spec.ts holds the ink to 4.5:1 on every surface it is used on.
+ *
+ * Four blocks, in this order and for this reason: the light values are the defaults, the system
+ * preference applies the dark values, an explicit attribute overrides both, and the reduced
+ * motion block comes last because it has to beat all three on equal specificity.
+ *
+ * THE DARK BLOCKS DECLARE ONLY WHAT CHANGES. A token declared light and not overridden has a
+ * value in dark mode, because that is what the cascade is for. The design contract requires all
+ * 109 to be defined in both modes and checks that on the resolved value, which is a stronger
+ * question than counting declarations here.
+ *
+ * THE SYSTEM PREFERENCE IS HONOURED WITHOUT AN ATTRIBUTE. The handoff wrote its dark values under
+ * the attribute alone and said so; a theme that shipped that would ignore a reader who has
+ * already told their operating system what they want. The attribute is data-oref-color-scheme
+ * rather than data-oref-theme, because the second name collides with the name of the theme.
+ *
+ * This is the one stylesheet of this theme where a literal colour, length or font stack is
+ * allowed. theme.css reads var(--oref-*), and a gate fails the build on a literal that escapes.
+ */
+
+:root,
+[data-oref-color-scheme='light'] {
+  color-scheme: light;
+
+  /* colour: surfaces and text */
+  --oref-color-bg: #e8ece8;
+  --oref-color-bg-sunken: #dfe4df;
+  --oref-color-surface: #ffffff;
+  --oref-color-surface-inset: #f4f7f4;
+  --oref-color-surface-code: #f0f4f0;
+  --oref-color-fg: #04120a;
+  --oref-color-fg-secondary: #3f5348;
+  --oref-color-fg-muted: #5b6d62;
+  --oref-color-fg-inverse: #ffffff;
+
+  /* colour: lines and accents */
+  --oref-color-line: #d3dad4;
+  --oref-color-line-edge: #b6c1b8;
+  --oref-color-line-strong: #8b9a8f;
+  --oref-color-accent-signal: #046b3a;
+  --oref-color-accent-spec: #046b3a;
+  --oref-color-accent-runtime: #046b3a;
+  --oref-color-accent-link: #00606e;
+  --oref-color-accent-bg: #e0f0e6;
+  --oref-color-accent-soft: #c4e4d1;
+
+  /* colour: methods */
+  --oref-color-method-get: #00606e;
+  --oref-color-method-post: #046b3a;
+  --oref-color-method-put: #8a5600;
+  --oref-color-method-patch: #57379f;
+  --oref-color-method-delete: #ab2415;
+  --oref-color-method-sse: #00595e;
+  --oref-color-method-event: #3f5348;
+
+  /* typography */
+  --oref-font-family-mono: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+  --oref-font-family-sans: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+  --oref-font-family-display: 'Martian Mono', 'JetBrains Mono', ui-monospace, monospace;
+  --oref-font-weight-regular: 400;
+  --oref-font-weight-medium: 500;
+  --oref-font-weight-bold: 700;
+  --oref-font-size-100: 10px;
+  --oref-font-size-200: 11px;
+  --oref-font-size-300: 12px;
+  --oref-font-size-400: 13px;
+  --oref-font-size-500: 14px;
+  --oref-font-size-600: 18px;
+  --oref-font-size-700: 22px;
+  --oref-font-size-800: 31px;
+  --oref-font-size-900: 52px;
+  --oref-font-leading-row: 1.35;
+  --oref-font-leading-tight: 1.2;
+  --oref-font-leading-data: 1.45;
+  --oref-font-leading-prose: 1.65;
+  --oref-font-tracking-wide: 0.14em;
+  --oref-font-tracking-mid: 0.08em;
+  --oref-font-tracking-code: 0.04em;
+  --oref-font-tracking-head: -0.01em;
+
+  /* spacing */
+  --oref-space-100: 2px;
+  --oref-space-200: 4px;
+  --oref-space-300: 6px;
+  --oref-space-400: 8px;
+  --oref-space-500: 12px;
+  --oref-space-600: 16px;
+  --oref-space-700: 22px;
+  --oref-space-800: 30px;
+  --oref-space-900: 44px;
+  --oref-space-1000: 60px;
+
+  /* radii, borders, shadows, focus */
+  --oref-radius-none: 0px;
+  --oref-radius-sm: 0px;
+  --oref-radius-md: 0px;
+  --oref-radius-lg: 0px;
+  --oref-radius-pill: 0px;
+  --oref-border-hair: 1px;
+  --oref-border-mark: 3px;
+  --oref-shadow-panel: none;
+  --oref-shadow-overlay: none;
+  --oref-focus-color: #046b3a;
+  --oref-focus-width: 2px;
+  --oref-focus-offset: 0px;
+
+  /* layout */
+  --oref-layout-rail: 252px;
+  --oref-layout-index: 210px;
+  --oref-layout-row: 21px;
+  --oref-layout-status: 24px;
+  --oref-layout-measure: 96ch;
+
+  /* provenance: the three confidence levels */
+  --oref-prov-declared-fg: #00606e;
+  --oref-prov-declared-bg: #e0f0f2;
+  --oref-prov-declared-border-style: solid;
+  --oref-prov-declared-code: 'DCL';
+  --oref-prov-derived-fg: #046b3a;
+  --oref-prov-derived-bg: #e0f0e6;
+  --oref-prov-derived-border-style: dashed;
+  --oref-prov-derived-code: 'DRV';
+  --oref-prov-inferred-fg: #8a5600;
+  --oref-prov-inferred-bg: #f9eeda;
+  --oref-prov-inferred-border-style: dotted;
+  --oref-prov-inferred-code: 'INF';
+
+  /* state: response codes and results */
+  --oref-state-ok-fg: #046b3a;
+  --oref-state-ok-bg: #e0f0e6;
+  --oref-state-warn-fg: #8a5600;
+  --oref-state-warn-bg: #f9eeda;
+  --oref-state-crit-fg: #ab2415;
+  --oref-state-crit-bg: #fae6e3;
+  --oref-state-info-fg: #00606e;
+  --oref-state-info-bg: #e0f0f2;
+  --oref-state-muted-fg: #607367;
+  --oref-state-muted-bg: #eaeeea;
+
+  /* drift: the three severities */
+  --oref-drift-crit-fg: #ab2415;
+  --oref-drift-crit-bg: #fae6e3;
+  --oref-drift-crit-border-style: solid;
+  --oref-drift-crit-border-width: 2px;
+  --oref-drift-warn-fg: #8a5600;
+  --oref-drift-warn-bg: #f9eeda;
+  --oref-drift-warn-border-style: dashed;
+  --oref-drift-warn-border-width: 1px;
+  --oref-drift-note-fg: #5b6d62;
+  --oref-drift-note-bg: #eaeeea;
+  --oref-drift-note-border-style: dotted;
+  --oref-drift-note-border-width: 1px;
+
+  /* motion: two durations, the zero and the curve */
+  --oref-motion-duration-fast: 80ms;
+  --oref-motion-duration-base: 160ms;
+  --oref-motion-duration-none: 0s;
+  --oref-motion-easing-standard: cubic-bezier(0.2, 0, 0.13, 1);
+
+  /* the scrim behind a modal layer */
+  --oref-color-scrim: rgba(4, 18, 10, 0.44);
+  --oref-scrim-blur: 0px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-oref-color-scheme='light']) {
+    color-scheme: dark;
+  }
+}
+
+[data-oref-color-scheme='dark'] {
+  color-scheme: dark;
+}
+
+/*
+ * Reduced motion. Both durations collapse onto the zero token, in the token layer rather than in
+ * each theme's own stylesheet: a theme that answers prefers-reduced-motion where nothing can read
+ * it is a theme nobody can check. The easing curve is left alone, since a transition of zero
+ * duration has no curve to travel.
+ *
+ * It repeats every selector it has to beat. Coming last only wins on equal specificity, and the
+ * dark block is two selectors against :root's one, so a reader who wants a dark interface and no
+ * animation would have kept the animation.
+ */
+@media (prefers-reduced-motion: reduce) {
+  :root,
+  :root:not([data-oref-color-scheme='light']),
+  [data-oref-color-scheme='light'],
+  [data-oref-color-scheme='dark'] {
+    --oref-motion-duration-fast: var(--oref-motion-duration-none);
+    --oref-motion-duration-base: var(--oref-motion-duration-none);
+  }
+}

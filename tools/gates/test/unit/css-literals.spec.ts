@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { THEME_STYLE_ROOTS, THEME_TOKEN_SOURCE } from '../../src/config';
+import { THEME_STYLE_ROOTS, THEME_TOKEN_SOURCES } from '../../src/config';
 import { findCssLiterals, findTokenValueLiterals } from '../../src/lib/css-literals';
 import { collectFiles } from '../../src/lib/walk';
 
@@ -255,7 +255,7 @@ describe('the shipped stylesheets', () => {
     // Given
     const stylesheets = THEME_STYLE_ROOTS.flatMap((root) =>
       collectFiles(join(REPO_ROOT, root), ['.css'], REPO_ROOT),
-    ).filter((file) => file !== THEME_TOKEN_SOURCE);
+    ).filter((file) => !THEME_TOKEN_SOURCES.includes(file));
 
     // When
     const offending = stylesheets.flatMap((file) =>
@@ -311,16 +311,22 @@ describe('the shipped stylesheets', () => {
     expect(found[0]?.line).toBe(6);
   });
 
-  it('should find the values it exempts in the generated token file, so the exemption is real', () => {
-    // Given, if the exempt file held no literals the exemption would be meaningless and the
-    // gate would be passing for the wrong reason.
-    const source = readFileSync(join(REPO_ROOT, THEME_TOKEN_SOURCE), 'utf8');
+  it('should find the values it exempts in every token file, so each exemption is real', () => {
+    // Given, an exempt file holding no literals would make its exemption meaningless and the gate
+    // would be passing for the wrong reason. It is asked of every exempt file rather than of the
+    // first, since T032 made the list plural: an exemption nobody checks is how a second theme
+    // would have acquired a place to hide values.
+    for (const file of THEME_TOKEN_SOURCES) {
+      const source = readFileSync(join(REPO_ROOT, file), 'utf8');
 
-    // When
-    const declared = [...source.matchAll(/--oref-color-[a-z0-9-]+:\s*#[0-9a-f]{3,8}/g)];
+      // When
+      const declared = [...source.matchAll(/--oref-color-[a-z0-9-]+:\s*#[0-9a-f]{3,8}/g)];
 
-    // Then
-    expect(declared.length).toBeGreaterThan(10);
+      // Then
+      expect(declared.length, file).toBeGreaterThan(10);
+    }
+
+    expect(THEME_TOKEN_SOURCES.length).toBe(2);
   });
 });
 
@@ -488,22 +494,24 @@ describe('findTokenValueLiterals', () => {
     expect(found[0]?.definedAtLine).toBe(5);
   });
 
-  it('should stay silent on the token stylesheet this package ships', () => {
-    // Given, the check earns its place only if the real file passes it.
-    const source = readFileSync(join(REPO_ROOT, THEME_TOKEN_SOURCE), 'utf8');
+  it('should stay silent on every token stylesheet a shipped theme carries', () => {
+    // Given, the check earns its place only if the real files pass it, and there are two of them.
+    for (const file of THEME_TOKEN_SOURCES) {
+      const source = readFileSync(join(REPO_ROOT, file), 'utf8');
 
-    // When
-    const found = findTokenValueLiterals(source).map(
-      (literal) => `${String(literal.line)} ${literal.property}: ${literal.literal}`,
-    );
+      // When
+      const found = findTokenValueLiterals(source).map(
+        (literal) => `${file}:${String(literal.line)} ${literal.property}: ${literal.literal}`,
+      );
 
-    // Then
-    expect(found).toEqual([]);
+      // Then
+      expect(found).toEqual([]);
+    }
   });
 
   it('should find something to say about the shipped file when a copy is planted in it', () => {
     // Given, silence above must be the file being right, not the scan finding nothing anywhere.
-    const source = readFileSync(join(REPO_ROOT, THEME_TOKEN_SOURCE), 'utf8');
+    const source = readFileSync(join(REPO_ROOT, THEME_TOKEN_SOURCES[0] ?? ''), 'utf8');
     const planted = source.replace('var(--oref-color-line-edge) 0 1px', '#bfc9d2 0 1px');
 
     // When

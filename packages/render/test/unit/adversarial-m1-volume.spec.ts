@@ -8,9 +8,15 @@ import { buildHealthModel } from '../../src/page/domain/runtime-model';
  * T025, the two extremes SPEC 7.2 and T023 were built for, measured rather than reasoned about.
  *
  * THE PANEL WAS BUILT FOR FOUR HUNDRED FINDINGS AND THIS IS WHERE THAT CLAIM IS CHECKED. The
- * finding is not that it becomes unreadable, because it does not: any number of findings is still
- * at most ten rules. It is that every one of them is serialized twice into a page whose visible
- * content is those ten rows closed.
+ * finding was not that it becomes unreadable, because it does not: any number of findings is
+ * still at most ten rules. It was that every one of them was serialized twice into a page whose
+ * visible content is those ten rows closed.
+ *
+ * THE SECOND COPY IS GONE AND THIS FILE IS WHERE IT STAYS GONE. F43 is fixed by the panel
+ * ceasing to be a client component: it has no state and no handler, so the state block carries
+ * `healthRendered` and the markup carries the findings. What remains is the markup, and the
+ * number below is what it costs, asserted rather than described so that a return of the copy is
+ * a red build.
  */
 
 /** A document of the shape a real application produced: 73 operations, findings in the hundreds. */
@@ -69,29 +75,50 @@ describe('T025 attack: an application where nearly every operation drifts', () =
     // Then a reader scans four lines and no group is truncated, which is what T023 promised
     expect(built.health?.drift.length).toBeGreaterThan(500);
     expect(model?.rules).toHaveLength(4);
-    expect(
-      model?.rules.reduce((total, rule) => total + rule.findings.length, 0),
-    ).toBe(built.health?.drift.length);
+    expect(model?.rules.reduce((total, rule) => total + rule.findings.length, 0)).toBe(
+      built.health?.drift.length,
+    );
   });
 
-  it('should show that every finding is serialized twice into the overview page', async () => {
-    // Given the same document, rendered as a reader receives it. THIS IS THE FINDING RATHER THAN
-    // AN ASSERTION ABOUT A LIMIT: the findings are in the SSR markup, inside a `details` nobody has
-    // opened, and again in the state JSON so the client can hydrate the same closed disclosure.
+  it('should serialize every finding once, as the markup a reader is looking at', async () => {
+    // Given the same document, rendered as a reader receives it
     const built = document(false);
 
     // When
     const page = await renderPage(built);
 
-    // Then both copies are there, which is the shape SPEC 7.2 records as accepted for now
+    // Then the findings are in the markup, and the state block says only that a panel is there.
+    // The state block used to carry all 578 of them so a client render could rebuild markup that
+    // was already on the page, and there is no client render: the disclosure is `details`.
     const first = built.health?.drift[0]?.message ?? '';
     expect(first).not.toBe('');
     expect(page.appHtml).toContain(first);
-    expect(page.stateJson).toContain(first);
+    expect(page.stateJson).not.toContain(first);
+    expect(page.stateJson).toContain('"healthRendered":true');
+    expect(page.stateJson).toContain('"health":null');
 
-    // And the page is several times the SPEC 20 served-document ceiling, which is the cost
-    const bytes = Buffer.byteLength(page.appHtml, 'utf8') + Buffer.byteLength(page.stateJson, 'utf8');
-    expect(bytes).toBeGreaterThan(300_000);
+    // And the state block of the overview page of a 578 finding document is under a kilobyte,
+    // where it was 163,738 bytes. A single finding coming back reddens this.
+    expect(Buffer.byteLength(page.stateJson, 'utf8')).toBeLessThan(1024);
+  });
+
+  it('should still cost what the markup costs, which is the number the maintainer decides on', async () => {
+    // Given the same document. THIS ASSERTS THE REMAINING COST RATHER THAN A LIMIT THAT WAS MET:
+    // 578 findings are 217 KB of markup inside four disclosures a reader has not opened, against
+    // the SPEC 20 served-document ceiling of 72 KB. That ceiling is stated for the 1000 node
+    // fixture and not for this document, so the comparison is an order of magnitude and not a
+    // failed gate; the decision about whether a closed group ships its contents is SPEC 7.2's.
+    const built = document(false);
+
+    // When
+    const page = await renderPage(built);
+
+    // Then, and the band is wide enough to survive ordinary wording changes and narrow enough
+    // that halving or doubling the markup reddens it
+    const bytes =
+      Buffer.byteLength(page.appHtml, 'utf8') + Buffer.byteLength(page.stateJson, 'utf8');
+    expect(bytes).toBeGreaterThan(190_000);
+    expect(bytes).toBeLessThan(240_000);
   });
 });
 
@@ -112,9 +139,10 @@ describe('T025 attack: an application with nothing left to report', () => {
     expect(rules[0]?.findings[0]?.message).toContain('the generator produced');
     expect(rules[0]?.findings[0]?.sides).toContain('OpenAPI: Controller0_list');
 
-    // And the page a reader gets is a seventh of the drifting one
+    // And the page a reader gets is a sixth of the drifting one
     const page = await renderPage(built);
-    const bytes = Buffer.byteLength(page.appHtml, 'utf8') + Buffer.byteLength(page.stateJson, 'utf8');
-    expect(bytes).toBeLessThan(100_000);
+    const bytes =
+      Buffer.byteLength(page.appHtml, 'utf8') + Buffer.byteLength(page.stateJson, 'utf8');
+    expect(bytes).toBeLessThan(50_000);
   });
 });

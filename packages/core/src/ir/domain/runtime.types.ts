@@ -106,6 +106,16 @@ export interface IRStreaming {
   readonly transport: IRStreamTransport;
   readonly itemSchema?: IRSchemaSlot;
   readonly heartbeatMs?: number;
+  /**
+   * The value the server sends to say the stream is over, such as `[DONE]`.
+   *
+   * DECLARED AND NEVER GUESSED, like `itemSchema` beside it. A terminator is a convention between
+   * one API and its clients, and a console that inferred one would end a stream early on an
+   * element that happened to match. It arrives from `@ApiStream({ terminator })` and from nowhere
+   * else. Added at T030: the decorator accepted the field from M1 and nothing carried it here,
+   * which is the declared but never filled class of SPEC 0 in its other direction.
+   */
+  readonly terminator?: string;
 }
 
 /** Drift rules, per SPEC 7.1. */

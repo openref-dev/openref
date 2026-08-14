@@ -144,3 +144,53 @@ describe('renderHtmlDocument', () => {
     expect(/[\s'"`;{(]style\s*=/.test(html)).toBe(false);
   });
 });
+
+describe('the token style element of SPEC 10.4, consumed since T033', () => {
+  it('should write the tokens as one nonce carrying style element after the links', () => {
+    // Given
+    const html = renderHtmlDocument(page(), {
+      nonce: 'r4nd0mNONCEvalue',
+      assets: { stylesheets: ['/assets/theme.css'] },
+      tokens: { '--oref-color-accent': '#ff5500', '--oref-radius-card': '4px' },
+    });
+
+    // When
+    const style = /<style nonce="r4nd0mNONCEvalue">([^<]*)<\/style>/.exec(html);
+
+    // Then, sorted by code point whatever order the host wrote, and after the link so the
+    // explicit value wins the cascade
+    expect(style?.[1]).toBe(':root{--oref-color-accent:#ff5500;--oref-radius-card:4px}');
+    expect(html.indexOf('<style')).toBeGreaterThan(html.indexOf('theme.css'));
+  });
+
+  it('should write no element at all for an absent or empty record', () => {
+    // Given
+    const bare = renderHtmlDocument(page(), {});
+    const empty = renderHtmlDocument(page(), { tokens: {} });
+
+    // Then
+    expect(bare).not.toContain('<style');
+    expect(empty).not.toContain('<style');
+  });
+
+  it('should refuse a token name outside the contract shape rather than write it', () => {
+    // Given
+    const write = (): string => renderHtmlDocument(page(), { tokens: { 'color-accent': '#fff' } });
+
+    // Then
+    expect(write).toThrow(OpenRefError);
+    expect(write).toThrow(/--oref-\{group\}-\{name\}/);
+  });
+
+  it('should refuse a value that could close the element, rather than escape it', () => {
+    // Given, a style element cannot be escaped the way text can, only refused
+    const write = (): string =>
+      renderHtmlDocument(page(), {
+        tokens: { '--oref-color-fg': '}</style><script>alert(1)</script>' },
+      });
+
+    // Then
+    expect(write).toThrow(OpenRefError);
+    expect(write).toThrow(/refusing rather than escaping/);
+  });
+});

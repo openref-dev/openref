@@ -28,6 +28,19 @@ import type { AssetSource } from '../../domain/asset-catalog';
 /** Resolver used to find a file inside an installed package. */
 const requireFrom = createRequire(import.meta.url);
 
+/**
+ * The same resolver, anchored at the host application instead of at this package.
+ *
+ * TWO ANCHORS BECAUSE THE SPECIFIERS COME FROM TWO PLACES. The defaults this package names,
+ * `@openref/theme`'s files and its own client bundle, are its own dependencies and resolve
+ * from here. What a host names, its `stylesheets` list and since T033 its `theme.bundle`, is
+ * the HOST's dependency: under an isolating package layout it is not reachable from this
+ * package's anchor at all, which the theme selection browser case found on its first boot.
+ * The working directory is the conventional anchor for what the process's own application
+ * installed.
+ */
+const requireFromHost = createRequire(join(process.cwd(), 'package.json'));
+
 /** Files of the default theme a page loads, in the order they must be linked. */
 export const DEFAULT_THEME_STYLESHEETS: readonly string[] = [
   '@openref/theme/fonts.css',
@@ -72,13 +85,17 @@ function readAsset(path: string, specifier: string): Uint8Array {
 export function resolveAssetPath(specifier: string): string {
   try {
     return requireFrom.resolve(specifier);
-  } catch (cause) {
-    throw new InvalidOptionsError(
-      `"${specifier}" could not be resolved; is the package installed?`,
-      ErrorCode.CONFIG_INVALID_OPTIONS,
-      cause instanceof Error ? cause : undefined,
-      { specifier },
-    );
+  } catch {
+    try {
+      return requireFromHost.resolve(specifier);
+    } catch (cause) {
+      throw new InvalidOptionsError(
+        `"${specifier}" could not be resolved from this package or from the application; is the package installed?`,
+        ErrorCode.CONFIG_INVALID_OPTIONS,
+        cause instanceof Error ? cause : undefined,
+        { specifier },
+      );
+    }
   }
 }
 

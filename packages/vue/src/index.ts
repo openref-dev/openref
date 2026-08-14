@@ -55,15 +55,60 @@ export type { ISearchPort, SearchHit, SearchHitKind } from './state/application/
 
 export type {
   IRunnerPort,
+  RunnerBody,
+  RunnerBodyEditor,
+  RunnerBodyField,
+  RunnerBodyFieldView,
+  RunnerBodyMediaTypeView,
+  RunnerDeviceAuthorization,
+  RunnerFile,
+  RunnerNotice,
+  RunnerOAuthClient,
+  RunnerOAuthFlowKind,
+  RunnerOAuthFlowView,
   RunnerOperationView,
   RunnerParameterView,
   RunnerResult,
   RunnerResultHeader,
   RunnerSecuritySchemeView,
   RunnerSendInput,
+  RunnerSessionStatus,
+  RunnerSignInOutcome,
+  RunnerStreamElement,
+  RunnerStreamEnd,
+  RunnerStreamEndReason,
+  RunnerStreamHandle,
+  RunnerStreamHandlers,
+  RunnerStreamView,
+  RunnerValue,
+  RunnerValueKind,
+  StreamItemSchemaView,
 } from './runner/application/ports/runner.port';
 export { provideRunner, RUNNER_KEY, useRunnerPort } from './runner/api/context';
 export { runnerOperationOf } from './runner/domain/runner-operation';
+
+export type {
+  CodeSampleModel,
+  DriftModel,
+  HealthCheckModel,
+  HealthModel,
+  HealthRuleModel,
+  MediaTypeModel,
+  NavEntryModel,
+  NodeHeaderModel,
+  NodeModel,
+  PageKind,
+  PageModel,
+  PaletteHitModel,
+  ParameterModel,
+  ResponseModel,
+  RuntimeModel,
+  RuntimeRowKind,
+  RuntimeRowModel,
+  RuntimeValueModel,
+  SchemaPageModel,
+  SecurityModel,
+} from './page/domain/page-model.types';
 
 export { SLOT_NAMES } from './slots/domain/slot-props.types';
 export type {
@@ -72,17 +117,14 @@ export type {
   SlotProps,
   SlotPropsMap,
 } from './slots/domain/slot-props.types';
-export type {
-  CodeSampleView,
-  ColorScheme,
-  ColorSchemePreference,
-  StateNoticeKind,
-} from './slots/domain/slot-value.types';
+export type { StateNoticeKind, StreamCounts } from './slots/domain/slot-value.types';
+export type { SchemaPayloadMap } from './slots/domain/slot-props.types';
 export { createSlotRegistry } from './slots/domain/slot-registry';
 export type { SlotRegistry } from './slots/domain/slot-registry';
+export { provideSlots, SLOT_REGISTRY_KEY, useSlotRegistry } from './slots/api/context';
 
 export { defineTheme } from './theme/api/define-theme';
-export { DEFAULT_THEME_NAME, resolveTheme } from './theme/domain/theme';
+export { DEFAULT_THEME_NAME, resolveSlots, resolveTheme } from './theme/domain/theme';
 export type {
   ResolvedTheme,
   ThemeAssets,
@@ -100,8 +142,6 @@ export { useNode } from './composables/useNode';
 export type { UseNode } from './composables/useNode';
 export { useOperation } from './composables/useOperation';
 export type { UseOperation } from './composables/useOperation';
-export { useRunner, useRunnerFor } from './composables/useRunner';
-export type { UseRunner, UseRunnerSendArgs } from './composables/useRunner';
 export { useRuntime } from './composables/useRuntime';
 export type { UseRuntime } from './composables/useRuntime';
 export { useSchemaView } from './composables/useSchemaView';

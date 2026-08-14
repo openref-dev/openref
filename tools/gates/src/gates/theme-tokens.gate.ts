@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { THEME_STYLE_ROOTS, THEME_TOKEN_SOURCE } from '../config.js';
+import { THEME_STYLE_ROOTS, THEME_TOKEN_SOURCES } from '../config.js';
 import { findCssLiterals, findTokenValueLiterals } from '../lib/css-literals.js';
 import { collectFiles } from '../lib/walk.js';
 import type { Gate, GateFinding, GateResult } from '../types.js';
@@ -39,7 +39,7 @@ export const themeTokensGate: Gate = {
       )) {
         const css = readFileSync(join(context.repoRoot, relativePath), 'utf8');
 
-        if (relativePath === THEME_TOKEN_SOURCE) {
+        if (THEME_TOKEN_SOURCES.includes(relativePath)) {
           scanned += 1;
 
           for (const literal of findTokenValueLiterals(css)) {
@@ -83,7 +83,7 @@ export const themeTokensGate: Gate = {
     if (!failed) {
       findings.push({
         level: 'info',
-        message: `${String(scanned)} stylesheet(s) read only tokens; ${THEME_TOKEN_SOURCE} is the one place values are defined, and composes rather than repeats them`,
+        message: `${String(scanned)} stylesheet(s) read only tokens; ${THEME_TOKEN_SOURCES.join(' and ')} are where values are defined, one per shipped theme, and they compose rather than repeat them`,
       });
     }
 

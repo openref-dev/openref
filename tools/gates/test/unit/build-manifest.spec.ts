@@ -9,10 +9,14 @@ import {
 } from '../../src/config';
 import { aiDocsPresent } from '../../src/lib/ai-docs';
 import {
+  checkAmendmentSections,
   checkBuildManifest,
+  checkOwnedEntries,
   checkRequiredDocs,
+  parseAmendmentSections,
   parseContents,
   parseMilestones,
+  parseOwnedEntries,
   planTaskIds,
   splitLines,
 } from '../../src/lib/build-manifest';
@@ -417,4 +421,343 @@ describe('planTaskIds', () => {
       expect(ids).toHaveLength(new Set(ids).size);
     },
   );
+});
+
+/**
+ * The check that a task cannot be ticked over work addressed to it, SPEC 0's ninth class.
+ *
+ * THE CASE THAT PRODUCED IT IS THE FIRST ONE BELOW, WRITTEN AS IT HAPPENED. A question about a
+ * NUL byte was filed against `T025`, `T025` ticked, no gate was built, and a third file acquired
+ * the same defect. Nothing connected the two boxes, so nothing could have gone red.
+ */
+describe('parseAmendmentSections', () => {
+  it('should read a per task section with its box, its title and its line', () => {
+    // Given
+    const text = ['# Amendments', '', '### [ ] `T025` The NUL byte question'].join('\n');
+
+    // When
+    const sections = parseAmendmentSections(splitLines(text));
+
+    // Then
+    expect(sections).toEqual([
+      { taskId: 'T025', done: false, title: 'The NUL byte question', line: 3 },
+    ]);
+  });
+
+  it('should take a retrofit and a task with no number for neither, since each owns its own work', () => {
+    // Given, a retrofit stays open by design while the task it reopens keeps its original tick,
+    // which is this file's own protocol. Reading one as a per task section would make the
+    // mechanism contradict the document it enforces.
+    const text = [
+      '### [ ] `T005-R1` A retrofit',
+      '### [ ] `TX-SLOTWIRE` A task with no number yet',
+      'A sentence naming `T025` in prose',
+    ].join('\n');
+
+    // When
+    const sections = parseAmendmentSections(splitLines(text));
+
+    // Then
+    expect(sections).toEqual([]);
+  });
+});
+
+describe('checkAmendmentSections', () => {
+  const tasks = parseContents(splitLines(buildFixture()));
+
+  it('should fail a task that is ticked while a section addressed to it is open', () => {
+    // Given, T001 is [x] in the fixture's CONTENTS
+    const sections = parseAmendmentSections(
+      splitLines('### [ ] `T001` Whether any gate scans the repository as text'),
+    );
+
+    // When
+    const issues = checkAmendmentSections(sections, tasks);
+
+    // Then
+    expect(issues).toHaveLength(1);
+    expect(issues[0]?.rule).toBe('amendment-open-on-closed-task');
+    expect(issues[0]?.message).toContain('T001');
+    expect(issues[0]?.message).toContain('Whether any gate scans the repository as text');
+  });
+
+  it('should say all three ways out, because one of them is unticking the task', () => {
+    // Given, the wrong way out is deleting the section, and a message that named only the fix
+    // would leave a session to invent the other two
+    const sections = parseAmendmentSections(splitLines('### [ ] `T001` An open question'));
+
+    // When
+    const issues = checkAmendmentSections(sections, tasks);
+
+    // Then
+    expect(issues[0]?.message).toContain('untick T001');
+    expect(issues[0]?.message).toContain('retrofit');
+  });
+
+  it('should pass a section that is open against a task that is not ticked', () => {
+    // Given, T002 is [ ] in the fixture. This is the ordinary state of scheduled work and it is
+    // what the check must not fire on, or every task with an amendment would start red.
+    const sections = parseAmendmentSections(splitLines('### [ ] `T002` Additional clauses'));
+
+    // When
+    const issues = checkAmendmentSections(sections, tasks);
+
+    // Then
+    expect(issues).toEqual([]);
+  });
+
+  it('should pass a section that was answered before its task was ticked', () => {
+    // Given, both boxes ticked, which is the state the mechanism exists to produce
+    const sections = parseAmendmentSections(splitLines('### [x] `T001` Answered and ticked'));
+
+    // When
+    const issues = checkAmendmentSections(sections, tasks);
+
+    // Then
+    expect(issues).toEqual([]);
+  });
+
+  it('should fail a section addressed to a task the plan does not carry', () => {
+    // Given, the reverse direction. A section addressed to nothing is read by nobody and is
+    // indistinguishable from a section that was never written, which is the same reason every
+    // other list in this repository is checked both ways.
+    const sections = parseAmendmentSections(splitLines('### [ ] `T404` Addressed to nothing'));
+
+    // When
+    const issues = checkAmendmentSections(sections, tasks);
+
+    // Then
+    expect(issues).toHaveLength(1);
+    expect(issues[0]?.rule).toBe('amendment-unknown-task');
+    expect(issues[0]?.message).toContain('T404');
+  });
+
+  it('should report every offending section rather than stopping at the first', () => {
+    // Given, four stood open against ticked tasks on the day this was written, and a check that
+    // named one of them would have been read as a list of one
+    const sections = parseAmendmentSections(
+      splitLines(
+        ['### [ ] `T001` First', '### [ ] `T001` Second', '### [ ] `T404` Third'].join('\n'),
+      ),
+    );
+
+    // When
+    const issues = checkAmendmentSections(sections, tasks);
+
+    // Then
+    expect(issues).toHaveLength(3);
+  });
+});
+
+describe('parseOwnedEntries', () => {
+  it('should read a retrofit and a TX entry with the milestone line each body declares', () => {
+    // Given
+    const text = [
+      '## RETROFIT',
+      '',
+      '### [ ] `T005-R1` The second element shows what it is for',
+      '',
+      '**Milestone:** M2. Set on filing.',
+      '',
+      '### [x] `TX-SLOTWIRE` The page asks the registry',
+      '',
+      '**Milestone:** M1.',
+    ].join('\n');
+
+    // When
+    const entries = parseOwnedEntries(splitLines(text));
+
+    // Then
+    expect(entries).toEqual([
+      {
+        id: 'T005-R1',
+        done: false,
+        title: 'The second element shows what it is for',
+        line: 3,
+        milestone: 'M2',
+      },
+      {
+        id: 'TX-SLOTWIRE',
+        done: true,
+        title: 'The page asks the registry',
+        line: 7,
+        milestone: 'M1',
+      },
+    ]);
+  });
+
+  it('should not lend one entry the milestone of the next, since a borrowed expiry expires nothing', () => {
+    // Given, the first entry declares no milestone and the second does
+    const text = [
+      '### [ ] `TX-SERVED` One quantity or two',
+      'Prose that says owner M1 without a milestone line.',
+      '### [ ] `TX-CLOCK` A threshold names its machine',
+      '**Milestone:** M3.',
+    ].join('\n');
+
+    // When
+    const entries = parseOwnedEntries(splitLines(text));
+
+    // Then
+    expect(entries[0]?.milestone).toBeUndefined();
+    expect(entries[1]?.milestone).toBe('M3');
+  });
+
+  it('should end an entry body at the next heading, so a later section cannot supply the line', () => {
+    // Given, a per task section between the entry and a milestone line
+    const text = [
+      '### [ ] `TX-VIS` The routes behind a guard',
+      '',
+      '### [ ] `T033` A theme cannot be selected',
+      '',
+      '**Milestone:** M9. This belongs to nothing.',
+    ].join('\n');
+
+    // When
+    const entries = parseOwnedEntries(splitLines(text));
+
+    // Then
+    expect(entries).toHaveLength(1);
+    expect(entries[0]?.milestone).toBeUndefined();
+  });
+
+  it('should take the first milestone line of a body, so a second cannot quietly loosen it', () => {
+    // Given
+    const text = [
+      '### [ ] `TX-FIX` The source rewriter',
+      '**Milestone:** M3.',
+      '**Milestone:** M7.',
+    ].join('\n');
+
+    // When
+    const entries = parseOwnedEntries(splitLines(text));
+
+    // Then
+    expect(entries[0]?.milestone).toBe('M3');
+  });
+
+  it('should read nothing from per task sections and prose', () => {
+    // Given, the material of checkAmendmentSections rather than of this check
+    const text = ['### [ ] `T033` A per task section', 'A sentence naming `TX-VIS` in prose.'].join(
+      '\n',
+    );
+
+    // When
+    const entries = parseOwnedEntries(splitLines(text));
+
+    // Then
+    expect(entries).toEqual([]);
+  });
+});
+
+describe('checkOwnedEntries', () => {
+  // Given, one closed milestone and one still open, which is the M1-and-M3 shape of the day
+  // the check was written.
+  const milestones = parseMilestones(
+    splitLines(
+      [
+        '**M1 - CLOSED**',
+        '',
+        '- [x] `T001`  L0009-L0011  First task',
+        '',
+        '**M3 - OPEN**',
+        '',
+        '- [ ] `T002`  L0013-L0015  Second task',
+      ].join('\n'),
+    ),
+  );
+
+  it('should fail an open entry that declares no milestone, because memory is not an expiry', () => {
+    // Given, the T005-R1 shape: filed, correct, and enforced by nothing
+    const entries = parseOwnedEntries(splitLines('### [ ] `T005-R1` A live defect, filed'));
+
+    // When
+    const issues = checkOwnedEntries(entries, milestones);
+
+    // Then
+    expect(issues).toHaveLength(1);
+    expect(issues[0]?.rule).toBe('entry-no-milestone');
+    expect(issues[0]?.message).toContain('T005-R1');
+  });
+
+  it('should fail an open entry naming a milestone the plan does not carry', () => {
+    // Given
+    const entries = parseOwnedEntries(
+      splitLines(['### [ ] `TX-VIS` The guard', '**Milestone:** M9.'].join('\n')),
+    );
+
+    // When
+    const issues = checkOwnedEntries(entries, milestones);
+
+    // Then
+    expect(issues).toHaveLength(1);
+    expect(issues[0]?.rule).toBe('entry-unknown-milestone');
+    expect(issues[0]?.message).toContain('M9');
+  });
+
+  it('should fail an open entry whose milestone is finished, which is the TX-SERVED plant', () => {
+    // Given, the exact shape the review of 2026-08-13 found three times: the entry says M1,
+    // every M1 task is ticked, and nothing anywhere went red. This case is the check catching
+    // its own author, run against the shape rather than against the file that has been fixed.
+    const entries = parseOwnedEntries(
+      splitLines(['### [ ] `TX-SERVED` One quantity or two', '**Milestone:** M1.'].join('\n')),
+    );
+
+    // When
+    const issues = checkOwnedEntries(entries, milestones);
+
+    // Then
+    expect(issues).toHaveLength(1);
+    expect(issues[0]?.rule).toBe('entry-milestone-closed');
+    expect(issues[0]?.message).toContain('TX-SERVED');
+    expect(issues[0]?.message).toContain('re-home');
+  });
+
+  it('should pass an open entry inside a live milestone, which is the ordinary state of scheduled work', () => {
+    // Given
+    const entries = parseOwnedEntries(
+      splitLines(['### [ ] `TX-FIX` The source rewriter', '**Milestone:** M3.'].join('\n')),
+    );
+
+    // When
+    const issues = checkOwnedEntries(entries, milestones);
+
+    // Then
+    expect(issues).toEqual([]);
+  });
+
+  it('should leave a closed entry alone, whatever its milestone says now', () => {
+    // Given, a ticked entry is history: its milestone did its work, and a check that reopened
+    // history would make closing an entry change nothing.
+    const entries = parseOwnedEntries(
+      splitLines(['### [x] `TX-SLOTWIRE` Wired', '**Milestone:** M1.'].join('\n')),
+    );
+
+    // When
+    const issues = checkOwnedEntries(entries, milestones);
+
+    // Then
+    expect(issues).toEqual([]);
+  });
+
+  it('should report every offender rather than stopping at the first', () => {
+    // Given, three entries went stale together on the day this was written
+    const entries = parseOwnedEntries(
+      splitLines(
+        [
+          '### [ ] `TX-SERVED` First',
+          '**Milestone:** M1.',
+          '### [ ] `TX-CLOCK` Second',
+          '**Milestone:** M1.',
+          '### [ ] `T005-R1` Third, with no line at all',
+        ].join('\n'),
+      ),
+    );
+
+    // When
+    const issues = checkOwnedEntries(entries, milestones);
+
+    // Then
+    expect(issues).toHaveLength(3);
+  });
 });

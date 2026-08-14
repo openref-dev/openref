@@ -5,6 +5,7 @@ import { OpenRefModule } from '@openref/nest';
 import type { INestApplication } from '@nestjs/common';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { AppModule } from './app.module.js';
+import { registerPortal } from './portal.js';
 
 /** Which platform adapter to boot on. */
 export type Platform = 'express' | 'fastify';
@@ -43,7 +44,28 @@ export async function createApp(platform: Platform = 'express'): Promise<INestAp
       .build(),
   );
 
-  OpenRefModule.setup('/docs', app, { document });
+  OpenRefModule.setup('/docs', app, {
+    document,
+    // The same origin proxy of SPEC 14.5, off by default the way it is for every host. The
+    // browser suite sets the variable to prove the shipped page selects the proxy transport
+    // when a host turns the proxy on; the fail closed policy behind the route is unchanged.
+    ...(process.env.OPENREF_PROXY === '1' ? { proxy: { enabled: true } } : {}),
+    // The theme pair of T033, selected the way a host would select it: the definition for the
+    // server render and the entry built with it for the browser. The browser suite sets the
+    // variable to prove the same theme reaches both halves of one page.
+    ...(process.env.OPENREF_THEME === 'telltale'
+      ? {
+          theme: {
+            definition: (await import('@openref/theme-telltale')).telltale,
+            bundle: '@openref/theme-telltale/entry',
+          },
+        }
+      : {}),
+  });
+
+  // The embed demo of SPEC 10.3, host infrastructure rather than API surface: see portal.ts
+  // for why it is raw routes and Express only.
+  registerPortal(app);
 
   return app;
 }

@@ -12,6 +12,10 @@
 import type { AssetPlan } from '../assets/infrastructure/adapters/package-assets.adapter';
 import type { ErrorReporter } from '../http/domain/reply';
 import type { NonceReader } from '../http/infrastructure/adapters/express-reference.adapter';
+import type {
+  OpenRefThemeOptions,
+  ProxyOptions,
+} from '../reference/application/services/reference.service';
 import type { IRenderCache } from '@openref/render';
 
 /** Everything `setup` accepts. Only `document` is required, per SPEC 13.1. */
@@ -19,10 +23,19 @@ export interface OpenRefSetupOptions {
   /** The OpenAPI document, as the object `SwaggerModule.createDocument` returns, or as text. */
   readonly document: unknown;
   /**
+   * The theme in force, per SPEC 10.4: the definition and, when it carries components, the
+   * browser entry built with them. See `OpenRefThemeOptions` for the pair rule.
+   *
+   * Its `assets.css` becomes the stylesheet list and its `bundle` the client bundle, each
+   * unless the narrower option below overrides it, so a theme package is one import and one
+   * option rather than three lists kept equal by hand.
+   */
+  readonly theme?: OpenRefThemeOptions;
+  /**
    * Stylesheets the page links, as package specifiers or absolute paths.
    *
-   * Defaults to the three files of `@openref/theme`. A host that ships its own theme passes
-   * its own list and the default theme is never read.
+   * Defaults to the theme's `assets.css` when a theme is set, and to the three files of
+   * `@openref/theme` otherwise. A host that passes its own list overrides both.
    */
   readonly stylesheets?: readonly string[];
   /** Client bundle, as a package specifier or an absolute path. Defaults to this package's. */
@@ -54,4 +67,14 @@ export interface OpenRefSetupOptions {
   readonly nonce?: NonceReader;
   /** Where an unexpected failure inside a documentation route is reported. */
   readonly onError?: ErrorReporter;
+  /**
+   * The same origin proxy of SPEC 14.5, off unless this says otherwise.
+   *
+   * OFF IS THE DEFAULT BECAUSE THE PROXY IS THE ONE PART OF THIS PACKAGE THAT SENDS A REQUEST
+   * SOMEWHERE. A documentation server that will send a request on a reader's behalf can reach
+   * whatever it can reach, so turning it on is a sentence a host writes rather than a state they
+   * arrive in. The route exists either way and answers 403 while it is off, so the two states are
+   * distinguishable from outside.
+   */
+  readonly proxy?: ProxyOptions;
 }

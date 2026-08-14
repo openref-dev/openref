@@ -72,28 +72,51 @@ describe('applyCredentials', () => {
     expect(auth).toEqual({ headers: {}, query: [] });
   });
 
-  it('should refuse http basic and name the milestone', () => {
-    // Given
+  it('should encode http basic as the base64 of the pair, per RFC 7617', () => {
+    // Given, the store holds what the scheme is made of: the user name and the password, joined
+    // by a colon, which is the credential RFC 7617 defines rather than a second shape.
     const schemes = [{ id: 'basic', type: 'http', scheme: 'basic' }];
 
     // When
-    const apply = (): unknown => applyCredentials(schemes, { basic: 'x' });
+    const auth = applyCredentials(schemes, { basic: 'aladdin:opensesame' });
 
     // Then
-    expect(apply).toThrow(AuthError);
-    expect(apply).toThrow(/M2/);
+    expect(auth.headers).toEqual({ Authorization: 'Basic YWxhZGRpbjpvcGVuc2VzYW1l' });
   });
 
-  it('should refuse oauth2 and name the milestone', () => {
-    // Given
+  it('should encode an http basic password that is not Latin-1', () => {
+    // Given, `btoa` throws on this input, which is why this package encodes the UTF-8 bytes.
+    const schemes = [{ id: 'basic', type: 'http', scheme: 'basic' }];
+
+    // When
+    const auth = applyCredentials(schemes, { basic: 'user:пароль' });
+
+    // Then
+    expect(auth.headers.Authorization).toBe('Basic dXNlcjrQv9Cw0YDQvtC70Yw=');
+  });
+
+  it('should send an oauth2 access token as a bearer, per RFC 6750', () => {
+    // Given, the access token is a credential like any other once the session has obtained it,
+    // and it lives in the same store under the same storage policy.
     const schemes = [OAUTH];
 
     // When
-    const apply = (): unknown => applyCredentials(schemes, { oauth: 'x' });
+    const auth = applyCredentials(schemes, { oauth: 'access-token' });
+
+    // Then
+    expect(auth.headers).toEqual({ Authorization: 'Bearer access-token' });
+  });
+
+  it('should refuse an http scheme a page cannot perform', () => {
+    // Given, digest is a challenge and response the browser performs itself.
+    const schemes = [{ id: 'digest', type: 'http', scheme: 'digest' }];
+
+    // When
+    const apply = (): unknown => applyCredentials(schemes, { digest: 'x' });
 
     // Then
     expect(apply).toThrow(AuthError);
-    expect(apply).toThrow(/oauth2/);
+    expect(apply).toThrow(/challenge and response/);
   });
 
   it('should refuse mutualTLS as impossible rather than as unfinished', () => {

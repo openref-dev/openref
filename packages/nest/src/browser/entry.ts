@@ -10,32 +10,16 @@
  * Until this file existed the shipped bundle called `hydrateReference()` with no runner and
  * the console rendered disabled. That was a supported build rather than a broken one, and it
  * was also SPEC 2's promise going unkept in the one artifact a reader actually loads. The
- * `client-runner` gate reads the built file for the binding so the state cannot be re-entered
- * by accident.
+ * `client-runner` gate reads the built output for the binding so the state cannot be
+ * re-entered by accident.
  *
- * VISIBILITY IS THE LITERAL `'public'`, and it is not an option. `RunnerOptions` makes
- * `credentials` of type `never` under `public`, so a prefilled credential is a compile error
- * at this call site rather than a review comment. A module option would have to travel to the
- * browser as serialized text, where a literal type cannot survive and the gate would stop
- * applying exactly where it matters. The option belongs to a host that builds its own runner,
- * which is `forRoot` in SPEC 13.2 and a later task; a page served by this module can hold no
- * prefilled credential at all, which is stronger than gating one.
- *
- * THE IMPORT IS DYNAMIC SINCE T011-R, AND THE LITERAL SURVIVED IT. The runner is 7.7 KB of a
- * bundle every reader compiles for a console most of them never open, so it now travels in the
- * console's own chunk: this function is called the first time somebody reaches for the try-it
- * panel, and not before. What did not change is the guarantee above. `visibility: 'public'` is
- * still written here, still a literal, and `credentials` is still of type `never` under it, so
- * the compile error is in the same place it was. The `client-runner` gate follows the binding
- * into the chunk rather than reading the entry file alone.
+ * WHAT IS LEFT HERE IS ONE CALL, since T033: the whole composition lives in `compose.ts`, so
+ * that a themed entry, which must be built with its definition to share this bundle's one
+ * `@openref/vue` instance, reuses it instead of copying the runner factory wiring. The
+ * factory itself, its proxy branch and the visibility literal are documented on
+ * `runner-factory.ts`, which arrives with the console rather than with the first paint.
  */
 
-import { hydrateReference } from '@openref/render/browser';
+import { mountReference } from './compose';
 
-hydrateReference({
-  loadRunner: async () => {
-    const { createRunner } = await import('@openref/runner');
-
-    return createRunner({ visibility: 'public', storage: 'session' });
-  },
-});
+mountReference();

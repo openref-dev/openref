@@ -7,6 +7,7 @@ import {
   readBrowserBaseline,
 } from '../../src/lib/browser-baseline';
 import { checkFieldPartition, unionOfFields } from '../../src/lib/field-partition';
+import { FIXTURE_ROOTS } from '../../src/config';
 import { CORPUS_MANIFEST_PARTITION, FONT_MANIFEST_PARTITION } from '../../src/lib/fixtures';
 
 const repoRoot = join(import.meta.dirname, '..', '..', '..', '..');
@@ -112,16 +113,25 @@ describe('the committed records', () => {
     expect(issues.map((issue) => issue.message)).toEqual([]);
   });
 
-  it('should account for every field of the font manifest', () => {
-    // Given the real file, all ten assets
-    const entries = entriesOf('packages/theme/fonts/manifest.json', 'assets');
+  it('should account for every field of every font manifest, which is one per shipped theme', () => {
+    // Given the font manifests THE CONFIGURATION KNOWS ABOUT rather than one named here. It was one
+    // path until T032 added a second theme, and a record listed by hand is accurate exactly as long
+    // as the hand: the second manifest would have been outside this check with nothing red. The
+    // standing rule is that a check enumerates its own material.
+    const roots = FIXTURE_ROOTS.filter((root) => root.readsLicenseText);
 
     // When
-    const issues = checkFieldPartition(unionOfFields(entries), FONT_MANIFEST_PARTITION);
+    const issues = roots.flatMap((root) => {
+      const entries = entriesOf(`${root.directory}/manifest.json`, root.manifestKey);
+      expect(entries.length, `${root.directory} has no entries`).toBeGreaterThan(0);
+      return checkFieldPartition(unionOfFields(entries), FONT_MANIFEST_PARTITION).map(
+        (issue) => `${root.directory}: ${issue.message}`,
+      );
+    });
 
     // Then
-    expect(entries.length).toBeGreaterThan(0);
-    expect(issues.map((issue) => issue.message)).toEqual([]);
+    expect(roots.length, 'no font manifest was found, so this case proves nothing').toBe(2);
+    expect(issues).toEqual([]);
   });
 
   it('should account for every field of the browser baseline, through the same function', () => {

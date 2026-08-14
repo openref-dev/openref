@@ -10,8 +10,9 @@
  *
  * What it does instead is match what the page is already holding: every navigation row, with
  * its label and its `METHOD /path` hint. That covers what a reader types into a palette on a
- * reference, which is a path, a method or part of a summary. When a port is supplied, in T014
- * and later, it replaces this rather than adding to it.
+ * reference, which is a path, a method or part of a summary. No shipped path supplies a port
+ * today: that gap is `full-text-search` in `CAPABILITY_DEBTS`, owned by T039, reachable by M3.
+ * When a port is supplied, it replaces this rather than adding to it.
  *
  * The ranking is deliberately simple and deliberately stable. A prefix beats a word start
  * beats a substring, a label beats a hint, and equal scores keep document order, so the same

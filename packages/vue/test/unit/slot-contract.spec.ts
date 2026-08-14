@@ -1,33 +1,33 @@
-import type {
-  IRConfidence,
-  IRDocument,
-  IRDriftIssue,
-  IRDriftRule,
-  IRErrorContracts,
-  IRHealthReport,
-  IRNavNode,
-  IRNodeRuntime,
-  IRParameter,
-  IRParameterLocation,
-  IRRequestBody,
-  IRResponse,
-  IRRuntimeMeta,
-  IRSchemaView,
-  IRServer,
-} from '@openref/core';
+import type { IRConfidence, IRSchemaView } from '@openref/core';
 import { describe, expect, expectTypeOf, it } from 'vitest';
 import type {
-  CodeSampleView,
-  ColorScheme,
-  ColorSchemePreference,
-  OperationView,
-  ResolvedSecurityRequirement,
+  CodeSampleModel,
+  DriftModel,
+  HealthModel,
+  NavEntryModel,
+  NodeHeaderModel,
+  PageKind,
+  PaletteHitModel,
+  ParameterModel,
+  ResponseModel,
+  RunnerBodyMediaTypeView,
+  RunnerDeviceAuthorization,
+  RunnerFile,
+  RunnerOAuthFlowView,
+  RunnerResult,
+  RunnerSecuritySchemeView,
+  RunnerSessionStatus,
+  RunnerStreamElement,
+  RunnerStreamEnd,
+  RuntimeModel,
+  SchemaPageModel,
+  SchemaPayloadMap,
   SchemaTreeNode,
-  SearchHit,
   SlotName,
   SlotProps,
   SlotPropsMap,
   StateNoticeKind,
+  StreamCounts,
   SLOT_NAMES_ARE_COMPLETE,
 } from '../../src/index';
 import { SLOT_NAMES } from '../../src/index';
@@ -39,8 +39,11 @@ import { SLOT_NAMES } from '../../src/index';
  * these assertions fail to compile rather than silently breaking every theme built against
  * them. Anything changed here is a major version, deliberately, not incidentally.
  *
- * The names are the 25 of `ai-docs/design/CONTRACT.md`. They replaced the 17 region names of
- * T008 under retrofit `T008-R1`, while nothing was published.
+ * THE NAMES ARE THE 21 OF `TX-SLOTWIRE`, and the count is a decision rather than a state. It was
+ * 25 while nothing resolved a slot on a page a reader opens; wiring the registry into the shipped
+ * renderer removed six names no position could draw and added two pages the registry had never
+ * covered. Every one of the 21 is driven through the real renderer by `slot-wiring.spec.ts`,
+ * which is what the freeze rests on: evidence per name rather than a count.
  */
 
 describe('slot registry contract', () => {
@@ -50,28 +53,24 @@ describe('slot registry contract', () => {
       'AppShell',
       'NavTree',
       'CommandPalette',
+      'DocumentOverview',
+      'SchemaPage',
       'OperationHeader',
       'RuntimePanel',
       'ProvenanceTag',
       'DriftCard',
       'ParamTable',
       'ResponseList',
-      'ErrorContract',
+      'CodeSample',
       'SchemaTree',
-      'BranchPicker',
       'ShapeForm',
-      'PatternKeys',
-      'TupleField',
       'AuthPanel',
       'ServerSelect',
       'SendButton',
       'ResponseView',
       'StreamLog',
-      'CodeSample',
       'HealthScore',
-      'RuleFilter',
       'StateNotice',
-      'ThemeToggle',
     ];
 
     // When
@@ -79,6 +78,28 @@ describe('slot registry contract', () => {
 
     // Then
     expect(actual).toEqual(expected);
+  });
+
+  it('should name none of the six the wiring removed', () => {
+    // Given, each of these was a name in the frozen registry that no shipped path could resolve:
+    // three schema row kinds of one component, the three error rows of the runtime block, a
+    // filter the Health panel does with `details`, and a colour scheme control that would cost a
+    // flash and an inline script. They are named here so that removing one and quietly adding it
+    // back is a failing test rather than a diff nobody reads.
+    const removed = [
+      'ErrorContract',
+      'BranchPicker',
+      'PatternKeys',
+      'TupleField',
+      'RuleFilter',
+      'ThemeToggle',
+    ];
+
+    // When
+    const present = removed.filter((name) => (SLOT_NAMES as readonly string[]).includes(name));
+
+    // Then
+    expect(present).toEqual([]);
   });
 
   it('should name every slot the props map declares, with nothing left unreachable', () => {
@@ -98,133 +119,164 @@ describe('slot registry contract', () => {
 
     // When
     expectTypeOf<SlotProps<'AppShell'>>().toEqualTypeOf<{
-      document: IRDocument;
-      activeNodeId: string | undefined;
+      title: string;
+      version: string;
+      basePath: string;
+      activeNodeId: string | null;
+      activeSchemaId: string | null;
+      page: PageKind;
     }>();
     expectTypeOf<SlotProps<'NavTree'>>().toEqualTypeOf<{
-      navigation: readonly IRNavNode[];
-      activeNodeId: string | undefined;
+      entries: readonly NavEntryModel[];
+      activeNodeId: string | null;
+      activeSchemaId: string | null;
+      basePath: string;
+      complete: boolean;
+      total: number;
+      load(): Promise<boolean>;
     }>();
     expectTypeOf<SlotProps<'CommandPalette'>>().toEqualTypeOf<{
       open: boolean;
       query: string;
-      hits: readonly SearchHit[];
-      available: boolean;
+      selected: number;
+      hits: readonly PaletteHitModel[];
+      partial: boolean;
+      onOpen(): void;
+      onClose(): void;
+      onQuery(query: string): void;
+      onSelect(index: number): void;
+    }>();
+    expectTypeOf<SlotProps<'DocumentOverview'>>().toEqualTypeOf<{
+      title: string;
+      descriptionHtml: string;
+      servers: readonly string[];
+      basePath: string;
+    }>();
+    expectTypeOf<SlotProps<'SchemaPage'>>().toEqualTypeOf<{
+      schema: SchemaPageModel;
+      basePath: string;
     }>();
     expectTypeOf<SlotProps<'OperationHeader'>>().toEqualTypeOf<{
-      operation: OperationView;
-      drift: readonly IRDriftIssue[];
+      node: NodeHeaderModel;
+      drift: readonly DriftModel[];
     }>();
     expectTypeOf<SlotProps<'RuntimePanel'>>().toEqualTypeOf<{
-      nodeId: string | undefined;
-      runtime: IRNodeRuntime | undefined;
-      meta: IRRuntimeMeta | undefined;
-      available: boolean;
+      nodeId: string;
+      runtime: RuntimeModel;
     }>();
     expectTypeOf<SlotProps<'ProvenanceTag'>>().toEqualTypeOf<{
       confidence: IRConfidence;
       collector: string;
     }>();
-    expectTypeOf<SlotProps<'DriftCard'>>().toEqualTypeOf<{ issue: IRDriftIssue }>();
+    expectTypeOf<SlotProps<'DriftCard'>>().toEqualTypeOf<{ issue: DriftModel }>();
     expectTypeOf<SlotProps<'ParamTable'>>().toEqualTypeOf<{
-      operation: OperationView;
-      parameters: ReadonlyMap<IRParameterLocation, readonly IRParameter[]>;
+      parameters: readonly ParameterModel[];
     }>();
     expectTypeOf<SlotProps<'ResponseList'>>().toEqualTypeOf<{
-      operation: OperationView;
-      responses: readonly IRResponse[];
+      responses: readonly ResponseModel[];
+      schemas: SchemaPayloadMap;
+      truncated: readonly string[];
+      basePath: string;
     }>();
-    expectTypeOf<SlotProps<'ErrorContract'>>().toEqualTypeOf<{
-      errors: IRErrorContracts;
-      available: boolean;
+    expectTypeOf<SlotProps<'CodeSample'>>().toEqualTypeOf<{
+      samples: readonly CodeSampleModel[];
+      activeLang: string;
+      onSelect(lang: string): void;
     }>();
     expectTypeOf<SlotProps<'SchemaTree'>>().toEqualTypeOf<{
       root: SchemaTreeNode;
       view: IRSchemaView;
-    }>();
-    expectTypeOf<SlotProps<'BranchPicker'>>().toEqualTypeOf<{
-      node: SchemaTreeNode;
-      branches: readonly SchemaTreeNode[];
-      activePath: string | undefined;
+      expand(node: SchemaTreeNode): readonly SchemaTreeNode[];
+      truncated: readonly string[];
+      basePath: string;
+      label: string;
+      borrowedLabel: boolean;
     }>();
     expectTypeOf<SlotProps<'ShapeForm'>>().toEqualTypeOf<{
-      operation: OperationView;
-      requestBody: IRRequestBody | undefined;
-      root: SchemaTreeNode | undefined;
-    }>();
-    expectTypeOf<SlotProps<'PatternKeys'>>().toEqualTypeOf<{
-      node: SchemaTreeNode;
-      patterns: readonly SchemaTreeNode[];
-    }>();
-    expectTypeOf<SlotProps<'TupleField'>>().toEqualTypeOf<{
-      node: SchemaTreeNode;
-      positions: readonly SchemaTreeNode[];
+      media: RunnerBodyMediaTypeView;
+      values: Readonly<Record<string, string>>;
+      files: Readonly<Record<string, RunnerFile>>;
+      text: string;
+      onField(name: string, value: string): void;
+      onFile(name: string, file: RunnerFile | undefined): void;
+      onText(text: string): void;
     }>();
     expectTypeOf<SlotProps<'AuthPanel'>>().toEqualTypeOf<{
-      operation: OperationView;
-      security: readonly ResolvedSecurityRequirement[];
+      schemes: readonly RunnerSecuritySchemeView[];
+      credentials: Readonly<Record<string, string>>;
+      inputs: Readonly<Record<string, string>>;
+      flows: Readonly<Record<string, readonly RunnerOAuthFlowView[]>>;
+      chosenFlow: Readonly<Record<string, string>>;
+      sessions: Readonly<Record<string, RunnerSessionStatus>>;
+      notices: Readonly<Record<string, string>>;
+      devices: Readonly<Record<string, RunnerDeviceAuthorization>>;
+      pending: string | null;
+      mounted: boolean;
+      onCredential(schemeId: string, value: string): void;
+      onInput(schemeId: string, field: string, value: string): void;
+      onFlow(schemeId: string, kind: string): void;
+      onSignIn(schemeId: string): void;
+      onSignOut(schemeId: string): void;
     }>();
     expectTypeOf<SlotProps<'ServerSelect'>>().toEqualTypeOf<{
-      servers: readonly IRServer[];
-      activeServerUrl: string | undefined;
+      servers: readonly string[];
+      activeServerUrl: string;
+      onSelect(url: string): void;
     }>();
     expectTypeOf<SlotProps<'SendButton'>>().toEqualTypeOf<{
-      operation: OperationView;
       available: boolean;
       pending: boolean;
+      mounted: boolean;
+      notice: string;
+      onSend(): void;
     }>();
     expectTypeOf<SlotProps<'ResponseView'>>().toEqualTypeOf<{
-      operation: OperationView;
-      available: boolean;
+      result: RunnerResult | undefined;
+      error: string | undefined;
       pending: boolean;
     }>();
     expectTypeOf<SlotProps<'StreamLog'>>().toEqualTypeOf<{
-      nodeId: string | undefined;
+      elements: readonly RunnerStreamElement[];
+      counts: StreamCounts;
+      end: RunnerStreamEnd | null;
+      open: boolean;
+      mounted: boolean;
       available: boolean;
+      onStart(): void;
+      onStop(): void;
     }>();
-    expectTypeOf<SlotProps<'CodeSample'>>().toEqualTypeOf<{
-      operation: OperationView;
-      samples: readonly CodeSampleView[];
-      activeLang: string | undefined;
-    }>();
-    expectTypeOf<SlotProps<'HealthScore'>>().toEqualTypeOf<{
-      report: IRHealthReport | undefined;
-      available: boolean;
-    }>();
-    expectTypeOf<SlotProps<'RuleFilter'>>().toEqualTypeOf<{
-      rules: readonly IRDriftRule[];
-      counts: ReadonlyMap<IRDriftRule, number>;
-      activeRule: IRDriftRule | undefined;
-    }>();
+    expectTypeOf<SlotProps<'HealthScore'>>().toEqualTypeOf<{ health: HealthModel }>();
     expectTypeOf<SlotProps<'StateNotice'>>().toEqualTypeOf<{
       kind: StateNoticeKind;
-      message: string | undefined;
-    }>();
-    expectTypeOf<SlotProps<'ThemeToggle'>>().toEqualTypeOf<{
-      preference: ColorSchemePreference;
-      resolved: ColorScheme;
+      message: string;
     }>();
 
     // Then
-    expect(SLOT_NAMES).toHaveLength(25);
+    expect(SLOT_NAMES).toHaveLength(21);
   });
 
-  it('should pin the values a slot carries that no other layer produces yet', () => {
-    // Given, these three types exist because a slot needs them, so they are frozen with it.
+  it('should pin the values a slot carries that no other layer produces', () => {
+    // Given, these two exist because a slot needs them, so they are frozen with it. The notice
+    // kinds are restated from the notices the renderer actually draws, one per position.
 
     // When
-    expectTypeOf<CodeSampleView>().toEqualTypeOf<{
-      readonly lang: string;
-      readonly label: string;
-      readonly source: string;
+    expectTypeOf<StreamCounts>().toEqualTypeOf<{
+      readonly received: number;
+      readonly invalid: number;
+      readonly dropped: number;
     }>();
 
     // Then
     expectTypeOf<StateNoticeKind>().toEqualTypeOf<
-      'empty' | 'no-runtime' | 'stale-cache' | 'no-results' | 'no-descriptions' | 'unavailable'
+      | 'nav-unavailable'
+      | 'search-empty'
+      | 'search-no-results'
+      | 'search-partial'
+      | 'no-server'
+      | 'no-body-fields'
+      | 'schema-missing'
+      | 'no-schema'
     >();
-    expectTypeOf<ColorSchemePreference>().toEqualTypeOf<'system' | 'light' | 'dark'>();
-    expectTypeOf<ColorScheme>().toEqualTypeOf<'light' | 'dark'>();
   });
 
   it('should keep SlotProps and SlotPropsMap in step', () => {

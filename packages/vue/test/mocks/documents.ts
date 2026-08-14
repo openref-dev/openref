@@ -243,7 +243,9 @@ export function runtimeDocument(options: RuntimeFixtureOptions = {}): IRDocument
       file: 'src/orders.controller.ts',
       line: 42,
     },
-    guards: [{ name: 'JwtAuthGuard', scope: 'route', confidence: 'derived', collector: 'guardsCollector' }],
+    guards: [
+      { name: 'JwtAuthGuard', scope: 'route', confidence: 'derived', collector: 'guardsCollector' },
+    ],
     scopes: { value: ['orders:read'], confidence: 'declared', collector: 'scopesCollector' },
     rateLimit: {
       value: { limit: 100, ttlMs: 60_000 },
@@ -288,4 +290,72 @@ export function runtimeDocument(options: RuntimeFixtureOptions = {}): IRDocument
   const complete: IRDocument = { ...withFacts, health };
 
   return { ...complete, hash: hashDocument(complete) };
+}
+
+/**
+ * One operation declaring five of the six body forms of SPEC 14.3, in one document.
+ *
+ * ALL OF IT ON ONE OPERATION, deliberately: what the projection has to get right is that the
+ * editor follows the media type and its schema rather than the operation, and five media types
+ * on five operations would not put that under any pressure at all.
+ *
+ * The multipart entry is the one the task names: a file part declared by `format: binary`, a
+ * JSON part declared as an object, and a third property whose part type the document states
+ * itself through `encoding`, so the derived default and the declared value are both exercised.
+ */
+export function bodyDocument(): IRDocument {
+  return normalize(`
+openapi: 3.1.0
+info:
+  title: Uploads API
+  version: '1.0.0'
+servers:
+  - url: https://api.example.com
+paths:
+  /uploads:
+    post:
+      operationId: createUpload
+      summary: Create an upload
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title: { type: string }
+          text/plain:
+            schema: { type: string }
+          application/x-ndjson:
+            schema: { type: string }
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required: [sku]
+              properties:
+                sku: { type: string }
+                note: { type: string }
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file: { type: string, format: binary }
+                metadata:
+                  type: object
+                  properties:
+                    title: { type: string }
+                tags:
+                  type: array
+                  items: { type: string }
+                sidecar: { type: string }
+            encoding:
+              sidecar:
+                contentType: application/xml
+          application/octet-stream:
+            schema: { type: string, format: binary }
+      responses:
+        '201':
+          description: created
+`);
 }

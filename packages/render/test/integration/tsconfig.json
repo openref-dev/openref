@@ -11,6 +11,7 @@
     "paths": {
       "@openref/core": ["packages/core/src/index.ts"],
       "@openref/vue": ["packages/vue/src/index.ts"],
+      "@openref/vue/runner": ["packages/vue/src/runner.ts"],
       "@openref/render": ["packages/render/src/index.ts"],
       "@openref/runner": ["packages/runner/src/index.ts"]
     },

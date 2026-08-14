@@ -954,6 +954,12 @@ button.oref-schema-row:hover {
   resize: vertical;
 }
 
+/* A file picker is a control the user agent draws, so what is set here is the box around it and
+   the room its own button needs, and nothing that would fight the platform for the button. */
+.oref-field-file {
+  padding: var(--oref-space-200) var(--oref-space-300);
+}
+
 .oref-drift-rule,
 .oref-field-note {
   color: var(--oref-color-fg-muted);
@@ -994,10 +1000,45 @@ button.oref-schema-row:hover {
   color: var(--oref-color-fg-muted);
 }
 
+/* A sign in is a form inside a form, so it gets a rule down its inline start rather than a box:
+   the fields it holds are the same fields as the ones above it, and a second frame around them
+   would read as a second console. */
+.oref-field-oauth {
+  border-inline-start: var(--oref-border-hair) solid var(--oref-color-fg-muted);
+  gap: var(--oref-space-300);
+  padding-inline-start: var(--oref-space-400);
+}
+
+/* Signing in is not sending, and the two buttons sit beside each other. The accent stays on
+   Send, which is the one action the console is about. */
+.oref-signin,
+.oref-signout {
+  background: var(--oref-color-surface-inset);
+  border-color: var(--oref-color-fg-muted);
+  color: var(--oref-color-fg);
+}
+
 .oref-tryit-notice {
   color: var(--oref-color-fg-muted);
   font-size: var(--oref-font-size-300);
   margin: 0;
+}
+
+/* The sentence a refused embed shows where the reference would have been, per T033: the Web
+   Component names whose defect it is rather than rendering nothing inside a host page. */
+.oref-embed-error {
+  border-inline-start: var(--oref-drift-crit-border-width) var(--oref-drift-crit-border-style)
+    var(--oref-drift-crit-fg);
+  color: var(--oref-drift-crit-fg);
+  font-size: var(--oref-font-size-300);
+  margin: 0;
+  padding-inline-start: var(--oref-space-300);
+}
+
+/* What happened to the session, above the status line of the response it happened during. It is
+   not an error and it is not the answer, so it reads as neither. */
+.oref-run-notice {
+  margin-bottom: var(--oref-space-400);
 }
 
 .oref-run-error {

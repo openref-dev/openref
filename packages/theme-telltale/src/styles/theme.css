@@ -1,0 +1,1083 @@
+/*
+ * telltale, the whole of its markup.
+ *
+ * EVERY VALUE HERE READS A TOKEN. Not one literal colour, length, font stack or duration, which is
+ * what makes this an L2 theme rather than a stylesheet with a theme's name on it: a host that
+ * overrides a token gets the change here, and the `theme-tokens` gate fails the build on a literal
+ * that escapes into this file. `tokens.css` beside it is the one file allowed to hold values.
+ *
+ * NO INLINE STYLE ATTRIBUTE AND NO INLINE SCRIPT, per SPEC 19.2. A value that has to vary per
+ * element travels as a class, never as a `style=`, because a CSP nonce cannot authorize an
+ * attribute. That is why the tree and the navigation carry depth classes rather than a padding
+ * computed in the component.
+ *
+ * THE GRID IS THE THESIS. Every row is `--oref-layout-row` tall, the strip is one row, the bench
+ * line is `--oref-layout-status`, and nothing anywhere is rounded. A reader should be able to see
+ * that two tables on two pages are the same table.
+ *
+ * WHAT THIS FILE ALSO HAS TO STYLE, AND SHOULD NOT HAVE TO. The last block of this stylesheet is
+ * `oref-` class names, which this theme did not write and cannot replace. They are the seven
+ * structural elements a node page draws outside every position of the registry. `THEME-BOUNDARY.md`
+ * is where that is written up; the block is here because the alternative is an unstyled region on
+ * every operation page, and marking it clearly is better than mixing it in.
+ */
+
+/* -- the frame ---------------------------------------------------------------------------- */
+
+.tt-shell {
+  display: grid;
+  grid-template-columns: 0 1fr var(--oref-layout-index);
+  grid-template-rows: auto 1fr var(--oref-layout-status);
+  grid-template-areas:
+    'strip strip strip'
+    'rail main index'
+    'status status status';
+  min-height: 100vh;
+  background: var(--oref-color-bg);
+  color: var(--oref-color-fg);
+  font-family: var(--oref-font-family-mono);
+  font-size: var(--oref-font-size-300);
+  line-height: var(--oref-font-leading-row);
+  letter-spacing: var(--oref-font-tracking-mid);
+}
+
+.tt-rail-open {
+  grid-template-columns: var(--oref-layout-rail) 1fr var(--oref-layout-index);
+}
+
+.tt-skip {
+  position: absolute;
+  left: calc(-1 * var(--oref-space-1000));
+  top: 0;
+  z-index: 3;
+  padding: var(--oref-space-200) var(--oref-space-400);
+  background: var(--oref-color-surface);
+  color: var(--oref-color-fg);
+}
+
+.tt-skip:focus {
+  left: 0;
+}
+
+/* -- the strip ---------------------------------------------------------------------------- */
+
+.tt-strip {
+  grid-area: strip;
+  display: flex;
+  align-items: center;
+  gap: var(--oref-space-400);
+  height: calc(var(--oref-layout-row) * 2);
+  padding: 0 var(--oref-space-400);
+  border-bottom: var(--oref-border-hair) solid var(--oref-color-line);
+  background: var(--oref-color-surface);
+}
+
+.tt-brand {
+  display: flex;
+  align-items: baseline;
+  gap: var(--oref-space-300);
+  color: var(--oref-color-fg);
+  text-decoration: none;
+}
+
+.tt-brand-name {
+  font-family: var(--oref-font-family-display);
+  font-size: var(--oref-font-size-100);
+  font-weight: var(--oref-font-weight-bold);
+  letter-spacing: var(--oref-font-tracking-wide);
+  text-transform: uppercase;
+}
+
+.tt-brand-version {
+  color: var(--oref-color-fg-muted);
+  font-size: var(--oref-font-size-100);
+}
+
+.tt-strip-palette {
+  margin-left: auto;
+}
+
+/* -- rail, main, index, bench ------------------------------------------------------------- */
+
+.tt-rail {
+  grid-area: rail;
+  overflow: hidden auto;
+  border-right: var(--oref-border-hair) solid var(--oref-color-line);
+  background: var(--oref-color-bg-sunken);
+}
+
+.tt-rail-shut .tt-rail {
+  visibility: hidden;
+}
+
+.tt-main {
+  grid-area: main;
+  min-width: 0;
+  max-width: var(--oref-layout-measure);
+  padding: var(--oref-space-500) var(--oref-space-600);
+}
+
+.tt-index {
+  grid-area: index;
+  overflow: hidden auto;
+  padding: var(--oref-space-500) var(--oref-space-400);
+  border-left: var(--oref-border-hair) solid var(--oref-color-line);
+}
+
+.tt-status {
+  grid-area: status;
+  display: flex;
+  align-items: center;
+  gap: var(--oref-space-400);
+  height: var(--oref-layout-status);
+  padding: 0 var(--oref-space-400);
+  border-top: var(--oref-border-hair) solid var(--oref-color-line);
+  background: var(--oref-color-surface);
+  font-family: var(--oref-font-family-display);
+  font-size: var(--oref-font-size-100);
+  letter-spacing: var(--oref-font-tracking-wide);
+}
+
+.tt-status-id {
+  color: var(--oref-color-fg-muted);
+}
+
+.tt-budget {
+  display: flex;
+  gap: var(--oref-space-400);
+  margin-left: auto;
+}
+
+.tt-budget-label {
+  color: var(--oref-color-fg-muted);
+  margin-right: var(--oref-space-100);
+}
+
+/* -- headings shared by every strip -------------------------------------------------------- */
+
+.tt-strip-head {
+  margin: 0 0 var(--oref-space-200);
+  color: var(--oref-color-fg-secondary);
+  font-family: var(--oref-font-family-display);
+  font-size: var(--oref-font-size-100);
+  font-weight: var(--oref-font-weight-bold);
+  letter-spacing: var(--oref-font-tracking-wide);
+  text-transform: uppercase;
+}
+
+.tt-prose {
+  max-width: var(--oref-layout-measure);
+  color: var(--oref-color-fg-secondary);
+  line-height: var(--oref-font-leading-prose);
+}
+
+.tt-prose a {
+  color: var(--oref-color-accent-link);
+}
+
+.tt-flag {
+  margin-left: var(--oref-space-200);
+  padding: 0 var(--oref-space-100);
+  border: var(--oref-border-hair) solid var(--oref-color-line-strong);
+  color: var(--oref-color-fg-muted);
+  font-size: var(--oref-font-size-100);
+}
+
+/* -- navigation ---------------------------------------------------------------------------- */
+
+.tt-nav-list,
+.tt-nav-list ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tt-nav-row {
+  display: flex;
+  align-items: center;
+  gap: var(--oref-space-200);
+  width: 100%;
+  height: var(--oref-layout-row);
+  padding: 0 var(--oref-space-300);
+  border: 0;
+  background: none;
+  color: var(--oref-color-fg);
+  font: inherit;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.tt-nav-depth-1 {
+  padding-left: var(--oref-space-500);
+}
+
+.tt-nav-depth-2 {
+  padding-left: var(--oref-space-600);
+}
+
+.tt-nav-depth-3 {
+  padding-left: var(--oref-space-700);
+}
+
+.tt-nav-depth-4 {
+  padding-left: var(--oref-space-800);
+}
+
+.tt-nav-depth-5,
+.tt-nav-depth-6 {
+  padding-left: var(--oref-space-900);
+}
+
+.tt-nav-row:hover {
+  background: var(--oref-color-surface-inset);
+}
+
+.tt-nav-active {
+  background: var(--oref-color-accent-bg);
+  color: var(--oref-color-accent-spec);
+}
+
+.tt-nav-deprecated .tt-nav-label {
+  text-decoration: line-through;
+}
+
+.tt-nav-kind,
+.tt-nav-twist {
+  color: var(--oref-color-fg-muted);
+  font-size: var(--oref-font-size-100);
+}
+
+.tt-nav-label {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.tt-nav-hint {
+  margin-left: auto;
+  color: var(--oref-color-fg-muted);
+  font-size: var(--oref-font-size-100);
+}
+
+.tt-nav-count,
+.tt-nav-loading,
+.tt-nav-failed {
+  margin: var(--oref-space-300);
+  color: var(--oref-color-fg-muted);
+  font-size: var(--oref-font-size-100);
+}
+
+/* -- palette -------------------------------------------------------------------------------- */
+
+.tt-palette-open,
+.tt-palette-close,
+.tt-auth-flow,
+.tt-auth-signin,
+.tt-send-button,
+.tt-stream-start,
+.tt-stream-stop,
+.tt-sample-tab,
+.tt-rail-toggle {
+  height: var(--oref-layout-row);
+  padding: 0 var(--oref-space-300);
+  border: var(--oref-border-hair) solid var(--oref-color-line-strong);
+  border-radius: var(--oref-radius-none);
+  background: var(--oref-color-surface);
+  color: var(--oref-color-fg);
+  font-family: var(--oref-font-family-display);
+  font-size: var(--oref-font-size-100);
+  letter-spacing: var(--oref-font-tracking-wide);
+  cursor: pointer;
+}
+
+.tt-palette-open:hover,
+.tt-send-button:hover,
+.tt-rail-toggle:hover {
+  background: var(--oref-color-surface-inset);
+}
+
+.tt-send-button[disabled],
+.tt-stream-start[disabled],
+.tt-stream-stop[disabled],
+.tt-auth-signin[disabled] {
+  color: var(--oref-color-fg-muted);
+  cursor: default;
+}
+
+.tt-palette {
+  position: fixed;
+  inset: calc(var(--oref-layout-row) * 3) 0 auto;
+  z-index: 2;
+  margin: 0 auto;
+  max-width: var(--oref-layout-measure);
+  border: var(--oref-border-hair) solid var(--oref-color-line-strong);
+  background: var(--oref-color-surface);
+}
+
+.tt-palette-bar {
+  display: flex;
+  gap: var(--oref-space-200);
+  padding: var(--oref-space-200);
+  border-bottom: var(--oref-border-hair) solid var(--oref-color-line);
+}
+
+.tt-palette-input {
+  flex: 1;
+  height: var(--oref-layout-row);
+  border: var(--oref-border-hair) solid var(--oref-color-line);
+  background: var(--oref-color-surface-inset);
+  color: var(--oref-color-fg);
+  font: inherit;
+}
+
+.tt-palette-hits {
+  margin: 0;
+  padding: 0;
+  max-height: calc(var(--oref-layout-row) * 12);
+  overflow: auto;
+  list-style: none;
+}
+
+.tt-palette-link {
+  display: flex;
+  gap: var(--oref-space-300);
+  height: var(--oref-layout-row);
+  align-items: center;
+  padding: 0 var(--oref-space-300);
+  color: var(--oref-color-fg);
+  text-decoration: none;
+}
+
+.tt-palette-selected .tt-palette-link {
+  background: var(--oref-color-accent-bg);
+}
+
+.tt-palette-hint,
+.tt-palette-partial {
+  color: var(--oref-color-fg-muted);
+  font-size: var(--oref-font-size-100);
+}
+
+/* -- operation head ------------------------------------------------------------------------- */
+
+.tt-op-head {
+  margin-bottom: var(--oref-space-500);
+  padding-bottom: var(--oref-space-300);
+  border-bottom: var(--oref-border-hair) solid var(--oref-color-line);
+}
+
+.tt-op-line {
+  display: flex;
+  align-items: center;
+  gap: var(--oref-space-300);
+  height: var(--oref-layout-row);
+}
+
+.tt-method {
+  padding: 0 var(--oref-space-200);
+  color: var(--oref-color-fg-inverse);
+  font-size: var(--oref-font-size-100);
+  font-weight: var(--oref-font-weight-bold);
+}
+
+.tt-method-get {
+  background: var(--oref-color-method-get);
+}
+
+.tt-method-post {
+  background: var(--oref-color-method-post);
+}
+
+.tt-method-put {
+  background: var(--oref-color-method-put);
+}
+
+.tt-method-patch {
+  background: var(--oref-color-method-patch);
+}
+
+.tt-method-delete {
+  background: var(--oref-color-method-delete);
+}
+
+.tt-method-other {
+  background: var(--oref-color-line-strong);
+}
+
+.tt-op-kind {
+  background: var(--oref-color-method-event);
+  padding: 0 var(--oref-space-200);
+  color: var(--oref-color-fg-inverse);
+  font-size: var(--oref-font-size-100);
+}
+
+.tt-op-path {
+  color: var(--oref-color-fg);
+}
+
+.tt-op-clean {
+  margin-left: auto;
+  color: var(--oref-color-fg-muted);
+  font-size: var(--oref-font-size-100);
+}
+
+.tt-op-drift {
+  margin-left: auto;
+  color: var(--oref-drift-crit-fg);
+  font-size: var(--oref-font-size-100);
+}
+
+.tt-op-title {
+  margin: var(--oref-space-300) 0 0;
+  font-size: var(--oref-font-size-600);
+  font-weight: var(--oref-font-weight-bold);
+  letter-spacing: var(--oref-font-tracking-head);
+  line-height: var(--oref-font-leading-tight);
+}
+
+.tt-op-summary {
+  margin: var(--oref-space-200) 0 0;
+  color: var(--oref-color-fg-secondary);
+}
+
+/* -- runtime ------------------------------------------------------------------------------- */
+
+.tt-runtime {
+  margin-bottom: var(--oref-space-600);
+  padding: var(--oref-space-300);
+  border: var(--oref-border-hair) solid var(--oref-color-line);
+  background: var(--oref-color-surface);
+}
+
+.tt-cells,
+.tt-cell-values {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tt-cell {
+  display: grid;
+  grid-template-columns: calc(var(--oref-space-1000) + var(--oref-space-900)) 1fr;
+  gap: var(--oref-space-300);
+  padding: var(--oref-space-100) 0;
+  border-top: var(--oref-border-hair) solid var(--oref-color-line);
+}
+
+.tt-cell:first-child {
+  border-top: 0;
+}
+
+.tt-cell-label {
+  color: var(--oref-color-fg-muted);
+  font-size: var(--oref-font-size-100);
+  text-transform: uppercase;
+}
+
+.tt-cell-value {
+  display: flex;
+  align-items: center;
+  gap: var(--oref-space-200);
+  min-height: var(--oref-layout-row);
+}
+
+.tt-cell-note {
+  color: var(--oref-color-fg-muted);
+  font-size: var(--oref-font-size-100);
+}
+
+.tt-cell-link,
+.tt-tree-link,
+.tt-auth-verify {
+  color: var(--oref-color-accent-link);
+}
+
+/* -- provenance ---------------------------------------------------------------------------- */
+
+.tt-prov {
+  padding: 0 var(--oref-space-100);
+  border-left: var(--oref-border-mark) solid;
+  font-size: var(--oref-font-size-100);
+  text-decoration: none;
+}
+
+.tt-prov-declared {
+  border-left-style: var(--oref-prov-declared-border-style);
+  border-left-color: var(--oref-prov-declared-fg);
+  background: var(--oref-prov-declared-bg);
+  color: var(--oref-prov-declared-fg);
+}
+
+.tt-prov-derived {
+  border-left-style: var(--oref-prov-derived-border-style);
+  border-left-color: var(--oref-prov-derived-fg);
+  background: var(--oref-prov-derived-bg);
+  color: var(--oref-prov-derived-fg);
+}
+
+.tt-prov-inferred {
+  border-left-style: var(--oref-prov-inferred-border-style);
+  border-left-color: var(--oref-prov-inferred-fg);
+  background: var(--oref-prov-inferred-bg);
+  color: var(--oref-prov-inferred-fg);
+}
+
+/* -- status codes -------------------------------------------------------------------------- */
+
+.tt-status {
+  padding: 0 var(--oref-space-200);
+  font-weight: var(--oref-font-weight-bold);
+}
+
+.tt-status-ok {
+  background: var(--oref-state-ok-bg);
+  color: var(--oref-state-ok-fg);
+}
+
+.tt-status-info {
+  background: var(--oref-state-info-bg);
+  color: var(--oref-state-info-fg);
+}
+
+.tt-status-warn {
+  background: var(--oref-state-warn-bg);
+  color: var(--oref-state-warn-fg);
+}
+
+.tt-status-crit {
+  background: var(--oref-state-crit-bg);
+  color: var(--oref-state-crit-fg);
+}
+
+.tt-status-muted {
+  background: var(--oref-state-muted-bg);
+  color: var(--oref-state-muted-fg);
+}
+
+/* -- drift --------------------------------------------------------------------------------- */
+
+.tt-drift {
+  margin-bottom: var(--oref-space-300);
+  padding: var(--oref-space-200) var(--oref-space-300);
+  border-left-style: solid;
+}
+
+.tt-drift-crit {
+  border-left-width: var(--oref-drift-crit-border-width);
+  border-left-style: var(--oref-drift-crit-border-style);
+  border-left-color: var(--oref-drift-crit-fg);
+  background: var(--oref-drift-crit-bg);
+}
+
+.tt-drift-warn {
+  border-left-width: var(--oref-drift-warn-border-width);
+  border-left-style: var(--oref-drift-warn-border-style);
+  border-left-color: var(--oref-drift-warn-fg);
+  background: var(--oref-drift-warn-bg);
+}
+
+.tt-drift-note {
+  border-left-width: var(--oref-drift-note-border-width);
+  border-left-style: var(--oref-drift-note-border-style);
+  border-left-color: var(--oref-drift-note-fg);
+  background: var(--oref-drift-note-bg);
+}
+
+.tt-drift-rule {
+  color: var(--oref-color-fg-muted);
+  font-size: var(--oref-font-size-100);
+  text-transform: uppercase;
+}
+
+.tt-drift-message {
+  margin: var(--oref-space-100) 0;
+}
+
+.tt-drift-sides {
+  margin: 0;
+  padding-left: var(--oref-space-500);
+  color: var(--oref-color-fg-secondary);
+}
+
+.tt-drift-fix {
+  margin: var(--oref-space-100) 0 0;
+  color: var(--oref-color-accent-runtime);
+}
+
+/* -- tables -------------------------------------------------------------------------------- */
+
+.tt-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.tt-row {
+  height: var(--oref-layout-row);
+  border-bottom: var(--oref-border-hair) solid var(--oref-color-line);
+}
+
+.tt-row-head th {
+  color: var(--oref-color-fg-muted);
+  font-family: var(--oref-font-family-display);
+  font-size: var(--oref-font-size-100);
+  font-weight: var(--oref-font-weight-bold);
+  letter-spacing: var(--oref-font-tracking-wide);
+  text-align: left;
+}
+
+.tt-row td,
+.tt-row th {
+  padding: 0 var(--oref-space-300) 0 0;
+}
+
+.tt-row-deprecated .tt-param-name {
+  text-decoration: line-through;
+}
+
+.tt-row-prose td {
+  padding-bottom: var(--oref-space-300);
+}
+
+.tt-col-in,
+.tt-col-req {
+  width: var(--oref-space-900);
+  color: var(--oref-color-fg-muted);
+  font-size: var(--oref-font-size-100);
+}
+
+.tt-col-type {
+  color: var(--oref-color-fg-secondary);
+}
+
+/* -- media, samples, schema tree ------------------------------------------------------------ */
+
+.tt-media {
+  margin: var(--oref-space-300) 0;
+  border-top: var(--oref-border-hair) solid var(--oref-color-line);
+}
+
+.tt-media-head {
+  display: flex;
+  align-items: center;
+  gap: var(--oref-space-300);
+  height: var(--oref-layout-row);
+}
+
+.tt-media-type {
+  color: var(--oref-color-fg-secondary);
+  font-size: var(--oref-font-size-100);
+}
+
+.tt-example pre,
+.tt-result-body,
+.tt-sample-body pre {
+  overflow: auto;
+  margin: var(--oref-space-200) 0;
+  padding: var(--oref-space-300);
+  background: var(--oref-color-surface-code);
+  font-size: var(--oref-font-size-200);
+  line-height: var(--oref-font-leading-data);
+}
+
+.tt-sample-tabs {
+  display: flex;
+  gap: var(--oref-space-200);
+}
+
+.tt-sample-current {
+  background: var(--oref-color-accent-bg);
+  color: var(--oref-color-accent-spec);
+}
+
+.tt-tree-list,
+.tt-tree-children {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tt-tree-row {
+  display: flex;
+  align-items: center;
+  gap: var(--oref-space-200);
+  width: 100%;
+  height: var(--oref-layout-row);
+  border: 0;
+  background: none;
+  color: var(--oref-color-fg);
+  font: inherit;
+  letter-spacing: var(--oref-font-tracking-code);
+  text-align: left;
+}
+
+.tt-tree-depth-1 {
+  padding-left: var(--oref-space-400);
+}
+
+.tt-tree-depth-2 {
+  padding-left: var(--oref-space-500);
+}
+
+.tt-tree-depth-3 {
+  padding-left: var(--oref-space-600);
+}
+
+.tt-tree-depth-4 {
+  padding-left: var(--oref-space-700);
+}
+
+.tt-tree-depth-5,
+.tt-tree-depth-6 {
+  padding-left: var(--oref-space-800);
+}
+
+.tt-tree-rel,
+.tt-tree-twist,
+.tt-tree-req {
+  color: var(--oref-color-fg-muted);
+  font-size: var(--oref-font-size-100);
+}
+
+.tt-tree-type {
+  color: var(--oref-color-accent-spec);
+}
+
+.tt-tree-cycle {
+  color: var(--oref-color-fg-muted);
+  font-size: var(--oref-font-size-100);
+}
+
+/* -- console ------------------------------------------------------------------------------- */
+
+.tt-field {
+  display: flex;
+  align-items: center;
+  gap: var(--oref-space-300);
+  min-height: var(--oref-layout-row);
+}
+
+.tt-field-label {
+  width: calc(var(--oref-space-1000) + var(--oref-space-900));
+  color: var(--oref-color-fg-muted);
+  font-size: var(--oref-font-size-100);
+  text-transform: uppercase;
+}
+
+.tt-field-input,
+.tt-field-select,
+.tt-field-text {
+  flex: 1;
+  border: var(--oref-border-hair) solid var(--oref-color-line);
+  border-radius: var(--oref-radius-none);
+  background: var(--oref-color-surface-inset);
+  color: var(--oref-color-fg);
+  font: inherit;
+}
+
+.tt-field-req,
+.tt-field-note,
+.tt-auth-type,
+.tt-auth-unsendable,
+.tt-send-notice,
+.tt-result-idle-text,
+.tt-stream-counts {
+  color: var(--oref-color-fg-muted);
+  font-size: var(--oref-font-size-100);
+}
+
+.tt-auth-list,
+.tt-response-list,
+.tt-stream-log,
+.tt-health-checks,
+.tt-health-findings,
+.tt-legend-list,
+.tt-index-list,
+.tt-server-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tt-auth-scheme,
+.tt-response,
+.tt-server-row {
+  padding: var(--oref-space-200) 0;
+  border-top: var(--oref-border-hair) solid var(--oref-color-line);
+}
+
+.tt-auth-line,
+.tt-response-line,
+.tt-result-line,
+.tt-health-line,
+.tt-legend-row,
+.tt-stream-row {
+  display: flex;
+  align-items: center;
+  gap: var(--oref-space-300);
+  min-height: var(--oref-layout-row);
+}
+
+.tt-auth-live {
+  color: var(--oref-state-ok-fg);
+  font-size: var(--oref-font-size-100);
+}
+
+.tt-auth-flow-on {
+  background: var(--oref-color-accent-bg);
+  color: var(--oref-color-accent-spec);
+}
+
+.tt-auth-code {
+  padding: 0 var(--oref-space-200);
+  background: var(--oref-color-surface-code);
+  font-size: var(--oref-font-size-500);
+  letter-spacing: var(--oref-font-tracking-wide);
+}
+
+.tt-send {
+  display: flex;
+  align-items: center;
+  gap: var(--oref-space-300);
+  margin: var(--oref-space-300) 0;
+}
+
+.tt-result-ms,
+.tt-stream-seq,
+.tt-stream-event {
+  color: var(--oref-color-fg-muted);
+  font-size: var(--oref-font-size-100);
+}
+
+.tt-stream-invalid {
+  background: var(--oref-state-warn-bg);
+}
+
+.tt-stream-problem {
+  color: var(--oref-state-warn-fg);
+  font-size: var(--oref-font-size-100);
+}
+
+/* -- health, notices, index ----------------------------------------------------------------- */
+
+.tt-health {
+  padding: var(--oref-space-400);
+  border: var(--oref-border-hair) solid var(--oref-color-line);
+  background: var(--oref-color-surface);
+}
+
+.tt-health-score {
+  font-size: var(--oref-font-size-700);
+  font-weight: var(--oref-font-weight-bold);
+  line-height: var(--oref-font-leading-tight);
+}
+
+.tt-health-check,
+.tt-health-rule-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  height: var(--oref-layout-row);
+  border-bottom: var(--oref-border-hair) solid var(--oref-color-line);
+  cursor: pointer;
+}
+
+.tt-health-check-count,
+.tt-health-rule-count {
+  color: var(--oref-color-fg-muted);
+}
+
+.tt-notice {
+  display: flex;
+  align-items: center;
+  gap: var(--oref-space-300);
+  min-height: var(--oref-layout-row);
+  color: var(--oref-color-fg-secondary);
+}
+
+.tt-notice-mark {
+  padding: 0 var(--oref-space-200);
+  background: var(--oref-state-muted-bg);
+  color: var(--oref-state-muted-fg);
+  font-size: var(--oref-font-size-100);
+}
+
+.tt-index-link {
+  display: flex;
+  align-items: center;
+  height: var(--oref-layout-row);
+  color: var(--oref-color-fg-secondary);
+  font-size: var(--oref-font-size-100);
+  text-decoration: none;
+}
+
+.tt-index-link:hover {
+  color: var(--oref-color-accent-link);
+}
+
+.tt-legend {
+  margin-top: var(--oref-space-500);
+}
+
+.tt-legend-text,
+.tt-index-page {
+  color: var(--oref-color-fg-muted);
+  font-size: var(--oref-font-size-100);
+}
+
+/* -- focus, everywhere and drawn once ------------------------------------------------------- */
+
+:focus-visible {
+  outline: var(--oref-focus-width) solid var(--oref-focus-color);
+  outline-offset: var(--oref-focus-offset);
+}
+
+/* -- transitions ---------------------------------------------------------------------------- */
+
+.tt-nav-row,
+.tt-tree-row,
+.tt-palette-open,
+.tt-send-button {
+  transition: background var(--oref-motion-duration-fast) var(--oref-motion-easing-standard);
+}
+
+/*
+ * -- WHAT THIS THEME DOES NOT OWN ------------------------------------------------------------
+ *
+ * Every rule below styles markup the reference draws on a node page outside every position of the
+ * frozen registry. This theme cannot replace any of it, cannot reorder it, and has to name the
+ * reference's own class names to keep it from rendering unstyled. That is the finding of T032 and
+ * it is written up in THEME-BOUNDARY.md; the rules are here because a reader should not pay for it.
+ *
+ * `oref-root` and `oref-operation` are the page and the article. `oref-node-columns`,
+ * `oref-column-spec` and `oref-column-runtime` are vernier's two column thesis, which this theme
+ * has to undo rather than express its own. `oref-section` and `oref-section-title` frame four
+ * blocks. `oref-section-security`, `oref-security-*` and `oref-section-request` are two whole
+ * blocks of content with no position of their own. `oref-section-tryit`, `oref-tryit-form` and
+ * `oref-field*` frame the console. `oref-description` is the operation's own prose, and
+ * `oref-example` with `oref-code` are the generated examples.
+ */
+
+.oref-root {
+  display: contents;
+}
+
+.oref-operation {
+  display: block;
+}
+
+.oref-node-columns {
+  display: flex;
+  flex-direction: column-reverse;
+  gap: var(--oref-space-500);
+}
+
+.oref-column-spec,
+.oref-column-runtime {
+  min-width: 0;
+}
+
+.oref-section {
+  margin-bottom: var(--oref-space-600);
+}
+
+/* The three modifiers are named rather than left to the base rule, so that the list of what this
+   theme has to style is the list of what the reference leaves behind, with nothing implied. */
+.oref-section-security,
+.oref-section-request,
+.oref-section-tryit {
+  border-top: var(--oref-border-hair) solid var(--oref-color-line);
+  padding-top: var(--oref-space-300);
+}
+
+.oref-section-title {
+  margin: 0 0 var(--oref-space-200);
+  color: var(--oref-color-fg-secondary);
+  font-family: var(--oref-font-family-display);
+  font-size: var(--oref-font-size-100);
+  font-weight: var(--oref-font-weight-bold);
+  letter-spacing: var(--oref-font-tracking-wide);
+  text-transform: uppercase;
+}
+
+.oref-security-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.oref-security-item {
+  display: flex;
+  align-items: center;
+  gap: var(--oref-space-300);
+  height: var(--oref-layout-row);
+  border-bottom: var(--oref-border-hair) solid var(--oref-color-line);
+}
+
+.oref-security-type,
+.oref-security-scopes {
+  color: var(--oref-color-fg-muted);
+  font-size: var(--oref-font-size-100);
+}
+
+.oref-description {
+  max-width: var(--oref-layout-measure);
+  color: var(--oref-color-fg-secondary);
+  line-height: var(--oref-font-leading-prose);
+}
+
+.oref-media {
+  margin: var(--oref-space-300) 0;
+  border-top: var(--oref-border-hair) solid var(--oref-color-line);
+}
+
+.oref-media-head {
+  display: flex;
+  align-items: center;
+  gap: var(--oref-space-300);
+  height: var(--oref-layout-row);
+}
+
+.oref-media-type {
+  color: var(--oref-color-fg-secondary);
+  font-size: var(--oref-font-size-100);
+}
+
+.oref-example pre,
+.oref-code {
+  overflow: auto;
+  margin: var(--oref-space-200) 0;
+  padding: var(--oref-space-300);
+  background: var(--oref-color-surface-code);
+  font-size: var(--oref-font-size-200);
+  line-height: var(--oref-font-leading-data);
+}
+
+.oref-tryit-form {
+  display: grid;
+  gap: var(--oref-space-200);
+}
+
+.oref-field {
+  display: flex;
+  align-items: center;
+  gap: var(--oref-space-300);
+  min-height: var(--oref-layout-row);
+}
+
+.oref-field-label {
+  width: calc(var(--oref-space-1000) + var(--oref-space-900));
+  color: var(--oref-color-fg-muted);
+  font-size: var(--oref-font-size-100);
+  text-transform: uppercase;
+}
+
+.oref-field-control {
+  flex: 1;
+  min-width: 0;
+}
+
+.oref-field-note {
+  color: var(--oref-color-fg-muted);
+  font-size: var(--oref-font-size-100);
+}

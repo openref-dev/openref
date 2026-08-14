@@ -16,6 +16,18 @@
  * first twenty of a rule's findings would read as coverage while hiding the tail, which is the
  * defect class this repository keeps removing.
  *
+ * IT RUNS ON THE SERVER AND NOWHERE ELSE, since 2026-08-12. Nothing here is reactive, so the
+ * browser has no reason to draw it a second time, and having it draw one meant handing it the
+ * report, which meant shipping every finding in the state block beside the markup already made
+ * from them. The browser's filling of this position adopts that markup instead, so this file is
+ * reachable only through the eager registry and never enters the client bundle. SPEC 7.2 and 12.
+ *
+ * IT IS THE DEFAULT OF THE ONE SERVER SIDE SLOT, `HealthScore`, and the slot's own rule follows
+ * from the paragraph above: whatever fills it draws on the server, and its root element is what
+ * the browser adopts, so an overriding component renders one `section` carrying
+ * `oref-section-health` and everything it wants inside it. A component with client state there
+ * receives nothing, because nothing on the client draws this position.
+ *
  * A FAILED COLLECTOR IS A CHECK AND NEVER A FINDING, per SPEC 7. It arrives in the check list as
  * `runtime-collectors`. The two are easiest to confuse in exactly this panel, because a broken
  * tool and a disagreement between two documents draw as neighbouring rows; a drift row sends a
@@ -23,9 +35,10 @@
  * there.
  */
 
-import { h, type VNode } from 'vue';
-import { driftRow } from './RuntimePanel';
-import type { HealthCheckModel, HealthModel, HealthRuleModel } from '../page/domain/page-model';
+import { useSlot } from '@openref/vue';
+import { h, type Component, type VNode } from 'vue';
+import { DriftCard } from './DriftCard';
+import type { HealthCheckModel, HealthModel, HealthRuleModel } from '@openref/vue';
 
 /**
  * One check: how many subjects passed it, out of how many it applied to.
@@ -53,15 +66,20 @@ const checkRow = (check: HealthCheckModel): VNode =>
  * One rule, closed, with its count on the line a reader scans.
  *
  * @param rule - The rule and its findings
+ * @param card - The component in the `DriftCard` slot
  * @returns The disclosure
  */
-const ruleGroup = (rule: HealthRuleModel): VNode =>
+const ruleGroup = (rule: HealthRuleModel, card: Component): VNode =>
   h('details', { class: 'oref-rule' }, [
     h('summary', { class: 'oref-rule-head' }, [
       h('span', { class: 'oref-drift-rule' }, rule.rule),
       h('span', { class: 'oref-rule-count' }, rule.count),
     ]),
-    h('ul', { class: 'oref-drift-list' }, rule.findings.map(driftRow)),
+    h(
+      'ul',
+      { class: 'oref-drift-list' },
+      rule.findings.map((issue) => h(card, { issue })),
+    ),
   ]);
 
 /**
@@ -78,6 +96,7 @@ const ruleGroup = (rule: HealthRuleModel): VNode =>
  */
 export function HealthPanel(props: { readonly health: HealthModel }): VNode {
   const health = props.health;
+  const card = useSlot('DriftCard', DriftCard);
 
   // ONE CLASS AND NOT `oref-section` BESIDE IT: the theme says that a health section is a
   // section, in the selector list of the rule that draws one, rather than the markup saying it
@@ -86,6 +105,6 @@ export function HealthPanel(props: { readonly health: HealthModel }): VNode {
     h('h2', { class: 'oref-section-title' }, health.title),
     h('p', { class: 'oref-health-score' }, health.score),
     h('ul', { class: 'oref-check-list' }, health.checks.map(checkRow)),
-    ...health.rules.map(ruleGroup),
+    ...health.rules.map((rule) => ruleGroup(rule, card.value)),
   ]);
 }

@@ -27,17 +27,25 @@ export const EXAMPLE_BASE_PATH = '/docs';
  * Boots the example on a free port.
  *
  * @param platform - `express` or `fastify`
+ * @param env - Extra environment, such as `OPENREF_PROXY` for the proxy selection case
  * @returns Its url and a way to stop it
  * @throws Error when it fails to report a url
  */
-export async function bootExampleApp(platform = 'express'): Promise<SpawnedServer> {
+export async function bootExampleApp(
+  platform = 'express',
+  env?: Readonly<Record<string, string>>,
+): Promise<SpawnedServer> {
   const root = repositoryRoot();
 
   return spawnServer({
     entry: join(root, EXAMPLE_ENTRY),
     args: [`--adapter=${platform}`, '--port=0'],
-    cwd: root,
+    // The application's own directory, the way a real host runs, and since T033 the anchor
+    // host named packages resolve from: the theme entry is the example's dependency, and a
+    // process whose working directory is the repository root cannot see it.
+    cwd: join(root, 'examples', 'nest-minimal'),
     label: `the ${platform} example application`,
     timeoutMs: 60_000,
+    ...(env === undefined ? {} : { env }),
   });
 }

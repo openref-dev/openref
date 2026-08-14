@@ -16,6 +16,7 @@ import { join } from 'node:path';
 import {
   BROWSER_BASELINE_FILE,
   BROWSER_STUDY_WORKFLOW,
+  CLIENT_JS_GESTURES,
   FONT_BUDGET_LIMITS,
   FONT_BUDGETS,
   MEASURED_BUDGETS,
@@ -29,7 +30,12 @@ import {
   type ArtifactMeasurement,
   type BudgetQuantity,
 } from './budgets.js';
-import { chunkName, partitionModuleGraph } from './module-graph.js';
+import {
+  chunkName,
+  partitionByGesture,
+  partitionModuleGraph,
+  type GesturePartition,
+} from './module-graph.js';
 import { collectFiles } from './walk.js';
 
 /** How each quantity is printed, so a figure is never read as the other one. */
@@ -88,6 +94,11 @@ export function collectBudgetOutcomes(repoRoot: string): BudgetReport {
   const notes: string[] = [];
   let measuredCount = 0;
 
+  // THE GESTURE DIVISION IS COMPUTED ONCE PER ENTRY AND ITS COMPLAINTS ARE REPORTED ONCE. Six
+  // budgets share one bundle, so walking it six times would print the same unclaimed chunk six
+  // times and train a reader to skip all six.
+  const gestureSplits = new Map<string, GesturePartition>();
+
   for (const budget of SIZE_BUDGETS) {
     const present: string[] = [];
 
@@ -124,6 +135,53 @@ export function collectBudgetOutcomes(repoRoot: string): BudgetReport {
       }
 
       wanted = [...(partition.side === 'initial' ? split.initial : split.deferred)];
+
+      if (partition.gesture !== undefined) {
+        let divided = gestureSplits.get(partition.entry);
+
+        if (divided === undefined) {
+          divided = partitionByGesture(repoRoot, split, CLIENT_JS_GESTURES);
+          gestureSplits.set(partition.entry, divided);
+
+          // A DEFERRED CHUNK NO GESTURE CLAIMS FAILS, for the reason the unaccounted set exists
+          // one level up. It is either dead output or a gesture nobody named, and both would be
+          // silently unbudgeted the moment the division replaced the single cap over the union.
+          if (divided.unclaimed.length > 0) {
+            errors.push(
+              `${partition.entry}: ${String(divided.unclaimed.length)} deferred chunk(s) are downloaded by no declared gesture: ${divided.unclaimed.map(chunkName).join(', ')}. Splitting the deferred budget by gesture leaves nothing over, or it leaves a chunk nobody pays a budget for`,
+            );
+          }
+
+          for (const [id, gestureSplit] of divided.byGesture) {
+            for (const root of gestureSplit.missingRoots) {
+              errors.push(
+                `gesture ${id}: the chunk ${root} it is declared to start from is not on the deferred side of ${partition.entry}. A budget over nothing passes on every run`,
+              );
+            }
+
+            for (const { root, matches } of gestureSplit.ambiguousRoots) {
+              errors.push(
+                `gesture ${id}: the chunk name ${root} matches ${String(matches.length)} deferred chunks, ${matches.map(chunkName).join(', ')}, so what this budget weighs is undecided`,
+              );
+            }
+          }
+        }
+
+        const gestureSplit = divided.byGesture.get(partition.gesture);
+
+        if (gestureSplit === undefined) {
+          errors.push(
+            `${budget.id}: names the gesture ${partition.gesture}, which CLIENT_JS_GESTURES does not declare`,
+          );
+          continue;
+        }
+
+        if (gestureSplit.missingRoots.length > 0 || gestureSplit.ambiguousRoots.length > 0) {
+          continue;
+        }
+
+        wanted = [...gestureSplit.files];
+      }
     }
 
     const measurements: ArtifactMeasurement[] = wanted.map((relativePath) => {
@@ -138,9 +196,9 @@ export function collectBudgetOutcomes(repoRoot: string): BudgetReport {
     if (measurements.length === 0) {
       // AN EMPTY SIDE OF A BUNDLE THAT EXISTS IS A FAILURE, NOT A SKIP. `skip` says the artifact
       // has not been built yet, which is true of an empty directory and false of a split that
-      // has been undone: a `client-js-deferred` reading zero would mean the three features are
-      // back in the first paint, and printing that as "nothing to measure yet" is exactly how a
-      // reverted deferral would pass unnoticed.
+      // has been undone: a gesture budget reading zero would mean that feature is back in the
+      // first paint, and printing that as "nothing to measure yet" is exactly how a reverted
+      // deferral would pass unnoticed.
       if (budget.partition !== undefined && present.length > 0) {
         errors.push(
           `${budget.id}: the ${budget.partition.side} side of ${budget.partition.entry} is empty while ${String(present.length)} file(s) sit under ${budget.roots.join(', ')}. That is a split that no longer splits anything, not a bundle nobody has built`,

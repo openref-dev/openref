@@ -146,6 +146,145 @@ export function partitionModuleGraph(
 }
 
 /**
+ * One gesture the deferred half is divided by, and the chunks its fetch starts from.
+ *
+ * WHY THIS ONE THING CANNOT BE DERIVED FROM THE GRAPH, said here because everything else in this
+ * file is. The graph knows that four chunks hang off dynamic imports of the entry; it does not
+ * know that three of those imports are made by a component the reader opened and the fourth is
+ * made from inside the console's own loader. `loadRunner` is handed to the renderer as a function,
+ * so the `import('@openref/runner')` is written in the entry file and the runner is a dynamic root
+ * of the entry, while the only thing that ever calls it is the try-it console arriving. Which
+ * gesture pays for a chunk is a fact about the source, and a declaration is the only honest form
+ * for it.
+ *
+ * SO IT IS CHECKED IN BOTH DIRECTIONS, which is what keeps a declaration from going stale in
+ * silence. A named root that matches no deferred chunk fails, because a budget over nothing is
+ * worse than no budget. A root that matches more than one fails, because then it is not clear
+ * what was weighed. And a deferred chunk no gesture claims fails, for the reason the unaccounted
+ * set exists one level up: a chunk nobody pays for is either dead output or a gesture nobody
+ * named, and both read as a smaller bundle.
+ */
+export interface DeferredGesture {
+  /** Short id, used in the budget id. */
+  readonly id: string;
+  /**
+   * Chunk names without the content hash, as the bundler derives them from the module it split.
+   *
+   * `TryItPanel-UOGJVNJF.js` is matched by `TryItPanel`. The hash changes with every change to
+   * the content, which is exactly why the name is written without it.
+   */
+  readonly roots: readonly string[];
+}
+
+/** What one gesture downloads, and everything wrong with how it was declared. */
+export interface GestureSplit {
+  /** Deferred files this gesture's roots reach, sorted. */
+  readonly files: readonly string[];
+  /** Declared roots that matched no deferred chunk. */
+  readonly missingRoots: readonly string[];
+  /** Declared roots that matched more than one, with what they matched. */
+  readonly ambiguousRoots: readonly {
+    readonly root: string;
+    readonly matches: readonly string[];
+  }[];
+}
+
+/** The deferred half divided by gesture, plus whatever no gesture claimed. */
+export interface GesturePartition {
+  readonly byGesture: ReadonlyMap<string, GestureSplit>;
+  /** Deferred files reached by no declared gesture. */
+  readonly unclaimed: readonly string[];
+}
+
+/**
+ * Whether a deferred chunk is the one a declared root names.
+ *
+ * @param file - Repository relative path of a deferred chunk
+ * @param root - Chunk name without the content hash
+ * @returns True when the file is that chunk, hashed or not
+ */
+function isRoot(file: string, root: string): boolean {
+  const name = basename(file);
+
+  return name === `${root}.js` || (name.startsWith(`${root}-`) && name.endsWith('.js'));
+}
+
+/**
+ * Divides the deferred side of a bundle by the gesture that downloads it.
+ *
+ * A CHUNK TWO GESTURES SHARE IS COUNTED IN BOTH, and that is the measurement rather than double
+ * counting. Each budget answers what one gesture costs a reader who has made no other, which is
+ * the only figure that can be read as "pressing Send now costs this much"; summing the three
+ * would give a quantity nobody pays, which is the defect the whole partition exists about.
+ *
+ * @param repoRoot - Absolute repository root
+ * @param partition - The two sides of the bundle, already walked
+ * @param gestures - The declared gestures
+ * @returns One split per gesture, in declaration order, and the deferred files none of them reach
+ */
+export function partitionByGesture(
+  repoRoot: string,
+  partition: ModuleGraphPartition,
+  gestures: readonly DeferredGesture[],
+): GesturePartition {
+  const deferred = new Set(partition.deferred);
+  const byGesture = new Map<string, GestureSplit>();
+  const claimed = new Set<string>();
+
+  for (const gesture of gestures) {
+    const missingRoots: string[] = [];
+    const ambiguousRoots: { root: string; matches: string[] }[] = [];
+    const reached = new Set<string>();
+    const queue: string[] = [];
+
+    for (const root of gesture.roots) {
+      const matches = partition.deferred.filter((file) => isRoot(file, root));
+
+      if (matches.length === 0) {
+        missingRoots.push(root);
+        continue;
+      }
+
+      if (matches.length > 1) {
+        ambiguousRoots.push({ root, matches });
+        continue;
+      }
+
+      queue.push(matches[0] ?? '');
+    }
+
+    // Static edges only, and only inside the deferred set: a chunk the first paint already
+    // compiled is not downloaded again by a reader who presses Send.
+    while (queue.length > 0) {
+      const current = queue.shift();
+      if (current === undefined || reached.has(current) || !deferred.has(current)) continue;
+
+      reached.add(current);
+      claimed.add(current);
+
+      const source = readModule(join(repoRoot, current));
+      if (source === null) continue;
+
+      const directory = dirname(current);
+      for (const specifier of specifiersOf(source).static) {
+        queue.push(posix.normalize(posix.join(directory, specifier)));
+      }
+    }
+
+    byGesture.set(gesture.id, {
+      files: [...reached].sort(),
+      missingRoots,
+      ambiguousRoots,
+    });
+  }
+
+  return {
+    byGesture,
+    unclaimed: partition.deferred.filter((file) => !claimed.has(file)),
+  };
+}
+
+/**
  * The file name of a module, for a message that names a chunk rather than a path.
  *
  * @param file - Repository relative path

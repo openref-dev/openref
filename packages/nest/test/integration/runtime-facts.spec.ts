@@ -354,6 +354,11 @@ describe('the decorators of SPEC 13.4, against the running example application',
       // Given `@Sse('events')` and `@ApiStream({ itemType: OrderEventDto })`. Reflection cannot
       // recover that type from the handler's signature at any confidence, per SPEC 6.1, so this is
       // level one of SPEC 13.6 travelling the whole way.
+      //
+      // THE TERMINATOR JOINED IT AT T030, AND ITS ABSENCE HERE WAS THE DEFECT. The decorator has
+      // accepted `terminator` since M1 and `IRStreaming` had no field for it, so the example
+      // declared `[DONE]` and the IR said nothing: declared but never filled, in the SPEC 0 sense.
+      // A console cannot end a stream normally on a value nothing carried to it.
       const found = report();
 
       // When
@@ -364,6 +369,7 @@ describe('the decorators of SPEC 13.4, against the running example application',
         value: {
           transport: 'sse',
           itemSchema: { kind: 'named', schemaId: 'OrderEventDto' },
+          terminator: '[DONE]',
         },
         confidence: 'declared',
         collector: 'streamCollector',

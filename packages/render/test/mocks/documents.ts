@@ -668,3 +668,53 @@ export function runtimeNodeId(document?: IRDocument): string {
 
   return [...source.nodes.keys()].find((id) => id.startsWith('get')) ?? '';
 }
+
+/**
+ * A document whose one operation requires every kind of scheme SPEC 14.4 names.
+ *
+ * The point of it is the two a browser cannot send. A console that draws nothing for `mutualTLS`
+ * is indistinguishable from a console whose document never declared it, and that indistinguishable
+ * absence is what T028 is about.
+ */
+export function authDocument(): IRDocument {
+  return normalizeOpenApiDocument({
+    openapi: '3.1.0',
+    info: { title: 'Guarded API', version: '1.0.0' },
+    servers: [{ url: 'https://api.example.com' }],
+    paths: {
+      '/orders': {
+        get: {
+          operationId: 'listOrders',
+          summary: 'List orders',
+          responses: { '200': { description: 'ok' } },
+          security: [{ oauth: ['orders:read'] }, { mtls: [] }, { cookieKey: [] }, { oidc: [] }],
+        },
+      },
+    },
+    components: {
+      securitySchemes: {
+        oauth: {
+          type: 'oauth2',
+          flows: {
+            authorizationCode: {
+              authorizationUrl: 'https://auth.example.com/authorize',
+              tokenUrl: 'https://auth.example.com/token',
+              scopes: { 'orders:read': 'Read orders' },
+            },
+            deviceAuthorization: {
+              deviceAuthorizationUrl: 'https://auth.example.com/device',
+              tokenUrl: 'https://auth.example.com/token',
+              scopes: {},
+            },
+          },
+        },
+        oidc: {
+          type: 'openIdConnect',
+          openIdConnectUrl: 'https://auth.example.com/.well-known/openid-configuration',
+        },
+        mtls: { type: 'mutualTLS' },
+        cookieKey: { type: 'apiKey', in: 'cookie', name: 'sid' },
+      },
+    },
+  });
+}

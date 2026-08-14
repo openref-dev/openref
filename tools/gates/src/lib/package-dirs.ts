@@ -15,6 +15,7 @@
 
 import { createRequire } from 'node:module';
 import { join } from 'node:path';
+import { SHIPPED_CLIENT_BUNDLES } from '../config.js';
 
 /** Repository relative path of the module that owns the derivation. */
 const RULES_MODULE = 'tools/dependency-rules.cjs';
@@ -52,4 +53,29 @@ export function readPackageDirs(repoRoot: string): readonly string[] {
  */
 export function cspScanRoots(repoRoot: string): readonly string[] {
   return readPackageDirs(repoRoot).map((dir) => `packages/${dir}/dist`);
+}
+
+/**
+ * Directories holding built output a browser loads as modules, one per package.
+ *
+ * DERIVED THE SAME WAY AND FOR THE SAME REASON AS THE CSP ROOTS. `dist/browser` is where every
+ * package that builds for a browser puts it, so a package added to the repository is scanned from
+ * the moment its directory exists. A package that builds nothing for a browser has no such
+ * directory and contributes no files, which the resolution gate counts rather than assumes: a
+ * scan that found nothing anywhere is a build that has not run, and it says so.
+ *
+ * @param repoRoot - Absolute repository root
+ * @returns Repository relative directories
+ */
+export function browserScanRoots(repoRoot: string): readonly string[] {
+  const conventional = readPackageDirs(repoRoot).map((dir) => `packages/${dir}/dist/browser`);
+
+  // AND EVERY ROOT THE BUNDLE REGISTRY DECLARES, since T033: the Web Component and themed
+  // entry outputs live outside the `dist/browser` convention, and the registry is the one
+  // place that knows a browser artefact exists, so the scan follows it rather than trusting
+  // the convention to stay the whole story. The reconciliation in the gate still runs both
+  // ways, which is what caught the two the convention missed.
+  const declared = SHIPPED_CLIENT_BUNDLES.flatMap((bundle) => bundle.roots);
+
+  return [...new Set([...conventional, ...declared])];
 }

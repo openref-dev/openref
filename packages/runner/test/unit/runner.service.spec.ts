@@ -31,7 +31,7 @@ describe('RequestRunner', () => {
     const result = await runner.send({
       operation: operation(),
       serverUrl: 'https://api.example.com',
-      values: { 'path:id': '42' },
+      values: { 'path:id': { kind: 'primitive', value: '42' } },
     });
 
     // Then
@@ -52,7 +52,7 @@ describe('RequestRunner', () => {
     await runner.send({
       operation: operation({ security: [BEARER] }),
       serverUrl: 'https://api.example.com',
-      values: { 'path:id': '1' },
+      values: { 'path:id': { kind: 'primitive', value: '1' } },
     });
 
     // Then
@@ -69,7 +69,7 @@ describe('RequestRunner', () => {
     const result = await runner.send({
       operation: operation({ security: [API_KEY_QUERY] }),
       serverUrl: 'https://api.example.com',
-      values: { 'path:id': '1' },
+      values: { 'path:id': { kind: 'primitive', value: '1' } },
     });
 
     // Then
@@ -92,7 +92,7 @@ describe('RequestRunner', () => {
     const result = await runner.send({
       operation: operation(),
       serverUrl: 'https://api.example.com',
-      values: { 'path:id': '1' },
+      values: { 'path:id': { kind: 'primitive', value: '1' } },
     });
 
     // Then
@@ -111,7 +111,7 @@ describe('RequestRunner', () => {
     const send = runner.send({
       operation: operation({ servers: [] }),
       serverUrl: '',
-      values: { 'path:id': '1' },
+      values: { 'path:id': { kind: 'primitive', value: '1' } },
     });
 
     // Then

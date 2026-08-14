@@ -34,6 +34,7 @@
 
 import { ErrorCode, InvalidOptionsError } from '@openref/core';
 import type { CollectorRegistration } from '../runtime/application/ports/collector.port';
+import type { OpenRefThemeOptions } from '../reference/application/services/reference.service';
 import type { OpenRefSetupOptions } from './reference-options';
 
 /**
@@ -140,6 +141,13 @@ export interface OpenRefRootOptions {
   readonly documents?: readonly OpenRefDocumentOptions[];
   /** Runtime intelligence, per SPEC 6. */
   readonly runtime?: OpenRefRuntimeOptions;
+  /**
+   * The theme every mounted document defaults to, per SPEC 13.2. Built since T033.
+   *
+   * An entry of `documents` that names its own theme overrides this for that mount alone,
+   * which is the same relation every other shared option has to its per document form.
+   */
+  readonly theme?: OpenRefThemeOptions;
 }
 
 /** The async form SPEC 13.2 calls mandatory. */
@@ -152,10 +160,18 @@ export interface OpenRefRootAsyncOptions {
   readonly inject?: readonly unknown[];
 }
 
-/** Options SPEC 13.2 prints that a later milestone owns, and which milestone that is. */
+/**
+ * Options SPEC 13.2 prints that a later milestone owns, and which milestone that is.
+ *
+ * `theme` left this list at T033, where it was built. `runner` stays with a corrected owner:
+ * the console it once stood for shipped across M2, and the proxy tuning arrived as the `proxy`
+ * option, so what this aggregate name still promises is the reconciliation with SPEC 13.2's
+ * shape plus the `socket` and `bridge` halves, which are M6.
+ */
 const NOT_YET_BUILT: Readonly<Record<string, string>> = {
-  theme: 'M2, T031',
-  runner: 'M2, T026 through T030',
+  runner:
+    'T034 reconciles this aggregate with SPEC 13.2: the console shipped across M2, proxy ' +
+    'tuning is the proxy option, and the socket and bridge halves are M6',
   federation: 'M4',
   agent: 'M6, T058',
   cache: 'M0, and it is per document rather than global: pass it in a documents entry',

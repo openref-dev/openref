@@ -11,7 +11,7 @@ describe('buildRequest', () => {
     // When
     const plan = buildRequest(target, {
       serverUrl: 'https://api.example.com',
-      values: { 'path:id': '42' },
+      values: { 'path:id': { kind: 'primitive', value: '42' } },
     });
 
     // Then
@@ -27,7 +27,7 @@ describe('buildRequest', () => {
     // When
     const plan = buildRequest(target, {
       serverUrl: 'https://api.example.com',
-      values: { 'path:id': 'a/b c' },
+      values: { 'path:id': { kind: 'primitive', value: 'a/b c' } },
     });
 
     // Then
@@ -47,7 +47,10 @@ describe('buildRequest', () => {
     // When
     const plan = buildRequest(target, {
       serverUrl: 'https://api.example.com',
-      values: { 'query:limit': '10', 'header:X-Trace': 'abc' },
+      values: {
+        'query:limit': { kind: 'primitive', value: '10' },
+        'header:X-Trace': { kind: 'primitive', value: 'abc' },
+      },
     });
 
     // Then
@@ -55,7 +58,7 @@ describe('buildRequest', () => {
     expect(plan.headers).toEqual({ 'X-Trace': 'abc' });
   });
 
-  it('should omit an optional parameter the reader left empty', () => {
+  it('should omit an optional parameter the reader never filled in', () => {
     // Given
     const target = operation({
       path: '/orders',
@@ -69,6 +72,126 @@ describe('buildRequest', () => {
 
     // Then
     expect(plan.url).toBe('https://api.example.com/orders');
+  });
+
+  /**
+   * Absent and empty, which the M0 runner could not tell apart.
+   *
+   * It held one string per parameter and skipped the empty ones, so a reader who cleared a field
+   * and a reader who never opened it sent the same request. T026 is where the two separate: no
+   * key at all is absent, a key holding an empty value is a value with nothing in it, and `?q=`
+   * is a question a server can answer differently from no `q` at all.
+   */
+  it('should send an optional parameter the reader cleared, which is not the same as absent', () => {
+    // Given
+    const target = operation({
+      path: '/orders',
+      parameters: [
+        parameter({ name: 'q', in: 'query', required: false, style: 'form', explode: true }),
+      ],
+    });
+
+    // When
+    const plan = buildRequest(target, {
+      serverUrl: 'https://api.example.com',
+      values: { 'query:q': { kind: 'primitive', value: '' } },
+    });
+
+    // Then
+    expect(plan.url).toBe('https://api.example.com/orders?q=');
+  });
+
+  it('should refuse a required parameter left empty, and name allowEmptyValue as the exception', () => {
+    // Given a required parameter the reader cleared. An empty value is a value, and it is still
+    // not an answer to a question the operation says it cannot be asked without.
+    const target = operation({
+      path: '/orders',
+      parameters: [
+        parameter({ name: 'q', in: 'query', required: true, style: 'form', explode: true }),
+      ],
+    });
+
+    // When
+    const build = (): unknown =>
+      buildRequest(target, {
+        serverUrl: 'https://api.example.com',
+        values: { 'query:q': { kind: 'primitive', value: '' } },
+      });
+
+    // Then
+    expect(build).toThrow(SerializationError);
+    expect(build).toThrow(/allowEmptyValue/);
+  });
+
+  it('should send a required parameter left empty when the document declares allowEmptyValue', () => {
+    // Given the one document that can overrule the rule above, which is the one that declared
+    // the parameter
+    const target = operation({
+      path: '/orders',
+      parameters: [
+        parameter({
+          name: 'q',
+          in: 'query',
+          required: true,
+          style: 'form',
+          explode: true,
+          allowEmptyValue: true,
+        }),
+      ],
+    });
+
+    // When
+    const plan = buildRequest(target, {
+      serverUrl: 'https://api.example.com',
+      values: { 'query:q': { kind: 'primitive', value: '' } },
+    });
+
+    // Then
+    expect(plan.url).toBe('https://api.example.com/orders?q=');
+  });
+
+  it('should refuse a path parameter that renders as nothing, whatever left it empty', () => {
+    // Given a `simple` path parameter with an empty value. It renders as the empty string, so
+    // `/orders/{id}` would become `/orders/`, which is a request to a different route and a 404
+    // a reader would read as the API's answer. The test is what came out rather than which style
+    // produced it: `matrix` and `label` render an empty value as `;id` and `.` and keep the
+    // segment, which OpenAPI's own empty column defines.
+    //
+    // `allowEmptyValue` IS ON IT DELIBERATELY, so this reaches the rendering rather than stopping
+    // at the required check, which is the refusal a plain path parameter gets first. It is also
+    // the interesting case: the document says an empty value is allowed and the route still
+    // cannot carry one, so the two refusals are about different things and both are needed.
+    const target = operation({
+      parameters: [parameter({ allowEmptyValue: true })],
+    });
+
+    // When
+    const build = (): unknown =>
+      buildRequest(target, {
+        serverUrl: 'https://api.example.com',
+        values: { 'path:id': { kind: 'primitive', value: '' } },
+      });
+
+    // Then
+    expect(build).toThrow(SerializationError);
+    expect(build).toThrow(/renders as nothing/);
+  });
+
+  it('should keep the path segment for a matrix parameter whose value is empty', () => {
+    // Given the other side of the same rule, which is why it is written about the output
+    const target = operation({
+      path: '/orders{id}',
+      parameters: [parameter({ name: 'id', style: 'matrix', allowEmptyValue: true })],
+    });
+
+    // When
+    const plan = buildRequest(target, {
+      serverUrl: 'https://api.example.com',
+      values: { 'path:id': { kind: 'primitive', value: '' } },
+    });
+
+    // Then
+    expect(plan.url).toBe('https://api.example.com/orders;id');
   });
 
   it('should leave reserved characters alone when the parameter allows them', () => {
@@ -90,7 +213,7 @@ describe('buildRequest', () => {
     // When
     const plan = buildRequest(target, {
       serverUrl: 'https://api.example.com',
-      values: { 'query:filter': 'a/b:c' },
+      values: { 'query:filter': { kind: 'primitive', value: 'a/b:c' } },
     });
 
     // Then
@@ -125,12 +248,56 @@ describe('buildRequest', () => {
     expect(build).toThrow(SerializationError);
   });
 
-  it('should refuse a style outside the M0 subset and name the milestone', () => {
-    // Given, deepObject is a cell of the matrix M2 covers.
+  it('should build a deepObject query parameter, which T026 added to the whole matrix', () => {
+    // Given, the style this case used to assert a refusal for. M0 refused every style but the
+    // default one and named M2 in the message; T026 is that milestone, and the whole of SPEC
+    // 14.2 is in `serialization-matrix.spec.ts`. What is checked here is that `buildRequest`
+    // reaches it rather than holding a second opinion about which styles exist.
     const target = operation({
       path: '/orders',
       parameters: [
-        parameter({ name: 'filter', in: 'query', required: false, style: 'deepObject' }),
+        parameter({
+          name: 'filter',
+          in: 'query',
+          required: false,
+          style: 'deepObject',
+          explode: true,
+        }),
+      ],
+    });
+
+    // When
+    const plan = buildRequest(target, {
+      serverUrl: 'https://api.example.com',
+      values: {
+        'query:filter': {
+          kind: 'object',
+          value: [
+            ['status', 'open'],
+            ['since', '2026-01-01'],
+          ],
+        },
+      },
+    });
+
+    // Then
+    expect(plan.url).toBe(
+      'https://api.example.com/orders?filter[status]=open&filter[since]=2026-01-01',
+    );
+  });
+
+  it('should refuse a cell OpenAPI leaves undefined rather than fall back to a nearby style', () => {
+    // Given, `deepObject` with a primitive, which the SPEC 14.2 table prints as n/a
+    const target = operation({
+      path: '/orders',
+      parameters: [
+        parameter({
+          name: 'filter',
+          in: 'query',
+          required: false,
+          style: 'deepObject',
+          explode: true,
+        }),
       ],
     });
 
@@ -138,13 +305,12 @@ describe('buildRequest', () => {
     const build = (): unknown =>
       buildRequest(target, {
         serverUrl: 'https://api.example.com',
-        values: { 'query:filter': 'x' },
+        values: { 'query:filter': { kind: 'primitive', value: 'x' } },
       });
 
     // Then
     expect(build).toThrow(SerializationError);
     expect(build).toThrow(/deepObject/);
-    expect(build).toThrow(/M2/);
   });
 
   it('should refuse a cookie parameter, which a script cannot set', () => {
@@ -169,7 +335,10 @@ describe('buildRequest', () => {
 
     // When
     const build = (): unknown =>
-      buildRequest(target, { serverUrl: 'https://evil.example', values: { 'path:id': '1' } });
+      buildRequest(target, {
+        serverUrl: 'https://evil.example',
+        values: { 'path:id': { kind: 'primitive', value: '1' } },
+      });
 
     // Then
     expect(build).toThrow(SerializationError);
@@ -182,7 +351,10 @@ describe('buildRequest', () => {
 
     // When
     const build = (): unknown =>
-      buildRequest(target, { serverUrl: 'https://api.example.com', values: { 'path:id': '1' } });
+      buildRequest(target, {
+        serverUrl: 'https://api.example.com',
+        values: { 'path:id': { kind: 'primitive', value: '1' } },
+      });
 
     // Then
     expect(build).toThrow(SerializationError);
@@ -195,14 +367,14 @@ describe('buildRequest', () => {
       method: 'post',
       path: '/orders',
       parameters: [],
-      bodyMediaTypes: ['application/json'],
+      body: [{ mediaType: 'application/json' }],
     });
 
     // When
     const plan = buildRequest(target, {
       serverUrl: 'https://api.example.com',
       values: {},
-      body: '{"sku":"a"}',
+      body: { kind: 'text', text: '{"sku":"a"}' },
     });
 
     // Then
@@ -218,7 +390,7 @@ describe('buildRequest', () => {
     const plan = buildRequest(target, {
       serverUrl: 'https://api.example.com',
       values: {},
-      body: '  \n',
+      body: { kind: 'text', text: '  \n' },
     });
 
     // Then
@@ -232,35 +404,46 @@ describe('buildRequest', () => {
       method: 'post',
       path: '/orders',
       parameters: [],
-      bodyMediaTypes: ['application/json'],
+      body: [{ mediaType: 'application/json' }],
     });
 
     // When
     const build = (): unknown =>
-      buildRequest(target, { serverUrl: 'https://api.example.com', values: {}, body: '{oops' });
+      buildRequest(target, {
+        serverUrl: 'https://api.example.com',
+        values: {},
+        body: { kind: 'text', text: '{oops' },
+      });
 
     // Then
     expect(build).toThrow(SerializationError);
     expect(build).toThrow(/not valid JSON/);
   });
 
-  it('should refuse a media type outside the M0 subset and name the milestone', () => {
-    // Given
+  it('should refuse one typed value at a media type that is made of named fields', () => {
+    // Given a multipart operation and a body typed as one blob, which is what the M0 console
+    // could produce and what T027 replaced with a field per declared property. The refusal names
+    // the reason rather than the milestone: the media type is supported, and this is not how it
+    // is filled in.
     const target = operation({
       method: 'post',
       path: '/orders',
       parameters: [],
-      bodyMediaTypes: ['multipart/form-data'],
+      body: [{ mediaType: 'multipart/form-data' }],
     });
 
     // When
     const build = (): unknown =>
-      buildRequest(target, { serverUrl: 'https://api.example.com', values: {}, body: '{}' });
+      buildRequest(target, {
+        serverUrl: 'https://api.example.com',
+        values: {},
+        body: { kind: 'text', text: '{}' },
+      });
 
     // Then
     expect(build).toThrow(SerializationError);
     expect(build).toThrow(/multipart\/form-data/);
-    expect(build).toThrow(/M2/);
+    expect(build).toThrow(/named fields/);
   });
 
   it('should carry the serialization error code on every refusal', () => {

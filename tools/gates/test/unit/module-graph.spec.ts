@@ -2,7 +2,12 @@ import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { partitionModuleGraph, specifiersOf } from '../../src/lib/module-graph';
+import {
+  partitionByGesture,
+  partitionModuleGraph,
+  specifiersOf,
+  type DeferredGesture,
+} from '../../src/lib/module-graph';
 
 /**
  * The walker two gates now depend on, and every way it could be silently wrong.
@@ -152,5 +157,128 @@ describe('partitionModuleGraph', () => {
     // Then
     expect(split.initial).toEqual(['dist/entry.js']);
     expect(split.unaccounted).toEqual([]);
+  });
+});
+
+describe('partitionByGesture', () => {
+  /**
+   * The shipped bundle's shape, in miniature: an entry with four dynamic roots, one of which is
+   * the runner, a chunk two features share, and a chunk the first paint already compiled.
+   *
+   * @returns The two sides, walked from the entry
+   */
+  function shippedShape(): ReturnType<typeof partitionModuleGraph> {
+    write(
+      'dist/entry.js',
+      `import"./chunk-eager.js";var a=()=>import("./TryItPanel-AAAA.js"),` +
+        `b=()=>import("./CommandPalette-BBBB.js"),c=()=>import("./SchemaView-CCCC.js"),` +
+        `d=()=>import("./src-DDDD.js");`,
+    );
+    write('dist/chunk-eager.js', 'export var e=1;');
+    write('dist/TryItPanel-AAAA.js', `import"./chunk-shared.js";import"./chunk-eager.js";`);
+    write('dist/CommandPalette-BBBB.js', `import"./chunk-shared.js";`);
+    write('dist/SchemaView-CCCC.js', 'export var s=1;');
+    write('dist/src-DDDD.js', 'export var r=1;');
+    write('dist/chunk-shared.js', 'export var h=1;');
+
+    return partitionModuleGraph(root, 'dist/entry.js', [
+      'dist/entry.js',
+      'dist/chunk-eager.js',
+      'dist/chunk-shared.js',
+      'dist/TryItPanel-AAAA.js',
+      'dist/CommandPalette-BBBB.js',
+      'dist/SchemaView-CCCC.js',
+      'dist/src-DDDD.js',
+    ]);
+  }
+
+  const GESTURES: readonly DeferredGesture[] = [
+    { id: 'send', roots: ['TryItPanel', 'src'] },
+    { id: 'palette', roots: ['CommandPalette'] },
+    { id: 'schema', roots: ['SchemaView'] },
+  ];
+
+  it('should give each gesture what a reader who makes only that one downloads', () => {
+    // Given the shipped shape, where the runner is a dynamic root of the entry and is paid for by
+    // the console arriving, which no graph can know and the declaration says
+    const split = shippedShape();
+
+    // When
+    const divided = partitionByGesture(root, split, GESTURES);
+
+    // Then, the runner is on the Send side and the chunk the first paint compiled is on nobody's
+    expect(divided.byGesture.get('send')?.files).toEqual([
+      'dist/TryItPanel-AAAA.js',
+      'dist/chunk-shared.js',
+      'dist/src-DDDD.js',
+    ]);
+    expect(divided.byGesture.get('schema')?.files).toEqual(['dist/SchemaView-CCCC.js']);
+    expect(divided.unclaimed).toEqual([]);
+  });
+
+  it('should count a shared chunk in both gestures that fetch it', () => {
+    // Given, the property that makes the three budgets readable one at a time: a reader who only
+    // opens the palette downloads the shared chunk, and so does a reader who only presses Send.
+    // Summing the three would be a quantity nobody pays, which is what the union cap was.
+    const split = shippedShape();
+
+    // When
+    const divided = partitionByGesture(root, split, GESTURES);
+
+    // Then
+    expect(divided.byGesture.get('send')?.files).toContain('dist/chunk-shared.js');
+    expect(divided.byGesture.get('palette')?.files).toContain('dist/chunk-shared.js');
+  });
+
+  it('should name a deferred chunk that no gesture downloads', () => {
+    // Given a fourth feature deferred and never declared, which is how a chunk comes to be
+    // budgeted by nobody once the single cap over the union is gone
+    const split = shippedShape();
+    write('dist/entry.js', 'import"./chunk-eager.js";var g=()=>import("./Ghost-EEEE.js");');
+    write('dist/Ghost-EEEE.js', 'export var g=1;');
+    const walked = partitionModuleGraph(root, 'dist/entry.js', [
+      ...split.initial,
+      ...split.deferred,
+      'dist/Ghost-EEEE.js',
+    ]);
+
+    // When
+    const divided = partitionByGesture(root, walked, GESTURES);
+
+    // Then
+    expect(divided.unclaimed).toEqual(['dist/Ghost-EEEE.js']);
+  });
+
+  it('should report a declared root that matches no chunk, rather than weighing nothing', () => {
+    // Given the shape this takes in practice: a chunk renamed by the bundler, or a feature that
+    // stopped being deferred. A budget over an empty set passes on every run.
+    const split = shippedShape();
+
+    // When
+    const divided = partitionByGesture(root, split, [{ id: 'health', roots: ['HealthPanel'] }]);
+
+    // Then
+    expect(divided.byGesture.get('health')?.missingRoots).toEqual(['HealthPanel']);
+    expect(divided.byGesture.get('health')?.files).toEqual([]);
+  });
+
+  it('should report a root that matches more than one chunk', () => {
+    // Given two chunks whose names begin the same way, so what the budget weighs is undecided
+    write('dist/entry.js', `var a=()=>import("./Try-1.js"),b=()=>import("./Try-2.js");`);
+    write('dist/Try-1.js', 'export var a=1;');
+    write('dist/Try-2.js', 'export var b=2;');
+    const walked = partitionModuleGraph(root, 'dist/entry.js', [
+      'dist/entry.js',
+      'dist/Try-1.js',
+      'dist/Try-2.js',
+    ]);
+
+    // When
+    const divided = partitionByGesture(root, walked, [{ id: 'send', roots: ['Try'] }]);
+
+    // Then
+    expect(divided.byGesture.get('send')?.ambiguousRoots).toEqual([
+      { root: 'Try', matches: ['dist/Try-1.js', 'dist/Try-2.js'] },
+    ]);
   });
 });

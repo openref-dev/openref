@@ -3,6 +3,7 @@ import { createSSRApp, defineComponent, h, nextTick, ref } from 'vue';
 import { renderToString } from 'vue/server-renderer';
 import { describe, expect, it } from 'vitest';
 import type { ISearchPort, SearchHit } from '../../src/index';
+import { useRunner } from '../../src/runner';
 import {
   createDocState,
   useChannel,
@@ -11,7 +12,6 @@ import {
   useHealth,
   useNode,
   useOperation,
-  useRunner,
   useRuntime,
   useSchemaView,
   useSearch,
@@ -600,5 +600,30 @@ describe('useRunner and useSocket', () => {
     // Then
     expect(socket.available.value).toBe(false);
     await expect(socket.connect()).rejects.toBeInstanceOf(RunnerError);
+  });
+
+  /**
+   * T031: the one stub in a frozen surface names the milestone that fills it.
+   *
+   * A COMPOSABLE STUBBED WITH A MILESTONE IS A PROMISE WITH A DATE ON IT. A composable stubbed
+   * with no milestone is a name in a frozen surface that nothing will ever fill, which is the
+   * eighth class of SPEC 0 written into a public contract on purpose. `useSocket` is the only
+   * one of the twelve, and this is the case that keeps its refusal saying so: a later session
+   * rewording the sentence without a milestone goes red here rather than shipping.
+   */
+  it('should name the milestone that fills it, because a stub with no milestone is a dead name', async () => {
+    // Given
+    const state = createDocState({ document: simpleDocument() });
+    const socket = await withDocState(state, () => useSocket('get-orders'));
+
+    // When
+    const refusal = await socket.connect().then(
+      () => undefined,
+      (cause: unknown) => cause,
+    );
+
+    // Then
+    expect((refusal as RunnerError).message).toMatch(/\bM[1-7]\b/);
+    expect((refusal as RunnerError).code).toBe(ErrorCode.RUN_NOT_AVAILABLE);
   });
 });

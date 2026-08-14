@@ -13,64 +13,37 @@
  * labelled slots with dashes in them is what a reader arriving from plain `@nestjs/swagger`
  * would see on every page, and it reads as a broken product rather than as an unused feature.
  *
- * THE THREE CONFIDENCE LEVELS ARE READABLE WITH NO COLOUR AT ALL, per SPEC 6.1, and by two means
- * rather than one: the three letter code, which survives a monochrome print and is read aloud
- * through the `abbr` title, and the style of the mark's left edge, solid, dashed and dotted,
- * which tells them apart at a glance without anything being read.
- *
- * THE CODE IS IN THE MARKUP AND NOT IN `content: var(--oref-prov-*-code)`. The design's own
- * component inventory settles this for the glyphs beside it: they are content and live in the
- * component layer. A code drawn by the stylesheet vanishes when the stylesheet does not arrive,
- * cannot be selected, and reaches a screen reader only as generated content. A theme that wants
- * other letters overrides the `ProvenanceTag` slot, which is what the slot registry is for.
+ * THE ROWS CARRY A KIND AND A THEME READS THAT RATHER THAN THE LABEL, per `RuntimeRowModel.kind`.
+ * This is the block the removed `ErrorContract` slot would have split off, and the reason it was
+ * removed is T023's measurement: one list of labelled rows rather than five shapes was worth
+ * 1.4 KB of the first paint. What a theme needs from that slot it gets by overriding this one and
+ * switching on `kind`, and the three error groups keep the distinction T021 made structural.
  */
 
+import { useSlot } from '@openref/vue';
 import { defineComponent, h, type PropType, type VNode } from 'vue';
-import type { DriftModel, RuntimeModel, RuntimeValueModel } from '../page/domain/page-model';
+import { DriftCard } from './DriftCard';
+import { ProvenanceTag } from './ProvenanceTag';
+import type { RuntimeModel, RuntimeValueModel } from '@openref/vue';
+import type { Component } from 'vue';
 
 /**
  * One value on a row: a status, the text or the link, an aside, and the provenance mark.
  *
- * `abbr` with a `title` is the element the language already has for a short code standing for a
- * longer thing, so the expansion is a tooltip for a pointer and an accessible name for a reader
- * who is not using one. The collector's name travels in the same string, because "where did this
- * come from" and "who says so" are one question a reader asks once.
- *
  * @param value - The value
+ * @param tag - The component in the `ProvenanceTag` slot
  * @returns The item
  */
-function valueNode(value: RuntimeValueModel): VNode {
+function valueNode(value: RuntimeValueModel, tag: Component): VNode {
   return h('span', { class: 'oref-runtime-item' }, [
     value.status === '' ? null : h('span', { class: value.statusClass }, value.status),
     value.href === ''
       ? value.text
       : h('a', { class: 'oref-source-link', href: value.href, rel: 'noreferrer' }, value.text),
     value.note === '' ? null : h('span', { class: 'oref-runtime-note' }, value.note),
-    value.code === ''
+    value.confidence === null
       ? null
-      : h('abbr', { class: value.markClass, title: value.markTitle }, value.code),
-  ]);
-}
-
-/**
- * One finding.
- *
- * THE FIX IS A LINE OF ITS OWN BENEATH THE DISCREPANCY, which is the design's instruction and
- * also SPEC 7.2's contract: a finding without its edit tells a reader something is wrong and
- * leaves them to work out what to do about it.
- *
- * @param issue - The finding
- * @returns The row
- */
-export function driftRow(issue: DriftModel): VNode {
-  return h('li', { class: `oref-drift ${issue.severityClass}` }, [
-    h('span', { class: 'oref-drift-rule' }, issue.rule),
-    issue.href === ''
-      ? null
-      : h('a', { class: 'oref-drift-subject', href: issue.href }, issue.subject),
-    h('span', { class: 'oref-drift-message' }, issue.message),
-    ...issue.sides.map((side) => h('span', { class: 'oref-drift-side' }, side)),
-    h('p', { class: 'oref-drift-fix' }, issue.suggestion),
+      : h(tag, { confidence: value.confidence, collector: value.collector }),
   ]);
 }
 
@@ -79,10 +52,14 @@ export const RuntimePanel = defineComponent({
   name: 'OrefRuntimePanel',
 
   props: {
+    nodeId: { type: String, required: true },
     runtime: { type: Object as PropType<RuntimeModel>, required: true },
   },
 
   setup(props) {
+    const provenance = useSlot('ProvenanceTag', ProvenanceTag);
+    const drift = useSlot('DriftCard', DriftCard);
+
     return (): VNode => {
       const runtime = props.runtime;
       const rows: VNode[] = [];
@@ -94,7 +71,13 @@ export const RuntimePanel = defineComponent({
       // previous version of itself, and the strings would be bytes in a chunk SPEC 20 measures.
       for (const row of runtime.rows) {
         rows.push(h('dt', { class: 'oref-runtime-label' }, row.label));
-        rows.push(h('dd', { class: 'oref-runtime-value' }, row.values.map(valueNode)));
+        rows.push(
+          h(
+            'dd',
+            { class: 'oref-runtime-value' },
+            row.values.map((value) => valueNode(value, provenance.value)),
+          ),
+        );
       }
 
       return h('section', { class: 'oref-section oref-section-runtime' }, [
@@ -103,7 +86,11 @@ export const RuntimePanel = defineComponent({
         // Always emitted, empty and all. The branch that would leave it out is four lines of
         // markup saved on a clean operation against a test in the bundle every reader downloads,
         // and SPEC 20's cap on that bundle is the tighter of the two.
-        h('ul', { class: 'oref-drift-list' }, runtime.drift.map(driftRow)),
+        h(
+          'ul',
+          { class: 'oref-drift-list' },
+          runtime.drift.map((issue) => h(drift.value, { issue })),
+        ),
       ]);
     };
   },

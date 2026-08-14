@@ -104,8 +104,7 @@ describe('assertRootOptions', () => {
   });
 
   for (const [key, milestone] of Object.entries({
-    theme: /M2, T031/,
-    runner: /M2, T026/,
+    runner: /T034 reconciles/,
     federation: /M4/,
     agent: /M6, T058/,
     devWatch: /M3/,
@@ -120,6 +119,19 @@ describe('assertRootOptions', () => {
       }).toThrow(milestone);
     });
   }
+
+  it('should accept the theme option, which left NOT_YET_BUILT at T033', () => {
+    // Given, the root level default of SPEC 13.2, an L0 definition that needs no bundle
+    const good: OpenRefRootOptions = {
+      ...options(),
+      theme: { definition: { name: 'l0', tokens: { '--oref-color-accent': '#08f' } } },
+    };
+
+    // When, Then
+    expect(() => {
+      assertRootOptions(good);
+    }).not.toThrow();
+  });
 
   it('should refuse a global cache and point at the per document one that exists', () => {
     // Given, `cache` is real and it is an entry of `documents`, not a root option

@@ -7,7 +7,9 @@
 
 import { ASSET_ALLOWED_LICENSES, FIXTURE_ALLOWED_LICENSES } from './lib/fixtures.js';
 import type { BudgetException } from './lib/budget-exceptions.js';
+import type { CapabilityDebt } from './lib/capability-debts.js';
 import type { BudgetQuantity } from './lib/budgets.js';
+import type { DeferredGesture } from './lib/module-graph.js';
 import type { FixtureRoot } from './gates/fixture-licenses.gate.js';
 import type { DataOnlyAttestation, LicenseAttestation } from './lib/licenses.js';
 
@@ -99,6 +101,21 @@ export const FIXTURE_ROOTS: readonly FixtureRoot[] = [
   {
     directory: 'packages/theme/fonts',
     producedBy: 'the zone 4 work of 2026-08-10',
+    filesDirectory: '',
+    noticeFile: 'NOTICE.md',
+    manifestKey: 'assets',
+    allowedLicenses: ASSET_ALLOWED_LICENSES,
+    extensions: ['.woff2', '.woff', '.ttf', '.otf'],
+    readsLicenseText: true,
+    label: 'font file(s)',
+  },
+  // FONTS ARE PER PACKAGE AND DUPLICATED ON PURPOSE, per the T032 amendment. The four JetBrains
+  // Mono files here are byte identical to the four above and are a copy rather than a link: byte
+  // deduplication holds in this repository and in `node_modules` and does not hold in a published
+  // tarball, and attribution that lived one package away would stop travelling with the bytes.
+  {
+    directory: 'packages/theme-telltale/fonts',
+    producedBy: 'T032',
     filesDirectory: '',
     noticeFile: 'NOTICE.md',
     manifestKey: 'assets',
@@ -229,6 +246,14 @@ export interface BundlePartition {
    * who opens a feature compiles instead.
    */
   readonly side: 'initial' | 'deferred';
+  /**
+   * Which gesture's download this budget bounds, out of the deferred side.
+   *
+   * Absent on the deferred side would be the whole of it, and since 2026-08-12 no budget is
+   * written that way: see `CLIENT_JS_GESTURES` for why one cap over everything behind a dynamic
+   * import stopped describing one thing.
+   */
+  readonly gesture?: string;
 }
 
 /**
@@ -278,6 +303,15 @@ export interface ShippedClientBundle {
    * have stopped seeing it and stayed green, which is the state that gate exists about.
    */
   readonly roots: readonly string[];
+  /**
+   * True for a bundle that inlined its gestures on purpose, the Web Component outputs first.
+   *
+   * The deferral audit does not apply to it: everything is in the first paint because the
+   * artefact is one file by design, an embed with no asset catalog to rewrite chunk names
+   * through, and what bounds that trade is its own whole cost budget rather than the split.
+   * The presence half of the audit still applies in full.
+   */
+  readonly inlined?: boolean;
 }
 
 export const SHIPPED_CLIENT_BUNDLES: readonly ShippedClientBundle[] = [
@@ -285,6 +319,28 @@ export const SHIPPED_CLIENT_BUNDLES: readonly ShippedClientBundle[] = [
     label: '@openref/nest',
     file: 'packages/nest/dist/browser/openref.js',
     roots: ['packages/nest/dist/browser'],
+  },
+  // The Web Component outputs, since T033: one file each in a directory each, because the
+  // registry models an entry plus its chunk closure per directory, and their deferred side is
+  // empty by construction, the honest reading of a bundle that inlined its gestures.
+  {
+    label: '@openref/nest, Web Component',
+    file: 'packages/nest/dist/browser-wc/openref-element.js',
+    roots: ['packages/nest/dist/browser-wc'],
+    inlined: true,
+  },
+  {
+    label: '@openref/nest, Web Component IIFE',
+    file: 'packages/nest/dist/browser-iife/openref-element.iife.js',
+    roots: ['packages/nest/dist/browser-iife'],
+    inlined: true,
+  },
+  // The themed entry of telltale, since T033: the same closure as the default entry plus the
+  // theme, split the same way, so the same gesture roots divide its deferred side.
+  {
+    label: '@openref/theme-telltale/entry',
+    file: 'packages/theme-telltale/dist/entry/entry.js',
+    roots: ['packages/theme-telltale/dist/entry'],
   },
 ];
 
@@ -309,6 +365,71 @@ const CLIENT_JS_ROOTS: readonly string[] = [
 ];
 
 const CLIENT_JS_ENTRY = 'packages/nest/dist/browser/openref.js';
+
+/**
+ * The deferred half, divided by the gesture that pays for it.
+ *
+ * ONE CAP OVER "EVERYTHING BEHIND A DYNAMIC IMPORT" STOPPED DESCRIBING ONE THING, and that is why
+ * this list exists. Written 2026-08-12 at the close of T026, replacing `client-js-deferred` and
+ * `client-js-deferred-raw`. Those two were derived in T011-R as measured plus ten percent over an
+ * M0 artefact: three small components, one of them the console as it was before the serialization
+ * matrix existed. SPEC 14.1 then puts the full matrix, every remaining auth scheme, the same
+ * origin proxy and streaming into M2, and every one of them lands on one side of this list, the
+ * Send side, by construction. A cap over the union would have gone red on `T026` through `T030`
+ * for a reason that has nothing to do with the reader who opens the palette, and the sentence it
+ * printed, "the deferred half grew", would have been true and useless.
+ *
+ * SO THE DIVISION FOLLOWS THE READER AND NOT THE DIRECTORY. A press on Send downloads one set of
+ * chunks, opening the palette another, expanding a schema a third, and each cap now says what
+ * gesture pays for it. What a budget going red means afterwards is a sentence somebody can act
+ * on: pressing Send costs more than it did.
+ *
+ * THE HEALTH PANEL IS NOT A FOURTH, and it was named as one when this split was asked for. It has
+ * had no chunk since 2026-08-12: it has no state, no handler and no client render, so it became
+ * server markup the client adopts, and its chunk left the bundle with the copy of its findings.
+ * A gesture declared for it would name a root that matches nothing, which this list fails on.
+ *
+ * ONE ENTRY PER BUNDLE, and there is one bundle. When T039 adds the static build's own, it says
+ * what gestures divide it or records that it has none, for the reason `SHIPPED_CLIENT_BUNDLES`
+ * gives: silence is not an answer.
+ */
+export const CLIENT_JS_GESTURES: readonly DeferredGesture[] = [
+  {
+    // THE RUNNER IS ON THIS SIDE BY DECLARATION, BECAUSE THE GRAPH PUTS IT SOMEWHERE ELSE. Since
+    // T033 the entry's dynamic import is `runner-factory.ts`, the module that reads `proxyPath`
+    // off the page model and constructs the runner, and the runner's own chunk merged into it,
+    // which is the shape the T033 amendment measured as cheaper on both sides. The only thing
+    // that ever calls the factory is the console's own loader, one line before it returns the
+    // panel, so a reader who presses Send downloads both and a reader who opens the palette
+    // downloads neither.
+    //
+    // `runner-factory` IS WHAT THE BUNDLER CALLS THAT CHUNK, from its source module's name, and
+    // it is written here rather than made prettier because renaming it would be a second copy
+    // of a name esbuild already decides. If the factory module ever moves, this root matches
+    // nothing and the budget fails loudly, which is the failure mode this was chosen for.
+    id: 'send',
+    roots: ['TryItPanel', 'runner-factory'],
+  },
+  { id: 'palette', roots: ['CommandPalette'] },
+  { id: 'schema', roots: ['SchemaView'] },
+  {
+    // THE FOURTH GESTURE IS THE ONE A READER MAKES ON A DIFFERENT PAGE LOAD, added at T028. An
+    // authorization server returns the reader to the callback route, which sends them back to the
+    // page they started from; that load carries a marker in its url, and the entry fetches this
+    // chunk to finish the exchange. Every other load does not, which is what makes it a gesture
+    // rather than part of the first paint, and the entry pays one string comparison for the
+    // difference.
+    //
+    // WHAT THIS DOES NOT COUNT IS THE RUNNER, AND THE REASON IS THE SAME ONE THE SEND ENTRY GIVES
+    // ABOUT IT. Finishing an exchange needs the runner, which the landing reaches through the
+    // `loadRunner` function the host handed over rather than through an import of its own, so no
+    // graph shows the edge. It is declared under `send`, is the same chunk either way, and a
+    // reader who comes back from a sign in has pressed Sign in in the console already, so it is
+    // a chunk they have.
+    id: 'sign-in-return',
+    roots: ['oauth-landing'],
+  },
+];
 
 export const SIZE_BUDGETS: readonly SizeBudget[] = [
   {
@@ -339,64 +460,208 @@ export const SIZE_BUDGETS: readonly SizeBudget[] = [
     // named. The gzip cap bounds what a reader downloads; this bounds what the engine decodes
     // and compiles before the page is interactive, and those differ by a factor of 2.53 here.
     //
-    // 98 KB IS DELIBERATELY TIGHTER THAN THE USUAL TEN PERCENT, and the reason is what this
-    // budget is for. Measured 97,920 raw bytes across six files. Ten percent would be 105 KB,
-    // and at 105 KB any two of the three deferred features could come back into the first load
-    // without a word, which is the exact regression the task that set this cap exists to
-    // prevent. At 98 KB the smallest of them returning fails it: the palette is 3,278 raw and
-    // takes the closure to 101,198. What is left for ordinary work is 2,432 bytes, which is the
-    // same trade `page-bytes` makes and is stated here for the same reason: a task that needs
-    // more room says so and moves the number deliberately.
+    // IT IS DELIBERATELY TIGHTER THAN THE USUAL TEN PERCENT, and the reason is what this budget
+    // is for. T011-R measured 97,920 raw bytes across six files and set 98 KB rather than the
+    // 105 KB ten percent would have given, because at 105 KB any two of the three deferred
+    // features could come back into the first load without a word.
+    //
+    // 103 KB SINCE `TX-SLOTWIRE`, RE-DERIVED FROM ITS OWN MEASUREMENT AND ITEMISED, which is the
+    // move this comment already described as the allowed one: a task that needs more room says so
+    // and moves the number deliberately, with the artefact change named. Measured 104,503 raw
+    // bytes across six files with the slot registry wired into the shipped renderer, against
+    // 100,352 before it. The 4,151 bytes are, in order:
+    //
+    // - 2.9 KB, the positions of the registry extracted into components. `OperationHeader`,
+    //   `ParamTable`, `ResponseList`, `DriftCard`, `ProvenanceTag`, `StateNotice`, `AppShell`,
+    //   `DocumentOverview` and `SchemaPage` were markup inside four render functions and are now
+    //   components a theme can replace. This is the feature: before it, an L1 override changed
+    //   nothing on any page a reader opens
+    // - 0.7 KB, the call samples block of SPEC 18, which is a position that did not exist. The
+    //   registry carried the name `CodeSample` and nothing resolved it
+    // - 0.5 KB, the registry and the layout resolution on the client. It was 1.2 KB until the
+    //   theme validation was split out of the browser path, per `resolveSlots`: a theme is
+    //   refused where it is authored and on the server, and the refusals are not bytes a reader
+    //   downloads
+    // - 0.2 KB, the twelve `useSlot` lookups themselves, which is the cheapest part of it
+    //
+    // 102 KB SINCE T031, AND THIS ONE IS A CAP COMING DOWN RATHER THAN GOING UP. T031 took 962
+    // bytes out of the first paint by moving `useRunner` off the barrel `@openref/render` imports
+    // and onto `@openref/vue/runner`, which no page reaches until a reader opens the console;
+    // measured 103,541 raw across the same six files, against 104,503. A cap left at 105,472 with
+    // that measurement under it stops holding the property it was chosen for, which is the
+    // sentence below, so it moves with the artefact rather than banking the slack.
+    //
+    // THE PROPERTY, AND IT IS WHAT DERIVES THE NUMBER RATHER THAN TEN PERCENT: the smallest
+    // deferred feature returning to the first load fails this budget. `sign-in-return` is 1,323
+    // raw, so any cap at or above 104,864 would let it back in silently, and 102 KB is 104,448.
+    // What is left for ordinary work is 907 bytes, against the 969 `TX-SLOTWIRE` left and the
+    // 2,432 T011-R left, and that is stated rather than smoothed over. The one named way to pay
+    // bytes back is `TX-ADOPT` in `ai-docs/BUILD-AMENDMENTS.md`: the static positions of a node
+    // page have no client state and no handler, so the browser could adopt their markup the way
+    // it has adopted the Health panel since session 40.
     id: 'client-js-raw',
     label: 'Client JS the first paint loads, raw bytes',
-    limitBytes: 98 * 1024,
+    limitBytes: 102 * 1024,
     roots: CLIENT_JS_ROOTS,
     extensions: ['.js', '.mjs'],
     quantity: 'parse',
-    producedBy: 'T011-R',
+    producedBy: 'T011-R, re-derived in TX-SLOTWIRE and in T031',
     partition: { entry: CLIENT_JS_ENTRY, side: 'initial' },
   },
+  // THE DEFERRED SIDE IS GATED RATHER THAN RECORDED, and that decision is older than the split
+  // below it. The alternative was to print the deferred figures and assert nothing, on the
+  // grounds that a reader pays them only on interaction. It was rejected: they are byte counts,
+  // which is the one quantity this project's machinery has been able to threshold at all, and an
+  // unasserted figure beside an asserted one is the shape SPEC 0 names as a defect class.
+  //
+  // WHAT CHANGED ON 2026-08-12 IS THE SUBJECT, NOT THE POLICY. `client-js-deferred` and
+  // `client-js-deferred-raw` bounded the union of everything behind a dynamic import, at 9 KB
+  // gzip and 21 KB raw, both derived in T011-R from an M0 artefact. See `CLIENT_JS_GESTURES` for
+  // why one cap over the union stopped measuring anything a reader could act on.
+  //
+  // EACH OF THE SIX IS THE MEASUREMENT PLUS TEN PERCENT, ROUNDED DOWN TO A HUNDRED BYTES. Taken
+  // first on the commit that closed T026 with the whole SPEC 14.2 matrix in the runner: Send
+  // 17,035 raw and 6,748 gzip over three chunks, the palette 3,552 and 1,737 over two, the schema
+  // tree 3,874 and 1,666 over one. The shared chunk is in both the Send and the palette figures,
+  // because a reader who makes one of those gestures and no other downloads it.
+  //
+  // THE SEND PAIR WAS RE-DERIVED AT T027 AND THE OTHER TWO WERE NOT, which is the split doing its
+  // job on the first task after it was made. Request bodies took the runner's chunk from 11,694
+  // to 16,020 and the console's from 5,067 to 7,269: the six body forms of SPEC 14.3, the
+  // multipart encoder, and three editors in place of one textarea. Send now measures 23,651 raw
+  // and 9,125 gzip, so the pair is 26,000 and 10,000. The palette moved by the 88 bytes its share
+  // of the shared chunk grew and the schema tree did not move at all, and neither cap was
+  // touched: the sentence a red budget prints is still about one gesture.
+  //
+  // T030 WAS THE LAST OF THE FOUR, AND IT IS THE ONE THAT MOVED THE PAIR MOST. Streaming took the
+  // runner's chunk from 36,326 to 43,013 and the console's from 12,995 to 15,420, so the gesture
+  // measures 59,940 raw and 20,295 gzip and the pair is 65,900 and 22,300. The palette and the
+  // schema tree have not been touched once across four tasks, which is what the split promised.
+  //
+  // AND THE SEND PAIR IS EXPECTED TO MOVE THROUGH T030, WHICH IS THE POINT OF SPLITTING. SPEC
+  // 14.1 puts request bodies, the remaining auth schemes, the proxy and streaming in this
+  // milestone, and every one of them is runner code that arrives when a reader presses Send. A
+  // task that adds one re-derives this pair from its own measurement and says so in its own
+  // words; T034 argues the number the milestone ends on. That is a threshold moving with a named
+  // artefact change and a figure attached, which is not the forbidden move: what is forbidden is
+  // moving it to make a build pass, and it stays forbidden for the other two pairs, which no M2
+  // task is scoped to grow.
   {
-    // THE OTHER SIDE OF THE SAME GRAPH, GATED RATHER THAN RECORDED. The alternative was to print
-    // the deferred figures and assert nothing, on the grounds that a reader pays them only on
-    // interaction. That was rejected: they are byte counts, which is the one quantity this
-    // project's machinery has been able to threshold at all, and an unasserted figure beside an
-    // asserted one is the shape SPEC 0 now names as a defect class of its own.
-    //
-    // Measured 8,240 gzip and 18,845 raw across five chunks, and both caps are the measurement
-    // plus ten percent. The concrete regression both have to fail is a fourth deferred feature
-    // the size of the palette, 3,278 raw and about 1.4 KB gzip: planted on the real gate it read
-    // 21.6 KB raw and 9.2 KB gzip, over both.
-    //
-    // AND A PLANT THAT FAILS ONLY ONE OF THEM, WHICH IS WHY THERE ARE TWO. Appending a byte
-    // identical copy of the schema viewer chunk to itself was tried first and read 22.1 KB raw,
-    // over, beside 8.1 KB gzip, inside. A duplicate costs the engine everything and costs the
-    // wire almost nothing, so the raw cap saw a doubled chunk that the gzip cap could not. That
-    // is the transfer against parse distinction of SPEC 0 appearing in a plant rather than in an
-    // argument, and it is recorded here because the first version of this comment claimed the
-    // doubling failed both and the measurement said otherwise.
-    //
-    // MOVING CODE FROM THE FIRST PAINT INTO A CHUNK RAISES THIS BUDGET, and that is not a defect
-    // in it. Deferring a fourth feature is a deliberate act with a number attached, and raising
-    // this cap while `client-js-raw` falls is what that act looks like from here.
-    id: 'client-js-deferred',
-    label: 'Client JS behind a dynamic import, gzip',
-    limitBytes: 9 * 1024,
+    id: 'client-js-send',
+    label: 'Client JS a press on Send downloads, gzip',
+    // RE-DERIVED AT T030 FROM ITS OWN MEASUREMENT, per SPEC 20: 20,295 measured, plus ten percent,
+    // rounded down to a hundred bytes. Streaming is the fourth and last of the M2 tasks that grow
+    // this pair by construction, and the sentence a red budget prints is still about one gesture.
+    limitBytes: 22_300,
     roots: CLIENT_JS_ROOTS,
     extensions: ['.js', '.mjs'],
     quantity: 'transfer',
-    producedBy: 'T011-R',
-    partition: { entry: CLIENT_JS_ENTRY, side: 'deferred' },
+    producedBy: 'T011-R, split by gesture in T026, re-derived in T027, T028 and T030',
+    partition: { entry: CLIENT_JS_ENTRY, side: 'deferred', gesture: 'send' },
   },
   {
-    id: 'client-js-deferred-raw',
-    label: 'Client JS behind a dynamic import, raw bytes',
-    limitBytes: 21 * 1024,
+    id: 'client-js-send-raw',
+    label: 'Client JS a press on Send downloads, raw bytes',
+    // 59,940 measured at T030, plus ten percent, rounded down to a hundred bytes. THE ITEMISATION
+    // IS THE POINT OF RE-DERIVING RATHER THAN RAISING: the runner's chunk went 36,326 to 43,013,
+    // which is the incremental decoder for both wire formats, the bounded item check of SPEC 14.6,
+    // the stream service with its six endings, and the fetch stream adapter; the console's went
+    // 12,995 to 15,420, which is the Stream and Stop controls, the bounded window, and the six
+    // sentences that tell a reader which ending they got. A third of the runner's growth is
+    // message text, which is what "a broken stream is diagnosable" costs and does not minify.
+    //
+    // AND IT IS EXPECTED TO FALL BY ABOUT 1,258 BYTES AT T033, measured rather than hoped: with
+    // the runner built in a module the entry imports dynamically, its chunk merges into that one
+    // and one chunk's worth of export and import glue leaves the gesture. The number here is
+    // derived on the artefact that exists, not on that one.
+    limitBytes: 65_900,
     roots: CLIENT_JS_ROOTS,
     extensions: ['.js', '.mjs'],
     quantity: 'parse',
-    producedBy: 'T011-R',
-    partition: { entry: CLIENT_JS_ENTRY, side: 'deferred' },
+    producedBy: 'T011-R, split by gesture in T026, re-derived in T027, T028 and T030',
+    partition: { entry: CLIENT_JS_ENTRY, side: 'deferred', gesture: 'send' },
+  },
+  {
+    // THE TWO QUANTITIES ARE KEPT ON EVERY GESTURE, and the reason is a plant rather than
+    // symmetry. In T011-R appending a byte identical copy of the schema viewer chunk to itself
+    // read 22.1 KB raw, over, beside 8.1 KB gzip, inside: a duplicate costs the engine everything
+    // and the wire almost nothing. A gesture with one cap would be blind in whichever direction
+    // it dropped.
+    id: 'client-js-palette',
+    label: 'Client JS opening the command palette downloads, gzip',
+    // 2,055 measured at `TX-SLOTWIRE`, plus ten percent, rounded down to a hundred bytes. The
+    // palette had not moved once across four M2 tasks, and what moved it is the same decision the
+    // first paint paid for: the overlay is the `CommandPalette` slot and the state and the search
+    // stayed in the host, so a theme replaces the markup without acquiring the index or the
+    // shortcut. The split is 578 raw bytes and it is the whole of the change.
+    limitBytes: 2_200,
+    roots: CLIENT_JS_ROOTS,
+    extensions: ['.js', '.mjs'],
+    quantity: 'transfer',
+    producedBy: 'T011-R, split by gesture in T026, re-derived in TX-SLOTWIRE',
+    partition: { entry: CLIENT_JS_ENTRY, side: 'deferred', gesture: 'palette' },
+  },
+  {
+    id: 'client-js-palette-raw',
+    label: 'Client JS opening the command palette downloads, raw bytes',
+    // 4,478 measured at `TX-SLOTWIRE`, plus ten percent, rounded down to a hundred bytes. See the
+    // gzip cap above for what the 578 bytes are.
+    limitBytes: 4_900,
+    roots: CLIENT_JS_ROOTS,
+    extensions: ['.js', '.mjs'],
+    quantity: 'parse',
+    producedBy: 'T011-R, split by gesture in T026, re-derived in TX-SLOTWIRE',
+    partition: { entry: CLIENT_JS_ENTRY, side: 'deferred', gesture: 'palette' },
+  },
+  {
+    id: 'client-js-sign-in-return',
+    label: 'Client JS coming back from an authorization server downloads, gzip',
+    // 712 measured at T028, plus ten percent, ROUNDED UP to a hundred bytes rather than down. The
+    // other seven caps here round down because ten percent of them is thousands of bytes and the
+    // rounding is noise; ten percent of 712 is 71, and rounding that down to a hundred lands at
+    // 700, which is under the measurement. A budget that is red the day it is written measures
+    // nothing.
+    limitBytes: 800,
+    roots: CLIENT_JS_ROOTS,
+    extensions: ['.js', '.mjs'],
+    quantity: 'transfer',
+    producedBy: 'T028',
+    partition: { entry: CLIENT_JS_ENTRY, side: 'deferred', gesture: 'sign-in-return' },
+  },
+  {
+    id: 'client-js-sign-in-return-raw',
+    label: 'Client JS coming back from an authorization server downloads, raw bytes',
+    // 1,373 measured at T028, plus ten percent, rounded down to a hundred bytes.
+    limitBytes: 1_500,
+    roots: CLIENT_JS_ROOTS,
+    extensions: ['.js', '.mjs'],
+    quantity: 'parse',
+    producedBy: 'T028',
+    partition: { entry: CLIENT_JS_ENTRY, side: 'deferred', gesture: 'sign-in-return' },
+  },
+  {
+    id: 'client-js-schema',
+    label: 'Client JS expanding a schema downloads, gzip',
+    limitBytes: 1_800,
+    roots: CLIENT_JS_ROOTS,
+    extensions: ['.js', '.mjs'],
+    quantity: 'transfer',
+    producedBy: 'T011-R, split by gesture in T026',
+    partition: { entry: CLIENT_JS_ENTRY, side: 'deferred', gesture: 'schema' },
+  },
+  {
+    id: 'client-js-schema-raw',
+    label: 'Client JS expanding a schema downloads, raw bytes',
+    // 4,296 measured at `TX-SLOTWIRE`, plus ten percent, rounded down to a hundred bytes. 96 bytes
+    // of it: `SchemaView` resolves the position and `SchemaTree` draws it, which is what lets the
+    // tree be a slot handed a root and an expander rather than a slice of the document. The gzip
+    // cap beside it was not touched, because 1,782 of 1,800 still holds.
+    limitBytes: 4_700,
+    roots: CLIENT_JS_ROOTS,
+    extensions: ['.js', '.mjs'],
+    quantity: 'parse',
+    producedBy: 'T011-R, split by gesture in T026, re-derived in TX-SLOTWIRE',
+    partition: { entry: CLIENT_JS_ENTRY, side: 'deferred', gesture: 'schema' },
   },
   {
     id: 'theme-css',
@@ -420,13 +685,64 @@ export const SIZE_BUDGETS: readonly SizeBudget[] = [
     // Another region of `theme.css` the size of the try-it console, 3,669 bytes, or of the page
     // frame, 3,287, lands above the cap; a navigation sized 2,520 does not, and that is the room
     // ordinary work gets.
+    //
+    // RECOMPUTED AT T033, 34 TO 35 KB, FOR THE SANCTIONED REASON: the input changed. The Web
+    // Component emits `oref-embed-error`, a class the renderer did not have, and the rule that
+    // styles it is 267 bytes the sweep in `theme.spec.ts` requires to exist. Measured 35,083
+    // after it; 35 KB keeps the property above, a console sized region still lands over the cap.
     id: 'theme-css-raw',
     label: 'Default theme CSS, raw bytes',
-    limitBytes: 34 * 1024,
+    limitBytes: 35 * 1024,
     quantity: 'parse',
     roots: THEME_CSS_ROOTS,
     extensions: ['.css'],
     producedBy: 'T009',
+  },
+
+  // THE WEB COMPONENT OUTPUTS OF SPEC 10.3, both files of one directory under one cap pair,
+  // since T033. Single file each, deliberately: an embed has no asset catalog to rewrite chunk
+  // names through, so the element pays its whole cost once, and the cap says what that cost may
+  // be. Derived the way T011-R derived its caps: measured on the first build, 353,710 raw and
+  // 124,942 gzip for the pair, plus ten percent headroom, rounded to a whole KiB.
+  {
+    id: 'client-wc',
+    label: 'Web Component outputs, both formats, transfer',
+    limitBytes: 135 * 1024,
+    quantity: 'transfer',
+    roots: ['packages/nest/dist/browser-wc', 'packages/nest/dist/browser-iife'],
+    extensions: ['.js'],
+    producedBy: 'T033',
+  },
+  {
+    id: 'client-wc-raw',
+    label: 'Web Component outputs, both formats, raw',
+    limitBytes: 380 * 1024,
+    quantity: 'parse',
+    roots: ['packages/nest/dist/browser-wc', 'packages/nest/dist/browser-iife'],
+    extensions: ['.js'],
+    producedBy: 'T033',
+  },
+
+  // THE THEMED ENTRY OF `@openref/theme-telltale`, the whole directory, entry and chunks, since
+  // T033: what a page under that theme downloads across every gesture. Derived the same way:
+  // 198,034 raw and 72,088 gzip measured on the first build, plus ten percent, whole KiB.
+  {
+    id: 'theme-entry',
+    label: 'telltale themed entry, whole directory, transfer',
+    limitBytes: 78 * 1024,
+    quantity: 'transfer',
+    roots: ['packages/theme-telltale/dist/entry'],
+    extensions: ['.js'],
+    producedBy: 'T033',
+  },
+  {
+    id: 'theme-entry-raw',
+    label: 'telltale themed entry, whole directory, raw',
+    limitBytes: 213 * 1024,
+    quantity: 'parse',
+    roots: ['packages/theme-telltale/dist/entry'],
+    extensions: ['.js'],
+    producedBy: 'T033',
   },
 ];
 
@@ -500,6 +816,22 @@ export const FONT_BUDGETS: readonly FontBudget[] = [
       'JetBrainsMono-700-latin.woff2',
     ],
     producedBy: 'the zone 4 work of 2026-08-10',
+  },
+  // THE FIRST PAINT PAIR IS ONE FACE FROM EACH FAMILY HERE, AND THAT IS WHY THE PAIR IS NAMED PER
+  // THEME RATHER THAN DERIVED. vernier waits on its sans regular and its mono regular; telltale is
+  // all one mono, and what it also waits on is the display face every strip heading is set in.
+  // Which faces a first paint waits on is a fact about a design, and a rule that guessed it from a
+  // position in a list would have been right once.
+  {
+    theme: '@openref/theme-telltale',
+    directory: 'packages/theme-telltale/fonts',
+    firstPaint: ['JetBrainsMono-400-latin.woff2', 'MartianMono-700-latin.woff2'],
+    latin: [
+      'JetBrainsMono-400-latin.woff2',
+      'JetBrainsMono-700-latin.woff2',
+      'MartianMono-700-latin.woff2',
+    ],
+    producedBy: 'T032',
   },
 ];
 
@@ -802,6 +1134,53 @@ export const BUDGET_EXCEPTION_HISTORY: readonly ClosedBudgetException[] = [
   },
 ];
 
+/**
+ * Capabilities that are built and that no shipped path reaches, per the eighth class of SPEC 0.
+ *
+ * A FEATURE DEFERRED AND VISIBLE IS NOT ONE OF THESE. The Health panel spent M0 behind a dynamic
+ * import and a reader who opened it got it; the schema tree still does. What belongs here is the
+ * other thing: a capability a reader cannot obtain by any gesture, on any page this module
+ * serves, because the code that would choose it was never written. The difference is not degree.
+ * One is a decision about when bytes arrive, the other is a decision about whether a feature
+ * exists, and SPEC 0 forbids a budget from being allowed to make the second one.
+ *
+ * AN ENTRY IS NOT PERMISSION AND IT IS NOT A PLAN. It is the record that the repository knows,
+ * plus the two things that keep the knowledge from decaying: a task that owns the wiring and a
+ * milestone that cannot close over it. Both are checked against BUILD.md, so an owner that stops
+ * existing and a milestone that closes early are failures rather than notes.
+ */
+export const CAPABILITY_DEBTS: readonly CapabilityDebt[] = [
+  {
+    id: 'full-text-search',
+    capability:
+      'the full text search index of T007 is built, budgeted and served with an etag at ' +
+      '<mount>/_search-index, and no file this module ships ever requests it; the palette ' +
+      'matches navigation labels and hints only',
+    owners: ['T039'],
+    reachableBy: 'M3',
+    recordedAt: '2026-08-13',
+    roots: ['packages/nest/dist/browser'],
+    marker: '_search-index',
+    diagnosis:
+      'T007 built the index in @openref/search and measured it honestly, 176,714 of 256,000 ' +
+      'gzip bytes on the representative fixture SPEC 0 fourth instance exists to require. ' +
+      'reference.service.ts serves it on every reference, cached behind the document etag. ' +
+      'Nothing downstream asks for it: the index reaches a page through ISearchPort, which ' +
+      '@openref/vue defines and whoever wires the application supplies, and the shipped browser ' +
+      'entry supplies none, so useSearch answers available: false on every page this module ' +
+      'serves. What the palette does instead is nav-search.ts, a match over the navigation rows ' +
+      'the page already holds, which covers a path, a method or part of a summary and nothing ' +
+      'of descriptions, parameters or schema text. T012 declined to ship the index into the ' +
+      'page deliberately, 250 KB for a feature one keystroke deep, and the right shape was ' +
+      'always the fetch the palette already performs for the navigation payload: the browser ' +
+      'bundle carries _navigation today and not _search-index, which is what makes the segment ' +
+      'usable as the marker. T039 owns the wiring because it already owns the two nearest ' +
+      'questions, the navigation payload written as a static file and the raw cap the first ' +
+      'server of this index owes beside the gzip one, and because a fetch that cannot work from ' +
+      'a directory of files would fail exactly there.',
+  },
+];
+
 /** The claim map, which answers every SPEC 19 and SPEC 20 claim with what would go red. */
 export const CLAIM_MAP_FILE = 'ai-docs/CLAIM-MAP.md';
 
@@ -809,19 +1188,31 @@ export const CLAIM_MAP_FILE = 'ai-docs/CLAIM-MAP.md';
 export const SPEC_FILE = 'ai-docs/SPEC.md';
 
 /**
- * Directories holding the default theme's stylesheets, relative to the repository root.
+ * Directories holding a shipped theme's stylesheets, relative to the repository root.
  *
- * Scanned by the theme-tokens gate for hardcoded colours, lengths and font stacks.
+ * Scanned by the theme-tokens gate for hardcoded colours, lengths and font stacks. One pair of
+ * entries per theme package that ships CSS, which is two since T032.
  */
-export const THEME_STYLE_ROOTS: readonly string[] = ['packages/theme/src', 'packages/theme/fonts'];
+export const THEME_STYLE_ROOTS: readonly string[] = [
+  'packages/theme/src',
+  'packages/theme/fonts',
+  'packages/theme-telltale/src',
+  'packages/theme-telltale/fonts',
+];
 
 /**
- * The one stylesheet allowed to hold literal values, because it declares the tokens.
+ * The stylesheets allowed to hold literal values, because they declare the tokens.
  *
- * It is generated from `packages/theme/src/tokens/domain/tokens.ts` and pinned by a test, so
- * exempting it does not create a place values can hide.
+ * ONE PER SHIPPED THEME, AND IT BECAME A LIST AT T032. vernier's is generated from
+ * `packages/theme/src/tokens/domain/tokens.ts` and pinned by a test; telltale's is written out from
+ * its design handoff and held to the contract by `packages/theme-telltale/test/unit/tokens.spec.ts`.
+ * Either way the file is the one place values are defined and everything else reads them, so
+ * exempting these two creates no place a value can hide that a test is not already looking at.
  */
-export const THEME_TOKEN_SOURCE = 'packages/theme/src/styles/tokens.css';
+export const THEME_TOKEN_SOURCES: readonly string[] = [
+  'packages/theme/src/styles/tokens.css',
+  'packages/theme-telltale/src/styles/tokens.css',
+];
 
 /**
  * A theme's stylesheets, IN THE ORDER THE THEME LOADS THEM, checked against the motion half of
@@ -848,24 +1239,33 @@ export const THEME_TOKEN_STYLESHEETS: readonly {
 }[] = [
   {
     theme: 'vernier, as shipped',
-    files: [THEME_TOKEN_SOURCE, 'packages/theme/src/styles/theme.css'],
+    files: ['packages/theme/src/styles/tokens.css', 'packages/theme/src/styles/theme.css'],
+  },
+  {
+    theme: 'telltale, as shipped',
+    files: [
+      'packages/theme-telltale/src/styles/tokens.css',
+      'packages/theme-telltale/src/styles/theme.css',
+    ],
   },
   { theme: 'vernier, as designed', files: ['ai-docs/design/vernier/tokens.css'] },
-  { theme: 'telltale', files: ['ai-docs/design/telltale/tokens.css'] },
+  { theme: 'telltale, as designed', files: ['ai-docs/design/telltale/tokens.css'] },
   { theme: 'forge', files: ['ai-docs/design/forge/tokens.css'] },
 ];
 
 /**
  * Stylesheets declaring `@font-face`, checked against the bytes of the files they name.
  *
- * One entry per theme that ships fonts. Only vernier does today; T032 adds the others, and the
- * amendment for that task already says so. The font files are resolved relative to the
- * stylesheet, which is how the stylesheet itself addresses them.
+ * One entry per theme that ships fonts, which is two since T032. The font files are resolved
+ * relative to the stylesheet, which is how the stylesheet itself addresses them.
  */
 export const FONT_STYLESHEETS: readonly {
   readonly theme: string;
   readonly file: string;
-}[] = [{ theme: 'vernier, as shipped', file: 'packages/theme/fonts/fonts.css' }];
+}[] = [
+  { theme: 'vernier, as shipped', file: 'packages/theme/fonts/fonts.css' },
+  { theme: 'telltale, as shipped', file: 'packages/theme-telltale/fonts/fonts.css' },
+];
 
 /**
  * Extensions scanned for CSP violations.
@@ -882,3 +1282,55 @@ export const CSP_SCAN_EXTENSIONS: readonly string[] = [
   '.html',
   '.htm',
 ];
+
+/**
+ * Extensions a browser loads as an ES module, scanned for specifiers it could not resolve.
+ *
+ * `.cjs` is not among them and its absence is the check: a browser cannot load CommonJS at all, so
+ * one appearing under a browser root would be a different failure than an unresolvable specifier
+ * and is not what this scan is about. The roots are derived by `browserScanRoots`, for the reason
+ * given above the CSP extensions.
+ */
+export const BROWSER_MODULE_EXTENSIONS: readonly string[] = ['.js', '.mjs'];
+
+/**
+ * Where source lives, for the check that every file of it reads as text.
+ *
+ * `packages` and `tools` rather than the whole repository, because those are the trees a sweep
+ * searches when it asks a question about this project's code. `ai-docs` is not among them: it is
+ * not in a clone, so a gate over it could only skip, and the documents are read by people rather
+ * than swept by tools.
+ */
+export const TEXT_SOURCE_ROOTS: readonly string[] = ['packages', 'tools'];
+
+/**
+ * Extensions expected to read as text.
+ *
+ * A LIST RATHER THAN AN EXCLUSION, for the same reason the format allowlist is one. The fonts in
+ * `packages/theme/fonts` are binary and correct, and a scan built on "everything except what we
+ * decided to ignore" would grow an entry for them and then for the next legitimate binary, until
+ * the entry that hides a defect is indistinguishable from the ten that do not.
+ */
+export const TEXT_SOURCE_EXTENSIONS: readonly string[] = [
+  '.ts',
+  '.tsx',
+  '.js',
+  '.mjs',
+  '.cjs',
+  '.vue',
+  '.css',
+  '.html',
+  '.json',
+  '.md',
+  '.yaml',
+  '.yml',
+];
+
+/**
+ * How few files scanned reads as a scan that never ran.
+ *
+ * The repository holds several hundred source files, so any figure in the low hundreds separates
+ * a real walk from a mistyped root. It is a floor and not a count: a count would be a second thing
+ * to maintain on every file added, which is how a check comes to be edited to keep it passing.
+ */
+export const TEXT_SOURCE_MIN_FILES = 200;

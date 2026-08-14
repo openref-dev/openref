@@ -162,7 +162,14 @@ describe('the merge partition', () => {
       {
         collector: 'testCollector',
         runtime: {
-          guards: [{ name: 'JwtAuthGuard', scope: 'route', confidence: 'derived', collector: 'testCollector' }],
+          guards: [
+            {
+              name: 'JwtAuthGuard',
+              scope: 'route',
+              confidence: 'derived',
+              collector: 'testCollector',
+            },
+          ],
           drift: [
             {
               rule: 'scope-drift',

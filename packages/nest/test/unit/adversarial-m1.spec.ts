@@ -97,8 +97,15 @@ function targetOf(): {
   };
 }
 
-function registryOf(collectors: readonly IRuntimeCollector[]): CollectorRegistry {
-  return new CollectorRegistry(collectors, { reflector, moduleRef });
+function registryOf(
+  collectors: readonly IRuntimeCollector[],
+  globalGuards?: readonly string[],
+): CollectorRegistry {
+  return new CollectorRegistry(collectors, {
+    reflector,
+    moduleRef,
+    ...(globalGuards === undefined ? {} : { globalGuards }),
+  });
 }
 
 describe('T025 attack: a collector that mutates what it was given', () => {
@@ -124,6 +131,73 @@ describe('T025 attack: a collector that mutates what it was given', () => {
     // Then the node the pass keys facts by, hashes and serves is unchanged
     expect(target.node.id).toBe(before);
     expect(target.node.runtime).toBeUndefined();
+  });
+
+  /**
+   * The other thing the context hands over that the product reads afterwards.
+   *
+   * FOUND BY SWEEPING FOR F38's SHAPE AND NOT BY MEETING IT. The node was the instance; the
+   * global guard list is the other one, and it is worse in a small way: it is a single array
+   * shared by every context of every node, so one collector's edit is read by every collector
+   * that runs after it, on every route the pass has not reached yet. `guardsCollector` draws the
+   * `Guards, global` row straight from it, so the reference would name a guard nobody registered
+   * on most of an application, and the type would still say `readonly string[]`.
+   */
+  it('should not let a collector edit the global guard list every other collector reads', () => {
+    // Given a collector that writes to the list it was handed, and one that reports what it sees
+    const seen: string[][] = [];
+    const vandal: IRuntimeCollector = {
+      name: 'vandalCollector',
+      collect: (context: CollectorContext) => {
+        try {
+          (context.globalGuards as string[]).push('GuardNobodyRegistered');
+        } catch {
+          // A frozen array throws on push in an ES module, which the registry handles by
+          // retiring the collector. What matters here is what the next one is given.
+        }
+
+        return undefined;
+      },
+    };
+    const witness: IRuntimeCollector = {
+      name: 'witnessCollector',
+      collect: (context: CollectorContext) => {
+        seen.push([...context.globalGuards]);
+
+        return undefined;
+      },
+    };
+    const registry = registryOf([vandal, witness], ['ReadonlyGuard']);
+
+    // When two nodes go past, which is what makes the list's lifetime longer than one context
+    registry.collect(targetOf());
+    registry.collect(targetOf());
+
+    // Then every collector after it saw the registration and nothing else
+    expect(seen).toEqual([['ReadonlyGuard'], ['ReadonlyGuard']]);
+  });
+
+  it('should not let a collector edit the list the host still holds', () => {
+    // Given a host that keeps its own array, which is how the pass hands it over
+    const hostList = ['ReadonlyGuard'];
+    const vandal: IRuntimeCollector = {
+      name: 'vandalCollector',
+      collect: (context: CollectorContext) => {
+        try {
+          (context.globalGuards as string[]).length = 0;
+        } catch {
+          // As above.
+        }
+
+        return undefined;
+      },
+    };
+
+    // When
+    registryOf([vandal], hostList).collect(targetOf());
+
+    // Then the caller's array is the caller's
+    expect(hostList).toEqual(['ReadonlyGuard']);
   });
 });
 
@@ -280,7 +354,9 @@ describe('T025 attack: the same metadata key claimed by two libraries', () => {
       collect: (context) => {
         const held = context.reflector.getAllAndOverride(shared, [context.handler]);
 
-        return Array.isArray(held) ? { scopes: context.fact(held as string[], 'derived') } : undefined;
+        return Array.isArray(held)
+          ? { scopes: context.fact(held as string[], 'derived') }
+          : undefined;
       },
     };
     const asRoles: IRuntimeCollector = {
@@ -288,7 +364,9 @@ describe('T025 attack: the same metadata key claimed by two libraries', () => {
       collect: (context) => {
         const held = context.reflector.getAllAndOverride(shared, [context.handler]);
 
-        return Array.isArray(held) ? { roles: context.fact(held as string[], 'derived') } : undefined;
+        return Array.isArray(held)
+          ? { roles: context.fact(held as string[], 'derived') }
+          : undefined;
       },
     };
 
@@ -398,7 +476,11 @@ describe('T025 attack: source links in a repository that is not the ordinary one
   }
 
   function run(cwd: string, ...args: readonly string[]): string {
-    return execFileSync('git', [...args], { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+    return execFileSync('git', [...args], {
+      cwd,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    });
   }
 
   /** The collector over one handler whose file is wherever the case put it. */

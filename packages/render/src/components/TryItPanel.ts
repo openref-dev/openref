@@ -1,10 +1,10 @@
 /**
- * The try-it console, M0 scope: fill a field, send, read the response.
+ * The try-it console: fill a field, send, read the response.
  *
- * SPEC 14.1 puts the full serialization matrix, the remaining auth schemes, the same origin
- * proxy and streaming in M2. What is here is the minimum that makes M0 a product rather than a
- * viewer, and every request it cannot build faithfully is refused by the runner with a message
- * naming the reason, which this panel shows instead of a response.
+ * IT IS THE HOST OF SIX POSITIONS AND DRAWS ALMOST NOTHING ITSELF, since `TX-SLOTWIRE`.
+ * `ServerSelect`, `AuthPanel`, `ShapeForm`, `SendButton`, `ResponseView` and `StreamLog` are
+ * slots; what stays here is the state they read and the runner they act through, because that is
+ * what a theme must not have to reimplement to change a control.
  *
  * THREE THINGS ABOUT THE SERVER RENDER, and all three are the same decision seen from different
  * sides.
@@ -19,86 +19,48 @@
  * mismatch on every operation page. The form is the same either way; only whether the send
  * button is enabled changes, and it changes after mount.
  *
- * SEND IS NEVER NATIVELY DISABLED WHILE THIS PANEL IS STILL DEFERRED, WHICH IS FINDING F14 AND
- * IS THE ONE RULE HERE THAT IS ABOUT A BROWSER RATHER THAN ABOUT THIS COMPONENT. The console is
- * fetched when the reader reaches for it, and Send is the control they reach with. A form
- * control carrying the `disabled` attribute receives no mouse event in Chrome: pointer events
- * are still dispatched, so the gate does open and the chunk does arrive, but `click` is never
- * generated at all, so there is no click to capture and none to replay, and the press that
- * woke the console sends nothing. Measured on the example application: `pointerover` and
- * `pointerdown` reach the document, `mousedown` and `click` do not.
- *
- * So while the console has not hydrated the button is a real target that says it is disabled,
- * `aria-disabled="true"` with no `disabled` attribute, which is also what makes it focusable
- * and therefore reachable from the keyboard. Three states, and reading them is how a test
- * tells a live console from the markup that was served:
- *
- * - `aria-disabled` and no `disabled`: deferred. The markup is the server's, and a press on it
- *   opens the gate, fetches the chunk and is replayed into the console that arrives.
- * - `disabled`: live, and cannot send. This build carries no runner, or a request is in flight.
- * - neither: live and ready.
- *
- * AND THE NOTICE BESIDE IT NAMES THE ACTION RATHER THAN PROMISING A STATE, which is the second
- * half of the same finding and was reported as F14 not being fixed at all. It is fixed, and a
- * real press on the real demo proves it in `first-minute.spec.ts`. What a reader saw was this
- * notice: it said the console becomes active once the page is interactive, the page is
- * interactive a moment after it loads, and the sentence never changed, because what changes it
- * is this component mounting and this component mounts only when somebody reaches for it. A
- * permanent excuse beside a control marked unavailable reads as a broken product. SPEC 11.
- *
- * AND THE BUTTON IS DESCRIBED BY THAT NOTICE, which is the same sentence for a reader who never
- * sees it. `aria-disabled` is what keeps the button focusable, so the state the notice explains
- * is exactly the state a keyboard reader arrives in, and a control announced as unavailable with
- * the reason sitting in an unassociated sibling is announced without the reason at all.
- *
  * THE CLICK HANDLER READS THE REFS RATHER THAN THE RENDER IT WAS CREATED IN, and that is load
  * bearing rather than style. The replay dispatches the reader's click from `onMounted`, before
  * the re-render that `mounted.value = true` schedules has flushed, so the listener on the
  * element is still the one this render created. A guard closing over the values of that render
  * would read the state of a console that had not mounted yet and swallow the click it exists
  * to deliver.
- *
- * THE RESPONSE IS TEXT, NEVER MARKUP. Status, headers and body come from a third party server
- * and are rendered as text children, which Vue escapes. Nothing on this path touches
- * `innerHTML`, and `security.spec.ts` plants a script tag in a response body to prove it.
  */
 
+import { useSlot } from '@openref/vue';
 import { computed, defineComponent, h, onMounted, ref, type PropType, type VNode } from 'vue';
+import { AuthPanel, isOAuthScheme } from './AuthPanel';
+import { ResponseView } from './ResponseView';
+import { SendButton } from './SendButton';
+import { ServerSelect } from './ServerSelect';
+import { ShapeForm, BINARY_FIELD } from './ShapeForm';
+import { StateNotice } from './StateNotice';
+import { StreamLog } from './StreamLog';
+import { field, fieldId } from './field';
+import { createStreamLog } from '../console/domain/stream-log';
+import { useRunnerFor } from '@openref/vue/runner';
 import {
-  useRunnerFor,
+  useRunnerPort,
+  type RunnerBody,
+  type RunnerBodyField,
+  type RunnerBodyMediaTypeView,
+  type RunnerFile,
+  type RunnerOAuthClient,
+  type RunnerOAuthFlowKind,
+  type RunnerOAuthFlowView,
   type RunnerOperationView,
+  type RunnerParameterView,
   type RunnerSecuritySchemeView,
+  type RunnerStreamElement,
+  type RunnerStreamEnd,
+  type RunnerStreamHandle,
+  type RunnerValue,
 } from '@openref/vue';
 import { eventValue, type ValueEvent } from '../shared/dom';
-// THE SAME FUNCTION THE PAGE MODEL AND THE RESPONSE TABLE USE, per `shared/status.ts`. This file
-// carried a second copy taking a number, so a status was classed twice by two pieces of
-// arithmetic that had to agree, and the console's chunk paid for the copy.
-import { statusClass } from '../shared/status';
+import { navigateTo, readSignInNotice, redirectTargets } from '../shared/oauth-console';
 
-/** Rows of the body editor, fixed so the control reserves the same height on both sides. */
-const BODY_ROWS = 8;
-
-/** Id of one field, so its label can name it and two operations never collide. */
-function fieldId(nodeId: string, kind: string, name: string): string {
-  return `oref-field-${nodeId}-${kind}-${name}`.replace(/[^A-Za-z0-9_-]/g, '-');
-}
-
-/**
- * Id of the notice beside Send, so the button can point at it.
- *
- * THE SENTENCE HAS TO REACH A READER WHO NEVER SEES IT, which is the keyboard half of F14.
- * `aria-disabled` leaves the button focusable, so it is reachable by tab while the console is
- * still the server's markup, and a control announced as unavailable with no reason attached is
- * the same dead end for a screen reader that the old notice was for everybody else. Described
- * by rather than labelled by: the label is Send, and the notice is what a reader needs after it.
- *
- * A CONSTANT RATHER THAN ONE PER NODE, because a page is one operation: the panel is mounted by
- * the node page for the node it is about, so two consoles cannot share a document. The fields
- * carry the node id because their ids also have to survive being read back by name, and this one
- * is only ever pointed at from the element beside it. It is the class's own name, which an id is
- * allowed to be, and it costs the deferred chunk nothing to build.
- */
-const NOTICE_ID = 'oref-tryit-notice';
+/** Rows of a field holding a list, which is short because most lists are. */
+const LIST_ROWS = 3;
 
 /** Key a typed value is held under, matching what the runner reads. */
 function valueKey(location: string, name: string): string {
@@ -106,31 +68,50 @@ function valueKey(location: string, name: string): string {
 }
 
 /**
- * What a reader is asked for, per scheme.
+ * From the text in a field to the value the matrix of SPEC 14.2 renders.
  *
- * The label names the credential rather than the scheme id where the scheme says enough to do
- * so, because `bearerAuth` is the document's word for it and `Bearer token` is the reader's.
+ * THE CONSOLE HOLDS TEXT AND THE PORT TAKES A KIND, and this is the one place the two meet. A
+ * field is a text control whatever the parameter declares, so the state here is one string per
+ * field; which cell of the matrix that string lands in is the document's answer, carried on
+ * `valueKind`, and never a guess made from the shape of what was typed.
+ *
+ * ONE MEMBER PER LINE, AND A LINE FEED IS THE ONE SEPARATOR A VALUE CANNOT CONTAIN. A comma
+ * separated field cannot express a member with a comma in it, and a query parameter whose values
+ * are sentences is ordinary. The note under the field says which format it is asking for.
+ *
+ * AN EMPTY FIELD IS AN EMPTY LIST AND NOT A LIST OF ONE EMPTY MEMBER. Splitting `''` on a line
+ * feed yields `['']`, which would send `color=` where the reader asked for nothing at all.
+ *
+ * @param parameter - The parameter, for the kind its schema declares
+ * @param text - What the reader typed
+ * @returns The typed value
  */
-function credentialLabel(scheme: RunnerSecuritySchemeView): string {
-  if (scheme.type === 'http') return `${scheme.scheme ?? 'http'} token`;
-  if (scheme.type === 'apiKey') return `${scheme.name ?? 'API key'} (${scheme.in ?? 'header'})`;
+function typedValue(parameter: RunnerParameterView, text: string): RunnerValue {
+  if (parameter.valueKind === 'primitive') return { kind: 'primitive', value: text };
 
-  return scheme.id;
+  const lines = text === '' ? [] : text.split('\n');
+  if (parameter.valueKind === 'array') return { kind: 'array', value: lines };
+
+  return {
+    kind: 'object',
+    value: lines.map((line) => {
+      // SPLIT AT THE FIRST `=` AND NOT AT EVERY ONE, because a value is allowed to contain one
+      // and a field name is not the place to forbid it. A line with no `=` is a field with an
+      // empty value rather than a line thrown away: the reader typed it and meant something.
+      const at = line.indexOf('=');
+      return at === -1 ? ([line, ''] as const) : ([line.slice(0, at), line.slice(at + 1)] as const);
+    }),
+  };
 }
 
-/** Whether M0 can send a credential for this scheme at all, per SPEC 14.1. */
-function isRunnableScheme(scheme: RunnerSecuritySchemeView): boolean {
-  if (scheme.type === 'apiKey') return scheme.in === 'header' || scheme.in === 'query';
+/** What the field asks for, after the location and whether it is required. */
+function formatNote(parameter: RunnerParameterView): string {
+  const base = parameter.required ? `${parameter.in}, required` : parameter.in;
 
-  return scheme.type === 'http' && (scheme.scheme ?? '').toLowerCase() === 'bearer';
-}
+  if (parameter.valueKind === 'array') return `${base}, one value per line`;
+  if (parameter.valueKind === 'object') return `${base}, one key=value per line`;
 
-function field(label: string, id: string, control: VNode, note: string | null): VNode {
-  return h('div', { class: 'oref-field', key: id }, [
-    h('label', { class: 'oref-field-label', for: id }, label),
-    control,
-    note === null ? null : h('span', { class: 'oref-field-note' }, note),
-  ]);
+  return base;
 }
 
 /** Renders the console for one operation. */
@@ -139,16 +120,64 @@ export const TryItPanel = defineComponent({
 
   props: {
     run: { type: Object as PropType<RunnerOperationView | null>, default: null },
+    /** Where the reference is mounted, so the OAuth2 callback route can be named. */
+    basePath: { type: String, default: '' },
   },
 
   setup(props) {
+    // THE OAUTH2 HALF GOES THROUGH THE COMPOSABLE SINCE T031, AND IT USED TO GO ROUND IT. The
+    // console reached `IRunnerPort` directly for the whole of SPEC 14.4 because everything
+    // `useRunnerFor` retained sat in the first paint chunk of every page. That was the barrel
+    // rather than the package: these two functions now arrive through `@openref/vue/runner`,
+    // which no page imports until somebody presses Send, so a theme writing its own console gets
+    // the same surface the shipped one uses instead of a component it does not own.
     const runner = useRunnerFor(() => props.run ?? undefined);
+    // THE STREAM STILL GOES THROUGH THE PORT, AND THAT IS THE REMAINING HALF RATHER THAN AN
+    // OVERSIGHT. T031's amendment is about the sign in surface; `IRunnerPort.stream` is a second
+    // optional half of the port, per SPEC 14.6, and moving it into the composable is a contract
+    // addition nobody has asked for yet. A theme that overrides `StreamLog` is handed the
+    // elements, the counts and the two callbacks, so it does not reach for this either.
+    const port = useRunnerPort();
+
+    const serverSelect = useSlot('ServerSelect', ServerSelect);
+    const authPanel = useSlot('AuthPanel', AuthPanel);
+    const shapeForm = useSlot('ShapeForm', ShapeForm);
+    const sendButton = useSlot('SendButton', SendButton);
+    const responseView = useSlot('ResponseView', ResponseView);
+    const streamLog = useSlot('StreamLog', StreamLog);
+    const notice = useSlot('StateNotice', StateNotice);
 
     const values = ref<Record<string, string>>({});
     const credentials = ref<Record<string, string>>({});
+    // WHAT THE READER TYPES INTO A SIGN IN FORM, KEYED BY SCHEME AND FIELD. It is not a credential
+    // in the sense the store means: a client id is public, and a client secret or a password goes
+    // to the token endpoint and is never written anywhere by this component. Like every other
+    // field here, it is empty in the server render and in the first client render.
+    const authInputs = ref<Record<string, string>>({});
+    const flowChoice = ref<Record<string, string>>({});
+    // WHAT IS LEFT HERE OF THE SIGN IN IS THE SENTENCES AND NOTHING ELSE. The sessions, the
+    // devices, the discovered flows and which scheme is in flight are the composable's, so a
+    // theme's own console has them without reimplementing the flow; a sentence to show beside a
+    // scheme belongs to whoever draws the scheme.
+    const authNotices = ref<Record<string, string>>({});
     const bodyText = ref('');
+    // THE STREAM IS THREE PIECES OF STATE AND A HANDLE, and the window is the first of them.
+    // `createStreamLog` in `console/domain` is what bounds it, per SPEC 14.6: a stream of ten
+    // thousand elements leaves five hundred rows here and the counts of what went past.
+    const streamElements = ref<readonly RunnerStreamElement[]>([]);
+    const streamCounts = ref({ received: 0, invalid: 0, dropped: 0 });
+    const streamEnd = ref<RunnerStreamEnd | null>(null);
+    const streamOpen = ref(false);
+    let streamHandle: RunnerStreamHandle | null = null;
     const chosenServer = ref('');
     const chosenMediaType = ref('');
+
+    // ONE SET OF FIELD VALUES AND ONE SET OF FILES, KEYED BY FIELD NAME AND NOT BY MEDIA TYPE.
+    // Switching between two declared media types keeps what the reader typed under the same
+    // property name, which is what a document declaring both a JSON and a form flavour of one
+    // endpoint means by declaring them: the same fields, encoded two ways.
+    const fieldValues = ref<Record<string, string>>({});
+    const files = ref<Record<string, RunnerFile>>({});
 
     // False during the server render and during the first client render, so both produce the
     // same markup, and true from the moment hydration has matched. Everything that could differ
@@ -159,14 +188,34 @@ export const TryItPanel = defineComponent({
     const serverUrl = computed(() =>
       chosenServer.value === '' ? (servers.value[0] ?? '') : chosenServer.value,
     );
-    const mediaTypes = computed(() => props.run?.bodyMediaTypes ?? []);
+    const bodies = computed<readonly RunnerBodyMediaTypeView[]>(() => props.run?.body ?? []);
+    const mediaTypes = computed(() => bodies.value.map((media) => media.mediaType));
     const mediaType = computed(() =>
       chosenMediaType.value === '' ? (mediaTypes.value[0] ?? '') : chosenMediaType.value,
+    );
+    /** The declared body being filled in, which decides which of the three editors is drawn. */
+    const bodyMedia = computed<RunnerBodyMediaTypeView | undefined>(() =>
+      bodies.value.find((media) => media.mediaType === mediaType.value),
     );
     const schemes = computed(() => props.run?.security ?? []);
     const sendable = computed(
       () => mounted.value && runner.available.value && servers.value.length > 0,
     );
+
+    /** Flows per scheme, as the panel is handed them. */
+    const flows = computed<Record<string, readonly RunnerOAuthFlowView[]>>(() => {
+      const map: Record<string, readonly RunnerOAuthFlowView[]> = {};
+      for (const scheme of schemes.value) map[scheme.id] = runner.flows(scheme);
+      return map;
+    });
+
+    function chosenFlow(scheme: RunnerSecuritySchemeView): RunnerOAuthFlowKind {
+      const chosen = flowChoice.value[scheme.id];
+      const offered = runner.flows(scheme);
+      const known = offered.find((flow) => flow.kind === chosen);
+
+      return known?.kind ?? offered[0]?.kind ?? 'authorizationCode';
+    }
 
     onMounted(() => {
       mounted.value = true;
@@ -175,9 +224,95 @@ export const TryItPanel = defineComponent({
       for (const scheme of schemes.value) {
         const value = runner.credential(scheme.id);
         if (value !== undefined) stored[scheme.id] = value;
+        if (isOAuthScheme(scheme)) runner.refreshSession(scheme.id);
       }
       credentials.value = stored;
+
+      // WHAT HAPPENED ON THE WAY BACK FROM AN AUTHORIZATION SERVER IS SAID HERE. The exchange runs
+      // on page load, before this console has been reached for, so its outcome waits in the same
+      // place the flow's own record waited and is read the first time somebody opens the console.
+      const landing = readSignInNotice();
+      if (landing !== null) {
+        // A LANDING THAT FAILED BEFORE IT COULD READ ITS OWN RECORD NAMES NO SCHEME, and the
+        // sentence is shown against the first one that could have produced it rather than dropped.
+        const known = schemes.value.some((scheme) => scheme.id === landing.schemeId);
+        const fallback = schemes.value.find((scheme) => isOAuthScheme(scheme))?.id;
+        const target = known ? landing.schemeId : fallback;
+
+        if (target !== undefined) {
+          authNotices.value = { ...authNotices.value, [target]: landing.message };
+          runner.refreshSession(target);
+        }
+      }
     });
+
+    function authInput(schemeId: string, name: string): string {
+      return authInputs.value[`${schemeId}:${name}`] ?? '';
+    }
+
+    /**
+     * What the reader typed into one scheme's sign in form, as the port takes it.
+     *
+     * THE SCOPES COME FROM THE FLOW AND NOT FROM A FIELD, which is why this needs the flow: a
+     * reader is never asked to type a scope name, and a flow that declares none asks for none.
+     */
+    function clientFor(scheme: RunnerSecuritySchemeView): RunnerOAuthClient {
+      const scopes = runner.flows(scheme).find((flow) => flow.kind === chosenFlow(scheme))?.scopes;
+
+      return {
+        clientId: authInput(scheme.id, 'clientId'),
+        ...(authInput(scheme.id, 'clientSecret') === ''
+          ? {}
+          : { clientSecret: authInput(scheme.id, 'clientSecret') }),
+        ...(authInput(scheme.id, 'username') === ''
+          ? {}
+          : { username: authInput(scheme.id, 'username') }),
+        ...(authInput(scheme.id, 'password') === ''
+          ? {}
+          : { password: authInput(scheme.id, 'password') }),
+        ...(scopes === undefined || scopes.length === 0 ? {} : { scopes }),
+      };
+    }
+
+    /**
+     * Runs the sign in and says what came of it.
+     *
+     * WHAT IS LEFT HERE AFTER T031 IS THE WINDOW AND THE SENTENCE. The flow choice, the discovery
+     * request, the device wait and the session re-read are `useRunnerFor`'s, so a theme's own
+     * console gets them; following a redirect is a decision about this window, and the sentence
+     * shown beside a scheme belongs to whoever draws the scheme.
+     */
+    async function signIn(schemeId: string): Promise<void> {
+      const scheme = schemes.value.find((candidate) => candidate.id === schemeId);
+      if (scheme === undefined) return;
+
+      authNotices.value = { ...authNotices.value, [scheme.id]: '' };
+
+      // A DOCUMENT WITH NO LOCATION HAS NO REDIRECT URI, and the key is left off rather than set
+      // to `undefined`, because the port reads its absence as "this flow cannot redirect".
+      const redirect = redirectTargets(props.basePath);
+
+      try {
+        const outcome = await runner.signIn({
+          scheme,
+          flowKind: chosenFlow(scheme),
+          client: clientFor(scheme),
+          ...(redirect === undefined ? {} : { redirect }),
+        });
+
+        if (outcome.kind === 'redirect') {
+          navigateTo(outcome.url);
+          return;
+        }
+
+        authNotices.value = { ...authNotices.value, [scheme.id]: 'signed in' };
+      } catch (cause) {
+        authNotices.value = {
+          ...authNotices.value,
+          [scheme.id]: cause instanceof Error ? cause.message : 'the sign in failed',
+        };
+      }
+    }
 
     function setValue(key: string, value: string): void {
       values.value = { ...values.value, [key]: value };
@@ -193,12 +328,85 @@ export const TryItPanel = defineComponent({
       return sendable.value && !runner.pending.value;
     }
 
+    /**
+     * What the reader typed, as the kinds the matrix renders.
+     *
+     * A FIELD THE READER NEVER TOUCHED IS ABSENT AND A FIELD THEY CLEARED IS EMPTY, per SPEC
+     * 14.2. `setValue` writes on every input event, so a field that was typed into and emptied
+     * holds `''` and one that was never opened holds nothing at all, and the two now send
+     * different requests: `?q=` and no `q`.
+     */
+    function typedValues(): Record<string, RunnerValue> {
+      const typed: Record<string, RunnerValue> = {};
+
+      for (const parameter of props.run?.parameters ?? []) {
+        const key = valueKey(parameter.in, parameter.name);
+        const text = values.value[key];
+        if (text === undefined) continue;
+
+        typed[key] = typedValue(parameter, text);
+      }
+
+      return typed;
+    }
+
+    /**
+     * What the reader filled the body in with, in the form the editor they were shown produces.
+     *
+     * NOTHING IS SENT FOR AN EDITOR NOBODY TOUCHED. An untouched text editor holds an empty
+     * string and an untouched form holds no field, and in both cases the request carries no body
+     * at all rather than an empty one: an endpoint that takes an optional body must be reachable
+     * without one, and the console is how a reader reaches it.
+     */
+    function bodyInput(): RunnerBody | undefined {
+      const media = bodyMedia.value;
+      if (media === undefined) return undefined;
+
+      if (media.editor === 'binary') {
+        const file = files.value[BINARY_FIELD];
+
+        return file === undefined ? undefined : { kind: 'binary', file };
+      }
+
+      if (media.editor === 'text') {
+        return bodyText.value.trim() === '' ? undefined : { kind: 'text', text: bodyText.value };
+      }
+
+      const parts: RunnerBodyField[] = [];
+
+      for (const declared of media.fields) {
+        if (declared.kind === 'file') {
+          const file = files.value[declared.name];
+          if (file !== undefined) parts.push({ kind: 'file', name: declared.name, file });
+          continue;
+        }
+
+        // A FIELD THE READER NEVER TOUCHED IS ABSENT AND A FIELD THEY CLEARED IS EMPTY, which is
+        // the same rule the parameters follow, one layer over: `name=` and no `name` are two
+        // different form submissions, and a server validating a required field sees the
+        // difference.
+        const value = fieldValues.value[declared.name];
+        if (value === undefined) continue;
+
+        parts.push({
+          kind: 'text',
+          name: declared.name,
+          value,
+          ...(declared.contentType === undefined ? {} : { contentType: declared.contentType }),
+        });
+      }
+
+      return parts.length === 0 ? undefined : { kind: 'fields', fields: parts };
+    }
+
     async function send(): Promise<void> {
       try {
+        const body = bodyInput();
+
         await runner.send({
           serverUrl: serverUrl.value,
-          values: values.value,
-          ...(bodyText.value.trim() === '' ? {} : { body: bodyText.value }),
+          values: typedValues(),
+          ...(body === undefined ? {} : { body }),
           ...(mediaType.value === '' ? {} : { mediaType: mediaType.value }),
         });
       } catch {
@@ -207,34 +415,65 @@ export const TryItPanel = defineComponent({
       }
     }
 
-    function serverField(): VNode | null {
-      const run = props.run;
-      if (run === null || servers.value.length === 0) return null;
+    /**
+     * Opens the stream this operation declares and lets the window fill.
+     *
+     * NOTHING HERE HOLDS THE STREAM. The log holds the last window and the counts, this holds a
+     * copy of the window for rendering, and neither grows with the stream. The handle is kept so
+     * that Stop reaches the request rather than the reading, which is the decision SPEC 14.6
+     * records and the difference between a stream that is over and a socket that is still open.
+     */
+    function startStream(): void {
+      const at = port;
+      const open = at?.stream?.bind(at);
+      if (open === undefined || props.run === null) return;
 
-      const id = fieldId(run.nodeId, 'server', 'url');
-      const control =
-        servers.value.length === 1
-          ? h('input', {
-              class: 'oref-field-control',
-              id,
-              type: 'text',
-              readonly: true,
-              value: serverUrl.value,
-            })
-          : h(
-              'select',
-              {
-                class: 'oref-field-control',
-                id,
-                value: serverUrl.value,
-                onChange: (event: ValueEvent) => {
-                  chosenServer.value = eventValue(event);
-                },
-              },
-              servers.value.map((url) => h('option', { key: url, value: url }, url)),
-            );
+      stopStream();
+      const log = createStreamLog();
+      streamElements.value = [];
+      streamCounts.value = { received: 0, invalid: 0, dropped: 0 };
+      streamEnd.value = null;
+      streamOpen.value = true;
 
-      return field('Server', id, control, null);
+      const publish = (): void => {
+        const state = log.state();
+        streamElements.value = state.elements;
+        streamCounts.value = {
+          received: state.received,
+          invalid: state.invalid,
+          dropped: state.dropped,
+        };
+      };
+
+      const body = bodyInput();
+      streamHandle = open(
+        {
+          operation: props.run,
+          serverUrl: serverUrl.value,
+          values: typedValues(),
+          ...(body === undefined ? {} : { body }),
+          ...(mediaType.value === '' ? {} : { mediaType: mediaType.value }),
+        },
+        {
+          onElement: (element) => {
+            log.append(element);
+            publish();
+          },
+          onEnd: (end) => {
+            log.finish(end);
+            publish();
+            streamEnd.value = end;
+            streamOpen.value = false;
+            streamHandle = null;
+          },
+        },
+      );
+    }
+
+    /** Stops the stream, which aborts the request rather than stopping the reading. */
+    function stopStream(): void {
+      streamHandle?.stop();
+      streamHandle = null;
     }
 
     function parameterFields(): VNode[] {
@@ -243,176 +482,177 @@ export const TryItPanel = defineComponent({
 
       return run.parameters.map((parameter) => {
         const key = valueKey(parameter.in, parameter.name);
-        const id = fieldId(run.nodeId, parameter.in, parameter.name);
+        const id = fieldId(parameter.in, parameter.name);
+        // A LIST NEEDS A CONTROL THAT HOLDS A LINE FEED, so a parameter whose schema declares an
+        // array or an object gets a textarea and a primitive keeps its single line input. This
+        // is what makes the cells of SPEC 14.2 reachable from the page rather than only from the
+        // port: a console that could only produce one line could only ever produce one column.
+        const multiline = parameter.valueKind !== 'primitive';
 
         return field(
           parameter.name,
           id,
-          h('input', {
+          h(multiline ? 'textarea' : 'input', {
             class: 'oref-field-control',
             id,
-            type: 'text',
+            ...(multiline ? { rows: LIST_ROWS, spellcheck: 'false' } : { type: 'text' }),
             value: values.value[key] ?? '',
             'aria-required': parameter.required ? 'true' : 'false',
             onInput: (event: ValueEvent) => {
               setValue(key, eventValue(event));
             },
           }),
-          parameter.required ? `${parameter.in}, required` : parameter.in,
+          formatNote(parameter),
         );
       });
     }
 
-    function credentialFields(): VNode[] {
-      return schemes.value.map((scheme) => {
-        const id = fieldId(props.run?.nodeId ?? '', 'auth', scheme.id);
-        const runnable = isRunnableScheme(scheme);
+    function mediaTypeField(): VNode | null {
+      if (props.run === null || mediaTypes.value.length < 2) return null;
 
-        return field(
-          credentialLabel(scheme),
-          id,
-          h('input', {
-            class: 'oref-field-control',
-            id,
-            // A credential is a password field: it keeps the value out of a screen share and
-            // out of a browser's form value history, neither of which a text field does.
-            type: 'password',
-            autocomplete: 'off',
-            disabled: !runnable,
-            value: credentials.value[scheme.id] ?? '',
-            onInput: (event: ValueEvent) => {
-              setCredential(scheme.id, eventValue(event));
-            },
-          }),
-          runnable ? null : `${scheme.type} arrives in M2`,
-        );
-      });
-    }
-
-    function bodyField(): VNode | null {
-      const run = props.run;
-      if (run === null || mediaTypes.value.length === 0) return null;
-
-      const id = fieldId(run.nodeId, 'body', 'json');
+      // ONLY WHEN THERE IS A CHOICE. One declared media type is not a choice, and a select with
+      // one option asks a reader to make a decision that has already been made for them.
+      const id = fieldId('body', 'media-type');
 
       return field(
-        'Request body',
+        'Body media type',
         id,
-        h('textarea', {
-          class: 'oref-field-control oref-field-body',
-          id,
-          rows: BODY_ROWS,
-          spellcheck: 'false',
-          value: bodyText.value,
-          onInput: (event: ValueEvent) => {
-            bodyText.value = eventValue(event);
+        h(
+          'select',
+          {
+            class: 'oref-field-control',
+            id,
+            value: mediaType.value,
+            onChange: (event: ValueEvent) => {
+              chosenMediaType.value = eventValue(event);
+            },
           },
-        }),
-        mediaType.value,
+          mediaTypes.value.map((type) => h('option', { key: type, value: type }, type)),
+        ),
+        null,
       );
-    }
-
-    function resultBlock(): VNode | null {
-      const result = runner.result.value;
-      if (result === undefined) return null;
-
-      return h('div', { class: 'oref-run-result' }, [
-        h('div', { class: 'oref-run-summary' }, [
-          h(
-            'span',
-            { class: `oref-status ${statusClass(String(result.status))}` },
-            `${String(result.status)} ${result.statusText}`.trim(),
-          ),
-          h('span', { class: 'oref-run-time' }, `${String(Math.round(result.durationMs))} ms`),
-        ]),
-        result.headers.length === 0
-          ? null
-          : h(
-              'dl',
-              { class: 'oref-run-headers' },
-              result.headers.flatMap((header) => [
-                h('dt', { class: 'oref-run-header-name', key: `n:${header.name}` }, header.name),
-                h('dd', { class: 'oref-run-header-value', key: `v:${header.name}` }, header.value),
-              ]),
-            ),
-        h('pre', { class: 'oref-run-body' }, [h('code', {}, result.body)]),
-      ]);
     }
 
     return (): VNode | null => {
       const run = props.run;
       if (run === null) return null;
 
-      const body: (VNode | null)[] = [h('h2', { class: 'oref-section-title' }, 'Try it')];
+      const body: (VNode | VNode[] | null)[] = [h('h2', { class: 'oref-section-title' }, 'Try it')];
 
       if (servers.value.length === 0) {
         body.push(
-          h(
-            'p',
-            { class: 'oref-tryit-notice' },
-            'This document declares no server, so there is nowhere to send a request.',
-          ),
+          h(notice.value, {
+            kind: 'no-server',
+            message: 'This document declares no server, so there is nowhere to send a request.',
+          }),
         );
 
         return h('section', { class: 'oref-section oref-section-tryit' }, body);
       }
 
+      const media = bodyMedia.value;
+
       body.push(
         h('div', { class: 'oref-tryit-form' }, [
-          serverField(),
-          ...credentialFields(),
-          ...parameterFields(),
-          bodyField(),
-        ]),
-        h('div', { class: 'oref-tryit-actions' }, [
-          h(
-            'button',
-            {
-              class: 'oref-send',
-              type: 'button',
-              // Live and unable to send, which is the only state the native attribute is right
-              // for. Before mount it would take the reader's press away from the gate.
-              disabled: mounted.value && (!sendable.value || runner.pending.value),
-              'aria-disabled': mounted.value ? null : 'true',
-              // Points at the notice exactly while the notice is drawn, so the description is
-              // never a reference to an element that is not in the document.
-              'aria-describedby': sendable.value ? null : NOTICE_ID,
-              onClick: () => {
-                if (!canSend()) return;
-
-                void send();
-              },
+          h(serverSelect.value, {
+            servers: servers.value,
+            activeServerUrl: serverUrl.value,
+            onSelect: (url: string): void => {
+              chosenServer.value = url;
             },
-            runner.pending.value ? 'Sending' : 'Send',
-          ),
-          sendable.value
+          }),
+          h(authPanel.value, {
+            schemes: schemes.value,
+            credentials: credentials.value,
+            inputs: authInputs.value,
+            flows: flows.value,
+            chosenFlow: flowChoice.value,
+            sessions: runner.sessions.value,
+            notices: authNotices.value,
+            devices: runner.devices.value,
+            pending: runner.signingIn.value ?? null,
+            mounted: mounted.value,
+            onCredential: setCredential,
+            onInput: (schemeId: string, name: string, value: string): void => {
+              authInputs.value = { ...authInputs.value, [`${schemeId}:${name}`]: value };
+            },
+            onFlow: (schemeId: string, kind: string): void => {
+              flowChoice.value = { ...flowChoice.value, [schemeId]: kind };
+            },
+            onSignIn: (schemeId: string): void => {
+              void signIn(schemeId);
+            },
+            onSignOut: (schemeId: string): void => {
+              runner.signOut(schemeId);
+            },
+          }),
+          ...parameterFields(),
+          mediaTypeField(),
+          media === undefined
             ? null
-            : h(
-                'span',
-                { class: 'oref-tryit-notice', id: NOTICE_ID },
-                // Two different states, and neither of them is a promise about a moment the
-                // reader will not see. Before mount the notice names the action that brings the
-                // console, per SPEC 11: the shell is interactive within a moment of the load, so
-                // "once the page is interactive" was a sentence that stopped being true
-                // immediately and never changed, because what changes it is this component
-                // mounting, and this component mounts only when somebody reaches for it. A
-                // reader who never reached read a permanent excuse beside a control marked
-                // unavailable, and read the product as broken. After mount the console is
-                // disabled because this build carries no runner, which is a property of how the
-                // reference was published and not of anything the reader can set. The message
-                // says so: a notice that read as an error or as a missing setting would send a
-                // reader looking for a switch that does not exist.
-                mounted.value
-                  ? 'This build carries no request runner, so the console is read only. The application hosting this reference composes one in.'
-                  : 'The console loads when you press Send.',
-              ),
+            : h(shapeForm.value, {
+                media,
+                values: fieldValues.value,
+                files: files.value,
+                text: bodyText.value,
+                onField: (name: string, value: string): void => {
+                  fieldValues.value = { ...fieldValues.value, [name]: value };
+                },
+                onFile: (name: string, file: RunnerFile | undefined): void => {
+                  if (file === undefined) {
+                    const { [name]: _dropped, ...rest } = files.value;
+                    files.value = rest;
+                    return;
+                  }
+                  files.value = { ...files.value, [name]: file };
+                },
+                onText: (text: string): void => {
+                  bodyText.value = text;
+                },
+              }),
         ]),
+        h(sendButton.value, {
+          available: sendable.value,
+          pending: runner.pending.value,
+          mounted: mounted.value,
+          // Two different states, and neither of them is a promise about a moment the reader
+          // will not see. Before mount the notice names the action that brings the console, per
+          // SPEC 11: the shell is interactive within a moment of the load, so "once the page is
+          // interactive" was a sentence that stopped being true immediately and never changed,
+          // because what changes it is this component mounting, and this component mounts only
+          // when somebody reaches for it. A reader who never reached read a permanent excuse
+          // beside a control marked unavailable, and read the product as broken. After mount the
+          // console is disabled because this build carries no runner, which is a property of how
+          // the reference was published and not of anything the reader can set.
+          notice: sendable.value
+            ? ''
+            : mounted.value
+              ? 'This build carries no request runner, so the console is read only. The application hosting this reference composes one in.'
+              : 'The console loads when you press Send.',
+          onSend: (): void => {
+            if (!canSend()) return;
+
+            void send();
+          },
+        }),
+        h(responseView.value, {
+          result: runner.result.value,
+          error: runner.error.value,
+          pending: runner.pending.value,
+        }),
+        run.stream === undefined
+          ? null
+          : h(streamLog.value, {
+              elements: streamElements.value,
+              counts: streamCounts.value,
+              end: streamEnd.value,
+              open: streamOpen.value,
+              mounted: mounted.value,
+              available: sendable.value,
+              onStart: startStream,
+              onStop: stopStream,
+            }),
       );
-
-      const failure = runner.error.value;
-      if (failure !== undefined) body.push(h('p', { class: 'oref-run-error' }, failure));
-
-      body.push(resultBlock());
 
       return h('section', { class: 'oref-section oref-section-tryit' }, body);
     };

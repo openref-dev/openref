@@ -159,6 +159,247 @@ export function planTaskIds(build: string, amendments: string): string[] {
   return ids;
 }
 
+/**
+ * One PER TASK AMENDMENTS section: work or a question addressed to a task of BUILD.md.
+ *
+ * A retrofit and a task with no number are not these. Their ids are `T002-R1` and `TX-VIS`, they
+ * own work of their own rather than adding it to somebody else's task, and the file's protocol
+ * says a retrofit stays open while the task it reopens keeps its original tick. The pattern below
+ * matches a bare task id and therefore neither of them.
+ */
+export interface AmendmentSection {
+  readonly taskId: string;
+  readonly done: boolean;
+  readonly title: string;
+  /** Line the heading is on, 1 based, so a message can send a reader to it. */
+  readonly line: number;
+}
+
+const AMENDMENT_SECTION_PATTERN = /^### \[([ x])\] `(T\d{3})`(?: +(.*?))? *$/;
+
+/**
+ * Reads every per task amendment section.
+ *
+ * @param lines - Lines of `ai-docs/BUILD-AMENDMENTS.md`, index 0 holding line 1
+ * @returns Sections in file order
+ */
+export function parseAmendmentSections(lines: readonly string[]): AmendmentSection[] {
+  const sections: AmendmentSection[] = [];
+
+  lines.forEach((line, index) => {
+    const match = AMENDMENT_SECTION_PATTERN.exec(line);
+    if (match === null) return;
+
+    sections.push({
+      taskId: match[2] ?? '',
+      done: match[1] === 'x',
+      title: match[3] ?? '',
+      line: index + 1,
+    });
+  });
+
+  return sections;
+}
+
+/**
+ * Checks that no task was ticked over work addressed to it, per SPEC 0's ninth class.
+ *
+ * THE MECHANISM THAT FAILED WAS AN ASSUMPTION NOBODY HAD WRITTEN DOWN: that a task which closes
+ * has answered what was filed against it. A question about a NUL byte was filed against `T025`,
+ * `T025` ticked, no gate was built, and a third file acquired the same defect. Nothing anywhere
+ * connected the two boxes, so the failure was invisible by construction.
+ *
+ * The shape is the one `BUDGET_EXCEPTIONS` already uses on a milestone: the entry does not move
+ * the thing it is about, it keeps the thing it is about from being declared finished. Here the
+ * open section keeps the task from being ticked, and the way out is to answer it and tick the
+ * section, to untick the task, or, when the work reopens a task that has already closed, to refile
+ * it as a retrofit with its own id, which is what this file already calls that.
+ *
+ * The reverse direction is checked for the reason every list in this repository is checked in
+ * both: a section addressed to a task id BUILD.md does not carry is read by nobody, and it is
+ * indistinguishable from a section that was never written.
+ *
+ * @param sections - The per task amendment sections
+ * @param tasks - The CONTENTS entries of BUILD.md
+ * @returns Every problem found, empty when no task is ticked over an open section
+ */
+export function checkAmendmentSections(
+  sections: readonly AmendmentSection[],
+  tasks: readonly BuildTaskEntry[],
+): BuildManifestIssue[] {
+  const issues: BuildManifestIssue[] = [];
+  const byId = new Map(tasks.map((task) => [task.id, task]));
+
+  for (const section of sections) {
+    const task = byId.get(section.taskId);
+
+    if (task === undefined) {
+      issues.push({
+        rule: 'amendment-unknown-task',
+        message: `${section.taskId} has an amendment section at L${String(section.line)}, ${describeLine(section.title)}, and BUILD.md carries no such task. A section addressed to nothing is read by nobody`,
+      });
+      continue;
+    }
+
+    if (!task.done || section.done) continue;
+
+    issues.push({
+      rule: 'amendment-open-on-closed-task',
+      message:
+        `${section.taskId} is [x] in BUILD.md and its amendment section at L${String(section.line)} is [ ]: ${describeLine(section.title)}. ` +
+        `A task cannot be ticked over work addressed to it. Answer it and tick the section, untick ${section.taskId}, or, if this reopens a task that has already closed, refile it as a retrofit with its own id`,
+    });
+  }
+
+  return issues;
+}
+
+/**
+ * One RETROFIT or TASKS NOT YET IN BUILD.md entry: work that owns itself.
+ *
+ * THESE ARE EXCLUDED FROM {@link checkAmendmentSections} AND THE EXCLUSION IS CORRECT: that
+ * check keeps a task of BUILD.md from being ticked over work addressed to it, a retrofit
+ * reopens a task that keeps its original tick, and a TX task has no BUILD.md task at all, so
+ * there is no tick for either to block. What the exclusion also did, and should not have, was
+ * leave them with no expiry of any kind. `TX-SERVED` said owner M1 after M1 closed, `TX-CLOCK`
+ * carried two thresholds to a milestone that was over, and `T005-R1` sat open for two days
+ * with tasks ticking past it, because the only thing enforcing their schedules was the prose
+ * inside them. So an entry declares the milestone it must close inside, on a line of its own,
+ * and {@link checkOwnedEntries} holds the declaration to BUILD.md the same way
+ * `CAPABILITY_DEBTS` entries are held: the milestone must exist, and it must not be finished
+ * while the entry is open.
+ */
+export interface OwnedEntry {
+  readonly id: string;
+  readonly done: boolean;
+  readonly title: string;
+  /** Line the heading is on, 1 based, so a message can send a reader to it. */
+  readonly line: number;
+  /** Milestone the entry declares it closes inside, or undefined when it declares none. */
+  readonly milestone: string | undefined;
+}
+
+const OWNED_ENTRY_PATTERN = /^### \[([ x])\] `((?:T\d{3}-R\d*)|(?:TX-[A-Z-]+))`(?: +(.*?))? *$/;
+const MILESTONE_LINE_PATTERN = /^\*\*Milestone:\*\* (M\d+)\b/;
+
+/**
+ * Reads every RETROFIT and TX entry, with the milestone line its body declares.
+ *
+ * A milestone line belongs to the entry whose heading precedes it. One that appears before any
+ * entry heading belongs to nothing and is ignored, and only the first line of an entry counts,
+ * so a second declaration cannot quietly loosen the first.
+ *
+ * @param lines - Lines of `ai-docs/BUILD-AMENDMENTS.md`, index 0 holding line 1
+ * @returns Entries in file order
+ */
+export function parseOwnedEntries(lines: readonly string[]): OwnedEntry[] {
+  interface Draft {
+    id: string;
+    done: boolean;
+    title: string;
+    line: number;
+    milestone: string | undefined;
+    sealed: boolean;
+  }
+
+  const drafts: Draft[] = [];
+  let inBody = false;
+
+  lines.forEach((line, index) => {
+    const heading = OWNED_ENTRY_PATTERN.exec(line);
+    if (heading !== null) {
+      drafts.push({
+        id: heading[2] ?? '',
+        done: heading[1] === 'x',
+        title: heading[3] ?? '',
+        line: index + 1,
+        milestone: undefined,
+        sealed: false,
+      });
+      inBody = true;
+      return;
+    }
+
+    // Any other heading ends the entry's body, so a milestone line under a PER TASK section
+    // or under the next chapter cannot be read as this entry's.
+    if (/^#{2,3} /.test(line)) {
+      inBody = false;
+      return;
+    }
+
+    const current = drafts[drafts.length - 1];
+    if (!inBody || current === undefined || current.sealed) return;
+
+    const milestone = MILESTONE_LINE_PATTERN.exec(line);
+    if (milestone === null) return;
+
+    current.milestone = milestone[1];
+    current.sealed = true;
+  });
+
+  return drafts.map(({ id, done, title, line, milestone }) => ({
+    id,
+    done,
+    title,
+    line,
+    milestone,
+  }));
+}
+
+/**
+ * Checks that every open RETROFIT and TX entry closes inside a milestone that is still open.
+ *
+ * A closed entry is history and is not checked: its milestone has done its work. An open one
+ * must name a milestone BUILD.md carries, with at least one unticked task left in it, because
+ * an entry whose milestone is finished is a schedule nobody can be held to, which is exactly
+ * the state the three stale entries of 2026-08-13 were found in.
+ *
+ * @param entries - The RETROFIT and TX entries
+ * @param milestones - The milestones of BUILD.md with their tasks
+ * @returns Every problem found, empty when every open entry has a live expiry
+ */
+export function checkOwnedEntries(
+  entries: readonly OwnedEntry[],
+  milestones: readonly BuildMilestone[],
+): BuildManifestIssue[] {
+  const issues: BuildManifestIssue[] = [];
+
+  for (const entry of entries) {
+    if (entry.done) continue;
+
+    if (entry.milestone === undefined) {
+      issues.push({
+        rule: 'entry-no-milestone',
+        message:
+          `${entry.id} at L${String(entry.line)} is open and declares no **Milestone:** line, so nothing can expire it. ` +
+          `An entry with no expiry is enforced by somebody's memory`,
+      });
+      continue;
+    }
+
+    const milestone = milestones.find((candidate) => candidate.id === entry.milestone);
+
+    if (milestone === undefined) {
+      issues.push({
+        rule: 'entry-unknown-milestone',
+        message: `${entry.id} at L${String(entry.line)} declares ${entry.milestone}, which is not a milestone BUILD.md carries`,
+      });
+      continue;
+    }
+
+    if (milestone.tasks.every((task) => task.done)) {
+      issues.push({
+        rule: 'entry-milestone-closed',
+        message:
+          `${entry.id} at L${String(entry.line)} had to close inside ${milestone.label}, and every task of that milestone is ticked while the entry is open: ` +
+          `${describeLine(entry.title)}. Do the work, or re-home the entry with a dated note saying why it moved`,
+      });
+    }
+  }
+
+  return issues;
+}
+
 /** One milestone heading in the CONTENTS block, with the tasks written under it. */
 export interface BuildMilestone {
   readonly id: string;

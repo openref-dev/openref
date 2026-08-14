@@ -18,6 +18,9 @@
     "./browser": {
       "source": "./src/browser/index.ts",
       "import": "./dist/browser/openref.js"
+    },
+    "./browser/element": {
+      "source": "./src/browser/element.ts"
     }
   },
   "files": [

@@ -55,6 +55,21 @@ const BOUNDARIES = {
   search: ['core'],
   nest: ['core', 'render', 'runner', 'search'],
   theme: [],
+
+  // THEME-KIT REACHES THE CONTRACT AND NOTHING BELOW IT. It reads the slot registry, the theme
+  // definition and the doc state, all of which live in `vue`, and it renders a theme's own
+  // components with Vue's server renderer. It deliberately does not reach `render`: the whole
+  // point of the harness is to run the theme's markup rather than the reference's.
+  'theme-kit': ['core', 'vue'],
+
+  // A THEME REACHES THE CONTRACT AND THE TYPES THE CONTRACT IS WRITTEN IN, AND THE SECOND HALF OF
+  // THAT IS A FINDING RATHER THAN A CONVENIENCE. `theme` has no upstream at all because it is data;
+  // this one carries components, so it names `defineTheme`, the slot names and the props of every
+  // position, all of which are `vue`. The edge to `core` exists because three of those props are
+  // declared in IR types, `IRConfidence`, `IRSchema` and `IRSchemaView`, and `@openref/vue` does
+  // not re-export them: a theme cannot type the value it is handed without the package SPEC 4 says
+  // a theme author does not have to install. T032 filed it; it is not worked around here.
+  'theme-telltale': ['core', 'vue'],
   cli: ['core', 'render', 'runner', 'search'],
 
   // THE THREE ECOSYSTEM COLLECTORS OF SPEC 4, AND THE EDGE RUNS THE OTHER WAY. `nest` does not
@@ -68,6 +83,29 @@ const BOUNDARIES = {
   'collector-casl': ['core', 'nest'],
   'collector-access-control': ['core', 'nest'],
 };
+
+/**
+ * Files allowed one edge their package is not, each with the doctrine that earns it.
+ *
+ * THE ONE CASE IS A THEMED ENTRY, per T033. A theme's components reach a reader only inside a
+ * browser entry built with the definition, and the composition an entry performs, the
+ * renderer plus the runner factory, lives in `nest` because that is the first package allowed
+ * to see both. So a theme package's `src/entry.ts` imports `@openref/nest/browser-entry` and
+ * nothing else changes: the theme itself stays inside its package boundary, which is the
+ * property T032 proved and the boundary rule keeps proving for every other module.
+ *
+ * The shape is a file pattern, an extra allowance, and the package it belongs to. The
+ * package's own rule excludes the file, and a dedicated rule holds the file to the widened
+ * set, so the exception cannot silently widen the package.
+ */
+const FILE_BOUNDARIES = [
+  {
+    package: 'theme-telltale',
+    file: 'src/entry\\.ts$',
+    also: ['nest'],
+    comment: 'the themed entry is composition, and composition lives where nest is visible',
+  },
+];
 
 /**
  * Reads the package directory names under `packages/`.
@@ -147,12 +185,41 @@ function reconcile(diskDirs) {
 function boundary(pkg, allowed, packageDirs) {
   const reachable = [pkg, ...allowed];
   const forbidden = packageDirs.filter((candidate) => !reachable.includes(candidate));
+  const exceptions = FILE_BOUNDARIES.filter((entry) => entry.package === pkg);
 
   return {
     name: `boundary-${pkg}`,
     severity: 'error',
     comment: `packages/${pkg} may only depend on: ${allowed.join(', ') || 'nothing'}`,
-    from: { path: `^packages/${pkg}/src/` },
+    from: {
+      path: `^packages/${pkg}/src/`,
+      // A file with a boundary of its own is judged by its own rule below, not silently freed:
+      // excluding it here and holding it there is what keeps the exception from widening the
+      // package.
+      ...(exceptions.length === 0
+        ? {}
+        : { pathNot: exceptions.map((entry) => `^packages/${pkg}/${entry.file}`) }),
+    },
+    to: { path: `^packages/(${forbidden.join('|')})/` },
+  };
+}
+
+/**
+ * Builds the rule holding one excepted file to its widened set.
+ *
+ * @param {object} exception one FILE_BOUNDARIES entry
+ * @param {string[]} packageDirs every package directory on disk
+ * @returns {object} dependency-cruiser rule
+ */
+function fileBoundary(exception, packageDirs) {
+  const reachable = [exception.package, ...BOUNDARIES[exception.package], ...exception.also];
+  const forbidden = packageDirs.filter((candidate) => !reachable.includes(candidate));
+
+  return {
+    name: `file-boundary-${exception.package}`,
+    severity: 'error',
+    comment: exception.comment,
+    from: { path: `^packages/${exception.package}/${exception.file}` },
     to: { path: `^packages/(${forbidden.join('|')})/` },
   };
 }
@@ -177,6 +244,9 @@ function buildConfig(repoRoot) {
   return {
     forbidden: [
       ...packageDirs.map((pkg) => boundary(pkg, BOUNDARIES[pkg], packageDirs)),
+      ...FILE_BOUNDARIES.filter((entry) => packageDirs.includes(entry.package)).map((entry) =>
+        fileBoundary(entry, packageDirs),
+      ),
       {
         name: 'core-is-framework-free',
         severity: 'error',

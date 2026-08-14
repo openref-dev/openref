@@ -29,7 +29,7 @@ export function operation(overrides: Partial<RunnableOperation> = {}): RunnableO
     parameters: [parameter()],
     servers: ['https://api.example.com'],
     security: [],
-    bodyMediaTypes: [],
+    body: [],
     ...overrides,
   };
 }

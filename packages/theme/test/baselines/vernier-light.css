@@ -770,6 +770,10 @@ button.oref-schema-row:hover {
   resize: vertical;
 }
 
+.oref-field-file {
+  padding: 4px 6px;
+}
+
 .oref-drift-rule,
 .oref-field-note {
   color: #5f6e7a;
@@ -806,10 +810,35 @@ button.oref-schema-row:hover {
   color: #5f6e7a;
 }
 
+.oref-field-oauth {
+  border-inline-start: 1px solid #5f6e7a;
+  gap: 6px;
+  padding-inline-start: 10px;
+}
+
+.oref-signin,
+.oref-signout {
+  background: #f6f8fa;
+  border-color: #5f6e7a;
+  color: #08111a;
+}
+
 .oref-tryit-notice {
   color: #5f6e7a;
   font-size: 13px;
   margin: 0;
+}
+
+.oref-embed-error {
+  border-inline-start: 2px solid #a92616;
+  color: #a92616;
+  font-size: 13px;
+  margin: 0;
+  padding-inline-start: 6px;
+}
+
+.oref-run-notice {
+  margin-bottom: 10px;
 }
 
 .oref-run-error {

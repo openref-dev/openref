@@ -12,7 +12,8 @@
  */
 
 import { IR_VERSION, type IRDocument } from '@openref/core';
-import { createSSRApp } from 'vue';
+import { provideSlots, resolveTheme, type ThemeDefinition } from '@openref/vue';
+import { createSSRApp, h } from 'vue';
 import { renderToString } from 'vue/server-renderer';
 import type {
   IRenderCache,
@@ -51,6 +52,24 @@ export interface RenderPageOptions {
   readonly highlighter?: IHighlighter;
   /** Markdown renderer, when one is already built. Built from `highlighter` when absent. */
   readonly markdown?: IMarkdownRenderer;
+  /**
+   * The theme in force, whose slot overrides this render resolves.
+   *
+   * THE SAME THEME HAS TO REACH THE CLIENT, per `hydrateReference`. A page rendered with an
+   * override and hydrated without one is a hydration mismatch on that position, which is the
+   * silent class of bug the whole component tree is written to avoid. The theme's name is part
+   * of the cache key for the neighbouring reason: two mounts of one document under two themes
+   * are two pages.
+   */
+  readonly theme?: ThemeDefinition;
+  /**
+   * The same origin proxy endpoint, when the host mounted one, per SPEC 14.5.
+   *
+   * Written into the page model so the runner factory in the browser can choose the proxy
+   * transport. Part of the cache key: one document mounted twice, once with the proxy and once
+   * without, is two pages, and a host may hand both mounts one cache.
+   */
+  readonly proxyPath?: string;
 }
 
 /**
@@ -59,6 +78,8 @@ export interface RenderPageOptions {
  * @param documentHash - `IRDocument.hash`
  * @param nodeId - Node the page shows, or null for the overview
  * @param basePath - Mount point, which links are built from and so is part of the bytes
+ * @param schemaId - Named schema the page shows, for a schema page
+ * @param themeName - Theme whose overrides this page was drawn with, empty for none
  * @returns A key that changes whenever the bytes could
  */
 export function renderCacheKey(
@@ -66,9 +87,11 @@ export function renderCacheKey(
   nodeId: string | null,
   basePath = '',
   schemaId: string | null = null,
+  themeName = '',
+  proxyPath = '',
 ): string {
   const versions = `${String(IR_VERSION)}.${String(PAGE_MODEL_VERSION)}.${String(RENDER_VERSION)}`;
-  return `oref:${versions}:${documentHash}:${basePath}:${nodeId ?? ''}:${schemaId ?? ''}`;
+  return `oref:${versions}:${documentHash}:${basePath}:${nodeId ?? ''}:${schemaId ?? ''}:${themeName}:${proxyPath}`;
 }
 
 /**
@@ -106,11 +129,22 @@ async function markdownFor(options: RenderPageOptions): Promise<IMarkdownRendere
  * what makes a static build reproducible, and it is asserted over two independently built
  * models rather than over one model serialized twice, which would pass either way.
  *
+ * THE HEALTH REPORT IS DRAWN AND NOT SHIPPED, per SPEC 7.2. It is the one part of the model the
+ * server renders and the client never does, so a copy of it here would be the same five hundred
+ * findings a second time: once as the markup a reader is looking at, and once as JSON to rebuild
+ * markup that is already on the page. `PageModel.healthRendered` is what crosses instead, and the
+ * client's filling of the panel position adopts the section it was handed rather than drawing
+ * one. Measured on a document of 73 operations and 578 findings, that is 155 KB of a 381 KB page.
+ *
+ * IT IS EMPTIED HERE RATHER THAN LEFT OUT OF THE MODEL, because the server render needs the
+ * report and the client must not receive it, and those are two consumers of one build. Writing
+ * null keeps `readPageState` honest: the field the client reads has the type it declares.
+ *
  * @param model - The page model
- * @returns JSON in the order the model was built in
+ * @returns JSON in the order the model was built in, with the report emptied
  */
 export function serializePageModel(model: PageModel): string {
-  return JSON.stringify(model);
+  return JSON.stringify({ ...model, health: null });
 }
 
 /**
@@ -139,15 +173,42 @@ export async function renderPage(
   const nodeId = options.nodeId ?? null;
   const schemaId = nodeId === null ? (options.schemaId ?? null) : null;
   const basePath = options.basePath ?? '';
-  const key = renderCacheKey(document.hash, nodeId, basePath, schemaId);
+  const theme = resolveTheme(options.theme);
+  // THE KEY CARRIES THE THEME'S NAME AND IS EMPTY WHEN THERE IS NONE, so a reference published
+  // without a theme keys exactly as it did before slots were wired. The proxy path rides the
+  // same rule.
+  const key = renderCacheKey(
+    document.hash,
+    nodeId,
+    basePath,
+    schemaId,
+    options.theme?.name ?? '',
+    options.proxyPath ?? '',
+  );
 
   const cached = await options.cache?.get(key);
   if (cached !== undefined) return cached;
 
   const markdown = await markdownFor(options);
 
-  const model = buildPageModel(document, { nodeId, schemaId, markdown, basePath });
-  const app = createSSRApp(ReferenceApp, { page: model, basePath });
+  const model = buildPageModel(document, {
+    nodeId,
+    schemaId,
+    markdown,
+    basePath,
+    ...(options.proxyPath === undefined ? {} : { proxyPath: options.proxyPath }),
+  });
+  const app = createSSRApp({
+    name: 'OrefServerRoot',
+    setup() {
+      // THE REGISTRY IS PROVIDED AND THE DOCUMENT STATE IS NOT. `useSlot` reads the registry on
+      // its own key since `TX-SLOTWIRE`, exactly so that a renderer with a theme and no
+      // `IRDocument` can resolve a slot at all.
+      provideSlots(theme.slots);
+
+      return () => h(ReferenceApp, { page: model, basePath });
+    },
+  });
   // THE SERVER DEFERS NOTHING. A server render exists to put the whole page in the response,
   // and a deferred component here would ship markup with a hole in it that the client would
   // then have to fill, which is the opposite of what the client is being spared.

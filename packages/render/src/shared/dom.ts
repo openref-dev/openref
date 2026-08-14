@@ -45,6 +45,43 @@ export function eventValue(event: ValueEvent): string {
   return typeof value === 'string' ? value : '';
 }
 
+/**
+ * A file the reader picked, said structurally.
+ *
+ * The three members a body part is built from, and nothing else. `arrayBuffer` is what a browser
+ * `File` reads its bytes with, and declaring it here rather than importing `File` keeps this file
+ * in the server program where there is no such type.
+ */
+export interface PickedFile {
+  readonly name: string;
+  readonly type: string;
+  arrayBuffer(): Promise<ArrayBuffer>;
+}
+
+/** A file input's change event, as a component reads the chosen file off it. */
+export interface FileEvent {
+  readonly target?: { readonly files?: ArrayLike<PickedFile> | null } | null;
+}
+
+/**
+ * The file a reader chose, or null when they cleared the control.
+ *
+ * ONE FILE AND NOT A LIST, because a body part is one file: a property declared as a binary
+ * string is one file, and a document that wants several declares an array, which is a shape the
+ * console does not offer yet and says so rather than silently sending the first.
+ *
+ * @param event - The change event from a file input
+ * @returns The file, or null when none was chosen
+ */
+export function eventFile(event: FileEvent): PickedFile | null {
+  const files = event.target?.files;
+  if (files === undefined || files === null || files.length === 0) return null;
+
+  const file: PickedFile | undefined = files[0];
+
+  return file ?? null;
+}
+
 /** Something that can take focus, and that says which row it is. */
 export interface FocusTarget {
   focus(): void;

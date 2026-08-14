@@ -9,11 +9,20 @@ import type { IRJsonValue } from '../../ir/domain/schema.types';
  * that looks like the field it stands for.
  */
 
-/** One entry of the dictionary: names it answers to, and what it produces. */
+/**
+ * One entry of the dictionary: names it answers to, and what it produces.
+ *
+ * String entries carry a small list rather than one value, read by element position, so the
+ * second element of an array differs from the first without the generator inventing a
+ * transformation that could break the value's shape: the second email is written down as an
+ * email, not derived from the first. An entry whose value is pinned by meaning, `REDACTED`,
+ * carries one and repeats, which is the honest outcome. Number entries stay single: the
+ * generator adds the element position to the base, which is valid for every number.
+ */
 interface Heuristic {
   /** Normalized name fragments this entry claims, checked as whole words. */
   readonly names: readonly string[];
-  readonly stringValue?: string;
+  readonly stringValues?: readonly string[];
   readonly numberValue?: number;
 }
 
@@ -44,35 +53,47 @@ export function splitFieldName(name: string): string[] {
  * the narrower name is listed above the broader one.
  */
 const HEURISTICS: readonly Heuristic[] = [
-  { names: ['email'], stringValue: 'user@example.com' },
-  { names: ['url', 'uri', 'href', 'link', 'website'], stringValue: 'https://example.com' },
-  { names: ['phone', 'tel', 'telephone', 'mobile'], stringValue: '+15550100' },
-  { names: ['uuid', 'guid'], stringValue: '00000000-0000-4000-8000-000000000000' },
-  { names: ['slug'], stringValue: 'example-slug' },
-  { names: ['token', 'secret', 'password', 'apikey', 'key'], stringValue: 'REDACTED' },
-  { names: ['currency'], stringValue: 'EUR' },
-  { names: ['country'], stringValue: 'DE' },
-  { names: ['locale', 'language', 'lang'], stringValue: 'en-US' },
-  { names: ['timezone', 'tz'], stringValue: 'Europe/Berlin' },
-  { names: ['city'], stringValue: 'Berlin' },
-  { names: ['street', 'address'], stringValue: 'Example Street 1' },
-  { names: ['zip', 'postcode', 'postalcode'], stringValue: '10115' },
-  { names: ['firstname', 'givenname'], stringValue: 'Ada' },
-  { names: ['lastname', 'surname', 'familyname'], stringValue: 'Lovelace' },
-  { names: ['username', 'login', 'handle'], stringValue: 'ada' },
-  { names: ['title'], stringValue: 'Example title' },
-  { names: ['description', 'summary', 'note', 'comment'], stringValue: 'Example description' },
-  { names: ['message', 'reason'], stringValue: 'Example message' },
-  { names: ['status', 'state'], stringValue: 'active' },
-  { names: ['type', 'kind'], stringValue: 'example' },
-  { names: ['name', 'label'], stringValue: 'Example name' },
-  { names: ['version'], stringValue: '1.0.0' },
-  { names: ['hash', 'checksum', 'etag'], stringValue: 'd41d8cd98f00b204e9800998ecf8427e' },
-  { names: ['ip'], stringValue: '203.0.113.1' },
-  { names: ['host', 'hostname', 'domain'], stringValue: 'example.com' },
-  { names: ['path'], stringValue: '/example' },
-  { names: ['mimetype', 'contenttype'], stringValue: 'application/json' },
-  { names: ['id'], stringValue: 'example-id' },
+  { names: ['email'], stringValues: ['user@example.com', 'user2@example.com'] },
+  {
+    names: ['url', 'uri', 'href', 'link', 'website'],
+    stringValues: ['https://example.com', 'https://example.org'],
+  },
+  { names: ['phone', 'tel', 'telephone', 'mobile'], stringValues: ['+15550100', '+15550101'] },
+  {
+    names: ['uuid', 'guid'],
+    stringValues: ['00000000-0000-4000-8000-000000000000', '00000000-0000-4000-8000-000000000001'],
+  },
+  { names: ['slug'], stringValues: ['example-slug', 'second-slug'] },
+  { names: ['token', 'secret', 'password', 'apikey', 'key'], stringValues: ['REDACTED'] },
+  { names: ['currency'], stringValues: ['EUR', 'USD'] },
+  { names: ['country'], stringValues: ['DE', 'FR'] },
+  { names: ['locale', 'language', 'lang'], stringValues: ['en-US', 'de-DE'] },
+  { names: ['timezone', 'tz'], stringValues: ['Europe/Berlin', 'Europe/Paris'] },
+  { names: ['city'], stringValues: ['Berlin', 'Paris'] },
+  { names: ['street', 'address'], stringValues: ['Example Street 1', 'Example Street 2'] },
+  { names: ['zip', 'postcode', 'postalcode'], stringValues: ['10115', '75001'] },
+  { names: ['firstname', 'givenname'], stringValues: ['Ada', 'Grace'] },
+  { names: ['lastname', 'surname', 'familyname'], stringValues: ['Lovelace', 'Hopper'] },
+  { names: ['username', 'login', 'handle'], stringValues: ['ada', 'grace'] },
+  { names: ['title'], stringValues: ['Example title', 'Second title'] },
+  {
+    names: ['description', 'summary', 'note', 'comment'],
+    stringValues: ['Example description', 'Second description'],
+  },
+  { names: ['message', 'reason'], stringValues: ['Example message', 'Second message'] },
+  { names: ['status', 'state'], stringValues: ['active', 'inactive'] },
+  { names: ['type', 'kind'], stringValues: ['example', 'sample'] },
+  { names: ['name', 'label'], stringValues: ['Example name', 'Second name'] },
+  { names: ['version'], stringValues: ['1.0.0', '1.1.0'] },
+  {
+    names: ['hash', 'checksum', 'etag'],
+    stringValues: ['d41d8cd98f00b204e9800998ecf8427e', '900150983cd24fb0d6963f7d28e17f72'],
+  },
+  { names: ['ip'], stringValues: ['203.0.113.1', '203.0.113.2'] },
+  { names: ['host', 'hostname', 'domain'], stringValues: ['example.com', 'example.org'] },
+  { names: ['path'], stringValues: ['/example', '/second'] },
+  { names: ['mimetype', 'contenttype'], stringValues: ['application/json', 'text/plain'] },
+  { names: ['id'], stringValues: ['example-id', 'example-id-2'] },
 
   { names: ['price', 'amount', 'total', 'cost', 'balance'], numberValue: 19.99 },
   { names: ['rate', 'ratio', 'percent', 'percentage'], numberValue: 0.5 },
@@ -109,14 +130,18 @@ function lookup(name: string): Heuristic | undefined {
  * Produces a string example for a field name.
  *
  * @param name - Field name, or undefined at a position that has no name
- * @returns The dictionary value, or undefined when no entry claims the name
+ * @param variant - Element position the value is for, 0 outside an array
+ * @returns The dictionary value at that position, or undefined when no entry claims the name
  *
  * @example
  * stringForFieldName('customerEmail'); // 'user@example.com'
+ * stringForFieldName('customerEmail', 1); // 'user2@example.com'
  */
-export function stringForFieldName(name: string | undefined): string | undefined {
+export function stringForFieldName(name: string | undefined, variant = 0): string | undefined {
   if (name === undefined) return undefined;
-  return lookup(name)?.stringValue;
+  const values = lookup(name)?.stringValues;
+  if (values === undefined || values.length === 0) return undefined;
+  return values[variant % values.length];
 }
 
 /**
@@ -133,45 +158,55 @@ export function numberForFieldName(name: string | undefined): number | undefined
   return lookup(name)?.numberValue;
 }
 
-/** Values produced for the JSON Schema string formats, per SPEC 5.5. */
-const FORMAT_VALUES: Readonly<Record<string, string>> = {
-  'date-time': '2026-01-01T00:00:00Z',
-  date: '2026-01-01',
-  time: '00:00:00Z',
-  duration: 'P1D',
-  email: 'user@example.com',
-  'idn-email': 'user@example.com',
-  hostname: 'example.com',
-  'idn-hostname': 'example.com',
-  ipv4: '203.0.113.1',
-  ipv6: '2001:db8::1',
-  uri: 'https://example.com',
-  'uri-reference': '/example',
-  'uri-template': 'https://example.com/{id}',
-  iri: 'https://example.com',
-  'iri-reference': '/example',
-  uuid: '00000000-0000-4000-8000-000000000000',
-  'json-pointer': '/example',
-  'relative-json-pointer': '0/example',
-  regex: '^example$',
-  byte: 'ZXhhbXBsZQ==',
-  binary: 'ZXhhbXBsZQ==',
-  password: 'REDACTED',
-  hostname_port: 'example.com:8080',
+/**
+ * Values produced for the JSON Schema string formats, per SPEC 5.5.
+ *
+ * Two samples per format wherever a second valid one is worth showing, read by element
+ * position. `password` is pinned by meaning and repeats; both base64 entries decode to the
+ * word they carry, `example` and `second`.
+ */
+const FORMAT_VALUES: Readonly<Record<string, readonly string[]>> = {
+  'date-time': ['2026-01-01T00:00:00Z', '2026-01-02T00:00:00Z'],
+  date: ['2026-01-01', '2026-01-02'],
+  time: ['00:00:00Z', '00:00:01Z'],
+  duration: ['P1D', 'P2D'],
+  email: ['user@example.com', 'user2@example.com'],
+  'idn-email': ['user@example.com', 'user2@example.com'],
+  hostname: ['example.com', 'example.org'],
+  'idn-hostname': ['example.com', 'example.org'],
+  ipv4: ['203.0.113.1', '203.0.113.2'],
+  ipv6: ['2001:db8::1', '2001:db8::2'],
+  uri: ['https://example.com', 'https://example.org'],
+  'uri-reference': ['/example', '/second'],
+  'uri-template': ['https://example.com/{id}', 'https://example.org/{id}'],
+  iri: ['https://example.com', 'https://example.org'],
+  'iri-reference': ['/example', '/second'],
+  uuid: ['00000000-0000-4000-8000-000000000000', '00000000-0000-4000-8000-000000000001'],
+  'json-pointer': ['/example', '/second'],
+  'relative-json-pointer': ['0/example', '0/second'],
+  regex: ['^example$', '^second$'],
+  byte: ['ZXhhbXBsZQ==', 'c2Vjb25k'],
+  binary: ['ZXhhbXBsZQ==', 'c2Vjb25k'],
+  password: ['REDACTED'],
+  hostname_port: ['example.com:8080', 'example.org:8080'],
 };
 
 /**
  * Produces a string example for a declared `format`.
  *
  * @param format - Value of the `format` keyword
- * @returns The value for that format, or undefined when the format is not in the table
+ * @param variant - Element position the value is for, 0 outside an array
+ * @returns The value for that format at that position, or undefined for an unknown format
  *
  * @example
  * stringForFormat('date-time'); // '2026-01-01T00:00:00Z'
+ * stringForFormat('date-time', 1); // '2026-01-02T00:00:00Z'
  */
-export function stringForFormat(format: string | undefined): string | undefined {
+export function stringForFormat(format: string | undefined, variant = 0): string | undefined {
   if (format === undefined) return undefined;
-  return FORMAT_VALUES[format];
+  const values = FORMAT_VALUES[format];
+  if (values === undefined || values.length === 0) return undefined;
+  return values[variant % values.length];
 }
 
 /** Values produced for the integer formats OpenAPI adds. */

@@ -12,6 +12,7 @@
  * like a font that failed to load.
  */
 
+import { readRequestBody } from '../../domain/request-body';
 import { readNestedString, readStringRecord } from '../../domain/request-shape';
 import { failureReply } from '../../domain/reply';
 import type {
@@ -85,19 +86,48 @@ export class FastifyReferenceAdapter implements IReferenceHttpAdapter {
   /** @inheritdoc */
   get(pattern: string, handler: ReferenceHandler): void {
     this.adapter.get(pattern, (request: unknown, reply: unknown): void => {
-      const nonce = this.nonceOf(request, reply);
-
-      void handler({
-        params: readStringRecord(request, 'params'),
-        headers: readStringRecord(request, 'headers'),
-        ...(nonce === undefined ? {} : { nonce }),
-      })
-        .then((response) => writeFastifyReply(reply, response))
-        .catch((cause: unknown) => {
-          this.options.onError?.(cause);
-          writeFastifyReply(reply, failureReply());
-        });
+      this.answer(handler, request, reply, null);
     });
+  }
+
+  /** @inheritdoc */
+  post(pattern: string, handler: ReferenceHandler): void {
+    this.adapter.post(pattern, (request: unknown, reply: unknown): void => {
+      this.answer(handler, request, reply, readRequestBody(request));
+    });
+  }
+
+  /**
+   * Runs one handler and writes what it answered.
+   *
+   * @param handler - What answers the route
+   * @param request - Framework request
+   * @param reply - Framework reply
+   * @param body - The body being read, or null on a route that takes none
+   */
+  private answer(
+    handler: ReferenceHandler,
+    request: unknown,
+    reply: unknown,
+    body: Promise<string> | null,
+  ): void {
+    const nonce = this.nonceOf(request, reply);
+
+    void (body ?? Promise.resolve(null))
+      .then((text) =>
+        handler({
+          params: readStringRecord(request, 'params'),
+          headers: readStringRecord(request, 'headers'),
+          query: readStringRecord(request, 'query'),
+          ...(nonce === undefined ? {} : { nonce }),
+          ...(text === null ? {} : { body: text }),
+        }),
+      )
+      .then((response) => writeFastifyReply(reply, response))
+      .catch((cause: unknown) => {
+        this.options.onError?.(cause);
+        writeFastifyReply(reply, failureReply());
+      });
   }
 
   /**

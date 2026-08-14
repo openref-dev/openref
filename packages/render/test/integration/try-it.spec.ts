@@ -4,6 +4,7 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import type { AddressInfo } from 'node:net';
 import { normalizeOpenApiDocument, type IRDocument } from '@openref/core';
 import { createRunner, FetchHttpTransport } from '@openref/runner';
+import type { IRunnerPort, RunnerResult } from '@openref/vue';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { hydrateReference } from '../../src/browser/index';
 import { renderHtmlDocument } from '../../src/page/domain/shell';
@@ -33,38 +34,52 @@ interface SeenRequest {
   readonly url: string;
   readonly headers: Record<string, string>;
   readonly body: string;
+  /**
+   * The same body as bytes.
+   *
+   * BOTH, SINCE T027, AND NOT ONE CONVERTED FROM THE OTHER. A multipart body carrying a file is
+   * not text: reading it as UTF-8 replaces every byte that is not a code point, so a case that
+   * asserted on the text could not tell a correct upload from a corrupted one.
+   */
+  readonly raw: Buffer;
 }
 
 let server: Server;
 let origin: string;
 let seen: SeenRequest[] = [];
 
-function readBody(request: IncomingMessage): Promise<string> {
+function readBody(request: IncomingMessage): Promise<Buffer> {
   return new Promise((resolve) => {
-    let text = '';
-    request.on('data', (chunk: Buffer) => (text += chunk.toString('utf8')));
+    const chunks: Buffer[] = [];
+    request.on('data', (chunk: Buffer) => chunks.push(chunk));
     request.on('end', () => {
-      resolve(text);
+      resolve(Buffer.concat(chunks));
     });
   });
 }
 
 beforeAll(async () => {
   server = createServer((request: IncomingMessage, response: ServerResponse) => {
-    void readBody(request).then((body) => {
+    void readBody(request).then((raw) => {
       const headers: Record<string, string> = {};
       for (const [name, value] of Object.entries(request.headers)) {
         if (typeof value === 'string') headers[name] = value;
       }
 
-      seen.push({ method: request.method ?? '', url: request.url ?? '', headers, body });
+      seen.push({
+        method: request.method ?? '',
+        url: request.url ?? '',
+        headers,
+        body: raw.toString('utf8'),
+        raw,
+      });
 
       response.writeHead(200, {
         'content-type': 'application/json',
         'x-echo': 'yes',
         'access-control-allow-origin': '*',
       });
-      response.end(JSON.stringify({ echoed: request.url, sawBody: body }));
+      response.end(JSON.stringify({ echoed: request.url, sawBody: raw.toString('utf8') }));
     });
   });
 
@@ -100,6 +115,60 @@ function documentFor(serverUrl: string): IRDocument {
             { name: 'limit', in: 'query', required: false, schema: { type: 'integer' } },
           ],
           responses: { '200': { description: 'ok' } },
+        },
+      },
+      // T026: an operation whose parameters are not scalars, so the matrix is reachable from a
+      // page rather than only from the port. `tags` is an exploded form array and `filter` is a
+      // `deepObject`, which are the two cells a reader is most likely to meet.
+      '/search': {
+        get: {
+          operationId: 'search',
+          summary: 'Search things',
+          parameters: [
+            {
+              name: 'tags',
+              in: 'query',
+              required: false,
+              style: 'form',
+              explode: true,
+              schema: { type: 'array', items: { type: 'string' } },
+            },
+            {
+              name: 'filter',
+              in: 'query',
+              required: false,
+              style: 'deepObject',
+              explode: true,
+              schema: { type: 'object', properties: { status: { type: 'string' } } },
+            },
+          ],
+          responses: { '200': { description: 'ok' } },
+        },
+      },
+      // T027: the body form the task names by itself, a file part beside a JSON part. It is here
+      // rather than in a fixture of its own because what has to be proved is the whole chain: the
+      // schema decides the controls, the reader picks a file, and a real server parses what
+      // arrives.
+      '/uploads': {
+        post: {
+          operationId: 'createUpload',
+          summary: 'Upload a file',
+          requestBody: {
+            required: true,
+            content: {
+              'multipart/form-data': {
+                schema: {
+                  type: 'object',
+                  required: ['file'],
+                  properties: {
+                    file: { type: 'string', format: 'binary' },
+                    metadata: { type: 'object', properties: { title: { type: 'string' } } },
+                  },
+                },
+              },
+            },
+          },
+          responses: { '201': { description: 'created' } },
         },
       },
     },
@@ -196,8 +265,36 @@ async function waitForResult(): Promise<HTMLElement> {
   throw new Error('the console never rendered a response');
 }
 
-function fieldId(nodeId: string, kind: string, name: string): string {
-  return `oref-field-${nodeId}-${kind}-${name}`.replace(/[^A-Za-z0-9_-]/g, '-');
+/**
+ * Puts a file on a file input the way a reader's file picker does.
+ *
+ * `input.files` IS READ ONLY AND THAT IS THE POINT OF THIS HELPER. A file input cannot be filled
+ * from script in a browser either, which is a security property rather than a jsdom limitation,
+ * so the list is defined on the element and the change event is dispatched exactly as the picker
+ * would. What is under test is the component's handler, not the browser's dialog.
+ */
+function pickFile(
+  input: HTMLInputElement | null,
+  name: string,
+  mediaType: string,
+  bytes: Uint8Array<ArrayBuffer>,
+): void {
+  if (input === null) throw new Error('no file input to pick a file with');
+
+  const file = new File([bytes], name, { type: mediaType });
+  Object.defineProperty(input, 'files', { value: [file], configurable: true });
+  input.dispatchEvent(new Event('change', { bubbles: true }));
+}
+
+/**
+ * The console's own id builder, mirrored here so a case can look a control up by name.
+ *
+ * IT DROPPED THE NODE ID IN `TX-SLOTWIRE`, when the console became six positions a theme can
+ * replace: a page is one operation, so the node id bought uniqueness against nothing, and handing
+ * every position a node id it used for nothing but a prefix would have put it in the contract.
+ */
+function fieldId(_nodeId: string, kind: string, name: string): string {
+  return `oref-field-${kind}-${name}`.replace(/[^A-Za-z0-9_-]/g, '-');
 }
 
 describe('the try-it console, end to end against a real server', () => {
@@ -263,6 +360,112 @@ describe('the try-it console, end to end against a real server', () => {
     expect(fromConsole?.url).toBe(byHand?.url);
     expect(fromConsole?.headers.authorization).toBe(byHand?.headers.authorization);
     expect(fromConsole?.body).toBe(byHand?.body);
+  });
+
+  /**
+   * T026, driven through the page: a cell of the matrix that is not the primitive column.
+   *
+   * THE MATRIX IS PROVED CELL BY CELL IN `serialization-matrix.spec.ts` AND THAT IS NOT ENOUGH.
+   * A console that offers one single line field per parameter can only ever produce the
+   * primitive column, so every other cell would be correct and unreachable, which is the failure
+   * the done-when of T026 names in its own words. What this asserts is the whole path: the
+   * projection reads the value kind off the schema, the console gives a control that can hold a
+   * list, and the server sees the query string OpenAPI's table prints.
+   */
+  it('should send an array and an object the reader typed, one member per line', async () => {
+    // Given
+    seen = [];
+    await openPage('get-search', origin);
+    const runner = createRunner({
+      visibility: 'internal',
+      storage: 'memory',
+      transport: new FetchHttpTransport({ fetch: globalThis.fetch }),
+    });
+    hydrateReference({ runner });
+    await settle();
+    await reachForConsole(consoleIsLive, 'the send button never became active');
+
+    // And the controls a list needs are textareas rather than single line inputs
+    const tags = document.getElementById(fieldId('get-search', 'query', 'tags'));
+    expect(tags?.tagName).toBe('TEXTAREA');
+    expect(document.getElementById(fieldId('get-search', 'query', 'filter'))?.tagName).toBe(
+      'TEXTAREA',
+    );
+
+    // When the reader types two tags and one filter field
+    type(fieldId('get-search', 'query', 'tags'), 'red\nblue');
+    type(fieldId('get-search', 'query', 'filter'), 'status=open');
+    await settle();
+    document.querySelector<HTMLButtonElement>('.oref-send')?.click();
+    await waitForResult();
+
+    // Then the server saw the exploded form array and the deepObject, per SPEC 14.2
+    expect(seen[0]?.url).toBe('/search?tags=red&tags=blue&filter[status]=open');
+  });
+
+  /**
+   * T027, driven through the page: multipart with a file part and a JSON part.
+   *
+   * THE PARSER IS NOT THIS PROJECT'S, which is the whole point of doing it here rather than in a
+   * snapshot. The bytes the console produced are handed to `Request.formData`, the platform's own
+   * multipart parser and the one a browser's `fetch` uses; if it cannot read them, no server can.
+   * The two ways to build a multipart body wrongly, a bare line feed where the delimiter needs a
+   * CRLF and a file decoded through UTF-8, both survive a diff and both fail here.
+   */
+  it('should upload a file beside a JSON part and have a real parser read both', async () => {
+    // Given the console for an operation whose schema declares one binary property and one object
+    seen = [];
+    await openPage('post-uploads', origin);
+    const runner = createRunner({
+      visibility: 'internal',
+      storage: 'memory',
+      transport: new FetchHttpTransport({ fetch: globalThis.fetch }),
+    });
+    hydrateReference({ runner });
+    await settle();
+    await reachForConsole(consoleIsLive, 'the send button never became active');
+
+    // And the controls the schema asks for: a file picker for the binary property and a text
+    // field for the JSON one, neither of them written per media type anywhere
+    const fileInput = document.getElementById(
+      fieldId('post-uploads', 'body', 'file'),
+    ) as HTMLInputElement | null;
+    expect(fileInput?.getAttribute('type')).toBe('file');
+    expect(document.getElementById(fieldId('post-uploads', 'body', 'metadata'))?.tagName).toBe(
+      'INPUT',
+    );
+
+    // When the reader picks a file and types the JSON part
+    const bytes = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0xff, 0xfe]);
+    pickFile(fileInput, 'logo.png', 'image/png', bytes);
+    type(fieldId('post-uploads', 'body', 'metadata'), '{"title":"logo"}');
+    await settle();
+    await settle();
+    document.querySelector<HTMLButtonElement>('.oref-send')?.click();
+    await waitForResult();
+
+    // Then the server was sent a multipart body with a boundary, and the file arrived byte for
+    // byte: the bytes are searched for in the raw request rather than in its text, because
+    // decoding them would replace exactly the two this file was given to catch.
+    //
+    // THE PARSER BASED PROOF IS IN `packages/runner/test/integration/body-round-trip.spec.ts`,
+    // and it is there rather than here for a reason worth writing down: undici's `FormData`
+    // rejects the `File` this environment's globals produce, so a `formData()` call inside jsdom
+    // fails on the parser's own identity check rather than on the body. What this case is for is
+    // the half that only a page can show, which is that the schema drew the controls, the picker
+    // filled one, and what left the browser was multipart.
+    const request = seen[0];
+    expect(request?.headers['content-type']).toMatch(/^multipart\/form-data; boundary=/);
+
+    const raw = request?.raw ?? Buffer.alloc(0);
+    const boundary = (request?.headers['content-type'] ?? '').split('boundary=')[1] ?? '';
+    expect(boundary).not.toBe('');
+    expect(raw.toString('latin1')).toContain(`--${boundary}--\r\n`);
+    expect(raw.toString('latin1')).toContain('Content-Disposition: form-data; name="metadata"');
+    expect(raw.toString('latin1')).toContain('{"title":"logo"}');
+    expect(raw.toString('latin1')).toContain('filename="logo.png"');
+    expect(raw.toString('latin1')).toContain('Content-Type: image/png');
+    expect(raw.includes(Buffer.from(bytes))).toBe(true);
   });
 
   it('should render a hostile response body as text rather than as markup', async () => {
@@ -411,5 +614,91 @@ describe('the try-it console, end to end against a real server', () => {
     const notice = document.querySelector('.oref-tryit-notice')?.textContent ?? '';
     expect(notice).toContain('The application hosting this reference composes one in');
     expect(notice).not.toMatch(/error|failed|unavailable|configure|check your/i);
+  });
+});
+
+/**
+ * What the console SHOWS about the session behind a response, per SPEC 14.4.1 and the T028
+ * amendment, which asks for this assertion on the rendered text rather than on a returned value.
+ *
+ * THE RUNNER'S OWN SUITE ALREADY PROVES THE DECISION AND NOT THE TELLING. `token-lifecycle.spec.ts`
+ * asserts that one 401 produces one refresh and one retry, that a second 401 is reported as the
+ * API's answer, and that a renewal is not passed off in silence, all of it against the value the
+ * port hands back. None of that reaches a reader: what reaches a reader is a paragraph in the
+ * console, and until it is asserted here the promise of SPEC 14.4.1, that a 401 caused by an
+ * expired session never surfaces as a bare status code, rests on a field somebody could stop
+ * drawing without a test going red.
+ *
+ * A FAKE PORT AND NOT A REAL SIGN IN, deliberately. What is under test is the console's telling,
+ * so the response is handed to it directly; making a real token expire against a real authorization
+ * server would prove the runner's arithmetic a second time and the drawing not at all.
+ */
+describe('what the console says about the session behind a response', () => {
+  /** A port that answers one prepared response, which is the whole of what these cases need. */
+  function portAnswering(result: RunnerResult): IRunnerPort {
+    return {
+      credential: () => undefined,
+      setCredential: () => undefined,
+      send: () => Promise.resolve(result),
+    };
+  }
+
+  async function sendAndRead(result: RunnerResult): Promise<HTMLElement> {
+    await openPage('get-orders-id', origin);
+    expect(hydrateReference({ runner: portAnswering(result) })).toBe(true);
+    await settle();
+    await reachForConsole(consoleIsLive, 'the send button never became active');
+
+    type(fieldId('get-orders-id', 'path', 'id'), '42');
+    await settle();
+    document.querySelector<HTMLButtonElement>('.oref-send')?.click();
+
+    return waitForResult();
+  }
+
+  it('should say the sign in was renewed rather than let the pause pass in silence', async () => {
+    // Given a response the runner had to renew a session to obtain
+    const renewed: RunnerResult = {
+      status: 200,
+      statusText: 'OK',
+      headers: [],
+      body: '{"id":"42"}',
+      durationMs: 31,
+      notice: { kind: 'renewed', message: 'Your sign in had run out and was renewed.' },
+    };
+
+    // When
+    const shown = await sendAndRead(renewed);
+
+    // Then the sentence is on the page, beside the response rather than instead of it
+    expect(shown.querySelector('.oref-run-notice')?.textContent).toBe(
+      'Your sign in had run out and was renewed.',
+    );
+    expect(shown.querySelector('.oref-status')?.textContent).toBe('200 OK');
+  });
+
+  it('should never show a 401 that the session caused as a bare status code', async () => {
+    // Given the other of the two endings: the renewal failed, so the session is over
+    const ended: RunnerResult = {
+      status: 401,
+      statusText: 'Unauthorized',
+      headers: [],
+      body: '{"error":"invalid_token"}',
+      durationMs: 18,
+      notice: {
+        kind: 'session-ended',
+        message: 'Your sign in has ended. Sign in again to keep sending.',
+      },
+    };
+
+    // When
+    const shown = await sendAndRead(ended);
+
+    // Then the reader is told which of the two happened, which is the difference between
+    // concluding that the endpoint is broken and learning that the sign in ran out
+    expect(shown.querySelector('.oref-run-notice')?.textContent).toBe(
+      'Your sign in has ended. Sign in again to keep sending.',
+    );
+    expect(shown.querySelector('.oref-status')?.textContent).toBe('401 Unauthorized');
   });
 });

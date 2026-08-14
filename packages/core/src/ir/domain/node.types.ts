@@ -108,6 +108,23 @@ export interface IRSecurityRequirement {
   readonly scopes: readonly string[];
 }
 
+/**
+ * One call sample written into the document, per SPEC 18.
+ *
+ * LEVEL 3 OF THE THREE, AND THE ONE WITH THE HIGHEST PRIORITY. SPEC 18 has the generator produce
+ * cURL, TypeScript and Python from the same values the runner sends, and templates for six more
+ * languages; both arrive in T057. What an author wrote by hand, through `@ApiSample` or as
+ * `x-codeSamples` in the specification, outranks anything generated, so it is read first and the
+ * generator fills in around it.
+ */
+export interface IRCodeSample {
+  /** Language identifier, as a highlighter understands it, for example `bash` or `python`. */
+  readonly lang: string;
+  /** What the tab says. Defaults to the language when the document names none. */
+  readonly label: string;
+  readonly source: string;
+}
+
 /** An HTTP operation. */
 export interface IROperation {
   readonly kind: 'operation';
@@ -131,6 +148,8 @@ export interface IROperation {
   readonly servers: readonly IRServerOverride[];
   /** Callback node ids, keyed by callback name. */
   readonly callbacks?: Readonly<Record<string, readonly string[]>>;
+  /** Call samples the document wrote, in the order it wrote them. Absent when it wrote none. */
+  readonly codeSamples?: readonly IRCodeSample[];
   readonly runtime?: IRNodeRuntime;
   readonly extensions?: Readonly<Record<string, IRJsonValue>>;
 }

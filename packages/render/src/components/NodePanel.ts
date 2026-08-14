@@ -5,80 +5,26 @@
  * already highlighted, types are already labelled. That is what lets the same component
  * render on the server and hydrate in the browser without either `marked` or `shiki`
  * crossing into the client bundle.
- */
-
-import type { IRSchema } from '@openref/core';
-import { defineComponent, h, type Component, type PropType, type VNode } from 'vue';
-import { MarkdownBlock } from './MarkdownBlock';
-import { RuntimePanel } from './RuntimePanel';
-import { useDeferrable } from './deferrable';
-import { statusClass } from '../shared/status';
-import type { MediaTypeModel, NodeModel, ParameterModel } from '../page/domain/page-model';
-
-/** What every media type block needs to put a schema viewer under itself. */
-interface SchemaContext {
-  readonly schemas: Readonly<Record<string, IRSchema>>;
-  readonly truncated: readonly string[];
-  readonly basePath: string;
-  /**
-   * The schema viewer, resolved rather than imported.
-   *
-   * It travels in the context for the same reason the schemas do: this is a module function and
-   * the registry can only be read inside `setup`. See `deferrable.ts` for why it is not imported.
-   */
-  readonly schemaView: Component;
-}
-
-function methodClass(method: string): string {
-  const known = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'];
-  return known.includes(method) ? `oref-method-${method.toLowerCase()}` : 'oref-method-other';
-}
-
-function parameterRow(parameter: ParameterModel): VNode {
-  const flags: VNode[] = [];
-  if (parameter.required) flags.push(h('span', { class: 'oref-required' }, 'required'));
-  if (parameter.deprecated) {
-    flags.push(h('span', { class: 'oref-badge oref-deprecated' }, 'deprecated'));
-  }
-
-  return h('tr', { class: 'oref-param-row', key: `${parameter.location}:${parameter.name}` }, [
-    h('td', { class: 'oref-param-name' }, [h('code', {}, parameter.name), ...flags]),
-    h('td', { class: 'oref-param-in' }, parameter.location),
-    h('td', { class: 'oref-param-type' }, parameter.typeLabel),
-    h('td', { class: 'oref-param-doc' }, [h(MarkdownBlock, { html: parameter.descriptionHtml })]),
-  ]);
-}
-
-/**
- * One request or response body: what it is written in, what shape it has, an example.
  *
- * THE HEAD NAMES THE MEDIA TYPE AND THE TREE NAMES THE SCHEMA, which is finding F15 and is a
- * rule rather than a tidy-up. `typeLabel` here and the type on the root row of the tree are the
- * same computation over the same slot, so a block that showed both printed one fact twice, the
- * second line nested inside the first. The label therefore stays only where there is no tree
- * under it to carry it.
+ * IT IS A COMPOSITION OF SLOTS AND NOT A SLOT. A reader opens three kinds of page, and two of
+ * them are one position each; this one is six, because a theme varies a node page by moving its
+ * parts rather than by replacing the page. What is not a slot here is the frame around the parts:
+ * the security list, the request body block and the two columns, which are the shell's business
+ * in the same way block order is.
  */
-function mediaTypeBlock(media: MediaTypeModel, key: string, context: SchemaContext): VNode {
-  return h('div', { class: 'oref-media', key }, [
-    h('div', { class: 'oref-media-head' }, [
-      h('code', { class: 'oref-media-type' }, media.mediaType),
-      media.typeLabel === '' || media.schema !== null
-        ? null
-        : h('span', { class: 'oref-media-schema' }, media.typeLabel),
-    ]),
-    media.schema === null
-      ? null
-      : h(context.schemaView, {
-          slot: media.schema,
-          label: media.mediaType,
-          view: media.view,
-          schemas: context.schemas,
-          truncated: context.truncated,
-          basePath: context.basePath,
-        }),
-    h(MarkdownBlock, { html: media.exampleHtml, className: 'oref-example' }),
-  ]);
-}
+
+import { useSlot } from '@openref/vue';
+import { defineComponent, h, ref, type PropType, type VNode } from 'vue';
+import { CodeSample } from './CodeSample';
+import { MarkdownBlock } from './MarkdownBlock';
+import { OperationHeader } from './OperationHeader';
+import { ParamTable } from './ParamTable';
+import { ResponseList } from './ResponseList';
+import { RuntimePanel } from './RuntimePanel';
+import { mediaTypeBlock, type SchemaContext } from './MediaTypeBlock';
+import { useDeferrable } from './deferrable';
+import type { IRSchema } from '@openref/core';
+import type { NodeModel } from '@openref/vue';
 
 function section(title: string, className: string, body: readonly VNode[]): VNode {
   return h('section', { class: `oref-section ${className}` }, [
@@ -100,6 +46,15 @@ export const NodePanel = defineComponent({
 
   setup(props) {
     const deferrable = useDeferrable();
+    const header = useSlot('OperationHeader', OperationHeader);
+    const params = useSlot('ParamTable', ParamTable);
+    const responses = useSlot('ResponseList', ResponseList);
+    const samples = useSlot('CodeSample', CodeSample);
+    const runtime = useSlot('RuntimePanel', RuntimePanel);
+
+    // Which call sample is showing. The first on both sides, so the server render and the first
+    // client render agree without anything being carried between them.
+    const activeLang = ref('');
 
     return (): VNode => {
       const node = props.node;
@@ -115,32 +70,10 @@ export const NodePanel = defineComponent({
       // when there is a runtime column to stand beside.
       const spec: (VNode | null)[] = [];
 
-      const address =
-        node.method === null
-          ? node.address === null
-            ? null
-            : h('code', { class: 'oref-address' }, node.address)
-          : h('span', { class: 'oref-endpoint' }, [
-              h('span', { class: `oref-badge ${methodClass(node.method)}` }, node.method),
-              h('code', { class: 'oref-path' }, node.path ?? ''),
-            ]);
-
       parts.push(
-        h('header', { class: 'oref-operation-header' }, [
-          h('h1', { class: 'oref-operation-title oref-title' }, node.title),
-          address,
-          node.deprecated ? h('span', { class: 'oref-badge oref-deprecated' }, 'deprecated') : null,
-          // F15's shape one layer up, and finding F19. An operation with no title of its own
-          // takes one from its summary, so on most documents these two are the same string and
-          // the header printed it as a heading and again as a subtitle. The subtitle survives
-          // only where it says something the heading does not.
-          node.summary === '' || node.summary === node.title
-            ? null
-            : h('p', { class: 'oref-subtitle' }, node.summary),
-        ]),
+        h(header.value, { node, drift: node.runtime?.drift ?? [] }),
+        h(MarkdownBlock, { html: node.descriptionHtml }),
       );
-
-      parts.push(h(MarkdownBlock, { html: node.descriptionHtml }));
 
       if (node.security.length > 0) {
         spec.push(
@@ -163,21 +96,7 @@ export const NodePanel = defineComponent({
       }
 
       if (node.parameters.length > 0) {
-        spec.push(
-          section('Parameters', 'oref-section-parameters', [
-            h('table', { class: 'oref-table' }, [
-              h('thead', {}, [
-                h('tr', {}, [
-                  h('th', { scope: 'col' }, 'Name'),
-                  h('th', { scope: 'col' }, 'In'),
-                  h('th', { scope: 'col' }, 'Type'),
-                  h('th', { scope: 'col' }, 'Description'),
-                ]),
-              ]),
-              h('tbody', {}, node.parameters.map(parameterRow)),
-            ]),
-          ]),
-        );
+        spec.push(h(params.value, { parameters: node.parameters }));
       }
 
       if (node.requestBody.length > 0) {
@@ -194,29 +113,24 @@ export const NodePanel = defineComponent({
 
       if (node.responses.length > 0) {
         spec.push(
-          section(
-            'Responses',
-            'oref-section-responses',
-            node.responses.map((response) =>
-              h('div', { class: 'oref-response', key: response.statusCode }, [
-                h('div', { class: 'oref-response-head' }, [
-                  h(
-                    'span',
-                    { class: `oref-status ${statusClass(response.statusCode)}` },
-                    response.statusCode,
-                  ),
-                  h(MarkdownBlock, {
-                    html: response.descriptionHtml,
-                    tag: 'span',
-                    className: 'oref-response-doc',
-                  }),
-                ]),
-                ...response.content.map((media) =>
-                  mediaTypeBlock(media, `${response.statusCode}:${media.mediaType}`, context),
-                ),
-              ]),
-            ),
-          ),
+          h(responses.value, {
+            responses: node.responses,
+            schemas: props.schemas,
+            truncated: props.truncated,
+            basePath: props.basePath,
+          }),
+        );
+      }
+
+      if (node.codeSamples.length > 0) {
+        spec.push(
+          h(samples.value, {
+            samples: node.codeSamples,
+            activeLang: activeLang.value,
+            onSelect: (lang: string): void => {
+              activeLang.value = lang;
+            },
+          }),
         );
       }
 
@@ -235,7 +149,7 @@ export const NodePanel = defineComponent({
           h('div', { class: 'oref-node-columns' }, [
             h('div', { class: 'oref-column-spec' }, spec),
             h('div', { class: 'oref-column-runtime' }, [
-              h(RuntimePanel, { runtime: node.runtime }),
+              h(runtime.value, { nodeId: node.id, runtime: node.runtime }),
             ]),
           ]),
         );
@@ -244,7 +158,10 @@ export const NodePanel = defineComponent({
       // Last, after the documented responses rather than before them. A reader reads what the
       // operation does and then tries it, and the response the console shows then sits beside
       // the responses the specification promised, which is where the comparison happens.
-      parts.push(h(deferrable.tryIt, { run: node.run }));
+      // THE MOUNT POINT TRAVELS INTO THE CONSOLE because the OAuth2 callback route lives under it:
+      // a reference mounted at `/docs` registers `/docs/_oauth/callback`, and a console that
+      // assumed the root would register a redirect uri no route answers.
+      parts.push(h(deferrable.tryIt, { run: node.run, basePath: props.basePath }));
 
       return h('article', { class: 'oref-operation', 'data-oref-node': node.id }, parts);
     };

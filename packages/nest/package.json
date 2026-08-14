@@ -15,12 +15,24 @@
       "import": "./dist/index.js",
       "require": "./dist/index.cjs"
     },
-    "./browser": "./dist/browser/openref.js"
+    "./browser": "./dist/browser/openref.js",
+    "./browser-entry": {
+      "source": "./src/browser/compose.ts"
+    },
+    "./element": "./dist/browser-wc/openref-element.js",
+    "./element.iife": "./dist/browser-iife/openref-element.iife.js"
   },
   "files": [
-    "dist"
+    "dist",
+    "DISTRIBUTION.md"
   ],
-  "sideEffects": false,
+  "sideEffects": [
+    "./src/browser/entry.ts",
+    "./src/browser/element-entry.ts",
+    "./dist/browser/*",
+    "./dist/browser-wc/*",
+    "./dist/browser-iife/*"
+  ],
   "engines": {
     "node": "^22.22.2 || ^24.15.0 || >=26.0.0"
   },
@@ -34,6 +46,7 @@
     "@noble/hashes": "1.8.0",
     "@openref/core": "workspace:*",
     "@openref/theme": "workspace:*",
+    "@openref/vue": "workspace:*",
     "isomorphic-dompurify": "3.22.0",
     "marked": "18.0.9",
     "minisearch": "7.2.0",

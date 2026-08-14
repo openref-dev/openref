@@ -1,5 +1,10 @@
 /**
- * The four features that arrive when the reader reaches for them, and not before.
+ * The three features that arrive when the reader reaches for them, and not before.
+ *
+ * THE FOURTH LEFT THIS FILE AND DID NOT MOVE ELSEWHERE. The Health panel was deferred until
+ * 2026-08-12 and is now server markup the client adopts, because deferring a component that has
+ * nothing to do is still a component, and being a component is what made its findings travel in
+ * the state block. `adoptHealthPanel` below is what replaced it.
  *
  * WHAT IS DEFERRED IS THE DOWNLOAD AND THE COMPILE, NOT ONLY THE HYDRATION, and the difference
  * is the whole of this file. Vue 3.5 ships lazy hydration, and read from its source rather than
@@ -98,7 +103,7 @@ function isPaletteShortcut(event: KeyboardEvent): boolean {
  * @param root - Document to listen on
  * @returns The promise the loader waits on, and the replay
  */
-export function whenReached(spec: ReachSpec, root: Document): Reached {
+export function whenReached(spec: ReachSpec, root: HydrateRoot): Reached {
   const captured: Event[] = [];
   let settle: (() => void) | null = null;
   const reached = new Promise<void>((resolve) => {
@@ -183,7 +188,7 @@ function replaying(name: string, inner: Component, replay: () => void): Componen
  */
 export function deferUntilReached(
   spec: ReachSpec,
-  root: Document,
+  root: HydrateRoot,
   load: () => Promise<Component>,
 ): Component {
   const gate = whenReached(spec, root);
@@ -195,10 +200,43 @@ export function deferUntilReached(
   });
 }
 
+/**
+ * The Health panel, in the browser: an empty element over markup that is already right.
+ *
+ * IT IS NOT A DEFERRED COMPONENT AND IT IS NOT A COMPONENT AT ALL IN ANY USEFUL SENSE, and that
+ * is the finding rather than an economy. The panel has no state, no handler and no client render:
+ * its disclosure is `details` and `summary`, which the user agent opens by itself. It was deferred
+ * because deferral was the cheapest thing to do with a component nobody needed, and the price of
+ * keeping it a component was that every finding had to travel in the state block so that a
+ * hydration nobody benefited from could redraw markup the reader was already looking at. Measured
+ * on 578 findings, that copy was 155 KB.
+ *
+ * SO THE CLIENT CLAIMS THE SECTION AND LEAVES ITS CONTENTS ALONE. A vnode with no children takes
+ * neither of the two branches Vue hydrates children with, so the server's rows are adopted rather
+ * than compared, and a later patch of an element with no children on either side moves nothing.
+ * The class is here because hydration checks the props it was given, and this one matches.
+ *
+ * WHAT THIS REMOVES BESIDES THE BYTES: the findings out of the state block, the panel's chunk out
+ * of the deferred half of the bundle, and two delegated listeners out of the first paint. Nothing
+ * a reader can do is lost, because there was nothing the chunk did.
+ */
+const adoptHealthPanel: Component = () => h('section', { class: 'oref-section-health' });
+
+/**
+ * The tree the gates listen in, the same structural slice `HydrateRoot` names in `index.ts`.
+ *
+ * Declared here rather than imported because `index.ts` imports this module: a type-only
+ * import back would be a cycle in the source, which the graph rule reads as one, correctly.
+ */
+export type HydrateRoot = Pick<
+  Document,
+  'getElementById' | 'querySelector' | 'addEventListener' | 'removeEventListener'
+>;
+
 /** How the client registry reaches a runner without this package importing one. */
 export interface DeferredOptions {
   /** Document to arm the triggers on. */
-  readonly document: Document;
+  readonly document: HydrateRoot;
   /**
    * Builds the request runner, when the console is first reached.
    *
@@ -272,19 +310,6 @@ export function deferredComponents(options: DeferredOptions): DeferrableComponen
       async () => (await import('../components/CommandPalette')).CommandPalette,
     ),
 
-    healthPanel: deferUntilReached(
-      {
-        name: 'HealthPanel',
-        selector: '.oref-section-health',
-        // `click` IS DELIBERATELY NOT IN THIS LIST, and it is the only entry here where it is
-        // absent. The panel's disclosure is a `summary`, whose activation behaviour the user
-        // agent runs on the reader's own click; a replayed click would run it a second time and
-        // shut the group the reader had just opened. `pointerdown` opens the gate earlier than a
-        // click anyway, and replaying it does nothing to a `summary`.
-        events: ['pointerdown', 'focusin'],
-      },
-      root,
-      async () => (await import('../components/HealthPanel')).HealthPanel,
-    ),
+    healthPanel: adoptHealthPanel,
   };
 }

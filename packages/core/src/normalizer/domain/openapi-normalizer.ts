@@ -1,4 +1,4 @@
-import { hash } from '../../hashing/domain/hash';
+import { finalizeDocument } from '../../hashing/domain/hash';
 import type {
   IRContact,
   IRDocument,
@@ -12,6 +12,7 @@ import type {
   IRServerVariable,
 } from '../../ir/domain/document.types';
 import type {
+  IRCodeSample,
   IRExample,
   IRHeader,
   IRMediaType,
@@ -192,6 +193,41 @@ function readExamples(raw: unknown): Readonly<Record<string, IRExample>> | undef
   return Object.keys(examples).length > 0 ? examples : undefined;
 }
 
+/**
+ * Call samples an author wrote on an operation, per SPEC 18.
+ *
+ * BOTH SPELLINGS ARE READ AND THE CURRENT ONE WINS. `x-codeSamples` is what the specification
+ * extension is called today and what `@ApiSample` writes; `x-code-samples` is the name the same
+ * extension had before, and documents in the wild still carry it. Reading one of the two would
+ * mean a reference that silently draws no samples for a document that has them, which is the
+ * failure this whole milestone keeps removing.
+ *
+ * A SAMPLE WITH NO SOURCE IS NOT A SAMPLE and is dropped rather than drawn as an empty tab. The
+ * label falls back to the language, because a tab has to say something and the language is what
+ * the author already told us.
+ *
+ * @param source - The operation object as the document wrote it
+ * @returns The samples in document order, or nothing when there are none worth drawing
+ */
+function readCodeSamples(source: Record<string, unknown>): IRCodeSample[] | undefined {
+  const raw = source['x-codeSamples'] ?? source['x-code-samples'];
+  if (!isUnknownArray(raw)) return undefined;
+
+  const samples: IRCodeSample[] = [];
+
+  for (const entry of raw) {
+    if (!isPlainObject(entry)) continue;
+
+    const lang = asString(entry.lang);
+    const code = asString(entry.source);
+    if (lang === undefined || code === undefined || code === '') continue;
+
+    samples.push({ lang, label: asString(entry.label) ?? lang, source: code });
+  }
+
+  return samples.length > 0 ? samples : undefined;
+}
+
 function readExtensions(source: Record<string, unknown>): Record<string, IRJsonValue> | undefined {
   const extensions: Record<string, IRJsonValue> = {};
 
@@ -353,9 +389,11 @@ function readOAuthFlow(raw: unknown): IROAuthFlow | undefined {
   const authorizationUrl = asString(raw.authorizationUrl);
   const tokenUrl = asString(raw.tokenUrl);
   const refreshUrl = asString(raw.refreshUrl);
+  const deviceAuthorizationUrl = asString(raw.deviceAuthorizationUrl);
   if (authorizationUrl !== undefined) flow.authorizationUrl = authorizationUrl;
   if (tokenUrl !== undefined) flow.tokenUrl = tokenUrl;
   if (refreshUrl !== undefined) flow.refreshUrl = refreshUrl;
+  if (deviceAuthorizationUrl !== undefined) flow.deviceAuthorizationUrl = deviceAuthorizationUrl;
 
   return flow;
 }
@@ -398,10 +436,12 @@ function readSecuritySchemes(raw: unknown): IRSecurityScheme[] {
       const password = readOAuthFlow(source.flows.password);
       const clientCredentials = readOAuthFlow(source.flows.clientCredentials);
       const authorizationCode = readOAuthFlow(source.flows.authorizationCode);
+      const deviceAuthorization = readOAuthFlow(source.flows.deviceAuthorization);
       if (implicit !== undefined) flows.implicit = implicit;
       if (password !== undefined) flows.password = password;
       if (clientCredentials !== undefined) flows.clientCredentials = clientCredentials;
       if (authorizationCode !== undefined) flows.authorizationCode = authorizationCode;
+      if (deviceAuthorization !== undefined) flows.deviceAuthorization = deviceAuthorization;
       if (Object.keys(flows).length > 0) scheme.flows = flows;
     }
 
@@ -668,10 +708,12 @@ function readOperation(entry: RawOperation, context: Context, id: string): IROpe
   const description = asString(source.description) ?? asString(pathItem.description);
   const body = readRequestBody(source.requestBody, context, id);
   const extensions = readExtensions(source);
+  const codeSamples = readCodeSamples(source);
 
   if (summary !== undefined) operation.summary = summary;
   if (description !== undefined) operation.description = description;
   if (body !== undefined) operation.requestBody = body;
+  if (codeSamples !== undefined) operation.codeSamples = codeSamples;
   if (extensions !== undefined) operation.extensions = extensions;
 
   return operation;
@@ -865,5 +907,5 @@ export function normalizeOpenApiDocument(
   const extensions = readExtensions(input);
   if (extensions !== undefined) document.extensions = extensions;
 
-  return { ...document, hash: hash({ ...document, hash: '' }) };
+  return finalizeDocument(document);
 }

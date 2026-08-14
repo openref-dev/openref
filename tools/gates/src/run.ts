@@ -1,4 +1,6 @@
+import { browserResolutionGate } from './gates/browser-resolution.gate.js';
 import { budgetExceptionsGate } from './gates/budget-exceptions.gate.js';
+import { capabilityDebtsGate } from './gates/capability-debts.gate.js';
 import { buildManifestGate } from './gates/build-manifest.gate.js';
 import { budgetsGate } from './gates/budgets.gate.js';
 import { clientRunnerGate } from './gates/client-runner.gate.js';
@@ -8,9 +10,11 @@ import { cspGate } from './gates/csp.gate.js';
 import { dependencyGraphGate } from './gates/dependency-graph.gate.js';
 import { enginesFloorGate } from './gates/engines-floor.gate.js';
 import { fixtureLicensesGate } from './gates/fixture-licenses.gate.js';
+import { formatGate } from './gates/format.gate.js';
 import { licensesGate } from './gates/licenses.gate.js';
 import { themeFontsGate } from './gates/theme-fonts.gate.js';
 import { themeMotionGate } from './gates/theme-motion.gate.js';
+import { textSourceGate } from './gates/text-source.gate.js';
 import { themeTokensGate } from './gates/theme-tokens.gate.js';
 import type { Gate, GateResult } from './types.js';
 
@@ -45,20 +49,48 @@ import type { Gate, GateResult } from './types.js';
  * exception from being a raised threshold, so it fails on an entry with no owner, an expired
  * one, or one whose budget is inside its limit again.
  *
+ * The capability debts gate runs next, because it is the same mechanism over a different kind of
+ * debt. A budget exception says a number is too big and names the milestone it must be small by;
+ * this says a capability is built and unreachable and names the milestone it must be reachable
+ * by, which is the eighth defect class of SPEC 0. It reads the plan and the built bundle at once,
+ * because an entry expires on evidence from the artefact rather than on a measurement.
+ *
  * The client runner gate reads the same built bundle the size budget weighs, and asks the one
  * question weighing it cannot: whether the try-it console of SPEC 2 has anything to send with.
  * It sits beside the budget for that reason, and it exists because for the length of one task
  * a bundle with a disabled console passed every check there was.
+ *
+ * The browser resolution gate sits beside the client runner gate, and the pair is the same shape:
+ * both read the built bundle and ask something weighing it cannot. That one asks whether the
+ * console has anything to send with; this one asks whether the chunk it lives in can be loaded at
+ * all. It is here because a bare specifier in the first paint chunk killed the entry while every
+ * other gate was green, which is the one failure that makes all the rest unreadable.
+ *
+ * The format gate sits second, beside the build manifest, because the two ask the same kind of
+ * question: not whether the code is right, but whether the repository is in the state its own
+ * rules describe. It reads no artifact, so it can run before anything is built, and it is here
+ * at all because the rule it carries was red at HEAD for two sessions while every gate was
+ * green. CI ran `format:check`; nothing the per task protocol runs did.
+ *
+ * The text source gate sits beside the format one, third, and the pair is the same question asked
+ * twice: whether the repository is in the state its own rules describe, before anything is built.
+ * One asks whether a file is formatted the way the project says; the other asks whether a text
+ * tool can read the file at all, which is the condition every sweep this project has run silently
+ * assumed. It runs before the gates that read artifacts because it needs none.
  */
 export const GATES: readonly Gate[] = [
   buildManifestGate,
+  formatGate,
+  textSourceGate,
   dependencyGraphGate,
   enginesFloorGate,
   licensesGate,
   fixtureLicensesGate,
   budgetsGate,
   budgetExceptionsGate,
+  capabilityDebtsGate,
   clientRunnerGate,
+  browserResolutionGate,
   cspGate,
   themeTokensGate,
   themeMotionGate,

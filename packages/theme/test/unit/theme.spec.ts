@@ -64,6 +64,10 @@ const NOT_CLASSES = new Set([
   'oref-lang',
   'oref-color-scheme',
   'oref-css-variables',
+  // The two data attribute suffixes of the Web Component, per T033: the element's done signal
+  // and the marker on a stylesheet link hoisted for the font registry. States, not classes.
+  'oref-embedded',
+  'oref-embed-fonts',
   'oref-method-',
   'oref-status-',
   'oref-hl-',
@@ -109,6 +113,28 @@ const MODIFIERS_WITHOUT_RULES = new Set([
   'oref-section-responses',
   'oref-section-security',
   'oref-section-servers',
+  // THE FOUR OF T030, AND WHAT MAKES THEM MEMBERS OF THIS SET RATHER THAN EXEMPTIONS FROM THE
+  // RULE. Each sits on an element that already carries a styled class and is drawn by it:
+  // `oref-stream` on `.oref-run-result`, `oref-stream-problem` on `.oref-run-error`,
+  // `oref-stream-element` on `.oref-run-body`, and the two controls on `.oref-send`. A class on
+  // an element with no other class would not belong here whatever it was called, which is why
+  // the console emits none: the stream region is made of elements the theme already draws, and
+  // these are hooks for a theme that wants to tell a stream from a single response.
+  'oref-stream',
+  'oref-stream-element',
+  'oref-stream-problem',
+  'oref-stream-start',
+  'oref-stream-stop',
+  // THE FOUR OF THE CALL SAMPLES BLOCK, and they are members of this set for the reason the five
+  // above are: each sits on an element that already carries a styled class and is drawn by it.
+  // The strip is `.oref-tryit-actions`, a tab is `.oref-send`, the sample is `.oref-example`,
+  // which is what a highlighted block of code already is, and the section is `.oref-section`.
+  // A block that invented four classes of its own would have needed four rules, and both theme
+  // budgets are within a few hundred bytes of their caps.
+  'oref-section-samples',
+  'oref-sample',
+  'oref-sample-tab',
+  'oref-sample-tabs',
 ]);
 
 /** The syntax token classes are generated one per shiki colour, so they are checked as a group. */

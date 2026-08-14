@@ -18,6 +18,7 @@
  */
 
 import { ErrorCode, RunnerError } from '@openref/core';
+import type { BodyBytes } from '../../../request/domain/body';
 import type { RequestPlan } from '../../../request/domain/request-plan';
 import type {
   IHttpTransport,
@@ -80,8 +81,15 @@ export type FetchLike = (
   init: {
     method: string;
     headers: Record<string, string>;
-    body?: string;
-    redirect?: 'follow';
+    /**
+     * Text or bytes, since T027.
+     *
+     * A multipart body carrying a file is not text: handing it over as a string would decode the
+     * file through UTF-8, replace every byte that is not a code point with U+FFFD, and upload a
+     * corrupted file that the server answers 200 to.
+     */
+    body?: string | BodyBytes;
+    redirect?: 'follow' | 'manual';
     credentials?: 'omit';
     signal?: AbortSignal;
   },
@@ -216,8 +224,9 @@ export class FetchHttpTransport implements IHttpTransport {
         headers: { ...plan.headers },
         // Named rather than left to the default, so the type and the behaviour agree. In
         // direct mode a redirect is followed by the browser under the same policy it applies
-        // to any other request from this page.
-        redirect: 'follow',
+        // to any other request from this page. A plan asking for `manual` is one carrying a
+        // credential to an authorization server, and the reason is written on `RequestPlan`.
+        redirect: plan.redirect ?? 'follow',
         // Credentials are carried by the headers this runner built, never by ambient cookies.
         // Sending the reader's session cookies to a third party API would be an authenticated
         // request nobody asked for, which is exactly the shape of a CSRF.

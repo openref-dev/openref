@@ -1,5 +1,6 @@
 import { ErrorCode, ThemeContractError } from '@openref/core';
-import { createSlotRegistry } from '../../slots/domain/slot-registry';
+import { defineAsyncComponent, type Component } from 'vue';
+import { createSlotRegistry, type SlotRegistry } from '../../slots/domain/slot-registry';
 import type { ResolvedTheme, ThemeDefinition, ThemeTokens } from './theme.types';
 
 /**
@@ -72,9 +73,72 @@ export function resolveTheme(definition?: ThemeDefinition): ResolvedTheme {
 
   return {
     name: definition.name,
-    ...(definition.layout === undefined ? {} : { layout: definition.layout }),
-    slots: createSlotRegistry(definition.components ?? {}),
+    slots: resolveSlots(definition),
     tokens,
     assets: definition.assets ?? {},
   };
+}
+
+/**
+ * The slot registry of a theme, with its layout resolved into `AppShell`.
+ *
+ * SEPARATE FROM {@link resolveTheme} BECAUSE THE BROWSER NEEDS ONE HALF OF IT. Validation is an
+ * authoring concern: a theme is checked where it is written, by `@openref/theme-kit`, and again
+ * on the server when the page is rendered. The client is handed the same object a second time and
+ * has nothing to add by refusing it, so the refusals, their sentences and the token pattern stay
+ * out of the bundle every reader downloads. Measured at 1.2 KB of `client-js-raw`, which is a
+ * budget with no headroom in it.
+ *
+ * ONE RULE FOR THE LAYOUT AND ONE PLACE FOR IT. Both paths come through here, so the resolution
+ * of `layout` into the `AppShell` slot cannot come to differ between the render and the hydration
+ * of one page, which would be a hydration mismatch on the whole frame.
+ *
+ * @param definition - The theme, as its author wrote it
+ * @returns The registry the renderer resolves positions through
+ * @throws {SlotNotFoundError} When the theme overrides something that is not a slot
+ * @throws {ThemeContractError} When the theme declares its page shell twice
+ *
+ * @example
+ * provideSlots(resolveSlots(theme));
+ */
+export function resolveSlots(definition: ThemeDefinition | undefined): SlotRegistry {
+  const slots = createSlotRegistry(definition?.components ?? {});
+  if (definition === undefined) return slots;
+
+  const layout = layoutComponent(definition);
+  if (layout !== undefined) slots.register('AppShell', layout);
+
+  return slots;
+}
+
+/**
+ * The layout as the component the `AppShell` slot holds, or nothing when the theme wrote none.
+ *
+ * ONE POSITION, ONE MECHANISM. `layout` and `components.AppShell` are the same position by two
+ * routes, and a theme that declares both leaves the renderer to pick one, which is how a theme
+ * comes to ship a shell nobody draws. The refusal names both rather than choosing.
+ *
+ * The loader is wrapped rather than called, so an unused theme still costs nothing: the module
+ * arrives when the position is first rendered.
+ *
+ * @param definition - The theme, as its author wrote it
+ * @returns The component, or undefined
+ * @throws {ThemeContractError} When the theme declares the position twice
+ */
+function layoutComponent(definition: ThemeDefinition): Component | undefined {
+  if (definition.layout === undefined) return undefined;
+
+  if (definition.components?.AppShell !== undefined) {
+    throw new ThemeContractError(
+      `theme "${definition.name}" declares its page shell twice, as \`layout\` and as ` +
+        '`components.AppShell`, and those are one position; keep the one that reads better and ' +
+        'remove the other',
+      ErrorCode.THEME_CONTRACT_VIOLATED,
+      undefined,
+      { theme: definition.name, slot: 'AppShell' },
+    );
+  }
+
+  const load = definition.layout;
+  return defineAsyncComponent(async () => (await load()) as Component);
 }
