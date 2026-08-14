@@ -80,7 +80,7 @@ async function frame(path: string): Promise<{
     const rail = box('.oref-sidebar');
     const content = box('.oref-content');
     const columns = [
-      ...root.document.querySelectorAll('.oref-column-spec, .oref-column-runtime'),
+      ...root.document.querySelectorAll('.oref-parity-cell-spec, .oref-parity-cell-runtime'),
     ].map((element) => element.getBoundingClientRect().width);
 
     return {
@@ -135,16 +135,16 @@ describe('the width of the content column', () => {
 });
 
 /**
- * The gaps inside one runtime row, measured.
+ * The gaps inside the response codes cell of the parity scale, measured.
  *
- * The row draws a status, a title, a detail and a provenance mark, and it drew them with nothing
- * between any two of them: `429Too Many RequestsA rate limit of ... DRV`. A separator written
- * into the model's strings would be design living where a theme cannot reach it, so the gap is
- * the layout's, which means only a layout can report it. The title is a bare text node, so it is
- * measured through a range rather than through an element.
+ * The defect this guards is the runtime block's own: parts of one value drawn with nothing
+ * between any two of them, `429derived from runtimeDRV`, and stacked values running together.
+ * A separator written into the model's strings would be design living where a theme cannot
+ * reach it, so the gap is the layout's, which means only a layout can report it. The value's
+ * text is a bare text node, so it is measured through a range rather than through an element.
  *
  * @param path - Page to open
- * @returns The gap after the status, and the gap between two stacked contracts
+ * @returns The gap between a value's text and its note, and the gap between two stacked values
  */
 async function runtimeGaps(path: string): Promise<{ afterStatus: number; betweenItems: number }> {
   const context = await chrome.browser.newContext({ viewport: WIDE });
@@ -179,27 +179,38 @@ async function runtimeGaps(path: string): Promise<{ afterStatus: number; between
       };
     };
 
-    const items = [...root.document.querySelectorAll('.oref-section-runtime .oref-runtime-item')];
-    const withStatus = items.filter((item) => item.querySelector('.oref-status') !== null);
-    const first = withStatus[0];
-    const status = first?.querySelector('.oref-status');
-    const title = [...(first?.childNodes ?? [])].find(
-      (node) => node.nodeType === 3 && (node.textContent ?? '').trim() !== '',
-    );
+    const items = [
+      ...root.document.querySelectorAll('[data-oref-parity="response-codes"] .oref-runtime-item'),
+    ];
 
-    if (first === undefined || status === undefined || status === null || title === undefined) {
-      return { afterStatus: -1, betweenItems: -1 };
+    // The gap is measured where the text and its note share a line. A long note wraps under a
+    // long sentence, which the design allows, and a wrapped note's left edge says nothing
+    // about the separation this exists to hold.
+    let afterStatus = -1;
+    for (const item of items) {
+      const note = item.querySelector('.oref-runtime-note');
+      const title = [...item.childNodes].find(
+        (node) => node.nodeType === 3 && (node.textContent ?? '').trim() !== '',
+      );
+      if (note === null || title === undefined) continue;
+
+      const range = root.document.createRange();
+      range.selectNode(title);
+      const textBox = range.getBoundingClientRect();
+      const noteBox = note.getBoundingClientRect();
+      if (noteBox.top >= textBox.bottom) continue;
+
+      afterStatus = noteBox.left - textBox.right;
+      break;
     }
 
-    const range = root.document.createRange();
-    range.selectNode(title);
-
-    const second = withStatus[1];
+    const first = items[0];
+    const second = items[1];
 
     return {
-      afterStatus: range.getBoundingClientRect().left - status.getBoundingClientRect().right,
+      afterStatus,
       betweenItems:
-        second === undefined
+        first === undefined || second === undefined
           ? -1
           : second.getBoundingClientRect().top - first.getBoundingClientRect().bottom,
     };
@@ -210,15 +221,15 @@ async function runtimeGaps(path: string): Promise<{ afterStatus: number; between
   return measured;
 }
 
-describe('the runtime block of an operation page', () => {
+describe('the runtime cell of a parity row', () => {
   it(
-    'should separate the parts of a fact and the contracts stacked under one label',
+    'should separate the parts of a value and the values stacked in one cell',
     async () => {
       // Given the example on an operation whose collectors produced error contracts
       const measured = await runtimeGaps(`${EXAMPLE_BASE_PATH}/get-orders`);
 
-      // Then the status does not run into the title, and one contract does not run into the next.
-      // Both were zero, which is what made the block read as a log line.
+      // Then the text does not run into its note, and one value does not run into the next.
+      // Both were zero once, which is what made the runtime block read as a log line.
       expect(measured.afterStatus).toBeGreaterThanOrEqual(4);
       expect(measured.betweenItems).toBeGreaterThanOrEqual(4);
     },
@@ -226,22 +237,94 @@ describe('the runtime block of an operation page', () => {
   );
 });
 
-describe('the two columns of an operation page', () => {
+describe('the parity rows of an operation page', () => {
   it(
-    'should give the specification and the runtime equal width',
+    'should give the spec and runtime cells of every row equal width, with the gutter between',
     async () => {
       // Given the example, whose collectors are registered, on an operation that carries facts.
-      // vernier's component inventory names two equal columns as the one thing this direction does
-      // that the other two do not.
+      // The pair exists only inside a row since TX-GUTTER, so the equality frame.spec held on
+      // the page columns is held on the two cells of each row, which is where F29's answer
+      // lives: a row ends at its taller cell and no page-level half can be empty.
       const measured = await frame(`${EXAMPLE_BASE_PATH}/get-orders`);
 
-      // When
-      const [spec, runtime] = measured.columns;
+      // When, the cells arrive in document order, spec then runtime per row
+      const pairs: (readonly [number, number])[] = [];
+      for (let at = 0; at < measured.columns.length; at += 2) {
+        pairs.push([measured.columns[at] ?? 0, measured.columns[at + 1] ?? 0]);
+      }
 
-      // Then
-      expect(measured.columns).toHaveLength(2);
-      expect(spec).toBeGreaterThan(0);
-      expect(Math.abs((spec ?? 0) - (runtime ?? 0))).toBeLessThanOrEqual(1);
+      // Then, eleven rows and each pair equal to the pixel
+      expect(pairs).toHaveLength(11);
+      for (const [spec, runtime] of pairs) {
+        expect(spec).toBeGreaterThan(0);
+        expect(Math.abs(spec - runtime)).toBeLessThanOrEqual(1);
+      }
+    },
+    TIMEOUT,
+  );
+});
+
+describe('the glyphs of the parity scale', () => {
+  it(
+    'should render all eight marks at a non-zero width, through the declared mono fallback',
+    async () => {
+      // Given the maintainer's 2026-08-14 decision: the font subsets do not grow for eight
+      // characters, the marks resolve through the mono stack's system fallback, and a glyph
+      // that silently boxes is worse than one that looks slightly different, so the width is
+      // asserted in a real engine rather than assumed.
+      const context = await chrome.browser.newContext({ viewport: WIDE });
+      const page = await context.newPage();
+      await page.goto(`${app.url}${EXAMPLE_BASE_PATH}/get-orders`, { waitUntil: 'load' });
+
+      // When each mark is set on a live verdict box and its text measured
+      const measured = await page.evaluate(() => {
+        interface BoxLike {
+          readonly width: number;
+        }
+        interface NodeLike {
+          readonly firstChild: NodeLike | null;
+        }
+        interface ElementLike extends NodeLike {
+          textContent: string | null;
+        }
+        interface RangeLike {
+          selectNode(node: NodeLike): void;
+          getBoundingClientRect(): BoxLike;
+        }
+        const root = globalThis as unknown as {
+          document: {
+            createRange(): RangeLike;
+            querySelector(selector: string): ElementLike | null;
+          };
+          getComputedStyle(element: ElementLike): { fontFamily: string };
+        };
+
+        const verdict = root.document.querySelector('.oref-verdict');
+        if (verdict === null) return { widths: {}, fontFamily: '' };
+
+        const glyphs = ['=', '≠', '?', '▲', '△', '·', '■', '◆', '○'];
+        const widths: Record<string, number> = {};
+        for (const glyph of glyphs) {
+          verdict.textContent = glyph;
+          const text = verdict.firstChild;
+          if (text === null) continue;
+          const range = root.document.createRange();
+          range.selectNode(text);
+          widths[glyph] = range.getBoundingClientRect().width;
+        }
+
+        return { widths, fontFamily: root.getComputedStyle(verdict).fontFamily };
+      });
+
+      await context.close();
+
+      // Then every mark occupies real width and the stack's tail is the generic family, which
+      // is what makes the fallback a declaration rather than an accident.
+      expect(Object.keys(measured.widths)).toHaveLength(9);
+      for (const [glyph, width] of Object.entries(measured.widths)) {
+        expect(width, `the glyph ${glyph} rendered at zero width`).toBeGreaterThan(0);
+      }
+      expect(measured.fontFamily).toContain('monospace');
     },
     TIMEOUT,
   );

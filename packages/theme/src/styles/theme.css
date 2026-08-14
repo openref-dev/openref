@@ -98,11 +98,10 @@
   min-height: 100%;
 }
 
-/* One ruler, drawn twice: between the rail and the page, and between what the specification
- * declares and what the application does. Both are the same frame element at two scales, which
- * is the whole of the double scale this design is named for, so they are the same rule. */
-.oref-layout::after,
-.oref-node-columns::after {
+/* One ruler on the frame, between the rail and the page. Its twin between the specification and
+ * the runtime moved into the parity rows with TX-GUTTER: the pair exists only inside a row now,
+ * and each row's gutter carries the tick itself. */
+.oref-layout::after {
   background-image: var(--oref-layout-tick);
   content: '';
   grid-column: 2;
@@ -512,12 +511,11 @@
 }
 
 /* The muted monospace aside: a media type's schema name, a palette hint, a timing, the label of
- * a header or a runtime row, a note beside a fact. One shape, one rule, for the reason above. */
+ * a header, a note beside a fact. One shape, one rule, for the reason above. */
 .oref-media-schema,
 .oref-palette-hint,
 .oref-run-header-name,
 .oref-run-time,
-.oref-runtime-label,
 .oref-runtime-note {
   color: var(--oref-color-fg-muted);
   font-family: var(--oref-font-family-mono);
@@ -1056,8 +1054,7 @@ button.oref-schema-row:hover {
   padding-top: var(--oref-space-500);
 }
 
-.oref-run-headers,
-.oref-runtime {
+.oref-run-headers {
   display: grid;
   grid-template-columns: max-content minmax(0, 1fr);
   gap: var(--oref-space-200) var(--oref-space-400);
@@ -1065,8 +1062,7 @@ button.oref-schema-row:hover {
 }
 
 .oref-drift-side,
-.oref-run-header-value,
-.oref-runtime-value {
+.oref-run-header-value {
   color: var(--oref-color-fg-secondary);
   font-family: var(--oref-font-family-mono);
   font-size: var(--oref-font-size-200);
@@ -1085,26 +1081,239 @@ button.oref-schema-row:hover {
   white-space: pre-wrap;
 }
 
-/* The runtime half of the double scale, and the Health panel.
+/* The parity scale: what the specification declares against what the application does, paired
+ * per row with the ruler between the cells, per SPEC 6.3 and TX-GUTTER.
  *
- * TWO EQUAL COLUMNS WITH THE RULER BETWEEN THEM is what this design does that the other two do
- * not, so the grid is the same three tracks the page frame uses, one scale down. A node with no
- * runtime facts gets no columns at all rather than an empty second one: the renderer emits none,
- * and SPEC 6.3 is why.
+ * THE PAIR EXISTS ONLY INSIDE A ROW. The page-level columns died with this scale, because a row
+ * ends at its taller cell and the empty half of a page cannot occur; the grid is the same three
+ * tracks the page frame uses, one scale down, so the two cells are equal to the pixel. A node
+ * with no runtime facts gets no scale at all rather than an empty side: the renderer emits
+ * none, and SPEC 6.3 is why.
  */
 
-.oref-node-columns {
+.oref-parity-head,
+.oref-parity-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr) var(--oref-layout-gutter) minmax(0, 1fr);
 }
 
-.oref-column-spec,
-.oref-column-runtime {
-  grid-row: 1;
+.oref-parity-headcell {
+  font-size: var(--oref-font-size-100);
+  font-weight: var(--oref-font-weight-medium);
+  letter-spacing: var(--oref-font-tracking-wide);
+  padding: var(--oref-space-400) var(--oref-space-600);
+  text-transform: uppercase;
 }
 
-.oref-column-runtime {
+.oref-parity-headcell-spec {
+  color: var(--oref-color-accent-spec);
+}
+
+.oref-parity-headcell-runtime {
+  color: var(--oref-color-accent-runtime);
   grid-column: 3;
+}
+
+/* The ruler tick runs through the head and through every gutter, which is the frame's own ruler
+ * one scale down: the same token, centred in the same width track. */
+.oref-parity-headtick,
+.oref-parity-gutter {
+  background-image: var(--oref-layout-tick);
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: var(--oref-border-hair) 100%;
+  grid-column: 2;
+}
+
+.oref-parity-scale {
+  border-block-start: var(--oref-border-hair) solid var(--oref-color-line);
+}
+
+.oref-parity {
+  border-block-end: var(--oref-border-hair) solid var(--oref-color-line);
+}
+
+/* A drifted row sits on the surface, not on the severity tint: the tint belongs to the finding
+ * card and the FixBar, and the row's own signal is the severity edge the card classes carry.
+ * The compound outweighs the bare severity rule wherever the file puts either. */
+.oref-parity.oref-parity-drift {
+  background: var(--oref-color-surface);
+}
+
+.oref-parity-gutter {
+  align-items: center;
+  display: flex;
+  justify-content: center;
+}
+
+.oref-parity-cell {
+  padding: var(--oref-space-500) var(--oref-space-600);
+}
+
+.oref-parity-cell-spec {
+  grid-column: 1;
+}
+
+.oref-parity-cell-runtime {
+  grid-column: 3;
+}
+
+.oref-parity-label {
+  color: var(--oref-color-fg-muted);
+  font-size: var(--oref-font-size-100);
+  letter-spacing: var(--oref-font-tracking-wide);
+  text-transform: uppercase;
+}
+
+.oref-parity-value {
+  font-family: var(--oref-font-family-mono);
+  font-size: var(--oref-font-size-300);
+  margin-block-start: var(--oref-space-200);
+  overflow-wrap: anywhere;
+}
+
+.oref-parity-sub {
+  color: var(--oref-color-fg-muted);
+  font-size: var(--oref-font-size-200);
+  margin-block-start: var(--oref-space-100);
+}
+
+/* The values of a runtime cell need no rule of their own: `.oref-runtime-item` is a flex row,
+ * which is block-level, so the values stack top to bottom the way the spec cell beside them
+ * reads, and the flex gap keeps a value's text, note and mark apart, which is the separation
+ * the runtime block's own defect taught. */
+
+/* The drawn absence of SPEC 6.3: the side that does not exist yet is hatched and says why,
+ * which is a statement about the instrument, never about the route. */
+.oref-hatch {
+  background-image: repeating-linear-gradient(
+    135deg,
+    transparent 0 var(--oref-space-300),
+    var(--oref-color-surface-inset) var(--oref-space-300) calc(2 * var(--oref-space-300))
+  );
+}
+
+.oref-parity-empty {
+  color: var(--oref-color-fg-muted);
+  font-size: var(--oref-font-size-300);
+  font-style: italic;
+  margin-block-start: var(--oref-space-300);
+}
+
+/* THE VERDICT AND SEVERITY GLYPHS RENDER FROM THE MONO STACK'S SYSTEM FALLBACK, AND THE TAIL OF
+ * THAT STACK IS A DECISION, NOT AN ACCIDENT. The maintainer's 2026-08-14 answer to the glyph
+ * question: the latin subsets the theme ships do not cover the equals, not-equal, triangle,
+ * middle dot, square, diamond and circle marks, the subsets do not grow for eight characters,
+ * and `--oref-font-family-mono` ends in `ui-monospace, monospace` precisely so these characters
+ * resolve per glyph through `unicode-range` fallback. The browser suite asserts each glyph
+ * renders at a non-zero width, so a stack that stopped covering them would fail a test rather
+ * than silently box. */
+.oref-verdict {
+  align-items: center;
+  background: var(--oref-color-bg);
+  border: var(--oref-border-hair) solid var(--oref-color-fg-muted);
+  color: var(--oref-color-fg-secondary);
+  display: flex;
+  font-family: var(--oref-font-family-mono);
+  font-size: var(--oref-font-size-200);
+  height: var(--oref-space-700);
+  justify-content: center;
+  width: var(--oref-space-700);
+}
+
+.oref-verdict-crit {
+  border-color: var(--oref-drift-crit-fg);
+  color: var(--oref-drift-crit-fg);
+}
+
+.oref-verdict-warn {
+  border-color: var(--oref-drift-warn-fg);
+  color: var(--oref-drift-warn-fg);
+}
+
+.oref-verdict-note {
+  border-color: var(--oref-drift-note-fg);
+  color: var(--oref-drift-note-fg);
+}
+
+.oref-verdict-unknown {
+  border-style: dashed;
+  color: var(--oref-color-fg-muted);
+}
+
+/* The remedy strip under a drifted row: the severity chip, the finding's own edit, and the rule
+ * code a reader cites, right aligned the way a reference line is. */
+.oref-fixbar {
+  align-items: center;
+  border-block-start: var(--oref-border-hair) solid var(--oref-color-line);
+  display: flex;
+  gap: var(--oref-space-400);
+  padding: var(--oref-space-300) var(--oref-space-600);
+}
+
+.oref-fixbar-crit {
+  background: var(--oref-state-crit-bg);
+}
+
+.oref-fixbar-warn {
+  background: var(--oref-state-warn-bg);
+}
+
+.oref-fixbar-note {
+  background: var(--oref-state-muted-bg);
+}
+
+.oref-fixbar-text {
+  font-size: var(--oref-font-size-200);
+}
+
+.oref-fixbar-rule {
+  color: var(--oref-color-accent-link);
+  font-family: var(--oref-font-family-mono);
+  font-size: var(--oref-font-size-200);
+  margin-inline-start: auto;
+}
+
+.oref-sev {
+  align-items: center;
+  display: inline-flex;
+  font-size: var(--oref-font-size-100);
+  gap: var(--oref-space-200);
+  letter-spacing: var(--oref-font-tracking-wide);
+  padding: 0 var(--oref-space-200);
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.oref-sev-glyph {
+  font-family: var(--oref-font-family-mono);
+}
+
+.oref-sev-crit {
+  border: var(--oref-border-hair) solid var(--oref-state-crit-fg);
+  color: var(--oref-state-crit-fg);
+}
+
+.oref-sev-warn {
+  border: var(--oref-border-hair) solid var(--oref-state-warn-fg);
+  color: var(--oref-state-warn-fg);
+}
+
+.oref-sev-note {
+  border: var(--oref-border-hair) solid var(--oref-state-muted-fg);
+  color: var(--oref-state-muted-fg);
+}
+
+/* The display code of SPEC 7.1, which a FixBar cites and the Health panel anchors. */
+.oref-drift-code {
+  color: var(--oref-color-accent-link);
+  font-family: var(--oref-font-family-mono);
+  font-size: var(--oref-font-size-100);
+}
+
+.oref-prov-glyph {
+  font-family: var(--oref-font-family-mono);
+  margin-inline-end: var(--oref-space-100);
 }
 
 /* A mark carrying a level: the provenance of a fact, and the severity of a finding.

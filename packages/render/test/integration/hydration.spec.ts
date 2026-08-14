@@ -181,7 +181,9 @@ describe('readPageState', () => {
     // `mutualTLS` should say what it needs, which is the absence the field exists to prevent.
     // T033 added `proxyPath`, the fact the runner factory reads to choose the proxy transport,
     // and that is 9 (8 was TX-SLOTWIRE): a page cached before it sends directly on a host whose
-    // proxy is up, which is the defence existing and not being offered.
-    expect(state?.pageModelVersion).toBe(9);
+    // proxy is up, which is the defence existing and not being offered. TX-GUTTER added the
+    // parity scale and the display code, and that is 10: a page cached before it hydrates an
+    // operation with no scale to adopt and findings citing no code.
+    expect(state?.pageModelVersion).toBe(10);
   });
 });

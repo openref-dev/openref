@@ -255,6 +255,8 @@ export interface RuntimeRowModel {
 /** One finding, as a row. */
 export interface DriftModel {
   readonly rule: IRDriftRule;
+  /** Display code of the rule, per the SPEC 7.1 table. The kebab id stays the identifier. */
+  readonly code: string;
   /** Class carrying the severity, which the design names crit, warn and note. */
   readonly severityClass: string;
   readonly message: string;
@@ -267,10 +269,90 @@ export interface DriftModel {
   readonly subject: string;
 }
 
+/**
+ * Which subject one row of the parity scale compares, in the order the scale draws them.
+ *
+ * THE SET IS THE DESIGN'S ELEVEN AND NOT THE FACT LIST'S SEVEN. Four rows have no runtime fact
+ * behind them until their collectors exist, and they are rows all the same: the empty side is
+ * drawn hatched with the reason, per SPEC 6.3, so the scale is complete from the first day and
+ * fills in as collectors arrive.
+ */
+export type ParityRowKind =
+  | 'authentication'
+  | 'scopes'
+  | 'roles'
+  | 'rate-limit'
+  | 'response-codes'
+  | 'required-headers'
+  | 'validation'
+  | 'timeout'
+  | 'streaming'
+  | 'unread-parameters'
+  | 'source';
+
+/**
+ * The gutter's answer for one row.
+ *
+ * `match` only where the row's SPEC 7.1 rule examined the operation and stayed quiet, `drift`
+ * only where a finding is recorded, `unknown` everywhere a comparison did not run: no fact, no
+ * rule for the row yet, or a document nothing measured. The glyphs are the component's.
+ */
+export type ParityVerdict = 'match' | 'drift' | 'unknown';
+
+/** One side of a parity row that carries no provenance, which is the specification's. */
+export interface ParitySideModel {
+  /** Main line of the cell. */
+  readonly value: string;
+  /** Second line under it. Empty when there is nothing to add. */
+  readonly note: string;
+}
+
+/** The remedy strip under a drifted row, per SPEC 7.1 and 7.4. */
+export interface ParityFixModel {
+  /** Same severity vocabulary as {@link DriftModel.severityClass}. */
+  readonly severityClass: string;
+  /** The finding's own suggestion, which SPEC 7.2 makes a contract rather than decoration. */
+  readonly text: string;
+  /** Display code of the rule, per the SPEC 7.1 table. */
+  readonly code: string;
+  /** Where the code links: the rule's group in the Health panel. */
+  readonly href: string;
+}
+
+/**
+ * One row of the parity scale: what the specification declares, what the application does, and
+ * the verdict between them.
+ *
+ * THE RUNTIME SIDE IS THE SAME VALUE SHAPE THE LABELLED ROWS USE, so a theme that already reads
+ * {@link RuntimeValueModel} reads a cell the same way. `runtime` empty and `reason` non-empty is
+ * the drawn absence: the hatched cell with the phrase naming why the side is empty, which is the
+ * design's answer for a missing side and not a placeholder.
+ */
+export interface ParityRowModel {
+  readonly kind: ParityRowKind;
+  readonly label: string;
+  readonly spec: ParitySideModel;
+  readonly runtime: readonly RuntimeValueModel[];
+  /** Why the runtime side is empty. Empty exactly when `runtime` has values. */
+  readonly reason: string;
+  readonly verdict: ParityVerdict;
+  /** Severity of the recorded finding. Empty unless `verdict` is `drift`. */
+  readonly severityClass: string;
+  /** The remedy strip. Null unless `verdict` is `drift`. */
+  readonly fix: ParityFixModel | null;
+}
+
 /** The runtime block of one node. */
 export interface RuntimeModel {
   readonly rows: readonly RuntimeRowModel[];
   readonly drift: readonly DriftModel[];
+  /**
+   * The parity scale of an operation page, per SPEC 6.3, in the design's row order.
+   *
+   * Empty for a channel, which keeps the labelled row block until M5 designs one, and a
+   * component that finds it empty draws `rows` the way it always did.
+   */
+  readonly parity: readonly ParityRowModel[];
 }
 
 /** One line of the check list, which is one question asked of the whole document. */

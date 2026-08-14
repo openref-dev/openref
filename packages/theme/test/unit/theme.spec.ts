@@ -86,17 +86,36 @@ const NOT_CLASSES = new Set([
   // Id prefix of a try-it field, so a label can name the control it belongs to. The full id
   // carries the node id and the parameter, so it is built at runtime and is never a class.
   'oref-field-',
+  // Id prefix of a Health panel rule group, so a FixBar's code can link to it. The full id
+  // carries the kebab rule id and is built at runtime, and it is never a class.
+  'oref-rule-',
+  // The parity scale's severity families, per TX-GUTTER: the verdict box, the FixBar and its
+  // chip each build `-crit`, `-warn` or `-note` from the finding's severity at runtime. The
+  // full names are in the stylesheet, the way `oref-prov-` already works.
+  'oref-verdict-',
+  'oref-fixbar-',
+  'oref-sev-',
 ]);
 
 /**
  * Families whose members the renderer builds at runtime from a prefix.
  *
- * `oref-method-${method}`, `oref-status-${class}xx`, `oref-prov-${confidence}` and one syntax
- * class per shiki colour. The
- * full names are in the stylesheet and never in the renderer's source, so they are matched by
- * their prefix. The prefix itself is in the source, which is what `NOT_CLASSES` covers.
+ * `oref-method-${method}`, `oref-status-${class}xx`, `oref-prov-${confidence}`, one syntax
+ * class per shiki colour, and since TX-GUTTER the parity scale's three severity families,
+ * `oref-verdict-`, `oref-fixbar-` and `oref-sev-`, each suffixed `crit`, `warn` or `note` from
+ * the finding's severity. The full names are in the stylesheet and never in the renderer's
+ * source, so they are matched by their prefix. The prefix itself is in the source, which is
+ * what `NOT_CLASSES` covers.
  */
-const GENERATED_PREFIXES = ['oref-method-', 'oref-status-', 'oref-hl-', 'oref-prov-'];
+const GENERATED_PREFIXES = [
+  'oref-method-',
+  'oref-status-',
+  'oref-hl-',
+  'oref-prov-',
+  'oref-verdict-',
+  'oref-fixbar-',
+  'oref-sev-',
+];
 
 /**
  * Section modifiers the renderer emits beside `oref-section`, which this theme needs no rule

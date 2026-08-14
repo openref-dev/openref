@@ -148,6 +148,11 @@ would have been 1 612 858 bytes on `twilio-api-v2010.yaml` against a node page's
 | `RuntimeRowModel` | type | One row of it |
 | `RuntimeRowKind` | type | What kind of row it is, which is how a theme tells an error row from a scope row |
 | `RuntimeValueModel` | type | One runtime value, carrying its `confidence` and its `collector` |
+| `ParityRowModel` | type | One row of the parity scale: spec side, runtime side, verdict |
+| `ParityRowKind` | type | Which of the design's eleven subjects a parity row compares |
+| `ParityVerdict` | type | The gutter's answer: match, drift, or a comparison that did not run |
+| `ParitySideModel` | type | The specification side of a parity row, which carries no provenance |
+| `ParityFixModel` | type | The remedy strip under a drifted row, with the SPEC 7.1 display code |
 | `DriftModel` | type | One drift finding |
 | `HealthModel` | type | The Documentation Health report of a document |
 | `HealthCheckModel` | type | One check of it |

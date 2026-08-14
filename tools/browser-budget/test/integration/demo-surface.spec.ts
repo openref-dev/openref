@@ -270,11 +270,15 @@ describe('the demo application behind that surface', () => {
     expect(body.split('\n')[0]).toBe('sku,quantity,unitAmount');
   });
 
-  it('should say the sentence 401 and 403 share once and not twice', async () => {
+  it('should never repeat the sentence 401 and 403 share', async () => {
     // Given the operation the defect was reported against. SPEC 6.4 derives 401 and 403 from one
-    // fact, so their `detail` differs by nothing at all, and the block printed it under each of
-    // them: two codes, one explanation, stacked, reading as repetition rather than as two
-    // contracts. Read off the served markup, because that is where a reader met it.
+    // fact, so their `detail` differs by nothing at all, and the old block printed it under each
+    // of them: two codes, one explanation, stacked, reading as repetition rather than as two
+    // contracts. Since TX-GUTTER the operation page summarizes the contracts in the response
+    // codes cell, where the two codes share one value and the detail is not drawn at all; the
+    // full three group grid with details is the error contracts block of TX-MARKUP, and this
+    // case grows back to exactly one copy when that lands. Read off the served markup, because
+    // that is where a reader met it.
     const response = await fetch(`${app.url}${EXAMPLE_BASE_PATH}/get-orders`);
     const html = await response.text();
     const sentence = 'so it can refuse a caller before the handler runs';
@@ -285,10 +289,9 @@ describe('the demo application behind that surface', () => {
     const markup = html.split('<script type="application/json"')[0] ?? '';
     const said = markup.split(sentence).length - 1;
 
-    // Then both contracts are still on the page, and the sentence is drawn once
-    expect(markup).toContain('>401<');
-    expect(markup).toContain('>403<');
-    expect(said).toBe(1);
+    // Then both contracts are on the page as one merged value, and the sentence is not repeated
+    expect(markup).toContain('401, 403');
+    expect(said).toBeLessThanOrEqual(1);
   });
 
   it('should render a page for every operation, so the README sends nobody to a 404', async () => {

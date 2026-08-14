@@ -92,32 +92,79 @@ describe('the runtime block on an operation page', () => {
     expect(host.querySelector('.oref-runtime')).toBeNull();
   });
 
-  it('should put the specification and the runtime in two columns when there are facts', () => {
-    // Given, vernier's thesis: what is declared and what is observed stand side by side
+  it('should pair the specification and the runtime per row and draw no page columns', () => {
+    // Given, the parity scale of TX-GUTTER: the pair exists only inside a row, and the page
+    // below the scale is one column at full width, which is what killed F29 by construction.
     const page = buildPageModel(runtimeDocument(), { markdown, nodeId: runtimeNodeId() });
 
     // When
     const host = mount(page);
+    const rows = host.querySelectorAll('.oref-parity-grid');
 
-    // Then
-    expect(host.querySelector('.oref-node-columns')).not.toBeNull();
-    expect(host.querySelector('.oref-column-spec .oref-section-responses')).not.toBeNull();
-    expect(host.querySelector('.oref-column-runtime .oref-section-runtime')).not.toBeNull();
+    // Then, eleven rows, each with its two cells and its gutter verdict, and no page-level
+    // column wrapper anywhere.
+    expect(rows).toHaveLength(11);
+    for (const row of Array.from(rows)) {
+      expect(row.querySelector('.oref-parity-cell-spec')).not.toBeNull();
+      expect(row.querySelector('.oref-parity-cell-runtime')).not.toBeNull();
+      expect(row.querySelector('.oref-verdict')).not.toBeNull();
+    }
+    expect(host.querySelector('.oref-node-columns')).toBeNull();
+    expect(host.querySelector('.oref-section-responses')).not.toBeNull();
   });
 
-  it('should show every fact SPEC 2 promises, in the words that block uses', () => {
+  it('should draw the empty side hatched with the reason, per SPEC 6.3', () => {
+    // Given, the four rows whose collectors do not exist yet
+    const page = buildPageModel(runtimeDocument(), { markdown, nodeId: runtimeNodeId() });
+
+    // When
+    const host = mount(page);
+    const hatched = Array.from(host.querySelectorAll('.oref-parity-cell-runtime.oref-hatch'));
+
+    // Then, the absence is drawn rather than blanked, the phrase names the instrument, and the
+    // verdict beside it says the comparison did not run.
+    expect(hatched).toHaveLength(4);
+    for (const cell of hatched) {
+      expect(cell.querySelector('.oref-parity-empty')?.textContent).toContain('yet');
+      expect(
+        cell.closest('.oref-parity-grid')?.querySelector('.oref-verdict-unknown'),
+      ).not.toBeNull();
+    }
+  });
+
+  it('should close a drifted row with the FixBar and the SPEC 7.1 code', () => {
+    // Given, the fixture's stream has no item schema, a recorded finding
+    const page = buildPageModel(runtimeDocument(), { markdown, nodeId: runtimeNodeId() });
+
+    // When
+    const host = mount(page);
+    const bars = Array.from(host.querySelectorAll('.oref-fixbar'));
+    const codes = bars.map((bar) => bar.querySelector('.oref-fixbar-rule')?.textContent ?? '');
+
+    // Then, every strip carries a severity word, the finding's own edit and a code that links
+    // to the rule's anchored group in the Health panel.
+    expect(bars.length).toBeGreaterThan(0);
+    for (const bar of bars) {
+      expect(bar.querySelector('.oref-sev')?.textContent).toMatch(/critical|warning|note/);
+      expect(bar.querySelector('.oref-fixbar-text')?.textContent).not.toBe('');
+      expect(bar.querySelector('.oref-fixbar-rule')?.getAttribute('href')).toContain('#oref-rule-');
+    }
+    expect(codes).toContain('RT040');
+  });
+
+  it('should show every fact SPEC 2 promises, in the words the scale uses', () => {
     // Given, the block the README opens with in T063
     const page = buildPageModel(runtimeDocument(), { markdown, nodeId: runtimeNodeId() });
 
     // When
     const host = mount(page);
-    const labels = Array.from(host.querySelectorAll('.oref-runtime-label')).map(
+    const labels = Array.from(host.querySelectorAll('.oref-parity-label')).map(
       (el) => el.textContent,
     );
-    const text = host.querySelector('.oref-runtime')?.textContent ?? '';
+    const text = host.querySelector('.oref-parity-scale')?.textContent ?? '';
 
     // Then
-    expect(labels).toContain('Guards');
+    expect(labels).toContain('Authentication');
     expect(labels).toContain('Scopes');
     expect(labels).toContain('Rate limit');
     expect(labels).toContain('Source');
@@ -147,9 +194,10 @@ describe('the three confidence levels', () => {
     // the third carrier and the only optional one.
     const page = buildPageModel(runtimeDocument(), { markdown, nodeId: runtimeNodeId() });
 
-    // When
+    // When, the mark's last text node is the code; the first child is the aria-hidden glyph,
+    // which renders from the mono stack's system fallback per the 2026-08-14 decision.
     const codes = Array.from(mount(page).querySelectorAll('.oref-prov')).map(
-      (el) => el.textContent,
+      (el) => el.lastChild?.textContent,
     );
 
     // Then all three levels appear, each as its own code

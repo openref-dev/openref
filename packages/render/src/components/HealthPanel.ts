@@ -47,10 +47,11 @@ import type { HealthCheckModel, HealthModel, HealthRuleModel } from '@openref/vu
  * every count here is a fact about the application and none is the instrument shrugging.
  *
  * THE COUNT CARRIES THE VERDICT AND NO SEVERITY COLOUR DOES. `124 / 127` says which checks are
- * short of the mark without a second channel repeating it, and the design has no glyph to spare:
- * the marks a report usually prints, a tick and a warning triangle, are outside the latin and
- * latin-ext subsets this theme ships, so they would arrive in whatever font the reader happens
- * to have.
+ * short of the mark without a second channel repeating it. The marks a report usually prints, a
+ * tick and a warning triangle, sit outside the latin and latin-ext subsets this theme ships;
+ * since the maintainer's 2026-08-14 glyph decision the parity scale draws its marks through the
+ * mono stack's deliberate system fallback, but this row predates the scale and the count still
+ * says everything the row has to say, so it stays a count.
  *
  * @param check - The check
  * @returns The row
@@ -69,11 +70,18 @@ const checkRow = (check: HealthCheckModel): VNode =>
  * @returns The disclosure
  */
 const ruleGroup = (rule: HealthRuleModel, card: Component): VNode =>
-  h('details', { class: 'oref-rule' }, [
+  // THE ID IS THE FIXBAR'S DESTINATION: a drifted parity row cites the display code and links
+  // `#oref-rule-<kebab>`, so the group a reader lands on is the group the code named.
+  h('details', { class: 'oref-rule', id: `oref-rule-${rule.rule}` }, [
     // A TEXT SPACE BETWEEN THE TWO SPANS, because the summary cannot be a flex row: `display:
     // flex` on a `summary` removes the disclosure marker the user agent draws. Without it the
     // heading read as one word, `SECURITY-DRIFT7`, on the page and to a screen reader alike.
+    // The display code leads and the kebab id stays beside it: the code is what a FixBar cites
+    // and a person says aloud, the id is what the IR and `doctor` carry, and a panel showing
+    // only one would break the reader's join in one direction or the other.
     h('summary', { class: 'oref-rule-head' }, [
+      h('span', { class: 'oref-drift-code' }, rule.findings[0]?.code ?? ''),
+      ' ',
       h('span', { class: 'oref-drift-rule' }, rule.rule),
       ' ',
       h('span', { class: 'oref-rule-count' }, rule.count),

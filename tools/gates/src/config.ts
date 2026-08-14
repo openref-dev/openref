@@ -690,13 +690,26 @@ export const SIZE_BUDGETS: readonly SizeBudget[] = [
     // Component emits `oref-embed-error`, a class the renderer did not have, and the rule that
     // styles it is 267 bytes the sweep in `theme.spec.ts` requires to exist. Measured 35,083
     // after it; 35 KB keeps the property above, a console sized region still lands over the cap.
+    //
+    // RECOMPUTED AT TX-GUTTER, 35 TO 41 KB, FOR THE SAME SANCTIONED REASON AT A LARGER SCALE:
+    // the input changed. The renderer emits the parity scale of SPEC 6.3, a class family it did
+    // not have, the maintainer ordered the region by name, and the two way sweep in
+    // `theme.spec.ts` requires every emitted class styled, so no amount of theme work removes
+    // the requirement. Measured 39,312 after it, with the dead labelled row rules already taken
+    // back out: 26,979 theme.css, 8,122 tokens.css, 4,211 fonts.css. WHY A RECOMPUTED CAP AND
+    // NOT A LEDGER ENTRY, since the exceptions doctrine sends artefact growth to the ledger: an
+    // exception must name a payer who can clear it, and no future task deletes required
+    // styling, so an entry here would be a debt nobody can pay, which is a raised threshold
+    // wearing a ledger entry. 41 KB is 41,984 and keeps the derived property exactly: a
+    // navigation sized region, 2,520, still fits, 41,832 under the cap; a page frame sized one,
+    // 3,287, and a console sized one, 3,669, still land over it.
     id: 'theme-css-raw',
     label: 'Default theme CSS, raw bytes',
-    limitBytes: 35 * 1024,
+    limitBytes: 41 * 1024,
     quantity: 'parse',
     roots: THEME_CSS_ROOTS,
     extensions: ['.css'],
-    producedBy: 'T009',
+    producedBy: 'T009, recomputed at TX-GUTTER',
   },
 
   // THE WEB COMPONENT OUTPUTS OF SPEC 10.3, both files of one directory under one cap pair,
@@ -1086,6 +1099,31 @@ export const BUDGET_EXCEPTIONS: readonly BudgetException[] = [
       'the recorded work of T026 through T033, the slot wiring first among it, minus the 493 ' +
       'bytes T005-R1 took back off the document; the entry stays owned by T012-R4 and due by ' +
       'M2, and the figure here is the runner figure rather than a workstation one.',
+  },
+  {
+    budget: 'client-js-raw',
+    measured: '105,786 bytes, 103.3 KB, over by 1,338',
+    target: '102 KB, 104,448 bytes',
+    owners: ['TX-ADOPT'],
+    clearBy: 'M3',
+    recordedAt: '2026-08-14, at TX-GUTTER',
+    diagnosis:
+      'The first paint gained the parity scale of SPEC 6.3: eleven paired rows with verdicts, ' +
+      'the FixBar and the empty side treatment, ordered by the maintainer in the TX-GUTTER ' +
+      'split. Measured 105,786 bytes across the six initial chunks against a baseline of ' +
+      '103,834 at commit 83ba06f, so the scale costs 1,952 raw of which 614 fit the headroom ' +
+      'that existed. THE CHEAP BYTES WERE SPENT BEFORE THIS WAS FILED: the labelled rows branch ' +
+      'left the default RuntimePanel, because no channel can carry facts before M5 builds the ' +
+      'event collectors, and the provenance glyph and code maps were merged. WHAT IS LEFT COSTS ' +
+      'THE FEATURE: the paired cells, the gutter verdicts and the FixBar are the product ' +
+      'surface the maintainer named. WHY NOT A RECOMPUTED CAP: the cap is derived so that the ' +
+      'smallest deferred feature, sign-in-return at 1,323 raw, cannot silently rejoin the first ' +
+      'paint, and the artefact grew rather than the input, which the page-bytes doctrine above ' +
+      'sends here rather than to the cap. THE PAYER IS THE ONE THE CAP COMMENT ALREADY NAMES: ' +
+      'TX-ADOPT adopts the static half of a node page instead of redrawing it, the parity ' +
+      'scale is static markup with one link and no handler, exactly the Health panel shape the ' +
+      'browser already adopts, and TX-ADOPT is accepted for early M3, so the entry clears by ' +
+      'M3 or fails the build asking why not.',
   },
 ];
 

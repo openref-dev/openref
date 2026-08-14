@@ -109,10 +109,11 @@ describe('every position of the registry, drawn by telltale', () => {
     await drive(apiDocument(), 'oref-operation-title', 'tt-op-head', { nodeId: nodeId() });
   });
 
-  it('should draw the telltale runtime cells instead of the labelled rows', async () => {
-    // Given, the block is drawn only for a node with facts, per SPEC 6.3.
+  it('should draw the telltale runtime cells instead of the parity scale', async () => {
+    // Given, the block is drawn only for a node with facts, per SPEC 6.3, and since TX-GUTTER
+    // the reference's default there is the parity scale.
     // When, Then
-    await drive(runtimeDocument(), 'oref-runtime-label', 'tt-cell-label', { nodeId: nodeId() });
+    await drive(runtimeDocument(), 'oref-parity-grid', 'tt-cell-label', { nodeId: nodeId() });
   });
 
   it('should draw the telltale provenance code instead of the reference mark', async () => {

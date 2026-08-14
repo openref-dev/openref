@@ -742,3 +742,36 @@ function dtoFieldResult(document: IRDocument): RuleResult {
     issues,
   };
 }
+
+/** What one rule answered about one operation, which is `Outcome` without the finding's body. */
+export type OperationRuleOutcome = 'clean' | 'finding' | 'out-of-scope';
+
+/**
+ * Asks one rule of SPEC 7.1 its question about one operation.
+ *
+ * THIS EXISTS SO A RENDERER NEVER COPIES A SCOPE PREDICATE. The parity scale of TX-GUTTER
+ * distinguishes "the rule looked and stayed quiet" from "the rule does not apply here", which is
+ * exactly the tri-state each check already computes and `runDriftRules` collapses into counts.
+ * Re-asking the same rule object is one source of truth; a second table of "when does
+ * `scope-drift` apply" would come to disagree with the first the day either changed.
+ *
+ * WITHOUT AN OBSERVATION IT ANSWERS WHAT CAN BE KNOWN WITHOUT ONE, which is what a render time
+ * caller has. `orphan-operation` is then out of scope, per its own definition, and
+ * `security-drift` loses only the guard-to-scheme comparison, whose findings a caller reads from
+ * the recorded report rather than from this.
+ *
+ * @param operation - The operation being asked about
+ * @param rule - Which rule asks
+ * @param observation - What the runtime pass saw, when the caller has one
+ * @returns The outcome kind; `out-of-scope` for the one rule whose subject is not an operation
+ */
+export function operationRuleOutcome(
+  operation: IROperation,
+  rule: IRDriftRule,
+  observation?: DriftObservation,
+): OperationRuleOutcome {
+  const asked = OPERATION_DRIFT_RULES.find((candidate) => candidate.id === rule);
+  if (asked === undefined) return 'out-of-scope';
+
+  return asked.check(operation, { observation }).kind;
+}

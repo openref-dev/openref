@@ -649,13 +649,20 @@ describe('budgetExceptionsGate', () => {
       finding.message.includes('RECORDED AND NOT GATED'),
     );
 
-    // Then
-    expect(BUDGET_EXCEPTIONS.map((entry) => entry.budget)).toEqual(['page-bytes']);
-    expect(over).toHaveLength(1);
-    expect(over[0]?.level).toBe('warning');
-    expect(over[0]?.message).toContain('OVER BUDGET, EXCEPTED page-bytes');
-    expect(over[0]?.message).toContain('203654 bytes against 198656');
-    expect(over[0]?.message).toContain('Owned by T012-R4, must clear by M2');
+    // Then, two entries since TX-GUTTER: the page bytes debt T012-R4 owns, and the first paint
+    // bytes the parity scale costs until TX-ADOPT adopts the static half of a node page. The
+    // size budgets print first and the measured ones after, so the raw cap leads the list.
+    expect(BUDGET_EXCEPTIONS.map((entry) => entry.budget)).toEqual(['page-bytes', 'client-js-raw']);
+    expect(over).toHaveLength(2);
+    for (const finding of over) {
+      expect(finding.level).toBe('warning');
+      expect(finding.message).toContain('EXCEPTED');
+    }
+    expect(over[0]?.message).toContain('OVER, EXCEPTED client-js-raw');
+    expect(over[0]?.message).toContain('Owned by TX-ADOPT, must clear by M3');
+    expect(over[1]?.message).toContain('OVER BUDGET, EXCEPTED page-bytes');
+    expect(over[1]?.message).toContain('203654 bytes against 198656');
+    expect(over[1]?.message).toContain('Owned by T012-R4, must clear by M2');
     expect(result.status).toBe('pass');
     // And the two rows SPEC 20 records without gating say so on the line, because a printed
     // figure that reads like a checked one is the defect class SPEC 0 names.

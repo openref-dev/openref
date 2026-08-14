@@ -229,9 +229,15 @@ export {
   DTO_FIELD_RULE,
   MAX_DTO_FIELD_DEPTH,
   OPERATION_DRIFT_RULES,
+  operationRuleOutcome,
   runDriftRules,
 } from './drift/domain/drift-rules';
-export type { DriftObservation, RuleResult } from './drift/domain/drift-rules';
+export type {
+  DriftObservation,
+  OperationRuleOutcome,
+  RuleResult,
+} from './drift/domain/drift-rules';
+export { DRIFT_RULE_CODES } from './drift/domain/rule-codes';
 export {
   buildHealthReport,
   collectDrift,

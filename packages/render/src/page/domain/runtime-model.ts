@@ -22,21 +22,17 @@
  */
 
 import {
+  DRIFT_RULE_CODES,
   driftForNode,
   expandSourceLink,
   groupDriftByRule,
   hasRuntimeFacts,
-  type IRConfidence,
   type IRDocument,
   type IRDriftIssue,
-  type IRDriftSeverity,
   type IRErrorContracts,
-  type IRGuard,
   type IRGuardScope,
   type IRHealthReport,
   type IRNodeRuntime,
-  type IRRateLimit,
-  type IRStreaming,
 } from '@openref/core';
 import type {
   DriftModel,
@@ -44,10 +40,20 @@ import type {
   RuntimeModel,
   RuntimeRowKind,
   RuntimeRowModel,
-  RuntimeValueModel,
 } from '@openref/vue';
 import { nodeHref, schemaHref } from './links';
+import { buildParityRows } from './parity-model';
+import {
+  EMPTY_VALUE,
+  guardValues,
+  mark,
+  rateLimitLabel,
+  SEVERITY_CLASSES,
+  streamingLabel,
+} from './runtime-values';
 import { statusClass } from '../../shared/status';
+
+export { rateLimitLabel, streamingLabel };
 
 /**
  * THE SHAPES THESE FUNCTIONS BUILD LIVE IN `@openref/vue`, since `TX-SLOTWIRE`.
@@ -71,87 +77,6 @@ const ERROR_GROUPS = [
   ['global', 'errors-global', 'Errors, global'],
 ] as const satisfies readonly (readonly [keyof IRErrorContracts, RuntimeRowKind, string])[];
 
-/** Which drift token group a severity paints from. `crit`, `warn` and `note` are the design's. */
-const SEVERITY_CLASSES: Readonly<Record<IRDriftSeverity, string>> = {
-  error: 'oref-drift-crit',
-  warning: 'oref-drift-warn',
-  info: 'oref-drift-note',
-};
-
-/** Windows a rate limit is most often written in, so the row reads as a sentence. */
-const WINDOWS: readonly (readonly [number, string])[] = [
-  [1000, 'second'],
-  [60_000, 'minute'],
-  [3_600_000, 'hour'],
-  [86_400_000, 'day'],
-];
-
-/** A value with nothing but text on it, which is most of them. */
-const EMPTY_VALUE = {
-  status: '',
-  statusClass: '',
-  text: '',
-  href: '',
-  note: '',
-  confidence: null,
-  collector: '',
-} as const satisfies RuntimeValueModel;
-
-/**
- * The provenance of a value, as the two facts and not as the three strings drawn from them.
- *
- * THE CODE, THE CLASS AND THE TOOLTIP MOVED INTO THE COMPONENT IN `TX-SLOTWIRE`, and the reason
- * is the `ProvenanceTag` slot: its props are `confidence` and `collector`, so a value carrying
- * `DCL`, `oref-prov oref-prov-declared` and `declared, guardsCollector` could not supply them
- * without the position parsing back what this had already formatted. The page pays less for it
- * too, which was not the reason and is measurable: three strings per value became two shorter
- * ones in every node page's state block.
- *
- * @param confidence - Level of the fact
- * @param collector - Name of the collector that produced it
- * @returns The two fields a provenance mark is drawn from
- */
-function mark(
-  confidence: IRConfidence,
-  collector: string,
-): Pick<RuntimeValueModel, 'confidence' | 'collector'> {
-  return { confidence, collector };
-}
-
-/**
- * A rate limit in the words a reader would use.
- *
- * @param limit - The limit as the throttler declares it
- * @returns `100 / minute`, or `100 / 30 s` for a window with no name
- */
-export function rateLimitLabel(limit: IRRateLimit): string {
-  const named = WINDOWS.find(([ms]) => ms === limit.ttlMs)?.[1];
-  const window = named ?? `${String(limit.ttlMs / 1000)} s`;
-  const suffix = limit.name === undefined || limit.name === '' ? '' : ` (${limit.name})`;
-
-  return `${String(limit.limit)} / ${window}${suffix}`;
-}
-
-/**
- * A streaming fact in one line.
- *
- * THE ITEM SCHEMA IS NAMED AS PRESENT OR ABSENT AND NEVER GUESSED, per SPEC 13.6. A stream with
- * no declared item type is the subject of the `stream-unspecified` rule, and printing a shape
- * here would be the guess that rule exists to report.
- *
- * @param streaming - The streaming fact
- * @returns `SSE`, with the heartbeat when one was declared
- */
-export function streamingLabel(streaming: IRStreaming): string {
-  const transport = streaming.transport === 'sse' ? 'SSE' : streaming.transport;
-  const beat =
-    streaming.heartbeatMs === undefined
-      ? ''
-      : `, heartbeat ${String(streaming.heartbeatMs / 1000)} s`;
-
-  return `${transport}${beat}`;
-}
-
 /**
  * The two guard rows of SPEC 6.2.1, in the order a reader needs them.
  *
@@ -170,39 +95,6 @@ const GUARD_SCOPES = [
   ['route', 'guards', 'Guards'],
   ['global', 'guards-global', 'Guards, global'],
 ] as const satisfies readonly (readonly [IRGuardScope, RuntimeRowKind, string])[];
-
-/**
- * Guards at one scope, as one value per provenance rather than one per guard.
- *
- * Three guards read by one collector are one observation of three names, and three marks saying
- * the same thing about where they came from is noise. Two collectors reporting guards at
- * different confidence are two observations, and those stay apart.
- *
- * @param guards - Guards observed on the route, at every scope
- * @param scope - The scope this row draws
- * @returns One value per distinct provenance, in the order the guards were merged
- */
-function guardValues(guards: readonly IRGuard[], scope: IRGuardScope): RuntimeValueModel[] {
-  const values: RuntimeValueModel[] = [];
-
-  for (const guard of guards) {
-    if (guard.scope !== scope) continue;
-
-    const at = values.findIndex(
-      (value) => value.confidence === guard.confidence && value.collector === guard.collector,
-    );
-
-    if (at === -1) {
-      values.push({ ...EMPTY_VALUE, text: guard.name, ...mark(guard.confidence, guard.collector) });
-      continue;
-    }
-
-    const held = values[at];
-    if (held !== undefined) values[at] = { ...held, text: `${held.text}, ${guard.name}` };
-  }
-
-  return values;
-}
 
 /**
  * The rows of the runtime block, in the order SPEC 2 prints them.
@@ -364,6 +256,7 @@ function driftModel(
 
   const base = {
     rule: issue.rule,
+    code: DRIFT_RULE_CODES[issue.rule],
     severityClass: SEVERITY_CLASSES[issue.severity],
     message: issue.message,
     sides,
@@ -408,8 +301,9 @@ export function buildRuntimeModel(
   nodeId: string,
   basePath: string,
 ): RuntimeModel | null {
-  const runtime = document.nodes.get(nodeId)?.runtime;
-  if (runtime === undefined || !hasRuntimeFacts(runtime)) return null;
+  const node = document.nodes.get(nodeId);
+  const runtime = node?.runtime;
+  if (node === undefined || runtime === undefined || !hasRuntimeFacts(runtime)) return null;
 
   // THE FINDINGS COME FROM THE REPORT AND NOT FROM THE NODE. The rules of SPEC 7.1 need the whole
   // document to fire, so they run once over it; `IRNodeRuntime.drift` is what a federated remote
@@ -419,6 +313,9 @@ export function buildRuntimeModel(
   return {
     rows: rowsOf(runtime, document.runtime?.sourceLinkTemplate),
     drift: found.map((issue) => driftModel(issue, document, basePath, false)),
+    // THE SCALE IS AN OPERATION'S, per SPEC 6.3: a channel keeps the labelled rows until M5
+    // designs one, and a component that finds `parity` empty draws `rows` the way it always did.
+    parity: node.kind === 'operation' ? buildParityRows(document, node, found, basePath) : [],
   };
 }
 

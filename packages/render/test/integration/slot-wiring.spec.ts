@@ -194,13 +194,14 @@ describe('every slot of the registry, on the page a reader opens', () => {
     await drive(document, 'OperationHeader', 'oref-operation-title', { nodeId: NODE });
   });
 
-  it('should draw the theme runtime block instead of the labelled rows', async () => {
+  it('should draw the theme runtime block instead of the parity scale', async () => {
     // Given, the block is drawn only for a node with facts, per SPEC 6.3, so the document is the
-    // one with an application behind it.
+    // one with an application behind it. Since TX-GUTTER an operation's default is the parity
+    // scale, so the scale is what the override must displace.
     const document = runtimeDocument();
 
     // When, Then
-    await drive(document, 'RuntimePanel', 'oref-runtime-label', { nodeId: NODE });
+    await drive(document, 'RuntimePanel', 'oref-parity-grid', { nodeId: NODE });
   });
 
   it('should draw the theme provenance mark instead of the three letter code', async () => {

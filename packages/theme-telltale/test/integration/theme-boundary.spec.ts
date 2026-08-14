@@ -69,10 +69,12 @@ describe('the markup a complete L2 theme does not own', () => {
     // Then the core contributes markup, under its own class names, that this theme did not write
     // and cannot replace. The list is pinned rather than counted so that a name arriving or
     // leaving is read rather than absorbed.
+    // `oref-node-columns`, `oref-column-spec` and `oref-column-runtime` left this list with
+    // TX-GUTTER: the page-level columns are gone from the reference, the spec and runtime pair
+    // exists only inside a parity row, and the parity markup itself lives in the `RuntimePanel`
+    // position, which this theme overrides, so no parity class arrives to survive.
     expect(surviving).toEqual([
       'oref-code',
-      'oref-column-runtime',
-      'oref-column-spec',
       'oref-description',
       'oref-example',
       'oref-field',
@@ -82,7 +84,6 @@ describe('the markup a complete L2 theme does not own', () => {
       'oref-media',
       'oref-media-head',
       'oref-media-type',
-      'oref-node-columns',
       'oref-operation',
       'oref-root',
       'oref-section',
@@ -135,24 +136,25 @@ describe('the markup a complete L2 theme does not own', () => {
     expect(html).toContain('<h2 class="oref-section-title">Request body</h2>');
   });
 
-  it('should keep the block order of the reference, which is the whole thesis of this theme', async () => {
+  it('should receive the runtime block ahead of the specification, which is this theme thesis', async () => {
     // Given, telltale's handoff says in its first line what it does that the other two directions
     // do not: the runtime block comes before the specification rather than after it. That order is
     // decided inside `NodePanel`, which is not a slot, and the shell is handed the page as opaque
-    // children, so no position of the contract can express it.
+    // children, so no position of the contract can express it. Until TX-GUTTER this theme undid
+    // the reference's column order in CSS with `column-reverse`; the parity scale put the runtime
+    // block directly after the header, so the document order now IS this theme's order, and the
+    // reading order a screen reader follows finally matches what the CSS used to fake.
     const html = (
       await renderPage(runtimeDocument(), { nodeId: nodeId(), markdown, theme: telltale })
     ).appHtml;
 
-    // When
-    const spec = html.indexOf('oref-column-spec');
-    const runtime = html.indexOf('oref-column-runtime');
+    // When, the runtime position resolves to this theme's own block
+    const runtime = html.indexOf('tt-runtime');
+    const description = html.indexOf('oref-description');
 
-    // Then the specification column still comes first in the document, and this theme undoes it in
-    // CSS with `flex-direction: column-reverse`, which is a different thing from expressing it:
-    // the reading order a screen reader follows is still the reference's.
-    expect(spec).toBeGreaterThan(-1);
-    expect(runtime).toBeGreaterThan(spec);
+    // Then the runtime block precedes the prose in the document itself
+    expect(runtime).toBeGreaterThan(-1);
+    expect(description).toBeGreaterThan(runtime);
   });
 
   it('should require the health position to write a class from the reference namespace', async () => {

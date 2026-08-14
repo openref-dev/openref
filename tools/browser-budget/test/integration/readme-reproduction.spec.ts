@@ -75,34 +75,39 @@ function block(language: string, contains: string): string[] {
 }
 
 /**
- * The runtime rows of the served page, as label and values.
+ * The observed rows of the served parity scale, as label, verdict glyph and values.
  *
- * The markup is `dt` and `dd` pairs, and each value is one `oref-runtime-item` carrying an
- * optional status, the text, an optional note and the provenance mark. Only the status and the
- * text are read, because those are what the README block states.
+ * Since `TX-GUTTER` the operation page draws the parity scale, so what the README states is a
+ * row's label, the glyph in its gutter and its runtime cell. Rows whose runtime side is the
+ * drawn absence carry no observation and are not the README's to state: the block quotes what
+ * the demo shows about the application, and a hatched cell is a statement about OPENREF.
  *
- * @returns The rows in the order the page draws them
+ * @returns The rows with an observed side, in the order the page draws them
  */
-function servedRows(): { label: string; value: string }[] {
-  const section = /<section class="oref-section oref-section-runtime">([\s\S]*?)<\/dl>/.exec(page);
-  if (section === null) throw new Error('the served page carries no runtime block');
+function servedRows(): { label: string; verdict: string; value: string }[] {
+  const scale = /<div class="oref-parity-scale"[^>]*>([\s\S]*?)<ul class="oref-drift-list">/.exec(
+    page,
+  );
+  if (scale === null) throw new Error('the served page carries no parity scale');
 
-  const pairs = [
-    ...(section[1] ?? '').matchAll(
-      /<dt class="oref-runtime-label">(.*?)<\/dt><dd class="oref-runtime-value">(.*?)<\/dd>/g,
-    ),
-  ];
+  const rows = (scale[1] ?? '').split('data-oref-parity="').slice(1);
 
-  return pairs.map((pair) => ({
-    label: text(pair[1] ?? ''),
-    value: [
-      ...(pair[2] ?? '').matchAll(
-        /<span class="oref-runtime-item">([\s\S]*?)(?=<span class="oref-runtime-item">|$)/g,
-      ),
-    ]
-      .map((item) => valueOf(item[1] ?? ''))
-      .join(', '),
-  }));
+  return rows
+    .map((row) => {
+      const label = /<div class="oref-parity-label">(.*?)<\/div>/.exec(row)?.[1] ?? '';
+      const verdict = /<span class="oref-verdict[^"]*"[^>]*>(.*?)<\/span>/.exec(row)?.[1] ?? '';
+      // The runtime cell of a valued row holds spans only, so the first close of cell and grid
+      // together is its end; reading to the chunk's end instead would swallow the FixBar.
+      const cell = /oref-parity-cell-runtime[^"]*">([\s\S]*?)<\/div><\/div>/.exec(row)?.[1] ?? '';
+      const items = [
+        ...cell.matchAll(
+          /<span class="oref-runtime-item">([\s\S]*?)(?=<span class="oref-runtime-item">|$)/g,
+        ),
+      ].map((item) => valueOf(item[1] ?? ''));
+
+      return { label: text(label), verdict: text(verdict), value: items.join('; ') };
+    })
+    .filter((row) => row.value !== '');
 }
 
 /**
@@ -166,12 +171,16 @@ describe('the README block', () => {
   it(
     'should state the runtime rows the demo serves, every one of them and nothing else',
     () => {
-      // Given the block's own rows, split on the column gap
+      // Given the block's own rows, split on the column gap: label, verdict glyph, value
       const lines = block('', 'GET /orders').filter((line) => !line.startsWith('GET '));
       const claimed = lines.map((line) => {
         const parts = line.split(/ {2,}/);
 
-        return { label: (parts[0] ?? '').trim(), value: (parts[1] ?? '').trim() };
+        return {
+          label: (parts[0] ?? '').trim(),
+          verdict: (parts[1] ?? '').trim(),
+          value: (parts[2] ?? '').trim(),
+        };
       });
 
       // When the page the README is about is read

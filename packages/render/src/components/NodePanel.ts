@@ -9,8 +9,9 @@
  * IT IS A COMPOSITION OF SLOTS AND NOT A SLOT. A reader opens three kinds of page, and two of
  * them are one position each; this one is six, because a theme varies a node page by moving its
  * parts rather than by replacing the page. What is not a slot here is the frame around the parts:
- * the security list, the request body block and the two columns, which are the shell's business
- * in the same way block order is.
+ * the security list, the request body block and the block order, which are the shell's business.
+ * The page-level columns the frame used to draw died with `TX-GUTTER`: the spec and runtime pair
+ * exists only inside a parity row, and everything else is one column at full width.
  */
 
 import { useSlot } from '@openref/vue';
@@ -65,17 +66,27 @@ export const NodePanel = defineComponent({
         schemaView: deferrable.schemaView,
       };
       const parts: (VNode | null)[] = [];
-      // What the specification says, which is everything between the header and the console.
-      // It is collected separately from the header so that it can be put in a column of its own
-      // when there is a runtime column to stand beside.
+      // What the specification says, which is everything between the header and the console,
+      // in one column at full width: the page-level columns died with `TX-GUTTER`, and the
+      // spec and runtime pair exists only inside a parity row.
       const spec: (VNode | null)[] = [];
 
-      parts.push(
-        h(header.value, { node, drift: node.runtime?.drift ?? [] }),
-        h(MarkdownBlock, { html: node.descriptionHtml }),
-      );
+      parts.push(h(header.value, { node, drift: node.runtime?.drift ?? [] }));
 
-      if (node.security.length > 0) {
+      // THE SCALE STANDS DIRECTLY UNDER THE HEADER, per the design's own order, and the
+      // description follows it: a reader meets the comparison first and the prose second.
+      // A node with no runtime facts gets no scale at all rather than an empty half, which is
+      // SPEC 6.3 applied to the frame, and the state every reader with no collectors is in.
+      if (node.runtime !== null) {
+        parts.push(h(runtime.value, { nodeId: node.id, runtime: node.runtime }));
+      }
+
+      parts.push(h(MarkdownBlock, { html: node.descriptionHtml }));
+
+      // The security list draws only when there is no parity scale carrying the same
+      // assertion: the authentication and scopes rows are where the requirement stands when
+      // runtime exists, and one page saying one thing twice was the layout this task removed.
+      if (node.security.length > 0 && node.runtime === null) {
         spec.push(
           section('Security', 'oref-section-security', [
             h(
@@ -134,26 +145,7 @@ export const NodePanel = defineComponent({
         );
       }
 
-      // THE TWO COLUMNS ARE THE THESIS OF THIS DESIGN AND NOT AN ARRANGEMENT OF IT: what is
-      // declared and what is observed stand side by side at equal width, with the ruler gutter
-      // between them, and vernier's component inventory names that as the one thing this
-      // direction does that the other two do not.
-      //
-      // A NODE WITH NO RUNTIME FACTS GETS NO COLUMNS AT ALL, rather than an empty second one.
-      // That is SPEC 6.3 applied to the frame instead of to the block: half a page of blank
-      // surface beside the specification says the reference is broken, and it is the state
-      // every reader who has registered no collector would be in.
-      if (node.runtime === null) parts.push(...spec);
-      else {
-        parts.push(
-          h('div', { class: 'oref-node-columns' }, [
-            h('div', { class: 'oref-column-spec' }, spec),
-            h('div', { class: 'oref-column-runtime' }, [
-              h(runtime.value, { nodeId: node.id, runtime: node.runtime }),
-            ]),
-          ]),
-        );
-      }
+      parts.push(...spec);
 
       // Last, after the documented responses rather than before them. A reader reads what the
       // operation does and then tries it, and the response the console shows then sits beside

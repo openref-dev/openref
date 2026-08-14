@@ -48,6 +48,12 @@ import type { IMarkdownRenderer } from '../../markdown/domain/markdown';
 /**
  * Version of the page model shape, part of the cache key.
  *
+ * 10 SINCE `TX-GUTTER`: `RuntimeModel.parity`, the parity scale of SPEC 6.3, and
+ * `DriftModel.code`, the display code of SPEC 7.1's table. A page cached before this hydrates
+ * an operation whose runtime block has no scale to adopt and whose findings cite no code,
+ * which is the page from before the design landed rather than a broken one, and the version
+ * is what keeps the two from being mixed on one screen.
+ *
  * 9 SINCE T033: `proxyPath`, the same origin proxy endpoint of SPEC 14.5, optional and absent
  * when the host serves no proxy. It is the fact the runner factory reads to choose the proxy
  * transport, per the T033 amendment: the server knows whether the proxy is mounted and the
@@ -70,7 +76,7 @@ import type { IMarkdownRenderer } from '../../markdown/domain/markdown';
  * 6 was T027: `run.bodyMediaTypes`, a list of strings, became `run.body`, a list of media types
  * each carrying the editor its schema asks for and the fields it is made of.
  */
-export const PAGE_MODEL_VERSION = 9;
+export const PAGE_MODEL_VERSION = 10;
 
 /** Media types an example is generated for. */
 const JSON_MEDIA_TYPE = /^application\/(?:[\w.+-]+\+)?json$/i;

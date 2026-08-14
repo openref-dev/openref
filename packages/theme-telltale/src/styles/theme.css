@@ -949,13 +949,19 @@
  * reference's own class names to keep it from rendering unstyled. That is the finding of T032 and
  * it is written up in THEME-BOUNDARY.md; the rules are here because a reader should not pay for it.
  *
- * `oref-root` and `oref-operation` are the page and the article. `oref-node-columns`,
- * `oref-column-spec` and `oref-column-runtime` are vernier's two column thesis, which this theme
- * has to undo rather than express its own. `oref-section` and `oref-section-title` frame four
- * blocks. `oref-section-security`, `oref-security-*` and `oref-section-request` are two whole
- * blocks of content with no position of their own. `oref-section-tryit`, `oref-tryit-form` and
- * `oref-field*` frame the console. `oref-description` is the operation's own prose, and
- * `oref-example` with `oref-code` are the generated examples.
+ * `oref-root` and `oref-operation` are the page and the article. `oref-section` and
+ * `oref-section-title` frame four blocks. `oref-section-security`, `oref-security-*` and
+ * `oref-section-request` are two whole blocks of content with no position of their own.
+ * `oref-section-tryit`, `oref-tryit-form` and `oref-field*` frame the console.
+ * `oref-description` is the operation's own prose, and `oref-example` with `oref-code` are the
+ * generated examples.
+ *
+ * The page-level columns this theme used to undo with `column-reverse` died with TX-GUTTER:
+ * the reference now draws the runtime block directly after the header, which is the order this
+ * theme wanted all along, so the undo rules went with them. This theme's `RuntimePanel`
+ * override still draws its instrument cells from `rows` and ignores `parity`; its own export
+ * draws the parity scale too, and adopting it is a telltale task of its own rather than a side
+ * effect here.
  */
 
 .oref-root {
@@ -964,17 +970,6 @@
 
 .oref-operation {
   display: block;
-}
-
-.oref-node-columns {
-  display: flex;
-  flex-direction: column-reverse;
-  gap: var(--oref-space-500);
-}
-
-.oref-column-spec,
-.oref-column-runtime {
-  min-width: 0;
 }
 
 .oref-section {

@@ -20,11 +20,19 @@
 import { h, type VNode } from 'vue';
 import type { IRConfidence } from '@openref/core';
 
-/** The three letter code of each level, per the design contract. */
-const CODES: Readonly<Record<IRConfidence, string>> = {
-  declared: 'DCL',
-  derived: 'DRV',
-  inferred: 'INF',
+/**
+ * The mark glyph and the three letter code of each level, per the design contract.
+ *
+ * The glyphs, square, diamond and circle, sit outside the latin subsets the theme fonts ship,
+ * and deliberately so, per the maintainer's 2026-08-14 decision: they render from the mono
+ * stack's system fallback rather than from a grown subset, and the browser suite asserts each
+ * draws at a non-zero width. The span is `aria-hidden` because the code and the `abbr` title
+ * already say everything the glyph shows.
+ */
+const MARKS: Readonly<Record<IRConfidence, readonly [string, string]>> = {
+  declared: ['■', 'DCL'],
+  derived: ['◆', 'DRV'],
+  inferred: ['○', 'INF'],
 };
 
 /**
@@ -48,6 +56,9 @@ export function ProvenanceTag(props: {
       class: `oref-prov oref-prov-${props.confidence}`,
       title: `${props.confidence}, ${props.collector}`,
     },
-    CODES[props.confidence],
+    [
+      h('span', { class: 'oref-prov-glyph', 'aria-hidden': 'true' }, MARKS[props.confidence][0]),
+      MARKS[props.confidence][1],
+    ],
   );
 }

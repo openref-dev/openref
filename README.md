@@ -46,25 +46,28 @@ export class OrdersController {
 }
 ```
 
-and this is the runtime block the reference draws for it, read off the served page:
+and this is the parity scale the reference draws for it, read off the served page. Each row
+pairs what the specification declares with what the application does, and the glyph between
+them is the drift engine's verdict: `=` where the rule looked and stayed quiet, `≠` where a
+finding is recorded, `?` where the comparison did not run:
 
 ```
 GET /orders
 
-Guards                   ScopesGuard, ThrottlerGuard
-Scopes                   orders:read
-Rate limit               30 / minute (default)
-Errors, declared         This handler declares no errors
-Errors, runtime-derived  429 Too Many Requests, 401 Unauthorized, 403 Forbidden
-Errors, global           500 Internal Server Error
-Source                   OrdersController.list()
+Authentication  ≠  ScopesGuard, ThrottlerGuard
+Scopes          ?  orders:read
+Rate limit      =  30 / minute (default)
+Response codes  ?  This handler declares no errors; 429; 401, 403; 500
+Source          ?  OrdersController.list()
 ```
 
-None of that is in the OpenAPI document, and none of it is guessed. Every row carries the level
-it was read at, `declared`, `derived` or `inferred`, and the name of the collector that produced
-it, so a reader can tell a promise somebody wrote from an observation of the running application.
-The 401 and 403 are there because a guard stands in front of the handler; what that guard decides
-is written in its own code and is never read.
+None of that is in the OpenAPI document, and none of it is guessed. Every value carries the
+level it was read at, `declared`, `derived` or `inferred`, and the name of the collector that
+produced it, so a reader can tell a promise somebody wrote from an observation of the running
+application. The 401 and 403 are there because a guard stands in front of the handler; what
+that guard decides is written in its own code and is never read. The `≠` on authentication is
+a real finding: a guard protects the route and the document asserts no security, so the row
+closes with the exact decorator that fixes it and the rule code `RT010`.
 
 The block above is not a picture of the product. `readme-reproduction.spec.ts` boots this demo,
 fetches that page and fails if a single row disagrees with it, so this README cannot drift from
