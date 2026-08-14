@@ -435,16 +435,20 @@ describe('the committed baseline', () => {
     // When
     const bytes = pageBytesOf(record.parsedBytes);
 
-    // Then, 199,612 against 198,656, over by 956, measured identically to the byte on six
-    // studies across two dispatches, three processors and a workstation
-    expect(bytes).toBe(199_612);
-    expect(BROWSER_CEILINGS.pageBytes - bytes).toBe(-956);
+    // Then, 203,654 against 198,656, over by 4,998 since the T033 re-record: the recorded work
+    // of T026 through T033, measured identically to the byte on the three studies of that
+    // dispatch and on the workstation. The deficit is what BUDGET_EXCEPTIONS carries, owned by
+    // T012-R4.
+    expect(bytes).toBe(203_654);
+    expect(BROWSER_CEILINGS.pageBytes - bytes).toBe(-4_998);
 
-    // And the served document, 65,234 with 8,494 of headroom. It is derived loosely on purpose:
-    // the regression it exists to catch is the navigation blob returning, and this document's
-    // is 546,162 bytes, so a fifth of it fails this cap twice over.
-    expect(record.parsedBytes.documentBytes).toBe(65_234);
-    expect(BROWSER_CEILINGS.servedDocumentBytes - record.parsedBytes.documentBytes).toBe(8_494);
+    // And the served document, 64,741 with 8,987 of headroom, DOWN 493 from the record this
+    // replaced: T005-R1's honest recursion stops are smaller than the null skeletons they
+    // replaced. It is derived loosely on purpose: the regression it exists to catch is the
+    // navigation blob returning, and this document's is 546,162 bytes, so a fifth of it fails
+    // this cap twice over.
+    expect(record.parsedBytes.documentBytes).toBe(64_741);
+    expect(BROWSER_CEILINGS.servedDocumentBytes - record.parsedBytes.documentBytes).toBe(8_987);
 
     // And the count that has run out of room without going over. It is pinned to what the record
     // says and checked against the cap, rather than asserted equal to it: the two have been the

@@ -1,13 +1,13 @@
 {
-  "recordedAt": "2026-08-12",
-  "commit": "f457f523bec1eba72eca3b4cf7629f337a4652ff",
-  "note": "RE-RECORDED BECAUSE THE PRODUCT CHANGED, WHICH IS THE OPPOSITE OF WHY THE LAST ONE WAS. The record this replaces predated T020 through T023, so `pnpm gates` was green on a page that no longer exists: the runtime block and the Health panel are not in it. A budget passing because its baseline predates the work is a check with no subject. THE PAGE IS OVER `page-bytes` AND THE CAP DID NOT MOVE. 199,612 bytes against 198,656, over by 956, and the debt is an entry in `BUDGET_EXCEPTIONS` in tools/gates/src/config.ts, owned by T012-R4 and due to clear by M2. Raising the cap to fit was refused, for the reason that makes the last raise legitimate and this one not: in T016 the input changed and the artefact did not, here the artefact changed and the input did not. THE THREE BYTE COLUMNS WERE MEASURED SIX TIMES AND ARE IDENTICAL TO THE BYTE ON ALL SIX, across two dispatches, three processors and a workstation: 65,234 document, 34,304 CSS, 100,074 JS. That is the property this class of figure has and the reason it is the one that carries a threshold. Against the record it replaces the page grew 3,487 bytes: CSS up 1,698, JS up 1,881, and the document down 92. WHICH STUDY THIS IS, BY A RULE SET BEFORE THE NUMBERS WERE READ: of the three studies of the second dispatch it is the one taken on the AMD EPYC 9V74, the same processor model the record it replaces names, so the wall clock line stays comparable with what it replaces. That is the rule T015-R1 used, for the same reason. LONG TASKS ARE AT THEIR CAP AND THE RECORDED LINE UNDERSTATES IT, said here rather than left to a median. The six studies read 2, 2, 2, 0, 1 and 2; this one reads 1. The cap is 2, nothing is over it, and there is no headroom left in a count whose smallest step is one. The record this replaces read 1 on a page that had no runtime block. TWO THINGS MOVED AT ONCE AND NEITHER CAN BE GIVEN THE CREDIT: the page gained 3,487 bytes and the runner image moved Chrome from 150 to 151 between the two records, so the wall clock going 217.7 to 297.6 ms and the main thread task time 220.1 to 308.3 on one processor model is not attributable to either alone. Both are recorded and gated by nothing, per SPEC 20, precisely so that a figure this unstable cannot stop a build. The other two studies of this dispatch read 241.6 ms on an Intel Xeon under Chrome 151 and 279.4 on an EPYC 7763 under Chrome 150. THE CHROME MAJOR MOVING IS ITSELF WHY THE RELATIVE CHECK IS SUPPRESSED against the old record, and this record re-establishes it at 151.",
+  "recordedAt": "2026-08-14",
+  "commit": "53027c9e6d367c1c667eabe50db6fd351dd208f2",
+  "note": "RE-RECORDED BECAUSE THE PRODUCT CHANGED, AT THE CLOSE OF T033 AND ON THE MAINTAINER'S INSTRUCTION: the record this replaces was taken at T023's close, commit f457f52, and nine tasks of recorded work, T026 through T033, shipped without a re-record, so pnpm gates was green against a page that no longer exists, which is the exact sentence the replaced record used about its own predecessor and which session 51 wrote down as a finding rather than leaving T034 to trip over it. THE PAGE IS OVER page-bytes AND THE CAP DID NOT MOVE: 203,654 bytes against 198,656, over by 4,998: 64,741 document, 35,253 CSS, 103,660 JS, identical to the byte across all three studies of this dispatch and identical to the workstation, which is what this class of figure does. The debt is the page-bytes entry in BUDGET_EXCEPTIONS, owned by T012-R4 and due to clear by M2, and its figure was updated from this run. Against the record it replaces the page grew 4,042 bytes: JS up 3,586, the slot wiring of TX-SLOTWIRE first among the recorded additions, CSS up 949, the runner-and-streaming era plus the 280 byte embed failure rule of T033, and the document DOWN 493, which is T005-R1's honest recursion stops being smaller than the null skeletons they replaced. WHICH STUDY THIS IS, BY A RULE SET BEFORE THE NUMBERS WERE READ: the one whose TTI median is the middle of the three, since all three ran on the same AMD EPYC 7763 and the processor the replaced record names, the 9V74, was not in this dispatch, so the wall clock lines are NOT comparable with what they replace and say so here rather than inviting the comparison. The three medians were 243.9, 285.3 and 291.9 ms under Chrome 151, unchanged major. LONG TASKS: this study reads a median of 1 with a cap of 2, and the count stays the coarse instrument the replaced record called it.",
   "environment": {
     "id": "github-actions/ubuntu24/X64",
     "label": "GitHub Actions runner, image ubuntu24, X64",
-    "cpuModel": "AMD EPYC 9V74 80-Core Processor",
+    "cpuModel": "AMD EPYC 7763 64-Core Processor",
     "cpuCount": 4,
-    "totalMemoryBytes": 16766410752
+    "totalMemoryBytes": 16766414848
   },
   "browser": {
     "version": "151.0.7922.108",
@@ -24,50 +24,50 @@
   ],
   "throttleRate": 4,
   "throttleRatio": {
-    "samples": 25,
-    "median": 4.24,
-    "min": 4.17,
-    "max": 4.53,
-    "standardDeviation": 0.09
+    "samples": 20,
+    "median": 4.203410631632982,
+    "min": 4.146757679180475,
+    "max": 4.46575342465778,
+    "standardDeviation": 0.09831783321355217
   },
   "ttiMs": {
-    "samples": 25,
-    "median": 297.6,
-    "min": 226.4,
-    "max": 363.5,
-    "standardDeviation": 43.2
+    "samples": 20,
+    "median": 285.3000000000029,
+    "min": 224.8000000000029,
+    "max": 455.90000000000873,
+    "standardDeviation": 49.157515621779346
   },
   "ttiPhaseMs": {
-    "transfer": 1.0,
-    "parse": 160.4,
-    "script": 133.0,
-    "firstContentfulPaint": 208.0
+    "transfer": 0.7999999999883585,
+    "parse": 156.04999999999563,
+    "script": 131.6999999999971,
+    "firstContentfulPaint": 200
   },
   "mainThreadMs": {
-    "samples": 25,
-    "median": 308.3,
-    "min": 270.1,
-    "max": 372.8,
-    "standardDeviation": 27.9
+    "samples": 20,
+    "median": 290.323,
+    "min": 271.065,
+    "max": 431.659,
+    "standardDeviation": 34.33971655382974
   },
   "longTaskCount": {
-    "samples": 25,
+    "samples": 20,
     "median": 1,
     "min": 1,
     "max": 1,
     "standardDeviation": 0
   },
   "parsedBytes": {
-    "documentBytes": 65234,
-    "cssBytes": 34304,
-    "jsBytes": 100074
+    "documentBytes": 64741,
+    "cssBytes": 35253,
+    "jsBytes": 103660
   },
   "peakHeapBytes": {
     "samples": 5,
-    "median": 3379653,
-    "min": 3375245,
-    "max": 3385097,
-    "standardDeviation": 4367
+    "median": 3480313,
+    "min": 3466685,
+    "max": 3705660,
+    "standardDeviation": 126765.42447962693
   },
   "externalRequests": 0,
   "cspViolations": 0,

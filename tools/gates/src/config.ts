@@ -1059,11 +1059,11 @@ export const BROWSER_CEILINGS = {
 export const BUDGET_EXCEPTIONS: readonly BudgetException[] = [
   {
     budget: 'page-bytes',
-    measured: '199,612 bytes, 194.9 KB, over by 956',
+    measured: '203,654 bytes, 198.9 KB, over by 4,998',
     target: '194 KB, 198,656 bytes',
     owners: ['T012-R4'],
     clearBy: 'M2',
-    recordedAt: '2026-08-11',
+    recordedAt: '2026-08-11, re-measured on the runner 2026-08-14',
     diagnosis:
       'Measured on the runner at commit f457f52, and the same three columns came back identical ' +
       'to the byte on six studies across two dispatches, three processors and a workstation: ' +
@@ -1080,7 +1080,12 @@ export const BUDGET_EXCEPTIONS: readonly BudgetException[] = [
       'all. This entry is not an instruction to delete them and T012-R4 states the same in its ' +
       'own terms. It clears by M2 because T031 and T032 rework the theme surface, and a second ' +
       'theme is the first thing that can answer whether a level can be carried by fewer ' +
-      'declarations without losing what the declarations do.',
+      'declarations without losing what the declarations do. RE-MEASURED ON THE RUNNER at the ' +
+      'close of T033, 2026-08-14, commit 53027c9: 203,654 bytes, 64,741 document, 35,253 CSS, ' +
+      '103,660 JS, identical across three studies. The growth over the 2026-08-12 record is ' +
+      'the recorded work of T026 through T033, the slot wiring first among it, minus the 493 ' +
+      'bytes T005-R1 took back off the document; the entry stays owned by T012-R4 and due by ' +
+      'M2, and the figure here is the runner figure rather than a workstation one.',
   },
 ];
 

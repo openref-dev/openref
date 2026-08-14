@@ -654,7 +654,7 @@ describe('budgetExceptionsGate', () => {
     expect(over).toHaveLength(1);
     expect(over[0]?.level).toBe('warning');
     expect(over[0]?.message).toContain('OVER BUDGET, EXCEPTED page-bytes');
-    expect(over[0]?.message).toContain('199612 bytes against 198656');
+    expect(over[0]?.message).toContain('203654 bytes against 198656');
     expect(over[0]?.message).toContain('Owned by T012-R4, must clear by M2');
     expect(result.status).toBe('pass');
     // And the two rows SPEC 20 records without gating say so on the line, because a printed
