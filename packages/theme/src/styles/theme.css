@@ -712,6 +712,276 @@
   color: var(--oref-state-muted-fg);
 }
 
+/* TX-MARKUP: the layout's cheap markup, in the order a page draws it.
+ *
+ * The kicker quotes the document over the title; the drift box is the design's number and
+ * draws above zero only; the bench link is the primary button, which the contract paints with
+ * the specification accent. */
+
+.oref-kicker {
+  align-items: baseline;
+  color: var(--oref-color-fg-muted);
+  display: flex;
+  font-size: var(--oref-font-size-100);
+  gap: var(--oref-space-300);
+  letter-spacing: var(--oref-font-tracking-wide);
+  text-transform: uppercase;
+  width: 100%;
+}
+
+.oref-kicker-group {
+  color: var(--oref-color-fg-secondary);
+}
+
+.oref-kicker-id {
+  font-family: var(--oref-font-family-mono);
+  letter-spacing: normal;
+  text-transform: none;
+}
+
+.oref-operation-head-row {
+  align-items: flex-start;
+  display: flex;
+  gap: var(--oref-space-600);
+  justify-content: space-between;
+  width: 100%;
+}
+
+.oref-driftbox {
+  align-items: center;
+  border: var(--oref-border-hair) solid var(--oref-state-crit-fg);
+  color: var(--oref-state-crit-fg);
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  padding: var(--oref-space-300) var(--oref-space-600);
+}
+
+.oref-driftbox-count {
+  font-family: var(--oref-font-family-display);
+  font-size: var(--oref-font-size-600);
+  font-weight: var(--oref-font-weight-bold);
+  line-height: var(--oref-font-leading-tight);
+}
+
+.oref-driftbox-label {
+  font-size: var(--oref-font-size-100);
+  letter-spacing: var(--oref-font-tracking-wide);
+  text-transform: uppercase;
+}
+
+.oref-bench-link {
+  background: var(--oref-color-accent-spec);
+  color: var(--oref-color-fg-inverse);
+  font-size: var(--oref-font-size-300);
+  font-weight: var(--oref-font-weight-medium);
+  letter-spacing: var(--oref-font-tracking-mid);
+  padding: var(--oref-space-300) var(--oref-space-600);
+  text-decoration: none;
+  text-transform: uppercase;
+}
+
+/* The visible key chip on the palette trigger. The fact lives in aria-keyshortcuts; this is
+ * the discoverable half. */
+.oref-kbd {
+  border: var(--oref-border-hair) solid var(--oref-color-line-strong);
+  color: var(--oref-color-fg-muted);
+  font-family: var(--oref-font-family-mono);
+  font-size: var(--oref-font-size-100);
+  margin-inline-start: var(--oref-space-300);
+  padding: 0 var(--oref-space-200);
+}
+
+/* The rail's operation rows: the badge and the mono path, per the layout. The summary stays
+ * the palette's and the page's. */
+.oref-nav-item .oref-badge {
+  flex-shrink: 0;
+}
+
+.oref-nav-path {
+  font-family: var(--oref-font-family-mono);
+  font-size: var(--oref-font-size-200);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The merged responses: a code only the runtime knows is a flagged row, and the flag colours
+ * with the state the code itself carries. */
+.oref-response-undocumented {
+  background: var(--oref-state-crit-bg);
+  padding-inline: var(--oref-space-400);
+}
+
+.oref-response-note {
+  color: var(--oref-state-crit-fg);
+  font-size: var(--oref-font-size-200);
+}
+
+.oref-section-count {
+  font-weight: var(--oref-font-weight-regular);
+}
+
+/* The error contracts grid: three groups, each with the provenance edge its confidence
+ * carries, per SPEC 6.1's rule that a level survives monochrome print through an edge style. */
+.oref-errgrid {
+  display: grid;
+  gap: var(--oref-space-600);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+@media (max-width: 1100px) {
+  .oref-errgrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.oref-errgroup {
+  border-inline-start: var(--oref-border-mark) solid var(--oref-color-line-edge);
+  padding-inline-start: var(--oref-space-500);
+}
+
+.oref-errgroup-errors-declared {
+  border-inline-start-color: var(--oref-prov-declared-fg);
+  border-inline-start-style: var(--oref-prov-declared-border-style);
+}
+
+.oref-errgroup-errors-runtime-derived {
+  border-inline-start-color: var(--oref-prov-derived-fg);
+  border-inline-start-style: var(--oref-prov-derived-border-style);
+}
+
+.oref-errgroup-errors-global {
+  border-inline-start-color: var(--oref-prov-inferred-fg);
+  border-inline-start-style: var(--oref-prov-inferred-border-style);
+}
+
+.oref-errgroup-head {
+  font-size: var(--oref-font-size-300);
+  font-weight: var(--oref-font-weight-bold);
+  margin: 0;
+}
+
+.oref-errgroup-sub {
+  color: var(--oref-color-fg-muted);
+  font-size: var(--oref-font-size-200);
+  margin: var(--oref-space-100) 0 var(--oref-space-400);
+}
+
+.oref-errgroup-empty {
+  color: var(--oref-color-fg-secondary);
+  font-size: var(--oref-font-size-300);
+  margin: 0;
+}
+
+.oref-erritem {
+  border-top: var(--oref-border-hair) solid var(--oref-color-line);
+  padding: var(--oref-space-400) 0;
+}
+
+.oref-erritem-row {
+  align-items: baseline;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--oref-space-400);
+}
+
+.oref-erritem-title {
+  color: var(--oref-color-fg);
+  font-size: var(--oref-font-size-300);
+}
+
+.oref-erritem-schema {
+  color: var(--oref-color-accent-link);
+  font-family: var(--oref-font-family-mono);
+  font-size: var(--oref-font-size-200);
+}
+
+.oref-erritem-type {
+  color: var(--oref-color-fg-muted);
+  font-family: var(--oref-font-family-mono);
+  font-size: var(--oref-font-size-200);
+  margin-top: var(--oref-space-200);
+}
+
+.oref-erritem-detail {
+  color: var(--oref-color-fg-secondary);
+  font-size: var(--oref-font-size-300);
+  line-height: var(--oref-font-leading-data);
+  margin-top: var(--oref-space-200);
+}
+
+/* The schema page head: the dialect line and the view segment. Both buttons unpressed is the
+ * both view; a pressed button narrows, per SPEC 11. */
+.oref-schema-dialect {
+  color: var(--oref-color-fg-muted);
+  font-size: var(--oref-font-size-200);
+  margin: 0;
+  width: 100%;
+}
+
+.oref-seg {
+  display: inline-flex;
+}
+
+.oref-seg-btn {
+  background: var(--oref-color-surface-inset);
+  border: var(--oref-border-hair) solid var(--oref-color-line-strong);
+  color: var(--oref-color-fg-secondary);
+  font-family: var(--oref-font-family-sans);
+  font-size: var(--oref-font-size-200);
+  letter-spacing: var(--oref-font-tracking-mid);
+  padding: var(--oref-space-200) var(--oref-space-500);
+  text-transform: uppercase;
+}
+
+.oref-seg-btn + .oref-seg-btn {
+  border-inline-start: none;
+}
+
+.oref-seg-btn[aria-pressed='true'] {
+  background: var(--oref-color-accent-bg);
+  color: var(--oref-color-fg);
+}
+
+/* The permanent field anchor: the row is a button, so the link is its sibling, overlaid on
+ * the row's first line and visible when the reader is near it. */
+.oref-schema-item {
+  position: relative;
+}
+
+.oref-schema-anchor {
+  color: var(--oref-color-fg-muted);
+  font-family: var(--oref-font-family-mono);
+  font-size: var(--oref-font-size-200);
+  inset-block-start: var(--oref-space-200);
+  inset-inline-end: var(--oref-space-200);
+  opacity: 0;
+  position: absolute;
+  text-decoration: none;
+}
+
+.oref-schema-item:hover > .oref-schema-anchor,
+.oref-schema-anchor:focus-visible {
+  opacity: 1;
+}
+
+/* The bench's verdict chip: whether the answer matches the declaration. */
+.oref-run-verdict {
+  font-size: var(--oref-font-size-200);
+  padding: var(--oref-space-100) var(--oref-space-300);
+}
+
+.oref-run-verdict-ok {
+  background: var(--oref-state-ok-bg);
+  color: var(--oref-state-ok-fg);
+}
+
+.oref-run-verdict-off {
+  background: var(--oref-state-warn-bg);
+  color: var(--oref-state-warn-fg);
+}
+
 /* Security and servers */
 
 /* Every list in this theme that is a list of rows rather than a list of items, in one rule for
@@ -775,12 +1045,14 @@
  * The renderer emits one class per token kind and never a colour, because a nonce cannot
  * authorize a style attribute and a colour is a theme's decision in any case.
  *
- * THIS BLOCK IS TEMPORARY AND IS KEPT IN ONE PIECE SO IT CAN BE REPOINTED IN ONE EDIT. The
- * token contract carries no syntax palette, so these rules read the state colours, and that is
- * wrong on the merits: the colour of a response code and the colour of a keyword are different
- * things, and five state colours are a thin palette for a product whose code blocks occupy half
- * the page. When a syntax group arrives it becomes its own token group and only the right hand
- * side of these declarations changes.
+ * THE PREDICTED REPOINT HAPPENED ON 2026-08-14 WITH TX-MARKUP. This block read the state
+ * colours while the token contract carried no syntax palette, and its own comment reserved a
+ * one-edit repoint for the day the group arrived. The group is core now, 13 names per
+ * CONTRACT.md, and only the right hand sides changed, exactly as reserved. The highlighter maps
+ * shiki kinds onto the palette: constant reads number, parameter reads variable, and the
+ * string-expression kind reads string. type, operator and the two diff pairs are defined in
+ * tokens.css and drawn by nothing yet, because no loaded grammar path emits them; the day one
+ * does, the rule is added here and the pair is claimed in the contrast list.
  */
 
 .oref-hl-line {
@@ -788,29 +1060,32 @@
 }
 
 .oref-hl-keyword {
-  color: var(--oref-color-accent-spec);
+  color: var(--oref-syntax-keyword);
 }
 
 .oref-hl-string,
 .oref-hl-string-expression {
-  color: var(--oref-state-ok-fg);
+  color: var(--oref-syntax-string);
 }
 
 .oref-hl-constant {
-  color: var(--oref-state-warn-fg);
+  color: var(--oref-syntax-number);
 }
 
 .oref-hl-function {
-  color: var(--oref-state-info-fg);
+  color: var(--oref-syntax-function);
 }
 
 .oref-hl-parameter {
-  color: var(--oref-color-fg);
+  color: var(--oref-syntax-variable);
 }
 
-.oref-hl-comment,
+.oref-hl-comment {
+  color: var(--oref-syntax-comment);
+}
+
 .oref-hl-punctuation {
-  color: var(--oref-color-fg-muted);
+  color: var(--oref-syntax-punctuation);
 }
 
 .oref-hl-link {

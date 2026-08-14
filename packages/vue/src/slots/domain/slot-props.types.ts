@@ -2,6 +2,7 @@ import type { IRConfidence, IRSchema, IRSchemaView } from '@openref/core';
 import type {
   CodeSampleModel,
   DriftModel,
+  ErrorContractGroupModel,
   FrameModel,
   FrameStatsModel,
   HealthModel,
@@ -10,6 +11,7 @@ import type {
   PageKind,
   PaletteHitModel,
   ParameterModel,
+  ResponseMarkModel,
   ResponseModel,
   RuntimeModel,
   SchemaPageModel,
@@ -59,7 +61,7 @@ import type { StateNoticeKind, StreamCounts } from './slot-value.types';
  * WHERE A DECLARED PROP IS A SUPERTYPE OF WHAT ARRIVES, THE CONTRACT IS THE SUPERTYPE.
  * `OperationHeader.node` is a {@link NodeHeaderModel} and the value handed is the page's own
  * {@link import('../../page/domain/page-model.types').NodeModel}, which extends it. Narrowing it
- * would allocate a copy of eight fields on every render of every page to hide fields a theme has
+ * would allocate a copy of ten fields on every render of every page to hide fields a theme has
  * no reason to read; what is promised is what is declared, and reading past it reads something
  * that may move.
  *
@@ -72,11 +74,13 @@ import type { StateNoticeKind, StreamCounts } from './slot-value.types';
  *
  * WHAT IS NOT HERE, AND WHY, BECAUSE SOMEBODY WILL PROPOSE EACH OF THEM AGAIN.
  *
- * - `ErrorContract`. The three groups of SPEC 6.4 are three labelled rows of the runtime block.
- *   Giving them a component of their own undoes T023's measured decision that the block is one
- *   list of labelled rows and not five shapes, which was worth 1.4 KB of the first paint. A
- *   theme varies errors by overriding `RuntimePanel`, and it tells an error row from a scope row
- *   by `RuntimeRowModel.kind`, which exists for that and is the supported way. Matching on the
+ * - `ErrorContract`. The three groups of SPEC 6.4 are three labelled rows of the runtime block,
+ *   and since `TX-MARKUP` the grid on the operation page is drawn by the `ResponseList` default
+ *   from `contracts` on its props. Neither gets a slot of its own: giving them one undoes
+ *   T023's measured decision that the block is one list of labelled rows and not five shapes,
+ *   which was worth 1.4 KB of the first paint. A theme varies errors by overriding
+ *   `RuntimePanel` or `ResponseList`, and it tells an error row from a scope row by
+ *   `RuntimeRowModel.kind`, which exists for that and is the supported way. Matching on the
  *   label is matching on English, and the English changed twice in M1
  * - `BranchPicker`, `PatternKeys`, `TupleField`. The tree draws variants, pattern properties and
  *   prefix items as ordinary rows through one expander, and `SchemaTreeNode.relation` already
@@ -192,8 +196,15 @@ export interface SlotPropsMap {
    */
   SchemaPage: { schema: SchemaPageModel; basePath: string };
 
-  /** Method, path, summary and the discrepancies found against the running application. */
-  OperationHeader: { node: NodeHeaderModel; drift: readonly DriftModel[] };
+  /**
+   * Method, path, summary and the discrepancies found against the running application.
+   *
+   * `benchHref` since `TX-MARKUP`: where the header's primary button leads, empty exactly when
+   * the frame draws no bench tab, so the two never disagree about whether a bench exists. The
+   * header draws the kicker from `node.tags` and `node.operationId` and the drift box from
+   * `drift.length`; the count is the design's box, and the detail stays in the FixBar.
+   */
+  OperationHeader: { node: NodeHeaderModel; drift: readonly DriftModel[]; benchHref: string };
 
   /**
    * Runtime facts about one node, each with where it came from.
@@ -217,12 +228,18 @@ export interface SlotPropsMap {
   ParamTable: { parameters: readonly ParameterModel[] };
 
   /**
-   * Response codes of an operation, with descriptions and examples already rendered.
+   * Response codes of an operation, with descriptions and examples already rendered, and the
+   * error contracts under them.
    *
    * THE SCHEMA SLICE IS A PROP AND IT IS NOT AN IR PROP. A response body draws a tree under it,
    * and the tree expands from the bounded slice of schemas the page ships with rather than from
    * the document, which does not travel. Without the slice this position can draw a status code
    * and a sentence and nothing else.
+   *
+   * `marks` AND `contracts` SINCE `TX-MARKUP`, both empty when no error collector ran. The
+   * merged list and the grid live in this position rather than in the page composition, so a
+   * theme that owns the responses owns everything said about them, and the markup a complete
+   * theme cannot replace does not grow.
    */
   ResponseList: {
     responses: readonly ResponseModel[];
@@ -230,6 +247,10 @@ export interface SlotPropsMap {
     /** Ids referenced from this page and left behind by the payload bound, shown as links. */
     truncated: readonly string[];
     basePath: string;
+    /** What the runtime knows per code: the chip on a backed row, the row for an unknown one. */
+    marks: readonly ResponseMarkModel[];
+    /** The error contracts grid, per SPEC 6.4, in the declared, derived, global order. */
+    contracts: readonly ErrorContractGroupModel[];
   };
 
   /**
@@ -276,6 +297,20 @@ export interface SlotPropsMap {
      * schema page's root is the schema, and its name is its own.
      */
     borrowedLabel: boolean;
+    /**
+     * Whether each row carries its permanent `#` link, per `TX-MARKUP`.
+     *
+     * The schema page turns it on; a tree under a response does not, because the fragment
+     * namespace belongs to one tree per page and the schema page is that tree.
+     */
+    anchors: boolean;
+    /**
+     * The row a reader's fragment names, already decoded, or empty.
+     *
+     * On mount the tree expands the ancestors of this path level by level through the same
+     * lazy expander and focuses the row: a permanent address opens the schema at the field.
+     */
+    anchor: string;
   };
 
   /**
@@ -357,12 +392,19 @@ export interface SlotPropsMap {
     onSend(): void;
   };
 
-  /** Status, headers, body and timings of the last response. */
+  /**
+   * Status, headers, body and timings of the last response.
+   *
+   * `declared` since `TX-MARKUP`: the status codes the document declares for this operation,
+   * so the view can say whether the answer matches the declaration. Empty means no comparison
+   * and no chip, because a verdict against nothing asserts nothing.
+   */
   ResponseView: {
     result: RunnerResult | undefined;
     /** What the runner refused with, or undefined when it did not. */
     error: string | undefined;
     pending: boolean;
+    declared: readonly string[];
   };
 
   /**

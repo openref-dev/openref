@@ -69,6 +69,25 @@ interface ReachSpec {
   /** A keystroke anywhere on the page that also opens it, such as the palette shortcut. */
   readonly shortcut?: (event: KeyboardEvent) => boolean;
   /**
+   * Controls outside the region whose events open the gate and are NOT recorded for replay,
+   * because their own listeners are live from the first hydration.
+   *
+   * THE DIFFERENCE FROM `selector` IS WHO HANDLES THE EVENT. An event inside the region lands
+   * on markup with no listeners and is lost unless it is kept and dispatched again; an event
+   * on one of these landed on a hydrated control and already did its work, so replaying it
+   * would do that work twice. The schema page's view segment is the case: the press narrows
+   * the view in the page head, and the tree it narrows is behind this gate.
+   */
+  readonly openers?: string;
+  /**
+   * True when the page arrived already reaching for the feature, so the gate opens at once.
+   *
+   * The permanent field anchor is the case: a reader arriving with a fragment is reaching for
+   * the tree by address, and a gate that waited for a pointer would leave the address walking
+   * nothing.
+   */
+  readonly alreadyOpen?: boolean;
+  /**
    * What a failed load must tell the reader, per SPEC 11's second half.
    *
    * The served control is a real enabled button since 2026-08-14, so a chunk that never
@@ -140,10 +159,26 @@ export function whenReached(spec: ReachSpec, root: HydrateRoot): Reached {
   let settle: (() => void) | null = null;
   const reached = new Promise<void>((resolve) => {
     settle = resolve;
+    // The page arrived reaching for the feature, so the gate is open from the start. The
+    // listeners stay armed all the same: an interaction during the load is still an
+    // interaction to keep and dispatch again.
+    if (spec.alreadyOpen === true) resolve();
   });
 
   const onEvent = (event: Event): void => {
     const target = event.target;
+
+    // An opener's event is handled by its own live listener, so it opens the gate and is not
+    // recorded: replaying it would run that handler a second time.
+    if (
+      spec.openers !== undefined &&
+      target instanceof Element &&
+      target.closest(spec.openers) !== null
+    ) {
+      settle?.();
+      return;
+    }
+
     const inRegion = target instanceof Element && target.closest(spec.selector) !== null;
     const shortcut =
       spec.shortcut !== undefined && event instanceof KeyboardEvent && spec.shortcut(event);
@@ -277,6 +312,13 @@ export interface DeferredOptions {
   /** Document to arm the triggers on. */
   readonly document: HydrateRoot;
   /**
+   * The reader's fragment, when they arrived with one, per TX-MARKUP.
+   *
+   * A non-empty fragment opens the schema viewer's gate at once: arriving by permanent
+   * address is reaching for the tree, and the walk that honours the address runs on mount.
+   */
+  readonly anchor?: string;
+  /**
    * Builds the request runner, when the console is first reached.
    *
    * A FUNCTION RATHER THAN A PORT, so the runner travels in the console's chunk instead of the
@@ -305,6 +347,12 @@ export function deferredComponents(options: DeferredOptions): DeferrableComponen
         // `keydown` as well as the pointer, because the tree is a `role="tree"` with roving
         // focus and arrow keys, and a reader who is on the keyboard never clicks it.
         events: ['pointerdown', 'click', 'focusin', 'keydown'],
+        // The view segment lives in the page head and narrows this tree, so its press opens
+        // the gate; its own listener is live, so the press is not replayed. Without this, a
+        // re-render of the pending async component evicts the adopted server markup and the
+        // page shows no tree at all, which the browser suite caught on the first press.
+        openers: '.oref-seg',
+        alreadyOpen: (options.anchor ?? '') !== '',
       },
       root,
       async () => (await import('../components/SchemaView')).SchemaView,

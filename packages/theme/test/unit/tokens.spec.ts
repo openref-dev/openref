@@ -92,9 +92,10 @@ describe('the token set', () => {
     expect(names).toEqual([]);
   });
 
-  it('should hold exactly the 109 names the design contract fixes', () => {
+  it('should hold exactly the 122 names the design contract fixes', () => {
     // Given, the contract list is transcribed in the mock, so a rename shows up as a diff here
-    // rather than as a theme that silently stops conforming.
+    // rather than as a theme that silently stops conforming. 109 until 2026-08-14, when the
+    // syntax group of 13 landed with TX-MARKUP.
     const declared = THEME_TOKENS.map((token) => token.name).sort((a, b) => a.localeCompare(b));
 
     // When
@@ -102,7 +103,7 @@ describe('the token set', () => {
 
     // Then
     expect(declared).toEqual(contract);
-    expect(THEME_TOKENS).toHaveLength(109);
+    expect(THEME_TOKENS).toHaveLength(122);
   });
 
   it('should group the core set the way the contract groups it', () => {
@@ -119,6 +120,7 @@ describe('the token set', () => {
       'prov',
       'state',
       'drift',
+      'syntax',
       'motion',
       'scrim',
     ];

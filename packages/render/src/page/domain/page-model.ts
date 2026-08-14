@@ -22,6 +22,7 @@ import {
   type IROperation,
   type IRParameter,
   type IRSchema,
+  type IRSchemaDialect,
   type IRSchemaSlot,
   type IRSchemaView,
 } from '@openref/core';
@@ -53,6 +54,12 @@ import type { IMarkdownRenderer } from '../../markdown/domain/markdown';
 
 /**
  * Version of the page model shape, part of the cache key.
+ *
+ * 12 SINCE `TX-MARKUP`: the header promise widened to `tags` and `operationId`, the runtime
+ * block carries `responseMarks` and `contracts` for the merged responses and the error grid,
+ * and a schema page carries `dialect`. A page cached before this hydrates a header with no
+ * kicker and a responses block that says nothing the runtime knows, which is the page from
+ * before the markup landed rather than a broken one.
  *
  * 11 SINCE `TX-FRAME`: `kind` and `frame` on the model, `driftCount` on every navigation
  * entry, and the health panel travels with the health page rather than the overview, per
@@ -88,7 +95,7 @@ import type { IMarkdownRenderer } from '../../markdown/domain/markdown';
  * 6 was T027: `run.bodyMediaTypes`, a list of strings, became `run.body`, a list of media types
  * each carrying the editor its schema asks for and the fields it is made of.
  */
-export const PAGE_MODEL_VERSION = 11;
+export const PAGE_MODEL_VERSION = 12;
 
 /** Media types an example is generated for. */
 const JSON_MEDIA_TYPE = /^application\/(?:[\w.+-]+\+)?json$/i;
@@ -165,6 +172,14 @@ function navHint(document: IRDocument, nodeId: string | undefined): string {
   return `${node.method.toUpperCase()} ${node.path}`;
 }
 
+/** The method of an operation entry, for the rail's badge. Empty for everything else. */
+function navMethod(document: IRDocument, nodeId: string | undefined): string {
+  if (nodeId === undefined) return '';
+
+  const node = document.nodes.get(nodeId);
+  return node === undefined || node.kind === 'channel' ? '' : node.method.toUpperCase();
+}
+
 /**
  * Findings per subject, counted once per document rather than once per entry.
  *
@@ -204,6 +219,7 @@ function navEntry(
     // still count each finding once because a finding names one subject.
     driftCount: own + children.reduce((sum, child) => sum + child.driftCount, 0),
     hint: navHint(document, node.nodeId),
+    method: navMethod(document, node.nodeId),
     childCount: node.children.length,
     children,
   };
@@ -376,6 +392,21 @@ function slotsOf(node: NodeModel): IRSchemaSlot[] {
   return slots;
 }
 
+/**
+ * The dialect line of the schema page head, in the reader's words.
+ *
+ * `unknown` renders as nothing: a page that prints the word unknown about its own schema is
+ * reporting on the instrument in the line that exists to state a fact about the document.
+ */
+const DIALECT_LABELS: Readonly<Record<IRSchemaDialect, string>> = {
+  'json-schema-2020-12': 'JSON Schema 2020-12',
+  'openapi-3.0': 'OpenAPI 3.0 schema',
+  'asyncapi-schema': 'AsyncAPI schema',
+  avro: 'Avro',
+  protobuf: 'Protobuf',
+  unknown: '',
+};
+
 function schemaPageModel(context: ModelContext, schemaId: string): SchemaPageModel {
   const entry = context.document.schemas.get(schemaId);
 
@@ -386,6 +417,7 @@ function schemaPageModel(context: ModelContext, schemaId: string): SchemaPageMod
       descriptionHtml: '',
       deprecated: false,
       missing: true,
+      dialect: '',
     };
   }
 
@@ -397,6 +429,7 @@ function schemaPageModel(context: ModelContext, schemaId: string): SchemaPageMod
     descriptionHtml: context.markdown.render(body?.description),
     deprecated: body?.deprecated ?? false,
     missing: false,
+    dialect: DIALECT_LABELS[entry.dialect],
   };
 }
 
@@ -422,6 +455,9 @@ function nodeModel(context: ModelContext, nodeId: string): NodeModel | null {
   if (view.kind === 'channel') {
     return {
       ...base,
+      // A channel has no operationId: the field is OpenAPI's, and an empty string is the
+      // honest answer the kicker draws nothing from.
+      operationId: '',
       method: null,
       path: null,
       address: view.node.address ?? null,
@@ -441,6 +477,9 @@ function nodeModel(context: ModelContext, nodeId: string): NodeModel | null {
 
   return {
     ...base,
+    // The public operation id of SPEC 5.4: the author's own whenever they wrote a real one,
+    // which is what the kicker quotes.
+    operationId: view.node.operationId ?? '',
     method: view.node.method.toUpperCase(),
     path: view.node.path,
     address: null,
@@ -489,15 +528,41 @@ function primarySchemaIdOf(document: IRDocument, node: NodeModel): string | null
   return null;
 }
 
-/** Breadcrumb of the current node, per SPEC 11: the group, then what the node answers on. */
-function crumbOf(node: NodeModel | null, schema: SchemaPageModel | null): string {
+/** Whether a navigation subtree holds the given schema. */
+function holdsSchema(entry: IRNavNode, schemaId: string): boolean {
+  if (entry.schemaId === schemaId) return true;
+  return entry.children.some((child) => holdsSchema(child, schemaId));
+}
+
+/**
+ * Breadcrumb of the current node, per SPEC 11: the group, then what the node answers on.
+ *
+ * A SCHEMA'S GROUP IS READ OFF THE NAVIGATION AND NEVER SPELLED HERE, since `TX-MARKUP`
+ * completed the crumb for the one page kind whose crumb was bare. The registry group's label is
+ * `schemasLabel ?? 'Schemas'` in core, so a second spelling of the word in this file would
+ * drift the day a host renames the group.
+ */
+function crumbOf(
+  document: IRDocument,
+  node: NodeModel | null,
+  schema: SchemaPageModel | null,
+): string {
   if (node !== null) {
     const address =
       node.method !== null ? `${node.method} ${node.path ?? ''}` : (node.address ?? '');
     return [node.tags[0], address].filter((part) => part !== undefined && part !== '').join(' / ');
   }
 
-  return schema === null ? '' : schema.name;
+  if (schema === null) return '';
+
+  const group = document.navigation.find(
+    (entry) =>
+      entry.nodeId === undefined && entry.schemaId === undefined && holdsSchema(entry, schema.id),
+  );
+
+  return [group?.label, schema.name]
+    .filter((part) => part !== undefined && part !== '')
+    .join(' / ');
 }
 
 /** The rail's stats row: the document's counts, per SPEC 7.3's null-against-zero rule. */
@@ -576,7 +641,7 @@ function buildFrame(
           ? schemaHref(schema.id, basePath)
           : overviewHref(basePath);
 
-  return { tabs, crumb: crumbOf(node, schema), backHref, stats: frameStats(document) };
+  return { tabs, crumb: crumbOf(document, node, schema), backHref, stats: frameStats(document) };
 }
 
 /** The page kind, stated by the caller or derived the way it was before `TX-FRAME`. */

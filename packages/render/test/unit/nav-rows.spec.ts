@@ -21,6 +21,7 @@ function entry(id: string, children: NavEntryModel[] = [], nodeId?: string): Nav
     deprecated: false,
     driftCount: 0,
     hint: '',
+    method: '',
     childCount: children.length,
     children,
   };

@@ -642,11 +642,15 @@ export const SIZE_BUDGETS: readonly SizeBudget[] = [
   {
     id: 'client-js-schema',
     label: 'Client JS expanding a schema downloads, gzip',
-    limitBytes: 1_800,
+    // 1,977 measured at `TX-MARKUP`, plus ten percent, rounded down to a hundred bytes. What
+    // moved it is a capability arriving in this chunk: the permanent field anchor, its
+    // mount-time walk that expands the ancestors of a fragment, and the view the segment
+    // narrows, per SPEC 11. The old 1,800 held 1,782 until then.
+    limitBytes: 2_100,
     roots: CLIENT_JS_ROOTS,
     extensions: ['.js', '.mjs'],
     quantity: 'transfer',
-    producedBy: 'T011-R, split by gesture in T026',
+    producedBy: 'T011-R, split by gesture in T026, re-derived in TX-MARKUP',
     partition: { entry: CLIENT_JS_ENTRY, side: 'deferred', gesture: 'schema' },
   },
   {
@@ -654,13 +658,17 @@ export const SIZE_BUDGETS: readonly SizeBudget[] = [
     label: 'Client JS expanding a schema downloads, raw bytes',
     // 4,296 measured at `TX-SLOTWIRE`, plus ten percent, rounded down to a hundred bytes. 96 bytes
     // of it: `SchemaView` resolves the position and `SchemaTree` draws it, which is what lets the
-    // tree be a slot handed a root and an expander rather than a slice of the document. The gzip
-    // cap beside it was not touched, because 1,782 of 1,800 still holds.
-    limitBytes: 4_700,
+    // tree be a slot handed a root and an expander rather than a slice of the document.
+    //
+    // RE-DERIVED AT `TX-MARKUP`: 4,847 measured, plus ten percent, rounded down to a hundred.
+    // The 551 bytes over the old measurement are the anchors and the walk, per the gzip cap
+    // beside this one, and they are the feature: a permanent address that expands nothing is a
+    // link to the top of the page.
+    limitBytes: 5_300,
     roots: CLIENT_JS_ROOTS,
     extensions: ['.js', '.mjs'],
     quantity: 'parse',
-    producedBy: 'T011-R, split by gesture in T026, re-derived in TX-SLOTWIRE',
+    producedBy: 'T011-R, split by gesture in T026, re-derived in TX-SLOTWIRE and TX-MARKUP',
     partition: { entry: CLIENT_JS_ENTRY, side: 'deferred', gesture: 'schema' },
   },
   {
@@ -712,13 +720,25 @@ export const SIZE_BUDGETS: readonly SizeBudget[] = [
     // and keeps the derived property exactly: a navigation sized region, 2,520, still fits,
     // 46,699 under the cap; a page frame sized one, 3,287, and a console sized one, 3,669,
     // still land over it.
+    //
+    // RECOMPUTED AT TX-MARKUP, 46 TO 53 KB, SAME REASON, SAME WORDS: it moved because the
+    // renderer emits a class family the two way sweep must style, which is a capability
+    // arriving, not drift. The cheap markup of the layout arrived: the kicker, the drift box
+    // and the bench link, the merged responses with the flagged undocumented row, the error
+    // contracts grid with its three provenance edged groups, the schema page's dialect line,
+    // view segment and field anchors, the rail's method badge and path, and the key chip; and
+    // the syntax group of 13 landed in tokens.css, per CONTRACT.md. Measured 51,576 after it:
+    // 37,658 theme.css, 9,707 tokens.css, 4,211 fonts.css. 53 KB is 54,272 and is the one
+    // whole KB step that keeps the derived property exactly: a navigation sized region,
+    // 2,520, still fits, 54,096 under the cap; a page frame sized one, 3,287, and a console
+    // sized one, 3,669, still land over it.
     id: 'theme-css-raw',
     label: 'Default theme CSS, raw bytes',
-    limitBytes: 46 * 1024,
+    limitBytes: 53 * 1024,
     quantity: 'parse',
     roots: THEME_CSS_ROOTS,
     extensions: ['.css'],
-    producedBy: 'T009, recomputed at TX-GUTTER and TX-FRAME',
+    producedBy: 'T009, recomputed at TX-GUTTER, TX-FRAME and TX-MARKUP',
   },
 
   // THE WEB COMPONENT OUTPUTS OF SPEC 10.3, both files of one directory under one cap pair,
@@ -1111,11 +1131,11 @@ export const BUDGET_EXCEPTIONS: readonly BudgetException[] = [
   },
   {
     budget: 'client-js-raw',
-    measured: '109,584 bytes, 107.0 KB, over by 5,136',
+    measured: '113,261 bytes, 110.6 KB, over by 8,813',
     target: '102 KB, 104,448 bytes',
     owners: ['TX-ADOPT'],
     clearBy: 'M3',
-    recordedAt: '2026-08-14, at TX-GUTTER, grown at TX-FRAME the same day',
+    recordedAt: '2026-08-14, at TX-GUTTER, grown at TX-FRAME and TX-MARKUP the same day',
     diagnosis:
       'The first paint gained the parity scale of SPEC 6.3: eleven paired rows with verdicts, ' +
       'the FixBar and the empty side treatment, ordered by the maintainer in the TX-GUTTER ' +
@@ -1140,7 +1160,13 @@ export const BUDGET_EXCEPTIONS: readonly BudgetException[] = [
       'covers it under the same terms. ONE NAMED RESIDUE rather than a hidden one: the states ' +
       'showcase panel rides the entry statically although only its own address draws it; a ' +
       'page-kind gated deferral is new machinery, and TX-ADOPT restructures exactly this ' +
-      'boundary, so the residue is named here instead of half built now.',
+      'boundary, so the residue is named here instead of half built now. GROWN AT TX-MARKUP, ' +
+      'same day: the cheap markup of the layout entered the first paint, the header kicker, ' +
+      'drift box and bench link, the merged responses with the error contracts grid, the ' +
+      'rail method badges, the key chip and the schema page head. Measured 113,261 across ' +
+      'the same six chunks, so the markup costs 3,677 raw on top of the frame. It is the ' +
+      'same adoptable shape again, static markup and links whose one client handler set is ' +
+      'the schema page view segment, and the same payer covers it under the same terms.',
   },
 ];
 

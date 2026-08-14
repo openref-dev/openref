@@ -16,9 +16,30 @@ import { statusClass } from '../shared/status';
 import type { RunnerResult } from '@openref/vue';
 
 /**
+ * The verdict chip of `TX-MARKUP`: whether the answer matches the declaration.
+ *
+ * No declared codes, no chip, because a comparison against nothing asserts nothing. The
+ * negative wording names the code and the declaration rather than judging the server: an
+ * undeclared 500 may be the application misbehaving or the document under-declaring, and which
+ * of the two is the drift engine's question, not this chip's.
+ */
+function verdictChip(status: number, declared: readonly string[]): VNode | null {
+  if (declared.length === 0) return null;
+
+  const code = String(status);
+  return declared.includes(code)
+    ? h('span', { class: 'oref-run-verdict oref-run-verdict-ok' }, `matches declared ${code}`)
+    : h(
+        'span',
+        { class: 'oref-run-verdict oref-run-verdict-off' },
+        `${code} not among the declared codes`,
+      );
+}
+
+/**
  * Renders the last response, or what the runner refused with.
  *
- * @param props - The result, the refusal, and whether a request is in flight
+ * @param props - The result, the refusal, whether a request is in flight, and the declaration
  * @returns The response, the refusal, or null when nothing has been sent
  *
  * A REFUSAL AND A RESPONSE ARE NEVER BOTH DRAWN, because the runner clears one when it produces
@@ -29,6 +50,7 @@ export function ResponseView(props: {
   readonly result: RunnerResult | undefined;
   readonly error: string | undefined;
   readonly pending: boolean;
+  readonly declared: readonly string[];
 }): VNode | null {
   const result = props.result;
 
@@ -47,6 +69,7 @@ export function ResponseView(props: {
         `${String(result.status)} ${result.statusText}`.trim(),
       ),
       h('span', { class: 'oref-run-time' }, `${String(Math.round(result.durationMs))} ms`),
+      verdictChip(result.status, props.declared),
     ]),
     result.headers.length === 0
       ? null

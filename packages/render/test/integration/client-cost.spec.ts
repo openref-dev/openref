@@ -63,10 +63,14 @@ const MEMORY_CEILING_BYTES = 250 * 1024 * 1024;
  * of it. WHAT THE REST IS HAS NOT BEEN FOUND, and it is recorded as an open finding rather than
  * papered over with one threshold covering both. The gated SPEC 20 ceiling is 72 KB and is
  * checked against Chrome, where a reader actually pays. This one is derived from what this
- * harness measures, measured 49,114 plus about ten percent, so that it goes on being the cheap
- * early warning it was built to be instead of a number with 47 percent of slack in it.
+ * harness measures, so that it goes on being the cheap early warning it was built to be
+ * instead of a number with 47 percent of slack in it. Measured 49,114 plus about ten percent
+ * at derivation; re-derived 2026-08-14 with TX-MARKUP at 56,355 plus the same ten percent,
+ * because the input changed for the sanctioned reason: the rail rows carry the method badge
+ * and path and the navigation entries carry `method`, which is a capability arriving, not
+ * drift. The before and after figures are in the session log.
  */
-const DOCUMENT_CEILING_BYTES = 54 * 1024;
+const DOCUMENT_CEILING_BYTES = 61 * 1024;
 
 /**
  * The largest document in the corpus, which is what SPEC 20's figure is about.

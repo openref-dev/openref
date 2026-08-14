@@ -90,6 +90,8 @@ export { runnerOperationOf } from './runner/domain/runner-operation';
 export type {
   CodeSampleModel,
   DriftModel,
+  ErrorContractGroupModel,
+  ErrorContractItemModel,
   FrameModel,
   FrameStatsModel,
   FrameTabKind,
@@ -110,6 +112,7 @@ export type {
   ParityRowModel,
   ParitySideModel,
   ParityVerdict,
+  ResponseMarkModel,
   ResponseModel,
   RuntimeModel,
   RuntimeRowKind,

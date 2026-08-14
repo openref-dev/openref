@@ -38,7 +38,7 @@ import type { ThemeDefinition } from '@openref/vue';
  *
  * NO TOKEN DEFAULTS ARE DECLARED HERE AND THAT IS DELIBERATE. `tokens` on a theme definition is
  * the L0 surface, for a theme that adjusts a handful of values and leaves the rest to whatever is
- * already on the page. This theme ships all 109 in a stylesheet of its own, in both colour modes,
+ * already on the page. This theme ships all 122 in a stylesheet of its own, in both colour modes,
  * because an L2 theme that declared them here would declare them once and lose the dark mode: a
  * record of strings has no cascade in it.
  */

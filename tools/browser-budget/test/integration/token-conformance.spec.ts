@@ -309,8 +309,8 @@ describe('the token contract, resolved in a browser', () => {
       },
     );
 
-    // Then
-    expect(changing).toHaveLength(48);
+    // Then, 61 since TX-MARKUP: the 13 syntax tokens all change between modes
+    expect(changing).toHaveLength(61);
     expect(ALL_TOKENS.filter((token) => token.dark === token.value)).toEqual([]);
     expect(unmoved).toEqual([]);
   });

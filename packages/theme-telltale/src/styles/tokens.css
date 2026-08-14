@@ -1,10 +1,11 @@
 /*
  * telltale design tokens, per SPEC 10.1, STANDARDS 4.4 and ai-docs/design/CONTRACT.md.
  *
- * The 109 names of the core token set in both colour modes, plus six this theme adds for
- * positions no other theme has. Values come from the design handoff filed at
- * ai-docs/design/telltale/tokens.css; tokens.spec.ts holds this file to the contract and to the
- * cascade, and contrast.spec.ts holds the ink to 4.5:1 on every surface it is used on.
+ * The 122 names of the core token set in both colour modes, 109 until the syntax group landed
+ * on 2026-08-14, plus six this theme adds for positions no other theme has. Values come from
+ * the design handoff filed at ai-docs/design/telltale/tokens.css; tokens.spec.ts holds this
+ * file to the contract and to the cascade, and contrast.spec.ts holds the ink to 4.5:1 on
+ * every surface it is used on.
  *
  * Four blocks, in this order and for this reason: the light values are the defaults, the system
  * preference applies the dark values, an explicit attribute overrides both, and the reduced
@@ -12,7 +13,7 @@
  *
  * THE DARK BLOCKS DECLARE ONLY WHAT CHANGES. A token declared light and not overridden has a
  * value in dark mode, because that is what the cascade is for. The design contract requires all
- * 109 to be defined in both modes and checks that on the resolved value, which is a stronger
+ * 122 to be defined in both modes and checks that on the resolved value, which is a stronger
  * question than counting declarations here.
  *
  * THE SYSTEM PREFERENCE IS HONOURED WITHOUT AN ATTRIBUTE. The handoff wrote its dark values under
@@ -156,6 +157,22 @@
   --oref-drift-note-bg: #eaeeea;
   --oref-drift-note-border-style: dotted;
   --oref-drift-note-border-width: 1px;
+
+  /* syntax: the 13 of the core group, landed 2026-08-14 with TX-MARKUP, values from this
+   * direction's own export. One palette for both modes, like every other group here. */
+  --oref-syntax-keyword: #00606e;
+  --oref-syntax-string: #046b3a;
+  --oref-syntax-number: #8a5600;
+  --oref-syntax-comment: #586b5f;
+  --oref-syntax-function: #57379f;
+  --oref-syntax-variable: #04120a;
+  --oref-syntax-type: #00595e;
+  --oref-syntax-operator: #3f5348;
+  --oref-syntax-punctuation: #586b5f;
+  --oref-syntax-added-fg: #046b3a;
+  --oref-syntax-added-bg: #e0f0e6;
+  --oref-syntax-removed-fg: #ab2415;
+  --oref-syntax-removed-bg: #fae6e3;
 
   /* motion: two durations, the zero and the curve */
   --oref-motion-duration-fast: 80ms;

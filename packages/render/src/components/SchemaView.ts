@@ -42,6 +42,10 @@ export const SchemaView = defineComponent({
     schemas: { type: Object as PropType<Readonly<Record<string, IRSchema>>>, required: true },
     truncated: { type: Array as PropType<readonly string[]>, default: () => [] },
     basePath: { type: String, default: '' },
+    /** Whether rows carry their permanent `#` link, per TX-MARKUP. The schema page's yes. */
+    anchors: { type: Boolean, default: false },
+    /** The field a reader's fragment names, forwarded to the tree. Empty on the server. */
+    anchor: { type: String, default: '' },
   },
 
   setup(props) {
@@ -77,6 +81,8 @@ export const SchemaView = defineComponent({
         basePath: props.basePath,
         label: props.label,
         borrowedLabel: props.slot.kind === 'inline',
+        anchors: props.anchors,
+        anchor: props.anchor,
       });
     };
   },

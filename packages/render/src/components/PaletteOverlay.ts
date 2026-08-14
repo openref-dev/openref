@@ -116,7 +116,9 @@ export const PaletteOverlay = defineComponent({
     return (): VNode => {
       if (!props.open) {
         // The button is what makes the feature discoverable, and it is what a pointer user
-        // needs: a shortcut nobody is told about is a shortcut nobody uses.
+        // needs: a shortcut nobody is told about is a shortcut nobody uses. The visible key
+        // chip is the layout's, per TX-MARKUP: static text so the server and the client agree,
+        // aria-hidden because aria-keyshortcuts already states the fact, both chords of it.
         return h(
           'button',
           {
@@ -125,7 +127,7 @@ export const PaletteOverlay = defineComponent({
             onClick: props.onOpen,
             'aria-keyshortcuts': 'Control+K Meta+K',
           },
-          'Search',
+          ['Search', h('span', { class: 'oref-kbd', 'aria-hidden': 'true' }, 'Ctrl K')],
         );
       }
 

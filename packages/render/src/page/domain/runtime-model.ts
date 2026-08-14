@@ -29,14 +29,19 @@ import {
   hasRuntimeFacts,
   type IRDocument,
   type IRDriftIssue,
+  type IRErrorContract,
   type IRErrorContracts,
   type IRGuardScope,
   type IRHealthReport,
   type IRNodeRuntime,
 } from '@openref/core';
+import { schemaDisplayName } from '@openref/vue';
 import type {
   DriftModel,
+  ErrorContractGroupModel,
+  ErrorContractItemModel,
   HealthModel,
+  ResponseMarkModel,
   RuntimeModel,
   RuntimeRowKind,
   RuntimeRowModel,
@@ -235,6 +240,173 @@ function errorRows(errors: IRErrorContracts | undefined): RuntimeRowModel[] {
   return rows;
 }
 
+/** Confidence order of SPEC 6.1, for the one place a code known twice keeps one mark. */
+const CONFIDENCE_RANK: Readonly<Record<string, number>> = {
+  declared: 3,
+  derived: 2,
+  inferred: 1,
+};
+
+/**
+ * What the runtime knows per response code, for the merged responses list of `TX-MARKUP`.
+ *
+ * A CODE KNOWN TO SEVERAL GROUPS KEEPS THE HIGHEST CONFIDENCE, declared over derived over
+ * inferred, because a person's declaration about a code outranks a derivation about the same
+ * code, which is the guard rule of SPEC 6.2 pointed at presentation. Whether a code is
+ * documented is the literal containment the parity rows already use, so the two surfaces
+ * cannot disagree about the same 429.
+ *
+ * @param errors - The three groups, or nothing when no error collector ran
+ * @param documented - Status codes the document declares, as written
+ * @returns One mark per distinct code, in code point order
+ */
+function responseMarks(
+  errors: IRErrorContracts | undefined,
+  documented: readonly string[],
+): ResponseMarkModel[] {
+  if (errors === undefined) return [];
+
+  const byCode = new Map<string, IRErrorContract>();
+  for (const contract of [...errors.declared, ...errors.runtimeDerived, ...errors.global]) {
+    const code = String(contract.status);
+    const held = byCode.get(code);
+    if (
+      held === undefined ||
+      (CONFIDENCE_RANK[contract.confidence] ?? 0) > (CONFIDENCE_RANK[held.confidence] ?? 0)
+    ) {
+      byCode.set(code, contract);
+    }
+  }
+
+  return [...byCode.entries()]
+    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+    .map(([code, contract]) => ({
+      statusCode: code,
+      statusClass: `oref-status ${statusClass(code)}`,
+      title: contract.title,
+      confidence: contract.confidence,
+      collector: contract.collector,
+      undocumented: !documented.includes(code),
+    }));
+}
+
+/**
+ * The grid's group vocabulary, per SPEC 6.4: the head and the line saying where contracts of
+ * the group come from, in the reader's words rather than the collector's.
+ */
+const CONTRACT_GROUPS = [
+  ['declared', 'errors-declared', 'Declared in code', 'decorators and explicit handler exceptions'],
+  [
+    'runtimeDerived',
+    'errors-runtime-derived',
+    'Derived from runtime',
+    'follows from facts collected about the route',
+  ],
+  ['global', 'errors-global', 'Global to the application', 'declared by the host for every route'],
+] as const satisfies readonly (readonly [keyof IRErrorContracts, RuntimeRowKind, string, string])[];
+
+/** The key contracts merge on: the parts a reader would see said twice, per the demo pin. */
+function contractMergeKey(contract: IRErrorContract): string {
+  return [contract.detail ?? '', contract.type ?? '', contract.confidence, contract.collector].join(
+    '\u0000',
+  );
+}
+
+/** The named schema a contract answers with, when the document has a page for it. */
+function contractSchema(
+  contract: IRErrorContract,
+  document: IRDocument,
+  basePath: string,
+): { label: string; href: string } {
+  const slot = contract.schema;
+  if (slot?.kind !== 'named') return { label: '', href: '' };
+
+  const entry = document.schemas.get(slot.schemaId);
+  if (entry === undefined) return { label: '', href: '' };
+
+  return {
+    label: schemaDisplayName(entry, slot.schemaId),
+    href: schemaHref(slot.schemaId, basePath),
+  };
+}
+
+/**
+ * The error contracts grid of `TX-MARKUP`: the three groups of SPEC 6.4, each item one
+ * contract or several that say the same thing.
+ *
+ * CONTRACTS SHARING DETAIL, TYPE, CONFIDENCE AND COLLECTOR MERGE INTO ONE ITEM with joined
+ * codes, which is how the 401 and 403 pair prints its shared sentence exactly once. The merge
+ * is presentation: the contract keeps its own fields in the IR and travels alone in a finding.
+ * Only the declared group survives being empty, with the SPEC 6.4 sentence, because it is the
+ * group a person writes; the other two assert nothing by being empty and are not built.
+ */
+function contractGroups(
+  errors: IRErrorContracts | undefined,
+  document: IRDocument,
+  basePath: string,
+): ErrorContractGroupModel[] {
+  if (errors === undefined) return [];
+
+  const groups: ErrorContractGroupModel[] = [];
+
+  for (const [key, kind, label, sub] of CONTRACT_GROUPS) {
+    const contracts = errors[key];
+
+    if (contracts.length === 0) {
+      if (key !== 'declared') continue;
+      groups.push({
+        kind,
+        label,
+        sub,
+        items: [],
+        empty: 'This handler declares no errors. Add @ApiErrors to list the ones it answers with.',
+      });
+      continue;
+    }
+
+    const items: ErrorContractItemModel[] = [];
+    const at = new Map<string, number>();
+
+    for (const contract of contracts) {
+      const mergeKey = contractMergeKey(contract);
+      const held = at.get(mergeKey);
+      const schema = contractSchema(contract, document, basePath);
+
+      if (held === undefined) {
+        at.set(mergeKey, items.length);
+        items.push({
+          status: String(contract.status),
+          statusClass: `oref-status ${statusClass(String(contract.status))}`,
+          title: contract.title,
+          typeUri: contract.type ?? '',
+          detail: contract.detail ?? '',
+          schemaLabel: schema.label,
+          schemaHref: schema.href,
+          confidence: contract.confidence,
+          collector: contract.collector,
+        });
+        continue;
+      }
+
+      const item = items[held];
+      if (item === undefined) continue;
+      items[held] = {
+        ...item,
+        status: `${item.status}, ${String(contract.status)}`,
+        title: item.title === contract.title ? item.title : `${item.title}, ${contract.title}`,
+        // A merged item keeps the schema only when every member names the same one, because
+        // a link that stands for two different schemas would answer for the wrong one.
+        schemaLabel: item.schemaHref === schema.href ? item.schemaLabel : '',
+        schemaHref: item.schemaHref === schema.href ? item.schemaHref : '',
+      };
+    }
+
+    groups.push({ kind, label, sub, items, empty: '' });
+  }
+
+  return groups;
+}
+
 /**
  * One finding as a row, with a link to its subject when the page is not already about it.
  *
@@ -316,6 +488,16 @@ export function buildRuntimeModel(
     // THE SCALE IS AN OPERATION'S, per SPEC 6.3: a channel keeps the labelled rows until M5
     // designs one, and a component that finds `parity` empty draws `rows` the way it always did.
     parity: node.kind === 'operation' ? buildParityRows(document, node, found, basePath) : [],
+    // The merged responses and the grid are an operation's for the same reason: every error
+    // collector is HTTP, so a channel cannot carry the record before M5.
+    responseMarks:
+      node.kind === 'operation'
+        ? responseMarks(
+            runtime.errors,
+            node.responses.map((response) => response.statusCode),
+          )
+        : [],
+    contracts: node.kind === 'operation' ? contractGroups(runtime.errors, document, basePath) : [],
   };
 }
 

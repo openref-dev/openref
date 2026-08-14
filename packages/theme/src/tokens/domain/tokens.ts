@@ -1,7 +1,7 @@
 import type { ContrastPair, ThemeToken } from './token.types';
 
 /**
- * The core token set: the 109 names of `ai-docs/design/CONTRACT.md`, with the values of the
+ * The core token set: the 122 names of `ai-docs/design/CONTRACT.md`, with the values of the
  * vernier design, which is what `@openref/theme` ships.
  *
  * The names are the contract and are identical in every theme. The values are this theme's.
@@ -716,6 +716,102 @@ export const THEME_TOKENS: readonly ThemeToken[] = [
     description: 'Drift of severity info: edge style',
   },
 
+  // Syntax highlighting, landed 2026-08-14 with TX-MARKUP per CONTRACT.md: 13 names, values
+  // from this direction's own html export. The palette is the contract even where nothing
+  // emits a kind yet: type, operator and the two diff pairs wait for the grammars and views
+  // that produce them, and a theme is complete the day something does.
+  {
+    name: '--oref-syntax-keyword',
+    group: 'syntax',
+    value: '#1f57ab',
+    dark: '#8fbcff',
+    description: 'A keyword in a code block',
+  },
+  {
+    name: '--oref-syntax-string',
+    group: 'syntax',
+    value: '#0b6b45',
+    dark: '#3fd18b',
+    description: 'A string literal in a code block',
+  },
+  {
+    name: '--oref-syntax-number',
+    group: 'syntax',
+    value: '#8a5200',
+    dark: '#ffb020',
+    description: 'A number or other constant in a code block',
+  },
+  {
+    name: '--oref-syntax-comment',
+    group: 'syntax',
+    value: '#5b6572',
+    dark: '#8b98a6',
+    description: 'A comment in a code block',
+  },
+  {
+    name: '--oref-syntax-function',
+    group: 'syntax',
+    value: '#5b3ba8',
+    dark: '#b98cff',
+    description: 'A function name in a code block',
+  },
+  {
+    name: '--oref-syntax-variable',
+    group: 'syntax',
+    value: '#08111a',
+    dark: '#e8eef4',
+    description: 'A variable or parameter in a code block',
+  },
+  {
+    name: '--oref-syntax-type',
+    group: 'syntax',
+    value: '#00666b',
+    dark: '#38d6d6',
+    description: 'A type name in a code block; nothing emits this kind yet',
+  },
+  {
+    name: '--oref-syntax-operator',
+    group: 'syntax',
+    value: '#465768',
+    dark: '#93a4b3',
+    description: 'An operator in a code block; nothing emits this kind yet',
+  },
+  {
+    name: '--oref-syntax-punctuation',
+    group: 'syntax',
+    value: '#5b6572',
+    dark: '#8b98a6',
+    description: 'Punctuation in a code block',
+  },
+  {
+    name: '--oref-syntax-added-fg',
+    group: 'syntax',
+    value: '#0b6b45',
+    dark: '#3fd18b',
+    description: 'An added line in a diff view: ink; the view arrives with its own task',
+  },
+  {
+    name: '--oref-syntax-added-bg',
+    group: 'syntax',
+    value: '#e2f2ea',
+    dark: '#08201a',
+    description: 'An added line in a diff view: background',
+  },
+  {
+    name: '--oref-syntax-removed-fg',
+    group: 'syntax',
+    value: '#a92616',
+    dark: '#ff5a47',
+    description: 'A removed line in a diff view: ink',
+  },
+  {
+    name: '--oref-syntax-removed-bg',
+    group: 'syntax',
+    value: '#fae7e4',
+    dark: '#230d0c',
+    description: 'A removed line in a diff view: background',
+  },
+
   // Motion. Two durations, a zero and a curve. Under prefers-reduced-motion the two
   // durations alias the zero, which is done in the token stylesheet rather than left to each
   // theme: see `MOTION_DURATION_TOKENS` below and the contract section that decided it.
@@ -772,10 +868,11 @@ export const MOTION_DURATION_TOKENS: readonly string[] = [
 /**
  * Tokens this theme adds on top of the core set.
  *
- * The contract allows them and names vernier's two. They are kept apart from
- * {@link THEME_TOKENS} rather than mixed in, because the core set is a contract of exactly 103
+ * The contract allows them and names vernier's six. They are kept apart from
+ * {@link THEME_TOKENS} rather than mixed in, because the core set is a contract of exactly 122
  * names and a theme's own token must never be mistaken for one of them. A component in the
- * reference must not read a token from this array.
+ * reference must not read a token from this array. The count here was stale twice, 103 and
+ * then two, and both figures are corrected on 2026-08-14 rather than left to mislead again.
  */
 export const THEME_SPECIFIC_TOKENS: readonly ThemeToken[] = [
   {
@@ -889,6 +986,16 @@ export const CONTRAST_PAIRS: readonly ContrastPair[] = (
     ['--oref-drift-crit-fg', '--oref-drift-crit-bg', 'text'],
     ['--oref-drift-warn-fg', '--oref-drift-warn-bg', 'text'],
     ['--oref-drift-note-fg', '--oref-drift-note-bg', 'text'],
+    // The syntax inks the highlight block draws, on the one surface code sits on. Landed
+    // 2026-08-14 with the group: type, operator and the two diff pairs are defined and not
+    // drawn yet, and a pair is listed here exactly when the stylesheet draws it.
+    ['--oref-syntax-keyword', '--oref-color-surface-code', 'text'],
+    ['--oref-syntax-string', '--oref-color-surface-code', 'text'],
+    ['--oref-syntax-number', '--oref-color-surface-code', 'text'],
+    ['--oref-syntax-comment', '--oref-color-surface-code', 'text'],
+    ['--oref-syntax-function', '--oref-color-surface-code', 'text'],
+    ['--oref-syntax-variable', '--oref-color-surface-code', 'text'],
+    ['--oref-syntax-punctuation', '--oref-color-surface-code', 'text'],
     // line-strong claims nothing. The supplied palette measures it at 2.31 against the page in
     // light and 2.19 in dark, so it cannot carry the 3:1 that WCAG 1.4.11 asks of the boundary
     // of a control, and this theme therefore does not draw one with it. fg-muted does, and it

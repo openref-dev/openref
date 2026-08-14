@@ -139,16 +139,16 @@ would have been 1 612 858 bytes on `twilio-api-v2010.yaml` against a node page's
 | `FrameTabKind` | type | Which tab it is; the two showcase pages have no tab |
 | `FrameStatsModel` | type | The rail's stats row; `drift` is null on a document nothing measured, which is not zero |
 | `NodeModel` | type | A node page |
-| `NodeHeaderModel` | type | Its header |
-| `SchemaPageModel` | type | A named schema on its own page |
-| `NavEntryModel` | type | One row of the navigation. Carries `driftCount` since `TX-FRAME`, summed over children for a group; zero draws no marker and asserts nothing |
+| `NodeHeaderModel` | type | Its header. Promises `tags` and `operationId` since `TX-MARKUP`, for the kicker |
+| `SchemaPageModel` | type | A named schema on its own page. Carries `dialect` since `TX-MARKUP` |
+| `NavEntryModel` | type | One row of the navigation. Carries `driftCount` since `TX-FRAME`, summed over children for a group; zero draws no marker and asserts nothing. Carries `method` since `TX-MARKUP`, for the rail's badge |
 | `PaletteHitModel` | type | One row of the command palette |
 | `ParameterModel` | type | One parameter row, with its description already HTML |
 | `ResponseModel` | type | One response, with its examples already highlighted |
 | `MediaTypeModel` | type | One media type of a request or response |
 | `CodeSampleModel` | type | One call sample, per SPEC 18 |
 | `SecurityModel` | type | The security a node declares |
-| `RuntimeModel` | type | The runtime block of a node page |
+| `RuntimeModel` | type | The runtime block of a node page. Carries `responseMarks` and `contracts` since `TX-MARKUP`, empty when no error collector ran |
 | `RuntimeRowModel` | type | One row of it |
 | `RuntimeRowKind` | type | What kind of row it is, which is how a theme tells an error row from a scope row |
 | `RuntimeValueModel` | type | One runtime value, carrying its `confidence` and its `collector` |
@@ -157,6 +157,9 @@ would have been 1 612 858 bytes on `twilio-api-v2010.yaml` against a node page's
 | `ParityVerdict` | type | The gutter's answer: match, drift, or a comparison that did not run |
 | `ParitySideModel` | type | The specification side of a parity row, which carries no provenance |
 | `ParityFixModel` | type | The remedy strip under a drifted row, with the SPEC 7.1 display code |
+| `ResponseMarkModel` | type | What the runtime knows about one response code, joined to the responses block. Added at `TX-MARKUP`, minor |
+| `ErrorContractGroupModel` | type | One group of the error contracts grid, per SPEC 6.4. Added at `TX-MARKUP`, minor |
+| `ErrorContractItemModel` | type | One item of it: one contract, or several merged because they say the same thing |
 | `DriftModel` | type | One drift finding |
 | `HealthModel` | type | The Documentation Health report of a document |
 | `HealthCheckModel` | type | One check of it |

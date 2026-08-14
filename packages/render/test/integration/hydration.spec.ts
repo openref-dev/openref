@@ -186,7 +186,10 @@ describe('readPageState', () => {
     // operation with no scale to adopt and findings citing no code. TX-FRAME added `kind`,
     // `frame` and the navigation drift counts, and moved the panel to the health page, and
     // that is 11: a page cached before it hydrates a shell with no tab bar data and an
-    // overview that still claims the panel.
-    expect(state?.pageModelVersion).toBe(11);
+    // overview that still claims the panel. TX-MARKUP widened the header promise, added the
+    // response marks, the contracts grid, the rail method and the schema dialect, and that is
+    // 12: a page cached before it hydrates a header with no kicker and responses that say
+    // nothing the runtime knows.
+    expect(state?.pageModelVersion).toBe(12);
   });
 });

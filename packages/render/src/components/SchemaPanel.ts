@@ -8,17 +8,34 @@
  *
  * The heading is the display name, never the identity suffix an external target carries.
  *
+ * THE VIEW SEGMENT IS WIRED SINCE `TX-MARKUP`, and it turned out to be state plumbing: the
+ * request and response views compute in core since T003 and the viewer always took `view` as a
+ * prop; what was missing was one ref and two buttons. The default is `both` and each button is
+ * a filter, per SPEC 11: pressing one narrows to that view, pressing it again returns to
+ * `both`, so nothing is hidden until a reader asks. The state is the page's, like the sample
+ * tab, so the server render and the first client render agree at `both`.
+ *
+ * THE ONE-BRANCH SEGMENT OF THE LAYOUT IS NOT HERE, per SPEC 11: the tree draws every branch
+ * as a row, collapsing to one needs the per-node branch chooser that belongs to the form work,
+ * and a control promising a capability that does not exist is the F14 class.
+ *
  * IT IS THE DEFAULT OF THE `SchemaPage` SLOT, added in `TX-SLOTWIRE` with `DocumentOverview`. The
  * registry named components for the node page and for neither of the other two.
  */
 
 import { useSlot } from '@openref/vue';
-import { defineComponent, h, type PropType, type VNode } from 'vue';
+import { defineComponent, h, ref, type PropType, type VNode } from 'vue';
 import { MarkdownBlock } from './MarkdownBlock';
 import { StateNotice } from './StateNotice';
 import { useDeferrable } from './deferrable';
-import type { IRSchema } from '@openref/core';
+import type { IRSchema, IRSchemaView } from '@openref/core';
 import type { SchemaPageModel } from '@openref/vue';
+
+/** The two narrowing views, in the order the layout draws the buttons. */
+const VIEWS: readonly (readonly [IRSchemaView, string])[] = [
+  ['request', 'request'],
+  ['response', 'response'],
+];
 
 /** Renders one named schema. */
 export const SchemaPanel = defineComponent({
@@ -29,11 +46,21 @@ export const SchemaPanel = defineComponent({
     schemas: { type: Object as PropType<Readonly<Record<string, IRSchema>>>, default: () => ({}) },
     truncated: { type: Array as PropType<readonly string[]>, default: () => [] },
     basePath: { type: String, default: '' },
+    /** The field a reader's fragment names, already decoded. Empty on the server, always. */
+    anchor: { type: String, default: '' },
   },
 
   setup(props) {
     const deferrable = useDeferrable();
     const notice = useSlot('StateNotice', StateNotice);
+
+    // Which half is showing. `both` on both sides of hydration, and a segment press narrows
+    // it afterwards, which is the activeLang pattern of the sample tabs.
+    const view = ref<IRSchemaView>('both');
+
+    function toggle(target: IRSchemaView): void {
+      view.value = view.value === target ? 'both' : target;
+    }
 
     return (): VNode => {
       const schema = props.schema;
@@ -44,6 +71,28 @@ export const SchemaPanel = defineComponent({
           schema.deprecated
             ? h('span', { class: 'oref-badge oref-deprecated' }, 'deprecated')
             : null,
+          schema.dialect === '' ? null : h('p', { class: 'oref-schema-dialect' }, schema.dialect),
+          schema.missing
+            ? null
+            : h(
+                'div',
+                { class: 'oref-seg', role: 'group', 'aria-label': 'Schema view' },
+                VIEWS.map(([target, word]) =>
+                  h(
+                    'button',
+                    {
+                      class: 'oref-seg-btn',
+                      key: target,
+                      type: 'button',
+                      'aria-pressed': view.value === target ? 'true' : 'false',
+                      onClick: (): void => {
+                        toggle(target);
+                      },
+                    },
+                    word,
+                  ),
+                ),
+              ),
         ]),
         h(MarkdownBlock, { html: schema.descriptionHtml }),
         schema.missing
@@ -56,10 +105,12 @@ export const SchemaPanel = defineComponent({
           : h(deferrable.schemaView, {
               slot: { kind: 'named', schemaId: schema.id },
               label: schema.name,
-              view: 'both',
+              view: view.value,
               schemas: props.schemas,
               truncated: props.truncated,
               basePath: props.basePath,
+              anchors: true,
+              anchor: props.anchor,
             }),
       ]);
     };

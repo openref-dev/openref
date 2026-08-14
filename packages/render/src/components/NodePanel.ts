@@ -24,6 +24,7 @@ import { ResponseList } from './ResponseList';
 import { RuntimePanel } from './RuntimePanel';
 import { mediaTypeBlock, type SchemaContext } from './MediaTypeBlock';
 import { useDeferrable } from './deferrable';
+import { benchHref } from '../page/domain/links';
 import type { IRSchema } from '@openref/core';
 import type { NodeModel } from '@openref/vue';
 
@@ -71,7 +72,15 @@ export const NodePanel = defineComponent({
       // spec and runtime pair exists only inside a parity row.
       const spec: (VNode | null)[] = [];
 
-      parts.push(h(header.value, { node, drift: node.runtime?.drift ?? [] }));
+      // The bench href mirrors the frame's own rule: a bench exists exactly when `run` does,
+      // so the header's button and the tab can never disagree about whether there is one.
+      parts.push(
+        h(header.value, {
+          node,
+          drift: node.runtime?.drift ?? [],
+          benchHref: node.run === null ? '' : benchHref(node.id, props.basePath),
+        }),
+      );
 
       // THE SCALE STANDS DIRECTLY UNDER THE HEADER, per the design's own order, and the
       // description follows it: a reader meets the comparison first and the prose second.
@@ -122,13 +131,21 @@ export const NodePanel = defineComponent({
         );
       }
 
-      if (node.responses.length > 0) {
+      // The position mounts when there is anything to say about responses: documented rows,
+      // a code only the runtime knows, or the error contracts grid. An operation with no
+      // documented responses and a guard behind it still answers with something, and a page
+      // that drew nothing there would hide exactly the codes nobody documented.
+      const marks = node.runtime?.responseMarks ?? [];
+      const contracts = node.runtime?.contracts ?? [];
+      if (node.responses.length > 0 || marks.length > 0 || contracts.length > 0) {
         spec.push(
           h(responses.value, {
             responses: node.responses,
             schemas: props.schemas,
             truncated: props.truncated,
             basePath: props.basePath,
+            marks,
+            contracts,
           }),
         );
       }

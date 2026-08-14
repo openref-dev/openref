@@ -95,7 +95,7 @@ function terminal(
 }
 
 describe('the token stylesheet telltale ships', () => {
-  it('should resolve all 109 core names with the light mode in force', () => {
+  it('should resolve all 122 core names with the light mode in force', () => {
     // Given
     const values = resolved('light');
 
@@ -104,10 +104,10 @@ describe('the token stylesheet telltale ships', () => {
 
     // Then
     expect(unresolved).toEqual([]);
-    expect(CONTRACT_TOKEN_NAMES).toHaveLength(109);
+    expect(CONTRACT_TOKEN_NAMES).toHaveLength(122);
   });
 
-  it('should resolve all 109 core names with the dark mode in force', () => {
+  it('should resolve all 122 core names with the dark mode in force', () => {
     // Given, this is the half a declaration count in one block cannot answer: a theme that names
     // 109 in light and 80 in dark has 29 names that resolve to nothing for half its readers, and
     // it looks complete in whichever mode its author works in.

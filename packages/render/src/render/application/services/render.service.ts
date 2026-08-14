@@ -36,6 +36,12 @@ import {
  * Bumped by hand when a change to a component changes the bytes of an unchanged document.
  * It is part of the cache key, so bumping it invalidates every stored page at once.
  *
+ * 6 to 7 with `TX-MARKUP`: the header draws the kicker, the drift box and the bench link, the
+ * rail rows draw the method badge and path, the palette trigger carries the key chip, the
+ * responses merge with the runtime's marks, the error contracts grid returns, and the schema
+ * page head gains the dialect line, the view segment and the field anchors. Same document,
+ * different bytes on every page.
+ *
  * 5 to 6 with `TX-FRAME`: the shell draws the app bar with back, breadcrumb and the tab bar,
  * the rail draws statistics and drift counters, the console leaves the node page for the
  * bench address and the health panel leaves the overview for its own. Same document,
@@ -45,7 +51,7 @@ import {
  * media type example now wins over the generated one, zero denominator health checks stopped
  * rendering a row, and the rule heading gained its separator. Same document, different bytes.
  */
-export const RENDER_VERSION = 6;
+export const RENDER_VERSION = 7;
 
 /** How one page is rendered. */
 export interface RenderPageOptions {

@@ -3,6 +3,7 @@ import { describe, expect, expectTypeOf, it } from 'vitest';
 import type {
   CodeSampleModel,
   DriftModel,
+  ErrorContractGroupModel,
   FrameModel,
   FrameStatsModel,
   HealthModel,
@@ -11,6 +12,7 @@ import type {
   PageKind,
   PaletteHitModel,
   ParameterModel,
+  ResponseMarkModel,
   ResponseModel,
   RunnerBodyMediaTypeView,
   RunnerDeviceAuthorization,
@@ -166,6 +168,7 @@ describe('slot registry contract', () => {
     expectTypeOf<SlotProps<'OperationHeader'>>().toEqualTypeOf<{
       node: NodeHeaderModel;
       drift: readonly DriftModel[];
+      benchHref: string;
     }>();
     expectTypeOf<SlotProps<'RuntimePanel'>>().toEqualTypeOf<{
       nodeId: string;
@@ -184,6 +187,8 @@ describe('slot registry contract', () => {
       schemas: SchemaPayloadMap;
       truncated: readonly string[];
       basePath: string;
+      marks: readonly ResponseMarkModel[];
+      contracts: readonly ErrorContractGroupModel[];
     }>();
     expectTypeOf<SlotProps<'CodeSample'>>().toEqualTypeOf<{
       samples: readonly CodeSampleModel[];
@@ -198,6 +203,8 @@ describe('slot registry contract', () => {
       basePath: string;
       label: string;
       borrowedLabel: boolean;
+      anchors: boolean;
+      anchor: string;
     }>();
     expectTypeOf<SlotProps<'ShapeForm'>>().toEqualTypeOf<{
       media: RunnerBodyMediaTypeView;
@@ -241,6 +248,7 @@ describe('slot registry contract', () => {
       result: RunnerResult | undefined;
       error: string | undefined;
       pending: boolean;
+      declared: readonly string[];
     }>();
     expectTypeOf<SlotProps<'StreamLog'>>().toEqualTypeOf<{
       elements: readonly RunnerStreamElement[];

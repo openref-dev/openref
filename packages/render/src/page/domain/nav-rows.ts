@@ -46,6 +46,8 @@ export interface NavRow {
   readonly driftCount: number;
   /** `METHOD /path` for an operation, empty for a group. Shown and searched. */
   readonly hint: string;
+  /** Uppercase method of an operation, empty otherwise, for the rail's badge. */
+  readonly method: string;
   /** Depth in the original tree, from 1. Indentation is a data attribute the theme styles. */
   readonly level: number;
   /** Children this entry has in the whole navigation, whether or not this page carries them. */
@@ -89,6 +91,7 @@ export function flattenNavigation(
       deprecated: entry.deprecated,
       driftCount: entry.driftCount,
       hint: entry.hint,
+      method: entry.method,
       level,
       childCount: entry.childCount,
       expanded: open,

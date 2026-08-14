@@ -147,6 +147,35 @@ export const NavigationTree = defineComponent({
       if (at !== current.value) current.value = at;
     }
 
+    /**
+     * What a row says, per the layout since `TX-MARKUP`: an operation is its method badge and
+     * its path, a channel its event badge and address, and everything else keeps its label.
+     * The summary stays the palette's and the page's; the rail is the dense mono column the
+     * design draws.
+     */
+    function rowBody(row: NavRow): VNode[] {
+      if (row.nodeId === null || row.hint === '') {
+        return [h('span', { class: 'oref-nav-label' }, row.label)];
+      }
+
+      if (row.method === '') {
+        return [
+          h('span', { class: 'oref-badge oref-method-event' }, 'EVT'),
+          h('span', { class: 'oref-nav-path' }, row.hint),
+        ];
+      }
+
+      const known = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'];
+      const badge = known.includes(row.method)
+        ? `oref-method-${row.method.toLowerCase()}`
+        : 'oref-method-other';
+
+      return [
+        h('span', { class: `oref-badge ${badge}` }, row.method),
+        h('span', { class: 'oref-nav-path' }, row.hint.slice(row.method.length + 1)),
+      ];
+    }
+
     function renderRow(row: NavRow): VNode {
       const active =
         (row.nodeId !== null && row.nodeId === props.activeNodeId) ||
@@ -196,10 +225,7 @@ export const NavigationTree = defineComponent({
 
       const label =
         href === null
-          ? h('span', { class: rowClasses(row, false) }, [
-              h('span', { class: 'oref-nav-label' }, row.label),
-              drift,
-            ])
+          ? h('span', { class: rowClasses(row, false) }, [...rowBody(row), drift])
           : h(
               'a',
               {
@@ -207,7 +233,7 @@ export const NavigationTree = defineComponent({
                 href,
                 ...(active ? { 'aria-current': 'page' } : {}),
               },
-              [h('span', { class: 'oref-nav-label' }, row.label), drift],
+              [...rowBody(row), drift],
             );
 
       return h(

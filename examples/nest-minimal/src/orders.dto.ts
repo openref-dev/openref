@@ -157,7 +157,11 @@ export class OrderLineDto {
 /** One order, as the API returns it. */
 @ApiExtraModels(CardPaymentDto, BankTransferDto, WalletPaymentDto)
 export class OrderDto {
-  @ApiProperty({ description: 'Identifier of the order.', example: 'ord_1024' })
+  @ApiProperty({
+    description: 'Identifier of the order. The server assigns it, so no request carries one.',
+    example: 'ord_1024',
+    readOnly: true,
+  })
   id!: string;
 
   @ApiProperty({ description: 'Total in minor units.', example: 4500 })

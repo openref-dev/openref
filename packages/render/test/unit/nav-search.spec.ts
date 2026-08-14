@@ -12,6 +12,7 @@ function entry(overrides: Partial<NavEntryModel> & { id: string }): NavEntryMode
     deprecated: false,
     driftCount: 0,
     hint: '',
+    method: '',
     childCount: overrides.children?.length ?? 0,
     children: [],
     ...overrides,

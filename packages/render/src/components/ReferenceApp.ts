@@ -54,6 +54,15 @@ export const ReferenceApp = defineComponent({
      * `hydrateReference`, and a page with none keeps the navigation it shipped with.
      */
     loadNavigation: { type: Function as PropType<NavigationLoader>, default: undefined },
+    /**
+     * The reader's fragment, already decoded, for the schema page's field anchors.
+     *
+     * EMPTY ON THE SERVER, ALWAYS, for the reason `loadNavigation` is absent there: a fragment
+     * never reaches a server, so the server has nothing to read and the markup it sends cannot
+     * depend on one. The client supplies it in `hydrateReference`, and the tree expands to the
+     * field after mount, which is a state change and not a hydration difference.
+     */
+    anchor: { type: String, default: '' },
   },
 
   setup(props) {
@@ -87,7 +96,13 @@ export const ReferenceApp = defineComponent({
           h('header', { class: 'oref-operation-header' }, [
             h('h1', { class: 'oref-title' }, page.node.title),
           ]),
-          h(deferrable.tryIt, { run: page.node.run, basePath: props.basePath }),
+          h(deferrable.tryIt, {
+            run: page.node.run,
+            basePath: props.basePath,
+            // The verdict chip's declaration, per TX-MARKUP: what the document says this
+            // operation answers with, read off the same rows the responses section draws.
+            declared: page.node.responses.map((response) => response.statusCode),
+          }),
         ]);
       }
 
@@ -153,9 +168,11 @@ export const ReferenceApp = defineComponent({
           basePath: props.basePath,
           // Not contract props: the viewer needs the page's bounded schema slice to expand, and
           // `SchemaPanel` is the default that draws it. A theme override reads the two it was
-          // promised and Vue passes the rest through as attributes.
+          // promised and Vue passes the rest through as attributes. `anchor` rides the same
+          // way: the fragment is the default page's affordance, not a promise to every theme.
           schemas: page.schemas,
           truncated: page.truncatedSchemas,
+          anchor: props.anchor,
         });
       }
 

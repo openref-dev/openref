@@ -51,6 +51,14 @@ export interface NavEntryModel {
    */
   readonly hint: string;
   /**
+   * Uppercase HTTP method of an operation, empty for a channel, a group or a schema.
+   *
+   * Since `TX-MARKUP` the rail draws an operation row as the badge and the path, per the
+   * layout, and the badge needs the method apart from the hint: splitting the hint would read
+   * a channel address as a method the day one contains a space.
+   */
+  readonly method: string;
+  /**
    * Children this entry has in the whole navigation, which is not what it carries.
    *
    * A page ships the navigation it can draw and nothing else, so a closed group arrives with an
@@ -118,6 +126,13 @@ export interface SchemaPageModel {
   readonly deprecated: boolean;
   /** True when the id names nothing in the document, so the page says so instead of blanking. */
   readonly missing: boolean;
+  /**
+   * The dialect line of the page head, in the reader's words, `JSON Schema 2020-12`.
+   *
+   * Added with `TX-MARKUP`, additive and minor. Empty when the schema is missing, because a
+   * page that says which dialect a schema it does not have is written in would be guessing.
+   */
+  readonly dialect: string;
 }
 
 /** One response row. */
@@ -155,8 +170,9 @@ export interface CodeSampleModel {
  *
  * SEPARATE FROM {@link NodeModel} BECAUSE THE HEADER POSITION IS HANDED THIS AND NOT THAT. The
  * value that arrives is the page's own node model, which extends this, so nothing is copied per
- * render; what the contract promises is these eight fields, and a theme that reads more than it
- * was promised is reading something that may move.
+ * render; what the contract promises is these ten fields, eight until `TX-MARKUP` widened the
+ * promise for the kicker, and a theme that reads more than it was promised is reading something
+ * that may move.
  */
 export interface NodeHeaderModel {
   readonly id: string;
@@ -170,12 +186,26 @@ export interface NodeHeaderModel {
   /** Channel address, absent for an operation. */
   readonly address: string | null;
   readonly summary: string;
+  /**
+   * Tags of the node, in document order. The kicker draws the first.
+   *
+   * Promised here since `TX-MARKUP`; the field always travelled on {@link NodeModel}, so this
+   * is the promise widening, not the value moving.
+   */
+  readonly tags: readonly string[];
+  /**
+   * The public operation id of SPEC 5.4, empty only on a channel.
+   *
+   * The author's own whenever they wrote a real one; T004 rewrites only a generated
+   * `Controller_method` shape and keeps the original in the IR. The kicker draws this because
+   * it is the name the document answers to, not a private derivation.
+   */
+  readonly operationId: string;
 }
 
 /** The node a page is about. */
 export interface NodeModel extends NodeHeaderModel {
   readonly descriptionHtml: string;
-  readonly tags: readonly string[];
   readonly parameters: readonly ParameterModel[];
   readonly requestBody: readonly MediaTypeModel[];
   readonly responses: readonly ResponseModel[];
@@ -351,6 +381,71 @@ export interface ParityRowModel {
   readonly fix: ParityFixModel | null;
 }
 
+/**
+ * What the runtime knows about one response code, joined to the responses block.
+ *
+ * BUILT FROM THE ERROR CONTRACTS AND NOT A NEW FACT, per `TX-MARKUP`: a documented row that a
+ * contract backs carries the contract's own provenance, and a code the runtime knows that the
+ * specification does not carry becomes a full row flagged undocumented. A code both groups
+ * know keeps the highest confidence, declared over derived over inferred, because a person's
+ * declaration outranks a derivation about the same code.
+ */
+export interface ResponseMarkModel {
+  readonly statusCode: string;
+  /** Same vocabulary as {@link RuntimeValueModel.statusClass}. */
+  readonly statusClass: string;
+  /** The contract's title, drawn on an undocumented row where no description exists. */
+  readonly title: string;
+  readonly confidence: IRConfidence;
+  readonly collector: string;
+  /** True when the specification does not carry the code, which flags the row. */
+  readonly undocumented: boolean;
+}
+
+/**
+ * One item of the error contracts grid: one contract, or several that say the same thing.
+ *
+ * CONTRACTS SHARING DETAIL, TYPE, CONFIDENCE AND COLLECTOR MERGE INTO ONE ITEM with joined
+ * codes, which is how 401 and 403, derived from one guard fact, print their shared sentence
+ * exactly once, per SPEC 6.4 and the `demo-surface` pin. The contract itself keeps its own
+ * fields: the merge is presentation, and a finding still travels one contract at a time.
+ */
+export interface ErrorContractItemModel {
+  /** The codes, joined: `401, 403`. */
+  readonly status: string;
+  /** Class of the first code, so the chip colours the way the responses block colours it. */
+  readonly statusClass: string;
+  /** The titles, joined the way the codes are. */
+  readonly title: string;
+  /** RFC 9457 `type` URI, empty when the contract declares none. */
+  readonly typeUri: string;
+  /** The shared explanation, empty when the contract carries none. */
+  readonly detail: string;
+  /** Display name of the schema the contract answers with, empty when it names none. */
+  readonly schemaLabel: string;
+  /** The schema's own page, when the contract names a schema that has one. Empty otherwise. */
+  readonly schemaHref: string;
+  readonly confidence: IRConfidence;
+  readonly collector: string;
+}
+
+/** One group of the error contracts grid, per SPEC 6.4. */
+export interface ErrorContractGroupModel {
+  /** The same three kinds the labelled rows use, so a theme tells groups apart one way. */
+  readonly kind: RuntimeRowKind;
+  /** The group's head, in the reader's words. */
+  readonly label: string;
+  /** The line under the head, saying where contracts of this group come from. */
+  readonly sub: string;
+  readonly items: readonly ErrorContractItemModel[];
+  /**
+   * The sentence an empty group states, per SPEC 6.4. Only the declared group survives being
+   * empty, because it is the group a person writes; for the other two this is always empty
+   * and the group is not built.
+   */
+  readonly empty: string;
+}
+
 /** The runtime block of one node. */
 export interface RuntimeModel {
   readonly rows: readonly RuntimeRowModel[];
@@ -362,6 +457,18 @@ export interface RuntimeModel {
    * component that finds it empty draws `rows` the way it always did.
    */
   readonly parity: readonly ParityRowModel[];
+  /**
+   * What the runtime knows per response code, joined to the responses block, per `TX-MARKUP`.
+   *
+   * Empty when no error collector ran, and the responses block then draws what the document
+   * declares and nothing else, which is every page before M1.
+   */
+  readonly responseMarks: readonly ResponseMarkModel[];
+  /**
+   * The error contracts grid, per SPEC 6.4 and `TX-MARKUP`: the groups worth drawing, in the
+   * declared, derived, global order. Empty exactly when no error collector ran.
+   */
+  readonly contracts: readonly ErrorContractGroupModel[];
 }
 
 /** One line of the check list, which is one question asked of the whole document. */

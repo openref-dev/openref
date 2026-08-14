@@ -165,12 +165,22 @@ export function hydrateReference(options: HydrateOptions = {}): boolean {
   // the frame from being a hydration mismatch.
   const slots = resolveSlots(options.theme);
   const loadNavigation = options.loadNavigation ?? fetchNavigation(page, basePath);
+  // The fragment, decoded once here, because this is the one place that owns `location`. A
+  // fragment that does not decode is passed as it came: a wrong link expands nothing, which is
+  // the tree's own rule for a path that names no row.
+  const fragment = globalThis.location.hash.slice(1);
+  let anchor = fragment;
+  try {
+    anchor = decodeURIComponent(fragment);
+  } catch {
+    // Keep the raw fragment: percent signs a reader typed by hand are still a valid path guess.
+  }
   const app = createSSRApp({
     name: 'OrefClientRoot',
     setup() {
       provideSlots(slots);
 
-      return () => h(ReferenceApp, { page, basePath, loadNavigation });
+      return () => h(ReferenceApp, { page, basePath, loadNavigation, anchor });
     },
   });
 
@@ -187,6 +197,7 @@ export function hydrateReference(options: HydrateOptions = {}): boolean {
     DEFERRABLE_KEY,
     deferredComponents({
       document: root,
+      anchor,
       ...(buildRunner === undefined ? {} : { loadRunner: buildRunner }),
       provideRunner: (runner) => {
         app.provide(RUNNER_KEY, runner);

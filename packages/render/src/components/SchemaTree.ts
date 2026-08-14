@@ -31,7 +31,16 @@
 
 import type { IRSchemaView } from '@openref/core';
 import type { SchemaTreeNode } from '@openref/vue';
-import { computed, defineComponent, h, ref, type PropType, type VNode } from 'vue';
+import {
+  computed,
+  defineComponent,
+  h,
+  nextTick,
+  onMounted,
+  ref,
+  type PropType,
+  type VNode,
+} from 'vue';
 import { schemaHref } from '../page/domain/links';
 
 /**
@@ -135,6 +144,15 @@ export const SchemaTree = defineComponent({
      * page's root is the schema, and its name is its own.
      */
     borrowedLabel: { type: Boolean, default: false },
+    /**
+     * Whether rows carry their permanent `#` link, per TX-MARKUP.
+     *
+     * The schema page turns it on; a tree under a response does not, because the fragment
+     * namespace belongs to one tree per page and the schema page is that tree.
+     */
+    anchors: { type: Boolean, default: false },
+    /** The row a reader's fragment names, already decoded, or empty. Empty on the server. */
+    anchor: { type: String, default: '' },
   },
 
   setup(props) {
@@ -161,6 +179,37 @@ export const SchemaTree = defineComponent({
       open.value = next;
       focused.value = node.path;
     }
+
+    // A PERMANENT ADDRESS OPENS THE SCHEMA AT THE FIELD, per TX-MARKUP: the ancestors of the
+    // fragment's path expand level by level through the same lazy expander, one render per
+    // level, and the row is focused when it exists. After mount only, so hydration compares
+    // the markup the server actually sent; a fragment naming nothing expands nothing, because
+    // a wrong link is a normal event on a document that changed.
+    onMounted(() => {
+      const target = props.anchor;
+      if (target === '') return;
+
+      void (async (): Promise<void> => {
+        let current = props.root;
+
+        while (current.path !== target) {
+          if (!current.expandable) return;
+
+          const child = props
+            .expand(current)
+            .find(
+              (candidate) => candidate.path === target || target.startsWith(`${candidate.path}/`),
+            );
+          if (child === undefined) return;
+
+          open.value = new Set(open.value).add(current.path);
+          await nextTick();
+          current = child;
+        }
+
+        focus(target);
+      })();
+    });
 
     /**
      * Moves focus to a row.
@@ -325,6 +374,21 @@ export const SchemaTree = defineComponent({
             },
             rowContent(row),
           ),
+          // THE ANCHOR IS THE ROW'S SIBLING AND NOT ITS CHILD, because an expandable row is a
+          // button and a link inside a button is markup no browser will honour. The theme
+          // overlays it on the row's first line; the path travels percent encoded, since a
+          // property name out of a third party document can hold anything.
+          props.anchors
+            ? h(
+                'a',
+                {
+                  class: 'oref-schema-anchor',
+                  href: `#${encodeURIComponent(node.path)}`,
+                  'aria-label': `Permanent link to ${node.label}`,
+                },
+                '#',
+              )
+            : null,
           row.children.length === 0
             ? null
             : h(

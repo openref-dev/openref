@@ -122,6 +122,13 @@ export const TryItPanel = defineComponent({
     run: { type: Object as PropType<RunnerOperationView | null>, default: null },
     /** Where the reference is mounted, so the OAuth2 callback route can be named. */
     basePath: { type: String, default: '' },
+    /**
+     * Status codes the document declares, for the response verdict chip of `TX-MARKUP`.
+     *
+     * A prop rather than a derivation because `run` is the runner's projection and carries
+     * what a request needs, not what the document promises about the answer.
+     */
+    declared: { type: Array as PropType<readonly string[]>, default: () => [] },
   },
 
   setup(props) {
@@ -639,6 +646,7 @@ export const TryItPanel = defineComponent({
           result: runner.result.value,
           error: runner.error.value,
           pending: runner.pending.value,
+          declared: props.declared,
         }),
         run.stream === undefined
           ? null
