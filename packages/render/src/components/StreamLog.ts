@@ -72,12 +72,11 @@ export function StreamLog(props: {
         {
           class: 'oref-send oref-stream-start',
           type: 'button',
-          // THE SAME THREE STATES SEND HAS, AND FOR THE SAME REASON, which is F14. Before mount
-          // the button is a real target that says it is unavailable, because a natively disabled
-          // control receives no click in Chrome and the press that was meant to fetch this
-          // console would reach nothing to replay.
+          // THE SAME STATES SEND HAS, AND FOR THE SAME REASON, per the SPEC 11 rule F14 grew
+          // into. Before mount the button is a real enabled control, because its press brings
+          // the console and is replayed into it; any declared disabled state hands a
+          // state-respecting pipeline a reason to discard that press.
           disabled: props.mounted && (!props.available || props.open),
-          'aria-disabled': props.mounted ? null : 'true',
           onClick: (): void => {
             if (props.open) return;
             props.onStart();

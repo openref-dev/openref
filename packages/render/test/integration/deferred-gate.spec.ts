@@ -61,10 +61,10 @@ function press(element: Element): void {
 /**
  * The send button, which is how this file tells a hydrated console from the served markup.
  *
- * SINCE F14 THE NATIVE ATTRIBUTE IS NOT THE MARKER. The served button is deliberately not
- * `disabled`, because a browser dispatches no mouse event on one that is, and the reader's press
- * on Send is the gesture that has to bring the console in. What the server writes instead is
- * `aria-disabled`, and the mounted console does not write it.
+ * NO ATTRIBUTE IS THE MARKER, since the SPEC 11 rewrite of 2026-08-14: the served button
+ * carries neither `disabled` nor `aria-disabled`, because a declared disabled state hands the
+ * press to whichever pipeline respects it. What separates the served state from the live ready
+ * one is the notice: the load sentence stands beside Send exactly until the console mounts.
  *
  * @returns The button
  */
@@ -73,6 +73,11 @@ function sendButton(): HTMLButtonElement {
   if (button === null) throw new Error('the page rendered no send button');
 
   return button;
+}
+
+/** The sentence beside Send, by the id that belongs to it alone. */
+function sendNotice(): string | null {
+  return document.getElementById('oref-tryit-notice')?.textContent ?? null;
 }
 
 /** A runner that answers nothing, since what is asserted is when it arrives. */
@@ -99,7 +104,8 @@ describe('the deferral gate', () => {
     // Then the server's markup is still what is in the document, untouched
     expect(loadRunner).not.toHaveBeenCalled();
     expect(document.querySelector('.oref-palette-input')).toBeNull();
-    expect(sendButton().getAttribute('aria-disabled')).toBe('true');
+    expect(sendButton().disabled).toBe(false);
+    expect(sendNotice()).toBe('The console loads when you press Send.');
   });
 
   it('should open the palette on one press, not on the second', async () => {
@@ -149,9 +155,10 @@ describe('the deferral gate', () => {
     press(section);
 
     // Then the console arrives enabled, which is the whole of T014 read through the chunk: the
-    // runner is not a second arrival a reader has to wait for after the console appears.
+    // runner is not a second arrival a reader has to wait for after the console appears. The
+    // load sentence vanishing is what marks the mount, per the SPEC 11 rewrite.
     await vi.waitFor(() => {
-      expect(sendButton().hasAttribute('aria-disabled')).toBe(false);
+      expect(sendNotice()).toBeNull();
     });
     expect(sendButton().disabled).toBe(false);
     expect(loadRunner).toHaveBeenCalledTimes(1);
@@ -170,7 +177,7 @@ describe('the deferral gate', () => {
 
     // Then
     await vi.waitFor(() => {
-      expect(sendButton().hasAttribute('aria-disabled')).toBe(false);
+      expect(sendNotice()).toBeNull();
     });
     expect(loadRunner).toHaveBeenCalledTimes(1);
   });

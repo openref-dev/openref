@@ -11,9 +11,11 @@
  */
 
 import {
+  compareByCodePoint,
   generateExample,
   type IRDocument,
   type IRJsonSchema,
+  type IRJsonValue,
   type IRMediaType,
   type IRNavNode,
   type IROperation,
@@ -205,8 +207,49 @@ function jsonSchemaTypeLabel(body: IRJsonSchema): string {
   return typeof body.type === 'string' ? body.type : body.type.join(' | ');
 }
 
+/**
+ * The example the document declared on this media type, if it declared one.
+ *
+ * `example` wins over the `examples` map, which is OpenAPI's own precedence; a map without a
+ * plain `example` contributes its first member by code point, because a deterministic page
+ * cannot depend on the order a document happened to list them in.
+ *
+ * @param media - The media type
+ * @returns The declared value, or nothing
+ */
+function declaredMediaExample(media: IRMediaType): IRJsonValue | undefined {
+  if (media.example !== undefined) return media.example;
+  if (media.examples === undefined) return undefined;
+
+  const first = Object.keys(media.examples).sort(compareByCodePoint)[0];
+  return first === undefined ? undefined : media.examples[first]?.value;
+}
+
+/**
+ * The body block under a media type: the declared example, or a generated one.
+ *
+ * THE DECLARED EXAMPLE WINS, per SPEC 5.5's 2026-08-14 line, and for any media type rather
+ * than only JSON. It is the document's statement about this one response, so it is the only
+ * form that can differ between two responses sharing a schema; the generated example is a pure
+ * function of the schema and printed the same body under 400 and 429, stating a status neither
+ * of them has. The `missing-example` rule's suggested edit adds exactly this field, so before
+ * this branch existed the suggestion led to an edit that changed nothing on the page.
+ *
+ * A declared string under a non JSON media type renders as the text it is, which is what the
+ * receipt's `text/csv` example asks for; under a JSON media type every value is printed as the
+ * JSON it would be on the wire.
+ */
 function exampleHtml(media: IRMediaType, context: ModelContext, view: IRSchemaView): string {
-  if (!JSON_MEDIA_TYPE.test(media.mediaType)) return '';
+  const declared = declaredMediaExample(media);
+  const json = JSON_MEDIA_TYPE.test(media.mediaType);
+
+  if (declared !== undefined) {
+    const text =
+      !json && typeof declared === 'string' ? declared : JSON.stringify(declared, null, 2);
+    return context.markdown.renderCode(`${text.replace(/\n$/, '')}\n`, json ? 'json' : '');
+  }
+
+  if (!json) return '';
   if (media.schema === undefined) return '';
 
   const schema = resolveSchemaSlot(media.schema, context.document.schemas);

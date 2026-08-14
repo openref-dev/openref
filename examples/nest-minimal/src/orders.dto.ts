@@ -202,17 +202,21 @@ export class CreateOrderDto {
  * One shape for every documented status code, which is what makes a list of six of them worth
  * reading rather than six guesses about what comes back.
  */
+/**
+ * NO PROPERTY EXAMPLES, AND THAT IS A LESSON RATHER THAN AN OMISSION. A property example
+ * travels with the schema, so it is identical under every response that references it: the
+ * `409` this class used to carry was printed under 400 and under 429, contradicting both.
+ * Each response declares its own `example` at the media type instead, where a status can be
+ * the status of the response it sits under.
+ */
 export class ProblemDto {
-  @ApiProperty({ description: 'The status code, repeated in the body.', example: 409 })
+  @ApiProperty({ description: 'The status code, repeated in the body.' })
   status!: number;
 
-  @ApiProperty({ description: 'Short, stable, safe to switch on.', example: 'order_conflict' })
+  @ApiProperty({ description: 'Short, stable, safe to switch on.' })
   title!: string;
 
-  @ApiProperty({
-    description: 'What went wrong this time, for a person.',
-    example: 'An order with this idempotency key already exists.',
-  })
+  @ApiProperty({ description: 'What went wrong this time, for a person.' })
   detail!: string;
 }
 

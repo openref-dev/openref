@@ -803,8 +803,7 @@ button.oref-schema-row:hover {
   text-transform: uppercase;
 }
 
-.oref-send:disabled,
-.oref-send[aria-disabled='true'] {
+.oref-send:disabled {
   background: #f6f8fa;
   border-color: #5f6e7a;
   color: #5f6e7a;

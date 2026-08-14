@@ -989,12 +989,11 @@ button.oref-schema-row:hover {
   text-transform: uppercase;
 }
 
-/* Both states look the same and are not the same thing, per finding F14. `:disabled` is a live
-   console that cannot send; `[aria-disabled]` is a console that has not been fetched yet, and
-   it carries no `disabled` attribute precisely so the reader's press on it still reaches the
-   page and brings the console in. */
-.oref-send:disabled,
-.oref-send[aria-disabled='true'] {
+/* Only a live console that cannot send is painted unavailable. The deferred button carries no
+   disabling attribute and no muted paint, per the SPEC 11 rule F14 grew into: a press on it is
+   the action the notice names, and a control painted inert beside a sentence asking for a press
+   was read as a broken product, three reports in a row. */
+.oref-send:disabled {
   background: var(--oref-color-surface-inset);
   border-color: var(--oref-color-fg-muted);
   color: var(--oref-color-fg-muted);

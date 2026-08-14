@@ -35,8 +35,12 @@ import {
  *
  * Bumped by hand when a change to a component changes the bytes of an unchanged document.
  * It is part of the cache key, so bumping it invalidates every stored page at once.
+ *
+ * 4 to 5 on 2026-08-14: the served send and stream buttons lost `aria-disabled`, a declared
+ * media type example now wins over the generated one, zero denominator health checks stopped
+ * rendering a row, and the rule heading gained its separator. Same document, different bytes.
  */
-export const RENDER_VERSION = 4;
+export const RENDER_VERSION = 5;
 
 /** How one page is rendered. */
 export interface RenderPageOptions {

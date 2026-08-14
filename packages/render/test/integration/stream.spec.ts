@@ -166,8 +166,9 @@ async function settle(): Promise<void> {
  * Reaches for the console the way a reader does, and waits for the Stream control to come alive.
  *
  * THE CONTROL EXISTING PROVES NOTHING, for the reason the send button's own helper gives: the
- * server renders the whole console, so a query is satisfied by markup nothing hydrated. What
- * separates them is `aria-disabled`, which the server writes and the mounted console does not.
+ * server renders the whole console, so a query is satisfied by markup nothing hydrated. Since
+ * the SPEC 11 rewrite no attribute separates them either, so the mount is read off the load
+ * sentence beside Send vanishing, the one change hydration owns.
  */
 async function reachForConsole(): Promise<HTMLButtonElement> {
   const region = globalThis.document.querySelector('.oref-section-tryit');
@@ -178,7 +179,8 @@ async function reachForConsole(): Promise<HTMLButtonElement> {
   for (let attempt = 0; attempt < 200; attempt += 1) {
     await settle();
     const button = globalThis.document.querySelector<HTMLButtonElement>('.oref-stream-start');
-    if (button !== null && !button.hasAttribute('aria-disabled') && !button.disabled) return button;
+    const notice = globalThis.document.getElementById('oref-tryit-notice');
+    if (button !== null && !button.disabled && notice === null) return button;
   }
 
   throw new Error('the console never hydrated a live Stream control');

@@ -1,4 +1,15 @@
-import { Body, Controller, Get, Header, Param, Post, Query, Sse, UseGuards } from '@nestjs/common';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Get,
+  Header,
+  Param,
+  Post,
+  Query,
+  Sse,
+  UseGuards,
+} from '@nestjs/common';
 import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import { ApiAudience, ApiErrors, ApiSample, ApiScopes, ApiStream, paginated } from '@openref/nest';
 import { from, map, type Observable } from 'rxjs';
@@ -41,6 +52,19 @@ const CATEGORIES: CategoryDto[] = [
 ];
 
 const FLUTES: CategoryDto = { slug: 'flutes', title: 'Flutes' };
+
+/**
+ * A `ProblemDto` body for one documented error response.
+ *
+ * EVERY ERROR RESPONSE DECLARES ITS OWN EXAMPLE, AND EACH EXAMPLE STATES THE STATUS OF THE
+ * RESPONSE IT SITS UNDER. The schema's own property examples cannot do this: they travel with
+ * `ProblemDto` and are therefore identical under every response that references it, which is
+ * how the demo once printed `order_conflict` with status 409 under both 400 and 429. An
+ * example that contradicts the code above it is worse than none, because a reader copies it.
+ */
+function problem(status: number, title: string, detail: string): ProblemDto {
+  return { status, title, detail };
+}
 
 const ORDERS: OrderDto[] = [
   {
@@ -146,8 +170,18 @@ export class OrdersController {
   @ApiQuery({ name: 'perPage', required: false, type: Number, description: 'At most 100.' })
   @ApiHeader({ name: 'X-Request-Id', required: false, description: 'Echoed back in the log.' })
   @ApiOkResponse({ type: OrderDto, isArray: true })
-  @ApiResponse({ status: 400, description: 'A parameter did not parse.', type: ProblemDto })
-  @ApiResponse({ status: 429, description: 'Too many requests.', type: ProblemDto })
+  @ApiResponse({
+    status: 400,
+    description: 'A parameter did not parse.',
+    type: ProblemDto,
+    example: problem(400, 'invalid_parameter', 'minAmount is not a number.'),
+  })
+  @ApiResponse({
+    status: 429,
+    description: 'Too many requests.',
+    type: ProblemDto,
+    example: problem(429, 'rate_limited', 'More than 30 requests in a minute.'),
+  })
   list(
     @Query('currency') currency?: string,
     @Query('status') status?: string,
@@ -243,7 +277,12 @@ export class OrdersController {
   @ApiErrors(OrderNotFoundError)
   @ApiOperation({ summary: 'Read one order' })
   @ApiOkResponse({ type: OrderDto })
-  @ApiResponse({ status: 404, description: 'No order with that identifier.', type: ProblemDto })
+  @ApiResponse({
+    status: 404,
+    description: 'No order with that identifier.',
+    type: ProblemDto,
+    example: problem(404, 'order_not_found', 'No order exists with the identifier given.'),
+  })
   read(@Param('id') id: string): OrderDto {
     const found = ORDERS.find((order) => order.id === id);
     if (found !== undefined) return found;
@@ -285,7 +324,12 @@ export class OrdersController {
       'text/csv': { schema: { type: 'string' }, example: 'sku,quantity\nsku_flute_c,2\n' },
     },
   })
-  @ApiResponse({ status: 404, description: 'No order with that identifier.', type: ProblemDto })
+  @ApiResponse({
+    status: 404,
+    description: 'No order with that identifier.',
+    type: ProblemDto,
+    example: problem(404, 'order_not_found', 'No order exists with the identifier given.'),
+  })
   receipt(@Param('id') id: string): string {
     const order = this.read(id);
     const rows = order.lines.map(
@@ -314,23 +358,56 @@ export class OrdersController {
   @ApiErrors(OrderConflictError)
   @ApiOperation({ summary: 'Create an order' })
   @ApiResponse({ status: 201, description: 'Created.', type: OrderDto })
-  @ApiResponse({ status: 400, description: 'The body did not parse.', type: ProblemDto })
-  @ApiResponse({ status: 402, description: 'The payment was declined.', type: ProblemDto })
-  @ApiResponse({ status: 409, description: 'This order already exists.', type: ProblemDto })
-  @ApiResponse({ status: 422, description: 'A line refers to an unknown sku.', type: ProblemDto })
-  @ApiResponse({ status: 429, description: 'Too many requests.', type: ProblemDto })
-  create(@Body() body: CreateOrderDto): OrderDto {
-    // The body is whatever was posted. Nothing validates it here, because a validation pipe is
-    // an opinion about the reader's application rather than about the reference.
-    const lines = Array.isArray(body.lines) ? body.lines : [];
+  @ApiResponse({
+    status: 400,
+    description: 'The body did not parse.',
+    type: ProblemDto,
+    example: problem(400, 'invalid_body', 'The request carried no body that parses as an order.'),
+  })
+  @ApiResponse({
+    status: 402,
+    description: 'The payment was declined.',
+    type: ProblemDto,
+    example: problem(402, 'payment_declined', 'The card issuer refused the charge.'),
+  })
+  @ApiResponse({
+    status: 409,
+    description: 'This order already exists.',
+    type: ProblemDto,
+    example: problem(409, 'order_conflict', 'An order with this idempotency key already exists.'),
+  })
+  @ApiResponse({
+    status: 422,
+    description: 'A line refers to an unknown sku.',
+    type: ProblemDto,
+    example: problem(422, 'unknown_sku', 'sku_flute_h is not in the catalogue.'),
+  })
+  @ApiResponse({
+    status: 429,
+    description: 'Too many requests.',
+    type: ProblemDto,
+    example: problem(429, 'rate_limited', 'More than 30 requests in a minute.'),
+  })
+  create(@Body() body?: CreateOrderDto): OrderDto {
+    // NOT A VALIDATION PIPE, WHICH REMAINS AN OPINION ABOUT THE READER'S APPLICATION, but the
+    // route's own honesty about the answer it documents. An empty POST reaches this handler as
+    // no body at all, Express 5 leaves `req.body` undefined when no parser matched, and the
+    // demo answered its documented 400 with an Internal Server Error instead: the first thing
+    // a person runs, failing on the second operation they try. A required schema with nothing
+    // sent is the 400 this route declares, in the ProblemDto shape it declares for it.
+    if (body === undefined || typeof body.currency !== 'string' || !Array.isArray(body.lines)) {
+      throw new BadRequestException(
+        problem(400, 'invalid_body', 'The request carried no body that parses as an order.'),
+      );
+    }
 
     return {
       id: `ord_${String(ORDERS.length + 1024)}`,
-      amount: lines.reduce((total, line) => total + line.quantity * line.unitAmount, 0),
+      amount: body.lines.reduce((total, line) => total + line.quantity * line.unitAmount, 0),
       currency: body.currency,
       status: 'draft',
       customer: ORDERS[0].customer,
-      lines,
+      lines: body.lines,
       payment: body.payment,
     };
   }

@@ -443,13 +443,18 @@ export function buildHealthModel(document: IRDocument, basePath: string): Health
   return {
     title: `Documentation health, ${operations} operations, ${findings} findings`,
     score: `${String(report.score)}%`,
-    checks: report.checks.map((check) => ({
-      label: check.label,
-      // A CHECK WITH NOTHING TO COUNT IS SHOWN AND NOT SCORED, per SPEC 7.2. A document with no
-      // streaming endpoint is asked nine questions rather than given the tenth for free, and the
-      // row saying so is how a reader knows the question was not skipped by accident.
-      count: check.total === 0 ? 'n/a' : `${String(check.passed)} / ${String(check.total)}`,
-    })),
+    // A CHECK WITH NOTHING TO COUNT IS NOT SCORED AND NOT DRAWN, per SPEC 7.2's 2026-08-14
+    // line. The row used to render `n/a`, which reports on the instrument in a column where
+    // every other row reports on the application, the class F26 named. Unlike F26's empty
+    // declared group, which SPEC 6.4 makes an assertion and which kept its row, a question
+    // that applied to nothing asserts nothing about the application, so it renders nothing,
+    // the way a node without runtime facts gets no empty column.
+    checks: report.checks
+      .filter((check) => check.total > 0)
+      .map((check) => ({
+        label: check.label,
+        count: `${String(check.passed)} / ${String(check.total)}`,
+      })),
     rules: groupDriftByRule(report.drift).map((group) => ({
       rule: group.rule,
       count: String(group.issues.length),

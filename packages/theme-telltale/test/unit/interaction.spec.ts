@@ -125,7 +125,10 @@ describe('the console positions, driven', () => {
     // Then
     expect(onSend).toHaveBeenCalledTimes(1);
 
-    // And a button before hydration is disabled and says why, associated rather than adjacent
+    // And a button before hydration is enabled with the notice associated rather than
+    // adjacent, per the SPEC 11 rule rewritten 2026-08-14: this theme served Send natively
+    // disabled and was the measured case of the engine dropping the click, a press that armed
+    // the console's loader and sent nothing.
     const waiting = SendButton({
       available: true,
       pending: false,
@@ -135,11 +138,23 @@ describe('the console positions, driven', () => {
     });
 
     expect((byClass(waiting, 'tt-send-button').props as { disabled?: boolean }).disabled).toBe(
-      true,
+      false,
     );
     expect(
       (byClass(waiting, 'tt-send-button').props as Record<string, unknown>)['aria-describedby'],
     ).toBe('tt-send-notice');
+
+    // And a live console that cannot send is the only state the native attribute is for
+    const readOnly = SendButton({
+      available: false,
+      pending: false,
+      mounted: true,
+      notice: 'This build carries no request runner, so the console is read only.',
+      onSend,
+    });
+    expect((byClass(readOnly, 'tt-send-button').props as { disabled?: boolean }).disabled).toBe(
+      true,
+    );
   });
 
   it('should choose a server by its url', () => {

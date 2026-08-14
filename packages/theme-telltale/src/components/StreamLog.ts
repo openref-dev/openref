@@ -40,7 +40,9 @@ export default function StreamLog(props: {
         {
           type: 'button',
           class: 'tt-stream-start',
-          disabled: !props.available || !props.mounted || props.open,
+          // Enabled while deferred, per the SPEC 11 rule: the press on it is what brings the
+          // console, and a natively disabled control loses that press in the engine.
+          disabled: props.mounted && (!props.available || props.open),
           onClick: (): void => {
             props.onStart();
           },

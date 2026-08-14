@@ -97,22 +97,25 @@ describe('the try-it console in the server render', () => {
     expect(state).not.toContain('Authorization');
   });
 
-  it('should mark the send button disabled without disabling it, per F14', async () => {
-    // Given, and the same markup is what the first client render produces, so hydration matches.
+  it('should serve the send button as a real enabled control with the load notice', async () => {
+    // Given, and the same markup is what the first client render produces, so hydration
+    // matches. Per the SPEC 11 rule rewritten 2026-08-14: a press on the deferred button does
+    // exactly what the notice names, so declaring it disabled in any form hands the gesture to
+    // whichever pipeline respects declared state, assistive technology, actionability checking
+    // automation, or the engine itself on native `disabled`, and each one discards it.
     const html = await renderNode('get-orders');
 
     // When
     const button = /<button class="oref-send"[^>]*>/.exec(html)?.[0] ?? '';
 
-    // Then it says it is disabled, to a reader through the theme and to assistive technology
-    // through the attribute.
-    expect(button).toContain('aria-disabled="true"');
-
-    // And it does not carry the attribute that would make it unusable as the trigger it is.
-    // Chrome dispatches no mouse event at all on a form control with `disabled`, so a served
-    // console whose send button carried it could be woken by pressing anywhere except the one
-    // control the reader reaches for, which is what F14 measured in a real browser.
+    // Then it carries neither disabling form
+    expect(button).not.toContain('aria-disabled');
     expect(/\sdisabled(\s|=|>)/.test(button)).toBe(false);
+
+    // And what marks the state is the notice, associated through the attribute a screen
+    // reader follows, saying the true sentence about a press.
+    expect(button).toContain('aria-describedby="oref-tryit-notice"');
+    expect(html).toContain('The console loads when you press Send.');
   });
 
   it('should say the document declares no server rather than render a form that cannot send', () => {

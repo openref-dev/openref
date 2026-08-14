@@ -78,12 +78,14 @@ interface Session {
  * Opens a page of the example.
  *
  * @param path - Absolute path on the application
- * @param blockLateModules - When set, every module the page asks for after its load event is
- *   answered 404. That is the chunk plant: the initial closure arrives, and nothing that is
- *   fetched because a reader reached for it does.
+ * @param plant - `block` answers every module asked for after the load event with a 404: the
+ *   initial closure arrives, and nothing fetched because a reader reached for it does, which
+ *   since SPEC 11's second half makes the region fail loudly. `delay` holds those modules for
+ *   ten seconds instead: nothing fails, and the deferred state stands still long enough to be
+ *   read, which is what the keyboard case needs and a 404 can no longer give it.
  * @returns The session
  */
-async function open(path: string, blockLateModules = false): Promise<Session> {
+async function open(path: string, plant?: 'block' | 'delay'): Promise<Session> {
   const context = await chrome.browser.newContext();
   const page = await context.newPage();
   const requests: string[] = [];
@@ -103,16 +105,23 @@ async function open(path: string, blockLateModules = false): Promise<Session> {
     requests.push(request.url());
   });
 
-  if (blockLateModules) {
+  if (plant !== undefined) {
     // THE PLANT IS A ROUTE AND NOT AN OPTION OF THE APPLICATION, per the rule `plants.ts` already
     // carries: a server that could be asked to lose a chunk would be an asset catalog with a hole
     // in it, kept open for a test, and the next reader could not tell that hole from a defect.
     await page.route('**/*.js', async (route: Route) => {
-      if (loaded) {
+      if (!loaded) {
+        await route.continue();
+        return;
+      }
+      if (plant === 'block') {
         await route.fulfill({ status: 404, body: 'planted: this chunk is not in the catalog' });
         return;
       }
-      await route.continue();
+      await new Promise((resolve) => setTimeout(resolve, 10_000));
+      // The context is usually gone by the time the hold ends, and that is the point: the
+      // module was never refused, only never awaited.
+      await route.continue().catch(() => undefined);
     });
   }
 
@@ -155,12 +164,12 @@ async function reachForTheConsole(page: Page): Promise<void> {
 /**
  * Presses one element with the mouse, at its own coordinates, with no actionability check.
  *
- * NOT `locator.click`, AND THAT IS THE POINT OF THE CASE BELOW. Playwright reads
- * `aria-disabled` as disabled and waits for a control carrying it to become enabled, so the
- * gesture F14 is about, a reader pressing Send while the console is still the server's markup,
- * cannot be expressed through the locator API at all: it would wait for the state the press is
- * supposed to produce. The browser has no such policy, so the press is driven through the mouse
- * where the element actually is.
+ * THE LOWER OF THE TWO PIPELINES SPEC 11 REQUIRES THE PRESS TO BE PROVED ON. This one injects
+ * raw pointer input below every policy, so it proves the event path: gate, chunk, replay,
+ * send. The other pipeline is `locator.click` with its actionability check left on, which
+ * refuses a control declaring itself disabled; that press is the regression lock for the
+ * 2026-08-14 finding, where the served button's `aria-disabled` made every state-respecting
+ * pipeline discard the gesture the notice names, and it has its own case below.
  *
  * @param page - The open page
  * @param selector - What to press
@@ -199,9 +208,14 @@ describe('the first minute', () => {
       const session = await open(NODE_PAGE);
 
       try {
-        // Then the console's region is in the document, server rendered and not yet hydrated
+        // Then the console's region is in the document, server rendered and not yet hydrated:
+        // the load sentence stands beside an enabled Send, which is the served state since the
+        // SPEC 11 rewrite, and only the console mounting removes it.
         await expect.poll(() => session.page.locator('.oref-section-tryit').count()).toBe(1);
-        expect(await session.page.locator('.oref-send').isDisabled()).toBe(true);
+        expect(await session.page.locator('.oref-send').isDisabled()).toBe(false);
+        expect(await session.page.locator('#oref-tryit-notice').textContent()).toBe(
+          'The console loads when you press Send.',
+        );
       } finally {
         await session.close();
         // A CHUNKED MODULE GRAPH UNDER THE STRICT POLICY. `script-src 'self' 'nonce-...'` has to
@@ -225,10 +239,14 @@ describe('the first minute', () => {
         // When
         await reachForTheConsole(session.page);
 
-        // Then the console arrives enabled, which is the whole of T014 read through the chunk
+        // Then the console arrives, marked by the load sentence vanishing, which is the whole
+        // of T014 read through the chunk. The button's attributes mark nothing since the SPEC
+        // 11 rewrite: served and live ready are both enabled, and only the notice separates
+        // them.
         await expect
-          .poll(() => session.page.locator('.oref-send').isDisabled(), { timeout: 30_000 })
-          .toBe(false);
+          .poll(() => session.page.locator('#oref-tryit-notice').count(), { timeout: 30_000 })
+          .toBe(0);
+        expect(await session.page.locator('.oref-send').isDisabled()).toBe(false);
 
         // And it arrived by fetching something, from this origin, after the reach and not before
         const late = session.requests.slice(before);
@@ -312,21 +330,55 @@ describe('the first minute', () => {
   );
 
   it(
+    'should answer the same press when it comes through a pipeline that honours declared state',
+    async () => {
+      // Given the same untouched page. THIS IS THE 2026-08-14 FINDING'S REGRESSION LOCK. The
+      // raw mouse press above injects input below every policy, so it stayed green while the
+      // served button declared itself disabled through `aria-disabled`, and every pipeline
+      // that respects a declared state, assistive technology announcing the control,
+      // automation with its actionability check, refused the gesture the notice names. This
+      // press goes through `locator.click` with that check left on: on the old markup it
+      // refuses to press at all, so this case cannot pass unless the served button is the
+      // honest enabled control SPEC 11 now requires.
+      const session = await open(LIST_PAGE);
+
+      try {
+        // When they press Send once, through the checked pipeline
+        await session.page.locator('.oref-send').click({ timeout: 15_000 });
+
+        // Then the console arrived on that press and the controller answered
+        await expect
+          .poll(() => session.page.locator('.oref-run-body').count(), { timeout: 30_000 })
+          .toBe(1);
+        expect(
+          await session.page.locator('.oref-run-summary .oref-status').textContent(),
+        ).toContain('200');
+      } finally {
+        await session.close();
+        expect(session.violations).toEqual([]);
+      }
+    },
+    TIMEOUT,
+  );
+
+  it(
     'should give a reader who reaches Send by keyboard the sentence beside it',
     async () => {
-      // Given the page a reader arrives at, with the chunk plant on, and the second half of F14:
-      // what makes the button focusable while the console is still the server's markup is
-      // `aria-disabled`, so the state the notice explains is exactly the state a keyboard reader
-      // lands in. This is a browser question rather than a tree question, per the standing rule:
-      // whether tab reaches a control carrying `aria-disabled` is decided by the user agent.
+      // Given the page a reader arrives at, with the delay plant on, and the second half of
+      // F14: the served button is an ordinary enabled control since the SPEC 11 rewrite, so a
+      // keyboard reader tabs onto it the way they tab onto any button, and what they must be
+      // handed there is the sentence naming what a press does. This is a browser question
+      // rather than a tree question: which controls tab reaches is decided by the user agent.
       //
-      // THE PLANT IS WHAT MAKES THE STATE HOLD STILL, and the reason is worth reading. The
-      // console's gate listens for `focusin` as well as for a press, so a reader tabbing towards
-      // Send passes through ten fields and arms the loader on the first of them. Without the
-      // plant this case is a race between the chunk and the remaining tab presses: it asserts the
-      // deferred state on a slow machine and a live console on a fast one, which is a case that
-      // fails for a reason that has nothing to do with what it is about.
-      const session = await open(LIST_PAGE, true);
+      // THE PLANT IS WHAT MAKES THE STATE HOLD STILL, and it is the delay flavour on purpose.
+      // The console's gate listens for `focusin` as well as for a press, so a reader tabbing
+      // towards Send passes through ten fields and arms the loader on the first of them.
+      // Without a plant this case is a race between the chunk and the remaining tab presses;
+      // with the 404 plant it is a different state entirely since SPEC 11's second half, the
+      // failed load disables the region's buttons and tab skips a disabled Send, which the
+      // failure case below asserts on purpose. Held modules fail nothing and arrive never,
+      // which is exactly a deferred console standing still.
+      const session = await open(LIST_PAGE, 'delay');
 
       try {
         // When they tab, one press per attempt, until the focus is on Send. THE PRESS AND THE
@@ -390,8 +442,8 @@ describe('the first minute', () => {
       try {
         await reachForTheConsole(session.page);
         await expect
-          .poll(() => session.page.locator('.oref-send').isDisabled(), { timeout: 30_000 })
-          .toBe(false);
+          .poll(() => session.page.locator('#oref-tryit-notice').count(), { timeout: 30_000 })
+          .toBe(0);
 
         // When the two lists are read off the page
         const table = await session.page.locator('.oref-param-name code').allTextContents();
@@ -442,20 +494,30 @@ describe('the first minute', () => {
   );
 
   it(
-    'should leave the console dead when its chunk is not in the catalog',
+    'should say the console failed to load when its chunk is not in the catalog',
     async () => {
       // Given the same page with the plant: everything the first paint asked for arrived, and
       // every module fetched after that answers 404.
-      const session = await open(NODE_PAGE, true);
+      const session = await open(NODE_PAGE, 'block');
 
       try {
         // When the reader reaches for the console
         await reachForTheConsole(session.page);
-        await session.page.waitForTimeout(3_000);
 
-        // Then it never becomes usable. THIS IS THE PLANT FOR THE CASE ABOVE: without it, a
-        // console that was enabled by the server, or a marker that matched the disabled button,
-        // would pass that case with no chunk ever fetched.
+        // Then the failure is words in the region rather than silence, per SPEC 11's second
+        // half: the served button is a real enabled control now, so a chunk that never arrives
+        // would otherwise leave a pressable Send that does nothing, which is the reading F14
+        // exists to forbid. THIS IS ALSO THE PLANT FOR THE CASES ABOVE: a marker that matched
+        // the served markup would pass them with no chunk ever fetched, and the load sentence
+        // vanishing they poll for only happens when the chunk really mounts.
+        await expect
+          .poll(() => session.page.locator('.oref-section-tryit .oref-embed-error').count(), {
+            timeout: 30_000,
+          })
+          .toBe(1);
+        expect(
+          await session.page.locator('.oref-section-tryit .oref-embed-error').textContent(),
+        ).toContain('The console failed to load');
         expect(await session.page.locator('.oref-send').isDisabled()).toBe(true);
       } finally {
         await session.close();
@@ -473,8 +535,8 @@ describe('the first minute', () => {
       try {
         await reachForTheConsole(session.page);
         await expect
-          .poll(() => session.page.locator('.oref-send').isDisabled(), { timeout: 30_000 })
-          .toBe(false);
+          .poll(() => session.page.locator('#oref-tryit-notice').count(), { timeout: 30_000 })
+          .toBe(0);
 
         // When they fill the path parameter and send
         await session.page.locator('.oref-tryit-form input[id*="path"]').fill('ord_1024');

@@ -1,4 +1,4 @@
-import type { IRSchema, IRSchemaSlot } from '@openref/core';
+import { normalizeOpenApiDocument, type IRSchema, type IRSchemaSlot } from '@openref/core';
 import { describe, expect, it } from 'vitest';
 import { buildNavigation, buildPageModel, typeLabel } from '../../src/page/domain/page-model';
 import { createMarkdownRenderer } from '../../src/markdown/domain/markdown';
@@ -180,6 +180,113 @@ describe('buildPageModel', () => {
     // Then
     const notFound = model.node?.responses.find((response) => response.statusCode === '404');
     expect(notFound?.content).toEqual([]);
+  });
+
+  it('should print the declared media type example instead of the generated one', () => {
+    // Given two error responses sharing one schema, each declaring its own example. This is
+    // the demo's 400 and 429: a generated example is a pure function of the schema and prints
+    // one body under both, stating a status neither response has, and SPEC 5.5 makes the
+    // declared example win. The declared `examples` map contributes its first member by code
+    // point when no plain `example` is written.
+    const document = normalizeOpenApiDocument({
+      openapi: '3.1.0',
+      info: { title: 'Problems', version: '1.0.0' },
+      paths: {
+        '/things': {
+          get: {
+            operationId: 'listThings',
+            responses: {
+              '400': {
+                description: 'Bad request',
+                content: {
+                  'application/json': {
+                    schema: { $ref: '#/components/schemas/Problem' },
+                    example: { status: 400, title: 'invalid_parameter' },
+                  },
+                },
+              },
+              '429': {
+                description: 'Too many requests',
+                content: {
+                  'application/json': {
+                    schema: { $ref: '#/components/schemas/Problem' },
+                    examples: {
+                      limit: { value: { status: 429, title: 'rate_limited' } },
+                    },
+                  },
+                },
+              },
+              '500': {
+                description: 'Server error',
+                content: {
+                  'application/json': { schema: { $ref: '#/components/schemas/Problem' } },
+                },
+              },
+            },
+          },
+        },
+      },
+      components: {
+        schemas: {
+          Problem: {
+            type: 'object',
+            properties: { status: { type: 'integer', example: 409 }, title: { type: 'string' } },
+          },
+        },
+      },
+    });
+    const nodeId = [...document.nodes.keys()][0] ?? '';
+
+    // When
+    const model = buildPageModel(document, { markdown, nodeId });
+    const exampleOf = (status: string): string =>
+      model.node?.responses.find((response) => response.statusCode === status)?.content[0]
+        ?.exampleHtml ?? '';
+
+    // Then each declared example states the status of the response it sits under
+    expect(exampleOf('400')).toContain('invalid_parameter');
+    expect(exampleOf('400')).not.toContain('409');
+    expect(exampleOf('429')).toContain('rate_limited');
+    expect(exampleOf('429')).not.toContain('409');
+
+    // And the response that declared nothing keeps the generated example, which is where the
+    // schema's own property example is still the document speaking
+    expect(exampleOf('500')).toContain('409');
+  });
+
+  it('should render a declared string example under a non json media type as the text it is', () => {
+    // Given the receipt's shape: a text media type whose example is the payload itself
+    const document = normalizeOpenApiDocument({
+      openapi: '3.1.0',
+      info: { title: 'Receipts', version: '1.0.0' },
+      paths: {
+        '/receipt': {
+          get: {
+            operationId: 'readReceipt',
+            responses: {
+              '200': {
+                description: 'The receipt.',
+                content: {
+                  'text/csv': {
+                    schema: { type: 'string' },
+                    example: 'sku,quantity\nsku_flute_c,2\n',
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+    const nodeId = [...document.nodes.keys()][0] ?? '';
+
+    // When
+    const model = buildPageModel(document, { markdown, nodeId });
+    const example = model.node?.responses[0]?.content[0]?.exampleHtml ?? '';
+
+    // Then the text is the example, not a JSON string literal with escaped line feeds
+    expect(example).toContain('sku,quantity');
+    expect(example).not.toContain('\\n');
   });
 
   it('should resolve a security requirement against the declared schemes', () => {

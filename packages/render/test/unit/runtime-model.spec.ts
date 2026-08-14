@@ -366,10 +366,11 @@ describe('buildHealthModel', () => {
     );
   });
 
-  it('should say a check had nothing to count rather than counting it as perfect', () => {
-    // Given, SPEC 7.2 leaves a check with a zero denominator out of the score, and the row still
-    // says the question was asked. `0 / 0` would read as a failure and `100%` as a pass, and the
-    // truth is that this document has none of that kind of thing.
+  it('should drop a check that had nothing to count rather than render the instrument', () => {
+    // Given, SPEC 7.2's 2026-08-14 line: a zero denominator check is out of the score and out
+    // of the panel. The row used to render `n/a`, which reports on the instrument in a column
+    // where every other row reports on the application, the class F26 named; a question that
+    // applied to nothing asserts nothing about the application, so it renders nothing.
     const document = runtimeDocument();
     const report = document.health;
 
@@ -377,11 +378,12 @@ describe('buildHealthModel', () => {
     const model = buildHealthModel(document, '');
     const rows = model?.checks ?? [];
 
-    // Then, `n/a` exactly where the report counted nothing, and nowhere else
+    // Then the empty checks exist in the report and none of them reaches the panel
     const empty = (report?.checks ?? []).filter((check) => check.total === 0).map((c) => c.label);
-    const notApplicable = rows.filter((row) => row.count === 'n/a').map((row) => row.label);
-    expect(notApplicable).toEqual(empty);
     expect(empty.length).toBeGreaterThan(0);
+    const drawn = rows.map((row) => row.label);
+    for (const label of empty) expect(drawn).not.toContain(label);
+    for (const row of rows) expect(row.count).toMatch(/^\d+ \/ \d+$/);
   });
 });
 

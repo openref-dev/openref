@@ -230,15 +230,19 @@ async function reachForConsole(arrived: () => boolean, description: string): Pro
  * the markup that was already there and a test built on one would pass with the chunk never
  * fetched.
  *
- * AND SINCE F14 THE NATIVE ATTRIBUTE PROVES NOTHING EITHER, in the other direction. The served
- * button is deliberately not `disabled`, or the reader's press on it would reach no listener in
- * a browser, so `.disabled === false` is true of markup nothing has hydrated. What separates
- * the two is `aria-disabled`, which the server writes and the mounted console does not.
+ * AND NO ATTRIBUTE PROVES ANYTHING EITHER, since the SPEC 11 rewrite of 2026-08-14. The served
+ * button carries neither `disabled` nor `aria-disabled`, because a press on it is the action
+ * the notice names and a declared disabled state hands that press to whichever pipeline
+ * respects it. What separates the served state from the live ready one is the notice: the load
+ * sentence stands beside Send exactly until the console mounts.
  */
 function consoleIsLive(): boolean {
   const button = document.querySelector<HTMLButtonElement>('.oref-send');
+  // By id rather than by class: the id belongs to the sentence beside Send alone, while the
+  // class is also the stream's ending sentence, which a live console is allowed to show.
+  const notice = document.getElementById('oref-tryit-notice');
 
-  return button !== null && !button.disabled && !button.hasAttribute('aria-disabled');
+  return button !== null && !button.disabled && notice === null;
 }
 
 /** Types into a control the way a reader does, and lets Vue see it. */
@@ -552,10 +556,9 @@ describe('the try-it console, end to end against a real server', () => {
     );
 
     // Then the native attribute is on it, which is what a live console that cannot send looks
-    // like, and the deferred marker is gone.
+    // like, and the load sentence has been replaced by the read only one.
     const button = document.querySelector<HTMLButtonElement>('.oref-send');
     expect(button?.disabled).toBe(true);
-    expect(button?.hasAttribute('aria-disabled')).toBe(false);
     expect(document.querySelector('.oref-tryit-notice')).not.toBeNull();
   });
 
@@ -574,11 +577,13 @@ describe('the try-it console, end to end against a real server', () => {
     const button = document.querySelector<HTMLButtonElement>('.oref-send');
     if (button === null) throw new Error('the page rendered no send button');
 
-    // The state the whole finding is about: served markup marks the button disabled to a
-    // reader and to assistive technology, and does not carry the attribute that would stop a
-    // browser from ever generating the click.
-    expect(button.getAttribute('aria-disabled')).toBe('true');
+    // The state the whole finding is about: served markup is a real enabled control beside
+    // the load sentence, carrying no declared disabled state for any pipeline to honour.
+    expect(button.hasAttribute('aria-disabled')).toBe(false);
     expect(button.disabled).toBe(false);
+    expect(document.getElementById('oref-tryit-notice')?.textContent).toBe(
+      'The console loads when you press Send.',
+    );
 
     // When they press it once, which is one pointerdown and one click. Nothing is filled in,
     // because filling a field is itself a touch of the region and would open the gate before

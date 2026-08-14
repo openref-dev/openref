@@ -68,6 +68,38 @@ interface ReachSpec {
   readonly events: readonly string[];
   /** A keystroke anywhere on the page that also opens it, such as the palette shortcut. */
   readonly shortcut?: (event: KeyboardEvent) => boolean;
+  /**
+   * What a failed load must tell the reader, per SPEC 11's second half.
+   *
+   * The served control is a real enabled button since 2026-08-14, so a chunk that never
+   * arrives would otherwise leave a pressable Send that silently does nothing, which is the
+   * reading F14 exists to forbid. The sentence lands in the region and its buttons go dead.
+   */
+  readonly failure?: string;
+}
+
+/**
+ * Writes a failed load into the region: dead controls, and the reason in words.
+ *
+ * DIRECT DOM WORK, AND THAT IS SAFE EXACTLY HERE. The async component rejected, so Vue never
+ * claimed this subtree and never will; the server's markup is all there is, and the only
+ * honest thing left is to stop it promising. The sentence reuses the class every theme is
+ * required to style for the embed's failures, because it is the same statement: this region
+ * failed, and whose defect it is.
+ *
+ * @param spec - The feature whose load failed
+ * @param root - Document the region is in
+ */
+function markFailed(spec: ReachSpec, root: HydrateRoot): void {
+  if (spec.failure === undefined) return;
+
+  const region = root.querySelector(spec.selector);
+  if (region === null) return;
+
+  region.querySelectorAll('button').forEach((control) => {
+    control.setAttribute('disabled', '');
+  });
+  region.insertAdjacentHTML('beforeend', `<p class="oref-embed-error">${spec.failure}</p>`);
 }
 
 /** A trigger that has been armed. */
@@ -196,7 +228,14 @@ export function deferUntilReached(
   return defineAsyncComponent(async () => {
     await gate.reached;
 
-    return replaying(spec.name, await load(), gate.replay);
+    try {
+      return replaying(spec.name, await load(), gate.replay);
+    } catch (cause) {
+      // The failure stays loud: rethrowing keeps the rejection the browser suite listens for,
+      // and what was added is only that the reader is told before the log is.
+      markFailed(spec, root);
+      throw cause;
+    }
   });
 }
 
@@ -284,6 +323,9 @@ export function deferredComponents(options: DeferredOptions): DeferrableComponen
         // gate can be armed by a gesture unrelated to the one under test.
         selector: '.oref-section-tryit',
         events: ['pointerdown', 'click', 'focusin'],
+        // The one deferred feature whose served markup is a working control rather than
+        // readable content, so it is the one whose failed load must say so, per SPEC 11.
+        failure: 'The console failed to load. Reload the page to try again.',
       },
       root,
       async () => {

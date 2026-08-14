@@ -43,9 +43,8 @@ import type { HealthCheckModel, HealthModel, HealthRuleModel } from '@openref/vu
 /**
  * One check: how many subjects passed it, out of how many it applied to.
  *
- * A CHECK WITH NOTHING TO COUNT IS STILL SHOWN AND IS NOT SCORED, per SPEC 7.2. A document with
- * no streaming endpoint is asked nine questions rather than given the tenth for free, and the
- * row saying so is how a reader knows the question was not skipped by accident.
+ * A CHECK WITH NOTHING TO COUNT NEVER REACHES THIS ROW, per SPEC 7.2: the model drops it, so
+ * every count here is a fact about the application and none is the instrument shrugging.
  *
  * THE COUNT CARRIES THE VERDICT AND NO SEVERITY COLOUR DOES. `124 / 127` says which checks are
  * short of the mark without a second channel repeating it, and the design has no glyph to spare:
@@ -71,8 +70,12 @@ const checkRow = (check: HealthCheckModel): VNode =>
  */
 const ruleGroup = (rule: HealthRuleModel, card: Component): VNode =>
   h('details', { class: 'oref-rule' }, [
+    // A TEXT SPACE BETWEEN THE TWO SPANS, because the summary cannot be a flex row: `display:
+    // flex` on a `summary` removes the disclosure marker the user agent draws. Without it the
+    // heading read as one word, `SECURITY-DRIFT7`, on the page and to a screen reader alike.
     h('summary', { class: 'oref-rule-head' }, [
       h('span', { class: 'oref-drift-rule' }, rule.rule),
+      ' ',
       h('span', { class: 'oref-rule-count' }, rule.count),
     ]),
     h(

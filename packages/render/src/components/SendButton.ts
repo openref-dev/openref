@@ -1,26 +1,29 @@
 /**
  * The control a reader reaches for, and the sentence beside it.
  *
- * SEND IS NEVER NATIVELY DISABLED WHILE THE CONSOLE IS STILL DEFERRED, WHICH IS FINDING F14 AND
- * IS THE ONE RULE HERE THAT IS ABOUT A BROWSER RATHER THAN ABOUT A COMPONENT. A form control
- * carrying the `disabled` attribute receives no mouse event in Chrome: pointer events are still
- * dispatched, so the gate does open and the chunk does arrive, but `click` is never generated at
- * all, so there is no click to capture and none to replay, and the press that woke the console
- * sends nothing.
+ * THE SERVED BUTTON IS A REAL ENABLED CONTROL, WHICH IS THE 2026-08-14 REWRITE OF F14'S RULE
+ * AND THE THIRD TIME THIS MECHANISM WAS REPORTED BROKEN. The press on a deferred Send does
+ * exactly what the notice says: it brings the console and is replayed into it, so the markup
+ * declaring the button disabled was a lie told to every pipeline that respects a declared
+ * state. Three of them are measured in SPEC 11: assistive technology announces an
+ * `aria-disabled` control as unavailable and may not activate it, automation with an
+ * actionability policy refuses to press it at all, and native `disabled` loses the gesture in
+ * the engine itself, a pointerdown with no click, which is the original F14. So the deferred
+ * state carries neither attribute, and the theme paints the button as the actionable control
+ * it is.
  *
- * Three states, and reading them is how a test tells a live console from the markup that was
- * served:
+ * Two states can still say no, and both are after mount, which is when the truth is known:
  *
- * - `aria-disabled` and no `disabled`: deferred. The markup is the server's, and a press on it
- *   opens the gate, fetches the chunk and is replayed into the console that arrives.
- * - `disabled`: live, and cannot send. This build carries no runner, or a request is in flight.
- * - neither: live and ready.
+ * - `disabled`: live and cannot send. This build carries no runner, or a request is in flight.
+ * - neither, no notice: live and ready.
  *
- * AND THE NOTICE NAMES THE ACTION RATHER THAN PROMISING A STATE, which is the second half of the
- * same finding. A permanent excuse beside a control marked unavailable reads as a broken product,
- * per SPEC 11. The button is described by the notice, because `aria-disabled` keeps it focusable
- * and a control announced as unavailable with the reason in an unassociated sibling is announced
- * without the reason at all.
+ * What separates the deferred state from the live ready one is the notice: the load sentence
+ * stands beside the button exactly until the console mounts, and tests read that sentence
+ * rather than any attribute.
+ *
+ * AND THE NOTICE NAMES THE ACTION RATHER THAN PROMISING A STATE, per SPEC 11. The button is
+ * described by the notice through `aria-describedby`, so what a screen reader hears beside
+ * Send is the same sentence a sighted reader sees, and it is a true sentence about a press.
  *
  * THE SENTENCE IS A PROP AND NOT A `StateNotice`, and that is why the notice kinds do not carry
  * it: `aria-describedby` has to name an element inside this position, so the position owns it.
@@ -55,10 +58,10 @@ export function SendButton(props: {
       {
         class: 'oref-send',
         type: 'button',
-        // Live and unable to send, which is the only state the native attribute is right for.
-        // Before mount it would take the reader's press away from the gate.
+        // Live and unable to send, which is the only state any disabling attribute is right
+        // for. Before mount the button acts on a press, so declaring it disabled would hand
+        // every state-respecting pipeline a reason to discard that press.
         disabled: props.mounted && (!props.available || props.pending),
-        'aria-disabled': props.mounted ? null : 'true',
         // Points at the notice exactly while the notice is drawn, so the description is never a
         // reference to an element that is not in the document.
         'aria-describedby': props.notice === '' ? null : NOTICE_ID,

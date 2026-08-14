@@ -226,6 +226,38 @@ describe('the demo application behind that surface', () => {
     expect(calls).toHaveLength(6);
   });
 
+  it('should answer an empty create with the 400 it documents, in the shape it documents', async () => {
+    // Given the second operation a reader tries, sent the way the console sends an untouched
+    // form: no body at all. Express 5 leaves `req.body` undefined when no parser matched, and
+    // the demo used to answer its documented 400 with an Internal Server Error, on the first
+    // thing a person runs.
+    const response = await fetch(`${app.url}/orders`, { method: 'POST' });
+
+    // Then the answer is the documented status in the documented ProblemDto shape
+    expect(response.status).toBe(400);
+    const body = (await response.json()) as { status?: number; title?: string; detail?: string };
+    expect(body.status).toBe(400);
+    expect(body.title).toBe('invalid_body');
+    expect(typeof body.detail).toBe('string');
+  });
+
+  it("should print under each error response an example stating that response's own status", async () => {
+    // Given the page that used to print `order_conflict` with status 409 under both 400 and
+    // 429: property examples travel with the schema and are identical under every response
+    // that references it, so each response now declares its own example at the media type,
+    // and SPEC 5.5 makes the declared example win over the generated one.
+    const response = await fetch(`${app.url}${EXAMPLE_BASE_PATH}/get-orders`);
+    const html = await response.text();
+
+    // Then the 400 example is the 400 sentence and the 429 example is the 429 one
+    expect(html).toContain('invalid_parameter');
+    expect(html).toContain('rate_limited');
+
+    // And the conflict body belongs to the one response that answers 409, which is not on
+    // this page at all
+    expect(html).not.toContain('order_conflict');
+  });
+
   it('should serve the receipt as the content type it documents', async () => {
     // Given, a demo that documents text and answers with JSON has documented nothing
     const response = await fetch(`${app.url}/orders/ord_1024/receipt`);
