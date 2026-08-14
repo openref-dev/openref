@@ -132,6 +132,13 @@
     transparent 1px 8px
   );
   --oref-layout-nav-row: 27px;
+  --oref-layout-tick-h: repeating-linear-gradient(
+    90deg,
+    var(--oref-color-line-edge) 0 1px,
+    transparent 1px 8px
+  );
+  --oref-layout-bar: 44px;
+  --oref-layout-tab-edge: 2px;
 }
 
 @media (prefers-color-scheme: dark) {

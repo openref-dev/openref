@@ -29,13 +29,17 @@ import type { IRunnerPort } from '@openref/vue';
  * the browser suite, where a real engine fetches real chunks, and it is made there.
  */
 
-/** The node page, which is the only page carrying all three features. */
+/**
+ * The bench page, which is where the console lives since TX-FRAME, per SPEC 13.3, and the
+ * palette rides the frame of every page, so this one page still carries every gate this file
+ * drives.
+ */
 async function serveNodePage(): Promise<string> {
   const document_ = smallDocument();
   const nodeId = [...document_.nodes.keys()][0];
   if (nodeId === undefined) throw new Error('the fixture document has no nodes');
 
-  const page = await renderPage(document_, { nodeId });
+  const page = await renderPage(document_, { page: 'bench', nodeId });
 
   return renderHtmlDocument(page, {
     nonce: 'r4nd0mNONCEvalue',

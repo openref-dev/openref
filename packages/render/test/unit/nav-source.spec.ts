@@ -13,6 +13,7 @@ function entry(id: string): NavEntryModel {
     nodeId: id,
     schemaId: null,
     deprecated: false,
+    driftCount: 0,
     hint: '',
     childCount: 0,
     children: [],

@@ -1,6 +1,7 @@
 import { SLOT_NAMES, type SlotName } from '@openref/vue';
 import { describe, expect, it } from 'vitest';
 import telltale from '../../src/theme';
+import type { PageKind } from '@openref/vue';
 import { apiDocument, nodeId, postNodeId, runtimeDocument } from '../mocks/documents';
 import { createMarkdownRenderer } from '../../../render/src/markdown/domain/markdown';
 import { renderPage } from '../../../render/src/render/application/services/render.service';
@@ -24,6 +25,7 @@ import type { IRDocument } from '@openref/core';
 const markdown = await createMarkdownRenderer();
 
 interface Where {
+  readonly page?: PageKind;
   readonly nodeId?: string | null;
   readonly schemaId?: string | null;
 }
@@ -170,13 +172,17 @@ describe('every position of the registry, drawn by telltale', () => {
   it('should draw the telltale body editor instead of the reference fields', async () => {
     // Given, the editor is drawn for the operation that declares a body
     // When, Then
-    await drive(apiDocument(), 'oref-field-body', 'tt-body', { nodeId: postNodeId() });
+    await drive(apiDocument(), 'oref-field-body', 'tt-body', {
+      page: 'bench',
+      nodeId: postNodeId(),
+    });
   });
 
   it('should draw the telltale credentials block instead of the reference scheme fields', async () => {
     // Given
     // When
     const html = await drive(apiDocument(), 'oref-field-auth-apiKey', 'tt-auth', {
+      page: 'bench',
       nodeId: postNodeId(),
     });
 
@@ -188,7 +194,10 @@ describe('every position of the registry, drawn by telltale', () => {
   it('should draw the telltale server chooser instead of the reference url field', async () => {
     // Given
     // When, Then
-    await drive(apiDocument(), 'oref-field-server-url', 'tt-server', { nodeId: nodeId() });
+    await drive(apiDocument(), 'oref-field-server-url', 'tt-server', {
+      page: 'bench',
+      nodeId: nodeId(),
+    });
   });
 
   it('should draw the telltale send control instead of the reference button and notice', async () => {
@@ -196,7 +205,10 @@ describe('every position of the registry, drawn by telltale', () => {
     // arrives as the `notice` prop, so both themes print the same words and a case that keyed on
     // them would be asserting that this theme dropped its data.
     // When
-    const html = await drive(apiDocument(), 'oref-tryit-actions', 'tt-send', { nodeId: nodeId() });
+    const html = await drive(apiDocument(), 'oref-tryit-actions', 'tt-send', {
+      page: 'bench',
+      nodeId: nodeId(),
+    });
 
     // Then the sentence is associated with the button rather than merely beside it, per SPEC 11
     expect(html).toContain('aria-describedby="tt-send-notice"');
@@ -208,7 +220,7 @@ describe('every position of the registry, drawn by telltale', () => {
     // position is resolved rather than that markup was replaced: a position that only existed once
     // it had content is a position a theme cannot fill with an empty state.
     // When
-    const html = await themed(apiDocument(), { nodeId: nodeId() });
+    const html = await themed(apiDocument(), { page: 'bench', nodeId: nodeId() });
 
     // Then
     expect(html).toContain('tt-result-idle');
@@ -236,7 +248,10 @@ describe('every position of the registry, drawn by telltale', () => {
     });
 
     // When, Then
-    await drive({ ...document, nodes }, 'oref-stream-start', 'tt-stream-start', { nodeId: id });
+    await drive({ ...document, nodes }, 'oref-stream-start', 'tt-stream-start', {
+      page: 'bench',
+      nodeId: id,
+    });
   });
 
   it('should draw the telltale health panel, on the server, where the browser adopts it', async () => {
@@ -245,7 +260,9 @@ describe('every position of the registry, drawn by telltale', () => {
     const document = runtimeDocument();
 
     // When
-    const html = await drive(document, 'oref-health-score', 'tt-health-score');
+    const html = await drive(document, 'oref-health-score', 'tt-health-score', {
+      page: 'health',
+    });
 
     // Then the root element is the section the client adopts, carrying that class and no other.
     // A root that also carried `tt-health` would have it patched away on hydration, silently and

@@ -95,7 +95,7 @@ describe('buildParityRows', () => {
     expect(streaming?.verdict).toBe('drift');
     expect(streaming?.severityClass).toBe('oref-drift-crit');
     expect(streaming?.fix?.code).toBe('RT040');
-    expect(streaming?.fix?.href).toBe('/docs#oref-rule-stream-unspecified');
+    expect(streaming?.fix?.href).toBe('/docs/health#oref-rule-stream-unspecified');
     expect(streaming?.fix?.text).toContain('@ApiStream');
   });
 

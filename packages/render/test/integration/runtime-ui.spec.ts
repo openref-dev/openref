@@ -264,11 +264,16 @@ describe('the Health panel', () => {
     expect(host.querySelector('.oref-section-health')).toBeNull();
   });
 
-  it('should live on the overview and not on a node page', () => {
-    // Given the same document, opened twice
+  it('should live on the health page and on neither the overview nor a node page', () => {
+    // Given the same document, opened three times: the panel moved to its own page with
+    // TX-FRAME, per SPEC 7.3, and the overview lost it.
     const document = runtimeDocument();
 
     // When
+    const health = mount(buildPageModel(document, { markdown, page: 'health' }));
+    const healthHasPanel = health.querySelector('.oref-section-health') !== null;
+    mounted?.unmount();
+    document_reset();
     const overview = mount(buildPageModel(document, { markdown }));
     const overviewHasPanel = overview.querySelector('.oref-section-health') !== null;
     mounted?.unmount();
@@ -276,13 +281,14 @@ describe('the Health panel', () => {
     const node = mount(buildPageModel(document, { markdown, nodeId: runtimeNodeId() }));
 
     // Then
-    expect(overviewHasPanel).toBe(true);
+    expect(healthHasPanel).toBe(true);
+    expect(overviewHasPanel).toBe(false);
     expect(node.querySelector('.oref-section-health')).toBeNull();
   });
 
   it('should list rules rather than findings, so four hundred findings are ten rows', () => {
     // Given, the panel has to be readable at both extremes the task names
-    const page = buildPageModel(runtimeDocument(), { markdown });
+    const page = buildPageModel(runtimeDocument(), { markdown, page: 'health' });
 
     // When
     const host = mount(page);
@@ -299,7 +305,7 @@ describe('the Health panel', () => {
   it('should open a group without any script, which is what keeps it under a strict CSP', () => {
     // Given, the disclosure is the user agent's own. A filter written in script would be the same
     // feature at the price of bytes in the first paint and a handler to authorize.
-    const page = buildPageModel(runtimeDocument(), { markdown });
+    const page = buildPageModel(runtimeDocument(), { markdown, page: 'health' });
 
     // When
     const group = mount(page).querySelector('details.oref-rule');
@@ -313,7 +319,7 @@ describe('the Health panel', () => {
   it('should say what each rule found and how to fix each finding', () => {
     // Given, SPEC 7.2: a finding without its edit tells a reader something is wrong and leaves
     // them to work out what to do about it.
-    const page = buildPageModel(runtimeDocument(), { markdown });
+    const page = buildPageModel(runtimeDocument(), { markdown, page: 'health' });
 
     // When
     const host = mount(page);
@@ -328,7 +334,7 @@ describe('the Health panel', () => {
 
   it('should give every finding a jump to the node it is about', () => {
     // Given
-    const page = buildPageModel(runtimeDocument(), { markdown, basePath: '/docs' });
+    const page = buildPageModel(runtimeDocument(), { markdown, basePath: '/docs', page: 'health' });
 
     // When
     const jumps = Array.from(mount(page).querySelectorAll('.oref-drift-subject'));

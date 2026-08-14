@@ -264,14 +264,39 @@ describe('ReferenceService, search index and health', () => {
     // Given
     const reference = service();
 
-    // When
-    const reply = await reference.handle('health', request());
+    // When, on the status route: the liveness JSON lives at `_health` since TX-FRAME, and
+    // `health` is the Documentation Health page, per SPEC 13.3.
+    const reply = await reference.handle('status', request());
     const parsed = JSON.parse(String(reply.body)) as Record<string, unknown>;
 
     // Then
     expect(parsed.status).toBe('ok');
     expect(parsed).not.toHaveProperty('score');
     expect(reply.headers['cache-control']).toBe('no-store');
+  });
+
+  it('should serve the health page at the address the liveness JSON left', async () => {
+    // Given
+    const reference = service();
+
+    // When
+    const reply = await reference.handle('health', request());
+
+    // Then, a page and not JSON: one address never answers two ways by request header.
+    expect(reply.status).toBe(200);
+    expect(reply.headers['content-type']).toContain('text/html');
+  });
+
+  it('should answer the reserved service address with its own words, not the node 404', async () => {
+    // Given
+    const reference = service();
+
+    // When
+    const reply = await reference.handle('service', request({ serviceId: 'billing' }));
+
+    // Then, tellable from an unregistered address, per the `_proxy` precedent.
+    expect(reply.status).toBe(404);
+    expect(String(reply.body)).toContain('service');
   });
 });
 

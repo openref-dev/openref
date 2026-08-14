@@ -19,6 +19,7 @@ function entry(id: string, children: NavEntryModel[] = [], nodeId?: string): Nav
     nodeId: nodeId ?? null,
     schemaId: null,
     deprecated: false,
+    driftCount: 0,
     hint: '',
     childCount: children.length,
     children,

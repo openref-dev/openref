@@ -2,6 +2,8 @@ import type { IRConfidence, IRSchema, IRSchemaView } from '@openref/core';
 import type {
   CodeSampleModel,
   DriftModel,
+  FrameModel,
+  FrameStatsModel,
   HealthModel,
   NavEntryModel,
   NodeHeaderModel,
@@ -117,6 +119,13 @@ export interface SlotPropsMap {
     activeNodeId: string | null;
     activeSchemaId: string | null;
     page: PageKind;
+    /**
+     * The app bar's data, since `TX-FRAME`: the tabs with targets resolved, the breadcrumb,
+     * where back leads, and the rail statistics. Additive, minor per `PUBLIC-API.md`: a shell
+     * written before it keeps compiling and keeps rendering; a shell that draws a bar reads
+     * this rather than deriving addresses, which would be a second spelling of every path.
+     */
+    frame: FrameModel;
   };
 
   /** Tree of operations and channels, with the item rendering inside it. */
@@ -125,6 +134,12 @@ export interface SlotPropsMap {
     activeNodeId: string | null;
     activeSchemaId: string | null;
     basePath: string;
+    /**
+     * The stats row above the tree, since `TX-FRAME`: the document's counts, not the slice's.
+     * Additive, minor per `PUBLIC-API.md`. `drift` is null on a document nothing measured,
+     * and null draws nothing, per SPEC 7.3.
+     */
+    stats: FrameStatsModel;
     /** True when these entries are the whole navigation, so nothing is fetched. */
     complete: boolean;
     /** Rows in the whole navigation, so a partial tree can say what it is not showing. */
@@ -158,8 +173,9 @@ export interface SlotPropsMap {
   /**
    * The document overview: the title, what the document says about itself, and its servers.
    *
-   * The Health panel arrives as children, for the same reason the shell's content does: it is a
-   * position of its own, `HealthScore`, and a theme that replaces the overview keeps it.
+   * THE HEALTH PANEL IS NOT HERE SINCE `TX-FRAME`: it lives on the health page, per SPEC 7.3
+   * as amended 2026-08-14, and the frame's health tab is how a reader reaches it. The panel
+   * position stays `HealthScore`, resolved on the page that draws it.
    */
   DocumentOverview: {
     title: string;

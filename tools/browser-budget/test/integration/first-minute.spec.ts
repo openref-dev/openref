@@ -37,20 +37,22 @@ const TIMEOUT = 300_000;
 let chrome: LaunchedChrome;
 let app: SpawnedServer;
 
-/** The operation page the example serves, which is the one carrying a console. */
-const NODE_PAGE = `${EXAMPLE_BASE_PATH}/get-orders-id`;
+/** The bench page carrying a console whose path parameter is required and empty. */
+const NODE_PAGE = `${EXAMPLE_BASE_PATH}/bench/get-orders-id`;
 
 /**
- * The page a reader opens first, which is the collection and not the item.
+ * The bench a reader reaches from the page they open first, the collection.
  *
  * IT IS HERE BECAUSE THE PAGE THE PROOF USED WAS NOT THE PAGE THE READER LOOKED AT. F14 was
  * reported as unfixed on 2026-08-12 and it is fixed; the press was proved on `get-orders-id`,
  * whose one path parameter is required and empty, so what the case asserts is the runner's
  * refusal. A refusal proves the click handler ran. It does not prove that a reader who presses
- * Send on the page they arrived at gets an answer, and `get-orders` needs nothing filled in, so
- * on that page the same gesture is a whole request. Two pages, two outcomes, one gesture.
+ * Send gets an answer, and `get-orders` needs nothing filled in, so on its bench the same
+ * gesture is a whole request. Two pages, two outcomes, one gesture. THE CONSOLE LIVES ON THE
+ * BENCH ADDRESS SINCE TX-FRAME, per SPEC 13.3: the operation page carries the bench tab, and
+ * the gesture this file proves is proved on the page that now holds the button.
  */
-const LIST_PAGE = `${EXAMPLE_BASE_PATH}/get-orders`;
+const LIST_PAGE = `${EXAMPLE_BASE_PATH}/bench/get-orders`;
 
 beforeAll(async () => {
   chrome = await launchChrome();
@@ -434,19 +436,24 @@ describe('the first minute', () => {
   it(
     'should list the console fields in the order the parameter table lists them',
     async () => {
-      // Given the page with ten parameters, nine of them query and one a header written among
-      // them. The table groups by location and the form used to follow the document, so the
-      // header field sat in the middle of the query fields.
-      const session = await open(LIST_PAGE);
+      // Given the operation with ten parameters, nine of them query and one a header written
+      // among them. The table groups by location and the form used to follow the document, so
+      // the header field sat in the middle of the query fields. The two surfaces live on two
+      // pages since TX-FRAME, the table on the operation and the form on its bench, which is
+      // exactly why one named order matters: the reader crosses a page between reading and
+      // filling.
+      const session = await open(`${EXAMPLE_BASE_PATH}/get-orders`);
 
       try {
+        // When the table is read off the operation page
+        const table = await session.page.locator('.oref-param-name code').allTextContents();
+
+        // And the form is read off the bench
+        await session.page.goto(`${app.url}${LIST_PAGE}`, { waitUntil: 'load' });
         await reachForTheConsole(session.page);
         await expect
           .poll(() => session.page.locator('#oref-tryit-notice').count(), { timeout: 30_000 })
           .toBe(0);
-
-        // When the two lists are read off the page
-        const table = await session.page.locator('.oref-param-name code').allTextContents();
         const form = await session.page
           .locator('.oref-tryit-form .oref-field-label')
           .allTextContents();

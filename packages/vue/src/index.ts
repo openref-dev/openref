@@ -90,6 +90,10 @@ export { runnerOperationOf } from './runner/domain/runner-operation';
 export type {
   CodeSampleModel,
   DriftModel,
+  FrameModel,
+  FrameStatsModel,
+  FrameTabKind,
+  FrameTabModel,
   HealthCheckModel,
   HealthModel,
   HealthRuleModel,

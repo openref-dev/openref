@@ -47,7 +47,7 @@ import {
   flattenNavigation,
   type NavRow,
 } from '../page/domain/nav-rows';
-import type { NavEntryModel } from '@openref/vue';
+import type { FrameStatsModel, NavEntryModel } from '@openref/vue';
 
 /** What this component needs from a scroll event target, and nothing else. */
 interface ScrollTarget {
@@ -87,6 +87,11 @@ export const NavigationTree = defineComponent({
     activeNodeId: { type: String as PropType<string | null>, default: null },
     activeSchemaId: { type: String as PropType<string | null>, default: null },
     basePath: { type: String, default: '' },
+    /** The stats row above the tree: the document's counts, not this slice's. */
+    stats: {
+      type: Object as PropType<FrameStatsModel>,
+      default: () => ({ operations: 0, groups: 0, drift: null }),
+    },
     /** True when these entries are the whole navigation, so nothing has to be fetched. */
     complete: { type: Boolean, default: true },
     /** Rows in the whole navigation, so a partial tree can say what it is not showing. */
@@ -154,6 +159,13 @@ export const NavigationTree = defineComponent({
             ? schemaHref(row.schemaId, props.basePath)
             : null;
 
+      // THE DRIFT MARKER DRAWS ONLY ABOVE ZERO, per the `driftCount` rule: it is a warning
+      // glyph, so its absence asserts nothing, and a document nothing measured shows none.
+      const drift =
+        row.driftCount > 0
+          ? h('span', { class: 'oref-nav-drift' }, `▲${String(row.driftCount)}`)
+          : null;
+
       // A GROUP IS A BUTTON, AND A GROUP WITH NOTHING IN IT IS NOT. `childCount` is what the
       // document has rather than what this page carries, so a closed group offers to open and
       // an empty one, which `children` alone cannot tell it from, does not.
@@ -175,6 +187,7 @@ export const NavigationTree = defineComponent({
               [
                 h('span', { class: 'oref-nav-label' }, row.label),
                 h('span', { class: 'oref-nav-count' }, String(row.childCount)),
+                drift,
               ],
             ),
           ],
@@ -183,7 +196,10 @@ export const NavigationTree = defineComponent({
 
       const label =
         href === null
-          ? h('span', { class: rowClasses(row, false) }, row.label)
+          ? h('span', { class: rowClasses(row, false) }, [
+              h('span', { class: 'oref-nav-label' }, row.label),
+              drift,
+            ])
           : h(
               'a',
               {
@@ -191,7 +207,7 @@ export const NavigationTree = defineComponent({
                 href,
                 ...(active ? { 'aria-current': 'page' } : {}),
               },
-              row.label,
+              [h('span', { class: 'oref-nav-label' }, row.label), drift],
             );
 
       return h(
@@ -203,6 +219,16 @@ export const NavigationTree = defineComponent({
 
     return (): VNode =>
       h('div', { class: 'oref-nav-scroll', onScroll }, [
+        // THE STATS ROW SAYS WHAT THE DOCUMENT HOLDS, not what this slice carries, so a
+        // partial tree still states the whole. The drift cell draws only when a report
+        // exists: null and zero are different statements, per SPEC 7.3.
+        h('div', { class: 'oref-nav-stats' }, [
+          h('span', {}, `${String(props.stats.operations)} operations`),
+          h('span', {}, `${String(props.stats.groups)} groups`),
+          props.stats.drift === null
+            ? null
+            : h('b', { class: 'oref-nav-stats-drift' }, `▲ ${String(props.stats.drift)}`),
+        ]),
         ...chunks.value.map((chunk, index) =>
           h(
             'ul',

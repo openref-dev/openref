@@ -798,6 +798,27 @@ export const THEME_SPECIFIC_TOKENS: readonly ThemeToken[] = [
     description:
       'Height of one navigation row, which is what an unrendered chunk of the virtualized sidebar reserves',
   },
+  {
+    name: '--oref-layout-tick-h',
+    group: 'layout',
+    value:
+      'repeating-linear-gradient(90deg, var(--oref-color-line-edge) 0 1px, transparent 1px 8px)',
+    description:
+      'The ruler turned on its side, for the collapsed parity gutter of the narrow scale',
+  },
+  {
+    name: '--oref-layout-bar',
+    group: 'layout',
+    value: '44px',
+    description: 'Height of the app bar, which the sticky rail and collapse offsets read',
+  },
+  {
+    name: '--oref-layout-tab-edge',
+    group: 'layout',
+    value: '2px',
+    description:
+      'The bottom border of the active tab: the third of the three active signals, kept visible in monochrome print',
+  },
 ];
 
 /** Every token the stylesheet declares: the core set followed by this theme's own. */

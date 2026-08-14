@@ -51,20 +51,122 @@
   outline-offset: var(--oref-focus-offset);
 }
 
-/* Header. A single band across the top, separated by an edge rather than by a shadow. */
+/* The app bar, per TX-FRAME: the brand cell at rail width, the mid region with back, crumb
+ * and the palette trigger, and the tab bar. Sticky, one band, separated by an edge rather
+ * than by a shadow; the rail and the collapse offsets read its height from the token. */
 
 .oref-header {
+  align-items: stretch;
   background: var(--oref-color-surface);
   border-bottom: var(--oref-border-hair) solid var(--oref-color-line-edge);
-  padding: var(--oref-space-400) var(--oref-space-600);
+  display: flex;
+  height: var(--oref-layout-bar);
+  /* A grid item's automatic minimum is min-content, and the root is a grid: without this the
+   * bar's tabs would force the whole page wider than a narrow window instead of scrolling. */
+  min-width: 0;
+  position: sticky;
+  top: 0;
+  z-index: 60;
 }
 
+/* The brand is the rail's own cell: same width, same right edge, so the bar and the rail read
+ * as one frame. */
 .oref-brand {
   align-items: baseline;
+  border-right: var(--oref-border-hair) solid var(--oref-color-line);
   color: var(--oref-color-fg);
-  display: inline-flex;
+  display: flex;
+  flex: 0 0 var(--oref-layout-rail);
   gap: var(--oref-space-400);
+  padding: var(--oref-space-300) var(--oref-space-600);
   text-decoration: none;
+}
+
+.oref-header-mid {
+  align-items: center;
+  display: flex;
+  flex: 1;
+  gap: var(--oref-space-500);
+  min-width: 0;
+  overflow: hidden;
+  padding: 0 var(--oref-space-600);
+}
+
+/* A link and not a history button: where back leads is a fact of the address. */
+.oref-back {
+  border: var(--oref-border-hair) solid var(--oref-color-line-edge);
+  color: var(--oref-color-fg-secondary);
+  font-size: var(--oref-font-size-100);
+  padding: var(--oref-space-100) var(--oref-space-400);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.oref-back:hover {
+  border-color: var(--oref-color-line-strong);
+  color: var(--oref-color-fg);
+}
+
+.oref-crumb {
+  color: var(--oref-color-fg-muted);
+  font-family: var(--oref-font-family-mono);
+  font-size: var(--oref-font-size-100);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The tab bar: pages, not anchors, per SPEC 13.3. THE ACTIVE TAB CARRIES THREE SIGNALS, text
+ * colour, surface and the 2px bottom border, because a signal living in one colour disappears
+ * in monochrome print, the same reason provenance carries a code and an edge style. */
+.oref-tabs {
+  align-items: stretch;
+  display: flex;
+}
+
+.oref-tab {
+  align-items: center;
+  border-bottom: var(--oref-layout-tab-edge) solid transparent;
+  border-left: var(--oref-border-hair) solid var(--oref-color-line-edge);
+  color: var(--oref-color-fg-muted);
+  display: flex;
+  font-size: var(--oref-font-size-100);
+  gap: var(--oref-space-300);
+  letter-spacing: var(--oref-font-tracking-mid);
+  padding: 0 var(--oref-space-600);
+  text-decoration: none;
+  text-transform: uppercase;
+}
+
+.oref-tab:hover {
+  color: var(--oref-color-fg-secondary);
+}
+
+.oref-tab[aria-current='page'] {
+  background: var(--oref-color-surface-inset);
+  border-bottom-color: var(--oref-color-accent-runtime);
+  color: var(--oref-color-fg);
+}
+
+.oref-tab-count {
+  color: var(--oref-drift-crit-fg);
+  font-family: var(--oref-font-family-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The bar under a narrow window: the export's own two rules, the brand cell gives up the rail
+ * width and the tabs scroll, so the bar never forces the page wider than the window and the
+ * scale's container query can engage. This one is a window media query because the subject is
+ * the bar against the window; the scale's collapse below stays a container query on the scale.
+ * The export's rail drawer needs a toggle control and client state, and remains a carried item. */
+@media (max-width: 1100px) {
+  .oref-brand {
+    flex: 0 0 auto;
+  }
+
+  .oref-tabs {
+    overflow-x: auto;
+  }
 }
 
 .oref-brand-title {
@@ -134,11 +236,11 @@
 .oref-sidebar {
   grid-column: 1;
   grid-row: 1;
-  max-height: 100vh;
+  max-height: calc(100vh - var(--oref-layout-bar));
   overflow-y: auto;
   padding: var(--oref-space-600) var(--oref-space-500);
   position: sticky;
-  top: 0;
+  top: var(--oref-layout-bar);
 }
 
 /* FOUR RULES WHOSE WHOLE BODY WAS `display: block` ARE ONE RULE. Written out separately they
@@ -208,13 +310,20 @@
   padding-inline-start: var(--oref-space-900);
 }
 
+/* A row is a flex line since TX-FRAME, because every row can end in a drift counter and a
+ * counter is right aligned by the row, not spaced by hand. */
 .oref-nav-item {
+  align-items: baseline;
   border-inline-start: var(--oref-border-mark) solid transparent;
   color: var(--oref-color-fg-secondary);
-  display: block;
+  display: flex;
   font-size: var(--oref-font-size-300);
   padding: var(--oref-space-200) var(--oref-space-400);
   text-decoration: none;
+}
+
+.oref-nav-item .oref-nav-label {
+  flex: 1;
 }
 
 .oref-nav-item:hover {
@@ -222,9 +331,11 @@
   color: var(--oref-color-fg);
 }
 
+/* The runtime accent on the edge, per TX-FRAME: the active item is where the reader stands,
+ * and standing is an observation, which is the runtime axis. */
 .oref-nav-item.oref-active {
   background: var(--oref-color-accent-bg);
-  border-inline-start-color: var(--oref-color-accent-spec);
+  border-inline-start-color: var(--oref-color-accent-runtime);
   color: var(--oref-color-fg);
   font-weight: var(--oref-font-weight-medium);
 }
@@ -273,6 +384,47 @@
 .oref-rule-count {
   color: var(--oref-color-fg-muted);
   font-variant-numeric: tabular-nums;
+}
+
+/* The rail's stats row, per TX-FRAME: what the whole document holds, above the tree. The
+ * drift cell is absent, not zeroed, on a document nothing measured, and the renderer owns
+ * that distinction. */
+.oref-nav-stats {
+  border-bottom: var(--oref-border-hair) solid var(--oref-color-line);
+  color: var(--oref-color-fg-muted);
+  display: flex;
+  font-size: var(--oref-font-size-100);
+  gap: var(--oref-space-500);
+  letter-spacing: var(--oref-font-tracking-mid);
+  margin-bottom: var(--oref-space-400);
+  padding: var(--oref-space-300) var(--oref-space-400) var(--oref-space-400);
+  text-transform: uppercase;
+}
+
+.oref-nav-stats-drift {
+  color: var(--oref-drift-crit-fg);
+  font-family: var(--oref-font-family-mono);
+  font-weight: var(--oref-font-weight-regular);
+  margin-left: auto;
+}
+
+/* The drift counter on a group or an item: a warning glyph whose absence asserts nothing. */
+.oref-nav-drift {
+  color: var(--oref-drift-crit-fg);
+  font-family: var(--oref-font-family-mono);
+  font-size: var(--oref-font-size-100);
+  font-variant-numeric: tabular-nums;
+  margin-left: auto;
+  padding-left: var(--oref-space-300);
+}
+
+/* The label beside a counter keeps the row's one line and yields the overflow, so a long
+ * path truncates and the counters stay readable. */
+.oref-nav-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /*
@@ -1435,4 +1587,100 @@ button.oref-schema-row:hover {
 .oref-subtitle,
 .oref-title {
   unicode-bidi: isolate;
+}
+
+/* The pages TX-FRAME added, per SPEC 13.3: the bench, the health page, and the two showcase
+ * addresses. Each is a content column article; what is inside already carries its own rules. */
+
+.oref-bench-page,
+.oref-health-page,
+.oref-shapes-page,
+.oref-states-page {
+  display: block;
+}
+
+/* The health page for a document nothing measured: words, per SPEC 7.3, not a zero. */
+.oref-health-empty {
+  color: var(--oref-color-fg-muted);
+  font-size: var(--oref-font-size-300);
+  max-width: var(--oref-layout-measure);
+}
+
+.oref-states-lead {
+  color: var(--oref-color-fg-secondary);
+  font-size: var(--oref-font-size-300);
+  margin-block: 0 var(--oref-space-600);
+  max-width: var(--oref-layout-measure);
+}
+
+.oref-states-item {
+  margin-block-end: var(--oref-space-600);
+}
+
+/* The list the three palette notices assume, supplied by the catalogue. */
+.oref-states-list {
+  list-style: none;
+  margin: 0;
+  max-width: var(--oref-layout-measure);
+  padding: 0;
+}
+
+/* THE NARROW COLLAPSE OF THE PARITY SCALE, per SPEC 11: a container query on the scale's own
+ * width, never a media query on the window, because what stops fitting is the pair inside its
+ * column, wherever that column stands. Below the threshold the pair becomes one column, the
+ * gutter lies down as a horizontal rule between the two cells of a row, and the column
+ * headings enter each cell as micro headings, which is the export's own mechanism translated.
+ *
+ * THE THRESHOLD IS MEASURED, NOT CARRIED: the layout's 900px was derived from the longest
+ * Cyrillic value and shifts on English data, per the designer. Measured 2026-08-14 in Chrome
+ * across every operation page of the demo: the widest value line is 179.4px, the response
+ * codes row's "201 400 402 409 422 429"; each cell pads 40px and the gutter is 44px, so the
+ * pair needs 2 x (179.4 + 40) + 44 = 482.8px. 500 is the next round step above it: the pair
+ * collapses just before the longest value would wrap, which is the failure the threshold
+ * exists to prevent. The full measurement is in the TX-FRAME session log. */
+.oref-section-runtime {
+  container: oref-parity / inline-size;
+}
+
+@container oref-parity (max-width: 500px) {
+  .oref-parity-head {
+    display: none;
+  }
+
+  .oref-parity-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .oref-parity-cell-spec,
+  .oref-parity-cell-runtime {
+    grid-column: 1;
+  }
+
+  .oref-parity-cell-spec::before,
+  .oref-parity-cell-runtime::before {
+    display: block;
+    font-size: var(--oref-font-size-100);
+    letter-spacing: var(--oref-font-tracking-wide);
+    margin-block-end: var(--oref-space-200);
+    text-transform: uppercase;
+  }
+
+  .oref-parity-cell-spec::before {
+    color: var(--oref-color-accent-spec);
+    content: 'Specification declares';
+  }
+
+  .oref-parity-cell-runtime::before {
+    color: var(--oref-color-accent-runtime);
+    content: 'Application does';
+  }
+
+  .oref-parity-gutter {
+    background-image: var(--oref-layout-tick-h);
+    background-position: center;
+    background-repeat: no-repeat;
+    background-size: 100% var(--oref-border-hair);
+    grid-column: 1;
+    min-height: var(--oref-space-700);
+  }
 }

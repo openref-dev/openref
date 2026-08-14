@@ -39,6 +39,7 @@ import {
   renderPage,
   type IHighlighter,
   type IRenderCache,
+  type PageKind,
   type ThemeDefinition,
 } from '@openref/render';
 import { buildSearchIndex } from '@openref/search';
@@ -225,11 +226,24 @@ export class ReferenceService {
   async handle(id: ReferenceRouteId, request: ReferenceRequest): Promise<ReferenceReply> {
     switch (id) {
       case 'overview':
-        return this.page(request, null, null);
+        return this.page(request, 'overview', null, null);
       case 'node':
-        return this.page(request, request.params[NODE_PARAM] ?? null, null);
+        return this.page(request, 'node', request.params[NODE_PARAM] ?? null, null);
       case 'schema':
-        return this.page(request, null, request.params[SCHEMA_PARAM] ?? null);
+        return this.page(request, 'schema', null, request.params[SCHEMA_PARAM] ?? null);
+      case 'bench':
+        return this.page(request, 'bench', request.params[NODE_PARAM] ?? null, null);
+      case 'health':
+        return this.page(request, 'health', null, null);
+      case 'shapes':
+        return this.page(request, 'shapes', null, request.params[SCHEMA_PARAM] ?? null);
+      case 'states':
+        return this.page(request, 'states', null, null);
+      // RESERVED UNTIL M4, per SPEC 13.3: no federated services are mounted before the merge
+      // engine exists, so every id names nothing, and the words differ from the node 404 so
+      // the address is tellable from an unregistered one.
+      case 'service':
+        return Promise.resolve(notFoundReply('service'));
       case 'openapi-json':
         return Promise.resolve(this.specification(request, 'json'));
       case 'openapi-yaml':
@@ -238,8 +252,8 @@ export class ReferenceService {
         return Promise.resolve(this.searchIndex(request));
       case 'navigation':
         return Promise.resolve(this.navigation(request));
-      case 'health':
-        return Promise.resolve(this.health());
+      case 'status':
+        return Promise.resolve(this.status());
       case 'oauth-callback':
         return Promise.resolve(this.oauthCallback(request));
       case 'proxy':
@@ -258,23 +272,32 @@ export class ReferenceService {
    * Renders one page.
    *
    * @param request - The request, for its nonce and its validators
+   * @param kind - Which page, per SPEC 13.3
    * @param nodeId - Node to show, or null
    * @param schemaId - Schema to show, or null
    * @returns The page, a 304, or a 404 when the id names nothing
    */
   private async page(
     request: ReferenceRequest,
+    kind: PageKind,
     nodeId: string | null,
     schemaId: string | null,
   ): Promise<ReferenceReply> {
     if (nodeId !== null && !this.document.nodes.has(nodeId)) return notFoundReply('operation');
     if (schemaId !== null && !this.document.schemas.has(schemaId)) return notFoundReply('schema');
 
-    const tag = this.etag(`page:${nodeId ?? ''}:${schemaId ?? ''}`);
+    // A CHANNEL HAS NO BENCH. Nothing links here for one, per SPEC 11's dead link rule, so a
+    // reader arrives only by hand and the honest answer is that the address holds nothing.
+    if (kind === 'bench' && this.document.nodes.get(nodeId ?? '')?.kind !== 'operation') {
+      return notFoundReply('bench');
+    }
+
+    const tag = this.etag(`page:${kind}:${nodeId ?? ''}:${schemaId ?? ''}`);
     const cached = notModified(request, tag);
     if (cached !== null) return cached;
 
     const rendered = await renderPage(this.document, {
+      page: kind,
       nodeId,
       schemaId,
       basePath: this.basePath,
@@ -531,14 +554,15 @@ export class ReferenceService {
   /**
    * What is mounted here and what it was built from.
    *
-   * DELIBERATELY NOT THE DOCUMENTATION HEALTH REPORT OF SPEC 7, which needs the drift engine
-   * of M1 and does not exist yet. This route answers what M0 can answer honestly: that the
-   * reference is up, and which document it is serving. Claiming a health score before
-   * anything measures one would be the worst kind of green.
+   * DELIBERATELY NOT THE DOCUMENTATION HEALTH REPORT OF SPEC 7: that is a page now, at
+   * `<route>/health`, and this is the machine readable liveness answer that lived at that
+   * address until `TX-FRAME` moved it to `_health`, per SPEC 13.3 as amended 2026-08-14.
+   * It answers what a probe can use honestly: that the reference is up, and which document
+   * it is serving.
    *
    * @returns The report
    */
-  private health(): ReferenceReply {
+  private status(): ReferenceReply {
     // A literal object, serialized as written, per SPEC 12. Sorting it would put `document`
     // before `status` for no reason a reader of this route benefits from.
     const body = JSON.stringify({

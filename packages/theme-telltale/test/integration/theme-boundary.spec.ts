@@ -31,14 +31,19 @@ async function survivingCoreClasses(): Promise<readonly string[]> {
   const found = new Set<string>();
   const document = apiDocument();
 
-  // The overview is rendered from the document with an application behind it, because the Health
-  // panel is drawn only when there is a report, and a sweep that missed it would report a smaller
-  // boundary than the one that exists.
+  // The health page is rendered from the document with an application behind it, because the
+  // panel is drawn only when there is a report, and a sweep that missed it would report a
+  // smaller boundary than the one that exists. Six pages since TX-FRAME: the bench carries the
+  // console the node page lost, and health carries the panel the overview lost. The two
+  // showcase addresses stay out: they are a theme author's pages, not a reader's.
   const pages = [
     { document: runtimeDocument(), where: { nodeId: nodeId() } },
     { document, where: { nodeId: postNodeId() } },
     { document: runtimeDocument(), where: {} },
     { document, where: { schemaId: 'Order' } },
+    { document, where: { page: 'bench' as const, nodeId: postNodeId() } },
+    { document: runtimeDocument(), where: { page: 'bench' as const, nodeId: nodeId() } },
+    { document: runtimeDocument(), where: { page: 'health' as const } },
   ];
 
   for (const page of pages) {
@@ -59,7 +64,7 @@ async function survivingCoreClasses(): Promise<readonly string[]> {
 }
 
 describe('the markup a complete L2 theme does not own', () => {
-  it('should be exactly these class names, on the four pages a reader can open', async () => {
+  it('should be exactly these class names, on the six pages a reader can open', async () => {
     // Given a theme that fills all 21 positions of the frozen registry and writes its own
     // stylesheet, which is what SPEC 10.1 calls a level 2 theme: "a package with its own layout;
     // the core contributes no styles".
@@ -73,7 +78,12 @@ describe('the markup a complete L2 theme does not own', () => {
     // TX-GUTTER: the page-level columns are gone from the reference, the spec and runtime pair
     // exists only inside a parity row, and the parity markup itself lives in the `RuntimePanel`
     // position, which this theme overrides, so no parity class arrives to survive.
+    // `oref-bench-page`, `oref-health-page`, `oref-operation-header` and `oref-title` arrived
+    // with TX-FRAME: the two new pages are articles the reference draws outside every position,
+    // and the bench head is the reference's own two classes. The boundary widened, and this
+    // list is where that fact is read instead of absorbed.
     expect(surviving).toEqual([
+      'oref-bench-page',
       'oref-code',
       'oref-description',
       'oref-example',
@@ -81,10 +91,12 @@ describe('the markup a complete L2 theme does not own', () => {
       'oref-field-control',
       'oref-field-label',
       'oref-field-note',
+      'oref-health-page',
       'oref-media',
       'oref-media-head',
       'oref-media-type',
       'oref-operation',
+      'oref-operation-header',
       'oref-root',
       'oref-section',
       'oref-section-health',
@@ -95,6 +107,7 @@ describe('the markup a complete L2 theme does not own', () => {
       'oref-security-item',
       'oref-security-list',
       'oref-security-type',
+      'oref-title',
       'oref-tryit-form',
     ]);
   });
@@ -161,7 +174,10 @@ describe('the markup a complete L2 theme does not own', () => {
     // Given, the browser fills the health position with `h('section', { class:
     // 'oref-section-health' })` and nothing else, so hydration compares the class list against
     // exactly that one name.
-    const html = (await renderPage(runtimeDocument(), { markdown, theme: telltale })).appHtml;
+    // The panel lives on the health page since TX-FRAME, per SPEC 7.3.
+    const html = (
+      await renderPage(runtimeDocument(), { page: 'health', markdown, theme: telltale })
+    ).appHtml;
 
     // When, Then this theme's override writes that class, alone, and puts its own class inside.
     // A root carrying both would have this theme's class patched away on hydration, silently, in a

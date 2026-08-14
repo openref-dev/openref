@@ -35,8 +35,37 @@ export const SEARCH_INDEX_SEGMENT = '_search-index';
  */
 export const NAVIGATION_SEGMENT = '_navigation';
 
-/** Segment serving the health report. */
-export const HEALTH_SEGMENT = 'health';
+/**
+ * Segment serving the machine readable liveness answer, per SPEC 13.3 as amended 2026-08-14.
+ *
+ * IT WAS THE BARE `health` UNTIL `TX-FRAME`, and the move is the page family taking the name
+ * the layout gave it: `health` is the Documentation Health page now, and one address never
+ * answers two ways by request header, which is the preserved half of the 2026-08-11 decision.
+ * The underscore is the machine endpoint convention every other fetched segment here follows.
+ */
+export const STATUS_SEGMENT = '_health';
+
+/** Segment of the Documentation Health page, per SPEC 7.3 as amended 2026-08-14. */
+export const HEALTH_PAGE_SEGMENT = 'health';
+
+/** Segment of the bench page: the console on its own address, addressed by node. */
+export const BENCH_SEGMENT = 'bench';
+
+/** Segment of the shapes showcase, addressed by schema. */
+export const SHAPES_SEGMENT = 'shapes';
+
+/** Segment of the states showcase. */
+export const STATES_SEGMENT = 'states';
+
+/**
+ * Segment reserved for the federated service card, per SPEC 13.3.
+ *
+ * REGISTERED NOW AND ANSWERED WITH WORDS UNTIL M4, by the `_proxy` precedent: a route that
+ * exists only when federation is mounted makes "no services" and "no such address" the same
+ * 404 from outside. This one answers its own 404, naming the state, so the difference is a
+ * fact a request can learn.
+ */
+export const SERVICE_SEGMENT = 'service';
 
 /**
  * Segments an authorization server returns a reader to, per SPEC 13.3 and 14.4.
@@ -73,6 +102,9 @@ export const SCHEMA_PARAM = 'schemaId';
 /** Name of the parameter carrying the document hash a navigation payload is asked for by. */
 export const NAVIGATION_PARAM = 'documentHash';
 
+/** Name of the parameter carrying a federated service id, reserved until M4. */
+export const SERVICE_PARAM = 'serviceId';
+
 /** What a route answers with. */
 export type ReferenceRouteId =
   | 'overview'
@@ -81,7 +113,12 @@ export type ReferenceRouteId =
   | 'asset'
   | 'search-index'
   | 'navigation'
+  | 'status'
   | 'health'
+  | 'bench'
+  | 'shapes'
+  | 'states'
+  | 'service'
   | 'oauth-callback'
   | 'proxy'
   | 'schema'
@@ -160,7 +197,12 @@ export function referenceRoutes(basePath: string): readonly ReferenceRoute[] {
     { id: 'asset', pattern: at(`/${ASSET_SEGMENT}/:${ASSET_PARAM}`), method: 'get' },
     { id: 'search-index', pattern: at(`/${SEARCH_INDEX_SEGMENT}`), method: 'get' },
     { id: 'navigation', pattern: at(`/${NAVIGATION_SEGMENT}/:${NAVIGATION_PARAM}`), method: 'get' },
-    { id: 'health', pattern: at(`/${HEALTH_SEGMENT}`), method: 'get' },
+    { id: 'status', pattern: at(`/${STATUS_SEGMENT}`), method: 'get' },
+    { id: 'health', pattern: at(`/${HEALTH_PAGE_SEGMENT}`), method: 'get' },
+    { id: 'bench', pattern: at(`/${BENCH_SEGMENT}/:${NODE_PARAM}`), method: 'get' },
+    { id: 'shapes', pattern: at(`/${SHAPES_SEGMENT}/:${SCHEMA_PARAM}`), method: 'get' },
+    { id: 'states', pattern: at(`/${STATES_SEGMENT}`), method: 'get' },
+    { id: 'service', pattern: at(`/${SERVICE_SEGMENT}/:${SERVICE_PARAM}`), method: 'get' },
     {
       id: 'oauth-callback',
       pattern: at(`/${OAUTH_SEGMENT}/${OAUTH_CALLBACK_SEGMENT}`),

@@ -132,12 +132,16 @@ would have been 1 612 858 bytes on `twilio-api-v2010.yaml` against a node page's
 
 | Name | Kind | What it is |
 | --- | --- | --- |
-| `PageModel` | type | One page, as it travels |
-| `PageKind` | type | Which of the three kinds of page it is |
+| `PageModel` | type | One page, as it travels. Carries `kind` and `frame` since `TX-FRAME` |
+| `PageKind` | type | Which page it is. Seven members since `TX-FRAME`: the three, then `bench`, `health`, `shapes`, `states`, per SPEC 13.3 |
+| `FrameModel` | type | The app bar's data: resolved tabs, breadcrumb, back, rail statistics. Added at `TX-FRAME`, minor |
+| `FrameTabModel` | type | One tab with its target resolved, so no theme spells an address twice |
+| `FrameTabKind` | type | Which tab it is; the two showcase pages have no tab |
+| `FrameStatsModel` | type | The rail's stats row; `drift` is null on a document nothing measured, which is not zero |
 | `NodeModel` | type | A node page |
 | `NodeHeaderModel` | type | Its header |
 | `SchemaPageModel` | type | A named schema on its own page |
-| `NavEntryModel` | type | One row of the navigation |
+| `NavEntryModel` | type | One row of the navigation. Carries `driftCount` since `TX-FRAME`, summed over children for a group; zero draws no marker and asserts nothing |
 | `PaletteHitModel` | type | One row of the command palette |
 | `ParameterModel` | type | One parameter row, with its description already HTML |
 | `ResponseModel` | type | One response, with its examples already highlighted |
@@ -168,7 +172,7 @@ would have been 1 612 858 bytes on `twilio-api-v2010.yaml` against a node page's
 | `SlotPropsMap` | type | Every slot's props, which is the frozen contract |
 | `SLOT_NAMES_ARE_COMPLETE` | type | The compile time proof that the list and the map name the same slots |
 | `SchemaPayloadMap` | type | The schemas a page carries, keyed by id, as `SchemaTree` is handed them |
-| `StateNoticeKind` | type | Which sentence a `StateNotice` is drawing |
+| `StateNoticeKind` | type | Which sentence a `StateNotice` is drawing. Nine since `TX-FRAME`: `health-missing` is the health page nothing measured |
 | `StreamCounts` | type | What a `StreamLog` is handed beside its elements |
 | `createSlotRegistry` | value | Builds a registry from a theme's components |
 | `SlotRegistry` | type | That registry |

@@ -71,11 +71,11 @@ describe('hydrateReference', () => {
    * and the page would look right until a reader opened a group.
    */
   it('should keep every finding in the panel after hydrating it from a boolean', async () => {
-    // Given an overview page with a Health panel on it
+    // Given the health page with the panel on it, where the panel lives since TX-FRAME
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     const built = runtimeDocument();
-    const page = await renderPage(built);
+    const page = await renderPage(built, { page: 'health' });
     document.documentElement.innerHTML = renderHtmlDocument(page, {
       nonce: 'r4nd0mNONCEvalue',
       assets: { stylesheets: ['/assets/theme.css'], modules: ['/assets/openref.js'] },
@@ -183,7 +183,10 @@ describe('readPageState', () => {
     // and that is 9 (8 was TX-SLOTWIRE): a page cached before it sends directly on a host whose
     // proxy is up, which is the defence existing and not being offered. TX-GUTTER added the
     // parity scale and the display code, and that is 10: a page cached before it hydrates an
-    // operation with no scale to adopt and findings citing no code.
-    expect(state?.pageModelVersion).toBe(10);
+    // operation with no scale to adopt and findings citing no code. TX-FRAME added `kind`,
+    // `frame` and the navigation drift counts, and moved the panel to the health page, and
+    // that is 11: a page cached before it hydrates a shell with no tab bar data and an
+    // overview that still claims the panel.
+    expect(state?.pageModelVersion).toBe(11);
   });
 });

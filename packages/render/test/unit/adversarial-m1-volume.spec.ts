@@ -81,11 +81,12 @@ describe('T025 attack: an application where nearly every operation drifts', () =
   });
 
   it('should serialize every finding once, as the markup a reader is looking at', async () => {
-    // Given the same document, rendered as a reader receives it
+    // Given the same document, rendered as a reader receives it. The panel lives on the
+    // health page since TX-FRAME, per SPEC 7.3, so the volume page is that one.
     const built = document(false);
 
     // When
-    const page = await renderPage(built);
+    const page = await renderPage(built, { page: 'health' });
 
     // Then the findings are in the markup, and the state block says only that a panel is there.
     // The state block used to carry all 578 of them so a client render could rebuild markup that
@@ -97,9 +98,10 @@ describe('T025 attack: an application where nearly every operation drifts', () =
     expect(page.stateJson).toContain('"healthRendered":true');
     expect(page.stateJson).toContain('"health":null');
 
-    // And the state block of the overview page of a 578 finding document is under a kilobyte,
-    // where it was 163,738 bytes. A single finding coming back reddens this.
-    expect(Buffer.byteLength(page.stateJson, 'utf8')).toBeLessThan(1024);
+    // And the state block of the health page of a 578 finding document is under two
+    // kilobytes, where it was 163,738 bytes. A single finding coming back reddens this; the
+    // frame's tabs and stats are the growth over the old kilobyte.
+    expect(Buffer.byteLength(page.stateJson, 'utf8')).toBeLessThan(2048);
   });
 
   it('should still cost what the markup costs, which is the number the maintainer decides on', async () => {
@@ -110,8 +112,8 @@ describe('T025 attack: an application where nearly every operation drifts', () =
     // failed gate; the decision about whether a closed group ships its contents is SPEC 7.2's.
     const built = document(false);
 
-    // When
-    const page = await renderPage(built);
+    // When, on the page that carries the panel since TX-FRAME
+    const page = await renderPage(built, { page: 'health' });
 
     // Then, and the band is wide enough to survive ordinary wording changes and narrow enough
     // that halving or doubling the markup reddens it

@@ -12,7 +12,7 @@
  */
 
 import { IR_VERSION, type IRDocument } from '@openref/core';
-import { provideSlots, resolveTheme, type ThemeDefinition } from '@openref/vue';
+import { provideSlots, resolveTheme, type PageKind, type ThemeDefinition } from '@openref/vue';
 import { createSSRApp, h } from 'vue';
 import { renderToString } from 'vue/server-renderer';
 import type {
@@ -36,14 +36,25 @@ import {
  * Bumped by hand when a change to a component changes the bytes of an unchanged document.
  * It is part of the cache key, so bumping it invalidates every stored page at once.
  *
+ * 5 to 6 with `TX-FRAME`: the shell draws the app bar with back, breadcrumb and the tab bar,
+ * the rail draws statistics and drift counters, the console leaves the node page for the
+ * bench address and the health panel leaves the overview for its own. Same document,
+ * different bytes on every page.
+ *
  * 4 to 5 on 2026-08-14: the served send and stream buttons lost `aria-disabled`, a declared
  * media type example now wins over the generated one, zero denominator health checks stopped
  * rendering a row, and the rule heading gained its separator. Same document, different bytes.
  */
-export const RENDER_VERSION = 5;
+export const RENDER_VERSION = 6;
 
 /** How one page is rendered. */
 export interface RenderPageOptions {
+  /**
+   * Which page to render, per SPEC 13.3. Absent keeps the pre `TX-FRAME` derivation from
+   * `nodeId` and `schemaId`, so a caller that never asked for a bench asks the way it always
+   * did.
+   */
+  readonly page?: PageKind;
   /** Node to render, or null for the document overview. */
   readonly nodeId?: string | null;
   /** Named schema to render, for a schema page. Ignored when `nodeId` is set. */
@@ -84,6 +95,8 @@ export interface RenderPageOptions {
  * @param basePath - Mount point, which links are built from and so is part of the bytes
  * @param schemaId - Named schema the page shows, for a schema page
  * @param themeName - Theme whose overrides this page was drawn with, empty for none
+ * @param proxyPath - Proxy endpoint the page carries, empty for none
+ * @param page - Which page, since `TX-FRAME`: a node and its bench are two pages of one node
  * @returns A key that changes whenever the bytes could
  */
 export function renderCacheKey(
@@ -93,9 +106,10 @@ export function renderCacheKey(
   schemaId: string | null = null,
   themeName = '',
   proxyPath = '',
+  page = '',
 ): string {
   const versions = `${String(IR_VERSION)}.${String(PAGE_MODEL_VERSION)}.${String(RENDER_VERSION)}`;
-  return `oref:${versions}:${documentHash}:${basePath}:${nodeId ?? ''}:${schemaId ?? ''}:${themeName}:${proxyPath}`;
+  return `oref:${versions}:${documentHash}:${basePath}:${nodeId ?? ''}:${schemaId ?? ''}:${themeName}:${proxyPath}:${page}`;
 }
 
 /**
@@ -158,6 +172,14 @@ export function serializePageModel(model: PageModel): string {
  * @returns Text for the `title` element, unescaped
  */
 function pageTitle(model: PageModel): string {
+  if (model.kind === 'bench' && model.node !== null) {
+    return `Bench: ${model.node.title} - ${model.title}`;
+  }
+  if (model.kind === 'shapes' && model.schema !== null) {
+    return `Shapes: ${model.schema.name} - ${model.title}`;
+  }
+  if (model.kind === 'health') return `Documentation health - ${model.title}`;
+  if (model.kind === 'states') return `States - ${model.title}`;
   if (model.node !== null) return `${model.node.title} - ${model.title}`;
   if (model.schema !== null) return `${model.schema.name} - ${model.title}`;
   return model.title;
@@ -179,8 +201,8 @@ export async function renderPage(
   const basePath = options.basePath ?? '';
   const theme = resolveTheme(options.theme);
   // THE KEY CARRIES THE THEME'S NAME AND IS EMPTY WHEN THERE IS NONE, so a reference published
-  // without a theme keys exactly as it did before slots were wired. The proxy path rides the
-  // same rule.
+  // without a theme keys exactly as it did before slots were wired. The proxy path and the page
+  // kind ride the same rule.
   const key = renderCacheKey(
     document.hash,
     nodeId,
@@ -188,6 +210,7 @@ export async function renderPage(
     schemaId,
     options.theme?.name ?? '',
     options.proxyPath ?? '',
+    options.page ?? '',
   );
 
   const cached = await options.cache?.get(key);
@@ -196,6 +219,7 @@ export async function renderPage(
   const markdown = await markdownFor(options);
 
   const model = buildPageModel(document, {
+    ...(options.page === undefined ? {} : { page: options.page }),
     nodeId,
     schemaId,
     markdown,
@@ -244,20 +268,30 @@ export async function renderPage(
  * Every named schema gets a page too, because the navigation links to one and because a
  * reference whose schema links 404 in a static build is a reference with broken links.
  *
+ * EVERY PAGE A TAB LINKS TO IS HERE, since `TX-FRAME`: the health page, and a bench per
+ * operation, because a build whose tab bar links to a page it does not hold is the same
+ * broken link the schema pages exist to prevent. The two showcase addresses, shapes and
+ * states, are deliberately not: nothing links to them, and whether a static build carries
+ * unlinked pages is T039's question, recorded there rather than answered here by accident.
+ *
  * @param document - The normalized document
  * @param options - As for `renderPage`, minus the node
- * @returns The overview, then nodes in document order, then schemas in document order
+ * @returns The overview, health, then nodes with their benches, then schemas, document order
  */
 export async function renderAllPages(
   document: IRDocument,
-  options: Omit<RenderPageOptions, 'nodeId' | 'schemaId'> = {},
+  options: Omit<RenderPageOptions, 'nodeId' | 'schemaId' | 'page'> = {},
 ): Promise<RenderedPage[]> {
   const markdown = await markdownFor(options);
 
   const pages: RenderedPage[] = [await renderPage(document, { ...options, markdown })];
+  pages.push(await renderPage(document, { ...options, markdown, page: 'health' }));
 
-  for (const nodeId of document.nodes.keys()) {
+  for (const [nodeId, node] of document.nodes) {
     pages.push(await renderPage(document, { ...options, markdown, nodeId }));
+    if (node.kind === 'operation') {
+      pages.push(await renderPage(document, { ...options, markdown, page: 'bench', nodeId }));
+    }
   }
 
   for (const schemaId of document.schemas.keys()) {

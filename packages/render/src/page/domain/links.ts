@@ -56,6 +56,64 @@ export function navigationHref(documentHash: string, basePath = ''): string {
 /** Segment that separates a schema page from a node page, so the two id spaces cannot collide. */
 export const SCHEMA_SEGMENT = 'schema';
 
+/** Segment of the bench page, per SPEC 13.3: the console on its own address. */
+export const BENCH_SEGMENT = 'bench';
+
+/** Segment of the health page. The liveness JSON lives at `_health`, per SPEC 13.3. */
+export const HEALTH_PAGE_SEGMENT = 'health';
+
+/** Segment of the shapes showcase, addressed by schema, per SPEC 11. */
+export const SHAPES_SEGMENT = 'shapes';
+
+/** Segment of the states showcase, per SPEC 11. */
+export const STATES_SEGMENT = 'states';
+
+/**
+ * Path of one operation's bench page.
+ *
+ * The console left the node page with `TX-FRAME`, so this is where a reader sends a request
+ * from. A channel has none: nothing links here for one, and the route answers 404.
+ *
+ * @param nodeId - Key into `IRDocument.nodes`
+ * @param basePath - Where the reference is mounted, without a trailing slash
+ * @returns Absolute path of the page
+ */
+export function benchHref(nodeId: string, basePath = ''): string {
+  return `${basePath}/${BENCH_SEGMENT}/${encodeURIComponent(nodeId)}`;
+}
+
+/**
+ * Path of the Documentation Health page, per SPEC 7.3 as amended 2026-08-14.
+ *
+ * @param basePath - Where the reference is mounted, without a trailing slash
+ * @returns Absolute path of the page
+ */
+export function healthPageHref(basePath = ''): string {
+  return `${basePath}/${HEALTH_PAGE_SEGMENT}`;
+}
+
+/**
+ * Path of one schema's shapes page: the theme author's showcase, reached by URL and linked
+ * from no bar and no tree, per the 2026-08-14 decision.
+ *
+ * @param schemaId - Key into `IRDocument.schemas`
+ * @param basePath - Where the reference is mounted, without a trailing slash
+ * @returns Absolute path of the page
+ */
+export function shapesHref(schemaId: string, basePath = ''): string {
+  return `${basePath}/${SHAPES_SEGMENT}/${encodeURIComponent(schemaId)}`;
+}
+
+/**
+ * Path of the states showcase, under the same rule as {@link shapesHref}.
+ *
+ * @param basePath - Where the reference is mounted, without a trailing slash
+ * @returns Absolute path of the page
+ */
+export function statesHref(basePath = ''): string {
+  return `${basePath}/${STATES_SEGMENT}`;
+}
+
 /**
  * Path of one named schema's page.
  *

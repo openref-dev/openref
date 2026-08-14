@@ -27,8 +27,8 @@ const TIMEOUT = 300_000;
 let chrome: LaunchedChrome;
 let app: SpawnedServer;
 
-/** The collection page, where Send needs nothing filled in. */
-const LIST_PAGE = `${EXAMPLE_BASE_PATH}/get-orders`;
+/** The collection's bench, where the console lives since TX-FRAME and Send needs nothing filled in. */
+const LIST_PAGE = `${EXAMPLE_BASE_PATH}/bench/get-orders`;
 
 beforeAll(async () => {
   chrome = await launchChrome();

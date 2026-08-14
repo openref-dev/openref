@@ -133,7 +133,8 @@ describe('the token set', () => {
   });
 
   it('should keep this theme own tokens out of the core set', () => {
-    // Given, the contract allows a theme its own tokens and names vernier two.
+    // Given, the contract allows a theme its own tokens and names vernier's six, three of
+    // them since TX-FRAME: the horizontal tick, the app bar height, and the tab edge.
     const names = THEME_SPECIFIC_TOKENS.map((token) => token.name);
 
     // When
@@ -141,7 +142,14 @@ describe('the token set', () => {
 
     // Then
     expect(leaked).toEqual([]);
-    expect(names).toEqual(['--oref-layout-gutter', '--oref-layout-tick', '--oref-layout-nav-row']);
+    expect(names).toEqual([
+      '--oref-layout-gutter',
+      '--oref-layout-tick',
+      '--oref-layout-nav-row',
+      '--oref-layout-tick-h',
+      '--oref-layout-bar',
+      '--oref-layout-tab-edge',
+    ]);
     expect(ALL_TOKENS).toHaveLength(THEME_TOKENS.length + THEME_SPECIFIC_TOKENS.length);
   });
 

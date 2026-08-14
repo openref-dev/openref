@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { bootExampleApp, EXAMPLE_BASE_PATH, launchChrome } from '../../src/index';
 import type { LaunchedChrome, SpawnedServer } from '../../src/index';
+import type { Page } from 'playwright-core';
 
 /**
  * The frame of the page, measured, per finding F17 and the T023 amendment.
@@ -325,6 +326,326 @@ describe('the glyphs of the parity scale', () => {
         expect(width, `the glyph ${glyph} rendered at zero width`).toBeGreaterThan(0);
       }
       expect(measured.fontFamily).toContain('monospace');
+    },
+    TIMEOUT,
+  );
+});
+
+/**
+ * The tab bar and the addresses behind it, per SPEC 11 and 13.3, since TX-FRAME.
+ *
+ * THE TABS ARE PAGES AND THE PROOF IS A RELOAD: each tab's href is navigated to cold, and the
+ * page that answers marks that tab current. An anchor would survive none of this. The DOM is
+ * described in each callback rather than imported, per this file's own header.
+ */
+describe('the tab bar of the frame', () => {
+  interface TabFacts {
+    readonly label: string;
+    readonly href: string;
+    readonly active: boolean;
+  }
+
+  /** The bar as served on one page. */
+  async function tabsOn(page: Page): Promise<TabFacts[]> {
+    return page.evaluate(() => {
+      interface ElementLike {
+        readonly textContent: string | null;
+        getAttribute(name: string): string | null;
+      }
+      const root = globalThis as unknown as {
+        document: { querySelectorAll(selector: string): readonly ElementLike[] };
+      };
+
+      return [...root.document.querySelectorAll('.oref-tab')].map((anchor) => ({
+        label: anchor.textContent ?? '',
+        href: anchor.getAttribute('href') ?? '',
+        active: anchor.getAttribute('aria-current') === 'page',
+      }));
+    });
+  }
+
+  it(
+    'should carry four tabs on an operation page, each an address that survives a reload',
+    async () => {
+      // Given the operation page of the demo
+      const context = await chrome.browser.newContext({ viewport: WIDE });
+      const page = await context.newPage();
+      await page.goto(`${app.url}${EXAMPLE_BASE_PATH}/get-orders`, { waitUntil: 'load' });
+
+      // When the bar is read
+      const tabs = await tabsOn(page);
+
+      // Then, the three operation tabs and health, the operation tab active
+      expect(tabs.map((tab) => tab.label.replace(/\d+$/, ''))).toEqual([
+        'Operation',
+        'Schema',
+        'Bench',
+        'Health',
+      ]);
+      expect(tabs[0]?.active).toBe(true);
+      expect(tabs[0]?.href).toBe(`${EXAMPLE_BASE_PATH}/get-orders`);
+      expect(tabs[2]?.href).toBe(`${EXAMPLE_BASE_PATH}/bench/get-orders`);
+      expect(tabs[3]?.href).toBe(`${EXAMPLE_BASE_PATH}/health`);
+
+      // And each address answers a cold load with its own tab current
+      for (const tab of tabs.slice(1)) {
+        const response = await page.goto(`${app.url}${tab.href}`, { waitUntil: 'load' });
+        expect(response?.status()).toBe(200);
+        const current = (await tabsOn(page)).find((candidate) => candidate.active)?.href ?? '';
+        expect(current).toBe(tab.href);
+      }
+
+      await context.close();
+    },
+    TIMEOUT,
+  );
+
+  it(
+    'should compute all three active signals in the engine: colour, surface, border',
+    async () => {
+      // Given, the reason is monochrome print: a signal living in one colour disappears on
+      // paper, so the active tab carries three, and each is asserted on the computed style
+      // rather than on a class name.
+      const context = await chrome.browser.newContext({ viewport: WIDE });
+      const page = await context.newPage();
+      await page.goto(`${app.url}${EXAMPLE_BASE_PATH}/get-orders`, { waitUntil: 'load' });
+
+      // When
+      const signals = await page.evaluate(() => {
+        interface ElementLike {
+          readonly textContent: string | null;
+        }
+        interface StyleLike {
+          readonly color: string;
+          readonly backgroundColor: string;
+          readonly borderBottomColor: string;
+          readonly borderBottomWidth: string;
+        }
+        const root = globalThis as unknown as {
+          document: { querySelector(selector: string): ElementLike | null };
+          getComputedStyle(element: ElementLike): StyleLike;
+        };
+
+        const active = root.document.querySelector('.oref-tab[aria-current="page"]');
+        const idle = root.document.querySelector('.oref-tab:not([aria-current])');
+        if (active === null || idle === null) return null;
+        const activeStyle = root.getComputedStyle(active);
+        const idleStyle = root.getComputedStyle(idle);
+
+        return {
+          colourDiffers: activeStyle.color !== idleStyle.color,
+          surfaceDiffers: activeStyle.backgroundColor !== idleStyle.backgroundColor,
+          activeEdge: activeStyle.borderBottomColor,
+          idleEdge: idleStyle.borderBottomColor,
+          edgeWidth: activeStyle.borderBottomWidth,
+        };
+      });
+
+      // Then
+      expect(signals).not.toBeNull();
+      expect(signals?.colourDiffers).toBe(true);
+      expect(signals?.surfaceDiffers).toBe(true);
+      expect(signals?.edgeWidth).toBe('2px');
+      expect(signals?.activeEdge).not.toBe(signals?.idleEdge);
+      expect(signals?.idleEdge).toContain('0, 0, 0, 0');
+
+      await context.close();
+    },
+    TIMEOUT,
+  );
+
+  it(
+    'should keep the showcase addresses out of every bar and out of the rail',
+    async () => {
+      // Given the 2026-08-14 decision: shapes and states exist at their addresses and a reader
+      // never sees them in navigation.
+      const context = await chrome.browser.newContext({ viewport: WIDE });
+      const page = await context.newPage();
+
+      for (const path of [EXAMPLE_BASE_PATH, `${EXAMPLE_BASE_PATH}/get-orders`]) {
+        await page.goto(`${app.url}${path}`, { waitUntil: 'load' });
+        const linked = await page.evaluate(() => {
+          interface ElementLike {
+            getAttribute(name: string): string | null;
+          }
+          const root = globalThis as unknown as {
+            document: { querySelectorAll(selector: string): readonly ElementLike[] };
+          };
+
+          return [...root.document.querySelectorAll('a[href]')].some(
+            (anchor) =>
+              (anchor.getAttribute('href') ?? '').includes('/states') ||
+              (anchor.getAttribute('href') ?? '').includes('/shapes/'),
+          );
+        });
+        expect(linked, `${path} links to a showcase address`).toBe(false);
+      }
+
+      // And the addresses still answer, which is what "exists" means
+      const states = await page.goto(`${app.url}${EXAMPLE_BASE_PATH}/states`, {
+        waitUntil: 'load',
+      });
+      expect(states?.status()).toBe(200);
+      const statesTitle = await page.evaluate(() => {
+        interface ElementLike {
+          readonly textContent: string | null;
+        }
+        const root = globalThis as unknown as {
+          document: { querySelector(selector: string): ElementLike | null };
+        };
+
+        return root.document.querySelector('.oref-states-page .oref-title')?.textContent ?? '';
+      });
+      expect(statesTitle).toBe('Empty and degraded states');
+
+      await context.close();
+    },
+    TIMEOUT,
+  );
+});
+
+/**
+ * The rail's statistics and drift counters, per TX-FRAME.
+ */
+describe('the rail of the frame', () => {
+  it(
+    'should state the document counts and mark the drifted entries',
+    async () => {
+      // Given the demo, whose collectors produce findings
+      const context = await chrome.browser.newContext({ viewport: WIDE });
+      const page = await context.newPage();
+      await page.goto(`${app.url}${EXAMPLE_BASE_PATH}/get-orders`, { waitUntil: 'load' });
+
+      // When
+      const rail = await page.evaluate(() => {
+        interface ElementLike {
+          readonly textContent: string | null;
+        }
+        interface StyleLike {
+          readonly borderInlineStartColor: string;
+        }
+        const root = globalThis as unknown as {
+          document: {
+            querySelector(selector: string): ElementLike | null;
+            querySelectorAll(selector: string): readonly ElementLike[];
+          };
+          getComputedStyle(element: ElementLike): StyleLike;
+        };
+
+        const active = root.document.querySelector('.oref-nav-item.oref-active');
+
+        return {
+          stats: root.document.querySelector('.oref-nav-stats')?.textContent ?? '',
+          drift: root.document.querySelector('.oref-nav-stats-drift')?.textContent ?? '',
+          markers: root.document.querySelectorAll('.oref-nav-drift').length,
+          activeEdge: active === null ? '' : root.getComputedStyle(active).borderInlineStartColor,
+        };
+      });
+
+      // Then the stats row states the whole document, the drift cell carries the report's
+      // total, at least one entry wears a marker, and the active item carries a resolved edge
+      // colour rather than the transparent idle one.
+      expect(rail.stats).toContain('operations');
+      expect(rail.stats).toContain('groups');
+      expect(rail.drift).toMatch(/▲ \d+/);
+      expect(rail.markers).toBeGreaterThan(0);
+      expect(rail.activeEdge).not.toBe('');
+      expect(rail.activeEdge).not.toContain('0, 0, 0, 0');
+
+      await context.close();
+    },
+    TIMEOUT,
+  );
+});
+
+/**
+ * The narrow collapse of the parity scale, per SPEC 11: a container query on the scale's own
+ * width, at the measured threshold of 500px. Both sides of the threshold are driven, because a
+ * collapse that never engages and one that never releases are the same silent failure.
+ */
+describe('the narrow collapse of the parity scale', () => {
+  interface CollapseFacts {
+    readonly container: number;
+    readonly tracks: number;
+    readonly specHeading: string;
+    readonly runtimeHeading: string;
+    readonly headDisplay: string;
+    readonly gutterWide: boolean;
+  }
+
+  /** Reads the collapse facts at one viewport width. */
+  async function collapseAt(width: number): Promise<CollapseFacts> {
+    const context = await chrome.browser.newContext({ viewport: { width, height: 900 } });
+    const page = await context.newPage();
+    await page.goto(`${app.url}${EXAMPLE_BASE_PATH}/get-orders`, { waitUntil: 'load' });
+
+    const measured = await page.evaluate(() => {
+      interface BoxLike {
+        readonly width: number;
+        readonly height: number;
+      }
+      interface ElementLike {
+        getBoundingClientRect(): BoxLike;
+      }
+      interface StyleLike {
+        readonly gridTemplateColumns: string;
+        readonly content: string;
+        readonly display: string;
+      }
+      const root = globalThis as unknown as {
+        document: { querySelector(selector: string): ElementLike | null };
+        getComputedStyle(element: ElementLike, pseudo?: string): StyleLike;
+      };
+
+      const section = root.document.querySelector('.oref-section-runtime');
+      const grid = root.document.querySelector('.oref-parity-grid');
+      const head = root.document.querySelector('.oref-parity-head');
+      const spec = root.document.querySelector('.oref-parity-cell-spec');
+      const runtime = root.document.querySelector('.oref-parity-cell-runtime');
+      const gutter = root.document.querySelector('.oref-parity-gutter');
+      if (section === null || grid === null || spec === null || runtime === null) return null;
+
+      const gutterBox = gutter?.getBoundingClientRect();
+
+      return {
+        container: section.getBoundingClientRect().width,
+        tracks: root.getComputedStyle(grid).gridTemplateColumns.split(' ').length,
+        specHeading: root.getComputedStyle(spec, '::before').content,
+        runtimeHeading: root.getComputedStyle(runtime, '::before').content,
+        headDisplay: head === null ? '' : root.getComputedStyle(head).display,
+        gutterWide: gutterBox !== undefined && gutterBox.width > gutterBox.height,
+      };
+    });
+
+    await context.close();
+    if (measured === null) throw new Error('the parity scale was not on the page');
+
+    return measured;
+  }
+
+  it(
+    'should draw the pair above the threshold and the column below it, by container width',
+    async () => {
+      // Given a window whose content column holds the scale well above 500px
+      const wide = await collapseAt(1600);
+
+      // Then the pair stands: three tracks, the head shown, no micro headings
+      expect(wide.container).toBeGreaterThan(500);
+      expect(wide.tracks).toBe(3);
+      expect(wide.headDisplay).not.toBe('none');
+      expect(wide.specHeading).toBe('none');
+
+      // Given a window whose rail and gutter leave the scale under the threshold
+      const narrow = await collapseAt(760);
+
+      // Then the scale is a column: one track, the head gone, the headings inside the cells
+      // as micro headings, and the gutter lying down wider than it is tall
+      expect(narrow.container).toBeLessThan(500);
+      expect(narrow.tracks).toBe(1);
+      expect(narrow.headDisplay).toBe('none');
+      expect(narrow.specHeading).toContain('Specification declares');
+      expect(narrow.runtimeHeading).toContain('Application does');
+      expect(narrow.gutterWide).toBe(true);
     },
     TIMEOUT,
   );

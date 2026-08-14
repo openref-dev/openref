@@ -692,24 +692,33 @@ export const SIZE_BUDGETS: readonly SizeBudget[] = [
     // after it; 35 KB keeps the property above, a console sized region still lands over the cap.
     //
     // RECOMPUTED AT TX-GUTTER, 35 TO 41 KB, FOR THE SAME SANCTIONED REASON AT A LARGER SCALE:
-    // the input changed. The renderer emits the parity scale of SPEC 6.3, a class family it did
-    // not have, the maintainer ordered the region by name, and the two way sweep in
+    // it moved because the renderer emits a class family the two way sweep must style, which is
+    // a capability arriving, not drift. The parity scale of SPEC 6.3 is a class family the
+    // renderer did not have, the maintainer ordered the region by name, and the sweep in
     // `theme.spec.ts` requires every emitted class styled, so no amount of theme work removes
     // the requirement. Measured 39,312 after it, with the dead labelled row rules already taken
     // back out: 26,979 theme.css, 8,122 tokens.css, 4,211 fonts.css. WHY A RECOMPUTED CAP AND
     // NOT A LEDGER ENTRY, since the exceptions doctrine sends artefact growth to the ledger: an
     // exception must name a payer who can clear it, and no future task deletes required
     // styling, so an entry here would be a debt nobody can pay, which is a raised threshold
-    // wearing a ledger entry. 41 KB is 41,984 and keeps the derived property exactly: a
-    // navigation sized region, 2,520, still fits, 41,832 under the cap; a page frame sized one,
-    // 3,287, and a console sized one, 3,669, still land over it.
+    // wearing a ledger entry.
+    //
+    // RECOMPUTED AT TX-FRAME, 41 TO 46 KB, SAME REASON, SAME WORDS: it moved because the
+    // renderer emits a class family the two way sweep must style, which is a capability
+    // arriving, not drift. The frame of SPEC 11 arrived: the app bar with back, crumb and the
+    // tab bar, the rail statistics and drift counters, the four page articles, and the
+    // container query collapse of the parity scale at the measured 500px threshold. Measured
+    // 44,179 after it: 31,659 theme.css, 8,309 tokens.css, 4,211 fonts.css. 46 KB is 47,104
+    // and keeps the derived property exactly: a navigation sized region, 2,520, still fits,
+    // 46,699 under the cap; a page frame sized one, 3,287, and a console sized one, 3,669,
+    // still land over it.
     id: 'theme-css-raw',
     label: 'Default theme CSS, raw bytes',
-    limitBytes: 41 * 1024,
+    limitBytes: 46 * 1024,
     quantity: 'parse',
     roots: THEME_CSS_ROOTS,
     extensions: ['.css'],
-    producedBy: 'T009, recomputed at TX-GUTTER',
+    producedBy: 'T009, recomputed at TX-GUTTER and TX-FRAME',
   },
 
   // THE WEB COMPONENT OUTPUTS OF SPEC 10.3, both files of one directory under one cap pair,
@@ -1102,11 +1111,11 @@ export const BUDGET_EXCEPTIONS: readonly BudgetException[] = [
   },
   {
     budget: 'client-js-raw',
-    measured: '105,786 bytes, 103.3 KB, over by 1,338',
+    measured: '109,584 bytes, 107.0 KB, over by 5,136',
     target: '102 KB, 104,448 bytes',
     owners: ['TX-ADOPT'],
     clearBy: 'M3',
-    recordedAt: '2026-08-14, at TX-GUTTER',
+    recordedAt: '2026-08-14, at TX-GUTTER, grown at TX-FRAME the same day',
     diagnosis:
       'The first paint gained the parity scale of SPEC 6.3: eleven paired rows with verdicts, ' +
       'the FixBar and the empty side treatment, ordered by the maintainer in the TX-GUTTER ' +
@@ -1123,7 +1132,15 @@ export const BUDGET_EXCEPTIONS: readonly BudgetException[] = [
       'TX-ADOPT adopts the static half of a node page instead of redrawing it, the parity ' +
       'scale is static markup with one link and no handler, exactly the Health panel shape the ' +
       'browser already adopts, and TX-ADOPT is accepted for early M3, so the entry clears by ' +
-      'M3 or fails the build asking why not.',
+      'M3 or fails the build asking why not. GROWN AT TX-FRAME, same day: the frame of SPEC 11 ' +
+      'entered the first paint, the tab bar with resolved targets, the rail statistics and ' +
+      'drift counters, and the page kinds of SPEC 13.3. Measured 109,584 across the same six ' +
+      'chunks, so the frame costs 3,798 raw on top of the scale. The frame is the same ' +
+      'adoptable shape: links and static markup, one toggle handler set, and the same payer ' +
+      'covers it under the same terms. ONE NAMED RESIDUE rather than a hidden one: the states ' +
+      'showcase panel rides the entry statically although only its own address draws it; a ' +
+      'page-kind gated deferral is new machinery, and TX-ADOPT restructures exactly this ' +
+      'boundary, so the residue is named here instead of half built now.',
   },
 ];
 

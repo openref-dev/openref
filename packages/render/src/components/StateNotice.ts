@@ -30,6 +30,7 @@ const SHAPES: Readonly<Record<StateNoticeKind, readonly [string, string, string 
   'no-body-fields': ['p', 'oref-tryit-notice', null],
   'schema-missing': ['p', 'oref-schema-empty', null],
   'no-schema': ['p', 'oref-schema-empty', null],
+  'health-missing': ['p', 'oref-health-empty', null],
 };
 
 /**

@@ -17,7 +17,8 @@ import { authDocument } from '../mocks/documents';
 const markdown = await createMarkdownRenderer();
 
 async function orders(): Promise<string> {
-  const page = await renderPage(authDocument(), { nodeId: 'get-orders' });
+  // The console lives on the bench page since TX-FRAME, per SPEC 13.3.
+  const page = await renderPage(authDocument(), { page: 'bench', nodeId: 'get-orders' });
 
   return page.appHtml;
 }

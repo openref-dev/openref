@@ -1,5 +1,5 @@
 import { normalizeOpenApiDocument, type IRDocument, type IROperation } from '@openref/core';
-import { defineTheme, SLOT_NAMES, type SlotName } from '@openref/vue';
+import { defineTheme, SLOT_NAMES, type PageKind, type SlotName } from '@openref/vue';
 import { describe, expect, it } from 'vitest';
 import { h, type Component, type VNode } from 'vue';
 import { createMarkdownRenderer } from '../../src/markdown/domain/markdown';
@@ -39,7 +39,11 @@ function probe(slot: SlotName): Component {
 async function pageWith(
   document: IRDocument,
   slot: SlotName,
-  where: { readonly nodeId?: string | null; readonly schemaId?: string | null } = {},
+  where: {
+    readonly page?: PageKind;
+    readonly nodeId?: string | null;
+    readonly schemaId?: string | null;
+  } = {},
 ): Promise<string> {
   const rendered = await renderPage(document, {
     ...where,
@@ -53,7 +57,11 @@ async function pageWith(
 /** The same page with no theme at all, which is what the override has to differ from. */
 async function pageWithout(
   document: IRDocument,
-  where: { readonly nodeId?: string | null; readonly schemaId?: string | null } = {},
+  where: {
+    readonly page?: PageKind;
+    readonly nodeId?: string | null;
+    readonly schemaId?: string | null;
+  } = {},
 ): Promise<string> {
   return (await renderPage(document, { ...where, markdown })).appHtml;
 }
@@ -76,7 +84,11 @@ async function drive(
   document: IRDocument,
   slot: SlotName,
   marker: string,
-  where: { readonly nodeId?: string | null; readonly schemaId?: string | null } = {},
+  where: {
+    readonly page?: PageKind;
+    readonly nodeId?: string | null;
+    readonly schemaId?: string | null;
+  } = {},
 ): Promise<string> {
   const plain = await pageWithout(document, where);
   expect(
@@ -261,7 +273,7 @@ describe('every slot of the registry, on the page a reader opens', () => {
     const nodeId = [...document.nodes.keys()].find((id) => id.startsWith('post')) ?? '';
 
     // When, Then
-    await drive(document, 'ShapeForm', 'oref-field-body', { nodeId });
+    await drive(document, 'ShapeForm', 'oref-field-body', { page: 'bench', nodeId });
   });
 
   it('should draw the theme credentials block instead of the scheme fields', async () => {
@@ -270,7 +282,7 @@ describe('every slot of the registry, on the page a reader opens', () => {
     const nodeId = [...document.nodes.keys()].find((id) => id.startsWith('post')) ?? '';
 
     // When, Then
-    await drive(document, 'AuthPanel', 'oref-field-auth-apiKey', { nodeId });
+    await drive(document, 'AuthPanel', 'oref-field-auth-apiKey', { page: 'bench', nodeId });
   });
 
   it('should draw the theme server chooser instead of the url field', async () => {
@@ -278,7 +290,7 @@ describe('every slot of the registry, on the page a reader opens', () => {
     const document = smallDocument();
 
     // When, Then
-    await drive(document, 'ServerSelect', 'oref-field-server-url', { nodeId: NODE });
+    await drive(document, 'ServerSelect', 'oref-field-server-url', { page: 'bench', nodeId: NODE });
   });
 
   it('should draw the theme send control instead of the button and its notice', async () => {
@@ -287,6 +299,7 @@ describe('every slot of the registry, on the page a reader opens', () => {
 
     // When, Then
     await drive(document, 'SendButton', 'The console loads when you press Send.', {
+      page: 'bench',
       nodeId: NODE,
     });
   });
@@ -298,7 +311,7 @@ describe('every slot of the registry, on the page a reader opens', () => {
     const document = smallDocument();
 
     // When
-    const html = await pageWith(document, 'ResponseView', { nodeId: NODE });
+    const html = await pageWith(document, 'ResponseView', { page: 'bench', nodeId: NODE });
 
     // Then
     expect(html).toContain('theme drew ResponseView');
@@ -309,7 +322,7 @@ describe('every slot of the registry, on the page a reader opens', () => {
     const document = streamingDocument();
 
     // When, Then
-    await drive(document, 'StreamLog', 'oref-stream-start', { nodeId: NODE });
+    await drive(document, 'StreamLog', 'oref-stream-start', { page: 'bench', nodeId: NODE });
   });
 
   it('should draw the theme health panel, on the server, where the browser adopts it', async () => {
@@ -318,7 +331,7 @@ describe('every slot of the registry, on the page a reader opens', () => {
     const document = runtimeDocument();
 
     // When, Then
-    await drive(document, 'HealthScore', 'oref-health-score');
+    await drive(document, 'HealthScore', 'oref-health-score', { page: 'health' });
   });
 
   it('should draw the theme notice instead of the sentence about a missing schema', async () => {

@@ -232,25 +232,30 @@ describe('the token contract, resolved in a browser', () => {
   }
 
   /**
-   * The one shared token whose resolved value legitimately differs between the schemes.
+   * The two shared tokens whose resolved value legitimately differs between the schemes.
    *
-   * It is a gradient built out of `--oref-color-line-edge`, which does change, so the cascade
-   * carrying the declaration unchanged still yields two different resolved values. Named here
-   * rather than filtered by a rule, so that a second one appearing is a finding.
+   * Both are gradients built out of `--oref-color-line-edge`, which does change, so the
+   * cascade carrying the declaration unchanged still yields two different resolved values.
+   * The second is the first turned on its side, added at TX-FRAME for the collapsed parity
+   * gutter. Named here rather than filtered by a rule, so that a third one appearing is a
+   * finding.
    */
-  const SHARED_THROUGH_A_CHANGING_REFERENCE = '--oref-layout-tick';
+  const SHARED_THROUGH_A_CHANGING_REFERENCE = new Set([
+    '--oref-layout-tick',
+    '--oref-layout-tick-h',
+  ]);
 
   it('should carry a token with no dark variant through to dark mode by the cascade', () => {
     // Given, this is the property the deduplication rests on and it is asserted directly. The
-    // dark blocks no longer write these 64 names at all, so if the cascade did not carry them
-    // the whole reduction would be 64 tokens resolving to nothing for half the readers.
+    // dark blocks no longer write these 65 names at all, so if the cascade did not carry them
+    // the whole reduction would be 65 tokens resolving to nothing for half the readers.
     //
     // COMPARED AGAINST THE LIGHT RESOLUTION AND NOT AGAINST THE SOURCE LITERAL. The engine
     // normalizes a custom property value, turning `'DCL'` into `"DCL"` and rewriting a font
     // stack, so comparing to the string in `tokens.ts` would be testing Chrome's serializer.
     // Both sides of this comparison come out of the same serializer.
     const shared = ALL_TOKENS.filter(
-      (token) => token.dark === undefined && token.name !== SHARED_THROUGH_A_CHANGING_REFERENCE,
+      (token) => token.dark === undefined && !SHARED_THROUGH_A_CHANGING_REFERENCE.has(token.name),
     );
     const light = resolutions.get('light by system preference');
 
@@ -265,28 +270,26 @@ describe('the token contract, resolved in a browser', () => {
     );
 
     // Then
-    expect(shared).toHaveLength(63);
+    expect(shared).toHaveLength(65);
     expect(drifted).toEqual([]);
   });
 
   it('should still change a shared token that is built out of one that changes', () => {
-    // Given, the exception above, asserted rather than excused. It differs between the schemes
-    // because it composes a colour that differs, which is the cascade working and not failing.
+    // Given, the exceptions above, asserted rather than excused. Each differs between the
+    // schemes because it composes a colour that differs, which is the cascade working and not
+    // failing.
     const light = resolutions.get('light by system preference');
     const dark = resolutions.get('dark by system preference');
 
-    // When
-    const composed = [
-      light?.values[SHARED_THROUGH_A_CHANGING_REFERENCE],
-      dark?.values[SHARED_THROUGH_A_CHANGING_REFERENCE],
-    ];
+    for (const name of SHARED_THROUGH_A_CHANGING_REFERENCE) {
+      // When
+      const composed = [light?.values[name], dark?.values[name]];
 
-    // Then
-    expect(composed[0]).not.toBe('');
-    expect(composed[1]).not.toBe('');
-    expect(
-      ALL_TOKENS.find((token) => token.name === SHARED_THROUGH_A_CHANGING_REFERENCE)?.value,
-    ).toContain('var(');
+      // Then
+      expect(composed[0], name).not.toBe('');
+      expect(composed[1], name).not.toBe('');
+      expect(ALL_TOKENS.find((token) => token.name === name)?.value, name).toContain('var(');
+    }
   });
 
   it('should resolve every token that does change to something other than its light value', () => {

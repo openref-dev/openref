@@ -34,7 +34,10 @@ export type StateNoticeKind =
   | 'no-server'
   | 'no-body-fields'
   | 'schema-missing'
-  | 'no-schema';
+  | 'no-schema'
+  // The health page for a document nothing measured, since `TX-FRAME`: the panel does not
+  // exist there, per SPEC 7.3, and the page saying why is content rather than an absence.
+  | 'health-missing';
 
 /**
  * What a bounded stream window has seen, per SPEC 14.6.

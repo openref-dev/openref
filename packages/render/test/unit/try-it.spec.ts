@@ -14,8 +14,10 @@ import { smallDocument } from '../mocks/documents';
 
 const markdown = await createMarkdownRenderer();
 
-async function renderNode(nodeId: string): Promise<string> {
-  const page = await renderPage(smallDocument(), { nodeId });
+// The console lives on the bench page since TX-FRAME, per SPEC 13.3, so the console suite
+// renders the bench: same console, its own address.
+async function renderBench(nodeId: string): Promise<string> {
+  const page = await renderPage(smallDocument(), { page: 'bench', nodeId });
 
   return page.appHtml;
 }
@@ -52,7 +54,7 @@ describe('the try-it console in the page model', () => {
 describe('the try-it console in the server render', () => {
   it('should render a field for every parameter and for the credential', async () => {
     // Given, the console is the thing that makes M0 a product rather than a viewer.
-    const html = await renderNode('post-orders');
+    const html = await renderBench('post-orders');
 
     // When
     const fields = [...html.matchAll(/class="oref-field-label"[^>]*>([^<]+)</g)].map(
@@ -69,8 +71,8 @@ describe('the try-it console in the server render', () => {
     // Given, a page is cached by document hash and served to every reader, so a credential in
     // the markup is a credential handed to somebody else.
     const pages = await Promise.all([
-      renderNode('get-orders'),
-      renderNode('post-orders'),
+      renderBench('get-orders'),
+      renderBench('post-orders'),
       renderPage(smallDocument()).then((page) => page.appHtml),
     ]);
 
@@ -103,7 +105,7 @@ describe('the try-it console in the server render', () => {
     // exactly what the notice names, so declaring it disabled in any form hands the gesture to
     // whichever pipeline respects declared state, assistive technology, actionability checking
     // automation, or the engine itself on native `disabled`, and each one discards it.
-    const html = await renderNode('get-orders');
+    const html = await renderBench('get-orders');
 
     // When
     const button = /<button class="oref-send"[^>]*>/.exec(html)?.[0] ?? '';
@@ -139,5 +141,18 @@ describe('the try-it console in the server render', () => {
 
     // Then
     expect(html).not.toContain('oref-section-tryit');
+  });
+
+  it('should not render a console on the operation page, whose bench tab is the way there', async () => {
+    // Given, the split TX-FRAME made: the sections on the operation page, the console on the
+    // bench, and one page never says the same thing twice.
+    const page = await renderPage(smallDocument(), { nodeId: 'get-orders' });
+
+    // When
+    const html = page.appHtml;
+
+    // Then
+    expect(html).not.toContain('oref-section-tryit');
+    expect(html).toContain('href="/bench/get-orders"');
   });
 });

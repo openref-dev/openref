@@ -33,6 +33,15 @@ export interface NavEntryModel {
   readonly schemaId: string | null;
   readonly deprecated: boolean;
   /**
+   * Findings of the health report about this entry, summed over children for a group.
+   *
+   * ZERO MEANS NO MARKER AND NOT "MEASURED CLEAN". The rail's counter is a warning glyph, so
+   * its absence asserts nothing, which is what lets one number serve both the document nothing
+   * measured and the entry nothing was found on; the honest verdicts live on the parity scale,
+   * where `unknown` and `match` are different answers per SPEC 6.3.
+   */
+  readonly driftCount: number;
+  /**
    * The second line: `METHOD /path` for an operation, the address for a channel, empty for a
    * group.
    *
@@ -380,12 +389,84 @@ export interface HealthModel {
   readonly rules: readonly HealthRuleModel[];
 }
 
-/** Which of the three pages a reader has open. */
-export type PageKind = 'overview' | 'node' | 'schema';
+/**
+ * Which page a reader has open.
+ *
+ * SIX SINCE `TX-FRAME`, per SPEC 13.3: the layout's tab pages are pages with addresses, not
+ * anchors. `bench` is the console on its own address, `health` the report page, `shapes` and
+ * `states` the theme author's showcase reached by URL and absent from every bar and tree.
+ * The federated service card of SPEC 13.3 enters this union only when M4 gives the page a
+ * renderer, the way an SP code is not assigned before its rule exists.
+ */
+export type PageKind = 'overview' | 'node' | 'schema' | 'bench' | 'health' | 'shapes' | 'states';
+
+/** Which tab of the frame's bar a target belongs to. The two showcase pages have no tab. */
+export type FrameTabKind = 'node' | 'schema' | 'bench' | 'health';
+
+/**
+ * One tab of the frame's bar, with its target already resolved.
+ *
+ * THE HREF IS BUILT BY THE RENDERER AND NOT BY THE SHELL, for the reason `links.ts` exists: a
+ * theme that derived addresses itself would be a second spelling of every path, and a broken
+ * link neither side's tests would see. The label is the component's answer to `kind`, so a
+ * theme is never matching on English.
+ */
+export interface FrameTabModel {
+  readonly kind: FrameTabKind;
+  readonly href: string;
+  /** True on the tab whose page this is. */
+  readonly active: boolean;
+  /**
+   * Findings behind the tab: the operation's own on `node`, the document's on `health`.
+   * Zero draws no figure, per the {@link NavEntryModel.driftCount} rule.
+   */
+  readonly count: number;
+}
+
+/** The rail's stats row: what the whole document holds, not what this page carries. */
+export interface FrameStatsModel {
+  /** Addressable nodes of the document, operations and channels alike. */
+  readonly operations: number;
+  /** Top level navigation groups, the schema registry group among them. */
+  readonly groups: number;
+  /**
+   * Findings of the health report, or null on a document nothing measured.
+   *
+   * NULL AND ZERO ARE DIFFERENT STATEMENTS, per SPEC 7.3: zero is a measured clean document
+   * and draws its figure; null is the absence of a report and draws nothing.
+   */
+  readonly drift: number | null;
+}
+
+/**
+ * The frame of one page: what the app bar and the rail say, per SPEC 11 and `TX-FRAME`.
+ *
+ * A TAB WITHOUT A TARGET IS NOT IN THE LIST, per SPEC 11: a channel has no bench, an
+ * operation without schemas has no schema tab, a document page has no operation tabs. A
+ * drawn dead link would be the F14 class of lie in navigation clothes.
+ */
+export interface FrameModel {
+  readonly tabs: readonly FrameTabModel[];
+  /** Breadcrumb of the current node, `Orders / GET /orders`. Empty on document pages. */
+  readonly crumb: string;
+  /** Where back leads: the operation for its bench, the schema for its shapes, else the overview. Empty on the overview itself. */
+  readonly backHref: string;
+  readonly stats: FrameStatsModel;
+}
 
 /** Everything one page renders from. */
 export interface PageModel {
   readonly pageModelVersion: number;
+  /**
+   * Which page this is, stated rather than derived.
+   *
+   * Until `TX-FRAME` the kind was derived from which of `node` and `schema` is set, and the
+   * bench page broke the derivation: it carries the node the way the node page does and draws
+   * the console instead of the sections.
+   */
+  readonly kind: PageKind;
+  /** The app bar and rail of this page, per SPEC 11. */
+  readonly frame: FrameModel;
   readonly documentId: string;
   readonly documentHash: string;
   readonly title: string;

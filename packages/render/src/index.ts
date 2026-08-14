@@ -81,6 +81,10 @@ export {
 export type {
   CodeSampleModel,
   DriftModel,
+  FrameModel,
+  FrameStatsModel,
+  FrameTabKind,
+  FrameTabModel,
   HealthCheckModel,
   HealthModel,
   HealthRuleModel,
@@ -137,6 +141,10 @@ export type { NavRow, ScrollPosition } from './page/domain/nav-rows';
 export { NAV_HIT_LIMIT, searchNavigation } from './page/domain/nav-search';
 export type { NavHit } from './page/domain/nav-search';
 export {
+  BENCH_SEGMENT,
+  benchHref,
+  HEALTH_PAGE_SEGMENT,
+  healthPageHref,
   navigationHref,
   NAVIGATION_SEGMENT,
   nodeHref,
@@ -144,6 +152,10 @@ export {
   overviewHref,
   SCHEMA_SEGMENT,
   schemaHref,
+  SHAPES_SEGMENT,
+  shapesHref,
+  STATES_SEGMENT,
+  statesHref,
 } from './page/domain/links';
 export { assertNonce, renderHtmlDocument, STATE_ELEMENT_ID } from './page/domain/shell';
 export type { ShellAssets, ShellOptions } from './page/domain/shell';

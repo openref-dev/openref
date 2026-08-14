@@ -147,14 +147,9 @@ export const NodePanel = defineComponent({
 
       parts.push(...spec);
 
-      // Last, after the documented responses rather than before them. A reader reads what the
-      // operation does and then tries it, and the response the console shows then sits beside
-      // the responses the specification promised, which is where the comparison happens.
-      // THE MOUNT POINT TRAVELS INTO THE CONSOLE because the OAuth2 callback route lives under it:
-      // a reference mounted at `/docs` registers `/docs/_oauth/callback`, and a console that
-      // assumed the root would register a redirect uri no route answers.
-      parts.push(h(deferrable.tryIt, { run: node.run, basePath: props.basePath }));
-
+      // THE CONSOLE IS NOT HERE, since `TX-FRAME`: the bench is a page of its own, per SPEC
+      // 13.3, and the bench tab in the frame is how a reader reaches it from every page of
+      // the operation.
       return h('article', { class: 'oref-operation', 'data-oref-node': node.id }, parts);
     };
   },

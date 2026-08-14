@@ -42,6 +42,8 @@ export interface NavRow {
   readonly nodeId: string | null;
   readonly schemaId: string | null;
   readonly deprecated: boolean;
+  /** Findings about this entry, summed over children for a group. Zero draws no marker. */
+  readonly driftCount: number;
   /** `METHOD /path` for an operation, empty for a group. Shown and searched. */
   readonly hint: string;
   /** Depth in the original tree, from 1. Indentation is a data attribute the theme styles. */
@@ -85,6 +87,7 @@ export function flattenNavigation(
       nodeId: entry.nodeId,
       schemaId: entry.schemaId,
       deprecated: entry.deprecated,
+      driftCount: entry.driftCount,
       hint: entry.hint,
       level,
       childCount: entry.childCount,

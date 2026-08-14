@@ -36,7 +36,9 @@ describe('the NestJS and @nestjs/swagger compatibility matrix', () => {
             '/docs/openapi.json',
             '/docs/openapi.yaml',
             '/docs/_search-index',
+            '/docs/_health',
             '/docs/health',
+            '/docs/states',
           ];
           const statuses = await Promise.all(
             paths.map(async (path) => (await fetch(`${booted.url}${path}`)).status),
@@ -87,7 +89,8 @@ describe('the NestJS and @nestjs/swagger compatibility matrix', () => {
           const document = (await (await fetch(`${app.url}/docs/openapi.json`)).json()) as {
             openapi: string;
           };
-          const health = (await (await fetch(`${app.url}/docs/health`)).json()) as {
+          // The liveness JSON lives at `_health` since TX-FRAME; `health` is a page.
+          const health = (await (await fetch(`${app.url}/docs/_health`)).json()) as {
             document: { nodes: number };
           };
 

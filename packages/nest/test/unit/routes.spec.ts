@@ -82,14 +82,16 @@ describe('referenceRoutes', () => {
     expect(staticAfter).toEqual([]);
   });
 
-  it('should answer the whole SPEC 13.3 M0 set', () => {
+  it('should answer the whole SPEC 13.3 set of this milestone', () => {
     // Given
     const routes = referenceRoutes('/docs');
 
     // When
     const patterns = routes.map((route) => route.pattern);
 
-    // Then
+    // Then, the page family on bare segments and the machine family behind underscores, per
+    // the 2026-08-14 amendment: `health` is the page and `_health` the liveness JSON, and
+    // `service` is registered and reserved so that "no services" is tellable from "no route".
     expect(patterns).toEqual([
       '/docs',
       '/docs/',
@@ -98,7 +100,12 @@ describe('referenceRoutes', () => {
       '/docs/_assets/:asset',
       '/docs/_search-index',
       '/docs/_navigation/:documentHash',
+      '/docs/_health',
       '/docs/health',
+      '/docs/bench/:nodeId',
+      '/docs/shapes/:schemaId',
+      '/docs/states',
+      '/docs/service/:serviceId',
       '/docs/_oauth/callback',
       '/docs/_proxy',
       '/docs/schema/:schemaId',

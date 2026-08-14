@@ -10,6 +10,7 @@ function entry(overrides: Partial<NavEntryModel> & { id: string }): NavEntryMode
     nodeId: overrides.id,
     schemaId: null,
     deprecated: false,
+    driftCount: 0,
     hint: '',
     childCount: overrides.children?.length ?? 0,
     children: [],

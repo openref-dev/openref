@@ -43,7 +43,7 @@ import type {
   ParityVerdict,
   RuntimeValueModel,
 } from '@openref/vue';
-import { overviewHref } from './links';
+import { healthPageHref } from './links';
 import {
   EMPTY_VALUE,
   guardValues,
@@ -356,7 +356,9 @@ export function buildParityRows(
         severityClass,
         text: issue.suggestion,
         code: DRIFT_RULE_CODES[issue.rule],
-        href: `${overviewHref(basePath)}#oref-rule-${issue.rule}`,
+        // The panel lives on the health page since `TX-FRAME`, per SPEC 7.3, and the anchor
+        // moved with it.
+        href: `${healthPageHref(basePath)}#oref-rule-${issue.rule}`,
       };
     } else if (
       measured &&

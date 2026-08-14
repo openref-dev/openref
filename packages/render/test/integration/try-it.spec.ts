@@ -175,9 +175,9 @@ function documentFor(serverUrl: string): IRDocument {
   });
 }
 
-/** Renders the page the way a host serves it, and puts it in the jsdom document. */
+/** Renders the bench page, where the console lives since TX-FRAME, into the jsdom document. */
 async function openPage(nodeId: string, serverUrl: string): Promise<void> {
-  const page = await renderPage(documentFor(serverUrl), { nodeId });
+  const page = await renderPage(documentFor(serverUrl), { page: 'bench', nodeId });
 
   document.documentElement.innerHTML = renderHtmlDocument(page, {
     assets: { stylesheets: ['/assets/theme.css'], modules: ['/assets/openref.js'] },

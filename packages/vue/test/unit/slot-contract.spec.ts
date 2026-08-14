@@ -3,6 +3,8 @@ import { describe, expect, expectTypeOf, it } from 'vitest';
 import type {
   CodeSampleModel,
   DriftModel,
+  FrameModel,
+  FrameStatsModel,
   HealthModel,
   NavEntryModel,
   NodeHeaderModel,
@@ -125,12 +127,17 @@ describe('slot registry contract', () => {
       activeNodeId: string | null;
       activeSchemaId: string | null;
       page: PageKind;
+      // Additive at TX-FRAME, a minor version per PUBLIC-API.md: a shell written before it
+      // keeps compiling and keeps rendering.
+      frame: FrameModel;
     }>();
     expectTypeOf<SlotProps<'NavTree'>>().toEqualTypeOf<{
       entries: readonly NavEntryModel[];
       activeNodeId: string | null;
       activeSchemaId: string | null;
       basePath: string;
+      // Additive at TX-FRAME, a minor version per PUBLIC-API.md.
+      stats: FrameStatsModel;
       complete: boolean;
       total: number;
       load(): Promise<boolean>;
@@ -276,6 +283,7 @@ describe('slot registry contract', () => {
       | 'no-body-fields'
       | 'schema-missing'
       | 'no-schema'
+      | 'health-missing'
     >();
   });
 

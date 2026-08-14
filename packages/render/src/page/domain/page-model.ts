@@ -14,6 +14,7 @@ import {
   compareByCodePoint,
   generateExample,
   type IRDocument,
+  type IRDriftIssue,
   type IRJsonSchema,
   type IRJsonValue,
   type IRMediaType,
@@ -32,14 +33,19 @@ import {
 } from '@openref/vue';
 import type {
   CodeSampleModel,
+  FrameModel,
+  FrameStatsModel,
+  FrameTabModel,
   MediaTypeModel,
   NavEntryModel,
   NodeModel,
+  PageKind,
   PageModel,
   ParameterModel,
   ResponseModel,
   SchemaPageModel,
 } from '@openref/vue';
+import { benchHref, healthPageHref, nodeHref, overviewHref, schemaHref } from './links';
 import { sliceNavigation } from './nav-payload';
 import { buildHealthModel, buildRuntimeModel } from './runtime-model';
 import { buildSchemaPayload } from './schema-payload';
@@ -47,6 +53,12 @@ import type { IMarkdownRenderer } from '../../markdown/domain/markdown';
 
 /**
  * Version of the page model shape, part of the cache key.
+ *
+ * 11 SINCE `TX-FRAME`: `kind` and `frame` on the model, `driftCount` on every navigation
+ * entry, and the health panel travels with the health page rather than the overview, per
+ * SPEC 13.3 and 7.3 as amended 2026-08-14. A page cached before this hydrates a shell with
+ * no tab bar data and an overview that still claims the panel, which is the frame from
+ * before the layout landed rather than a broken one.
  *
  * 10 SINCE `TX-GUTTER`: `RuntimeModel.parity`, the parity scale of SPEC 6.3, and
  * `DriftModel.code`, the display code of SPEC 7.1's table. A page cached before this hydrates
@@ -76,7 +88,7 @@ import type { IMarkdownRenderer } from '../../markdown/domain/markdown';
  * 6 was T027: `run.bodyMediaTypes`, a list of strings, became `run.body`, a list of media types
  * each carrying the editor its schema asks for and the fields it is made of.
  */
-export const PAGE_MODEL_VERSION = 10;
+export const PAGE_MODEL_VERSION = 11;
 
 /** Media types an example is generated for. */
 const JSON_MEDIA_TYPE = /^application\/(?:[\w.+-]+\+)?json$/i;
@@ -93,6 +105,14 @@ const JSON_MEDIA_TYPE = /^application\/(?:[\w.+-]+\+)?json$/i;
 
 /** What building a page model needs. */
 export interface PageModelOptions {
+  /**
+   * Which page to build, per SPEC 13.3.
+   *
+   * Absent keeps the pre `TX-FRAME` derivation: a node id means the node page, else a schema
+   * id means the schema page, else the overview. `bench` reads `nodeId`, `shapes` reads
+   * `schemaId`, `health` and `states` read neither.
+   */
+  readonly page?: PageKind;
   /** Node to show, or null for the document overview. */
   readonly nodeId?: string | null;
   /** Named schema to show, for a schema page. Ignored when `nodeId` is set. */
@@ -145,7 +165,33 @@ function navHint(document: IRDocument, nodeId: string | undefined): string {
   return `${node.method.toUpperCase()} ${node.path}`;
 }
 
-function navEntry(document: IRDocument, node: IRNavNode): NavEntryModel {
+/**
+ * Findings per subject, counted once per document rather than once per entry.
+ *
+ * Keyed by node id and by schema id in one map, because a navigation entry carries at most one
+ * of the two and the report addresses a finding to at most one of the two.
+ */
+function driftCounts(document: IRDocument): ReadonlyMap<string, number> {
+  const counts = new Map<string, number>();
+  const issues: readonly IRDriftIssue[] = document.health?.drift ?? [];
+
+  for (const issue of issues) {
+    const subject = issue.nodeId ?? issue.schemaId;
+    if (subject === undefined) continue;
+    counts.set(subject, (counts.get(subject) ?? 0) + 1);
+  }
+
+  return counts;
+}
+
+function navEntry(
+  document: IRDocument,
+  node: IRNavNode,
+  counts: ReadonlyMap<string, number>,
+): NavEntryModel {
+  const children = node.children.map((child) => navEntry(document, child, counts));
+  const own = counts.get(node.nodeId ?? node.schemaId ?? '') ?? 0;
+
   return {
     id: node.id,
     label: node.label,
@@ -153,9 +199,13 @@ function navEntry(document: IRDocument, node: IRNavNode): NavEntryModel {
     nodeId: node.nodeId ?? null,
     schemaId: node.schemaId ?? null,
     deprecated: node.deprecated ?? false,
+    // A group's count is its children's, so a closed group still says what it holds; an
+    // entry that is both a page and a parent, which the tree does not produce today, would
+    // still count each finding once because a finding names one subject.
+    driftCount: own + children.reduce((sum, child) => sum + child.driftCount, 0),
     hint: navHint(document, node.nodeId),
     childCount: node.children.length,
-    children: node.children.map((child) => navEntry(document, child)),
+    children,
   };
 }
 
@@ -170,7 +220,8 @@ function navEntry(document: IRDocument, node: IRNavNode): NavEntryModel {
  * @returns Every navigation entry, in tree shape
  */
 export function buildNavigation(document: IRDocument): NavEntryModel[] {
-  return document.navigation.map((entry) => navEntry(document, entry));
+  const counts = driftCounts(document);
+  return document.navigation.map((entry) => navEntry(document, entry, counts));
 }
 
 /**
@@ -414,14 +465,138 @@ function nodeModel(context: ModelContext, nodeId: string): NodeModel | null {
 }
 
 /**
+ * The first named schema an operation touches, request body before responses in served order.
+ *
+ * This is what the schema tab follows, per SPEC 11: the layout's schema page shows the request
+ * schema of the operation the reader came from. Only a named schema has a page, so an inline
+ * slot counts exactly when its whole body is a reference to one.
+ */
+function primarySchemaIdOf(document: IRDocument, node: NodeModel): string | null {
+  const slots = [
+    ...node.requestBody.map((media) => media.schema),
+    ...node.responses.flatMap((response) => response.content.map((media) => media.schema)),
+  ];
+
+  for (const slot of slots) {
+    if (slot === null) continue;
+    if (slot.kind === 'named' && document.schemas.has(slot.schemaId)) return slot.schemaId;
+    if (slot.kind === 'inline') {
+      const ref = slot.schema.normalized?.$ref;
+      if (ref !== undefined && document.schemas.has(ref)) return ref;
+    }
+  }
+
+  return null;
+}
+
+/** Breadcrumb of the current node, per SPEC 11: the group, then what the node answers on. */
+function crumbOf(node: NodeModel | null, schema: SchemaPageModel | null): string {
+  if (node !== null) {
+    const address =
+      node.method !== null ? `${node.method} ${node.path ?? ''}` : (node.address ?? '');
+    return [node.tags[0], address].filter((part) => part !== undefined && part !== '').join(' / ');
+  }
+
+  return schema === null ? '' : schema.name;
+}
+
+/** The rail's stats row: the document's counts, per SPEC 7.3's null-against-zero rule. */
+function frameStats(document: IRDocument): FrameStatsModel {
+  return {
+    operations: document.nodes.size,
+    groups: document.navigation.filter(
+      (entry) => entry.nodeId === undefined && entry.schemaId === undefined,
+    ).length,
+    drift: document.health === undefined ? null : document.health.drift.length,
+  };
+}
+
+/**
+ * The frame of one page: which tabs have targets, and where they lead.
+ *
+ * A TAB WITHOUT A TARGET IS NOT BUILT, per SPEC 11: a drawn dead link is the F14 class of lie.
+ * The three operation tabs exist only where a current operation does, which is the node page
+ * and its bench; the schema tab on a schema page targets the page itself; the health tab is
+ * on every page, because the report is about the document.
+ */
+function buildFrame(
+  document: IRDocument,
+  kind: PageKind,
+  node: NodeModel | null,
+  schema: SchemaPageModel | null,
+  basePath: string,
+): FrameModel {
+  const tabs: FrameTabModel[] = [];
+
+  if (node !== null && (kind === 'node' || kind === 'bench')) {
+    tabs.push({
+      kind: 'node',
+      href: nodeHref(node.id, basePath),
+      active: kind === 'node',
+      count: node.runtime?.drift.length ?? 0,
+    });
+
+    const primarySchema = primarySchemaIdOf(document, node);
+    if (primarySchema !== null) {
+      tabs.push({
+        kind: 'schema',
+        href: schemaHref(primarySchema, basePath),
+        active: false,
+        count: 0,
+      });
+    }
+
+    if (node.run !== null) {
+      tabs.push({
+        kind: 'bench',
+        href: benchHref(node.id, basePath),
+        active: kind === 'bench',
+        count: 0,
+      });
+    }
+  }
+
+  if (schema !== null && kind === 'schema') {
+    tabs.push({ kind: 'schema', href: schemaHref(schema.id, basePath), active: true, count: 0 });
+  }
+
+  tabs.push({
+    kind: 'health',
+    href: healthPageHref(basePath),
+    active: kind === 'health',
+    count: document.health?.drift.length ?? 0,
+  });
+
+  const backHref =
+    kind === 'overview'
+      ? ''
+      : kind === 'bench' && node !== null
+        ? nodeHref(node.id, basePath)
+        : kind === 'shapes' && schema !== null
+          ? schemaHref(schema.id, basePath)
+          : overviewHref(basePath);
+
+  return { tabs, crumb: crumbOf(node, schema), backHref, stats: frameStats(document) };
+}
+
+/** The page kind, stated by the caller or derived the way it was before `TX-FRAME`. */
+function resolveKind(options: PageModelOptions): PageKind {
+  if (options.page !== undefined) return options.page;
+  if ((options.nodeId ?? null) !== null) return 'node';
+  if ((options.schemaId ?? null) !== null) return 'schema';
+  return 'overview';
+}
+
+/**
  * Builds the model for one page.
  *
  * An unknown node id produces the overview rather than an error. A reference is served
  * over HTTP and a stale link is a normal event, not a failure of the renderer; the caller
- * decides whether to answer 404, and `PageModel.node` being null is what tells it.
+ * decides whether to answer 404, and `PageModel.node` being null is what tells it. A bench
+ * of an unknown node degrades the same way, to the overview.
  *
  * @param document - The normalized document
- * @param options - Node to show and the markdown renderer to use
+ * @param options - Which page, what to show on it, and the markdown renderer to use
  * @returns A model made only of JSON values
  */
 export function buildPageModel(document: IRDocument, options: PageModelOptions): PageModel {
@@ -433,22 +608,30 @@ export function buildPageModel(document: IRDocument, options: PageModelOptions):
     schemaBodies: schemaBodiesOf(document),
     basePath,
   };
-  const requestedNode = options.nodeId ?? null;
+  const requested = resolveKind(options);
+  const wantsNode = requested === 'node' || requested === 'bench';
+  const wantsSchema = requested === 'schema' || requested === 'shapes';
+
+  const requestedNode = wantsNode ? (options.nodeId ?? null) : null;
   const node = requestedNode === null ? null : nodeModel(context, requestedNode);
-  const requestedSchema = node === null ? (options.schemaId ?? null) : null;
+  const requestedSchema = wantsSchema && node === null ? (options.schemaId ?? null) : null;
   const schema = requestedSchema === null ? null : schemaPageModel(context, requestedSchema);
 
+  // A requested page whose subject does not exist degrades to the page that can render:
+  // the caller answers 404 off the same absence, and a direct call keeps the old behaviour.
+  const kind: PageKind = wantsNode && node === null ? 'overview' : requested;
+
   const slots: IRSchemaSlot[] =
-    node !== null
+    node !== null && kind === 'node'
       ? slotsOf(node)
       : schema !== null && !schema.missing
         ? [{ kind: 'named', schemaId: schema.id }]
         : [];
 
-  // THE PANEL TRAVELS WITH THE OVERVIEW AND WITH NOTHING ELSE. A report of four hundred findings
-  // shipped on every node page would be the largest thing on a page it is not about, and the
-  // pages a reader spends their time on are the node pages.
-  const health = node === null && schema === null ? buildHealthModel(document, basePath) : null;
+  // THE PANEL TRAVELS WITH THE HEALTH PAGE AND WITH NOTHING ELSE, per SPEC 7.3 as amended
+  // 2026-08-14. A report of four hundred findings shipped on every node page would be the
+  // largest thing on a page it is not about; the overview lost it to the page the tab names.
+  const health = kind === 'health' ? buildHealthModel(document, basePath) : null;
 
   const payload = buildSchemaPayload(document, slots, options.schemaPayloadLimit);
   const navigation = sliceNavigation(
@@ -459,6 +642,8 @@ export function buildPageModel(document: IRDocument, options: PageModelOptions):
 
   return {
     pageModelVersion: PAGE_MODEL_VERSION,
+    kind,
+    frame: buildFrame(document, kind, node, schema, basePath),
     documentId: document.id,
     documentHash: document.hash,
     title: document.info.title,

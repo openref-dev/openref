@@ -972,6 +972,26 @@
   display: block;
 }
 
+/* TX-FRAME widened the boundary: the bench and health pages are articles the reference draws
+ * outside every position, with a header block of its own two classes. Named here for the same
+ * reason as everything in this region: unstyled they read as a theme nobody finished. */
+.oref-bench-page,
+.oref-health-page {
+  display: block;
+}
+
+.oref-operation-header {
+  margin-bottom: var(--oref-space-500);
+}
+
+.oref-title {
+  margin: 0;
+  font-family: var(--oref-font-family-display);
+  font-size: var(--oref-font-size-600);
+  font-weight: var(--oref-font-weight-bold);
+  letter-spacing: var(--oref-font-tracking-head);
+}
+
 .oref-section {
   margin-bottom: var(--oref-space-600);
 }

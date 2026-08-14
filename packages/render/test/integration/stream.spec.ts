@@ -149,7 +149,7 @@ async function openPage(document: IRDocument): Promise<string> {
   const [nodeId] = [...document.nodes.keys()];
   if (nodeId === undefined) throw new Error('the fixture produced no node');
 
-  const page = await renderPage(document, { nodeId });
+  const page = await renderPage(document, { page: 'bench', nodeId });
   globalThis.document.documentElement.innerHTML = renderHtmlDocument(page, {
     assets: { stylesheets: ['/assets/theme.css'], modules: ['/assets/openref.js'] },
   });
