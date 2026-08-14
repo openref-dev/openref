@@ -13,6 +13,7 @@ function entry(overrides: Partial<NavEntryModel> & { id: string }): NavEntryMode
     driftCount: 0,
     hint: '',
     method: '',
+    sse: false,
     childCount: overrides.children?.length ?? 0,
     children: [],
     ...overrides,

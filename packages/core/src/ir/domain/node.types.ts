@@ -1,5 +1,7 @@
 import type { IRJsonValue, IRSchemaSlot } from './schema.types';
-import type { IRNodeRuntime } from './runtime.types';
+import type { IRNodeRuntime, IRParameterLocation } from './runtime.types';
+
+export type { IRParameterLocation } from './runtime.types';
 
 /**
  * Node model. `IRNode` is a union discriminated by `kind`, per SPEC 5.1.
@@ -21,8 +23,8 @@ export type IRStandardHttpMethod =
  */
 export type IRHttpMethod = string;
 
-/** Where a parameter is carried. */
-export type IRParameterLocation = 'path' | 'query' | 'header' | 'cookie';
+// `IRParameterLocation` moved to `runtime.types.ts` in TX-COLLECTORS and is re-exported above,
+// so every import site of this module keeps compiling and the public surface is unchanged.
 
 /** Serialization style, the `style` axis of the runner contract matrix. */
 export type IRParameterStyle =

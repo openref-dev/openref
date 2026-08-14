@@ -90,7 +90,26 @@ export const NodePanel = defineComponent({
         parts.push(h(runtime.value, { nodeId: node.id, runtime: node.runtime }));
       }
 
-      parts.push(h(MarkdownBlock, { html: node.descriptionHtml }));
+      // THE DESCRIPTION SECTION CARRIES ITS HEADING AND THE PARAGRAPH COUNT, per the layout
+      // and `TX-PARITY-UI`. The count is the rendered paragraphs, which is what a reader
+      // scrolls past; a description with none, one line of text without a break, still counts
+      // its one block. No description, no section, per SPEC 6.3's absent-rather-than-empty.
+      if (node.descriptionHtml !== '') {
+        const paragraphs = Math.max(1, (node.descriptionHtml.match(/<p[\s>]/g) ?? []).length);
+        parts.push(
+          h('section', { class: 'oref-section oref-section-description' }, [
+            h('h2', { class: 'oref-section-title' }, [
+              'Description ',
+              h(
+                'span',
+                { class: 'oref-section-count' },
+                `${String(paragraphs)} ${paragraphs === 1 ? 'paragraph' : 'paragraphs'}`,
+              ),
+            ]),
+            h(MarkdownBlock, { html: node.descriptionHtml }),
+          ]),
+        );
+      }
 
       // The security list draws only when there is no parity scale carrying the same
       // assertion: the authentication and scopes rows are where the requirement stands when

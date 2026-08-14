@@ -48,6 +48,8 @@ export interface NavRow {
   readonly hint: string;
   /** Uppercase method of an operation, empty otherwise, for the rail's badge. */
   readonly method: string;
+  /** True when the operation declares `text/event-stream`, so the badge says `SSE`. */
+  readonly sse: boolean;
   /** Depth in the original tree, from 1. Indentation is a data attribute the theme styles. */
   readonly level: number;
   /** Children this entry has in the whole navigation, whether or not this page carries them. */
@@ -92,6 +94,7 @@ export function flattenNavigation(
       driftCount: entry.driftCount,
       hint: entry.hint,
       method: entry.method,
+      sse: entry.sse,
       level,
       childCount: entry.childCount,
       expanded: open,

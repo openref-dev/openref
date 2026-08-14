@@ -41,6 +41,22 @@ Two of them are content rather than frame, and that is the sharp end: **the secu
 of an operation and its whole request body block are drawn entirely by the reference.** Not the
 frame around a position. The content. `NodePanel` composes six slots and writes those two itself.
 
+The pattern for new markup, recorded 2026-08-14 after two sessions measured both sides of it:
+**new markup goes inside an existing position unless there is a reason it cannot, because markup
+outside every position is markup no theme can replace.** TX-MARKUP put the merged response list
+and the error contract grid inside `ResponseList`, chosen for that reason before the code was
+written, and this list grew by zero names. TX-FRAME drew two page articles outside every position
+and the list grew by four. The position is not where the markup happens to land; it is the first
+question the task answers.
+
+TX-PARITY-UI, the same day, measured both sides again: the compact response row, the parameter
+columns, the health KPI, the rule rows and the tree marks all landed inside positions and cost
+zero names; the bench head, its actions row with Reset and the chord hint, and the description
+section are page furniture drawn by `ReferenceApp`, `TryItPanel` and `NodePanel` outside every
+position, and the list grew by eleven, the badge's generated `oref-method-*` family among them.
+Whether the bench head becomes a position belongs to the telltale adoption task, with the two
+page heads TX-FRAME already put there.
+
 ## 2. This theme cannot express its own thesis
 
 `ai-docs/design/telltale/components.md` opens with what this direction does that the other two do

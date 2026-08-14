@@ -1959,3 +1959,174 @@ button.oref-schema-row:hover {
     min-height: var(--oref-space-700);
   }
 }
+
+/* TX-PARITY-UI: the layout's remaining markup, per SPEC 11 as amended 2026-08-14. */
+
+/* The SSE badge, in rail, header and bench head: the identity mark of an operation whose
+ * declared responses carry text/event-stream. The token existed in the contract since the
+ * handover; this is its first consumer. */
+.oref-badge.oref-method-sse {
+  background: var(--oref-color-method-sse);
+}
+
+/* The kickers of the bench and schema heads take the section title's look and give up its
+ * bottom margin, because the heading follows on the next line of the same header. */
+.oref-bench-kicker,
+.oref-schema-kicker {
+  margin: 0;
+  width: 100%;
+}
+
+/* The header's meta line: the summary and the bench link on one line under the address. */
+.oref-operation-meta {
+  align-items: baseline;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--oref-space-500);
+  width: 100%;
+}
+
+.oref-operation-meta .oref-subtitle {
+  margin: 0;
+  width: auto;
+}
+
+/* The parameter table's runtime columns: the cells speak in the data voice of the table. */
+.oref-param-req,
+.oref-param-note {
+  color: var(--oref-color-fg-secondary);
+  white-space: nowrap;
+}
+
+.oref-param-note {
+  white-space: normal;
+}
+
+.oref-param-prov {
+  white-space: nowrap;
+}
+
+/* The row SP010 names: the warning treatment of the drift vocabulary on a table row. */
+.oref-param-drift td {
+  background: var(--oref-drift-warn-bg);
+}
+
+.oref-param-drift .oref-param-name code {
+  color: var(--oref-state-warn-fg);
+}
+
+/* The compact response row of the maintainer's 2026-08-14 decision: badge, phrase, schema
+ * link, chip, note. The phrase is the registry's constant and reads as data; the schema link
+ * leads to the page the schemas live on. */
+.oref-response-phrase {
+  color: var(--oref-color-fg);
+  font-size: var(--oref-font-size-300);
+}
+
+.oref-response-schema {
+  color: var(--oref-color-accent-link);
+  font-family: var(--oref-font-family-mono);
+  font-size: var(--oref-font-size-300);
+}
+
+/* The health page head: the score the panel always had, and the KPI triple beside it. */
+.oref-health-head {
+  align-items: baseline;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--oref-space-700);
+}
+
+.oref-health-kpi {
+  display: flex;
+  gap: var(--oref-space-700);
+}
+
+.oref-health-kpi-item {
+  display: grid;
+  gap: var(--oref-space-100);
+}
+
+.oref-health-kpi-label {
+  color: var(--oref-color-fg-muted);
+  font-size: var(--oref-font-size-100);
+  letter-spacing: var(--oref-font-tracking-wide);
+  text-transform: uppercase;
+}
+
+.oref-health-kpi-num {
+  font-family: var(--oref-font-family-display);
+  font-size: var(--oref-font-size-600);
+  font-weight: var(--oref-font-weight-bold);
+  line-height: var(--oref-font-leading-tight);
+}
+
+.oref-health-kpi-crit {
+  color: var(--oref-state-crit-fg);
+}
+
+.oref-health-kpi-warn {
+  color: var(--oref-state-warn-fg);
+}
+
+/* The rule row's sentence, the catalogue's own label beside the code and the kebab. */
+.oref-rule-summary {
+  color: var(--oref-color-fg-secondary);
+  font-size: var(--oref-font-size-300);
+}
+
+/* A rule that examined and found nothing: the muted look on a non-control, per the F14
+ * boundary. The zero is the statement, and there is nothing to disclose. */
+.oref-rule-zero {
+  color: var(--oref-color-fg-muted);
+  margin: 0;
+  padding: var(--oref-space-300) 0;
+}
+
+.oref-rule-zero .oref-drift-code,
+.oref-rule-zero .oref-rule-summary {
+  color: var(--oref-color-fg-muted);
+}
+
+/* The read only mark of the schema tree, the muted vocabulary of the deprecated badge. */
+.oref-schema-readonly {
+  background: var(--oref-state-muted-bg);
+  color: var(--oref-color-fg-secondary);
+  font-size: var(--oref-font-size-100);
+  letter-spacing: var(--oref-font-tracking-mid);
+  padding: 0 var(--oref-space-200);
+  text-transform: uppercase;
+}
+
+/* The # explanation under the schema tree, in the reader's words. */
+.oref-anchor-note {
+  color: var(--oref-color-fg-muted);
+  font-size: var(--oref-font-size-200);
+  margin-block: var(--oref-space-500) 0;
+  max-width: var(--oref-layout-measure);
+}
+
+/* The bench's actions row: the send position, then Reset, then the chord that does what Send
+ * does. The row is the bench's own, because the send position lays out its button and notice
+ * in the strip it draws, and Reset stands beside that whole position. */
+.oref-bench-actions {
+  align-items: baseline;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--oref-space-400);
+}
+
+.oref-tryit-reset {
+  background: var(--oref-color-surface);
+  border: var(--oref-border-hair) solid var(--oref-color-line-edge);
+  color: var(--oref-color-fg-secondary);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--oref-font-size-300);
+  padding: var(--oref-space-200) var(--oref-space-500);
+}
+
+.oref-tryit-reset:hover {
+  border-color: var(--oref-color-fg-muted);
+  color: var(--oref-color-fg);
+}

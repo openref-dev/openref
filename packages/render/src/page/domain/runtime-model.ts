@@ -29,6 +29,7 @@ import {
   hasRuntimeFacts,
   type IRDocument,
   type IRDriftIssue,
+  type IRDriftRule,
   type IRErrorContract,
   type IRErrorContracts,
   type IRGuardScope,
@@ -519,9 +520,54 @@ export function buildHealthModel(document: IRDocument, basePath: string): Health
   const operations = String(report.operationCount);
   const findings = String(report.drift.length);
 
+  // THE SENTENCE AND THE SEVERITY OF A RULE COME FROM ITS OWN CHECK, so no second vocabulary
+  // exists to drift: the check's label is the catalogue's sentence, per SPEC 7.1, and its id
+  // is the rule's kebab. Only rule checks qualify; `runtime-collectors` is a check about the
+  // instruments and is not a rule row.
+  const ruleChecks = new Map(
+    report.checks.filter((check) => check.id in DRIFT_RULE_CODES).map((check) => [check.id, check]),
+  );
+
+  const grouped = groupDriftByRule(report.drift);
+  const found = new Set(grouped.map((group) => group.rule));
+
+  const rules = grouped.map((group) => ({
+    rule: group.rule,
+    code: DRIFT_RULE_CODES[group.rule],
+    summary: ruleChecks.get(group.rule)?.label ?? '',
+    severityClass: SEVERITY_CLASSES[group.severity],
+    count: String(group.issues.length),
+    findings: group.issues.map((issue) => driftModel(issue, document, basePath, true)),
+  }));
+
+  // A RULE THAT EXAMINED AND FOUND NOTHING IS A ROW WITH ITS ZERO, per `TX-PARITY-UI` and the
+  // layout; a rule that never examined anything is not drawn at all, per SPEC 7.3's
+  // null-against-zero, which is the same filter the check list applies. The silent rows come
+  // after the loud ones, in the report's own check order.
+  for (const check of report.checks) {
+    if (!(check.id in DRIFT_RULE_CODES) || check.total === 0) continue;
+    if (found.has(check.id as IRDriftRule)) continue;
+
+    rules.push({
+      rule: check.id as IRDriftRule,
+      code: DRIFT_RULE_CODES[check.id as IRDriftRule],
+      summary: check.label,
+      severityClass: SEVERITY_CLASSES[check.severity],
+      count: '0',
+      findings: [],
+    });
+  }
+
   return {
     title: `Documentation health, ${operations} operations, ${findings} findings`,
     score: `${String(report.score)}%`,
+    // THE TRIPLE IS THE REPORT REREAD AND NEVER A NEW COUNT: operations is the report's own
+    // figure, and the two severities are the drift list partitioned, per `TX-PARITY-UI`.
+    kpi: {
+      operations: report.operationCount,
+      critical: report.drift.filter((issue) => issue.severity === 'error').length,
+      warnings: report.drift.filter((issue) => issue.severity === 'warning').length,
+    },
     // A CHECK WITH NOTHING TO COUNT IS NOT SCORED AND NOT DRAWN, per SPEC 7.2's 2026-08-14
     // line. The row used to render `n/a`, which reports on the instrument in a column where
     // every other row reports on the application, the class F26 named. Unlike F26's empty
@@ -534,10 +580,6 @@ export function buildHealthModel(document: IRDocument, basePath: string): Health
         label: check.label,
         count: `${String(check.passed)} / ${String(check.total)}`,
       })),
-    rules: groupDriftByRule(report.drift).map((group) => ({
-      rule: group.rule,
-      count: String(group.issues.length),
-      findings: group.issues.map((issue) => driftModel(issue, document, basePath, true)),
-    })),
+    rules,
   };
 }

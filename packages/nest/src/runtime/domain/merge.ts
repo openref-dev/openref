@@ -5,6 +5,7 @@ import type {
   IRFact,
   IRGuard,
   IRNodeRuntime,
+  IRPipe,
 } from '@openref/core';
 
 /**
@@ -67,10 +68,19 @@ function stamp<T>(fact: IRFact<T>, collector: string): IRFact<T> {
 }
 
 /** The fact valued fields, named once so the merge and its test cannot drift apart. */
-export const FACT_FIELDS = ['scopes', 'roles', 'rateLimit', 'streaming'] as const;
+export const FACT_FIELDS = [
+  'scopes',
+  'roles',
+  'rateLimit',
+  'timeout',
+  'requiredHeaders',
+  'parameterReads',
+  'statusCode',
+  'streaming',
+] as const;
 
 /** The list valued fields, which accumulate rather than compete. */
-export const LIST_FIELDS = ['guards', 'drift'] as const;
+export const LIST_FIELDS = ['guards', 'pipes', 'drift'] as const;
 
 /**
  * The fields that are three lists rather than one, per SPEC 6.4.
@@ -106,8 +116,13 @@ export function mergeContributions(
     scopes?: IRFact<readonly string[]>;
     roles?: IRFact<readonly string[]>;
     rateLimit?: IRNodeRuntime['rateLimit'];
+    timeout?: IRNodeRuntime['timeout'];
+    requiredHeaders?: IRNodeRuntime['requiredHeaders'];
+    parameterReads?: IRNodeRuntime['parameterReads'];
+    statusCode?: IRNodeRuntime['statusCode'];
     streaming?: IRNodeRuntime['streaming'];
     guards?: IRGuard[];
+    pipes?: IRPipe[];
     errors?: {
       declared: IRErrorContract[];
       runtimeDerived: IRErrorContract[];
@@ -131,6 +146,24 @@ export function mergeContributions(
     if (runtime.rateLimit !== undefined && displaces(merged.rateLimit, runtime.rateLimit)) {
       merged.rateLimit = stamp(runtime.rateLimit, collector);
     }
+    if (runtime.timeout !== undefined && displaces(merged.timeout, runtime.timeout)) {
+      merged.timeout = stamp(runtime.timeout, collector);
+    }
+    if (
+      runtime.requiredHeaders !== undefined &&
+      displaces(merged.requiredHeaders, runtime.requiredHeaders)
+    ) {
+      merged.requiredHeaders = stamp(runtime.requiredHeaders, collector);
+    }
+    if (
+      runtime.parameterReads !== undefined &&
+      displaces(merged.parameterReads, runtime.parameterReads)
+    ) {
+      merged.parameterReads = stamp(runtime.parameterReads, collector);
+    }
+    if (runtime.statusCode !== undefined && displaces(merged.statusCode, runtime.statusCode)) {
+      merged.statusCode = stamp(runtime.statusCode, collector);
+    }
     if (runtime.streaming !== undefined && displaces(merged.streaming, runtime.streaming)) {
       merged.streaming = stamp(runtime.streaming, collector);
     }
@@ -147,6 +180,14 @@ export function mergeContributions(
         // and a key without the scope would keep whichever arrived first and drop the other,
         // which is the half a reader asking "is this the route's own decision" is asking for.
         (guard) => `${guard.name}\0${guard.scope}\0${guard.confidence}`,
+      );
+    }
+    if (runtime.pipes !== undefined) {
+      merged.pipes = dedupe(
+        [...(merged.pipes ?? []), ...runtime.pipes.map((pipe) => ({ ...pipe, collector }))],
+        // The scope is part of the identity for the guard reason, with the third value:
+        // `TrimPipe` on the route and `TrimPipe` on one parameter are two decisions.
+        (pipe) => `${pipe.name}\0${pipe.scope}\0${pipe.confidence}`,
       );
     }
     // THE GROUPS ACCUMULATE SEPARATELY AND ARE NEVER CONCATENATED, which is what makes SPEC 6.4
@@ -183,8 +224,13 @@ export function mergeContributions(
     ...(merged.scopes === undefined ? {} : { scopes: merged.scopes }),
     ...(merged.roles === undefined ? {} : { roles: merged.roles }),
     ...(merged.rateLimit === undefined ? {} : { rateLimit: merged.rateLimit }),
+    ...(merged.timeout === undefined ? {} : { timeout: merged.timeout }),
+    ...(merged.requiredHeaders === undefined ? {} : { requiredHeaders: merged.requiredHeaders }),
+    ...(merged.parameterReads === undefined ? {} : { parameterReads: merged.parameterReads }),
+    ...(merged.statusCode === undefined ? {} : { statusCode: merged.statusCode }),
     ...(merged.streaming === undefined ? {} : { streaming: merged.streaming }),
     ...(merged.guards === undefined ? {} : { guards: merged.guards }),
+    ...(merged.pipes === undefined ? {} : { pipes: merged.pipes }),
     ...(merged.errors === undefined ? {} : { errors: merged.errors }),
     ...(merged.drift === undefined ? {} : { drift: merged.drift }),
   };

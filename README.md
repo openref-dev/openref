@@ -54,11 +54,14 @@ finding is recorded, `?` where the comparison did not run:
 ```
 GET /orders
 
-Authentication  ≠  ScopesGuard, ThrottlerGuard
-Scopes          ?  orders:read
-Rate limit      =  30 / minute (default)
-Response codes  ?  This handler declares no errors; 429; 401, 403; 500
-Source          ?  OrdersController.list()
+Authentication     ≠  ScopesGuard, ThrottlerGuard
+Scopes             ?  orders:read
+Rate limit         =  30 / minute (default)
+Response codes     ?  This handler declares no errors; 429; 401, 403; 500
+Validation         ?  TrimPipe; CurrencyPipe
+Timeout            ?  5000 ms
+Unread parameters  ≠  4 of 10 seen read
+Source             ?  OrdersController.list()
 ```
 
 None of that is in the OpenAPI document, and none of it is guessed. Every value carries the
@@ -67,7 +70,11 @@ produced it, so a reader can tell a promise somebody wrote from an observation o
 application. The 401 and 403 are there because a guard stands in front of the handler; what
 that guard decides is written in its own code and is never read. The `≠` on authentication is
 a real finding: a guard protects the route and the document asserts no security, so the row
-closes with the exact decorator that fixes it and the rule code `RT010`.
+closes with the exact decorator that fixes it and the rule code `RT010`. The `≠` on unread
+parameters is another: this operation declares ten inputs and the handler binds four, so the
+five filters and the header the document promises are read by nothing, and the row closes
+with `SP010`. The scan concludes that only where it accounted for every access path, at
+`inferred`, and a handler it cannot account for produces no row rather than a guess.
 
 The block above is not a picture of the product. `readme-reproduction.spec.ts` boots this demo,
 fetches that page and fails if a single row disagrees with it, so this README cannot drift from

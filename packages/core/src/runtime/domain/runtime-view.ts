@@ -25,9 +25,14 @@ import type { IRNodeRuntime } from '../../ir/domain/runtime.types';
 export const RUNTIME_FACT_FIELDS = [
   'source',
   'guards',
+  'pipes',
   'scopes',
   'roles',
   'rateLimit',
+  'timeout',
+  'requiredHeaders',
+  'parameterReads',
+  'statusCode',
   'errors',
   'streaming',
 ] as const satisfies readonly (keyof IRNodeRuntime)[];

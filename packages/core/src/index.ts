@@ -72,11 +72,17 @@ export type {
   IRGuard,
   IRGuardScope,
   IRNodeRuntime,
+  IRParameterRead,
+  IRParameterReads,
+  IRParameterReadVerdict,
+  IRPipe,
+  IRPipeScope,
   IRRateLimit,
   IRRuntimeMeta,
   IRSourceLocation,
   IRStreaming,
   IRStreamTransport,
+  IRTimeout,
 } from './ir/domain/runtime.types';
 
 export type { IRHealthCheck, IRHealthReport } from './ir/domain/health.types';

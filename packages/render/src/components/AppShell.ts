@@ -42,8 +42,10 @@ export const MAIN_ID = 'oref-main';
 const TAB_LABELS: Readonly<Record<FrameTabKind, string>> = {
   node: 'Operation',
   schema: 'Schema',
+  shapes: 'Shapes',
   bench: 'Bench',
   health: 'Health',
+  states: 'States',
 };
 
 /** What a shell is handed besides its children. */

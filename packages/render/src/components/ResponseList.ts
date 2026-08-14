@@ -1,6 +1,12 @@
 /**
- * Response codes of an operation, with what each one carries, and the error contracts under
- * them.
+ * Response codes of an operation, as the compact index of `TX-PARITY-UI`, and the error
+ * contracts under them.
+ *
+ * THE ROW IS BADGE, PHRASE, SCHEMA LINK, CHIP AND NOTE, the maintainer's 2026-08-14 decision:
+ * the inline expansion, a tree and an example under every code, is why GET /orders was several
+ * times longer than the design, so the schemas live on their own pages and the row links
+ * there. The note is the document's own description, deduplicated against the phrase so `OK`
+ * is not said twice; an undocumented code keeps its full row with the reason phrase.
  *
  * THE LIST IS ONE AND MERGED, since `TX-MARKUP`: a documented row that a runtime error contract
  * backs carries that contract's provenance chip, and a code the runtime knows that the
@@ -13,23 +19,14 @@
  * cannot replace does not grow. `theme-boundary.spec.ts` in the second theme is the pin that
  * would have read the other choice.
  *
- * THE SCHEMA PAYLOAD IS A PROP AND THAT IS NOT AN IR PROP. A response body draws a schema tree
- * under it, the tree expands from the bounded slice of schemas the page ships with, per
- * `schema-payload.ts`, and without that slice this position can draw a status code and a
- * sentence and nothing else. The slice is on the wire already; the document is not, and the
- * difference is the whole rule the registry was restated against.
- *
- * THE VIEWER IS RESOLVED AND NOT IMPORTED, per `deferrable.ts`: importing it here would put the
- * schema tree in the first chunk of every page. A theme that overrides this position and wants
- * trees draws them from `schemaTreeRoot` and `expandSchemaNode` in `@openref/vue`, with the
- * `schemas` prop it was handed.
+ * THE SCHEMA SLICE STAYS A PROP AND RESPONSE SCHEMAS ARE NOT IN IT, since `TX-PARITY-UI`: a
+ * theme that still draws trees from `content` finds the response ids in `truncated` and draws
+ * the link, the recorded degradation, and the contract's shape did not move.
  */
 
 import { h, type Component, type VNode } from 'vue';
 import { MarkdownBlock } from './MarkdownBlock';
-import { mediaTypeBlock } from './MediaTypeBlock';
 import { ProvenanceTag } from './ProvenanceTag';
-import { useDeferrable } from './deferrable';
 import { useSlot } from '@openref/vue';
 import { statusClass } from '../shared/status';
 import type { IRSchema } from '@openref/core';
@@ -38,28 +35,45 @@ import type { ErrorContractGroupModel, ResponseMarkModel, ResponseModel } from '
 /** The design's phrase on a row the specification does not carry. */
 const UNDOCUMENTED = 'not in the specification';
 
-/** One documented response, with the runtime's chip when a contract backs the code. */
+/** The description as bare text, for the one comparison against the phrase. */
+function textOf(html: string): string {
+  return html.replace(/<[^>]+>/g, '').trim();
+}
+
+/** One documented response as the compact row, with the runtime's chip when a contract backs it. */
 function responseRow(
   response: ResponseModel,
   mark: ResponseMarkModel | undefined,
   tag: Component,
-  context: Parameters<typeof mediaTypeBlock>[2],
 ): VNode {
+  // `OK` said by the registry and again by the document is one fact printed twice, the F15
+  // class: the phrase wins, because it is the constant the badge already implies.
+  const repeated =
+    response.phrase !== '' &&
+    textOf(response.descriptionHtml).toLowerCase() === response.phrase.toLowerCase();
+
   return h('div', { class: 'oref-response', key: response.statusCode }, [
     h('div', { class: 'oref-response-head' }, [
       h('span', { class: `oref-status ${statusClass(response.statusCode)}` }, response.statusCode),
-      h(MarkdownBlock, {
-        html: response.descriptionHtml,
-        tag: 'span',
-        className: 'oref-response-doc',
-      }),
+      response.phrase === '' ? null : h('span', { class: 'oref-response-phrase' }, response.phrase),
+      response.schemaHref === ''
+        ? null
+        : h(
+            'a',
+            { class: 'oref-response-schema', href: response.schemaHref },
+            response.schemaLabel,
+          ),
       mark === undefined
         ? null
         : h(tag, { confidence: mark.confidence, collector: mark.collector }),
+      repeated
+        ? null
+        : h(MarkdownBlock, {
+            html: response.descriptionHtml,
+            tag: 'span',
+            className: 'oref-response-doc',
+          }),
     ]),
-    ...response.content.map((media) =>
-      mediaTypeBlock(media, `${response.statusCode}:${media.mediaType}`, context),
-    ),
   ]);
 }
 
@@ -125,12 +139,6 @@ export function ResponseList(props: {
   readonly contracts: readonly ErrorContractGroupModel[];
 }): VNode[] {
   const tag = useSlot('ProvenanceTag', ProvenanceTag).value;
-  const context = {
-    schemas: props.schemas,
-    truncated: props.truncated,
-    basePath: props.basePath,
-    schemaView: useDeferrable().schemaView,
-  };
 
   const byCode = new Map(props.marks.map((mark) => [mark.statusCode, mark]));
 
@@ -148,7 +156,7 @@ export function ResponseList(props: {
       rows.push(undocumentedRow(extra, tag));
       next += 1;
     }
-    rows.push(responseRow(response, byCode.get(response.statusCode), tag, context));
+    rows.push(responseRow(response, byCode.get(response.statusCode), tag));
   }
   for (const extra of extras.slice(next)) rows.push(undocumentedRow(extra, tag));
 

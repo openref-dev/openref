@@ -2,6 +2,16 @@ import type { IRConfidence, IRFact } from './confidence.types';
 import type { IRSchemaSlot } from './schema.types';
 
 /**
+ * Where a parameter is carried.
+ *
+ * DEFINED HERE AND USED BY `node.types` RATHER THAN THE OTHER WAY AROUND, since
+ * `TX-COLLECTORS`: `IRParameterRead` below needs it too, `node.types` already imports this file
+ * for `IRNodeRuntime`, and the dependency cruiser rightly refuses the cycle the opposite
+ * direction would close.
+ */
+export type IRParameterLocation = 'path' | 'query' | 'header' | 'cookie';
+
+/**
  * Runtime contract, per SPEC 6.3.
  *
  * These are the facts the running NestJS application knows and the specification file does
@@ -42,6 +52,71 @@ export interface IRRateLimit {
   readonly limit: number;
   readonly ttlMs: number;
   readonly name?: string;
+}
+
+/**
+ * How widely a pipe was registered, per SPEC 6.2.1 and `TX-COLLECTORS`.
+ *
+ * THREE VALUES WHERE A GUARD HAS TWO, because a pipe can stand somewhere a guard cannot: on one
+ * parameter. The reader's question is the same as for guards, "what was decided about this
+ * input", and `@UsePipes` on the class or the handler is the route's own declaration, a provider
+ * under `APP_PIPE` is a decision about the application, and a pipe inside `@Query('sort', ...)`
+ * is a decision about one value. Controller and handler are not told apart, for the reason
+ * `IRGuardScope` does not tell them apart: both are the route's declaration and NestJS applies
+ * both.
+ */
+export type IRPipeScope = 'global' | 'route' | 'parameter';
+
+/** A pipe observed on a route. Only the class name is knowable, never the logic. */
+export interface IRPipe {
+  readonly name: string;
+  /** Whether it stands on this route, on the whole application, or on one parameter. */
+  readonly scope: IRPipeScope;
+  readonly confidence: IRConfidence;
+  readonly collector: string;
+}
+
+/**
+ * A timeout the application enforces on a route.
+ *
+ * THE VALUE COMES FROM METADATA UNDER A HOST NAMED KEY AND FROM NOTHING ELSE, per SPEC 6.2.1.
+ * An interceptor's class name is not a number, and its logic is never read on the same grounds
+ * a guard's is never read. Milliseconds, for the reason `IRRateLimit.ttlMs` is milliseconds.
+ */
+export interface IRTimeout {
+  readonly ms: number;
+}
+
+/**
+ * What the handler scan concluded about one declared parameter, per SPEC 6.2.1.
+ *
+ * THE THREE VALUES ARE THE DISTINCTION THE SCAN IS REQUIRED TO CARRY. `read` when a decorator
+ * binds the name, or a required header fact names it, since the guard reading a header is the
+ * application reading it. `not-seen-read` ONLY when the scan accounted for every access path of
+ * the parameter's location and the name is not among the reads: it is a statement about the
+ * handler, and the rule SP010 fires on it. `unaccounted` when the scan could not account for a
+ * path, a whole object binding used opaquely, or a cookie, which no NestJS binding reads: it is
+ * a statement about the scan, and no rule ever fires on it.
+ */
+export type IRParameterReadVerdict = 'read' | 'not-seen-read' | 'unaccounted';
+
+/** One declared parameter, with the scan's verdict about it. */
+export interface IRParameterRead {
+  readonly in: IRParameterLocation;
+  readonly name: string;
+  readonly verdict: IRParameterReadVerdict;
+}
+
+/**
+ * The handler scan's verdicts, one per declared parameter, in the document's parameter order.
+ *
+ * THE WHOLE FACT IS ABSENT WHEN THE SCAN COULD NOT ACCOUNT FOR THE HANDLER AT ALL, `@Req`,
+ * `@Res`, a custom parameter decorator, a request scoped controller, or a wrapper whose source
+ * does not match the bindings. A blind instrument says nothing, per SPEC 6.1, and the reason
+ * goes to `doctor` rather than into a fact full of `unaccounted`.
+ */
+export interface IRParameterReads {
+  readonly parameters: readonly IRParameterRead[];
 }
 
 /**
@@ -118,7 +193,7 @@ export interface IRStreaming {
   readonly terminator?: string;
 }
 
-/** Drift rules, per SPEC 7.1. */
+/** Drift rules, per SPEC 7.1, in catalogue order. */
 export type IRDriftRule =
   | 'security-drift'
   | 'scope-drift'
@@ -126,6 +201,9 @@ export type IRDriftRule =
   | 'stream-unspecified'
   | 'error-undocumented'
   | 'orphan-operation'
+  | 'parameter-unread'
+  | 'header-requiredness-drift'
+  | 'status-drift'
   | 'missing-description'
   | 'missing-example'
   | 'missing-operation-id'
@@ -225,9 +303,14 @@ export interface IRDriftIssue {
 export interface IRNodeRuntime {
   readonly source?: IRSourceLocation;
   readonly guards?: readonly IRGuard[];
+  readonly pipes?: readonly IRPipe[];
   readonly scopes?: IRFact<readonly string[]>;
   readonly roles?: IRFact<readonly string[]>;
   readonly rateLimit?: IRFact<IRRateLimit>;
+  readonly timeout?: IRFact<IRTimeout>;
+  readonly requiredHeaders?: IRFact<readonly string[]>;
+  readonly parameterReads?: IRFact<IRParameterReads>;
+  readonly statusCode?: IRFact<number>;
   readonly errors?: IRErrorContracts;
   readonly streaming?: IRFact<IRStreaming>;
   readonly drift?: readonly IRDriftIssue[];

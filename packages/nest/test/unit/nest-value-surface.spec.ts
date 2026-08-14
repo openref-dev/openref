@@ -2,13 +2,17 @@ import { createRequire } from 'node:module';
 import { describe, expect, it } from 'vitest';
 import {
   Controller,
+  createParamDecorator,
   Get,
+  HttpCode,
   Injectable,
   Module,
+  Query,
   RequestMethod,
   Scope,
   Sse,
   UseGuards,
+  UsePipes,
   type ArgumentsHost,
   type CallHandler,
   type ExecutionContext,
@@ -25,10 +29,17 @@ import {
 import type { Observable } from 'rxjs';
 import {
   NEST_CORE_VALUE_NAMES,
+  NEST_CUSTOM_ROUTE_ARGS_MARKER,
+  NEST_DEFAULT_SCOPE,
   NEST_ENHANCER_TOKENS,
   NEST_GUARD_METADATA,
+  NEST_HTTP_CODE_METADATA,
+  NEST_PIPES_METADATA,
   NEST_REQUEST_METHODS,
+  NEST_ROUTE_ARGS_METADATA,
   NEST_ROUTE_METADATA,
+  NEST_ROUTE_PARAMTYPES,
+  NEST_SCOPE_OPTIONS_METADATA,
   NEST_SSE_METADATA,
 } from '../../src/shared/types/nest-surface';
 import { readGlobalGuards } from '../../src/runtime/domain/guards';
@@ -193,6 +204,93 @@ describe('the metadata keys the discovery pass reads', () => {
     // Then
     expect(onClass).toEqual([AuthGuard]);
     expect(onHandler).toEqual([AdminGuard]);
+  });
+
+  it('should be where @UsePipes, @HttpCode and the parameter decorators write', () => {
+    // Given the keys TX-COLLECTORS added, decorated with the real decorators. The route
+    // argument bindings are the one two-target key: controller class and method name together.
+    class TrimPipe {
+      transform(value: unknown): unknown {
+        return value;
+      }
+    }
+
+    @Controller('orders')
+    @UsePipes(TrimPipe)
+    class OrdersController {
+      @Get()
+      @HttpCode(201)
+      list(@Query('sort', TrimPipe) sort?: string): string {
+        return sort ?? 'all';
+      }
+    }
+
+    // When
+    const descriptor = Object.getOwnPropertyDescriptor(OrdersController.prototype, 'list');
+    const handler = descriptor?.value as object;
+    const onClass = Reflect.getMetadata(NEST_PIPES_METADATA, OrdersController) as unknown;
+    const code = Reflect.getMetadata(NEST_HTTP_CODE_METADATA, handler) as unknown;
+    const bindings = Reflect.getMetadata(
+      NEST_ROUTE_ARGS_METADATA,
+      OrdersController,
+      'list',
+    ) as Record<string, { index: number; data?: unknown; pipes?: unknown[] }>;
+
+    // Then the shape is exactly what the pipes collector and the handler scan read: the query
+    // paramtype number, the bound name under `data`, and the parameter pipe in `pipes`
+    expect(onClass).toEqual([TrimPipe]);
+    expect(code).toBe(201);
+    expect(bindings[`${String(NEST_ROUTE_PARAMTYPES.query)}:0`]).toMatchObject({
+      index: 0,
+      data: 'sort',
+      pipes: [TrimPipe],
+    });
+  });
+
+  it('should mark a custom parameter decorator with the marker the scan refuses on', () => {
+    // Given `createParamDecorator`, whose factory receives the whole execution context
+    const Actor = createParamDecorator(() => 'somebody');
+
+    class AuditController {
+      log(actor: unknown): unknown {
+        return actor;
+      }
+    }
+    Actor()(AuditController.prototype, 'log', 0);
+
+    // When
+    const bindings = Reflect.getMetadata(
+      NEST_ROUTE_ARGS_METADATA,
+      AuditController,
+      'log',
+    ) as Record<string, unknown>;
+
+    // Then the key carries the marker by inclusion, which is how the scan tells it apart
+    expect(Object.keys(bindings)).toHaveLength(1);
+    expect(Object.keys(bindings)[0]).toContain(NEST_CUSTOM_ROUTE_ARGS_MARKER);
+  });
+
+  it('should write the request scope where the handler scan checks for it', () => {
+    // Given `@Controller({ scope: Scope.REQUEST })`, the controller shape the scan refuses.
+    // Empty classes, honestly: the scope lives in metadata on the class object, not in a body.
+    @Controller({ path: 'orders', scope: Scope.REQUEST })
+    // eslint-disable-next-line @typescript-eslint/no-extraneous-class
+    class ScopedController {}
+
+    @Controller('orders')
+    // eslint-disable-next-line @typescript-eslint/no-extraneous-class
+    class PlainController {}
+
+    // When
+    const scoped = Reflect.getMetadata(NEST_SCOPE_OPTIONS_METADATA, ScopedController) as unknown;
+    const plain = Reflect.getMetadata(NEST_SCOPE_OPTIONS_METADATA, PlainController) as unknown;
+
+    // Then, and the default is the absence this package reads as `NEST_DEFAULT_SCOPE`
+    expect(scoped).toMatchObject({ scope: Scope.REQUEST });
+    expect(Scope.DEFAULT).toBe(NEST_DEFAULT_SCOPE);
+    expect((plain as { scope?: number } | undefined)?.scope ?? NEST_DEFAULT_SCOPE).toBe(
+      NEST_DEFAULT_SCOPE,
+    );
   });
 
   it('should be where @Sse writes, which is __sse__ and not sse', () => {

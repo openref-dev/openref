@@ -47,6 +47,7 @@ function contextOf(metadata: unknown): CollectorContext {
     },
     moduleRef: { get: () => undefined },
     globalGuards: [],
+    globalPipes: [],
     fact: <T>(value: T, confidence: IRConfidence): IRFact<T> => ({
       value,
       confidence,

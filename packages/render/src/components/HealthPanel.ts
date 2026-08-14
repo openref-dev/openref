@@ -38,6 +38,7 @@
 import { useSlot } from '@openref/vue';
 import { h, type Component, type VNode } from 'vue';
 import { DriftCard } from './DriftCard';
+import { severityChip } from './severity';
 import type { HealthCheckModel, HealthModel, HealthRuleModel } from '@openref/vue';
 
 /**
@@ -65,33 +66,53 @@ const checkRow = (check: HealthCheckModel): VNode =>
 /**
  * One rule, closed, with its count on the line a reader scans.
  *
+ * A RULE THAT EXAMINED AND FOUND NOTHING IS A MUTED ROW AND NOT A DISCLOSURE, per
+ * `TX-PARITY-UI` and the F14 rule: a `details` with nothing to disclose is a control
+ * promising nothing, so the zero row is a plain row with the same anatomy and no marker. The
+ * layout draws it disabled; this is the disabled look on a non-control, which is the honest
+ * half of it.
+ *
  * @param rule - The rule and its findings
  * @param card - The component in the `DriftCard` slot
- * @returns The disclosure
+ * @returns The disclosure, or the muted row
  */
-const ruleGroup = (rule: HealthRuleModel, card: Component): VNode =>
+const ruleGroup = (rule: HealthRuleModel, card: Component): VNode => {
+  // The display code leads and the kebab id stays beside it: the code is what a FixBar cites
+  // and a person says aloud, the id is what the IR and `doctor` carry, and a panel showing
+  // only one would break the reader's join in one direction or the other. The sentence is
+  // the rule's own catalogue label, per `TX-PARITY-UI`, so no second vocabulary exists; the
+  // severity chip stands here once, because a rule's findings share one severity by
+  // construction, and a copy per card measured 40 KB on the T025 volume document.
+  const head = [
+    severityChip(rule.severityClass),
+    ' ',
+    h('span', { class: 'oref-drift-code' }, rule.code),
+    ' ',
+    h('span', { class: 'oref-drift-rule' }, rule.rule),
+    ' ',
+    h('span', { class: 'oref-rule-summary' }, rule.summary),
+    ' ',
+    h('span', { class: 'oref-rule-count' }, rule.count),
+  ];
+
+  if (rule.findings.length === 0) {
+    return h('p', { class: 'oref-rule oref-rule-zero', id: `oref-rule-${rule.rule}` }, head);
+  }
+
   // THE ID IS THE FIXBAR'S DESTINATION: a drifted parity row cites the display code and links
   // `#oref-rule-<kebab>`, so the group a reader lands on is the group the code named.
-  h('details', { class: 'oref-rule', id: `oref-rule-${rule.rule}` }, [
-    // A TEXT SPACE BETWEEN THE TWO SPANS, because the summary cannot be a flex row: `display:
+  return h('details', { class: 'oref-rule', id: `oref-rule-${rule.rule}` }, [
+    // A TEXT SPACE BETWEEN THE SPANS, because the summary cannot be a flex row: `display:
     // flex` on a `summary` removes the disclosure marker the user agent draws. Without it the
     // heading read as one word, `SECURITY-DRIFT7`, on the page and to a screen reader alike.
-    // The display code leads and the kebab id stays beside it: the code is what a FixBar cites
-    // and a person says aloud, the id is what the IR and `doctor` carry, and a panel showing
-    // only one would break the reader's join in one direction or the other.
-    h('summary', { class: 'oref-rule-head' }, [
-      h('span', { class: 'oref-drift-code' }, rule.findings[0]?.code ?? ''),
-      ' ',
-      h('span', { class: 'oref-drift-rule' }, rule.rule),
-      ' ',
-      h('span', { class: 'oref-rule-count' }, rule.count),
-    ]),
+    h('summary', { class: 'oref-rule-head' }, head),
     h(
       'ul',
       { class: 'oref-drift-list' },
       rule.findings.map((issue) => h(card, { issue })),
     ),
   ]);
+};
 
 /**
  * Renders the Health panel of one document.
@@ -114,7 +135,35 @@ export function HealthPanel(props: { readonly health: HealthModel }): VNode {
   // on the page of every document. Thirteen bytes of a chunk SPEC 20 measures to the byte.
   return h('section', { class: 'oref-section-health' }, [
     h('h2', { class: 'oref-section-title' }, health.title),
-    h('p', { class: 'oref-health-score' }, health.score),
+    // THE HEAD IS THE SCORE AND THE KPI TRIPLE, per the layout and `TX-PARITY-UI`: the
+    // operations the report measured, the criticals and the warnings, each a label under its
+    // number the way the design draws them. The triple is the report reread, never a new
+    // count, so the panel and the report cannot disagree.
+    h('div', { class: 'oref-health-head' }, [
+      h('p', { class: 'oref-health-score' }, health.score),
+      h('div', { class: 'oref-health-kpi' }, [
+        h('div', { class: 'oref-health-kpi-item' }, [
+          h('span', { class: 'oref-health-kpi-label' }, 'operations'),
+          h('span', { class: 'oref-health-kpi-num' }, String(health.kpi.operations)),
+        ]),
+        h('div', { class: 'oref-health-kpi-item' }, [
+          h('span', { class: 'oref-health-kpi-label' }, 'critical'),
+          h(
+            'span',
+            { class: 'oref-health-kpi-num oref-health-kpi-crit' },
+            String(health.kpi.critical),
+          ),
+        ]),
+        h('div', { class: 'oref-health-kpi-item' }, [
+          h('span', { class: 'oref-health-kpi-label' }, 'warnings'),
+          h(
+            'span',
+            { class: 'oref-health-kpi-num oref-health-kpi-warn' },
+            String(health.kpi.warnings),
+          ),
+        ]),
+      ]),
+    ]),
     h('ul', { class: 'oref-check-list' }, health.checks.map(checkRow)),
     ...health.rules.map((rule) => ruleGroup(rule, card.value)),
   ]);

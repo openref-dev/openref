@@ -95,6 +95,13 @@ export interface RunnerBodyMediaTypeView {
   readonly editor: RunnerBodyEditor;
   /** Empty unless the editor is `fields`. */
   readonly fields: readonly RunnerBodyFieldView[];
+  /**
+   * What the text editor arrives prefilled with, per `TX-PARITY-UI`: the declared example
+   * first, the generated one second, the SPEC 5.5 precedence, so the bench works on a static
+   * page. Absent for the other two editors and for a media type nothing can be generated
+   * for. Optional so a hand-built view, a mock or a custom port's input, stays valid.
+   */
+  readonly exampleText?: string;
 }
 
 /**

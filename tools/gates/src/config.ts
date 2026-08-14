@@ -732,13 +732,25 @@ export const SIZE_BUDGETS: readonly SizeBudget[] = [
     // whole KB step that keeps the derived property exactly: a navigation sized region,
     // 2,520, still fits, 54,096 under the cap; a page frame sized one, 3,287, and a console
     // sized one, 3,669, still land over it.
+    //
+    // RECOMPUTED AT TX-PARITY-UI, 53 TO 56 KB, SAME REASON, SAME WORDS, FOURTH ARRIVAL: it
+    // moved because the renderer emits a class family the two way sweep must style, which is
+    // a capability arriving, not drift. The parity report's remaining markup arrived: the SSE
+    // badge, the header meta line, the parameter table's runtime columns and drift row, the
+    // compact response row's phrase and schema link, the health page's KPI triple, rule
+    // sentence and zero row, the schema tree's read only mark, the anchor explanation, the
+    // bench kicker and its actions row with Reset. Measured 54,560 after it: 40,642
+    // theme.css, 9,707 tokens.css, 4,211 fonts.css. 56 KB is 57,344 and is the one whole KB
+    // step that keeps the derived property exactly: a navigation sized region, 2,520, still
+    // fits, 57,080 under the cap; a page frame sized one, 3,287, and a console sized one,
+    // 3,669, still land over it.
     id: 'theme-css-raw',
     label: 'Default theme CSS, raw bytes',
-    limitBytes: 53 * 1024,
+    limitBytes: 56 * 1024,
     quantity: 'parse',
     roots: THEME_CSS_ROOTS,
     extensions: ['.css'],
-    producedBy: 'T009, recomputed at TX-GUTTER, TX-FRAME and TX-MARKUP',
+    producedBy: 'T009, recomputed at TX-GUTTER, TX-FRAME, TX-MARKUP and TX-PARITY-UI',
   },
 
   // THE WEB COMPONENT OUTPUTS OF SPEC 10.3, both files of one directory under one cap pair,
@@ -1131,11 +1143,12 @@ export const BUDGET_EXCEPTIONS: readonly BudgetException[] = [
   },
   {
     budget: 'client-js-raw',
-    measured: '113,261 bytes, 110.6 KB, over by 8,813',
+    measured: '117,011 bytes, 114.3 KB, over by 12,563',
     target: '102 KB, 104,448 bytes',
     owners: ['TX-ADOPT'],
     clearBy: 'M3',
-    recordedAt: '2026-08-14, at TX-GUTTER, grown at TX-FRAME and TX-MARKUP the same day',
+    recordedAt:
+      '2026-08-14, at TX-GUTTER, grown at TX-FRAME, TX-MARKUP and TX-PARITY-UI the same day',
     diagnosis:
       'The first paint gained the parity scale of SPEC 6.3: eleven paired rows with verdicts, ' +
       'the FixBar and the empty side treatment, ordered by the maintainer in the TX-GUTTER ' +
@@ -1166,7 +1179,14 @@ export const BUDGET_EXCEPTIONS: readonly BudgetException[] = [
       'rail method badges, the key chip and the schema page head. Measured 113,261 across ' +
       'the same six chunks, so the markup costs 3,677 raw on top of the frame. It is the ' +
       'same adoptable shape again, static markup and links whose one client handler set is ' +
-      'the schema page view segment, and the same payer covers it under the same terms.',
+      'the schema page view segment, and the same payer covers it under the same terms. ' +
+      'GROWN AT TX-PARITY-UI, same day: the remembered operation of SPEC 11 entered the ' +
+      'first paint, the sessionStorage memory, the frame merge and the rail expansion, plus ' +
+      'the badge table, the parameter columns and the compact response row, which also took ' +
+      'the response media blocks back out. Measured 117,011 across the same six chunks, so ' +
+      'the net is 3,750 raw on top of the markup. The memory is the one part with live ' +
+      'handlers; the rest is the same adoptable shape, and the same payer covers it under ' +
+      'the same terms.',
   },
 ];
 

@@ -13,12 +13,14 @@
 import {
   compareByCodePoint,
   generateExample,
+  type IRConfidence,
   type IRDocument,
   type IRDriftIssue,
   type IRJsonSchema,
   type IRJsonValue,
   type IRMediaType,
   type IRNavNode,
+  type IRNodeRuntime,
   type IROperation,
   type IRParameter,
   type IRSchema,
@@ -46,14 +48,30 @@ import type {
   ResponseModel,
   SchemaPageModel,
 } from '@openref/vue';
-import { benchHref, healthPageHref, nodeHref, overviewHref, schemaHref } from './links';
+import {
+  benchHref,
+  healthPageHref,
+  nodeHref,
+  overviewHref,
+  schemaHref,
+  shapesHref,
+  statesHref,
+} from './links';
 import { sliceNavigation } from './nav-payload';
 import { buildHealthModel, buildRuntimeModel } from './runtime-model';
 import { buildSchemaPayload } from './schema-payload';
 import type { IMarkdownRenderer } from '../../markdown/domain/markdown';
+import { reasonPhrase } from '../../shared/status';
 
 /**
  * Version of the page model shape, part of the cache key.
+ *
+ * 13 SINCE `TX-PARITY-UI`: the frame carries six constant tab kinds, navigation entries and
+ * node headers carry `sse`, parameters carry the scan's columns, responses carry the compact
+ * row's phrase and schema link while their examples and payload schemas stay behind, and the
+ * health model carries the KPI triple and the silent rules. A page cached before this
+ * hydrates a bar with hidden tabs and a responses block that re-expands inline, which is the
+ * page from before the parity markup landed rather than a broken one.
  *
  * 12 SINCE `TX-MARKUP`: the header promise widened to `tags` and `operationId`, the runtime
  * block carries `responseMarks` and `contracts` for the merged responses and the error grid,
@@ -95,7 +113,7 @@ import type { IMarkdownRenderer } from '../../markdown/domain/markdown';
  * 6 was T027: `run.bodyMediaTypes`, a list of strings, became `run.body`, a list of media types
  * each carrying the editor its schema asks for and the fields it is made of.
  */
-export const PAGE_MODEL_VERSION = 12;
+export const PAGE_MODEL_VERSION = 13;
 
 /** Media types an example is generated for. */
 const JSON_MEDIA_TYPE = /^application\/(?:[\w.+-]+\+)?json$/i;
@@ -181,6 +199,24 @@ function navMethod(document: IRDocument, nodeId: string | undefined): string {
 }
 
 /**
+ * Whether an operation's declared responses carry `text/event-stream`, per `TX-PARITY-UI`.
+ *
+ * THE DOCUMENT DECIDES AND NOT THE RUNTIME FACT, because the badge is drawn on every page of
+ * every document, cached by hash, and a runtime-only stream that the document does not declare
+ * is the streaming row's drift to report, not a badge to award.
+ */
+function operationIsSse(document: IRDocument, nodeId: string | undefined): boolean {
+  if (nodeId === undefined) return false;
+
+  const node = document.nodes.get(nodeId);
+  if (node === undefined || node.kind === 'channel') return false;
+
+  return node.responses.some((response) =>
+    response.content.some((media) => media.mediaType === 'text/event-stream'),
+  );
+}
+
+/**
  * Findings per subject, counted once per document rather than once per entry.
  *
  * Keyed by node id and by schema id in one map, because a navigation entry carries at most one
@@ -220,6 +256,7 @@ function navEntry(
     driftCount: own + children.reduce((sum, child) => sum + child.driftCount, 0),
     hint: navHint(document, node.nodeId),
     method: navMethod(document, node.nodeId),
+    sse: operationIsSse(document, node.nodeId),
     childCount: node.children.length,
     children,
   };
@@ -336,11 +373,15 @@ function mediaTypeModel(
   media: IRMediaType,
   context: ModelContext,
   view: IRSchemaView,
+  withExample = true,
 ): MediaTypeModel {
   return {
     mediaType: media.mediaType,
     typeLabel: typeLabel(media.schema, context.document.schemas),
-    exampleHtml: exampleHtml(media, context, view),
+    // A RESPONSE EXAMPLE IS BUILT EMPTY SINCE `TX-PARITY-UI`: the compact index draws the
+    // schema link instead of the inline expansion, so the highlighted example would be state
+    // bytes on every operation page for markup nothing draws.
+    exampleHtml: withExample ? exampleHtml(media, context, view) : '',
     schema: media.schema ?? null,
     view,
   };
@@ -366,7 +407,78 @@ function codeSampleModels(node: IROperation, context: ModelContext): CodeSampleM
   }));
 }
 
-function parameterModel(parameter: IRParameter, context: ModelContext): ParameterModel {
+/** What the runtime says about one parameter row, in the scan's vocabulary. */
+interface ParameterFact {
+  readonly runtimeNote: string;
+  readonly confidence: IRConfidence | null;
+  readonly collector: string;
+  readonly unread: boolean;
+}
+
+/** The row no fact touches, which is every row of a document-only page. */
+const UNTOUCHED_PARAMETER: ParameterFact = {
+  runtimeNote: '',
+  confidence: null,
+  collector: '',
+  unread: false,
+};
+
+/** The scan's phrase per verdict, per SPEC 6.2.1 and `TX-PARITY-UI`. */
+const READ_NOTES = {
+  read: 'seen read',
+  'not-seen-read': 'not seen read by the handler',
+  unaccounted: 'not accounted for by the scan',
+} as const;
+
+/**
+ * Joins the per parameter runtime facts to the rows the table draws.
+ *
+ * A HEADER THE `requiredHeaders` FACT NAMES WINS OVER THE SCAN'S VERDICT, the SP010 skip read
+ * forwards: the guard reading it is the application reading it, so the note says what the
+ * application does with it rather than what the handler was seen to do. Everything else takes
+ * the scan's verdict, and a row neither fact touches keeps empty columns, per SPEC 6.3.
+ */
+function parameterFactsOf(
+  runtime: IRNodeRuntime | undefined,
+): (parameter: IRParameter) => ParameterFact {
+  const headers = runtime?.requiredHeaders;
+  const required = new Set((headers?.value ?? []).map((name) => name.toLowerCase()));
+  const reads = runtime?.parameterReads;
+  const verdicts = new Map(
+    (reads?.value.parameters ?? []).map((entry) => [`${entry.in}:${entry.name}`, entry.verdict]),
+  );
+
+  return (parameter: IRParameter): ParameterFact => {
+    if (
+      headers !== undefined &&
+      parameter.in === 'header' &&
+      required.has(parameter.name.toLowerCase())
+    ) {
+      return {
+        runtimeNote: 'required by the application',
+        confidence: headers.confidence,
+        collector: headers.collector,
+        unread: false,
+      };
+    }
+
+    const verdict = verdicts.get(`${parameter.in}:${parameter.name}`);
+    if (verdict === undefined || reads === undefined) return UNTOUCHED_PARAMETER;
+
+    return {
+      runtimeNote: READ_NOTES[verdict],
+      confidence: reads.confidence,
+      collector: reads.collector,
+      unread: verdict === 'not-seen-read',
+    };
+  };
+}
+
+function parameterModel(
+  parameter: IRParameter,
+  context: ModelContext,
+  fact: ParameterFact,
+): ParameterModel {
   return {
     name: parameter.name,
     location: parameter.in,
@@ -375,19 +487,24 @@ function parameterModel(parameter: IRParameter, context: ModelContext): Paramete
     typeLabel: typeLabel(parameter.schema, context.document.schemas),
     descriptionHtml: context.markdown.render(parameter.description),
     schema: parameter.schema ?? null,
+    ...fact,
   };
 }
 
-/** Every use site on a node page, which is what the schema payload is seeded from. */
+/**
+ * Every use site on a node page, which is what the schema payload is seeded from.
+ *
+ * RESPONSE SLOTS ARE NOT SEEDED SINCE `TX-PARITY-UI`: the compact index links a response's
+ * schema to its own page instead of expanding a tree under the code, so shipping the response
+ * graphs was state bytes for markup nothing draws. A theme that still draws trees from
+ * `content` finds the ids in `truncated` and draws the link, the existing degradation.
+ */
 function slotsOf(node: NodeModel): IRSchemaSlot[] {
   const slots: IRSchemaSlot[] = [];
 
   for (const parameter of node.parameters)
     if (parameter.schema !== null) slots.push(parameter.schema);
   for (const media of node.requestBody) if (media.schema !== null) slots.push(media.schema);
-  for (const response of node.responses) {
-    for (const media of response.content) if (media.schema !== null) slots.push(media.schema);
-  }
 
   return slots;
 }
@@ -461,6 +578,7 @@ function nodeModel(context: ModelContext, nodeId: string): NodeModel | null {
       method: null,
       path: null,
       address: view.node.address ?? null,
+      sse: false,
       parameters: [],
       requestBody: [],
       responses: [],
@@ -471,9 +589,10 @@ function nodeModel(context: ModelContext, nodeId: string): NodeModel | null {
     };
   }
 
+  const factOf = parameterFactsOf(view.node.runtime);
   const parameters = [...view.parameters.values()]
     .flat()
-    .map((parameter) => parameterModel(parameter, context));
+    .map((parameter) => parameterModel(parameter, context, factOf(parameter)));
 
   return {
     ...base,
@@ -483,15 +602,22 @@ function nodeModel(context: ModelContext, nodeId: string): NodeModel | null {
     method: view.node.method.toUpperCase(),
     path: view.node.path,
     address: null,
+    sse: operationIsSse(document, nodeId),
     parameters,
     requestBody: (view.node.requestBody?.content ?? []).map((media) =>
       mediaTypeModel(media, context, 'request'),
     ),
-    responses: view.responses.map((response) => ({
-      statusCode: response.statusCode,
-      descriptionHtml: markdown.render(response.description),
-      content: response.content.map((media) => mediaTypeModel(media, context, 'response')),
-    })),
+    responses: view.responses.map((response) => {
+      const link = responseSchemaLink(response.content, context);
+
+      return {
+        statusCode: response.statusCode,
+        descriptionHtml: markdown.render(response.description),
+        content: response.content.map((media) => mediaTypeModel(media, context, 'response', false)),
+        phrase: reasonPhrase(response.statusCode),
+        ...link,
+      };
+    }),
     security: view.security.map((requirement) => ({
       schemeId: requirement.schemeId,
       type: requirement.scheme?.type ?? 'unknown',
@@ -504,11 +630,73 @@ function nodeModel(context: ModelContext, nodeId: string): NodeModel | null {
 }
 
 /**
- * The first named schema an operation touches, request body before responses in served order.
+ * The named schema a slot resolves to, descending into array items, per `TX-PARITY-UI`.
  *
- * This is what the schema tab follows, per SPEC 11: the layout's schema page shows the request
- * schema of the operation the reader came from. Only a named schema has a page, so an inline
- * slot counts exactly when its whole body is a reference to one.
+ * ONLY A NAMED SCHEMA HAS A PAGE, so an inline slot counts exactly when its body is a
+ * reference to one, or an array whose items are: a list operation's 200 is an inline array of
+ * `OrderDto` references, and a rule that refused to look inside it landed the schema tab on
+ * the `ProblemDto` of the first error response, which is item 28 of the parity report. The
+ * descent follows `items` only: `array` says where the reader's data is, and a deeper guess
+ * would be a guess.
+ */
+function namedSchemaOf(
+  slot: IRSchemaSlot | null | undefined,
+  document: IRDocument,
+): { readonly id: string; readonly array: boolean } | null {
+  if (slot === null || slot === undefined) return null;
+  if (slot.kind === 'named') {
+    return document.schemas.has(slot.schemaId) ? { id: slot.schemaId, array: false } : null;
+  }
+
+  let body = slot.schema.normalized;
+  let array = false;
+
+  while (body !== undefined) {
+    if (body.$ref !== undefined) {
+      return document.schemas.has(body.$ref) ? { id: body.$ref, array } : null;
+    }
+
+    const items = body.items;
+    if (items === undefined || typeof items !== 'object') return null;
+    body = items;
+    array = true;
+  }
+
+  return null;
+}
+
+/**
+ * The compact row's schema link: the first response media that resolves to a named schema.
+ *
+ * `OrderDto[]` for an array of a named schema, because the row states what the response
+ * carries and a bare `OrderDto` would state one where the wire has many.
+ */
+function responseSchemaLink(
+  content: readonly IRMediaType[],
+  context: ModelContext,
+): { readonly schemaLabel: string; readonly schemaHref: string } {
+  for (const media of content) {
+    const named = namedSchemaOf(media.schema, context.document);
+    if (named === null) continue;
+
+    const entry = context.document.schemas.get(named.id);
+    const name = schemaDisplayName(entry, named.id);
+
+    return {
+      schemaLabel: named.array ? `${name}[]` : name,
+      schemaHref: schemaHref(named.id, context.basePath),
+    };
+  }
+
+  return { schemaLabel: '', schemaHref: '' };
+}
+
+/**
+ * The first named schema an operation touches, request body before responses in served order,
+ * descending into array items, per SPEC 11 as amended with `TX-PARITY-UI`.
+ *
+ * This is what the schema tab and the shapes tab follow: the layout's schema page shows the
+ * request schema of the operation the reader came from.
  */
 function primarySchemaIdOf(document: IRDocument, node: NodeModel): string | null {
   const slots = [
@@ -517,12 +705,8 @@ function primarySchemaIdOf(document: IRDocument, node: NodeModel): string | null
   ];
 
   for (const slot of slots) {
-    if (slot === null) continue;
-    if (slot.kind === 'named' && document.schemas.has(slot.schemaId)) return slot.schemaId;
-    if (slot.kind === 'inline') {
-      const ref = slot.schema.normalized?.$ref;
-      if (ref !== undefined && document.schemas.has(ref)) return ref;
-    }
+    const named = namedSchemaOf(slot, document);
+    if (named !== null) return named.id;
   }
 
   return null;
@@ -577,12 +761,16 @@ function frameStats(document: IRDocument): FrameStatsModel {
 }
 
 /**
- * The frame of one page: which tabs have targets, and where they lead.
+ * The frame of one page: which tabs the server can resolve, and where they lead.
  *
- * A TAB WITHOUT A TARGET IS NOT BUILT, per SPEC 11: a drawn dead link is the F14 class of lie.
- * The three operation tabs exist only where a current operation does, which is the node page
- * and its bench; the schema tab on a schema page targets the page itself; the health tab is
- * on every page, because the report is about the document.
+ * SIX CONSTANT ITEMS BY REMEMBERING RATHER THAN BY HIDING, per SPEC 11 as amended with
+ * `TX-PARITY-UI`: the bar's order is the prototype's, operation, schema, shapes, bench,
+ * health, states. The server still resolves only what it can: the operation pages carry all
+ * six, a schema or shapes page carries its own two, the document pages carry the last two.
+ * The client's memory merges the operation tabs back on the pages that have none, and every
+ * stored href is one this function resolved, so no address is spelled twice. The bench tab
+ * exists exactly when `run` does, per the F14 rule: constancy is about page kinds, not about
+ * promising a console to a channel.
  */
 function buildFrame(
   document: IRDocument,
@@ -609,6 +797,12 @@ function buildFrame(
         active: false,
         count: 0,
       });
+      tabs.push({
+        kind: 'shapes',
+        href: shapesHref(primarySchema, basePath),
+        active: false,
+        count: 0,
+      });
     }
 
     if (node.run !== null) {
@@ -621,8 +815,19 @@ function buildFrame(
     }
   }
 
-  if (schema !== null && kind === 'schema') {
-    tabs.push({ kind: 'schema', href: schemaHref(schema.id, basePath), active: true, count: 0 });
+  if (schema !== null && !schema.missing && (kind === 'schema' || kind === 'shapes')) {
+    tabs.push({
+      kind: 'schema',
+      href: schemaHref(schema.id, basePath),
+      active: kind === 'schema',
+      count: 0,
+    });
+    tabs.push({
+      kind: 'shapes',
+      href: shapesHref(schema.id, basePath),
+      active: kind === 'shapes',
+      count: 0,
+    });
   }
 
   tabs.push({
@@ -630,6 +835,13 @@ function buildFrame(
     href: healthPageHref(basePath),
     active: kind === 'health',
     count: document.health?.drift.length ?? 0,
+  });
+
+  tabs.push({
+    kind: 'states',
+    href: statesHref(basePath),
+    active: kind === 'states',
+    count: 0,
   });
 
   const backHref =
@@ -699,6 +911,22 @@ export function buildPageModel(document: IRDocument, options: PageModelOptions):
   const health = kind === 'health' ? buildHealthModel(document, basePath) : null;
 
   const payload = buildSchemaPayload(document, slots, options.schemaPayloadLimit);
+
+  // RESPONSE SCHEMAS ARE LINK TARGETS AND NOT PAYLOAD, per `TX-PARITY-UI`: their ids join
+  // `truncated` so a theme that still draws trees from `content` gets the recorded
+  // degradation, the link to the schema's own page, rather than a silently empty expansion.
+  const responseIds =
+    node === null || kind !== 'node'
+      ? []
+      : node.responses
+          .flatMap((response) =>
+            response.content.map((media) => namedSchemaOf(media.schema, document)),
+          )
+          .filter((named): named is { id: string; array: boolean } => named !== null)
+          .map((named) => named.id)
+          .filter((id) => payload.schemas[id] === undefined);
+  const truncated = [...new Set([...payload.truncated, ...responseIds])].sort(compareByCodePoint);
+
   const navigation = sliceNavigation(
     buildNavigation(document),
     node === null ? null : node.id,
@@ -725,7 +953,7 @@ export function buildPageModel(document: IRDocument, options: PageModelOptions):
     node,
     schema,
     schemas: payload.schemas,
-    truncatedSchemas: payload.truncated,
+    truncatedSchemas: truncated,
     health,
     healthRendered: health !== null,
   };

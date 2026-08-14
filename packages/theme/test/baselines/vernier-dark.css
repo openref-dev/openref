@@ -1611,3 +1611,152 @@ button.oref-schema-row:hover {
   grid-column: 1;
   min-height: 26px;
 }
+
+.oref-badge.oref-method-sse {
+  background: #38d6d6;
+}
+
+.oref-bench-kicker,
+.oref-schema-kicker {
+  margin: 0;
+  width: 100%;
+}
+
+.oref-operation-meta {
+  align-items: baseline;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  width: 100%;
+}
+
+.oref-operation-meta .oref-subtitle {
+  margin: 0;
+  width: auto;
+}
+
+.oref-param-req,
+.oref-param-note {
+  color: #93a4b3;
+  white-space: nowrap;
+}
+
+.oref-param-note {
+  white-space: normal;
+}
+
+.oref-param-prov {
+  white-space: nowrap;
+}
+
+.oref-param-drift td {
+  background: #1f1607;
+}
+
+.oref-param-drift .oref-param-name code {
+  color: #ffb020;
+}
+
+.oref-response-phrase {
+  color: #e8eef4;
+  font-size: 13px;
+}
+
+.oref-response-schema {
+  color: #8fbcff;
+  font-family: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+  font-size: 13px;
+}
+
+.oref-health-head {
+  align-items: baseline;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 26px;
+}
+
+.oref-health-kpi {
+  display: flex;
+  gap: 26px;
+}
+
+.oref-health-kpi-item {
+  display: grid;
+  gap: 2px;
+}
+
+.oref-health-kpi-label {
+  color: #79899a;
+  font-size: 11px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+}
+
+.oref-health-kpi-num {
+  font-family: 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
+  font-size: 21px;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.oref-health-kpi-crit {
+  color: #ff5a47;
+}
+
+.oref-health-kpi-warn {
+  color: #ffb020;
+}
+
+.oref-rule-summary {
+  color: #93a4b3;
+  font-size: 13px;
+}
+
+.oref-rule-zero {
+  color: #79899a;
+  margin: 0;
+  padding: 6px 0;
+}
+
+.oref-rule-zero .oref-drift-code,
+.oref-rule-zero .oref-rule-summary {
+  color: #79899a;
+}
+
+.oref-schema-readonly {
+  background: #111820;
+  color: #93a4b3;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  padding: 0 4px;
+  text-transform: uppercase;
+}
+
+.oref-anchor-note {
+  color: #79899a;
+  font-size: 12px;
+  margin-block: 14px 0;
+  max-width: 78ch;
+}
+
+.oref-bench-actions {
+  align-items: baseline;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.oref-tryit-reset {
+  background: #0f151b;
+  border: 1px solid #22303c;
+  color: #93a4b3;
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  padding: 4px 14px;
+}
+
+.oref-tryit-reset:hover {
+  border-color: #79899a;
+  color: #e8eef4;
+}

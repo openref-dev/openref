@@ -4,11 +4,14 @@ import {
   Controller,
   Get,
   Header,
+  HttpCode,
   Param,
   Post,
   Query,
   Sse,
   UseGuards,
+  UseInterceptors,
+  UsePipes,
 } from '@nestjs/common';
 import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import { ApiAudience, ApiErrors, ApiSample, ApiScopes, ApiStream, paginated } from '@openref/nest';
@@ -33,7 +36,10 @@ import {
   WalletPaymentDto,
 } from './orders.dto.js';
 import { OrderConflictError, OrderNotFoundError } from './orders.errors.js';
+import { HeaderGuard, RequiresHeaders } from './orders.headers.js';
+import { CurrencyPipe, TrimPipe } from './orders.pipes.js';
 import { Scopes, ScopesGuard } from './orders.security.js';
+import { RouteTimeout, TimeoutInterceptor } from './orders.timeout.js';
 
 const CATEGORIES: CategoryDto[] = [
   {
@@ -126,6 +132,9 @@ const ORDERS: OrderDto[] = [
 @ApiTags('orders')
 @ApiExtraModels(CardPaymentDto, BankTransferDto, WalletPaymentDto)
 @UseGuards(ScopesGuard)
+// Every string input of every route is trimmed. Declared once here, which is the `route` scope
+// of SPEC 6.2.1: the reference reports it on each operation, because it stands on each.
+@UsePipes(TrimPipe)
 @Controller('orders')
 export class OrdersController {
   /**
@@ -150,6 +159,11 @@ export class OrdersController {
   @Scopes('orders:read')
   @Throttle({ default: { limit: 30, ttl: 60_000 } })
   @UseGuards(ThrottlerGuard)
+  // The timeout pair, the same declare-and-enforce shape as the throttle above it: the number
+  // is metadata under the application's own key, and the interceptor races the handler against
+  // exactly that read, so what the reference reports is what runs.
+  @RouteTimeout(5000)
+  @UseInterceptors(TimeoutInterceptor)
   @ApiOperation({ summary: 'List orders', description: 'Every order, newest first.' })
   @ApiQuery({ name: 'currency', required: false, description: 'ISO 4217 code, such as EUR.' })
   @ApiQuery({
@@ -183,7 +197,10 @@ export class OrdersController {
     example: problem(429, 'rate_limited', 'More than 30 requests in a minute.'),
   })
   list(
-    @Query('currency') currency?: string,
+    // The one parameter level pipe, the third scope of SPEC 6.2.1: `eur` matches the ISO code
+    // the orders carry. The other five declared query parameters and the header are bound by
+    // nothing, which is real drift the handler scan reports rather than fixture convenience.
+    @Query('currency', CurrencyPipe) currency?: string,
     @Query('status') status?: string,
     @Query('minAmount') minAmount?: string,
     @Query('maxAmount') maxAmount?: string,
@@ -314,6 +331,17 @@ export class OrdersController {
   // `x-openref-audience`, where the agent surface of T058 is required to respect it. What keeps a
   // reference away from a reader is the visibility of the mounted document, which is a guard.
   @ApiAudience('internal')
+  // The internal route really refuses without its token header, and the document says so with
+  // `required: true`, so SP011 examines this operation and stays quiet. The guard checks
+  // presence and not value, for the reason `orders.headers.ts` gives.
+  @RequiresHeaders('X-Internal-Token')
+  @UseGuards(HeaderGuard)
+  @ApiHeader({
+    name: 'X-Internal-Token',
+    required: true,
+    description: 'Any non-empty value. The internal surface refuses anonymous requests.',
+    schema: { type: 'string', example: 'internal-demo' },
+  })
   @Header('Content-Type', 'text/csv; charset=utf-8')
   @Header('X-Content-Type-Options', 'nosniff')
   @ApiOperation({ summary: 'Download the receipt', description: 'One row per order line.' })
@@ -352,6 +380,10 @@ export class OrdersController {
   // A METHOD'S SCOPES REPLACE A CLASS'S RATHER THAN ADDING TO THEM, which is why writing is
   // spelled out here instead of being assumed on top of reading.
   @Scopes('orders:write')
+  // Explicit where it was implicit: POST answers 201 by framework default, and the decorator
+  // turns the default into a decision written on the route, which is the only thing
+  // `httpCodeCollector` reads. The documented 201 above agrees, so SP012 examines and is quiet.
+  @HttpCode(201)
   // Declared through a class carrying its own static `status` rather than through the catalog,
   // which is the second level of SPEC 6.4 and the one an application with a base error class gets
   // for free.

@@ -114,18 +114,20 @@ describe('the runtime block on an operation page', () => {
   });
 
   it('should draw the empty side hatched with the reason, per SPEC 6.3', () => {
-    // Given, the four rows whose collectors do not exist yet
+    // Given, the four rows whose facts this fixture's collectors never attached. Until
+    // TX-COLLECTORS the phrase named the missing instrument; the instruments exist now, so an
+    // absent fact means nothing was observed, the same phrase the other rows always used.
     const page = buildPageModel(runtimeDocument(), { markdown, nodeId: runtimeNodeId() });
 
     // When
     const host = mount(page);
     const hatched = Array.from(host.querySelectorAll('.oref-parity-cell-runtime.oref-hatch'));
 
-    // Then, the absence is drawn rather than blanked, the phrase names the instrument, and the
-    // verdict beside it says the comparison did not run.
+    // Then, the absence is drawn rather than blanked, the phrase is the observed silence, and
+    // the verdict beside it says the comparison did not run.
     expect(hatched).toHaveLength(4);
     for (const cell of hatched) {
-      expect(cell.querySelector('.oref-parity-empty')?.textContent).toContain('yet');
+      expect(cell.querySelector('.oref-parity-empty')?.textContent).toBe('Nothing observed here.');
       expect(
         cell.closest('.oref-parity-grid')?.querySelector('.oref-verdict-unknown'),
       ).not.toBeNull();
@@ -292,14 +294,66 @@ describe('the Health panel', () => {
 
     // When
     const host = mount(page);
-    const groups = Array.from(host.querySelectorAll('.oref-rule'));
+    const groups = Array.from(host.querySelectorAll('details.oref-rule'));
     const findings = Array.from(host.querySelectorAll('.oref-drift'));
 
-    // Then, one disclosure per rule, closed, and every finding inside one
+    // Then, one disclosure per rule that found something, closed, every finding inside one
     expect(groups.length).toBeGreaterThan(0);
     expect(groups.length).toBeLessThan(findings.length + 1);
-    expect(groups.every((group) => group.tagName.toLowerCase() === 'details')).toBe(true);
     expect(groups.every((group) => !group.hasAttribute('open'))).toBe(true);
+  });
+
+  it('should draw a rule that examined and found nothing as a muted non-control, per TX-PARITY-UI', () => {
+    // Given a report whose rules did not all fire, which is every real report
+    const page = buildPageModel(runtimeDocument(), { markdown, page: 'health' });
+
+    // When
+    const host = mount(page);
+    const zeroes = Array.from(host.querySelectorAll('.oref-rule-zero'));
+
+    // Then the silent rules are rows, not disclosures: nothing to disclose, nothing disabled,
+    // the zero is the statement, and each still carries its code and its sentence
+    expect(zeroes.length).toBeGreaterThan(0);
+    expect(zeroes.every((row) => row.tagName.toLowerCase() !== 'details')).toBe(true);
+    expect(zeroes.every((row) => row.querySelector('.oref-rule-count')?.textContent === '0')).toBe(
+      true,
+    );
+    expect(
+      zeroes.every((row) => (row.querySelector('.oref-rule-summary')?.textContent ?? '') !== ''),
+    ).toBe(true);
+  });
+
+  it('should chip every rule row with its severity, per TX-PARITY-UI', () => {
+    // Given a rule's findings share one severity by construction, so the chip stands on the
+    // rule row once rather than 578 times on the volume document, the display code precedent
+    const page = buildPageModel(runtimeDocument(), { markdown, page: 'health' });
+
+    // When
+    const host = mount(page);
+    const rules = Array.from(host.querySelectorAll('.oref-rule'));
+
+    // Then the glyph is presentation and the word is the statement, the FixBar's own chip
+    expect(rules.length).toBeGreaterThan(0);
+    expect(rules.every((row) => row.querySelector('.oref-sev') !== null)).toBe(true);
+  });
+
+  it('should head the panel with the KPI triple, per TX-PARITY-UI', () => {
+    // Given
+    const page = buildPageModel(runtimeDocument(), { markdown, page: 'health' });
+
+    // When
+    const host = mount(page);
+    const labels = Array.from(host.querySelectorAll('.oref-health-kpi-label')).map(
+      (label) => label.textContent,
+    );
+    const numbers = Array.from(host.querySelectorAll('.oref-health-kpi-num')).map((value) =>
+      Number(value.textContent),
+    );
+
+    // Then the triple is the report reread: operations, critical, warnings
+    expect(labels).toEqual(['operations', 'critical', 'warnings']);
+    expect(numbers.every((value) => Number.isFinite(value))).toBe(true);
+    expect(numbers[0]).toBeGreaterThan(0);
   });
 
   it('should open a group without any script, which is what keeps it under a strict CSP', () => {
@@ -324,9 +378,9 @@ describe('the Health panel', () => {
     // When
     const host = mount(page);
     const fixes = Array.from(host.querySelectorAll('.oref-drift-fix'));
-    const counts = Array.from(host.querySelectorAll('.oref-rule-count'));
+    const counts = Array.from(host.querySelectorAll('details.oref-rule .oref-rule-count'));
 
-    // Then
+    // Then, and only the disclosures count here: a silent rule's zero is its own case
     expect(fixes.length).toBeGreaterThan(0);
     expect(fixes.every((fix) => fix.textContent.length > 0)).toBe(true);
     expect(counts.every((count) => Number(count.textContent) > 0)).toBe(true);

@@ -67,6 +67,9 @@ export const SchemaPanel = defineComponent({
 
       return h('article', { class: 'oref-schema-page', 'data-oref-schema': schema.id }, [
         h('header', { class: 'oref-operation-header' }, [
+          // The kicker names the page kind, per the layout and `TX-PARITY-UI`, the way the
+          // bench head says `Bench`: the crumb carries the group, the kicker the kind.
+          h('p', { class: 'oref-section-title oref-schema-kicker' }, 'Schema'),
           h('h1', { class: 'oref-title' }, schema.name),
           schema.deprecated
             ? h('span', { class: 'oref-badge oref-deprecated' }, 'deprecated')
@@ -112,6 +115,17 @@ export const SchemaPanel = defineComponent({
               anchors: true,
               anchor: props.anchor,
             }),
+        // THE `#` EXPLANATION, in the reader's words, per the layout and `TX-PARITY-UI`. It
+        // stands only where the anchors do, so a missing schema's notice is not followed by
+        // an explanation of marks that are not on the page.
+        schema.missing
+          ? null
+          : h(
+              'p',
+              { class: 'oref-anchor-note' },
+              'Expansion is per node. The # on a row is a permanent address: it opens the ' +
+                'schema with its ancestors expanded and the field focused.',
+            ),
       ]);
     };
   },

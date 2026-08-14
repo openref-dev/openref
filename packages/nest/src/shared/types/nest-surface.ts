@@ -227,11 +227,12 @@ export const NEST_GUARD_METADATA = '__guards__';
  * `@nestjs/core` as the plain strings written here, unchanged since NestJS 6.
  * `test/unit/nest-value-surface.spec.ts` asks the installed framework whether it still says so.
  *
- * ONLY `APP_GUARD` IS READ TODAY, and the other three are named here rather than omitted so that
- * the next person meets the whole family at once instead of finding them one at a time. SPEC
- * 6.2.1 says what each would cost: an interceptor has no field in `IRNodeRuntime` to land in, a
- * pipe changes the error contract rather than the guard row, and a filter is already refused by
- * SPEC 6.4 because a registration has no status.
+ * `APP_GUARD` AND `APP_PIPE` ARE READ, the pipe since `TX-COLLECTORS`, and the other two are
+ * named here rather than omitted so that the next person meets the whole family at once. SPEC
+ * 6.2.1 says why each stays unread: an interceptor has no field in `IRNodeRuntime` to land in
+ * and the timeout value comes from route metadata instead, and a filter is refused by SPEC 6.4
+ * because a registration has no status. The pipe reading is the registration only: no 400 is
+ * derived from it, per the same section.
  */
 export const NEST_ENHANCER_TOKENS = {
   guard: 'APP_GUARD',
@@ -249,6 +250,81 @@ export const NEST_ENHANCER_TOKENS = {
  * accepting either keeps a guard visible if one of them moves in a future minor.
  */
 export const NEST_GUARD_ENHANCER_SUBTYPE = 'guard';
+
+/** The `subtype` on a provider registered under `APP_PIPE`, read the way the guard one is. */
+export const NEST_PIPE_ENHANCER_SUBTYPE = 'pipe';
+
+/**
+ * The key `@UsePipes` writes, on a controller class and on a handler alike.
+ *
+ * A STRING LITERAL FOR THE REASON THE TABLES ABOVE GIVE. Both levels apply and neither overrides
+ * the other, exactly as with `@UseGuards`, so the collector reads it with `get` on each target.
+ * `test/unit/nest-value-surface.spec.ts` decorates a class with the real `@UsePipes` and asserts
+ * the key still holds what this says.
+ */
+export const NEST_PIPES_METADATA = '__pipes__';
+
+/**
+ * The key `@HttpCode` writes, on the handler and nowhere else.
+ *
+ * ONLY THE EXPLICIT DECORATOR IS A FACT, per SPEC 6.2.1: a route without it answers the
+ * framework default, which is behaviour rather than a decision written on the route, so the
+ * collector emits nothing there and `status-drift` stays quiet on every ordinary operation.
+ */
+export const NEST_HTTP_CODE_METADATA = '__httpCode__';
+
+/**
+ * The key NestJS keeps a handler's parameter bindings under, per `TX-COLLECTORS`.
+ *
+ * IT IS TWO-TARGET METADATA, on the controller class and the method name together, which is why
+ * {@link MetadataReflect.getMetadata} carries the optional property key: `ReflectorLike` reads
+ * one key off one target and cannot reach this. The value is a record keyed
+ * `${paramtype}:${index}`, each entry `{ index, data, pipes }`, where `data` is the name a
+ * decorator like `@Query('sort')` binds and `pipes` is the parameter level pipe list. Measured
+ * on NestJS 11 and pinned by `nest-value-surface.spec.ts` with the real decorators.
+ */
+export const NEST_ROUTE_ARGS_METADATA = '__routeArguments__';
+
+/**
+ * The marker inside a route argument key written by `createParamDecorator`.
+ *
+ * A custom parameter decorator's factory receives the execution context and can read the whole
+ * request, so a handler binding one is a handler the scan cannot account for. The key is
+ * `${random}${marker}:${index}`, so the marker is matched by inclusion rather than position.
+ */
+export const NEST_CUSTOM_ROUTE_ARGS_MARKER = '__customRouteArgs__';
+
+/**
+ * The key `@Controller({ scope })` writes, and how a request scoped controller is recognised.
+ *
+ * The handler scan refuses such a controller whole: a request scoped class may inject `REQUEST`
+ * and read any parameter from a constructor assigned field, which is an access path no scan of
+ * the handler body can see. The value is `{ scope }` with `Scope.REQUEST` = 2 and
+ * `Scope.TRANSIENT` = 1 on both supported majors, pinned by `nest-value-surface.spec.ts`.
+ */
+export const NEST_SCOPE_OPTIONS_METADATA = 'scope:options';
+
+/** `Scope.DEFAULT` as the enum spells it, the one value the handler scan accepts. */
+export const NEST_DEFAULT_SCOPE = 0;
+
+/**
+ * `RouteParamtypes` members this package reads, as they are written on a handler.
+ *
+ * THE NUMBERS ARE THE ON-DISK FORMAT, like {@link NEST_REQUEST_METHODS}: they have held since
+ * NestJS 6 and are what every route argument key starts with. Only the ones with a meaning for
+ * the scan are named; a number outside the table is treated as unaccountable rather than
+ * guessed at, per SPEC 0.
+ */
+export const NEST_ROUTE_PARAMTYPES = {
+  request: 0,
+  response: 1,
+  next: 2,
+  body: 3,
+  query: 4,
+  param: 5,
+  headers: 6,
+  session: 7,
+} as const;
 
 /**
  * Reports whether a wrapper's token is the rewritten form of one enhancer token.
@@ -310,7 +386,13 @@ export const SWAGGER_EXTENSION_METADATA = 'swagger/apiExtension';
  */
 export interface MetadataReflect {
   defineMetadata(key: unknown, value: unknown, target: object): void;
-  getMetadata(key: unknown, target: object): unknown;
+  /**
+   * The property key is optional because most reads are off a class or a function, and it exists
+   * because one is not: the route argument bindings of {@link NEST_ROUTE_ARGS_METADATA} live on
+   * the controller class AND the method name together, and `reflect-metadata` has carried the
+   * three argument form since its first release.
+   */
+  getMetadata(key: unknown, target: object, propertyKey?: string | symbol): unknown;
 }
 
 /**

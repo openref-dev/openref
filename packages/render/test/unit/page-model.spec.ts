@@ -155,7 +155,7 @@ describe('buildPageModel', () => {
     expect(model.node?.responses.map((response) => response.statusCode)).toEqual(['200', '404']);
   });
 
-  it('should generate a highlighted json example for a json response', () => {
+  it('should build the response example empty and link the schema instead, per TX-PARITY-UI', () => {
     // Given
     const document = smallDocument();
     const nodeId = [...document.nodes.keys()].find((id) => id.includes('get')) ?? '';
@@ -163,10 +163,43 @@ describe('buildPageModel', () => {
     // When
     const model = buildPageModel(document, { markdown, nodeId });
 
+    // Then the compact row: no inline expansion, the phrase, and the schema on its own page,
+    // with the array of a named schema said as such
+    const ok = model.node?.responses.find((response) => response.statusCode === '200');
+    expect(ok?.content[0]?.exampleHtml).toBe('');
+    expect(ok?.phrase).toBe('OK');
+    expect(ok?.schemaLabel).toBe('Order[]');
+    expect(ok?.schemaHref).toBe('/schema/Order');
+  });
+
+  it('should still generate the highlighted example for a request body', () => {
+    // Given the example machinery serves the request section, which kept its inline block
+    const document = smallDocument();
+    const nodeId = [...document.nodes.keys()].find((id) => id.includes('post')) ?? '';
+
+    // When
+    const model = buildPageModel(document, { markdown, nodeId });
+
     // Then
-    const example = model.node?.responses[0]?.content[0]?.exampleHtml ?? '';
+    const example = model.node?.requestBody[0]?.exampleHtml ?? '';
     expect(example).toContain('<pre class="oref-code"');
     expect(example).toContain('data-oref-lang="json"');
+  });
+
+  it('should land the schema tab of a list operation on the item schema, per item 28', () => {
+    // Given GET /orders answers an inline array of Order references and documents no other
+    // named schema before it
+    const document = smallDocument();
+    const nodeId = [...document.nodes.keys()].find((id) => id.includes('get')) ?? '';
+
+    // When
+    const model = buildPageModel(document, { markdown, nodeId });
+
+    // Then the schema tab descends into the array items rather than passing the response by
+    const schemaTab = model.frame.tabs.find((tab) => tab.kind === 'schema');
+    expect(schemaTab?.href).toBe('/schema/Order');
+    const shapesTab = model.frame.tabs.find((tab) => tab.kind === 'shapes');
+    expect(shapesTab?.href).toBe('/shapes/Order');
   });
 
   it('should generate no example for a media type it cannot generate one for', () => {
@@ -183,46 +216,38 @@ describe('buildPageModel', () => {
   });
 
   it('should print the declared media type example instead of the generated one', () => {
-    // Given two error responses sharing one schema, each declaring its own example. This is
-    // the demo's 400 and 429: a generated example is a pure function of the schema and prints
-    // one body under both, stating a status neither response has, and SPEC 5.5 makes the
-    // declared example win. The declared `examples` map contributes its first member by code
-    // point when no plain `example` is written.
+    // Given two request bodies sharing one schema, one declaring its own example. SPEC 5.5
+    // makes the declared example win over the generated one, and the declared `examples` map
+    // contributes its first member by code point when no plain `example` is written. The
+    // responses stopped drawing examples with TX-PARITY-UI, so the precedence is asserted on
+    // the section that kept its inline block.
     const document = normalizeOpenApiDocument({
       openapi: '3.1.0',
       info: { title: 'Problems', version: '1.0.0' },
       paths: {
-        '/things': {
-          get: {
-            operationId: 'listThings',
-            responses: {
-              '400': {
-                description: 'Bad request',
-                content: {
-                  'application/json': {
-                    schema: { $ref: '#/components/schemas/Problem' },
-                    example: { status: 400, title: 'invalid_parameter' },
-                  },
-                },
-              },
-              '429': {
-                description: 'Too many requests',
-                content: {
-                  'application/json': {
-                    schema: { $ref: '#/components/schemas/Problem' },
-                    examples: {
-                      limit: { value: { status: 429, title: 'rate_limited' } },
-                    },
-                  },
-                },
-              },
-              '500': {
-                description: 'Server error',
-                content: {
-                  'application/json': { schema: { $ref: '#/components/schemas/Problem' } },
+        '/declared': {
+          post: {
+            operationId: 'declaredBody',
+            requestBody: {
+              content: {
+                'application/json': {
+                  schema: { $ref: '#/components/schemas/Problem' },
+                  examples: { chosen: { value: { status: 400, title: 'invalid_parameter' } } },
                 },
               },
             },
+            responses: { '201': { description: 'Created' } },
+          },
+        },
+        '/generated': {
+          post: {
+            operationId: 'generatedBody',
+            requestBody: {
+              content: {
+                'application/json': { schema: { $ref: '#/components/schemas/Problem' } },
+              },
+            },
+            responses: { '201': { description: 'Created' } },
           },
         },
       },
@@ -235,45 +260,40 @@ describe('buildPageModel', () => {
         },
       },
     });
-    const nodeId = [...document.nodes.keys()][0] ?? '';
+    const bodyOf = (needle: string): string => {
+      const nodeId = [...document.nodes.keys()].find((id) => id.includes(needle)) ?? '';
+      const model = buildPageModel(document, { markdown, nodeId });
+      return model.node?.requestBody[0]?.exampleHtml ?? '';
+    };
 
-    // When
-    const model = buildPageModel(document, { markdown, nodeId });
-    const exampleOf = (status: string): string =>
-      model.node?.responses.find((response) => response.statusCode === status)?.content[0]
-        ?.exampleHtml ?? '';
+    // Then the declared example wins where one was written
+    expect(bodyOf('declared')).toContain('invalid_parameter');
+    expect(bodyOf('declared')).not.toContain('409');
 
-    // Then each declared example states the status of the response it sits under
-    expect(exampleOf('400')).toContain('invalid_parameter');
-    expect(exampleOf('400')).not.toContain('409');
-    expect(exampleOf('429')).toContain('rate_limited');
-    expect(exampleOf('429')).not.toContain('409');
-
-    // And the response that declared nothing keeps the generated example, which is where the
+    // And the body that declared nothing keeps the generated example, which is where the
     // schema's own property example is still the document speaking
-    expect(exampleOf('500')).toContain('409');
+    expect(bodyOf('generated')).toContain('409');
   });
 
   it('should render a declared string example under a non json media type as the text it is', () => {
-    // Given the receipt's shape: a text media type whose example is the payload itself
+    // Given the receipt's shape carried by a request: a text media type whose example is the
+    // payload itself
     const document = normalizeOpenApiDocument({
       openapi: '3.1.0',
       info: { title: 'Receipts', version: '1.0.0' },
       paths: {
         '/receipt': {
-          get: {
-            operationId: 'readReceipt',
-            responses: {
-              '200': {
-                description: 'The receipt.',
-                content: {
-                  'text/csv': {
-                    schema: { type: 'string' },
-                    example: 'sku,quantity\nsku_flute_c,2\n',
-                  },
+          post: {
+            operationId: 'writeReceipt',
+            requestBody: {
+              content: {
+                'text/csv': {
+                  schema: { type: 'string' },
+                  example: 'sku,quantity\nsku_flute_c,2\n',
                 },
               },
             },
+            responses: { '204': { description: 'Stored.' } },
           },
         },
       },
@@ -282,7 +302,7 @@ describe('buildPageModel', () => {
 
     // When
     const model = buildPageModel(document, { markdown, nodeId });
-    const example = model.node?.responses[0]?.content[0]?.exampleHtml ?? '';
+    const example = model.node?.requestBody[0]?.exampleHtml ?? '';
 
     // Then the text is the example, not a JSON string literal with escaped line feeds
     expect(example).toContain('sku,quantity');

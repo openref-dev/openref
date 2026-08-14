@@ -100,8 +100,9 @@ describe('the schema viewer', () => {
     // Given, laziness is the point: a document of a thousand schemas costs one level per open
     // position and nothing for the rest.
     const document_ = cyclicDocument();
-    const nodeId = [...document_.nodes.keys()].find((id) => id.startsWith('get')) ?? '';
-    const host = mount(buildPageModel(document_, { nodeId, markdown }));
+    // The tree lives on the schema page since TX-PARITY-UI: the response rows link there
+    // instead of expanding inline, so the viewer is asserted where it draws.
+    const host = mount(buildPageModel(document_, { schemaId: 'Node', markdown }));
 
     // When
     const before = host.querySelectorAll('.oref-schema-row').length;
@@ -121,8 +122,9 @@ describe('the schema viewer', () => {
     // Given, `Node.parent` is a `Node`. SPEC 5.1.1 puts no `$cycle` marker in the IR for a named
     // cycle, so the marker here is the viewer detecting the revisit on its own path.
     const document_ = cyclicDocument();
-    const nodeId = [...document_.nodes.keys()].find((id) => id.startsWith('get')) ?? '';
-    const host = mount(buildPageModel(document_, { nodeId, markdown }));
+    // The tree lives on the schema page since TX-PARITY-UI: the response rows link there
+    // instead of expanding inline, so the viewer is asserted where it draws.
+    const host = mount(buildPageModel(document_, { schemaId: 'Node', markdown }));
 
     // When
     const parent = rowByName(host, 'parent');
@@ -139,8 +141,9 @@ describe('the schema viewer', () => {
     // Given, `Node.owner` reaches `Person`, and `Person.favourite` reaches `Node` again. A guard
     // that only compared with the immediate parent would miss this one.
     const document_ = cyclicDocument();
-    const nodeId = [...document_.nodes.keys()].find((id) => id.startsWith('get')) ?? '';
-    const host = mount(buildPageModel(document_, { nodeId, markdown }));
+    // The tree lives on the schema page since TX-PARITY-UI: the response rows link there
+    // instead of expanding inline, so the viewer is asserted where it draws.
+    const host = mount(buildPageModel(document_, { schemaId: 'Node', markdown }));
 
     // When
     rowByName(host, 'owner')?.click();
@@ -191,8 +194,7 @@ describe('the schema viewer', () => {
   it('should link to a schema page for a target the bound left behind', async () => {
     // Given, a payload too small to carry `Person`.
     const document_ = cyclicDocument();
-    const nodeId = [...document_.nodes.keys()].find((id) => id.startsWith('get')) ?? '';
-    const page = buildPageModel(document_, { nodeId, markdown, schemaPayloadLimit: 400 });
+    const page = buildPageModel(document_, { schemaId: 'Node', markdown, schemaPayloadLimit: 400 });
 
     // When
     const host = mount(page);
@@ -211,8 +213,7 @@ describe('the schema viewer', () => {
     // In the browser on the demo it rendered as a row typed `object` with no name while
     // `CustomerDto` sat in the same sidebar with a page of its own. Retrofit T003-R2.
     const document_ = wrappedReferenceDocument();
-    const nodeId = [...document_.nodes.keys()].find((id) => id.startsWith('get')) ?? '';
-    const host = mount(buildPageModel(document_, { nodeId, markdown }));
+    const host = mount(buildPageModel(document_, { schemaId: 'OrderDto', markdown }));
 
     // When
     const row = rowByName(host, 'customer');
@@ -229,8 +230,11 @@ describe('the schema viewer', () => {
   it('should link a wrapped reference to its own page when the payload left the target behind', async () => {
     // Given, a payload too small to carry `CustomerDto`
     const document_ = wrappedReferenceDocument();
-    const nodeId = [...document_.nodes.keys()].find((id) => id.startsWith('get')) ?? '';
-    const page = buildPageModel(document_, { nodeId, markdown, schemaPayloadLimit: 260 });
+    const page = buildPageModel(document_, {
+      schemaId: 'OrderDto',
+      markdown,
+      schemaPayloadLimit: 260,
+    });
 
     // When
     const host = mount(page);
@@ -246,8 +250,9 @@ describe('the schema viewer', () => {
   it('should move through the tree with the arrow keys and open with the right arrow', async () => {
     // Given
     const document_ = cyclicDocument();
-    const nodeId = [...document_.nodes.keys()].find((id) => id.startsWith('get')) ?? '';
-    const host = mount(buildPageModel(document_, { nodeId, markdown }));
+    // The tree lives on the schema page since TX-PARITY-UI: the response rows link there
+    // instead of expanding inline, so the viewer is asserted where it draws.
+    const host = mount(buildPageModel(document_, { schemaId: 'Node', markdown }));
     const root = host.querySelector('.oref-schema-row')!;
 
     // When
@@ -264,8 +269,9 @@ describe('the schema viewer', () => {
   it('should carry the tree roles the pattern needs', () => {
     // Given
     const document_ = cyclicDocument();
-    const nodeId = [...document_.nodes.keys()].find((id) => id.startsWith('get')) ?? '';
-    const host = mount(buildPageModel(document_, { nodeId, markdown }));
+    // The tree lives on the schema page since TX-PARITY-UI: the response rows link there
+    // instead of expanding inline, so the viewer is asserted where it draws.
+    const host = mount(buildPageModel(document_, { schemaId: 'Node', markdown }));
 
     // When
     const tree = host.querySelector('[role="tree"]');
@@ -447,23 +453,26 @@ describe('the command palette', () => {
  * reading `application/json array`, and `ProblemDto ProblemDto` on one row of the schema tree.
  */
 describe('a page that says each thing once', () => {
-  it('should not print the summary as a subtitle when the title was taken from it', () => {
+  it('should make the address the heading and the summary its meta line, per TX-PARITY-UI', () => {
     // Given an operation with a summary and no title of its own, which is most operations and
-    // is what `@nestjs/swagger` writes.
+    // is what `@nestjs/swagger` writes. Since the layout's order landed, the heading is the
+    // method badge and the path, and the summary always says something the address does not,
+    // so it stands in the meta line rather than vanishing under the old title dedupe.
     const host = mount(buildPageModel(smallDocument(), { nodeId: 'get-orders', markdown }));
 
     // When
-    const title = host.querySelector('.oref-operation-title')?.textContent;
-    const subtitle = host.querySelector('.oref-subtitle');
+    const title = host.querySelector('.oref-operation-title')?.textContent ?? '';
+    const subtitle = host.querySelector('.oref-operation-meta .oref-subtitle');
 
     // Then
-    expect(title).toBe('List orders');
-    expect(subtitle).toBeNull();
+    expect(title).toContain('GET');
+    expect(title).toContain('/orders');
+    expect(subtitle?.textContent).toBe('List orders');
   });
 
   it('should print a summary that differs from the title', () => {
-    // Given the same page with a title of its own, so the subtitle carries something the
-    // heading does not. The rule is about the repetition, not about the element.
+    // Given the same page with a title of its own; the heading is the address either way, so
+    // the summary keeps saying what the heading does not.
     const page = buildPageModel(smallDocument(), { nodeId: 'get-orders', markdown });
     const node = page.node;
     if (node === null) throw new Error('the fixture page has no node');
@@ -472,13 +481,14 @@ describe('a page that says each thing once', () => {
     const host = mount({ ...page, node: { ...node, title: 'Orders, newest first' } });
 
     // Then
-    expect(host.querySelector('.oref-operation-title')?.textContent).toBe('Orders, newest first');
+    expect(host.querySelector('.oref-operation-title')?.textContent).toContain('/orders');
     expect(host.querySelector('.oref-subtitle')?.textContent).toBe('List orders');
   });
 
   it('should let the media block name the media type and the tree name the schema', () => {
-    // Given a response whose body is an inline array, which is where F15 was seen
-    const host = mount(buildPageModel(smallDocument(), { nodeId: 'get-orders', markdown }));
+    // Given a request body that names a schema, which is where a media block still draws a
+    // tree: the response blocks became the compact index with TX-PARITY-UI.
+    const host = mount(buildPageModel(smallDocument(), { nodeId: 'post-orders', markdown }));
 
     // When
     const head = host.querySelector('.oref-media-head')?.textContent ?? '';
@@ -487,7 +497,7 @@ describe('a page that says each thing once', () => {
     // Then the head says what it is written in, the root row says what shape it has, and
     // neither says the other's word.
     expect(head).toBe('application/json');
-    expect(root).toBe('array');
+    expect(root).toContain('Order');
   });
 
   it('should print a named schema once on the row where it is both the name and the type', () => {

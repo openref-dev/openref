@@ -36,6 +36,17 @@ import {
  * Bumped by hand when a change to a component changes the bytes of an unchanged document.
  * It is part of the cache key, so bumping it invalidates every stored page at once.
  *
+ * 8 to 9 with `TX-PARITY-UI`: the bar carries the six constant tab kinds, the header leads
+ * with the badge and the path, the responses collapse to the compact index, the parameter
+ * table gains the scan's columns, the health page gains the KPI triple, the rule sentences
+ * and the zero rows, the tree gains its marks, and the bench head, prefill and actions row
+ * arrive. Same document, different bytes on every page.
+ *
+ * 7 to 8 with `TX-COLLECTORS`: the four reason phrases that named missing collectors retired
+ * for the observed-silence phrase, the response codes cell can carry the explicit success
+ * code, and four rows draw facts where they drew the hatch. Same document, different bytes on
+ * every operation page.
+ *
  * 6 to 7 with `TX-MARKUP`: the header draws the kicker, the drift box and the bench link, the
  * rail rows draw the method badge and path, the palette trigger carries the key chip, the
  * responses merge with the runtime's marks, the error contracts grid returns, and the schema
@@ -51,7 +62,7 @@ import {
  * media type example now wins over the generated one, zero denominator health checks stopped
  * rendering a row, and the rule heading gained its separator. Same document, different bytes.
  */
-export const RENDER_VERSION = 7;
+export const RENDER_VERSION = 9;
 
 /** How one page is rendered. */
 export interface RenderPageOptions {
@@ -292,6 +303,9 @@ export async function renderAllPages(
 
   const pages: RenderedPage[] = [await renderPage(document, { ...options, markdown })];
   pages.push(await renderPage(document, { ...options, markdown, page: 'health' }));
+  // The states page entered the walk with `TX-PARITY-UI`: a tab links to it now, and the walk
+  // is every page a tab links to.
+  pages.push(await renderPage(document, { ...options, markdown, page: 'states' }));
 
   for (const [nodeId, node] of document.nodes) {
     pages.push(await renderPage(document, { ...options, markdown, nodeId }));
@@ -302,6 +316,9 @@ export async function renderAllPages(
 
   for (const schemaId of document.schemas.keys()) {
     pages.push(await renderPage(document, { ...options, markdown, schemaId }));
+    // A shapes page per schema, for the same reason as a bench per operation: the schema
+    // page's own bar links there since `TX-PARITY-UI`.
+    pages.push(await renderPage(document, { ...options, markdown, page: 'shapes', schemaId }));
   }
 
   return pages;

@@ -228,7 +228,24 @@ describe('runnerOperationOf', () => {
     const run = node?.kind === 'operation' ? runnerOperationOf(node, document) : undefined;
 
     // Then
-    expect(run?.body).toEqual([{ mediaType: 'application/json', editor: 'text', fields: [] }]);
+    expect(run?.body.map(({ exampleText: _prefill, ...named }) => named)).toEqual([
+      { mediaType: 'application/json', editor: 'text', fields: [] },
+    ]);
+  });
+
+  it('should prefill the text editor with the generated example, per TX-PARITY-UI', () => {
+    // Given
+    const document = simpleDocument();
+    const node = document.nodes.get('post-orders');
+
+    // When
+    const run = node?.kind === 'operation' ? runnerOperationOf(node, document) : undefined;
+    const media = run?.body[0];
+
+    // Then
+    expect(media?.editor).toBe('text');
+    expect(media?.exampleText).toBeDefined();
+    expect(JSON.parse(media?.exampleText ?? '')).toBeTypeOf('object');
   });
 });
 

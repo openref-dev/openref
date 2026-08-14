@@ -101,6 +101,17 @@ export interface CollectorContext {
   readonly globalGuards: readonly string[];
 
   /**
+   * Class names of the pipes registered for the whole application, per SPEC 6.2.1.
+   *
+   * ADDED IN TX-COLLECTORS, THE THIRD TIME THE CONTRACT'S OWN NOTE HELD: growing a collector's
+   * abilities is a change to this context rather than to the interface every third party
+   * implements. On the context for the reason `globalGuards` is: one registration for the whole
+   * application, read once by the pass, identical on every node. Frozen the same way, empty
+   * means none were registered, and there is no third state.
+   */
+  readonly globalPipes: readonly string[];
+
+  /**
    * Builds a fact, filling in the name of the collector that is running.
    *
    * SUGAR OVER THE REGISTRY'S STAMP AND NOT A SECOND MECHANISM. The registry rewrites the

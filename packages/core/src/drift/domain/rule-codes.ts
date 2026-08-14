@@ -11,8 +11,10 @@
  * specification is silent about or contradicts, `SP` is the specification asserting what the
  * runtime does not do, `SC` is the actual body against its schema, `DX` is the quality of the
  * documentation itself. The gap of ten is so a later rule related to an existing one lands in
- * its decade rather than at the end of the list. `SP` and `SC` are empty today on purpose: the
- * prototypes name codes for rules that do not exist, and a code without a rule is not assigned.
+ * its decade rather than at the end of the list. The SP group got its first three rules in
+ * `TX-COLLECTORS`, the task that built the collectors behind them, appended after the RT block
+ * so no existing code moved. `SC` is empty today on purpose: the prototypes name `SC030` for a
+ * rule that does not exist, and a code without a rule is not assigned.
  */
 
 import type { IRDriftRule } from '../../ir/domain/runtime.types';
@@ -25,6 +27,9 @@ export const DRIFT_RULE_CODES: Readonly<Record<IRDriftRule, string>> = {
   'stream-unspecified': 'RT040',
   'error-undocumented': 'RT050',
   'orphan-operation': 'RT060',
+  'parameter-unread': 'SP010',
+  'header-requiredness-drift': 'SP011',
+  'status-drift': 'SP012',
   'missing-description': 'DX010',
   'missing-example': 'DX020',
   'missing-operation-id': 'DX030',

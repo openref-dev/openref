@@ -62,6 +62,8 @@ export interface CollectorRegistryOptions {
    * is every unit test of one collector, should not have to write an empty list to say so.
    */
   readonly globalGuards?: readonly string[];
+  /** Pipes registered for the whole application, read once by the pass, per SPEC 6.2.1. */
+  readonly globalPipes?: readonly string[];
   /** Template for the source link of SPEC 6.3, carried through to the document meta. */
   readonly sourceLinkTemplate?: string;
   /** Version of NestJS the host is running, for the document meta. */
@@ -103,6 +105,8 @@ export class CollectorRegistry {
    * strings inside it need nothing, since a string cannot be edited in place.
    */
   private readonly globalGuards: readonly string[];
+  /** The global pipe names, frozen once, for exactly the reasons the guard list is. */
+  private readonly globalPipes: readonly string[];
 
   /**
    * @param registrations - The collectors, in the order they were declared
@@ -111,6 +115,7 @@ export class CollectorRegistry {
   constructor(registrations: readonly CollectorRegistration[], options: CollectorRegistryOptions) {
     this.options = options;
     this.globalGuards = Object.freeze([...(options.globalGuards ?? [])]);
+    this.globalPipes = Object.freeze([...(options.globalPipes ?? [])]);
     this.collectors = registrations.filter(isRuntimeCollector);
     this.declined = registrations
       .filter(isSkippedCollector)
@@ -239,6 +244,7 @@ export class CollectorRegistry {
       // FROZEN, AND A COPY OF WHAT THE HOST HANDED OVER. See the field: it is one array every
       // collector on every node is given, so an edit to it is an edit to the rest of the pass.
       globalGuards: this.globalGuards,
+      globalPipes: this.globalPipes,
       fact: <T>(value: T, confidence: IRConfidence): IRFact<T> => ({
         value,
         confidence,

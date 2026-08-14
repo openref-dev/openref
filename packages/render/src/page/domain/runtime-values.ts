@@ -13,8 +13,12 @@ import type {
   IRDriftSeverity,
   IRGuard,
   IRGuardScope,
+  IRParameterReads,
+  IRPipe,
+  IRPipeScope,
   IRRateLimit,
   IRStreaming,
+  IRTimeout,
 } from '@openref/core';
 import type { RuntimeValueModel } from '@openref/vue';
 
@@ -97,6 +101,102 @@ export function streamingLabel(streaming: IRStreaming): string {
       : `, heartbeat ${String(streaming.heartbeatMs / 1000)} s`;
 
   return `${transport}${beat}`;
+}
+
+/**
+ * A timeout in the words a reader would use.
+ *
+ * @param timeout - The timeout fact's value
+ * @returns `5000 ms`
+ */
+export function timeoutLabel(timeout: IRTimeout): string {
+  return `${String(timeout.ms)} ms`;
+}
+
+/**
+ * The scope note of a pipe value, in the vocabulary the guard rows already taught.
+ *
+ * The route's own pipes carry no note, the way the route's own guard row is called `Guards`
+ * unqualified: the qualified rows are the ones that need the qualification.
+ */
+const PIPE_SCOPE_NOTES: Readonly<Record<IRPipeScope, string>> = {
+  route: '',
+  parameter: 'parameter level',
+  global: 'application wide',
+};
+
+/**
+ * Pipes as values, one per scope and provenance, nearest decision first.
+ *
+ * The same merge as {@link guardValues}: three pipes one collector read at one scope are one
+ * observation of three names, and the scope travels in the note because a reader deciding
+ * whether input is validated needs to know which decision they are looking at, per SPEC 6.2.1.
+ *
+ * @param pipes - Pipes observed on the route, at every scope
+ * @returns One value per distinct scope and provenance, route, then parameter, then global
+ */
+export function pipeValues(pipes: readonly IRPipe[]): RuntimeValueModel[] {
+  const values: RuntimeValueModel[] = [];
+
+  for (const scope of ['route', 'parameter', 'global'] as const) {
+    for (const pipe of pipes) {
+      if (pipe.scope !== scope) continue;
+
+      const note = PIPE_SCOPE_NOTES[scope];
+      const at = values.findIndex(
+        (value) =>
+          value.note === note &&
+          value.confidence === pipe.confidence &&
+          value.collector === pipe.collector,
+      );
+
+      if (at === -1) {
+        values.push({
+          ...EMPTY_VALUE,
+          text: pipe.name,
+          note,
+          ...mark(pipe.confidence, pipe.collector),
+        });
+        continue;
+      }
+
+      const held = values[at];
+      if (held !== undefined) values[at] = { ...held, text: `${held.text}, ${pipe.name}` };
+    }
+  }
+
+  return values;
+}
+
+/**
+ * The handler scan's verdicts as one value: the count, and the names behind it.
+ *
+ * THE THREE VERDICTS STAY APART IN THE WORDS, per SPEC 6.2.1: `not seen read` is a statement
+ * about the handler and is named per parameter, `not accounted for` is a statement about the
+ * scan and is counted, and folding either into the other would put the scan's blindness on the
+ * application or the application's dead weight on the scan.
+ *
+ * @param reads - The fact's value
+ * @returns The value line and the note line
+ */
+export function parameterReadsLabel(reads: IRParameterReads): { value: string; note: string } {
+  const total = reads.parameters.length;
+  const read = reads.parameters.filter((parameter) => parameter.verdict === 'read').length;
+  const notSeen = reads.parameters.filter((parameter) => parameter.verdict === 'not-seen-read');
+  const unaccounted = reads.parameters.filter(
+    (parameter) => parameter.verdict === 'unaccounted',
+  ).length;
+
+  const notes: string[] = [];
+  if (notSeen.length > 0) {
+    notes.push(`not seen read: ${notSeen.map((parameter) => parameter.name).join(', ')}`);
+  }
+  if (unaccounted > 0) notes.push(`${String(unaccounted)} not accounted for by the scan`);
+
+  return {
+    value: `${String(read)} of ${String(total)} seen read`,
+    note: notes.join('; '),
+  };
 }
 
 /**

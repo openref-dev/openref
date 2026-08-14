@@ -260,11 +260,13 @@ describe('every slot of the registry, on the page a reader opens', () => {
   });
 
   it('should draw the theme schema tree instead of the expandable rows', async () => {
-    // Given
+    // Given, the tree is driven where one still draws on a node page: the request body,
+    // because the response rows became the compact index with TX-PARITY-UI.
     const document = smallDocument();
+    const nodeId = [...document.nodes.keys()].find((id) => id.startsWith('post')) ?? '';
 
     // When, Then
-    await drive(document, 'SchemaTree', 'oref-schema-tree', { nodeId: NODE });
+    await drive(document, 'SchemaTree', 'oref-schema-tree', { nodeId });
   });
 
   it('should draw the theme body editor instead of the declared fields', async () => {

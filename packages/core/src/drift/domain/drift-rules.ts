@@ -1,5 +1,5 @@
 /**
- * The ten rules of SPEC 7.1, each one a check with a quiet state and a suggested fix.
+ * The thirteen rules of SPEC 7.1, each one a check with a quiet state and a suggested fix.
  *
  * A RULE THAT CANNOT STAY QUIET IS NOISE, AND THE OUTCOME TYPE IS WHERE THAT IS ENFORCED. Every
  * check answers one of three things: the subject is outside its scope, the subject is in scope and
@@ -423,6 +423,158 @@ const ORPHAN_OPERATION: OperationRule = {
 };
 
 /**
+ * `parameter-unread`: a parameter is declared and the scan did not see the handler read it.
+ *
+ * IT FIRES ON `not-seen-read` AND NEVER ON `unaccounted`, which is the distinction SPEC 6.2.1
+ * requires the fact to carry: a parameter the scan did not see read is not a parameter that is
+ * unread, it is one the scan did not see, and a rule firing on the scan's own blindness would
+ * tell a reader to delete documentation the instrument merely failed to check.
+ *
+ * A HEADER THE `requiredHeaders` FACT NAMES COUNTS AS READ. The guard reading it is the
+ * application reading it, and the handler is not the only code a request passes through.
+ */
+const PARAMETER_UNREAD: OperationRule = {
+  id: 'parameter-unread',
+  severity: 'warning',
+  label: 'Declared parameters the handler was seen to read',
+
+  check(operation: IROperation): Outcome {
+    const reads = operation.runtime?.parameterReads;
+    if (reads === undefined) return OUT_OF_SCOPE;
+
+    const required = new Set(
+      (operation.runtime?.requiredHeaders?.value ?? []).map((name) => name.toLowerCase()),
+    );
+    const unread = reads.value.parameters.filter(
+      (parameter) =>
+        parameter.verdict === 'not-seen-read' &&
+        !(parameter.in === 'header' && required.has(parameter.name.toLowerCase())),
+    );
+    if (unread.length === 0) return CLEAN;
+
+    const names = unread.map((parameter) => `${parameter.in} ${parameter.name}`);
+
+    return found({
+      message:
+        'Parameters are declared on this operation and the scan saw the handler read none of them.',
+      runtimeValue: `not seen read: ${names.join(', ')}`,
+      specValue: `${String(operation.parameters.length)} parameter(s) declared`,
+      suggestion:
+        'remove the parameter from the specification by hand, or implement reading it. Which ' +
+        'side is wrong is not knowable here: the scan accounted for every access path of these ' +
+        'locations, and a parameter it could not account for is never reported',
+      // THE ONLY EDIT THAT WOULD SATISFY THE RULE DELETES AN EXISTING ASSERTION, so this is a
+      // contradiction by SPEC 7.4 and no fix mode touches it at any confidence, which is also
+      // what an `inferred` basis would force one branch later.
+      edit: 'deleted-assertion',
+      basis: collected(reads.confidence),
+    });
+  },
+};
+
+/**
+ * `header-requiredness-drift`: the runtime requires a header and the specification disagrees.
+ */
+const HEADER_REQUIREDNESS_DRIFT: OperationRule = {
+  id: 'header-requiredness-drift',
+  severity: 'warning',
+  label: 'Headers the runtime requires documented as required',
+
+  check(operation: IROperation): Outcome {
+    const fact = operation.runtime?.requiredHeaders;
+    if (fact === undefined || fact.value.length === 0) return OUT_OF_SCOPE;
+
+    // HEADER NAMES COMPARE CASE INSENSITIVELY, because HTTP headers do. The document's own
+    // spelling is kept for display; only the comparison folds.
+    const declared = new Map(
+      operation.parameters
+        .filter((parameter) => parameter.in === 'header')
+        .map((parameter) => [parameter.name.toLowerCase(), parameter.required]),
+    );
+
+    const optional: string[] = [];
+    const missing: string[] = [];
+    for (const name of fact.value) {
+      const held = declared.get(name.toLowerCase());
+      if (held === undefined) missing.push(name);
+      else if (!held) optional.push(name);
+    }
+    if (optional.length === 0 && missing.length === 0) return CLEAN;
+
+    // A CONFLICT OUTRANKS A SILENCE WHEN ONE FINDING CARRIES BOTH. `required: false` is an
+    // assertion the runtime contradicts; an undeclared header is a silence beside it. The edit
+    // shape must be the one a fix mode may not touch, or the conflicting half would ride into
+    // source under the silent half's classification.
+    const conflicted = optional.length > 0;
+
+    return found({
+      message: conflicted
+        ? 'The runtime requires a header the specification marks optional.'
+        : 'The runtime requires a header the specification does not declare.',
+      runtimeValue: `required, from guard metadata: ${fact.value.join(', ')}`,
+      specValue:
+        optional.length > 0
+          ? optional.map((name) => `${name}: required false`).join(', ')
+          : `not declared: ${missing.join(', ')}`,
+      suggestion: conflicted
+        ? 'correct whichever side is wrong by hand: either required: true on the header ' +
+          'parameter or the guard that refuses without it. A conflicting assertion is never ' +
+          'rewritten'
+        : `add @ApiHeader({ name: '${missing[0] ?? ''}', required: true }) to the handler, or ` +
+          'stop the guard requiring it',
+      edit: conflicted ? 'conflicting-assertion' : 'new-assertion',
+      basis: collected(fact.confidence),
+    });
+  },
+};
+
+/**
+ * `status-drift`: the handler's explicit status code has no documented response.
+ *
+ * ONLY THE EXPLICIT `@HttpCode` IS IN SCOPE. A framework default is behaviour, not a decision
+ * written on the route, so the fact is absent without the decorator and this rule stays quiet
+ * on every ordinary operation, per SPEC 7.1.
+ */
+const STATUS_DRIFT: OperationRule = {
+  id: 'status-drift',
+  severity: 'error',
+  label: 'Explicit status codes with a documented response',
+
+  check(operation: IROperation): Outcome {
+    const fact = operation.runtime?.statusCode;
+    if (fact === undefined) return OUT_OF_SCOPE;
+
+    const documented = documentedStatuses(operation);
+    const code = String(fact.value);
+    if (documented.has(code) || documented.has('default')) return CLEAN;
+
+    const successes = [...documented].filter((status) => /^2\d\d$/.test(status));
+    if (successes.length > 0) {
+      return found({
+        message:
+          'The handler answers an explicit status code and the specification documents a different success.',
+        runtimeValue: `@HttpCode(${code})`,
+        specValue: successes.join(', '),
+        suggestion:
+          `correct whichever side is wrong by hand: either @HttpCode(${code}) on the handler ` +
+          `or the documented ${successes.join(', ')}. A conflicting assertion is never rewritten`,
+        edit: 'conflicting-assertion',
+        basis: collected(fact.confidence),
+      });
+    }
+
+    return found({
+      message: 'The handler answers an explicit status code and no response documents it.',
+      runtimeValue: `@HttpCode(${code})`,
+      specValue: 'no success response documented',
+      suggestion: `add @ApiResponse({ status: ${code} }) to the handler`,
+      edit: 'new-assertion',
+      basis: collected(fact.confidence),
+    });
+  },
+};
+
+/**
  * `missing-description`: the operation says nothing about itself.
  */
 const MISSING_DESCRIPTION: OperationRule = {
@@ -539,6 +691,9 @@ export const OPERATION_DRIFT_RULES: readonly OperationRule[] = [
   STREAM_UNSPECIFIED,
   ERROR_UNDOCUMENTED,
   ORPHAN_OPERATION,
+  PARAMETER_UNREAD,
+  HEADER_REQUIREDNESS_DRIFT,
+  STATUS_DRIFT,
   MISSING_DESCRIPTION,
   MISSING_EXAMPLE,
   MISSING_OPERATION_ID,

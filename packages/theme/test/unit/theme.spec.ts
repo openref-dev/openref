@@ -159,6 +159,9 @@ const MODIFIERS_WITHOUT_RULES = new Set([
   // rule already paints the event colour, so a rule repeating the default would say nothing.
   'oref-section-errors',
   'oref-method-event',
+  // THE ONE OF TX-PARITY-UI, a member by the same rule: the description section sits on
+  // `.oref-section`, which draws it, and its prose already carries `.oref-description`.
+  'oref-section-description',
 ]);
 
 /** The syntax token classes are generated one per shiki colour, so they are checked as a group. */

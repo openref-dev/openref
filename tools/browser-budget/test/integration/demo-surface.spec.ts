@@ -205,7 +205,14 @@ describe('the demo application behind that surface', () => {
       { what: 'list', response: await fetch(`${app.url}/orders?currency=EUR&status=placed`) },
       { what: 'categories', response: await fetch(`${app.url}/orders/categories`) },
       { what: 'read', response: await fetch(`${app.url}/orders/ord_1024`) },
-      { what: 'receipt', response: await fetch(`${app.url}/orders/ord_1024/receipt`) },
+      {
+        what: 'receipt',
+        // The internal route requires its token header since TX-COLLECTORS, and the document
+        // says so with `required: true`, so this is the request the reference would build.
+        response: await fetch(`${app.url}/orders/ord_1024/receipt`, {
+          headers: { 'x-internal-token': 'internal-demo' },
+        }),
+      },
       { what: 'page', response: await fetch(`${app.url}/orders/page`) },
       {
         what: 'create',
@@ -241,26 +248,36 @@ describe('the demo application behind that surface', () => {
     expect(typeof body.detail).toBe('string');
   });
 
-  it("should print under each error response an example stating that response's own status", async () => {
-    // Given the page that used to print `order_conflict` with status 409 under both 400 and
-    // 429: property examples travel with the schema and are identical under every response
-    // that references it, so each response now declares its own example at the media type,
-    // and SPEC 5.5 makes the declared example win over the generated one.
+  it('should draw each response as the compact row and no inline example, per TX-PARITY-UI', async () => {
+    // Given the page whose inline expansion, a tree and an example under every code, made it
+    // several times longer than the design. The maintainer's 2026-08-14 decision adopts the
+    // prototype's compact index: badge, phrase, schema link, chip, note, with the schemas on
+    // their own pages. The declared response examples the page used to print, each stating its
+    // own status per SPEC 5.5, left the page with the expansion; the precedence itself still
+    // holds and is asserted where an example still draws, the request body and the bench
+    // prefill.
     const response = await fetch(`${app.url}${EXAMPLE_BASE_PATH}/get-orders`);
     const html = await response.text();
 
-    // Then the 400 example is the 400 sentence and the 429 example is the 429 one
-    expect(html).toContain('invalid_parameter');
-    expect(html).toContain('rate_limited');
+    // Then the compact rows: the 400 carries the registry's phrase and the schema's own page
+    expect(html).toContain('oref-response-phrase');
+    expect(html).toContain('Bad Request');
+    expect(html).toContain(`${EXAMPLE_BASE_PATH}/schema/ProblemDto`);
+    expect(html).toContain(`${EXAMPLE_BASE_PATH}/schema/OrderDto`);
 
-    // And the conflict body belongs to the one response that answers 409, which is not on
-    // this page at all
+    // And no response example travels: neither the declared bodies nor the conflict body of
+    // the 409 that is not on this page
+    expect(html).not.toContain('invalid_parameter');
+    expect(html).not.toContain('rate_limited');
     expect(html).not.toContain('order_conflict');
   });
 
   it('should serve the receipt as the content type it documents', async () => {
-    // Given, a demo that documents text and answers with JSON has documented nothing
-    const response = await fetch(`${app.url}/orders/ord_1024/receipt`);
+    // Given, a demo that documents text and answers with JSON has documented nothing. The
+    // required header is sent, because the documented request carries it since TX-COLLECTORS.
+    const response = await fetch(`${app.url}/orders/ord_1024/receipt`, {
+      headers: { 'x-internal-token': 'internal-demo' },
+    });
 
     // When
     const body = await response.text();
@@ -268,6 +285,16 @@ describe('the demo application behind that surface', () => {
     // Then
     expect(response.headers.get('content-type')).toContain('text/csv');
     expect(body.split('\n')[0]).toBe('sku,quantity,unitAmount');
+  });
+
+  it('should refuse the receipt without its required header, in words naming it', async () => {
+    // Given the internal route's guard, which enforces the requiredness the document declares
+    const response = await fetch(`${app.url}/orders/ord_1024/receipt`);
+
+    // Then the refusal is the 401 the runtime-derived group already documents for the route
+    expect(response.status).toBe(401);
+    const body = (await response.json()) as { message?: string };
+    expect(body.message).toContain('X-Internal-Token');
   });
 
   it('should say the sentence 401 and 403 share exactly once, on their merged grid item', async () => {

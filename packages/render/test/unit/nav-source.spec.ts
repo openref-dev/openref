@@ -16,6 +16,7 @@ function entry(id: string): NavEntryModel {
     driftCount: 0,
     hint: '',
     method: '',
+    sse: false,
     childCount: 0,
     children: [],
   };

@@ -11,20 +11,32 @@
 
 import { useSlot } from '@openref/vue';
 import { defineComponent, h, type VNode } from 'vue';
+import { PALETTE_NOTICES } from './palette-notices';
 import { StateNotice } from './StateNotice';
 import type { StateNoticeKind } from '@openref/vue';
 
-/** One specimen per kind, in the order the union declares them. */
+/**
+ * One specimen per kind, in the order the union declares them.
+ *
+ * THE THREE SEARCH SPECIMENS ARE DERIVED FROM THE PALETTE'S OWN SENTENCES, per SPEC 11 and
+ * `TX-PARITY-UI`: the catalogue's job is to show what the product says, and the catalogue
+ * saying something better is the drift the parity report caught. The suffix marks the
+ * specimen; the head is the product's sentence, verbatim, and a unit check holds the two
+ * surfaces to the same string.
+ */
 const SPECIMENS: readonly (readonly [StateNoticeKind, string])[] = [
   [
     'nav-unavailable',
     'The rest of the navigation could not be loaded. Specimen of the sentence a failed fetch leaves in the rail.',
   ],
-  ['search-empty', 'Type to search this reference. Specimen of the palette before a query.'],
-  ['search-no-results', 'No matches. Specimen of a query the index answers with nothing.'],
+  ['search-empty', `${PALETTE_NOTICES['search-empty']} Specimen of the palette before a query.`],
+  [
+    'search-no-results',
+    `${PALETTE_NOTICES['search-no-results']} Specimen of a query the index answers with nothing.`,
+  ],
   [
     'search-partial',
-    'Searching what this page carries. Specimen of the palette before the whole index arrives.',
+    `${PALETTE_NOTICES['search-partial']} Specimen of the palette before the whole index arrives.`,
   ],
   [
     'no-server',

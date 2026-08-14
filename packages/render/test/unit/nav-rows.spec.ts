@@ -22,6 +22,7 @@ function entry(id: string, children: NavEntryModel[] = [], nodeId?: string): Nav
     driftCount: 0,
     hint: '',
     method: '',
+    sse: false,
     childCount: children.length,
     children,
   };

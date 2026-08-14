@@ -167,13 +167,14 @@ describe('the collectors, against the running example application', () => {
     'should run every registered collector and skip none of them',
     { timeout: SPAWNED_PROCESS_TIMEOUT_MS },
     () => {
-      // Given the example, which registers seven
+      // Given the example, which registers twelve
       const found = report();
 
-      // Then all seven ran. A SKIP IS THE FAILURE THIS ASSERTION EXISTS FOR: `throttlerCollector`
-      // declines when `@nestjs/throttler` cannot be resolved or its version cannot be read, and it
-      // declines by returning a reason rather than by throwing, so a boot that lost it looks exactly
-      // like a boot that never had it.
+      // Then all twelve ran. A SKIP IS THE FAILURE THIS ASSERTION EXISTS FOR: `throttlerCollector`
+      // declines when `@nestjs/throttler` cannot be resolved or its version cannot be read, the
+      // two keyed TX-COLLECTORS collectors decline when registered without their key, and each
+      // declines by returning a reason rather than by throwing, so a boot that lost one looks
+      // exactly like a boot that never had it.
       expect(found.skipped).toEqual([]);
       expect(found.collectors).toEqual([
         'sourceCollector',
@@ -183,6 +184,11 @@ describe('the collectors, against the running example application', () => {
         'scopesCollector',
         'throttlerCollector',
         'errorsCollector',
+        'pipesCollector',
+        'timeoutCollector',
+        'headersCollector',
+        'handlerScanCollector',
+        'httpCodeCollector',
       ]);
     },
   );

@@ -81,10 +81,24 @@ describe('buildPageModel, schema pages', () => {
 });
 
 describe('buildPageModel, the schema payload of a node page', () => {
-  it('should carry every schema the use sites of the node reach', () => {
-    // Given
+  it('should leave response schemas behind as link targets, per TX-PARITY-UI', () => {
+    // Given GET /orders, whose only named schema stands under its 200 response
     const document = smallDocument();
     const nodeId = [...document.nodes.keys()][0] ?? '';
+
+    // When
+    const page = buildPageModel(document, { nodeId, markdown });
+
+    // Then the payload does not carry it and `truncated` records it, so a theme that still
+    // draws trees from `content` gets the recorded degradation, the link to the schema's page
+    expect(Object.keys(page.schemas)).not.toContain('Order');
+    expect(page.truncatedSchemas).toContain('Order');
+  });
+
+  it('should carry every schema the request side of the node reaches', () => {
+    // Given POST /orders, whose request body names Order
+    const document = smallDocument();
+    const nodeId = [...document.nodes.keys()].find((id) => id.includes('post')) ?? '';
 
     // When
     const page = buildPageModel(document, { nodeId, markdown });

@@ -82,6 +82,21 @@ describe('hasRuntimeFacts', () => {
       streaming: {
         streaming: { value: { transport: 'sse' }, confidence: 'declared', collector: 's' },
       },
+      pipes: {
+        pipes: [{ name: 'TrimPipe', scope: 'route', confidence: 'derived', collector: 'pipes' }],
+      },
+      timeout: { timeout: { value: { ms: 5000 }, confidence: 'derived', collector: 'timeout' } },
+      requiredHeaders: {
+        requiredHeaders: { value: ['If-Match'], confidence: 'inferred', collector: 'headers' },
+      },
+      parameterReads: {
+        parameterReads: {
+          value: { parameters: [{ in: 'query', name: 'sort', verdict: 'read' }] },
+          confidence: 'inferred',
+          collector: 'scan',
+        },
+      },
+      statusCode: { statusCode: { value: 201, confidence: 'derived', collector: 'httpCode' } },
     };
 
     // When

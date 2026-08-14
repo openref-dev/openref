@@ -58,14 +58,26 @@ describe('DRIFT_RULE_CODES', () => {
     // Given
     const codes = Object.values(DRIFT_RULE_CODES);
 
-    // Then every code is a group prefix and a number, the numbers are multiples of ten, and no
-    // code repeats: the gap is what lets a later rule related to an existing one take a
-    // neighbouring number instead of the end of the list.
+    // Then every code is a group prefix and a number and no code repeats. The numbers are NOT
+    // asserted to be multiples of ten, and that assertion used to stand here: the gap of ten
+    // exists so a later rule related to an existing one can take a neighbouring number, which
+    // is exactly what SP011 and SP012 did in TX-COLLECTORS, so a test requiring round numbers
+    // forbade the mechanism the gap is for.
     for (const code of codes) {
       expect(code).toMatch(/^(RT|SP|SC|DX)\d{3}$/);
-      expect(Number(code.slice(2)) % 10).toBe(0);
     }
     expect(new Set(codes).size).toBe(codes.length);
+
+    // And within each group the numbers ascend in catalogue order, which is the half of the
+    // rule that must hold whatever number a relative takes.
+    const grouped = new Map<string, number[]>();
+    for (const code of codes) {
+      const group = code.slice(0, 2);
+      grouped.set(group, [...(grouped.get(group) ?? []), Number(code.slice(2))]);
+    }
+    for (const numbers of grouped.values()) {
+      expect(numbers).toEqual([...numbers].sort((left, right) => left - right));
+    }
   });
 });
 

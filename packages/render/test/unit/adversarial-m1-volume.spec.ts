@@ -133,13 +133,19 @@ describe('T025 attack: an application with nothing left to report', () => {
     // When
     const rules = buildHealthModel(built, '')?.rules ?? [];
 
-    // Then one rule remains, and it is not invented: SPEC 7.1 treats the `Controller_list` id
-    // `@nestjs/swagger` generates as the generator's rather than the author's. THE MESSAGE HAD TO
-    // CHANGE FOR THAT TO BE HONEST: it used to say the specification gives the operation no stable
-    // operationId while printing that operationId beside it as the specification's value.
-    expect(rules.map((rule) => rule.rule)).toEqual(['missing-operation-id']);
-    expect(rules[0]?.findings[0]?.message).toContain('the generator produced');
-    expect(rules[0]?.findings[0]?.sides).toContain('OpenAPI: Controller0_list');
+    // Then one loud rule remains, and it is not invented: SPEC 7.1 treats the `Controller_list`
+    // id `@nestjs/swagger` generates as the generator's rather than the author's. THE MESSAGE HAD
+    // TO CHANGE FOR THAT TO BE HONEST: it used to say the specification gives the operation no
+    // stable operationId while printing that operationId beside it as the specification's value.
+    // The rules that examined and stayed quiet follow as zero rows since TX-PARITY-UI, which is
+    // the panel saying they looked, not the panel inventing work.
+    const loud = rules.filter((rule) => rule.findings.length > 0);
+    expect(loud.map((rule) => rule.rule)).toEqual(['missing-operation-id']);
+    expect(loud[0]?.findings[0]?.message).toContain('the generator produced');
+    expect(loud[0]?.findings[0]?.sides).toContain('OpenAPI: Controller0_list');
+    expect(
+      rules.filter((rule) => rule.findings.length === 0).every((rule) => rule.count === '0'),
+    ).toBe(true);
 
     // And the page a reader gets is a sixth of the drifting one
     const page = await renderPage(built);

@@ -102,6 +102,56 @@ export type {
 export { readGuards } from './runtime/domain/guards';
 export type { GuardReading } from './runtime/domain/guards';
 
+// The collectors of TX-COLLECTORS, per SPEC 6.2.1: the instruments behind the four parity rows
+// that shipped hatched, and the explicit status code behind SP012. None needs a third party
+// package; the two that read a host's own metadata take its key and are never given a default.
+export {
+  pipesCollector,
+  PIPES_COLLECTOR_NAME,
+} from './runtime/infrastructure/collectors/pipes.collector';
+export type {
+  PipesCollector,
+  PipesCollectorProblem,
+} from './runtime/infrastructure/collectors/pipes.collector';
+export {
+  timeoutCollector,
+  TIMEOUT_COLLECTOR_NAME,
+} from './runtime/infrastructure/collectors/timeout.collector';
+export type {
+  TimeoutCollector,
+  TimeoutCollectorOptions,
+  TimeoutCollectorProblem,
+  TimeoutCollectorRegistration,
+} from './runtime/infrastructure/collectors/timeout.collector';
+export {
+  headersCollector,
+  HEADERS_COLLECTOR_NAME,
+} from './runtime/infrastructure/collectors/headers.collector';
+export type {
+  HeadersCollector,
+  HeadersCollectorOptions,
+  HeadersCollectorProblem,
+  HeadersCollectorRegistration,
+} from './runtime/infrastructure/collectors/headers.collector';
+export {
+  handlerScanCollector,
+  HANDLER_SCAN_COLLECTOR_NAME,
+} from './runtime/infrastructure/collectors/handler-scan.collector';
+export type {
+  HandlerScanCollector,
+  HandlerScanProblem,
+} from './runtime/infrastructure/collectors/handler-scan.collector';
+export {
+  httpCodeCollector,
+  HTTP_CODE_COLLECTOR_NAME,
+} from './runtime/infrastructure/collectors/http-code.collector';
+export type {
+  HttpCodeCollector,
+  HttpCodeCollectorProblem,
+} from './runtime/infrastructure/collectors/http-code.collector';
+export { readGlobalPipes, readParameterPipes, readRoutePipes } from './runtime/domain/pipes';
+export type { PipeReading } from './runtime/domain/pipes';
+
 // The decorators of SPEC 13.4 and the two collectors that read them, built in T020. These are the
 // `declared` level of SPEC 6.1: what a person wrote down in order to document the endpoint.
 export {

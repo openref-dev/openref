@@ -35,7 +35,8 @@
  */
 
 import { useSlot } from '@openref/vue';
-import { computed, defineComponent, h, ref, type PropType, type VNode } from 'vue';
+import { computed, defineComponent, h, ref, watch, type PropType, type VNode } from 'vue';
+import { methodBadge } from './method-badge';
 import { StateNotice } from './StateNotice';
 import { nodeHref, schemaHref } from '../page/domain/links';
 import {
@@ -78,6 +79,20 @@ function rowClasses(row: NavRow, active: boolean): string[] {
   return classes;
 }
 
+/** Entry ids on the way down to a node, so its group can open when the node becomes current. */
+function ancestorsOf(entries: readonly NavEntryModel[], nodeId: string): readonly string[] {
+  for (const entry of entries) {
+    if (entry.nodeId === nodeId) return [];
+
+    const below = ancestorsOf(entry.children, nodeId);
+    if (below.length > 0 || entry.children.some((child) => child.nodeId === nodeId)) {
+      return [entry.id, ...below];
+    }
+  }
+
+  return [];
+}
+
 /** Renders the document navigation as a windowed list of links. */
 export const NavigationTree = defineComponent({
   name: 'OrefNavigationTree',
@@ -112,6 +127,24 @@ export const NavigationTree = defineComponent({
     // entire and the markup would stop matching what it is hydrating.
     const expanded = ref(expandedInSlice(props.entries));
     const failed = ref(false);
+
+    // THE REMEMBERED OPERATION OPENS ITS OWN GROUP, per SPEC 11 and `TX-PARITY-UI`: the
+    // memory moves `activeNodeId` after mount on the pages that arrived without one, and the
+    // rail's `aria-current` can only stay on a row that is drawn. The children arrive through
+    // the shared store's single fetch, which the host starts when it applies the memory, so
+    // this watches both the id and the entries and expands when the trail exists. It only
+    // ever adds to the open set: what the reader opened stays open.
+    watch(
+      [(): string | null => props.activeNodeId, (): readonly NavEntryModel[] => props.entries],
+      ([nodeId]) => {
+        if (nodeId === null) return;
+
+        const trail = ancestorsOf(props.entries, nodeId);
+        if (trail.length === 0) return;
+
+        expanded.value = new Set([...expanded.value, ...trail]);
+      },
+    );
 
     const rows = computed(() => flattenNavigation(props.entries, expanded.value));
     const chunks = computed(() => chunkRows(rows.value));
@@ -165,13 +198,12 @@ export const NavigationTree = defineComponent({
         ];
       }
 
-      const known = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'];
-      const badge = known.includes(row.method)
-        ? `oref-method-${row.method.toLowerCase()}`
-        : 'oref-method-other';
+      // The SSE badge is the layout's identity mark, per `TX-PARITY-UI`; the path still
+      // comes off the hint by the method's own length, because the hint is `METHOD /path`.
+      const badge = methodBadge(row.method, row.sse);
 
       return [
-        h('span', { class: `oref-badge ${badge}` }, row.method),
+        h('span', { class: `oref-badge ${badge.className}` }, badge.text),
         h('span', { class: 'oref-nav-path' }, row.hint.slice(row.method.length + 1)),
       ];
     }

@@ -164,9 +164,10 @@ describe('every position of the registry, drawn by telltale', () => {
   });
 
   it('should draw the telltale schema tree instead of the expandable rows', async () => {
-    // Given
+    // Given, the tree is driven where one still draws on a node page: the request body,
+    // because the response rows became the compact index with TX-PARITY-UI.
     // When, Then
-    await drive(apiDocument(), 'oref-schema-tree', 'tt-tree-row', { nodeId: nodeId() });
+    await drive(apiDocument(), 'oref-schema-tree', 'tt-tree-row', { nodeId: postNodeId() });
   });
 
   it('should draw the telltale body editor instead of the reference fields', async () => {

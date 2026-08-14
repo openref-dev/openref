@@ -97,6 +97,7 @@ export type {
   FrameTabKind,
   FrameTabModel,
   HealthCheckModel,
+  HealthKpiModel,
   HealthModel,
   HealthRuleModel,
   MediaTypeModel,

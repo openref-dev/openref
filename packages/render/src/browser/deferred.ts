@@ -370,7 +370,10 @@ export function deferredComponents(options: DeferredOptions): DeferrableComponen
         // before the cause was named. The rule is about the mechanism and not about one test: the
         // gate can be armed by a gesture unrelated to the one under test.
         selector: '.oref-section-tryit',
-        events: ['pointerdown', 'click', 'focusin'],
+        // `keydown` as well, since TX-PARITY-UI: `Ctrl Enter` sends, so the chord pressed
+        // into a console that has not mounted must open the gate and be replayed, or the
+        // hint beside Send names a gesture the first press of loses.
+        events: ['pointerdown', 'click', 'focusin', 'keydown'],
         // The one deferred feature whose served markup is a working control rather than
         // readable content, so it is the one whose failed load must say so, per SPEC 11.
         failure: 'The console failed to load. Reload the page to try again.',

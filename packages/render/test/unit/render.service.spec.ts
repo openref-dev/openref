@@ -194,22 +194,22 @@ describe('serializePageModel', () => {
     // this JSON, so a serializer that sorts keys makes the two disagree the moment the client
     // renders anything, and the tree reorders itself under a reader who opened a position. Found
     // in a browser on the demo, recorded in SPEC 12.
+    // The schema travels on the request side, because response schemas left the payload with
+    // TX-PARITY-UI and a payload that ships nothing has no order to assert.
     const authored = ['line1', 'city', 'postalCode', 'country', 'geo'];
     const document = normalizeOpenApiDocument({
       openapi: '3.1.0',
       info: { title: 'Addresses', version: '1.0.0' },
       paths: {
         '/a': {
-          get: {
-            operationId: 'getA',
-            responses: {
-              '200': {
-                description: 'ok',
-                content: {
-                  'application/json': { schema: { $ref: '#/components/schemas/AddressDto' } },
-                },
+          post: {
+            operationId: 'postA',
+            requestBody: {
+              content: {
+                'application/json': { schema: { $ref: '#/components/schemas/AddressDto' } },
               },
             },
+            responses: { '201': { description: 'ok' } },
           },
         },
       },
@@ -224,7 +224,7 @@ describe('serializePageModel', () => {
     });
     const markdown = await createMarkdownRenderer();
     // The id is the one SPEC 5.1 derives from the method and the path, not the `operationId`.
-    const model = buildPageModel(document, { markdown, nodeId: 'get-a' });
+    const model = buildPageModel(document, { markdown, nodeId: 'post-a' });
 
     // When
     const parsed = JSON.parse(serializePageModel(model)) as {
@@ -237,19 +237,24 @@ describe('serializePageModel', () => {
 });
 
 describe('renderAllPages', () => {
-  /** Pages the walk produces: overview, health, nodes, a bench per operation, schemas. */
+  /**
+   * Pages the walk produces: overview, health, states, nodes, a bench per operation, schemas
+   * and a shapes page per schema. The showcase pages entered the walk with TX-PARITY-UI, when
+   * the bar gained their tabs: the walk is every page a tab links to.
+   */
   function expectedCount(document: ReturnType<typeof smallDocument>): number {
     const operations = [...document.nodes.values()].filter(
       (node) => node.kind === 'operation',
     ).length;
 
-    return document.nodes.size + operations + document.schemas.size + 2;
+    return document.nodes.size + operations + document.schemas.size * 2 + 3;
   }
 
-  it('should render every page a link can reach: overview, health, nodes, benches, schemas', async () => {
+  it('should render every page a link can reach: overview, health, states, nodes, benches, schemas, shapes', async () => {
     // Given, a schema has a page because the navigation ends in a Schemas group that links to
     // one; the health page and a bench per operation are here since TX-FRAME because the tab
-    // bar links to them, and a build whose tabs 404 is the same broken link.
+    // bar links to them, and the states and shapes pages since TX-PARITY-UI for the same
+    // reason: a build whose tabs 404 is the same broken link.
     const document = smallDocument();
 
     // When
@@ -259,7 +264,7 @@ describe('renderAllPages', () => {
     expect(pages).toHaveLength(expectedCount(document));
     expect(pages[0]?.nodeId).toBeNull();
     expect(pages[0]?.schemaId).toBeNull();
-    expect(pages.filter((page) => page.schemaId !== null)).toHaveLength(document.schemas.size);
+    expect(pages.filter((page) => page.schemaId !== null)).toHaveLength(document.schemas.size * 2);
     expect(pages.filter((page) => page.title.startsWith('Bench:'))).toHaveLength(
       [...document.nodes.values()].filter((node) => node.kind === 'operation').length,
     );

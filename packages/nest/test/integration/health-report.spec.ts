@@ -133,6 +133,9 @@ describe('the health report, against the running example application', () => {
         'stream-unspecified',
         'error-undocumented',
         'orphan-operation',
+        'parameter-unread',
+        'header-requiredness-drift',
+        'status-drift',
         'missing-description',
         'missing-example',
         'missing-operation-id',
@@ -191,8 +194,51 @@ describe('the health report, against the running example application', () => {
       expect(issues(found, 'error-undocumented')).toEqual([]);
       expect(issues(found, 'orphan-operation')).toEqual([]);
       expect(issues(found, 'missing-description')).toEqual([]);
+      // The TX-COLLECTORS pair that examined and stayed quiet: the receipt's token header is
+      // documented required, and create's explicit 201 is among its documented codes.
+      expect(issues(found, 'header-requiredness-drift')).toEqual([]);
+      expect(issues(found, 'status-drift')).toEqual([]);
       expect(check(found, 'orphan-operation')).toMatchObject({ passed: 7, total: 7 });
       expect(check(found, 'ratelimit-undocumented')).toMatchObject({ passed: 1, total: 1 });
+      expect(check(found, 'header-requiredness-drift')).toMatchObject({ passed: 1, total: 1 });
+      expect(check(found, 'status-drift')).toMatchObject({ passed: 1, total: 1 });
+    },
+  );
+
+  it(
+    'should report the six declarations the list handler never reads, and only those',
+    { timeout: SPAWNED_PROCESS_TIMEOUT_MS },
+    () => {
+      // Given the list operation, which declares nine query parameters and a header and binds
+      // four of them by name. The drift is real: the other five and the header promise
+      // filtering and echoing that the handler does not perform.
+      const found = report();
+      const drift = issues(found, 'parameter-unread');
+
+      // Then one finding, on the one operation whose declarations exceed its reads
+      expect(drift).toHaveLength(1);
+      const finding = drift[0];
+      expect(finding?.runtimeValue).toContain('createdAfter');
+      expect(finding?.runtimeValue).toContain('createdBefore');
+      expect(finding?.runtimeValue).toContain('sort');
+      expect(finding?.runtimeValue).toContain('page');
+      expect(finding?.runtimeValue).toContain('perPage');
+      expect(finding?.runtimeValue).toContain('X-Request-Id');
+      expect(finding?.runtimeValue).not.toContain('currency');
+      expect(finding?.runtimeValue).not.toContain('status');
+      expect(finding?.runtimeValue).not.toContain('minAmount');
+      expect(finding?.runtimeValue).not.toContain('maxAmount');
+
+      // And the scan's conclusion is a contradiction at inferred: which side is wrong is a
+      // person's call, and no fix mode ever touches it, per SPEC 7.1.
+      expect(finding?.classification).toEqual({ bucket: 'contradiction' });
+      expect(finding?.basis).toEqual({ kind: 'collected', confidence: 'inferred' });
+
+      // And every operation with a scanned fact is in the denominator; the read one, `read`
+      // with its bound id, examined and stayed quiet.
+      const scanned = check(found, 'parameter-unread');
+      expect(scanned.total).toBeGreaterThanOrEqual(2);
+      expect(scanned.total - scanned.passed).toBe(1);
     },
   );
 
@@ -200,14 +246,14 @@ describe('the health report, against the running example application', () => {
     'should keep a collector failure out of the drift list entirely',
     { timeout: SPAWNED_PROCESS_TIMEOUT_MS },
     () => {
-      // Given the seven collectors of the example, none of which declined
+      // Given the twelve collectors of the example, none of which declined
       const found = report();
 
       // Then. THE BOUNDARY SPEC 7 DRAWS, AND THE ONE THIS TASK COULD MOST EASILY HAVE BLURRED: a
       // collector that failed is an instrument failing, not two sides disagreeing, and a drift row
       // sends a reader to edit their own code. It is a check, and it is never a finding.
       expect(found.skipped).toEqual([]);
-      expect(check(found, 'runtime-collectors')).toMatchObject({ passed: 7, total: 7 });
+      expect(check(found, 'runtime-collectors')).toMatchObject({ passed: 12, total: 12 });
       expect(
         found.drift.every((issue) => issue.nodeId !== undefined || issue.schemaId !== undefined),
       ).toBe(true);

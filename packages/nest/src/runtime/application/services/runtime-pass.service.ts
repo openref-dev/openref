@@ -32,6 +32,7 @@ import {
 } from '../../infrastructure/adapters/controller-discovery.adapter';
 import { pairRoutes, type PairingResult } from '../../domain/route-pairing';
 import { readGlobalGuards } from '../../domain/guards';
+import { readGlobalPipes } from '../../domain/pipes';
 import type { DiscoveryServiceLike } from '../../../shared/types/nest-surface';
 
 /** Everything the pass needs, gathered by whoever has access to the container. */
@@ -122,13 +123,16 @@ export function runRuntimePass(
   document: IRDocument,
   options: RuntimePassOptions,
 ): RuntimePassResult {
-  // THE GLOBAL GUARDS ARE READ ONCE, HERE, per SPEC 6.2.1. They are one registration for the whole
-  // application, so the container is walked once rather than once per node, and the answer is
-  // handed to every collector through its context instead of each one finding its own way to it.
+  // THE GLOBAL GUARDS AND PIPES ARE READ ONCE, HERE, per SPEC 6.2.1. Each is one registration
+  // for the whole application, so the container is walked once rather than once per node, and
+  // the answers are handed to every collector through its context instead of each one finding
+  // its own way to them.
   const global = readGlobalGuards(options.discovery);
+  const globalPipes = readGlobalPipes(options.discovery);
   const registry = new CollectorRegistry(options.collectors, {
     ...options,
     globalGuards: global.names,
+    globalPipes: globalPipes.names,
   });
   const discovered = discoverRoutes(options.discovery, options.reflector);
   const pairing = pairRoutes(document.nodes.values(), discovered.routes);
@@ -165,6 +169,17 @@ export function runRuntimePass(
             reason:
               `${String(global.anonymous)} guard(s) are registered under APP_GUARD and have no ` +
               'class name to report, so they protect every route and are absent from the ' +
+              'reference. A plain object under useValue, or an anonymous class, produces this',
+          },
+        ]),
+    ...(globalPipes.anonymous === 0
+      ? []
+      : [
+          {
+            subject: 'the application',
+            reason:
+              `${String(globalPipes.anonymous)} pipe(s) are registered under APP_PIPE and have ` +
+              'no class name to report, so they stand on every route and are absent from the ' +
               'reference. A plain object under useValue, or an anonymous class, produces this',
           },
         ]),

@@ -23,12 +23,14 @@ import type { DriftModel } from '@openref/vue';
 export function DriftCard(props: { readonly issue: DriftModel }): VNode {
   const issue = props.issue;
 
-  // THE CARD PRINTS NO DISPLAY CODE, AND THE ABSENCE WAS MEASURED RATHER THAN PREFERRED. Every
-  // place a card is drawn already stands under the code: the Health panel groups findings by
-  // rule and its summary line carries the code once, and an operation page's row findings carry
-  // it in the FixBar. A copy per card is the same five characters up to 578 times on the T025
-  // volume document, 22 KB of markup restating the group heading, and it pushed that page past
-  // the bound the maintainer set.
+  // THE CARD PRINTS NO DISPLAY CODE AND NO SEVERITY CHIP, AND BOTH ABSENCES WERE MEASURED
+  // RATHER THAN PREFERRED. Every place a card is drawn already stands under both: the Health
+  // panel groups findings by rule, its summary line carries the code and, since
+  // `TX-PARITY-UI`, the severity chip once, because a group's findings share one severity by
+  // construction; an operation page's row findings carry both in the FixBar. A copy per card
+  // is the same handful of characters up to 578 times on the T025 volume document: the code
+  // was 22 KB of repetition, and the chip measured 40 KB more, each restating what the group
+  // heading states once.
   return h('li', { class: `oref-drift ${issue.severityClass}` }, [
     h('span', { class: 'oref-drift-rule' }, issue.rule),
     issue.href === ''

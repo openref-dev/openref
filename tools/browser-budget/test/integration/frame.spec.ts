@@ -365,9 +365,10 @@ describe('the tab bar of the frame', () => {
   }
 
   it(
-    'should carry four tabs on an operation page, each an address that survives a reload',
+    'should carry the six tabs on an operation page, each an address that survives a reload',
     async () => {
-      // Given the operation page of the demo
+      // Given the operation page of the demo, whose bar is the prototype's six since
+      // TX-PARITY-UI: operation, schema, shapes, bench, health, states
       const context = await chrome.browser.newContext({ viewport: WIDE });
       const page = await context.newPage();
       await page.goto(`${app.url}${EXAMPLE_BASE_PATH}/get-orders`, { waitUntil: 'load' });
@@ -375,19 +376,26 @@ describe('the tab bar of the frame', () => {
       // When the bar is read
       const tabs = await tabsOn(page);
 
-      // Then, the three operation tabs and health, the operation tab active
+      // Then, all six, the operation tab active, and the schema tab landed on the item schema
+      // of the list operation, per item 28: OrderDto, not the ProblemDto of the first error
       expect(tabs.map((tab) => tab.label.replace(/\d+$/, ''))).toEqual([
         'Operation',
         'Schema',
+        'Shapes',
         'Bench',
         'Health',
+        'States',
       ]);
       expect(tabs[0]?.active).toBe(true);
       expect(tabs[0]?.href).toBe(`${EXAMPLE_BASE_PATH}/get-orders`);
-      expect(tabs[2]?.href).toBe(`${EXAMPLE_BASE_PATH}/bench/get-orders`);
-      expect(tabs[3]?.href).toBe(`${EXAMPLE_BASE_PATH}/health`);
+      expect(tabs[1]?.href).toBe(`${EXAMPLE_BASE_PATH}/schema/OrderDto`);
+      expect(tabs[2]?.href).toBe(`${EXAMPLE_BASE_PATH}/shapes/OrderDto`);
+      expect(tabs[3]?.href).toBe(`${EXAMPLE_BASE_PATH}/bench/get-orders`);
+      expect(tabs[4]?.href).toBe(`${EXAMPLE_BASE_PATH}/health`);
+      expect(tabs[5]?.href).toBe(`${EXAMPLE_BASE_PATH}/states`);
 
-      // And each address answers a cold load with its own tab current
+      // And each address answers a cold load with its own tab current, the memory keeping the
+      // operation tabs in the bar on the pages that have none of their own
       for (const tab of tabs.slice(1)) {
         const response = await page.goto(`${app.url}${tab.href}`, { waitUntil: 'load' });
         expect(response?.status()).toBe(200);
@@ -395,6 +403,84 @@ describe('the tab bar of the frame', () => {
         expect(current).toBe(tab.href);
       }
 
+      await context.close();
+    },
+    TIMEOUT,
+  );
+
+  it(
+    'should remember the operation across the four pages, per TX-PARITY-UI',
+    async () => {
+      // Given a reader who was on GET /orders and walks to the four operation-less pages
+      const context = await chrome.browser.newContext({ viewport: WIDE });
+      const page = await context.newPage();
+      await page.goto(`${app.url}${EXAMPLE_BASE_PATH}/get-orders`, { waitUntil: 'load' });
+      const crumb = await page.evaluate(() => {
+        interface ElementLike {
+          readonly textContent: string | null;
+        }
+        const root = globalThis as unknown as {
+          document: { querySelector(selector: string): ElementLike | null };
+        };
+        return root.document.querySelector('.oref-crumb')?.textContent ?? '';
+      });
+
+      for (const target of ['/health', '/states', '/schema/OrderDto', '/shapes/OrderDto']) {
+        // When the reader arrives on a page that has no operation of its own
+        await page.goto(`${app.url}${EXAMPLE_BASE_PATH}${target}`, { waitUntil: 'load' });
+        const state = await page.evaluate(() => {
+          interface ElementLike {
+            readonly textContent: string | null;
+            getAttribute(name: string): string | null;
+          }
+          const root = globalThis as unknown as {
+            document: {
+              querySelector(selector: string): ElementLike | null;
+              querySelectorAll(selector: string): readonly ElementLike[];
+            };
+          };
+
+          return {
+            crumb: root.document.querySelector('.oref-crumb')?.textContent ?? '',
+            operationTab:
+              [...root.document.querySelectorAll('.oref-tab')]
+                .find((tab) => (tab.textContent ?? '').startsWith('Operation'))
+                ?.getAttribute('href') ?? '',
+            railCurrent:
+              root.document
+                .querySelector('.oref-nav-item[aria-current="page"]')
+                ?.getAttribute('href') ?? '',
+          };
+        });
+
+        // Then the operation tab points back, the crumb stays the operation's, and the rail's
+        // aria-current stays on it
+        expect(state.operationTab, `${target} lost the operation tab`).toBe(
+          `${EXAMPLE_BASE_PATH}/get-orders`,
+        );
+        expect(state.crumb, `${target} lost the crumb`).toBe(crumb);
+        expect(state.railCurrent, `${target} lost the rail current`).toBe(
+          `${EXAMPLE_BASE_PATH}/get-orders`,
+        );
+      }
+
+      // And a fresh visitor with no memory sees no operation tabs on the same page
+      const fresh = await chrome.browser.newContext({ viewport: WIDE });
+      const cold = await fresh.newPage();
+      await cold.goto(`${app.url}${EXAMPLE_BASE_PATH}/health`, { waitUntil: 'load' });
+      const coldTabs = await cold.evaluate(() => {
+        interface ElementLike {
+          readonly textContent: string | null;
+        }
+        const root = globalThis as unknown as {
+          document: { querySelectorAll(selector: string): readonly ElementLike[] };
+        };
+        return [...root.document.querySelectorAll('.oref-tab')].map((tab) => tab.textContent ?? '');
+      });
+      expect(coldTabs.some((label) => label.startsWith('Operation'))).toBe(false);
+      expect(coldTabs.some((label) => label.startsWith('Health'))).toBe(true);
+
+      await fresh.close();
       await context.close();
     },
     TIMEOUT,
@@ -455,33 +541,37 @@ describe('the tab bar of the frame', () => {
   );
 
   it(
-    'should keep the showcase addresses out of every bar and out of the rail',
+    'should link the showcase pages from the bar and keep them out of the rail',
     async () => {
-      // Given the 2026-08-14 decision: shapes and states exist at their addresses and a reader
-      // never sees them in navigation.
+      // Given the maintainer's 2026-08-14 reversal, per TX-PARITY-UI: the bar is the
+      // prototype's six constant items, so shapes and states entered it; the rail is the
+      // document's tree and still lists neither, because a page kind is not a node.
       const context = await chrome.browser.newContext({ viewport: WIDE });
       const page = await context.newPage();
 
-      for (const path of [EXAMPLE_BASE_PATH, `${EXAMPLE_BASE_PATH}/get-orders`]) {
-        await page.goto(`${app.url}${path}`, { waitUntil: 'load' });
-        const linked = await page.evaluate(() => {
-          interface ElementLike {
-            getAttribute(name: string): string | null;
-          }
-          const root = globalThis as unknown as {
-            document: { querySelectorAll(selector: string): readonly ElementLike[] };
-          };
+      await page.goto(`${app.url}${EXAMPLE_BASE_PATH}/get-orders`, { waitUntil: 'load' });
+      const links = await page.evaluate(() => {
+        interface ElementLike {
+          getAttribute(name: string): string | null;
+        }
+        const root = globalThis as unknown as {
+          document: { querySelectorAll(selector: string): readonly ElementLike[] };
+        };
 
-          return [...root.document.querySelectorAll('a[href]')].some(
-            (anchor) =>
-              (anchor.getAttribute('href') ?? '').includes('/states') ||
-              (anchor.getAttribute('href') ?? '').includes('/shapes/'),
+        const of = (selector: string): readonly string[] =>
+          [...root.document.querySelectorAll(selector)].map(
+            (anchor) => anchor.getAttribute('href') ?? '',
           );
-        });
-        expect(linked, `${path} links to a showcase address`).toBe(false);
-      }
 
-      // And the addresses still answer, which is what "exists" means
+        return { bar: of('.oref-tabs a[href]'), rail: of('.oref-nav a[href]') };
+      });
+
+      expect(links.bar.some((href) => href.includes('/states'))).toBe(true);
+      expect(links.bar.some((href) => href.includes('/shapes/'))).toBe(true);
+      expect(links.rail.some((href) => href.includes('/states'))).toBe(false);
+      expect(links.rail.some((href) => href.includes('/shapes/'))).toBe(false);
+
+      // And the addresses answer, which the tabs now promise
       const states = await page.goto(`${app.url}${EXAMPLE_BASE_PATH}/states`, {
         waitUntil: 'load',
       });

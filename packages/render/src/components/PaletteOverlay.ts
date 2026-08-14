@@ -12,6 +12,7 @@
 
 import { useSlot, type PaletteHitModel } from '@openref/vue';
 import { defineComponent, h, ref, type PropType, type VNode } from 'vue';
+import { PALETTE_NOTICES } from './palette-notices';
 import { StateNotice } from './StateNotice';
 import { type KeyEvent, type QueryRoot } from '../shared/dom';
 
@@ -131,16 +132,16 @@ export const PaletteOverlay = defineComponent({
         );
       }
 
+      // THE SENTENCES COME FROM THE ONE CONSTANT THE CATALOGUE DERIVES FROM, per SPEC 11 and
+      // `TX-PARITY-UI`: the palette said its own words, `Type to search` against the
+      // catalogue's `Type to search this reference.`, and two strings drifting apart silently
+      // is what the catalogue exists to prevent.
       const empty =
         props.query.trim() === ''
-          ? { kind: 'search-empty' as const, message: 'Type to search' }
+          ? { kind: 'search-empty' as const, message: PALETTE_NOTICES['search-empty'] }
           : props.partial
-            ? {
-                kind: 'search-partial' as const,
-                message:
-                  'Nothing matches what this page arrived with. The rest of the index is still loading.',
-              }
-            : { kind: 'search-no-results' as const, message: 'Nothing matches' };
+            ? { kind: 'search-partial' as const, message: PALETTE_NOTICES['search-partial'] }
+            : { kind: 'search-no-results' as const, message: PALETTE_NOTICES['search-no-results'] };
 
       return h('div', { class: 'oref-palette-scrim', onClick: props.onClose }, [
         h(

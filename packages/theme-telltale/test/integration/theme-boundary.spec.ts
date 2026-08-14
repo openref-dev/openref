@@ -82,23 +82,41 @@ describe('the markup a complete L2 theme does not own', () => {
     // with TX-FRAME: the two new pages are articles the reference draws outside every position,
     // and the bench head is the reference's own two classes. The boundary widened, and this
     // list is where that fact is read instead of absorbed.
+    // ELEVEN ARRIVED WITH TX-PARITY-UI, 2026-08-14, all page furniture outside every position:
+    // the bench head's kicker, badge and path (`oref-bench-kicker`, `oref-badge`,
+    // `oref-endpoint`, `oref-path`, and the badge's generated `oref-method-*` family), the
+    // bench's actions row with Reset and the chord hint (`oref-bench-actions`,
+    // `oref-tryit-reset`, `oref-kbd`), and the description section with its count
+    // (`oref-section-description`, `oref-section-count`), which `NodePanel` draws the way it
+    // always drew the bare description. Whether the bench head becomes a position belongs to
+    // the telltale adoption task, with the two page heads TX-FRAME already put there.
     expect(surviving).toEqual([
+      'oref-badge',
+      'oref-bench-actions',
+      'oref-bench-kicker',
       'oref-bench-page',
       'oref-code',
       'oref-description',
+      'oref-endpoint',
       'oref-example',
       'oref-field',
       'oref-field-control',
       'oref-field-label',
       'oref-field-note',
       'oref-health-page',
+      'oref-kbd',
       'oref-media',
       'oref-media-head',
       'oref-media-type',
+      'oref-method-get',
+      'oref-method-post',
       'oref-operation',
       'oref-operation-header',
+      'oref-path',
       'oref-root',
       'oref-section',
+      'oref-section-count',
+      'oref-section-description',
       'oref-section-health',
       'oref-section-request',
       'oref-section-security',
@@ -109,6 +127,7 @@ describe('the markup a complete L2 theme does not own', () => {
       'oref-security-type',
       'oref-title',
       'oref-tryit-form',
+      'oref-tryit-reset',
     ]);
   });
 

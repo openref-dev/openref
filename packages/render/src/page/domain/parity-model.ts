@@ -11,13 +11,13 @@
  * health report answers `unknown` on every row rather than borrowing verdicts from a run that
  * never happened.
  *
- * FOUR ROWS HAVE NO FACT UNTIL THEIR COLLECTORS EXIST, required headers, validation, timeout
- * and unread parameters, and they are rows all the same: the runtime side is empty and the
- * `reason` names why, which the component draws as the hatched cell of the design. The row set
- * is complete from the first day and fills in as collectors arrive, and the phrase is honest
- * about the instrument rather than silent about the application: "nothing reads this yet" is a
- * statement about OPENREF, and it stands in the one cell whose absence would otherwise read as
- * a statement about the route.
+ * EVERY ROW HAS AN INSTRUMENT SINCE `TX-COLLECTORS`, so the reason phrase of an empty cell no
+ * longer names a missing collector: an absent fact means nothing was observed, the same phrase
+ * the other rows always used, and the hatched treatment stays for any document these collectors
+ * did not run on. Two rows draw their facts under a `?` verdict, validation and timeout,
+ * because no rule examines them yet, which is the roles precedent; and the response codes row
+ * answers to two rules at once, `error-undocumented` and `status-drift`, drawing `=` only when
+ * at least one examined and stayed quiet and none found anything.
  *
  * EVERYTHING HERE IS DECIDED ON THE SERVER, once per document hash, like the rest of the page
  * model: the limit is already in words, the source link is already expanded, the code is
@@ -48,9 +48,12 @@ import {
   EMPTY_VALUE,
   guardValues,
   mark,
+  parameterReadsLabel,
+  pipeValues,
   rateLimitLabel,
   SEVERITY_CLASSES,
   streamingLabel,
+  timeoutLabel,
 } from './runtime-values';
 
 /** What the specification says when it says nothing, which the design prints rather than hides. */
@@ -60,26 +63,21 @@ const NOT_DESCRIBED = 'not described';
 const NOTHING_OBSERVED = 'Nothing observed here.';
 
 /**
- * The reason phrases of the four collector-less rows, naming the missing instrument.
+ * The rules that give each row its verdict, for the rows that have any today.
  *
- * Each states what does not exist yet, because the empty cell is a statement about OPENREF and
- * not about the route: a phrase like "no validation" would assert a fact nobody collected,
- * which is the guess SPEC 6.1 refuses.
+ * A LIST PER ROW SINCE `TX-COLLECTORS`, because the response codes row answers two questions
+ * with one pair of cells: the documented codes against the declared errors, and against the
+ * explicit success code. The rows with no list, roles, validation, timeout and source, draw
+ * their facts under `?` until a rule exists to examine them.
  */
-const NO_COLLECTOR: Partial<Record<ParityRowKind, string>> = {
-  'required-headers': 'Header requiredness sits in guard metadata nothing reads yet.',
-  validation: 'No collector reads pipes yet.',
-  timeout: 'No collector reads interceptors yet.',
-  'unread-parameters': 'Handler reads are a compile time scan that does not exist yet.',
-};
-
-/** The rule that gives each row its verdict, for the rows that have one today. */
-const ROW_RULES: Partial<Record<ParityRowKind, IRDriftRule>> = {
-  authentication: 'security-drift',
-  scopes: 'scope-drift',
-  'rate-limit': 'ratelimit-undocumented',
-  'response-codes': 'error-undocumented',
-  streaming: 'stream-unspecified',
+const ROW_RULES: Partial<Record<ParityRowKind, readonly IRDriftRule[]>> = {
+  authentication: ['security-drift'],
+  scopes: ['scope-drift'],
+  'rate-limit': ['ratelimit-undocumented'],
+  'response-codes': ['error-undocumented', 'status-drift'],
+  'required-headers': ['header-requiredness-drift'],
+  streaming: ['stream-unspecified'],
+  'unread-parameters': ['parameter-unread'],
 };
 
 /** The eleven rows, in the order the design draws them. */
@@ -267,7 +265,24 @@ function runtimeSide(
     }
     case 'response-codes': {
       const errors = runtime.errors;
-      if (errors === undefined) return [];
+      const status = runtime.statusCode;
+      if (errors === undefined && status === undefined) return [];
+      // THE EXPLICIT SUCCESS CODE COMES FIRST, because the success story precedes the error
+      // story in every list of codes the document itself draws. It is a value beside the error
+      // groups rather than a row of its own: which code success answers with is a fact about
+      // the operation's response codes, which is what this row is about.
+      const success =
+        status === undefined
+          ? []
+          : [
+              {
+                ...EMPTY_VALUE,
+                text: `success ${String(status.value)}`,
+                note: 'explicit @HttpCode',
+                ...mark(status.confidence, status.collector),
+              },
+            ];
+      if (errors === undefined) return success;
       // ONLY `declared` SURVIVES BEING EMPTY, per SPEC 6.4: it is the group a person writes, so
       // an empty one asserts that the route was read and nobody wrote anything on it, and the
       // cell keeps the sentence the labelled rows carried. The other two groups assert nothing
@@ -283,6 +298,7 @@ function runtimeSide(
             ]
           : contractValues(errors.declared, 'declared in code');
       return [
+        ...success,
         ...declared,
         ...contractValues(errors.runtimeDerived, 'derived from runtime'),
         ...contractValues(errors.global, 'application wide'),
@@ -313,11 +329,44 @@ function runtimeSide(
         },
       ];
     }
-    case 'required-headers':
+    case 'required-headers': {
+      const headers = runtime.requiredHeaders;
+      if (headers === undefined) return [];
+      return [
+        {
+          ...EMPTY_VALUE,
+          text: headers.value.join(', '),
+          note: 'named required in guard metadata',
+          ...mark(headers.confidence, headers.collector),
+        },
+      ];
+    }
     case 'validation':
-    case 'timeout':
-    case 'unread-parameters':
-      return [];
+      return pipeValues(runtime.pipes ?? []);
+    case 'timeout': {
+      const timeout = runtime.timeout;
+      if (timeout === undefined) return [];
+      return [
+        {
+          ...EMPTY_VALUE,
+          text: timeoutLabel(timeout.value),
+          ...mark(timeout.confidence, timeout.collector),
+        },
+      ];
+    }
+    case 'unread-parameters': {
+      const reads = runtime.parameterReads;
+      if (reads === undefined) return [];
+      const label = parameterReadsLabel(reads.value);
+      return [
+        {
+          ...EMPTY_VALUE,
+          text: label.value,
+          note: label.note,
+          ...mark(reads.confidence, reads.collector),
+        },
+      ];
+    }
   }
 }
 
@@ -341,9 +390,11 @@ export function buildParityRows(
 
   return ROW_ORDER.map(([kind, label]) => {
     const values = runtimeSide(kind, operation, template);
-    const rule = ROW_RULES[kind];
-    const issue =
-      rule === undefined ? undefined : issues.find((candidate) => candidate.rule === rule);
+    const rules = ROW_RULES[kind] ?? [];
+    // THE FIRST RECORDED FINDING TAKES THE FIXBAR, in the report's own order, which is the
+    // catalogue order of SPEC 7.1. A second finding on a two rule row is not lost: the panel's
+    // card list keeps every finding whose code no row consumed.
+    const issue = issues.find((candidate) => rules.includes(candidate.rule));
 
     let verdict: ParityVerdict = 'unknown';
     let severityClass = '';
@@ -360,12 +411,14 @@ export function buildParityRows(
         // moved with it.
         href: `${healthPageHref(basePath)}#oref-rule-${issue.rule}`,
       };
-    } else if (
-      measured &&
-      rule !== undefined &&
-      operationRuleOutcome(operation, rule) === 'clean'
-    ) {
-      verdict = 'match';
+    } else if (measured && rules.length > 0) {
+      // `=` ONLY WHERE A RULE EXAMINED AND STAYED QUIET, per SPEC 6.3, extended over a list:
+      // at least one rule in scope and clean, and none reporting a finding the report does not
+      // carry. The second guard is belt over braces: the report ran the same rules, so a
+      // `finding` outcome without a recorded issue should not occur, and answering `unknown`
+      // there claims less rather than more.
+      const outcomes = rules.map((rule) => operationRuleOutcome(operation, rule));
+      if (outcomes.includes('clean') && !outcomes.includes('finding')) verdict = 'match';
     }
 
     return {
@@ -373,7 +426,7 @@ export function buildParityRows(
       label,
       spec: specSide(kind, operation),
       runtime: values,
-      reason: values.length > 0 ? '' : (NO_COLLECTOR[kind] ?? NOTHING_OBSERVED),
+      reason: values.length > 0 ? '' : NOTHING_OBSERVED,
       verdict,
       severityClass,
       fix,

@@ -103,7 +103,7 @@ console does.
 | `RunnerBodyField` | type | One named field of a form body, as filled in |
 | `RunnerBodyEditor` | type | Which of the three controls a media type is filled in with |
 | `RunnerBodyFieldView` | type | One field of a form body, as drawn |
-| `RunnerBodyMediaTypeView` | type | One declared media type and how it is filled in |
+| `RunnerBodyMediaTypeView` | type | One declared media type and how it is filled in. Carries optional `exampleText` since `TX-PARITY-UI`, the bench's prefill |
 | `RunnerFile` | type | A file the reader chose, as bytes |
 | `RunnerSendInput` | type | One send: operation, server, values, body |
 | `RunnerResult` | type | What came back, and how long it took |
@@ -136,15 +136,15 @@ would have been 1 612 858 bytes on `twilio-api-v2010.yaml` against a node page's
 | `PageKind` | type | Which page it is. Seven members since `TX-FRAME`: the three, then `bench`, `health`, `shapes`, `states`, per SPEC 13.3 |
 | `FrameModel` | type | The app bar's data: resolved tabs, breadcrumb, back, rail statistics. Added at `TX-FRAME`, minor |
 | `FrameTabModel` | type | One tab with its target resolved, so no theme spells an address twice |
-| `FrameTabKind` | type | Which tab it is; the two showcase pages have no tab |
+| `FrameTabKind` | type | Which tab it is. Six since `TX-PARITY-UI`: the showcase pages entered the bar by the maintainer's reversal, and the bar is constant by remembering, per SPEC 11 |
 | `FrameStatsModel` | type | The rail's stats row; `drift` is null on a document nothing measured, which is not zero |
 | `NodeModel` | type | A node page |
-| `NodeHeaderModel` | type | Its header. Promises `tags` and `operationId` since `TX-MARKUP`, for the kicker |
+| `NodeHeaderModel` | type | Its header. Promises `tags` and `operationId` since `TX-MARKUP`, for the kicker, and `sse` since `TX-PARITY-UI`, for the badge |
 | `SchemaPageModel` | type | A named schema on its own page. Carries `dialect` since `TX-MARKUP` |
-| `NavEntryModel` | type | One row of the navigation. Carries `driftCount` since `TX-FRAME`, summed over children for a group; zero draws no marker and asserts nothing. Carries `method` since `TX-MARKUP`, for the rail's badge |
+| `NavEntryModel` | type | One row of the navigation. Carries `driftCount` since `TX-FRAME`, summed over children for a group; zero draws no marker and asserts nothing. Carries `method` since `TX-MARKUP`, for the rail's badge, and `sse` since `TX-PARITY-UI`, for the badge that says SSE |
 | `PaletteHitModel` | type | One row of the command palette |
-| `ParameterModel` | type | One parameter row, with its description already HTML |
-| `ResponseModel` | type | One response, with its examples already highlighted |
+| `ParameterModel` | type | One parameter row, with its description already HTML. Carries the scan's columns since `TX-PARITY-UI`: `runtimeNote`, `confidence`, `collector`, `unread` |
+| `ResponseModel` | type | One response, compact since `TX-PARITY-UI`: `phrase`, `schemaLabel` and `schemaHref` added, `content` kept with its `exampleHtml` built empty, the schemas on their own pages |
 | `MediaTypeModel` | type | One media type of a request or response |
 | `CodeSampleModel` | type | One call sample, per SPEC 18 |
 | `SecurityModel` | type | The security a node declares |
@@ -161,9 +161,10 @@ would have been 1 612 858 bytes on `twilio-api-v2010.yaml` against a node page's
 | `ErrorContractGroupModel` | type | One group of the error contracts grid, per SPEC 6.4. Added at `TX-MARKUP`, minor |
 | `ErrorContractItemModel` | type | One item of it: one contract, or several merged because they say the same thing |
 | `DriftModel` | type | One drift finding |
-| `HealthModel` | type | The Documentation Health report of a document |
+| `HealthModel` | type | The Documentation Health report of a document. Carries `kpi` since `TX-PARITY-UI` |
 | `HealthCheckModel` | type | One check of it |
-| `HealthRuleModel` | type | One rule, with its findings grouped under it |
+| `HealthKpiModel` | type | The head's triple: operations, critical, warnings. Added at `TX-PARITY-UI`, minor |
+| `HealthRuleModel` | type | One rule, with its findings grouped under it. Carries `code`, `summary` and `severityClass` since `TX-PARITY-UI`, and a silent rule is a row with no findings |
 
 ### Slots
 

@@ -36,6 +36,7 @@ function contextFor(): CollectorContext {
     reflector,
     moduleRef,
     globalGuards: [],
+    globalPipes: [],
     fact: (value, confidence) => ({ value, confidence, collector: 'testCollector' }),
   };
 }

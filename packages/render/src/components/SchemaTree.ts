@@ -87,7 +87,18 @@ function typeOf(node: SchemaTreeNode): string {
   if (node.schemaName !== undefined) return node.schemaName;
   if (body.$cycle !== undefined) return body.$cycle;
   if (body.enum !== undefined) return 'enum';
-  if (body.type === undefined) return 'any';
+
+  // A COMPOSITION IS TYPED BY ITS KEYWORD AND ITS COUNT, per the layout and `TX-PARITY-UI`:
+  // `oneOf, 3 variants` says what the position is where `any` said nothing. No second chip
+  // repeats the keyword, because one row saying oneOf twice is the F15 class.
+  if (body.type === undefined) {
+    const variants = body.oneOf ?? body.anyOf;
+    if (variants !== undefined && variants.length > 0) {
+      const keyword = body.oneOf !== undefined ? 'oneOf' : 'anyOf';
+      return `${keyword}, ${String(variants.length)} ${variants.length === 1 ? 'variant' : 'variants'}`;
+    }
+    return 'any';
+  }
 
   return typeof body.type === 'string' ? body.type : body.type.join(' | ');
 }
@@ -299,8 +310,12 @@ export const SchemaTree = defineComponent({
       // of a position that is a named schema is that schema's name. `ProblemDto ProblemDto` was
       // on the demo. Where the two coincide the row keeps one of them, and it keeps the link
       // when there is one, since that carries the way to the schema's own page.
+      // THE TYPE OF A NAMED POSITION IS A LINK TO ITS PAGE, per the layout and `TX-PARITY-UI`,
+      // wherever a nested position names a schema, not only when the payload truncated it. The
+      // root stays a link only when it is elsewhere: a schema page's own root linking to
+      // itself would be a control that goes nowhere.
       const type = typeOf(node);
-      const link = isElsewhere(node) && node.schemaId !== undefined;
+      const link = node.schemaId !== undefined && (row.level > 1 || isElsewhere(node));
       const borrowed = row.level === 1 && props.borrowedLabel;
       const same = node.label === type;
 
@@ -311,6 +326,11 @@ export const SchemaTree = defineComponent({
         h('span', { class: marker, 'aria-hidden': 'true' }),
         showName ? h('span', { class: 'oref-schema-name' }, node.label) : null,
         node.required ? h('span', { class: 'oref-required' }, 'required') : null,
+        // THE READ ONLY MARK IS THE LAYOUT'S, per `TX-PARITY-UI`: a server assigned field
+        // says so where the view segment already honours it, and the words are the mark.
+        node.schema.readOnly === true
+          ? h('span', { class: 'oref-schema-readonly' }, 'read only')
+          : null,
         !showType
           ? null
           : link

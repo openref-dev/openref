@@ -29,6 +29,7 @@ import { useSlot } from '@openref/vue';
 import { defineComponent, h, type PropType, type VNode } from 'vue';
 import { DriftCard } from './DriftCard';
 import { ProvenanceTag } from './ProvenanceTag';
+import { SEVERITIES, severityChip } from './severity';
 import type { ParityRowModel, RuntimeModel, RuntimeValueModel } from '@openref/vue';
 import type { Component } from 'vue';
 
@@ -58,19 +59,6 @@ const VERDICTS = {
   drift: ['≠', 'drift', ''],
   unknown: ['?', 'comparison not run', 'oref-verdict-unknown'],
 } as const;
-
-/**
- * The severity vocabulary of a drifted row, keyed by the model's severity class.
- *
- * The design names the levels crit, warn and note, and the suffix is how the FixBar, its chip
- * and the verdict box each get a class of their own rather than borrowing the finding card's,
- * whose background and mark edge belong to a card and not to a chip.
- */
-const SEVERITIES: Readonly<Record<string, readonly [string, string, string]>> = {
-  'oref-drift-crit': ['▲', 'critical', 'crit'],
-  'oref-drift-warn': ['△', 'warning', 'warn'],
-  'oref-drift-note': ['·', 'note', 'note'],
-};
 
 /**
  * One row of the scale: the spec cell, the gutter verdict, the runtime cell, and the FixBar.
@@ -129,10 +117,7 @@ function parityRow(row: ParityRowModel, tag: Component): VNode {
       fix === null || severity === undefined
         ? null
         : h('div', { class: ['oref-fixbar', `oref-fixbar-${suffix}`] }, [
-            h('span', { class: ['oref-sev', `oref-sev-${suffix}`] }, [
-              h('span', { class: 'oref-sev-glyph', 'aria-hidden': 'true' }, severity[0]),
-              severity[1],
-            ]),
+            severityChip(row.severityClass),
             h('span', { class: 'oref-fixbar-text' }, fix.text),
             h('a', { class: 'oref-fixbar-rule', href: fix.href }, fix.code),
           ]),

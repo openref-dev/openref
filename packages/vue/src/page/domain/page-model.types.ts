@@ -59,6 +59,14 @@ export interface NavEntryModel {
    */
   readonly method: string;
   /**
+   * True when the operation's declared responses carry `text/event-stream`.
+   *
+   * Since `TX-PARITY-UI` the rail draws `SSE` as the badge of such a row, per the layout: the
+   * method stays a fact on `method`, and the badge is the design's identity mark. False for
+   * channels, groups and schemas.
+   */
+  readonly sse: boolean;
+  /**
    * Children this entry has in the whole navigation, which is not what it carries.
    *
    * A page ships the navigation it can draw and nothing else, so a closed group arrives with an
@@ -102,6 +110,23 @@ export interface ParameterModel {
   readonly descriptionHtml: string;
   /** Where the schema viewer starts for this row, null when the parameter declares none. */
   readonly schema: IRSchemaSlot | null;
+  /**
+   * What the runtime says about this parameter, in the scan's own vocabulary, per SPEC 6.2.1
+   * and `TX-PARITY-UI`: `seen read`, `not seen read by the handler`, `not accounted for by the
+   * scan`, `required by the application`. Empty when no fact touches the row, which is every
+   * document-only page.
+   */
+  readonly runtimeNote: string;
+  /** Level of the fact behind the note, or null when no fact touches the row, per SPEC 6.1. */
+  readonly confidence: IRConfidence | null;
+  /** Collector that produced the fact. Empty exactly when `confidence` is null. */
+  readonly collector: string;
+  /**
+   * True when the scan's verdict is `not-seen-read`, which is the row SP010 names: the table
+   * highlights it and the bench disables its field with the reason, per the SPEC 11 boundary
+   * of the F14 rule. Never true for `unaccounted`, which is the scan speaking about itself.
+   */
+  readonly unread: boolean;
 }
 
 /** One media type of a body or a response, with its example already highlighted. */
@@ -135,11 +160,28 @@ export interface SchemaPageModel {
   readonly dialect: string;
 }
 
-/** One response row. */
+/**
+ * One response row, compact since `TX-PARITY-UI`: badge, phrase, schema link, note.
+ *
+ * `content` stays for shape compatibility and still lists the declared media types, but the
+ * response `exampleHtml` is built empty and response schemas leave the page's schema payload:
+ * the schemas live on their own pages, which is where `schemaHref` leads. A theme that drew
+ * trees from `content` finds the payload truncated and draws the link, the existing
+ * degradation.
+ */
 export interface ResponseModel {
   readonly statusCode: string;
   readonly descriptionHtml: string;
   readonly content: readonly MediaTypeModel[];
+  /** Reason phrase of the code, `Created`, empty for a code outside the registry's list. */
+  readonly phrase: string;
+  /**
+   * Display name of the schema this response answers with, `OrderDto[]` for an array of a
+   * named schema. Empty when the response declares none the document has a page for.
+   */
+  readonly schemaLabel: string;
+  /** The schema's own page. Empty exactly when `schemaLabel` is. */
+  readonly schemaHref: string;
 }
 
 /** One security requirement, resolved against the document's schemes. */
@@ -201,6 +243,13 @@ export interface NodeHeaderModel {
    * it is the name the document answers to, not a private derivation.
    */
   readonly operationId: string;
+  /**
+   * True when the declared responses carry `text/event-stream`, per `TX-PARITY-UI`: the
+   * header and the bench head draw `SSE` as the badge, the same mark the rail draws. The
+   * method stays on `method`; the badge is the design's identity mark, and the parity
+   * streaming row carries the transport's detail.
+   */
+  readonly sse: boolean;
 }
 
 /** The node a page is about. */
@@ -478,20 +527,45 @@ export interface HealthCheckModel {
   readonly count: string;
 }
 
-/** Everything one rule found, which is what the panel lists. */
+/**
+ * Everything one rule found, which is what the panel lists.
+ *
+ * A RULE THAT EXAMINED AND FOUND NOTHING IS A ROW WITH NO FINDINGS, since `TX-PARITY-UI`: the
+ * panel draws it muted with its zero, never as a disabled control, because a disclosure with
+ * nothing to disclose is the F14 class. A rule that never examined anything is not in the
+ * list at all, per SPEC 7.3's null-against-zero.
+ */
 export interface HealthRuleModel {
   readonly rule: IRDriftRule;
+  /** Display code of the rule, per the SPEC 7.1 table. Since `TX-PARITY-UI`, so a silent rule has one without a finding to borrow it from. */
+  readonly code: string;
+  /** The rule's own sentence, its catalogue label, so no second vocabulary exists to drift. */
+  readonly summary: string;
+  /** Severity class of the rule, the {@link DriftModel.severityClass} vocabulary. */
+  readonly severityClass: string;
   /** How many findings the rule produced, as the closed group prints it. */
   readonly count: string;
   readonly findings: readonly DriftModel[];
 }
 
-/** The Health panel of SPEC 7.2, which the overview page carries. */
+/** The KPI triple of the health page head, per the layout and `TX-PARITY-UI`. */
+export interface HealthKpiModel {
+  /** Operations the report measured, which is `IRHealthReport.operationCount`. */
+  readonly operations: number;
+  /** Findings at `error` severity. */
+  readonly critical: number;
+  /** Findings at `warning` severity. */
+  readonly warnings: number;
+}
+
+/** The Health panel of SPEC 7.2, which the health page carries. */
 export interface HealthModel {
   /** Heading of the panel, carrying what was asked and how much came back. */
   readonly title: string;
   /** The percentage of SPEC 7.2, as it is printed. */
   readonly score: string;
+  /** The head's triple, derived from the report, per `TX-PARITY-UI`. */
+  readonly kpi: HealthKpiModel;
   readonly checks: readonly HealthCheckModel[];
   readonly rules: readonly HealthRuleModel[];
 }
@@ -501,14 +575,23 @@ export interface HealthModel {
  *
  * SIX SINCE `TX-FRAME`, per SPEC 13.3: the layout's tab pages are pages with addresses, not
  * anchors. `bench` is the console on its own address, `health` the report page, `shapes` and
- * `states` the theme author's showcase reached by URL and absent from every bar and tree.
- * The federated service card of SPEC 13.3 enters this union only when M4 gives the page a
- * renderer, the way an SP code is not assigned before its rule exists.
+ * `states` the showcase pages, in the bar since `TX-PARITY-UI` per the maintainer's
+ * 2026-08-14 reversal of the session 55 exclusion. The federated service card of SPEC 13.3
+ * enters this union only when M4 gives the page a renderer, the way an SP code is not
+ * assigned before its rule exists.
  */
 export type PageKind = 'overview' | 'node' | 'schema' | 'bench' | 'health' | 'shapes' | 'states';
 
-/** Which tab of the frame's bar a target belongs to. The two showcase pages have no tab. */
-export type FrameTabKind = 'node' | 'schema' | 'bench' | 'health';
+/**
+ * Which tab of the frame's bar a target belongs to.
+ *
+ * SIX SINCE `TX-PARITY-UI`, per the prototypes: the bar is six constant items and the two
+ * showcase pages entered it, reversing the session 55 exclusion by the maintainer's
+ * 2026-08-14 decision. The SPEC 13.3 rule survives through remembering rather than through
+ * hiding: the client records the operation tabs and merges them back on the pages that have
+ * none of their own, per SPEC 11.
+ */
+export type FrameTabKind = 'node' | 'schema' | 'shapes' | 'bench' | 'health' | 'states';
 
 /**
  * One tab of the frame's bar, with its target already resolved.
@@ -548,9 +631,11 @@ export interface FrameStatsModel {
 /**
  * The frame of one page: what the app bar and the rail say, per SPEC 11 and `TX-FRAME`.
  *
- * A TAB WITHOUT A TARGET IS NOT IN THE LIST, per SPEC 11: a channel has no bench, an
- * operation without schemas has no schema tab, a document page has no operation tabs. A
- * drawn dead link would be the F14 class of lie in navigation clothes.
+ * A TAB WITHOUT A RESOLVABLE TARGET IS NOT IN THE SERVED LIST, per SPEC 11: a channel has no
+ * bench, and a document page has no operation tabs of its own. Since `TX-PARITY-UI` the bar
+ * is six constant items by remembering rather than by hiding: the client records the
+ * operation tabs on an operation page and merges them back on the pages that have none, so
+ * every href in this list, stored or fresh, is one the server resolved.
  */
 export interface FrameModel {
   readonly tabs: readonly FrameTabModel[];

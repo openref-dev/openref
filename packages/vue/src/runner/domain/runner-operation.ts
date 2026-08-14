@@ -7,10 +7,11 @@
  * operation use", and the second would be found by a reader whose request went somewhere else.
  */
 
-import { unsendableSchemeCause } from '@openref/core';
+import { compareByCodePoint, generateExample, unsendableSchemeCause } from '@openref/core';
 import type {
   IRDocument,
   IRJsonSchema,
+  IRJsonValue,
   IRMediaType,
   IROAuthFlows,
   IRParameter,
@@ -200,13 +201,62 @@ function editorFor(media: IRMediaType, document: IRDocument): RunnerBodyEditor {
   return 'binary';
 }
 
+/** Media types the generated example speaks, the page model's own test. */
+const JSON_MEDIA_TYPE = /^application\/(?:[\w.+-]+\+)?json$/i;
+
+/**
+ * The example the document declared on this media type, if it declared one.
+ *
+ * `example` wins over the `examples` map, OpenAPI's own precedence, and a map contributes its
+ * first member by code point, the same rule the page model applies: a deterministic prefill
+ * cannot depend on the order a document happened to list them in.
+ */
+function declaredExample(media: IRMediaType): IRJsonValue | undefined {
+  if (media.example !== undefined) return media.example;
+  if (media.examples === undefined) return undefined;
+
+  const first = Object.keys(media.examples).sort(compareByCodePoint)[0];
+  return first === undefined ? undefined : media.examples[first]?.value;
+}
+
+/**
+ * What the text editor arrives prefilled with, per `TX-PARITY-UI` and SPEC 5.5's precedence:
+ * the declared example first, the generated one second, and nothing when neither exists.
+ *
+ * A declared string under a non JSON media type is the text itself; everything else prints as
+ * the JSON it would be on the wire. Generation happens only for JSON, because a generated
+ * value for `text/csv` would be JSON pretending to be the media type beside it.
+ */
+function exampleTextOf(media: IRMediaType, document: IRDocument): string | undefined {
+  const declared = declaredExample(media);
+  const json = JSON_MEDIA_TYPE.test(media.mediaType);
+
+  if (declared !== undefined) {
+    return !json && typeof declared === 'string' ? declared : JSON.stringify(declared, null, 2);
+  }
+
+  if (!json || media.schema === undefined) return undefined;
+
+  const schema = resolveSchemaSlot(media.schema, document.schemas)?.normalized;
+  if (schema === undefined) return undefined;
+
+  const bodies = new Map<string, IRJsonSchema>();
+  for (const [id, entry] of document.schemas) {
+    if (entry.normalized !== undefined) bodies.set(id, entry.normalized);
+  }
+
+  return JSON.stringify(generateExample(schema, { schemas: bodies, view: 'request' }), null, 2);
+}
+
 function bodyView(media: IRMediaType, document: IRDocument): RunnerBodyMediaTypeView {
   const editor = editorFor(media, document);
+  const exampleText = editor === 'text' ? exampleTextOf(media, document) : undefined;
 
   return {
     mediaType: media.mediaType,
     editor,
     fields: editor === 'fields' ? bodyFields(media, document) : [],
+    ...(exampleText === undefined ? {} : { exampleText }),
   };
 }
 

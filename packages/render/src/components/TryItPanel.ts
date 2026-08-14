@@ -56,7 +56,7 @@ import {
   type RunnerStreamHandle,
   type RunnerValue,
 } from '@openref/vue';
-import { eventValue, type ValueEvent } from '../shared/dom';
+import { eventValue, type KeyEvent, type ValueEvent } from '../shared/dom';
 import { navigateTo, readSignInNotice, redirectTargets } from '../shared/oauth-console';
 
 /** Rows of a field holding a list, which is short because most lists are. */
@@ -129,6 +129,14 @@ export const TryItPanel = defineComponent({
      * what a request needs, not what the document promises about the answer.
      */
     declared: { type: Array as PropType<readonly string[]>, default: () => [] },
+    /**
+     * Parameters the scan saw the application not read, keyed `location:name`, per SPEC 11's
+     * F14 boundary and `TX-PARITY-UI`: the field is disabled with the reason in its
+     * placeholder, because the fact is about the parameter and not about a missing
+     * capability. Only `not-seen-read` rows arrive here; `unaccounted` is the scan speaking
+     * about itself and disables nothing.
+     */
+    unread: { type: Array as PropType<readonly string[]>, default: () => [] },
   },
 
   setup(props) {
@@ -167,7 +175,12 @@ export const TryItPanel = defineComponent({
     // theme's own console has them without reimplementing the flow; a sentence to show beside a
     // scheme belongs to whoever draws the scheme.
     const authNotices = ref<Record<string, string>>({});
-    const bodyText = ref('');
+    // THE JSON BODY ARRIVES PREFILLED, per `TX-PARITY-UI` and SPEC 5.5's precedence, carried
+    // on the projection as `exampleText`. The first text editor's example on both sides of
+    // hydration, because the value is a pure function of the document; Reset returns here.
+    const prefill = (): string =>
+      (props.run?.body ?? []).find((media) => media.editor === 'text')?.exampleText ?? '';
+    const bodyText = ref(prefill());
     // THE STREAM IS THREE PIECES OF STATE AND A HANDLE, and the window is the first of them.
     // `createStreamLog` in `console/domain` is what bounds it, per SPEC 14.6: a stream of ten
     // thousand elements leaves five hundred rows here and the counts of what went past.
@@ -483,9 +496,35 @@ export const TryItPanel = defineComponent({
       streamHandle = null;
     }
 
+    /**
+     * Returns the form to its prefilled state, per `TX-PARITY-UI`: what the reader typed
+     * goes, the example body returns, and the stored credentials stay, because signing in is
+     * not form state and Reset is not Sign out.
+     */
+    function reset(): void {
+      values.value = {};
+      fieldValues.value = {};
+      files.value = {};
+      bodyText.value = prefill();
+      chosenServer.value = '';
+      chosenMediaType.value = '';
+    }
+
+    /** Sends on `Ctrl Enter` from anywhere in the console, which is what the hint promises. */
+    function onConsoleKey(event: KeyEvent): void {
+      if (event.key !== 'Enter' || (event.ctrlKey !== true && event.metaKey !== true)) return;
+
+      event.preventDefault();
+      if (!canSend()) return;
+
+      void send();
+    }
+
     function parameterFields(): VNode[] {
       const run = props.run;
       if (run === null) return [];
+
+      const unread = new Set(props.unread);
 
       return run.parameters.map((parameter) => {
         const key = valueKey(parameter.in, parameter.name);
@@ -495,6 +534,10 @@ export const TryItPanel = defineComponent({
         // is what makes the cells of SPEC 14.2 reachable from the page rather than only from the
         // port: a console that could only produce one line could only ever produce one column.
         const multiline = parameter.valueKind !== 'primitive';
+        // A PARAMETER THE APPLICATION DOES NOT READ IS DISABLED WITH THE REASON, per SPEC 11's
+        // F14 boundary: the capability is here, the fact is about the parameter, and the
+        // placeholder speaks the scan's own words.
+        const dead = unread.has(key);
 
         return field(
           parameter.name,
@@ -505,6 +548,7 @@ export const TryItPanel = defineComponent({
             ...(multiline ? { rows: LIST_ROWS, spellcheck: 'false' } : { type: 'text' }),
             value: values.value[key] ?? '',
             'aria-required': parameter.required ? 'true' : 'false',
+            ...(dead ? { disabled: true, placeholder: 'not seen read by the handler' } : {}),
             onInput: (event: ValueEvent) => {
               setValue(key, eventValue(event));
             },
@@ -618,30 +662,41 @@ export const TryItPanel = defineComponent({
                 },
               }),
         ]),
-        h(sendButton.value, {
-          available: sendable.value,
-          pending: runner.pending.value,
-          mounted: mounted.value,
-          // Two different states, and neither of them is a promise about a moment the reader
-          // will not see. Before mount the notice names the action that brings the console, per
-          // SPEC 11: the shell is interactive within a moment of the load, so "once the page is
-          // interactive" was a sentence that stopped being true immediately and never changed,
-          // because what changes it is this component mounting, and this component mounts only
-          // when somebody reaches for it. A reader who never reached read a permanent excuse
-          // beside a control marked unavailable, and read the product as broken. After mount the
-          // console is disabled because this build carries no runner, which is a property of how
-          // the reference was published and not of anything the reader can set.
-          notice: sendable.value
-            ? ''
-            : mounted.value
-              ? 'This build carries no request runner, so the console is read only. The application hosting this reference composes one in.'
-              : 'The console loads when you press Send.',
-          onSend: (): void => {
-            if (!canSend()) return;
+        // THE ROW IS THE BENCH'S OWN AND NOT THE SLOT'S: the send position already lays out
+        // its button and notice in the actions row it draws, and Reset and the chord hint
+        // stand beside that whole position, not inside it.
+        h('div', { class: 'oref-bench-actions' }, [
+          h(sendButton.value, {
+            available: sendable.value,
+            pending: runner.pending.value,
+            mounted: mounted.value,
+            // Two different states, and neither of them is a promise about a moment the reader
+            // will not see. Before mount the notice names the action that brings the console, per
+            // SPEC 11: the shell is interactive within a moment of the load, so "once the page is
+            // interactive" was a sentence that stopped being true immediately and never changed,
+            // because what changes it is this component mounting, and this component mounts only
+            // when somebody reaches for it. A reader who never reached read a permanent excuse
+            // beside a control marked unavailable, and read the product as broken. After mount the
+            // console is disabled because this build carries no runner, which is a property of how
+            // the reference was published and not of anything the reader can set.
+            notice: sendable.value
+              ? ''
+              : mounted.value
+                ? 'This build carries no request runner, so the console is read only. The application hosting this reference composes one in.'
+                : 'The console loads when you press Send.',
+            onSend: (): void => {
+              if (!canSend()) return;
 
-            void send();
-          },
-        }),
+              void send();
+            },
+          }),
+          // RESET AND THE HINT ARE THE CONSOLE'S AND NOT THE SLOT'S, per `TX-PARITY-UI`: the
+          // slot is the send control, and a theme that overrides it keeps both. The kbd chip
+          // is static text a screen reader may read, because no `aria-keyshortcuts` carries
+          // the chord here; the handler on the section is what makes the words true.
+          h('button', { class: 'oref-tryit-reset', type: 'button', onClick: reset }, 'Reset'),
+          h('span', { class: 'oref-kbd' }, 'Ctrl Enter'),
+        ]),
         h(responseView.value, {
           result: runner.result.value,
           error: runner.error.value,
@@ -662,7 +717,11 @@ export const TryItPanel = defineComponent({
             }),
       );
 
-      return h('section', { class: 'oref-section oref-section-tryit' }, body);
+      return h(
+        'section',
+        { class: 'oref-section oref-section-tryit', onKeydown: onConsoleKey },
+        body,
+      );
     };
   },
 });

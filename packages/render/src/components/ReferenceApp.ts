@@ -19,10 +19,20 @@
  */
 
 import { useSlot } from '@openref/vue';
-import { defineComponent, h, provide, type Component, type PropType, type VNode } from 'vue';
+import {
+  defineComponent,
+  h,
+  onMounted,
+  provide,
+  ref,
+  type Component,
+  type PropType,
+  type VNode,
+} from 'vue';
 import { AppShell, MAIN_ID } from './AppShell';
 import { DocumentOverview } from './DocumentOverview';
 import { MarkdownBlock } from './MarkdownBlock';
+import { methodBadge } from './method-badge';
 import { NavigationTree } from './NavigationTree';
 import { NodePanel } from './NodePanel';
 import { SchemaPanel } from './SchemaPanel';
@@ -30,6 +40,12 @@ import { StateNotice } from './StateNotice';
 import { StatesPanel } from './StatesPanel';
 import { useDeferrable } from './deferrable';
 import { createNavigationStore, NAVIGATION_KEY } from '../page/api/nav-context';
+import {
+  mergeRememberedFrame,
+  recallOperation,
+  rememberOperation,
+  type RememberedOperation,
+} from '../page/api/remembered';
 import type { NavigationLoader } from '../page/domain/nav-source';
 import type { PageModel } from '@openref/vue';
 
@@ -87,21 +103,74 @@ export const ReferenceApp = defineComponent({
     });
     provide(NAVIGATION_KEY, navigation);
 
+    // THE REMEMBERED OPERATION, per SPEC 11 and `TX-PARITY-UI`. Null on the server and in the
+    // first client render, so hydration compares the markup the server sent; the merge is a
+    // post-mount state change, the anchor walk's class. An operation page writes the memory,
+    // the four operation-less kinds read it, and a memory about another document reads null.
+    const remembered = ref<RememberedOperation | null>(null);
+
+    onMounted(() => {
+      const page = props.page;
+
+      if ((page.kind === 'node' || page.kind === 'bench') && page.node !== null) {
+        rememberOperation(props.basePath, {
+          documentHash: page.documentHash,
+          nodeId: page.node.id,
+          crumb: page.frame.crumb,
+          tabs: page.frame.tabs,
+        });
+        return;
+      }
+
+      if (
+        page.kind === 'schema' ||
+        page.kind === 'shapes' ||
+        page.kind === 'health' ||
+        page.kind === 'states'
+      ) {
+        remembered.value = recallOperation(props.basePath, page.documentHash);
+
+        // THE RAIL'S CURRENT ROW NEEDS ITS GROUP'S CHILDREN, and a page without an operation
+        // ships its groups closed, so an applied memory asks the shared store once, per SPEC
+        // 11: the same single fetch the palette and the tree share, immutable and addressed
+        // by hash. A failed fetch leaves the group closed, the way a failed opening does.
+        if (remembered.value !== null) void navigation.load();
+      }
+    });
+
     /** The content column: whichever page this is, chosen by `kind` since `TX-FRAME`. */
     function content(page: PageModel, healthPanel: Component): VNode {
       // THE BENCH IS THE CONSOLE ON ITS OWN ADDRESS, per SPEC 13.3: the node travels for the
       // header and the runner view, and the sections stay on the operation page.
       if (page.kind === 'bench' && page.node !== null) {
-        return h('article', { class: 'oref-bench-page', 'data-oref-node': page.node.id }, [
+        const node = page.node;
+        // THE BENCH HEAD IS THE LAYOUT'S, per `TX-PARITY-UI`: the `Bench` kicker, the badge
+        // and the path, the same identity the operation header leads with. A back link is not
+        // drawn here: the app bar's back and the operation tab already lead there, and one
+        // page saying one thing twice is the F15 class.
+        const badge = node.method === null ? null : methodBadge(node.method, node.sse);
+
+        return h('article', { class: 'oref-bench-page', 'data-oref-node': node.id }, [
           h('header', { class: 'oref-operation-header' }, [
-            h('h1', { class: 'oref-title' }, page.node.title),
+            h('p', { class: 'oref-section-title oref-bench-kicker' }, 'Bench'),
+            badge === null
+              ? h('h1', { class: 'oref-title' }, node.title)
+              : h('h1', { class: 'oref-title oref-endpoint' }, [
+                  h('span', { class: `oref-badge ${badge.className}` }, badge.text),
+                  h('code', { class: 'oref-path' }, node.path ?? ''),
+                ]),
           ]),
           h(deferrable.tryIt, {
-            run: page.node.run,
+            run: node.run,
             basePath: props.basePath,
             // The verdict chip's declaration, per TX-MARKUP: what the document says this
             // operation answers with, read off the same rows the responses section draws.
-            declared: page.node.responses.map((response) => response.statusCode),
+            declared: node.responses.map((response) => response.statusCode),
+            // The scan's rows, per SPEC 11's F14 boundary: a field the runtime does not read
+            // is disabled with the reason, and only `not-seen-read` disables.
+            unread: node.parameters
+              .filter((parameter) => parameter.unread)
+              .map((parameter) => `${parameter.location}:${parameter.name}`),
           }),
         ]);
       }
@@ -189,6 +258,15 @@ export const ReferenceApp = defineComponent({
     return (): VNode => {
       const page = props.page;
 
+      // THE MEMORY'S THREE EFFECTS, per SPEC 11: the missing tabs appear, the breadcrumb
+      // stays the operation's, and the rail's `aria-current` stays on the operation. The
+      // page's own tabs win the merge, and the schema page's own current row yields, because
+      // the maintainer's sentence names the operation as what the rail stays on.
+      const memory = remembered.value;
+      const frame = memory === null ? page.frame : mergeRememberedFrame(page.frame, memory);
+      const activeNodeId = memory === null ? page.activeNodeId : memory.nodeId;
+      const activeSchemaId = memory === null ? page.activeSchemaId : null;
+
       return h('div', { class: 'oref-root', 'data-oref-document': page.documentHash }, [
         h(
           shell.value,
@@ -196,17 +274,17 @@ export const ReferenceApp = defineComponent({
             title: page.title,
             version: page.version,
             basePath: props.basePath,
-            activeNodeId: page.activeNodeId,
-            activeSchemaId: page.activeSchemaId,
+            activeNodeId,
+            activeSchemaId,
             page: page.kind,
-            frame: page.frame,
+            frame,
           },
           {
             nav: () => [
               h(navTree.value, {
                 entries: navigation.entries.value,
-                activeNodeId: page.activeNodeId,
-                activeSchemaId: page.activeSchemaId,
+                activeNodeId,
+                activeSchemaId,
                 basePath: props.basePath,
                 stats: page.frame.stats,
                 complete: navigation.complete.value,

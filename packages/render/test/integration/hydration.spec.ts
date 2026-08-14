@@ -189,7 +189,9 @@ describe('readPageState', () => {
     // overview that still claims the panel. TX-MARKUP widened the header promise, added the
     // response marks, the contracts grid, the rail method and the schema dialect, and that is
     // 12: a page cached before it hydrates a header with no kicker and responses that say
-    // nothing the runtime knows.
-    expect(state?.pageModelVersion).toBe(12);
+    // nothing the runtime knows. TX-PARITY-UI made the bar six constant kinds, the responses
+    // compact, the parameters fact-joined and the health model KPI-carrying, and that is 13:
+    // a page cached before it hydrates a bar with hidden tabs and responses that re-expand.
+    expect(state?.pageModelVersion).toBe(13);
   });
 });

@@ -65,6 +65,9 @@ describe('the collector contract', () => {
     // list of classes registered under `APP_GUARD`, read once for the application by the pass,
     // because it is one registration and identical on every node. This assertion is what made the
     // addition visible rather than silent, which is what it is for.
+    //
+    // AND BY `globalPipes` IN TX-COLLECTORS, the same walk over the other enhancer token, on the
+    // context for the same one-registration-per-application reason.
 
     // Then
     expectTypeOf<Given>().toEqualTypeOf<
@@ -76,6 +79,7 @@ describe('the collector contract', () => {
       | 'reflector'
       | 'moduleRef'
       | 'globalGuards'
+      | 'globalPipes'
       | 'fact'
     >();
     expectTypeOf<CollectorContext['node']>().toEqualTypeOf<IRNode>();
@@ -86,6 +90,7 @@ describe('the collector contract', () => {
     expectTypeOf<CollectorContext['reflector']>().toEqualTypeOf<ReflectorLike>();
     expectTypeOf<CollectorContext['moduleRef']>().toEqualTypeOf<ModuleRefLike>();
     expectTypeOf<CollectorContext['globalGuards']>().toEqualTypeOf<readonly string[]>();
+    expectTypeOf<CollectorContext['globalPipes']>().toEqualTypeOf<readonly string[]>();
   });
 
   it('should return the runtime contract of SPEC 6.3, or nothing', () => {
@@ -143,6 +148,18 @@ describe('the merge partition', () => {
             confidence: 'derived',
             collector: 'testCollector',
           },
+          timeout: { value: { ms: 5000 }, confidence: 'derived', collector: 'testCollector' },
+          requiredHeaders: {
+            value: ['If-Match'],
+            confidence: 'inferred',
+            collector: 'testCollector',
+          },
+          parameterReads: {
+            value: { parameters: [{ in: 'query', name: 'sort', verdict: 'read' }] },
+            confidence: 'inferred',
+            collector: 'testCollector',
+          },
+          statusCode: { value: 201, confidence: 'derived', collector: 'testCollector' },
           streaming: {
             value: { transport: 'sse' },
             confidence: 'declared',
@@ -165,6 +182,14 @@ describe('the merge partition', () => {
           guards: [
             {
               name: 'JwtAuthGuard',
+              scope: 'route',
+              confidence: 'derived',
+              collector: 'testCollector',
+            },
+          ],
+          pipes: [
+            {
+              name: 'ValidationPipe',
               scope: 'route',
               confidence: 'derived',
               collector: 'testCollector',

@@ -980,6 +980,85 @@
   display: block;
 }
 
+/* TX-PARITY-UI widened it by eleven, 2026-08-14, all page furniture: the bench head's kicker,
+ * badge and path, the bench's actions row with Reset and the chord hint, and the description
+ * section with its count. Styled in this theme's register, mono and flat; whether the bench
+ * head becomes a position belongs to the telltale adoption task. */
+.oref-bench-kicker {
+  margin: 0 0 var(--oref-space-200);
+  color: var(--oref-color-fg-secondary);
+  font-family: var(--oref-font-family-display);
+  font-size: var(--oref-font-size-100);
+  letter-spacing: var(--oref-font-tracking-wide);
+  text-transform: uppercase;
+}
+
+.oref-endpoint {
+  display: inline-flex;
+  gap: var(--oref-space-300);
+  align-items: baseline;
+}
+
+.oref-badge {
+  padding: 0 var(--oref-space-200);
+  font-family: var(--oref-font-family-mono);
+  font-size: var(--oref-font-size-100);
+  font-weight: var(--oref-font-weight-bold);
+  letter-spacing: var(--oref-font-tracking-mid);
+  text-transform: uppercase;
+  color: var(--oref-color-fg-inverse);
+  background: var(--oref-color-fg-secondary);
+}
+
+.oref-badge.oref-method-get {
+  background: var(--oref-color-method-get);
+}
+
+.oref-badge.oref-method-post {
+  background: var(--oref-color-method-post);
+}
+
+.oref-path {
+  font-family: var(--oref-font-family-mono);
+  color: var(--oref-color-fg);
+}
+
+.oref-bench-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--oref-space-300);
+  align-items: baseline;
+}
+
+.oref-tryit-reset {
+  padding: var(--oref-space-100) var(--oref-space-400);
+  border: var(--oref-border-hair) solid var(--oref-color-line);
+  background: none;
+  color: var(--oref-color-fg-secondary);
+  font: inherit;
+  font-size: var(--oref-font-size-200);
+  cursor: pointer;
+}
+
+.oref-kbd {
+  padding: 0 var(--oref-space-200);
+  border: var(--oref-border-hair) solid var(--oref-color-line);
+  color: var(--oref-color-fg-secondary);
+  font-family: var(--oref-font-family-mono);
+  font-size: var(--oref-font-size-100);
+}
+
+.oref-section-description {
+  border-top: var(--oref-border-hair) solid var(--oref-color-line);
+  padding-top: var(--oref-space-300);
+}
+
+.oref-section-count {
+  margin-inline-start: var(--oref-space-200);
+  color: var(--oref-color-fg-muted);
+  font-weight: var(--oref-font-weight-regular);
+}
+
 .oref-operation-header {
   margin-bottom: var(--oref-space-500);
 }

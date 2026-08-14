@@ -4,15 +4,22 @@ import {
   declarationsCollector,
   errorsCollector,
   guardsCollector,
+  handlerScanCollector,
+  headersCollector,
+  httpCodeCollector,
   OpenRefModule,
+  pipesCollector,
   scopesCollector,
   sourceCollector,
   streamCollector,
+  timeoutCollector,
 } from '@openref/nest';
 import { throttlerCollector } from '@openref/collector-throttler';
 import { OrdersController } from './orders.controller.js';
 import { ORDER_ERRORS } from './orders.errors.js';
+import { REQUIRED_HEADERS_KEY } from './orders.headers.js';
 import { SCOPES_KEY } from './orders.security.js';
+import { TIMEOUT_KEY } from './orders.timeout.js';
 
 /**
  * The whole application: one controller, and the runtime intelligence of SPEC 6.
@@ -33,11 +40,15 @@ import { SCOPES_KEY } from './orders.security.js';
  * The revision is read from git. A build with no `.git` passes it instead, as
  * `sourceLink: { template, ref }`.
  *
- * SEVEN COLLECTORS, AND EACH ONE HAS SOMETHING IN THIS APPLICATION TO READ. That is the whole
- * reason the guard, the scope key and the throttled route exist in `orders.controller.ts`: a
- * collector registered against an application with nothing for it to find reports nothing, and
- * reporting nothing is indistinguishable from working. `scopesCollector` is given this
- * application's key, because SPEC 6.1 forbids guessing one and there is deliberately no default.
+ * TWELVE COLLECTORS, AND EACH ONE HAS SOMETHING IN THIS APPLICATION TO READ. That is the whole
+ * reason the guard, the scope key, the throttled route, the pipes, the timeout pair, the token
+ * guarded receipt and the explicit @HttpCode exist in `orders.controller.ts`: a collector
+ * registered against an application with nothing for it to find reports nothing, and reporting
+ * nothing is indistinguishable from working. The three that read a host key are given this
+ * application's keys, because SPEC 6.1 forbids guessing one and there is deliberately no
+ * default. The handler scan needs no material added at all: the five query parameters and the
+ * header that `list` declares and never reads are real drift this application already had, and
+ * SP010 reporting them is the product working rather than a fixture arranged to fail.
  *
  * `throttlerCollector` COMES FROM ITS OWN PACKAGE, per SPEC 4 and 6.2.1. A collector that reads a
  * third party library is published separately so that installing `@openref/nest` never puts a
@@ -78,6 +89,14 @@ import { SCOPES_KEY } from './orders.security.js';
               },
             ],
           }),
+          // The TX-COLLECTORS five, the instruments behind the four parity rows that shipped
+          // hatched plus the explicit success code. Appended, because appending to this list
+          // cannot change a fact that already existed, per SPEC 6.2.
+          pipesCollector(),
+          timeoutCollector({ metadataKey: TIMEOUT_KEY }),
+          headersCollector({ metadataKey: REQUIRED_HEADERS_KEY }),
+          handlerScanCollector(),
+          httpCodeCollector(),
         ],
         sourceLink: 'https://github.com/sur-ser/openref/blob/{ref}/{file}#L{line}',
       },
