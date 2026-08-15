@@ -27,6 +27,19 @@ export interface BudgetException {
   readonly budget: string;
   /** The figure measured when the entry was written, in the budget's own units. */
   readonly measured: string;
+  /**
+   * The commit the measured figure was taken at, when the figure is read out of the committed
+   * browser record rather than weighed from the tree this run builds.
+   *
+   * REQUIRED FOR A LIVE ENTRY OVER A RECORDED BUDGET, and the requirement is the second half of
+   * the baseline freshness mechanism. Twice a recorded figure was acted on while the tree had
+   * moved past it, T026 through T033 first and the TX chain second, and both times the number
+   * being read was the wrong one. No honest failing distance exists for that class, so the
+   * defence is visibility: the gate names a stale baseline on every run, and an entry citing a
+   * baseline figure carries the commit beside the number, so a reader sees at a glance that
+   * the figure predates the work.
+   */
+  readonly measuredAtCommit?: string;
   /** The target it misses. */
   readonly target: string;
   /** Tasks that own the fix. Every one must be a task the plan carries. */
@@ -56,6 +69,12 @@ export interface ClosedException extends BudgetException {
 export interface BudgetExceptionContext {
   /** Every budget id SPEC 20 sets. */
   readonly budgetIds: readonly string[];
+  /**
+   * The budget ids whose figures come out of the committed browser record rather than out of
+   * the artifacts this run weighs. A live entry over one of these must say which commit its
+   * figure was measured at, because the record does not move with the tree.
+   */
+  readonly recordedBudgetIds: readonly string[];
   /** The budget ids that are over right now, measured this run. */
   readonly overBudgetIds: readonly string[];
   /** Every task id the plan carries, from BUILD.md and from the amendments. */
@@ -176,6 +195,22 @@ export function checkBudgetExceptions(
       );
     }
 
+    // A RECORDED FIGURE WITHOUT A COMMIT IS A NUMBER WITH NO TREE ATTACHED. The committed
+    // browser record does not move with the tree, and twice the figure in it was acted on
+    // after the page it described had stopped existing. An entry citing that record says
+    // which commit the figure was taken at, or it fails here.
+    if (
+      context.recordedBudgetIds.includes(entry.budget) &&
+      (entry.measuredAtCommit ?? '').trim().length === 0
+    ) {
+      add(
+        'figure-without-commit',
+        `${entry.budget} cites a figure from the committed browser record and names no ` +
+          `measuredAtCommit, so a reader cannot see whether the figure predates the work. ` +
+          `The record was stale twice while its number was being acted on; carry the commit`,
+      );
+    }
+
     for (const owner of entry.owners) {
       if (taskIds.has(owner)) continue;
       add(
@@ -217,8 +252,13 @@ export function checkBudgetExceptions(
  * @returns A single line naming the figure, the target, the owners and the expiry
  */
 export function describeException(entry: BudgetException): string {
+  const figure =
+    entry.measuredAtCommit === undefined
+      ? entry.measured
+      : `${entry.measured} at commit ${entry.measuredAtCommit}`;
+
   return (
-    `${entry.budget}: ${entry.measured} against ${entry.target}, owned by ${entry.owners.join(', ')}, ` +
+    `${entry.budget}: ${figure} against ${entry.target}, owned by ${entry.owners.join(', ')}, ` +
     `must clear by ${entry.clearBy}, recorded ${entry.recordedAt}. ${entry.diagnosis}`
   );
 }
@@ -231,8 +271,13 @@ export function describeException(entry: BudgetException): string {
  * @returns A single line naming the figure it was recorded at and why it closed
  */
 export function describeClosedException(entry: ClosedException): string {
+  const figure =
+    entry.measuredAtCommit === undefined
+      ? entry.measured
+      : `${entry.measured} at commit ${entry.measuredAtCommit}`;
+
   return (
-    `${entry.budget}: ${entry.measured} against ${entry.target}, recorded ${entry.recordedAt}, ` +
+    `${entry.budget}: ${figure} against ${entry.target}, recorded ${entry.recordedAt}, ` +
     `closed ${entry.closedAt}. ${entry.closedBecause}`
   );
 }

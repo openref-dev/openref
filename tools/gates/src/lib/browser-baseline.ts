@@ -130,7 +130,7 @@ export const ASSERTED_FIGURES: Readonly<Record<string, string>> = {
  */
 export const RECORDED_NOT_ASSERTED: Readonly<Record<string, string>> = {
   recordedAt: 'identity of the study, not a measurement',
-  commit: 'identity of the study, not a measurement',
+  commit: 'identity of the study, read by the freshness naming rather than by a ceiling',
   note: 'prose for a reader of the file',
   environment: 'identity of the machine, read by the staleness check rather than by a ceiling',
   browser: 'identity of the browser, read by the staleness check',
@@ -148,6 +148,78 @@ export const RECORDED_NOT_ASSERTED: Readonly<Record<string, string>> = {
     'a page whose work moves says where to look, and printed beside the two counts that are gated',
   overBudget: 'the record of what is over, checked against the ceilings rather than by them',
 };
+
+/**
+ * The paths whose commits change what the study measures.
+ *
+ * The measured page is built from the packages and served by the harness, whose fixture
+ * generator is part of what the page weighs, so a commit touching either can move the figures.
+ * `baseline.json` itself is deliberately not in the list: a re-record lands one commit after
+ * the study it records, and a pathspec covering the record would count every re-record as work
+ * the record has not seen.
+ */
+export const BASELINE_INPUT_PATHS: readonly string[] = ['packages', 'tools/browser-budget/src'];
+
+/** Whether the committed record still describes the committed tree. */
+export interface BaselineFreshness {
+  readonly state: 'current' | 'stale' | 'unknown';
+  /** The line a gate prints. Warning material when stale, a note otherwise. */
+  readonly message: string;
+}
+
+/**
+ * Names whether the committed record predates the tree, from the commit it carries.
+ *
+ * THIS NAMES AND DOES NOT FAIL, AND THE ABSENCE OF A FAILING DISTANCE IS A DECISION. Twice a
+ * recorded figure was acted on while the tree had moved past it: nine tasks, T026 through
+ * T033, shipped on one record, and the TX chain shipped on the next, so a recorded 4,998 was
+ * being read while the live figure was 18,656. Any failing distance N > 0 admits N sessions
+ * of exactly that silence, and N = 0 would demand a runner dispatch on every commit that
+ * touches `packages/`, which is not a cadence a study taken on CI can hold. So the mechanism
+ * is visibility in two places: this line on every run, and the commit carried beside the
+ * figure in any exception entry that cites the record, which `budget-exceptions` enforces.
+ *
+ * @param baseline - The committed record
+ * @param commitsSince - Commits touching {@link BASELINE_INPUT_PATHS} past the record's
+ *   commit, or null when git could not answer
+ * @param reason - Why there is no count, when there is none
+ * @returns The state and the line to print
+ */
+export function baselineFreshness(
+  baseline: BrowserBaseline,
+  commitsSince: number | null,
+  reason?: string,
+): BaselineFreshness {
+  const commit = baseline.commit.slice(0, 12);
+
+  if (commitsSince === null) {
+    return {
+      state: 'unknown',
+      message:
+        `whether the record at commit ${commit} still describes this tree could not be told: ` +
+        `${reason ?? 'git gave no reason'}. The ceilings were checked against the record as committed`,
+    };
+  }
+
+  if (commitsSince === 0) {
+    return {
+      state: 'current',
+      message: `the record at commit ${commit} is current: no commit touching ${BASELINE_INPUT_PATHS.join(' or ')} has landed past it`,
+    };
+  }
+
+  const landed = commitsSince === 1 ? 'commit touching' : 'commits touching';
+  const verb = commitsSince === 1 ? 'has' : 'have';
+
+  return {
+    state: 'stale',
+    message:
+      `BASELINE STALE: the record was taken at commit ${commit} and ${String(commitsSince)} ${landed} ` +
+      `${BASELINE_INPUT_PATHS.join(' or ')} ${verb} landed since, so the recorded figures ` +
+      `describe a page that may no longer exist. The ceilings still gate the record as committed; ` +
+      `re-record it deliberately via the study workflow before acting on a recorded figure`,
+  };
+}
 
 /** One thing wrong with a baseline, or with a study measured against one. */
 export interface BaselineIssue {
@@ -481,6 +553,26 @@ export function readBrowserBaseline(repoRoot: string): BaselineRead {
     return { baseline: null, reason: cause instanceof Error ? cause.message : String(cause) };
   }
 }
+
+/**
+ * The budget ids whose figure comes out of the committed record, exactly the ids
+ * {@link recordedFigure} answers.
+ *
+ * ONE HOME, TWO READERS: `recordedFigure` prints these and the `budget-exceptions` gate
+ * requires a live entry over one of them to carry the commit its figure was measured at,
+ * because the record does not move with the tree. A test holds this list to the function, so
+ * a budget added to one and not the other is a failure rather than a silent gap.
+ */
+export const BASELINE_ANSWERED_BUDGET_IDS: readonly string[] = [
+  'tti',
+  'main-thread-work',
+  'long-tasks',
+  'page-bytes',
+  'client-memory',
+  'external-requests',
+  'csp-violations',
+  'served-document',
+];
 
 /**
  * The recorded figure for one budget id, formatted for a gate line.

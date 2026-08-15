@@ -1003,8 +1003,8 @@ export const MEASURED_BUDGETS: readonly MeasuredBudget[] = [
   {
     id: 'page-bytes',
     label: 'Document, CSS and JS the 1000 node page hands the main thread, raw',
-    limit: '194 KB',
-    enforcedBy: 'T015-R1',
+    limit: '203 KB',
+    enforcedBy: 'T015-R1, re-derived at the close of M2',
   },
   {
     id: 'client-memory',
@@ -1087,10 +1087,13 @@ export const BROWSER_STUDY_WORKFLOW = '.github/workflows/browser-budget-study.ym
  * the load fails it. It is a coarse instrument and it says so: it cannot see an existing long
  * task getting worse without splitting.
  *
- * `pageBytes` is 194 KB against 196,125 measured, 191.5 KB, so the headroom is 2,531 bytes. It
- * is derived the way `theme-css-raw` was: another region of `theme.css` the size of the page
- * frame, 3,287 bytes, or of the try-it console, 3,669, has to fail it, and a navigation sized
- * addition of 2,520 has to fit. THIS IS THE TIGHTEST ROW IN THE TABLE AND IT IS MEANT TO BE. It
+ * `pageBytes` is 203 KB against 204,818 measured on the runner over the committed tree at
+ * commit 74510c5, three studies of one dispatch and the workstation identical to the byte:
+ * 37,894 document, 59,582 CSS, 107,342 JS. The headroom is 3,054 bytes, and it is derived the
+ * way `theme-css-raw` was: another region of `theme.css` the size of the page frame, 3,287
+ * bytes, or of the try-it console, 3,669, has to fail it, and a navigation sized addition of
+ * 2,520 has to fit; 203 KB is the one whole KB step that keeps the property, 207,338 under
+ * 207,872 and 208,105 over it. THIS IS THE TIGHTEST ROW IN THE TABLE AND IT IS MEANT TO BE. It
  * is the only budget measured over what the page actually loads rather than over what the build
  * produced, so it is the only one that can see a resource nobody weighed, and a cap with the
  * usual ten percent of room would let a whole stylesheet in without a word.
@@ -1110,11 +1113,28 @@ export const BROWSER_STUDY_WORKFLOW = '.github/workflows/browser-budget-study.ym
  * is the one SPEC 20 now states and a test holds. Re-derived by the same rule as before, from
  * the new measurement, with the same two regressions named.
  *
- * IT IS OVER SINCE 2026-08-11 AND IT STAYS AT 194 KB, which is the whole point of the sentence
- * above being written before the budget was ever exceeded. T020 through T023 took the record to
- * 199,612 bytes on the same input, so the headroom of 2,531 is now a deficit of 956, and the
- * number here did not move. The debt is an entry in `BUDGET_EXCEPTIONS` below, owned by T012-R4
- * and due to clear by M2, and the budgets gate prints the failure on every run.
+ * IT WENT OVER ON 2026-08-11 AND STAYED AT 194 KB FOR THE WHOLE OF M2, which is the point of
+ * the sentence above being written before the budget was ever exceeded. T020 through T023 took
+ * the record to 199,612 bytes on the same input, the deficit was 956, and the number here did
+ * not move: the debt was an entry in `BUDGET_EXCEPTIONS`, owned by T012-R4 and due to clear by
+ * M2, and the budgets gate printed the failure on every run until the entry closed.
+ *
+ * RE-DERIVED AT THE CLOSE OF M2, 194 TO 203 KB, FOR THE SANCTIONED REASON AT THE PAGE LEVEL,
+ * by the maintainer's decision recorded in SPEC 20 and in T012-R4: it moved because the
+ * renderer emits class families the two way sweep must style, which is a capability arriving,
+ * not drift. The TX-GUTTER through TX-SHAPES chain grew the stylesheet 24,329 bytes over the
+ * T033 runner record, the parity scale, the page frame, the layout markup, the parity report
+ * and the shapes page, and every arrival was sanctioned at its landing by a `theme-css-raw`
+ * recomputation, so this cap was counting a quantity whose largest component already had its
+ * own budget and its own sanctioned growth path: two budgets over one thing, one moving by
+ * rule and one not. TX-ADOPT paid what adoption can reach, 12,494 page bytes, and adoption
+ * cannot pay for stylesheet bytes by construction: it takes components off the first paint,
+ * and the stylesheet loads whole regardless of what the browser draws. The six mark rules
+ * that carry provenance and severity without colour stand untouched per T012-R4's own terms;
+ * spending them to hit a number is the pressure that entry exists to name. The remainder,
+ * 6,162 over the old cap, is the stylesheet price of shipped capability and is inside the
+ * re-derived one. The exception is closed into the history below as paid by its payer and
+ * closed by this re-derivation.
  *
  * `longTaskCount` STAYS AT 2 AND HAS NO ROOM LEFT, recorded here because a count with no
  * headroom is one change away from a red build and nothing else in this file would say so. The
@@ -1128,7 +1148,7 @@ export const BROWSER_CEILINGS = {
   cspViolations: 0,
   servedDocumentBytes: 72 * 1024,
   longTaskCount: 2,
-  pageBytes: 194 * 1024,
+  pageBytes: 203 * 1024,
 } as const;
 
 /**
@@ -1149,9 +1169,10 @@ export const BROWSER_CEILINGS = {
  * have, a milestone that closes while the entry is still here, or a budget that is inside its
  * limit again all fail the build.
  *
- * THE LIST HOLDS ONE ENTRY, FILED 2026-08-11 AT THE CLOSE OF T023, and it is the second this
- * repository has written. The first is in `BUDGET_EXCEPTION_HISTORY` below, with the reason it
- * closed.
+ * THE LIST IS EMPTY SINCE 2026-08-14, THE CLOSE OF M2. It has held three entries in its life,
+ * and all three are in `BUDGET_EXCEPTION_HISTORY` below with the reason each closed. The
+ * paragraphs that follow are the recorded rationale of the third, `page-bytes`, kept here
+ * because the doctrine they state is the list's and not the entry's.
  *
  * WHY AN ENTRY AND NOT A RECOMPUTED CAP, since `page-bytes` was recomputed once already and the
  * two moves look alike from a distance. The direction is what tells them apart. In T016 the
@@ -1161,14 +1182,24 @@ export const BROWSER_CEILINGS = {
  * not got worse. Here the ARTEFACT changed: the input is the same document, and the page grew
  * 3,487 bytes because it now carries the runtime block and the Health panel. Recomputing the cap
  * to fit a heavier page is loosening a threshold under a result, which is the move ABSOLUTE RULE
- * 3 names and the one this repository breaks most often.
+ * 3 names and the one this repository breaks most often. How the entry nevertheless ended in a
+ * re-derivation without breaking that rule is recorded in its `closedBecause`: the component
+ * that remained over was stylesheet bytes already governed and grown by rule under
+ * `theme-css-raw`, so the page cap was bounding the same bytes twice.
  *
  * WHY NOT A NARROWER PANEL EITHER, which was the third option and is the worst of the three.
  * 1,224 of the 1,716 bytes the stylesheet grew are six rules that give provenance and severity an
  * edge style, so that the three confidence levels of SPEC 6.1 and the three severities of SPEC
  * 7.2 are legible with no colour seen at all. Cutting them buys the kilobyte by taking the
- * accessibility claim the whole runtime surface rests on. The entry below says so, and T012-R4
+ * accessibility claim the whole runtime surface rests on. The closed entry says so, and T012-R4
  * says it again in the words of the fix.
+ *
+ * AN ENTRY CITING A BASELINE FIGURE CARRIES THE COMMIT ALONGSIDE THE NUMBER, in
+ * `measuredAtCommit`, since 2026-08-14 and enforced by the gate for live entries over recorded
+ * budgets. Twice in this record a recorded figure was acted on while the tree had moved past
+ * it, T026 through T033 first and the TX chain second, and both times the wrong number was the
+ * one being read. The commit beside the number is what lets a reader see at a glance that a
+ * figure predates the work.
  *
  * WHAT WAS DELIBERATELY NEVER HERE: `served-document`. It was named alongside `tti` when this
  * list was asked for, and it measures 63.8 KB against 72 KB. Listing a budget that passes would
@@ -1183,52 +1214,7 @@ export const BROWSER_CEILINGS = {
  * corpus documents put a thousand index records between 67 and 84 KB gzip. An entry here would
  * have recorded a debt that does not exist, and the staleness rule would have failed for it.
  */
-export const BUDGET_EXCEPTIONS: readonly BudgetException[] = [
-  {
-    budget: 'page-bytes',
-    measured: '203,654 bytes, 198.9 KB, over by 4,998',
-    target: '194 KB, 198,656 bytes',
-    owners: ['T012-R4'],
-    clearBy: 'M2',
-    recordedAt: '2026-08-11, re-measured on the runner 2026-08-14',
-    diagnosis:
-      'Measured on the runner at commit f457f52, and the same three columns came back identical ' +
-      'to the byte on six studies across two dispatches, three processors and a workstation: ' +
-      '65,234 document, 34,304 CSS, 100,074 JS. Against the record it replaces the page grew ' +
-      '3,487 bytes, CSS up 1,698 and JS up 1,881 while the document fell 92, and what it gained ' +
-      'is the runtime block and the Health panel of T023. THE CHEAP BYTES WERE ALREADY SPENT ' +
-      'BEFORE THIS WAS FILED: the block is one list of labelled rows rather than five shapes, ' +
-      'worth 1.4 KB of the first paint for the same information; every branch that could move to ' +
-      'the server did; the panel is behind a dynamic import gated on the one page in a thousand ' +
-      'that draws it; and seven pairs of rules in theme.css with identical bodies became one rule ' +
-      'each, which is 787 of the bytes. WHAT IS LEFT COSTS THE FEATURE: 1,224 of the 1,716 bytes ' +
-      'the stylesheet grew are the six rules that give provenance and severity an edge style, ' +
-      'which is how the levels of SPEC 6.1 and SPEC 7.2 are told apart with no colour seen at ' +
-      'all. This entry is not an instruction to delete them and T012-R4 states the same in its ' +
-      'own terms. It clears by M2 because T031 and T032 rework the theme surface, and a second ' +
-      'theme is the first thing that can answer whether a level can be carried by fewer ' +
-      'declarations without losing what the declarations do. RE-MEASURED ON THE RUNNER at the ' +
-      'close of T033, 2026-08-14, commit 53027c9: 203,654 bytes, 64,741 document, 35,253 CSS, ' +
-      '103,660 JS, identical across three studies. The growth over the 2026-08-12 record is ' +
-      'the recorded work of T026 through T033, the slot wiring first among it, minus the 493 ' +
-      'bytes T005-R1 took back off the document; the entry stays owned by T012-R4 and due by ' +
-      'M2, and the figure here is the runner figure rather than a workstation one. ' +
-      'RE-MEASURED AT TX-ADOPT, 2026-08-14, on the workstation, whose three byte columns this ' +
-      'record has twice proven identical to the runner: 217,312 before the adoption and ' +
-      '204,818 after it, 37,894 document, 59,582 CSS, 107,342 JS, over by 6,162. THE ADOPTION ' +
-      'PAID 12,494 BYTES, two and a half times the 4,998 this entry recorded, and the record ' +
-      'was stale: the TX-GUTTER through TX-SHAPES chain shipped after the last runner study, ' +
-      'which is the exact failure the baseline note already names about T026 through T033. ' +
-      'Against the runner record the document fell 26,847, the compact response index and the ' +
-      'state block redaction; the JS is net up 3,682, the TX capability minus the adoption; ' +
-      'and the CSS is up 24,329, the class families the two way sweep must style, sanctioned ' +
-      'at each arrival under theme-css-raw and untouchable by adoption by construction. WHAT ' +
-      'REMAINS IS THE STYLESHEET PRICE OF SHIPPED CAPABILITY, and how it clears is the ' +
-      "maintainer's decision rather than this entry's: the six mark rules stay per the " +
-      "entry's own terms, the cap stays 194 KB, and the close requires a study taken on the " +
-      'runner over the committed work.',
-  },
-];
+export const BUDGET_EXCEPTIONS: readonly BudgetException[] = [];
 
 /**
  * Exceptions that are closed, kept with the reason they closed.
@@ -1345,6 +1331,74 @@ export const BUDGET_EXCEPTION_HISTORY: readonly ClosedBudgetException[] = [
       'work has 410 bytes. The artefact is inside the cap, so the debt is paid rather than ' +
       're-worded; what the adoption could not touch, the stylesheet price of the same ' +
       'capability, stands in the page-bytes entry above with its own figures.',
+  },
+  {
+    budget: 'page-bytes',
+    measured: '203,654 bytes, 198.9 KB, over by 4,998',
+    measuredAtCommit: '53027c9',
+    target: '194 KB, 198,656 bytes',
+    owners: ['T012-R4'],
+    clearBy: 'M2',
+    recordedAt: '2026-08-11, re-measured on the runner 2026-08-14',
+    diagnosis:
+      'Measured on the runner at commit f457f52, and the same three columns came back identical ' +
+      'to the byte on six studies across two dispatches, three processors and a workstation: ' +
+      '65,234 document, 34,304 CSS, 100,074 JS. Against the record it replaces the page grew ' +
+      '3,487 bytes, CSS up 1,698 and JS up 1,881 while the document fell 92, and what it gained ' +
+      'is the runtime block and the Health panel of T023. THE CHEAP BYTES WERE ALREADY SPENT ' +
+      'BEFORE THIS WAS FILED: the block is one list of labelled rows rather than five shapes, ' +
+      'worth 1.4 KB of the first paint for the same information; every branch that could move to ' +
+      'the server did; the panel is behind a dynamic import gated on the one page in a thousand ' +
+      'that draws it; and seven pairs of rules in theme.css with identical bodies became one rule ' +
+      'each, which is 787 of the bytes. WHAT IS LEFT COSTS THE FEATURE: 1,224 of the 1,716 bytes ' +
+      'the stylesheet grew are the six rules that give provenance and severity an edge style, ' +
+      'which is how the levels of SPEC 6.1 and SPEC 7.2 are told apart with no colour seen at ' +
+      'all. This entry is not an instruction to delete them and T012-R4 states the same in its ' +
+      'own terms. It clears by M2 because T031 and T032 rework the theme surface, and a second ' +
+      'theme is the first thing that can answer whether a level can be carried by fewer ' +
+      'declarations without losing what the declarations do. RE-MEASURED ON THE RUNNER at the ' +
+      'close of T033, 2026-08-14, commit 53027c9: 203,654 bytes, 64,741 document, 35,253 CSS, ' +
+      '103,660 JS, identical across three studies. The growth over the 2026-08-12 record is ' +
+      'the recorded work of T026 through T033, the slot wiring first among it, minus the 493 ' +
+      'bytes T005-R1 took back off the document; the entry stays owned by T012-R4 and due by ' +
+      'M2, and the figure here is the runner figure rather than a workstation one. ' +
+      'RE-MEASURED AT TX-ADOPT, 2026-08-14, on the workstation, whose three byte columns this ' +
+      'record has twice proven identical to the runner: 217,312 before the adoption and ' +
+      '204,818 after it, 37,894 document, 59,582 CSS, 107,342 JS, over by 6,162. THE ADOPTION ' +
+      'PAID 12,494 BYTES, two and a half times the 4,998 this entry recorded, and the record ' +
+      'was stale: the TX-GUTTER through TX-SHAPES chain shipped after the last runner study, ' +
+      'which is the exact failure the baseline note already names about T026 through T033. ' +
+      'Against the runner record the document fell 26,847, the compact response index and the ' +
+      'state block redaction; the JS is net up 3,682, the TX capability minus the adoption; ' +
+      'and the CSS is up 24,329, the class families the two way sweep must style, sanctioned ' +
+      'at each arrival under theme-css-raw and untouchable by adoption by construction. WHAT ' +
+      'REMAINS IS THE STYLESHEET PRICE OF SHIPPED CAPABILITY, and how it clears is the ' +
+      "maintainer's decision rather than this entry's: the six mark rules stay per the " +
+      "entry's own terms, the cap stays 194 KB, and the close requires a study taken on the " +
+      'runner over the committed work.',
+    closedAt: '2026-08-14',
+    closedBecause:
+      'PAID BY ITS PAYER FOR EVERYTHING ADOPTION CAN REACH, AND CLOSED BY THE RE-DERIVATION ' +
+      'THE MAINTAINER ORDERED FOR WHAT IT CANNOT. TX-ADOPT took the page from 217,312 bytes ' +
+      'to 204,818, 12,494 paid, two and a half times the 4,998 recorded here. The remainder ' +
+      'was not this entry to cut: against the T033 runner record the document fell 26,847, ' +
+      'the JS is net up 3,682, and the CSS is up 24,329, the class families the two way sweep ' +
+      'must style, each arrival sanctioned under theme-css-raw, so what stayed over the old ' +
+      'cap was stylesheet bytes already governed and grown by rule under their own budget, ' +
+      'counted a second time by the page cap. The maintainer took the first of the three ' +
+      'moves the entry offered: the cap was re-derived for the sanctioned stylesheet ' +
+      'arrivals the way theme-css-raw was re-derived five times, 194 to 203 KB, by the same ' +
+      'property with the same two named regressions, with SPEC 20 moved first and the ' +
+      'movement itemised there. The close is on a study taken on the runner over the ' +
+      'committed work, per the entry first term: commit 74510c5, three studies of one ' +
+      'dispatch and the workstation identical to the byte, 204,818 = 37,894 document + ' +
+      '59,582 CSS + 107,342 JS, inside the re-derived cap with 3,054 bytes to spare. All six ' +
+      'mark rules are in the shipped stylesheet, each still setting an edge style, and the ' +
+      'colour independence test is unchanged and green: the marks are not what paid, and ' +
+      'this record is not an instruction to delete them. The untouched-cap term the entry ' +
+      'carried bound the payment of the recorded 4,998, and the session 63 paragraph in the ' +
+      'entry handed the remainder to the maintainer by name, which is the decision this ' +
+      'closure records.',
   },
 ];
 

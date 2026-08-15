@@ -45,6 +45,7 @@ const SOUND: BudgetException = {
 function context(overrides: Partial<BudgetExceptionContext> = {}): BudgetExceptionContext {
   return {
     budgetIds: ['tti', 'theme-css'],
+    recordedBudgetIds: [],
     overBudgetIds: ['tti'],
     taskIds: ['T011-R', 'T012-R3'],
     milestones: [milestone('M0', false)],
@@ -158,6 +159,46 @@ describe('checkBudgetExceptions', () => {
     // Then
     expect(issues.map((issue) => issue.rule)).toEqual(['incomplete', 'incomplete', 'incomplete']);
   });
+
+  it('should require the commit beside a figure that comes out of the committed record', () => {
+    // Given the failure the rule exists for, twice over: a figure read out of the browser
+    // record was acted on after the tree had moved past it, T026 through T033 first and the
+    // TX chain second, and nothing beside the number said which page it described.
+    const exceptions = [SOUND];
+
+    // When
+    const issues = checkBudgetExceptions(exceptions, context({ recordedBudgetIds: ['tti'] }));
+
+    // Then
+    expect(issues.map((issue) => issue.rule)).toEqual(['figure-without-commit']);
+    expect(issues[0]?.message).toContain('measuredAtCommit');
+  });
+
+  it('should accept a recorded figure that carries its commit', () => {
+    // Given
+    const exceptions = [{ ...SOUND, measuredAtCommit: '53027c9' }];
+
+    // When
+    const issues = checkBudgetExceptions(exceptions, context({ recordedBudgetIds: ['tti'] }));
+
+    // Then
+    expect(issues).toEqual([]);
+  });
+
+  it('should not ask a commit of a figure this run weighs from the tree', () => {
+    // Given a budget measured from built artifacts, whose figure moves with the tree by
+    // construction and has no study commit to name
+    const exceptions = [{ ...SOUND, budget: 'theme-css', owners: ['T011-R'] }];
+
+    // When
+    const issues = checkBudgetExceptions(
+      exceptions,
+      context({ recordedBudgetIds: ['tti'], overBudgetIds: ['theme-css'] }),
+    );
+
+    // Then
+    expect(issues).toEqual([]);
+  });
 });
 
 const CLOSED: ClosedException = {
@@ -239,55 +280,59 @@ describe('the committed exception list', () => {
     expect(unknown).toEqual([]);
   });
 
-  it('should hold one live entry and the two that closed, and confuse none for another', () => {
-    // Given three entries ended or living differently. `tti` was the first and it closed on
-    // 2026-08-10 because SPEC 20 stopped gating elapsed time, which is neither a debt paid nor
-    // a debt dropped, and the record is what keeps those three apart. `page-bytes` is the
-    // second, live since 2026-08-11: T020 through T023 took the page to 199,612 bytes against
-    // 198,656 on the same input, so the cap stayed and the debt got a name. `client-js-raw`
-    // was the third, filed at TX-GUTTER on 2026-08-14 and CLOSED the same day by TX-ADOPT
-    // paying 10,314 raw bytes and the cap being re-derived from the artefact that remains,
-    // which is the third kind of ending: paid by the payer the entry named. The served
-    // document was named alongside `tti` when the list was first asked for and has never
-    // entered either, because listing a budget that passes records a debt that does not exist.
+  it('should hold no live entry and the three that closed, and confuse none for another', () => {
+    // Given three entries with three different endings, which the record is what keeps apart.
+    // `tti` closed on 2026-08-10 because SPEC 20 stopped gating elapsed time, neither a debt
+    // paid nor a debt dropped. `client-js-raw` was filed at TX-GUTTER on 2026-08-14 and CLOSED
+    // the same day by TX-ADOPT paying 10,314 raw bytes, paid by the payer the entry named.
+    // `page-bytes` lived from 2026-08-11 to the close of M2: TX-ADOPT paid the 12,494 adoption
+    // can reach, and the stylesheet remainder was closed by the maintainer re-deriving the cap
+    // for the sanctioned arrivals, the fourth kind of ending: paid in part, and the rest
+    // re-derived rather than cut out of the six mark rules. The served document was named
+    // alongside `tti` when the list was first asked for and has never entered either, because
+    // listing a budget that passes records a debt that does not exist.
     const live = BUDGET_EXCEPTIONS.map((entry) => entry.budget);
     const closed = BUDGET_EXCEPTION_HISTORY.map((entry) => entry.budget);
 
     // When
     const servedDocument = [...live, ...closed].includes('served-document');
-    const pageBytes = BUDGET_EXCEPTIONS.find((entry) => entry.budget === 'page-bytes');
+    const pageBytes = BUDGET_EXCEPTION_HISTORY.find((entry) => entry.budget === 'page-bytes');
     const clientJs = BUDGET_EXCEPTION_HISTORY.find((entry) => entry.budget === 'client-js-raw');
 
     // Then
-    expect(live).toEqual(['page-bytes']);
-    expect(closed).toEqual(['tti', 'client-js-raw']);
+    expect(live).toEqual([]);
+    expect(closed).toEqual(['tti', 'client-js-raw', 'page-bytes']);
     expect(servedDocument).toBe(false);
 
-    // And the terms, which are what make it an exception rather than a raised threshold. The
-    // owner is a task the plan carries and the expiry is a milestone that has not closed, both
-    // of which `checkBudgetExceptions` enforces against the real files; what is pinned here is
-    // that they are the ones the maintainer decided on, and that the closed entry still names
-    // the payer that paid it.
+    // And the terms, which are what make a closure a record rather than a deletion: the owner
+    // that paid, the expiry it paid inside, the commit the recorded figure was taken at, and
+    // the runner figure the close was taken on.
     expect(pageBytes?.owners).toEqual(['T012-R4']);
     expect(pageBytes?.clearBy).toBe('M2');
+    expect(pageBytes?.measuredAtCommit).toBe('53027c9');
+    expect(pageBytes?.closedBecause).toContain('204,818');
+    expect(pageBytes?.closedBecause).toContain('194 to 203 KB');
+    expect(pageBytes?.closedBecause).toContain('74510c5');
     expect(clientJs?.owners).toEqual(['TX-ADOPT']);
     expect(clientJs?.closedBecause).toContain('10,314');
   });
 
-  it('should say in the entry itself that the six marks are not what pays it back', () => {
-    // Given the failure mode this entry is one step away from: 1,224 of the 1,716 bytes the
-    // stylesheet grew are the six rules that give provenance and severity an edge style, so the
-    // cheapest kilobyte on the page is the one that makes the levels of SPEC 6.1 and SPEC 7.2
-    // legible with no colour seen at all. An entry that recorded only the number would read to
-    // the next person as an instruction to find bytes wherever they are cheapest.
-    const entry = BUDGET_EXCEPTIONS.find((budget) => budget.budget === 'page-bytes');
+  it('should say in the closed entry that the six marks are not what paid it back', () => {
+    // Given the failure mode the entry was one step away from for its whole life: 1,224 of the
+    // 1,716 bytes the stylesheet grew are the six rules that give provenance and severity an
+    // edge style, so the cheapest kilobyte on the page was the one that makes the levels of
+    // SPEC 6.1 and SPEC 7.2 legible with no colour seen at all. A closure that recorded only
+    // the numbers would read to the next person as the marks having been spent.
+    const entry = BUDGET_EXCEPTION_HISTORY.find((budget) => budget.budget === 'page-bytes');
 
     // When
-    const line = entry === undefined ? '' : describeException(entry);
+    const line = entry === undefined ? '' : describeClosedException(entry);
 
-    // Then
-    expect(line).toContain('1,224');
+    // Then the diagnosis keeps the entry's own words and the closure says it again
+    expect(entry?.diagnosis).toContain('1,224');
+    expect(entry?.diagnosis).toContain('not an instruction to delete them');
     expect(line).toContain('not an instruction to delete them');
+    expect(line).toContain('mark rules are in the shipped stylesheet');
   });
 
   it('should describe the closed entry with its figure and the reason it ended', () => {
@@ -302,6 +347,18 @@ describe('the committed exception list', () => {
     expect(line).toContain('150 ms');
     expect(line).toContain('closed 2026-08-10');
     expect(line).toContain('NO LONGER EXISTS IN GATED FORM');
+  });
+
+  it('should print the commit beside the figure of a closed entry that carries one', () => {
+    // Given the second half of the freshness mechanism, applied to the record: the figure and
+    // the tree it described, in one glance
+    const entry = BUDGET_EXCEPTION_HISTORY.find((budget) => budget.budget === 'page-bytes');
+
+    // When
+    const line = entry === undefined ? '' : describeClosedException(entry);
+
+    // Then
+    expect(line).toContain('203,654 bytes, 198.9 KB, over by 4,998 at commit 53027c9');
   });
 
   it('should still describe a live entry with its owners and its expiry, for the next one', () => {

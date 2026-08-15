@@ -2,7 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { BROWSER_CEILINGS, MEASURED_BUDGETS } from '../../src/config';
 import {
   ASSERTED_FIGURES,
+  BASELINE_ANSWERED_BUDGET_IDS,
+  BASELINE_INPUT_PATHS,
   RECORDED_NOT_ASSERTED,
+  baselineFreshness,
   checkCeilings,
   compareToBaseline,
   pageBytesOf,
@@ -128,10 +131,11 @@ describe('checkCeilings', () => {
   });
 
   it('should sum the three byte columns and refuse a page frame sized addition', () => {
-    // Given the derivation the cap was chosen by: measured 195,783 bytes with 2,873 of room, so
-    // another region of `theme.css` the size of the page frame, 3,287 bytes, has to fail
+    // Given the derivation the cap was chosen by, re-derived at the close of M2 from the runner
+    // measurement of 204,818: another region of `theme.css` the size of the page frame, 3,287
+    // bytes, has to fail
     const record = baseline({
-      parsedBytes: { documentBytes: 65_326, cssBytes: 32_606 + 3_287, jsBytes: 98_193 },
+      parsedBytes: { documentBytes: 37_894, cssBytes: 59_582 + 3_287, jsBytes: 107_342 },
     });
 
     // When
@@ -143,9 +147,9 @@ describe('checkCeilings', () => {
   });
 
   it('should let a navigation sized addition through, which is the room ordinary work gets', () => {
-    // Given, the same allowance `theme-css-raw` was derived with
+    // Given, the same allowance `theme-css-raw` was derived with, over the same re-derived base
     const record = baseline({
-      parsedBytes: { documentBytes: 65_326, cssBytes: 32_606 + 2_520, jsBytes: 98_193 },
+      parsedBytes: { documentBytes: 37_894, cssBytes: 59_582 + 2_520, jsBytes: 107_342 },
     });
 
     // When
@@ -380,6 +384,65 @@ describe('what the record asserts and what it only carries', () => {
   });
 });
 
+describe('baselineFreshness', () => {
+  it('should call the record current when no commit touching its inputs has landed past it', () => {
+    // Given
+    const record = baseline({ commit: '74510c54d971199afe3442d9d177421b0f4a08c8' });
+
+    // When
+    const freshness = baselineFreshness(record, 0);
+
+    // Then
+    expect(freshness.state).toBe('current');
+    expect(freshness.message).toContain('74510c54d971');
+  });
+
+  it('should name a stale record with the commit, the count and the way back', () => {
+    // Given the failure this exists for, twice over: nine tasks shipped on the T023 record, the
+    // TX chain shipped on the T033 one, and both times the figure being read described a page
+    // that no longer existed. There is no failing distance, because any N > 0 admits N sessions
+    // of exactly that silence; what there is instead is this line on every run.
+    const record = baseline({ commit: '53027c9e6d367c1c667eabe50db6fd351dd208f2' });
+
+    // When
+    const freshness = baselineFreshness(record, 9);
+
+    // Then
+    expect(freshness.state).toBe('stale');
+    expect(freshness.message).toContain('BASELINE STALE');
+    expect(freshness.message).toContain('53027c9e6d36');
+    expect(freshness.message).toContain('9 commits');
+    expect(freshness.message).toContain('re-record');
+    for (const path of BASELINE_INPUT_PATHS) {
+      expect(freshness.message).toContain(path);
+    }
+  });
+
+  it('should speak of one commit in the singular, since the first stale session is the class', () => {
+    // Given
+    // When
+    const freshness = baselineFreshness(baseline(), 1);
+
+    // Then
+    expect(freshness.state).toBe('stale');
+    expect(freshness.message).toContain('1 commit touching');
+    expect(freshness.message).toContain('has landed');
+  });
+
+  it('should say it cannot tell rather than defaulting to current, when git cannot answer', () => {
+    // Given a tarball, a shallow clone, or a rewritten history. A null count reading as
+    // "current" would be the record claiming freshness with no evidence, which is the exact
+    // shape of the defect the mechanism exists for.
+    // When
+    const freshness = baselineFreshness(baseline(), null, 'fatal: not a git repository');
+
+    // Then
+    expect(freshness.state).toBe('unknown');
+    expect(freshness.message).toContain('could not be told');
+    expect(freshness.message).toContain('not a git repository');
+  });
+});
+
 describe('the committed baseline', () => {
   it('should be readable, and should say what it is over', () => {
     // Given the real file, which is what the budgets gate reads
@@ -399,62 +462,56 @@ describe('the committed baseline', () => {
   });
 
   it('should carry a figure for every budget the gate says it measures', () => {
-    // Given
+    // Given the one home the recorded set has: `recordedFigure` prints these ids and the
+    // `budget-exceptions` gate requires a live entry over one of them to carry the commit its
+    // figure was measured at. This holds the list to the function in both directions, so a
+    // budget added to one and not the other fails here rather than slipping the commit rule.
     const { baseline: record } = readBrowserBaseline(repoRoot);
     if (record === null) throw new Error('no baseline');
 
     // When
     // Then
-    for (const id of [
-      'tti',
-      'main-thread-work',
-      'long-tasks',
-      'page-bytes',
-      'client-memory',
-      'external-requests',
-      'csp-violations',
-      'served-document',
-    ]) {
+    for (const id of BASELINE_ANSWERED_BUDGET_IDS) {
       expect(recordedFigure(record, id)).not.toBeNull();
     }
 
-    expect(recordedFigure(record, 'prerender')).toBeNull();
+    for (const budget of MEASURED_BUDGETS) {
+      if (BASELINE_ANSWERED_BUDGET_IDS.includes(budget.id)) continue;
+      expect(recordedFigure(record, budget.id)).toBeNull();
+    }
   });
 
   it('should hold the figures the three gated caps are judged against', () => {
     // Given, so the derivation in `config.ts` is checked against the record rather than
-    // remembered. The cap was derived on 2026-08-11 from the representative input of T016
-    // finding F10, at 196,125 bytes with 2,531 of headroom. THE HEADROOM IS GONE AND THE CAP HAS
-    // NOT MOVED: T020 through T023 took the record to 199,612 on the same input, so what this
-    // now pins is a deficit rather than a margin, and the deficit is what `BUDGET_EXCEPTIONS`
-    // carries. A cap recomputed to restore the margin would be the forbidden move, because here
-    // the artefact changed and the input did not.
+    // remembered. The record is the close-of-M2 study over the committed tree at 74510c5, and
+    // the cap is 203 KB, re-derived at that close for the sanctioned stylesheet arrivals of the
+    // TX chain after TX-ADOPT paid what adoption can reach. The deficit era, 2026-08-11 to the
+    // close of M2 with the cap standing at 194 KB, is recorded in the closed `page-bytes` entry
+    // of `BUDGET_EXCEPTION_HISTORY`.
     const { baseline: record } = readBrowserBaseline(repoRoot);
     if (record === null) throw new Error('no baseline');
 
     // When
     const bytes = pageBytesOf(record.parsedBytes);
 
-    // Then, 203,654 against 198,656, over by 4,998 since the T033 re-record: the recorded work
-    // of T026 through T033, measured identically to the byte on the three studies of that
-    // dispatch and on the workstation. The deficit is what BUDGET_EXCEPTIONS carries, owned by
-    // T012-R4.
-    expect(bytes).toBe(203_654);
-    expect(BROWSER_CEILINGS.pageBytes - bytes).toBe(-4_998);
+    // Then, 204,818 against 207,872 with 3,054 of headroom: enough for a navigation sized
+    // addition of 2,520, not enough for a page frame sized region of 3,287, which is the
+    // property both prior derivations of this cap kept and the ceiling cases above hold.
+    expect(bytes).toBe(204_818);
+    expect(BROWSER_CEILINGS.pageBytes - bytes).toBe(3_054);
 
-    // And the served document, 64,741 with 8,987 of headroom, DOWN 493 from the record this
-    // replaced: T005-R1's honest recursion stops are smaller than the null skeletons they
-    // replaced. It is derived loosely on purpose: the regression it exists to catch is the
-    // navigation blob returning, and this document's is 546,162 bytes, so a fifth of it fails
-    // this cap twice over.
-    expect(record.parsedBytes.documentBytes).toBe(64_741);
-    expect(BROWSER_CEILINGS.servedDocumentBytes - record.parsedBytes.documentBytes).toBe(8_987);
+    // And the served document, 37,894 with 35,834 of headroom, DOWN 26,847 from the record this
+    // replaced: the compact response index and the state block redaction of TX-ADOPT. It is
+    // derived loosely on purpose: the regression it exists to catch is the navigation blob
+    // returning, and this document's is 546,162 bytes, so a fifth of it fails this cap twice
+    // over.
+    expect(record.parsedBytes.documentBytes).toBe(37_894);
+    expect(BROWSER_CEILINGS.servedDocumentBytes - record.parsedBytes.documentBytes).toBe(35_834);
 
     // And the count that has run out of room without going over. It is pinned to what the record
     // says and checked against the cap, rather than asserted equal to it: the two have been the
     // same number and have been different, and reading either as the contract would fail the
-    // build for a page that got better. The recorded study reads 1, and the note says what a
-    // median hides, which is that four of the six studies read 2 against a cap of 2.
+    // build for a page that got better. Every study of this dispatch read a median of 1.
     expect(record.longTaskCount.median).toBe(1);
     expect(record.longTaskCount.max).toBeLessThanOrEqual(BROWSER_CEILINGS.longTaskCount);
   });

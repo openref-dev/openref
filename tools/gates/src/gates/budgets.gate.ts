@@ -79,6 +79,10 @@ export const budgetsGate: Gate = {
 
     for (const note of report.notes) findings.push({ level: 'info', message: note });
 
+    // A stale baseline does not stop the build and must not read as information either; the
+    // reasoning, and the reason there is no failing distance, is on `baselineFreshness`.
+    for (const warning of report.warnings) findings.push({ level: 'warning', message: warning });
+
     for (const outcome of report.outcomes.filter((item) => item.source === 'recorded'))
       emit(outcome);
 

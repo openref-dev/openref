@@ -7,6 +7,7 @@ import {
   BUILD_FILE,
   SPEC_20_BUDGET_IDS,
 } from '../config.js';
+import { BASELINE_ANSWERED_BUDGET_IDS } from '../lib/browser-baseline.js';
 import { aiDocsAbsentMessage, aiDocsPresent } from '../lib/ai-docs.js';
 import {
   checkBudgetExceptions,
@@ -127,6 +128,10 @@ export const budgetExceptionsGate: Gate = {
 
     const issues = checkBudgetExceptions(BUDGET_EXCEPTIONS, {
       budgetIds: SPEC_20_BUDGET_IDS,
+      // The browser-measured set: a live entry over one of these cites the committed record,
+      // and the record does not move with the tree, so the entry has to carry the commit its
+      // figure was taken at.
+      recordedBudgetIds: BASELINE_ANSWERED_BUDGET_IDS,
       overBudgetIds: overBudgetIds(collectBudgetOutcomes(context.repoRoot)),
       taskIds: planTaskIds(build, amendments),
       milestones: parseMilestones(lines),

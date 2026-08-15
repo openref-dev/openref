@@ -22,7 +22,14 @@ import {
   MEASURED_BUDGETS,
   SIZE_BUDGETS,
 } from '../config.js';
-import { checkCeilings, readBrowserBaseline, recordedFigure } from './browser-baseline.js';
+import {
+  BASELINE_INPUT_PATHS,
+  baselineFreshness,
+  checkCeilings,
+  readBrowserBaseline,
+  recordedFigure,
+} from './browser-baseline.js';
+import { countCommitsSince } from './git.js';
 import {
   evaluateBudget,
   formatBytes,
@@ -78,6 +85,12 @@ export interface BudgetReport {
   readonly errors: readonly string[];
   /** Informational lines that are not about one budget, such as the study's environment. */
   readonly notes: readonly string[];
+  /**
+   * Lines that do not stop a build and must not read as information, today the one naming a
+   * stale baseline. A stale record is not a failure of the product, and printing it as a note
+   * is how nine tasks shipped on a record of a page that no longer existed.
+   */
+  readonly warnings: readonly string[];
   /** How many budgets were actually measured, as opposed to skipped. */
   readonly measuredCount: number;
 }
@@ -92,6 +105,7 @@ export function collectBudgetOutcomes(repoRoot: string): BudgetReport {
   const outcomes: BudgetOutcome[] = [];
   const errors: string[] = [];
   const notes: string[] = [];
+  const warnings: string[] = [];
   let measuredCount = 0;
 
   // THE GESTURE DIVISION IS COMPUTED ONCE PER ENTRY AND ITS COMPLAINTS ARE REPORTED ONCE. Six
@@ -319,7 +333,7 @@ export function collectBudgetOutcomes(repoRoot: string): BudgetReport {
       `${BROWSER_BASELINE_FILE}: ${baselineResult.reason ?? 'could not be read'}. The browser budgets of SPEC 20 have no measurement behind them until it is re-recorded by ${BROWSER_STUDY_WORKFLOW}`,
     );
 
-    return { outcomes, errors, notes, measuredCount };
+    return { outcomes, errors, notes, warnings, measuredCount };
   }
 
   const baseline = baselineResult.baseline;
@@ -331,6 +345,20 @@ export function collectBudgetOutcomes(repoRoot: string): BudgetReport {
       `Chrome ${String(baseline.browser.major)}, throttle ${String(baseline.throttleRate)}x measured ` +
       `${baseline.throttleRatio.median.toFixed(2)}x, commit ${baseline.commit.slice(0, 12)}`,
   );
+
+  // THE RECORD IS DATED AGAINST THE TREE ON EVERY RUN. The figures below are read out of a
+  // committed file that does not move when the page does, and twice the figure being read
+  // predated the page by a chain of sessions. There is no failing distance, for the reason
+  // `baselineFreshness` states; what there is instead is this line, stale as a warning and
+  // never as information.
+  const distance = countCommitsSince(repoRoot, baseline.commit, BASELINE_INPUT_PATHS);
+  const freshness = baselineFreshness(baseline, distance.count, distance.reason);
+
+  if (freshness.state === 'stale') {
+    warnings.push(freshness.message);
+  } else {
+    notes.push(freshness.message);
+  }
 
   for (const budget of MEASURED_BUDGETS) {
     const recorded = recordedFigure(baseline, budget.id);
@@ -383,7 +411,7 @@ export function collectBudgetOutcomes(repoRoot: string): BudgetReport {
     );
   }
 
-  return { outcomes, errors, notes, measuredCount };
+  return { outcomes, errors, notes, warnings, measuredCount };
 }
 
 /**
