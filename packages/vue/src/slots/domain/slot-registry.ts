@@ -58,8 +58,33 @@ export function createSlotRegistry(
 ): SlotRegistry {
   const components = new Map<SlotName, Component>();
 
+  /**
+   * Refuses a registration whose component is nothing.
+   *
+   * THE NAME WAS CHECKED AND THE VALUE WAS NOT, UNTIL T035. `resolve` returns `undefined` for a
+   * position registered with `undefined` and for one never registered at all, and `useSlot` reads
+   * both as "fall back to the reference component", so a broken default export or a circular
+   * import that resolves to `undefined` drew the reference's own markup while the theme believed
+   * it had drawn its own, with nothing red on either side. `checkTheme` cannot see it either: it
+   * counts the keys of the record, and the key is there. A theme that means to leave a position
+   * alone omits it; handing over nothing is a mistake, and this is where it is nameable.
+   */
+  const assertComponent = (name: string, component: Component | undefined): void => {
+    if (component !== undefined) return;
+
+    throw new SlotNotFoundError(
+      `the theme registered slot "${name}" with nothing to render; a position is either left to ` +
+        'the reference by omitting it or filled with a component, and handing over undefined is ' +
+        'silently the first while reading as the second',
+      ErrorCode.THEME_SLOT_NOT_FOUND,
+      undefined,
+      { name },
+    );
+  };
+
   for (const [name, component] of Object.entries(overrides)) {
     assertSlotName(name);
+    assertComponent(name, component);
     components.set(name, component);
   }
 
@@ -71,6 +96,7 @@ export function createSlotRegistry(
     },
     register: (name, component) => {
       assertSlotName(name);
+      assertComponent(name, component);
       components.set(name, component);
     },
     overridden: () => SLOT_NAMES.filter((name) => components.has(name)),

@@ -269,3 +269,19 @@ describe('browserResolutionGate', () => {
     expect(errorsOf(result)).toContain('did not read it');
   });
 });
+
+describe('an absolute path specifier', () => {
+  it('should be refused, since the reference is mounted under a base path a host chooses', () => {
+    // Given a chunk importing from the origin root
+    const source = 'import"/assets/chunk-x.js";';
+
+    // When the scan classifies it
+    const found = specifiersIn(source);
+
+    // Then it is an absolute path, and the gate now reports it. Until T035 the loop did
+    // `if (entry.kind !== 'relative') continue;` after handling bare and external urls, so this
+    // one kind was classified and then skipped, and its failure is exactly the sentence the
+    // gate's own relative branch prints: a specifier that answers 404.
+    expect(found.specifiers.map((entry) => entry.kind)).toEqual(['absolute-path']);
+  });
+});

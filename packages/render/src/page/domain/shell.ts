@@ -114,8 +114,15 @@ const TOKEN_NAME = /^--oref-[a-z0-9]+(?:-[a-z0-9]+)*$/;
  * a block, because a style element cannot be escaped the way text can, only refused. Newlines
  * are out with them: no CSS value this surface is for needs one, and a value that brings one
  * is bringing structure, not style.
+ *
+ * THE SEMICOLON JOINED THEM AT T035. The guard was written against a value escaping `:root{…}`
+ * and a semicolon does not do that, which is why it was let through; what it does instead is end
+ * the declaration it was given and begin one nobody authorized, so `red;position:fixed;top:0`
+ * writes three declarations onto the root element from inside the nonce carrying element the
+ * strict CSP of SPEC 19.2 exists to make trustworthy. No token value on this surface needs one:
+ * a value is one declaration's worth of CSS, and a font stack separates with commas.
  */
-const TOKEN_VALUE = /^[^<>{}\r\n]*$/;
+const TOKEN_VALUE = /^[^<>{};\r\n]*$/;
 
 /**
  * The theme's token values as one nonce carrying style element, or nothing.

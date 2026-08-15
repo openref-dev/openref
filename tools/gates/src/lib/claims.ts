@@ -164,6 +164,31 @@ export function thresholdOfCell(cell: string): Threshold | null {
   return { kind: 'count', value };
 }
 
+/**
+ * Which way round one SPEC 20 cell states its bound.
+ *
+ * THE OPERATOR WAS PARSED OFF AND DROPPED UNTIL T035. `thresholdOfCell` reads the first number of
+ * the leading segment, so `<= 100 KB` and `>= 100 KB` produced the same threshold and the multiset
+ * comparison found them equal: the table could invert every bound it states and stay green, while
+ * the configuration went on enforcing ceilings. A budget is a ceiling by definition, so a row
+ * stating a floor is the table promising the opposite of what the gate enforces.
+ *
+ * `unstated` IS ALLOWED AND IS NOT A THIRD BOUND. Several rows write a bare figure, and a bare
+ * figure in a budget table reads as a ceiling; what is refused is a row that says otherwise in so
+ * many words.
+ *
+ * @param cell - The threshold cell as the table writes it
+ * @returns Which direction the cell states, reading only its leading present tense segment
+ */
+export function boundDirectionOfCell(cell: string): 'at-most' | 'at-least' | 'unstated' {
+  const leading = (cell.split(/[,(]/, 1)[0] ?? '').toLowerCase();
+
+  if (/[≥]|>=|не менее|не меньше|минимум|至少/.test(leading)) return 'at-least';
+  if (/[≤]|<=|<|не более|не больше|максимум/.test(leading)) return 'at-most';
+
+  return 'unstated';
+}
+
 /** A threshold in the words a finding can print. */
 export function thresholdWords(threshold: Threshold): string {
   if (threshold.kind === 'report') return 'recorded, not gated';
@@ -214,6 +239,15 @@ export function compareBudgetValues(
   }
 
   for (const row of rows) {
+    if (boundDirectionOfCell(row.threshold) === 'at-least') {
+      issues.push({
+        rule: 'budget-bound-inverted',
+        message:
+          `the SPEC 20 row "${row.label}" states a lower bound, "${row.threshold}", and every ` +
+          'budget the gates enforce is a ceiling. The table promises the opposite of what runs',
+      });
+    }
+
     const threshold = thresholdOfCell(row.threshold);
     if (threshold === null) {
       issues.push({

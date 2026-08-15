@@ -10,6 +10,25 @@ export type { BootedFixture } from './fixture/boot.js';
 export { contentSecurityPolicy, createFixture, FIXTURE_BASE_PATH } from './fixture/app.js';
 export type { FixtureDocument, FixtureOptions } from './fixture/app.js';
 export {
+  ALLOW_CONTROL_PATH,
+  AUTHORIZATION_CLIENT_ID,
+  AUTHORIZATION_MODES,
+  AUTHORIZE_PATH,
+  authorizationDocumentSurface,
+  createAuthorizationServer,
+  ELSEWHERE_TOKEN_PATH,
+  operationPathFor,
+  OVERSIZED_TOKEN_BYTES,
+  schemeIdFor,
+  TOKEN_PATH,
+} from './fixture/authorization-server.js';
+export type {
+  AuthorizationMode,
+  AuthorizationServerOptions,
+} from './fixture/authorization-server.js';
+export { AUTHORIZATION_ENTRY, bootAuthorizationServer } from './fixture/authorization-boot.js';
+export type { BootedAuthorizationServer } from './fixture/authorization-boot.js';
+export {
   largeSpecification,
   memorySpecification,
   MEMORY_DOCUMENT,

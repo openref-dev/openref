@@ -172,6 +172,21 @@ export async function completeSignIn(
 
     if (landed !== undefined) {
       writeSignInNotice({ schemeId: landed.schemeId, message: 'signed in' });
+      return;
+    }
+
+    // NOTHING PENDING IS NOT NOTHING TO SAY, per T035. This is what a replayed callback reaches:
+    // the record was spent by the first landing, so the second has no flow to finish. Before, the
+    // url was cleaned and the reader was told nothing at all, which reads exactly like a sign in
+    // that worked. The one case that must stay silent is a page with no runner at all, because
+    // there the module did not decline the answer, it never saw one.
+    // THE SENTENCE IS SHORT BECAUSE THIS CHUNK IS 800 BYTES GZIP, and the first draft of it put the
+    // chunk 9 bytes over. A budget is not moved to fit a sentence.
+    if (port !== undefined) {
+      writeSignInNotice({
+        schemeId: '',
+        message: 'nothing was waiting for that answer; it is spent, or it belongs to another tab',
+      });
     }
   } catch (cause) {
     // NO SCHEME ID, BECAUSE THE FAILURE IS THAT NOBODY KNOWS WHICH FLOW THIS WAS. The pending

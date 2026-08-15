@@ -330,8 +330,14 @@ export class OAuthSessionService {
 
     this.clearPending();
 
+    // THE RECORD IS THE AUTHORITY AND THE MAP IS THE SHORTCUT, per T035. A return happens on a page
+    // that never ran `signIn`, so `sessions` is empty there and the record is all there is; the map
+    // is still read first for the flows that never leave the page.
     const session = this.sessions.get(pending.schemeId);
-    if (session === undefined) {
+    const flow = session?.flow ?? pending.runnableFlow;
+    const client = session?.client ?? pending.client;
+
+    if (flow === undefined || client === undefined) {
       refuse(
         'this page has no record of the flow that answer belongs to, so it is refused; sign in ' +
           'again from the console',
@@ -339,20 +345,28 @@ export class OAuthSessionService {
       );
     }
 
-    if (pending.flow === 'implicit') {
-      this.accept(
-        pending.schemeId,
-        session.flow,
-        session.client,
-        readImplicitToken(params, pending),
+    // A SECRET CANNOT SURVIVE THE REDIRECT AND IS NOT MADE TO. Writing it beside the state in
+    // `sessionStorage` would put a credential at rest for every script on this origin, which SPEC
+    // 14.4 refuses; sending the exchange without it earns an `invalid_client` the reader would
+    // read as the server's fault. So the reason is named here.
+    if (pending.secretSupplied === true && (client.clientSecret ?? '') === '') {
+      refuse(
+        'this sign in used a client secret, and a secret is never written to storage, so it did ' +
+          'not survive the redirect to the authorization server; use a public client with PKCE, ' +
+          'which is what this console sends anyway, or the device flow, which never leaves the page',
+        { schemeId: pending.schemeId, flow: pending.flow },
       );
+    }
+
+    if (pending.flow === 'implicit') {
+      this.accept(pending.schemeId, flow, client, readImplicitToken(params, pending));
 
       return { schemeId: pending.schemeId, returnPath: pending.returnPath };
     }
 
     const code = readAuthorizationCode(params, pending);
     const response = await this.transport.send(
-      codeExchangePlan(session.flow, session.client, {
+      codeExchangePlan(flow, client, {
         code,
         // NON NULL BECAUSE `readAuthorizationCode` REFUSED THE RECORD WITHOUT ONE. The check is
         // there rather than here so that a pending record with no verifier never reaches a
@@ -372,7 +386,7 @@ export class OAuthSessionService {
       );
     }
 
-    this.accept(pending.schemeId, session.flow, session.client, outcome.token);
+    this.accept(pending.schemeId, flow, client, outcome.token);
 
     return { schemeId: pending.schemeId, returnPath: pending.returnPath };
   }
@@ -539,6 +553,12 @@ export class OAuthSessionService {
     const state = `${randomToken(this.random)}.${base64UrlText(redirect.returnPath)}`;
     const challenge = flow.kind === 'implicit' ? undefined : await createPkceChallenge(this.random);
 
+    // THE SECRET IS STRIPPED HERE AND NOWHERE ELSE, so there is one place to read to know what
+    // leaves this page. Everything else in the record is a public fact of the document or a value
+    // this runner generated.
+    const { clientSecret, ...publicClient } = client;
+    const secretSupplied = (clientSecret ?? '') !== '';
+
     const pending: PendingAuthorization = {
       schemeId,
       flow: flow.kind,
@@ -546,6 +566,9 @@ export class OAuthSessionService {
       ...(challenge === undefined ? {} : { verifier: challenge.verifier }),
       redirectUri: redirect.redirectUri,
       returnPath: redirect.returnPath,
+      runnableFlow: flow,
+      client: publicClient,
+      ...(secretSupplied ? { secretSupplied } : {}),
     };
 
     this.sessions.set(schemeId, { flow, client });
@@ -588,6 +611,20 @@ export class OAuthSessionService {
 
     const record = parsed as Partial<PendingAuthorization>;
     if (typeof record.schemeId !== 'string' || typeof record.state !== 'string') {
+      this.clearPending();
+      return undefined;
+    }
+
+    // THE TWO FIELDS THE EXCHANGE NOW DEPENDS ON ARE CHECKED SHAPE-WISE, and a record that fails is
+    // dropped rather than repaired: this store is writable by any script on the origin, so a
+    // half-shaped record is either an older format or somebody else's, and neither is a flow to
+    // continue. The refusal a dropped record produces is the same one an absent one produces.
+    if (record.runnableFlow !== undefined && typeof record.runnableFlow.kind !== 'string') {
+      this.clearPending();
+      return undefined;
+    }
+
+    if (record.client !== undefined && typeof record.client.clientId !== 'string') {
       this.clearPending();
       return undefined;
     }

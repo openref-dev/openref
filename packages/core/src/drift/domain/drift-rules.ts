@@ -210,10 +210,14 @@ const SECURITY_DRIFT: OperationRule = {
       });
     }
 
-    // WITHOUT A MAPPING THIS RULE HAS NOTHING TO COMPARE, so it stays quiet rather than reporting
-    // every secured operation in the application. A guard class name does not name a security
-    // scheme, per SPEC 7.1, and firing here would mean asserting a disagreement nobody measured.
-    if (mapped.length === 0) return CLEAN;
+    // WITHOUT A MAPPING THIS RULE HAS NOTHING TO COMPARE, so it is out of scope rather than clean.
+    // A guard class name does not name a security scheme, per SPEC 7.1, and firing here would mean
+    // asserting a disagreement nobody measured. IT WAS `CLEAN` UNTIL T035, and that is the stronger
+    // claim of the two: `CLEAN` is what the parity scale reads as "a rule examined this and stayed
+    // quiet", so the authentication row drew `=` over a comparison that never happened, on every
+    // operation with a guard and a declared requirement. Out of scope is what did happen, and it
+    // also stops the health check counting an operation it never compared among the ones it passed.
+    if (mapped.length === 0) return OUT_OF_SCOPE;
 
     const required = operation.security.map((requirement) => requirement.schemeId);
     if (required.some((schemeId) => mapped.includes(schemeId))) return CLEAN;
@@ -441,6 +445,17 @@ const PARAMETER_UNREAD: OperationRule = {
   check(operation: IROperation): Outcome {
     const reads = operation.runtime?.parameterReads;
     if (reads === undefined) return OUT_OF_SCOPE;
+
+    // A SCAN THAT ACCOUNTED FOR NOTHING EXAMINED NOTHING, per T035. `unaccounted` is the scan
+    // speaking about itself, and a fact made only of it is a fact with no observation in it; this
+    // rule returned `CLEAN` for that until T035, and the parity row turned that into `=` while the
+    // cell beside it said `0 of 1 seen read, 1 not accounted for by the scan`. The two now agree.
+    if (
+      reads.value.parameters.length > 0 &&
+      reads.value.parameters.every((parameter) => parameter.verdict === 'unaccounted')
+    ) {
+      return OUT_OF_SCOPE;
+    }
 
     const required = new Set(
       (operation.runtime?.requiredHeaders?.value ?? []).map((name) => name.toLowerCase()),

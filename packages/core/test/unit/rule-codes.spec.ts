@@ -163,3 +163,58 @@ describe('operationRuleOutcome', () => {
     expect(outcome).toBe('out-of-scope');
   });
 });
+
+describe('a rule that could not compare, at the moment a renderer re-asks it', () => {
+  it('should answer out-of-scope for security-drift with no guard to scheme mapping', () => {
+    // Given an operation with a guard and a declared security requirement, and no observation,
+    // which is exactly how `buildParityRows` re-asks every rule
+    const guarded = operation({
+      security: [{ schemeId: 'bearer', scopes: [] }],
+      runtime: {
+        guards: [
+          {
+            name: 'AuthGuard',
+            scope: 'route',
+            confidence: 'derived',
+            collector: 'guardsCollector',
+          },
+        ],
+      },
+    });
+
+    // When the renderer asks without an observation
+    const outcome = operationRuleOutcome(guarded, 'security-drift');
+
+    // Then it says it did not look. It answered `clean` until T035, and the parity scale reads
+    // `clean` as "a rule examined this and stayed quiet", so the authentication row drew `=` with
+    // `aria-label="match"` over a comparison of scheme identity that never happened, on every
+    // operation carrying a guard and a requirement.
+    expect(outcome).toBe('out-of-scope');
+  });
+
+  it('should still compare when a mapping was observed', () => {
+    // Given the same operation and an observation naming what the guard maps to
+    const guarded = operation({
+      security: [{ schemeId: 'bearer', scopes: [] }],
+      runtime: {
+        guards: [
+          {
+            name: 'AuthGuard',
+            scope: 'route',
+            confidence: 'derived',
+            collector: 'guardsCollector',
+          },
+        ],
+      },
+    });
+
+    // When the report asks, which is the caller that has one
+    const outcome = operationRuleOutcome(guarded, 'security-drift', {
+      handledNodeIds: new Set<string>(),
+      guardSchemes: new Map([['AuthGuard', 'bearer']]),
+    });
+
+    // Then the comparison ran and agreed, and `=` there is earned
+    expect(outcome).toBe('clean');
+  });
+});

@@ -14,6 +14,7 @@
  */
 
 import type { IRJsonSchema, IRSchema } from '@openref/core';
+import { isSafePattern } from '@openref/core';
 import {
   conditionHolds,
   conditionsOf,
@@ -114,6 +115,45 @@ function dereference(schema: IRJsonSchema, context: DeriveContext): IRJsonSchema
   return context.schemas[schema.$ref]?.normalized ?? schema;
 }
 
+/**
+ * What one document supplied pattern says about one value, including that it cannot say anything.
+ *
+ * THE PATTERN COMES FROM SOMEBODY ELSE'S DOCUMENT AND IS NOT COMPILED RAW. Until T035 both this
+ * check and the pattern key check did `new RegExp(pattern).test(...)` on the render thread: a
+ * document with `"pattern": "("` threw `SyntaxError` out of a Vue render the moment a reader typed
+ * a character, and with no error boundary anywhere that ends the client render; `^(a+)+$` merely
+ * hung the thread. `isSafePattern` is the guard `@openref/core` already exports for the sampler,
+ * refusing a nested quantifier and a very long pattern, and this is the same document.
+ *
+ * `unusable` IS A THIRD ANSWER AND NOT A SILENT `differs`. A reader told their value does not match
+ * a pattern the page could not evaluate would go and change the value.
+ *
+ * @param pattern - The pattern as the document wrote it
+ * @param value - What the reader typed
+ * @returns Whether it matches, differs, or cannot be checked here
+ */
+export function patternVerdict(pattern: string, value: string): 'matches' | 'differs' | 'unusable' {
+  if (!isSafePattern(pattern)) return 'unusable';
+
+  let expression: RegExp;
+  try {
+    expression = new RegExp(pattern, 'u');
+  } catch {
+    try {
+      expression = new RegExp(pattern);
+    } catch {
+      return 'unusable';
+    }
+  }
+
+  return expression.test(value) ? 'matches' : 'differs';
+}
+
+/** The sentence a pattern that cannot be evaluated here earns, in the pattern's own terms. */
+export function unusablePatternWords(pattern: string): string {
+  return `This document states a pattern this page cannot check: ${pattern}.`;
+}
+
 /** The type violation of one value against one schema, in the type's own words. */
 export function typeError(value: string, schema: IRJsonSchema): string | undefined {
   if (value === '') return undefined;
@@ -158,8 +198,10 @@ export function typeError(value: string, schema: IRJsonSchema): string | undefin
         ? `Expected string, length at least ${String(min)}.`
         : `Expected string, length at most ${String(max ?? 0)}.`;
     }
-    if (schema.pattern !== undefined && !new RegExp(schema.pattern).test(value)) {
-      return `Expected a value matching ${schema.pattern}.`;
+    if (schema.pattern !== undefined) {
+      const verdict = patternVerdict(schema.pattern, value);
+      if (verdict === 'unusable') return unusablePatternWords(schema.pattern);
+      if (verdict === 'differs') return `Expected a value matching ${schema.pattern}.`;
     }
   }
 
@@ -426,7 +468,11 @@ function pushPattern(
   const entries = patternEntryPaths(path, context.values).map((head) => {
     const key = context.values[`${head}/key`] ?? '';
     const value = context.values[`${head}/value`] ?? '';
-    const matches = patterns.some((pattern) => new RegExp(pattern).test(key));
+    const verdicts = patterns.map((pattern) => patternVerdict(pattern, key));
+    const matches = verdicts.includes('matches');
+    // A KEY IS NOT CALLED WRONG BY A PATTERN NOBODY COULD EVALUATE. When every pattern here is
+    // unusable the page says so about the document instead of about the key.
+    const unusable = !matches && verdicts.length > 0 && verdicts.every((one) => one === 'unusable');
     const valueSchema = valueSchemas[0];
 
     return {
@@ -436,7 +482,9 @@ function pushPattern(
       value,
       ...(key !== '' && !matches
         ? {
-            keyError: `The key does not match ${patterns.join(', ')}. This is the key's condition, not the value's type.`,
+            keyError: unusable
+              ? unusablePatternWords(patterns.join(', '))
+              : `The key does not match ${patterns.join(', ')}. This is the key's condition, not the value's type.`,
           }
         : {}),
       ...(valueSchema === undefined
@@ -553,5 +601,13 @@ export function announceSentence(hidden: string | null, shown: string, kept: num
  * @returns Non-empty values under those paths
  */
 export function keptCount(paths: readonly string[], values: ShapeValues): number {
-  return paths.filter((path) => (values[path] ?? '') !== '').length;
+  // COUNTED BY PREFIX RATHER THAN BY EXACT PATH, per T035. `branchFieldPaths` flattens one object
+  // level and pushes the container path for anything else, so a member carrying variants, a
+  // pattern block or a tuple owns a path no control ever writes; counting exact matches announced
+  // `Values kept from the hidden branch: 0` while the map held three. A branch owns everything
+  // under its own path, and the sentence is about what the map kept.
+  const owned = (candidate: string): boolean =>
+    paths.some((path) => candidate === path || candidate.startsWith(`${path}/`));
+
+  return Object.keys(values).filter((path) => owned(path) && (values[path] ?? '') !== '').length;
 }

@@ -18,6 +18,14 @@ import type { Readable } from 'node:stream';
 /** A booted server. */
 export interface SpawnedServer {
   readonly url: string;
+  /**
+   * The whole ready line, for a server that reports more than one address.
+   *
+   * The fake authorization server of T035 listens on two origins, because "a token endpoint that
+   * answers from an unexpected host" means another origin rather than another path, and a caller
+   * that could only read `url` would have to guess the second one.
+   */
+  readonly ready: Readonly<Record<string, unknown>>;
   stop(): Promise<void>;
 }
 
@@ -57,6 +65,7 @@ export async function spawnServer(options: SpawnOptions): Promise<SpawnedServer>
 
   let out = '';
   let err = '';
+  let ready: Readonly<Record<string, unknown>> = {};
   child.stdout.setEncoding('utf8');
   child.stderr.setEncoding('utf8');
   child.stderr.on('data', (chunk: string) => (err += chunk));
@@ -85,6 +94,7 @@ export async function spawnServer(options: SpawnOptions): Promise<SpawnedServer>
         const parsed = JSON.parse(line) as { url?: unknown };
         if (typeof parsed.url === 'string') {
           clearTimeout(timer);
+          ready = parsed;
           resolve(parsed.url);
           return;
         }
@@ -94,6 +104,7 @@ export async function spawnServer(options: SpawnOptions): Promise<SpawnedServer>
 
   return {
     url,
+    ready,
     stop: () =>
       new Promise<void>((resolve) => {
         child.on('exit', () => {

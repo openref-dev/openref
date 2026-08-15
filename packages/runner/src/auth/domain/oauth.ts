@@ -192,7 +192,21 @@ export function authorizationUrl(
   return `${base}${base.includes('?') ? '&' : '?'}${query}`;
 }
 
-/** What the runner remembered when it sent the reader to an authorization server. */
+/**
+ * What the runner remembered when it sent the reader to an authorization server.
+ *
+ * IT HAS TO CARRY EVERYTHING THE EXCHANGE NEEDS, because between writing it and reading it the
+ * page is gone. T035 proved this in a browser: the flow and the client used to live in a field of
+ * the session service, the redirect destroys the JavaScript context that field is in, and every
+ * return landed on `this page has no record of the flow that answer belongs to`. Under jsdom and
+ * Node one service instance spans the whole flow, so nothing red was ever produced by the defect
+ * that made the gesture impossible.
+ *
+ * AND IT MUST NOT CARRY THE CLIENT SECRET. This record is plain JSON in `sessionStorage`, readable
+ * by any script on the origin, and SPEC 14.4's storage policy is about exactly that difference: a
+ * flow's urls and a client id are public facts of the document, a secret is a credential. A
+ * confidential client in a redirect flow is therefore refused by name rather than half completed.
+ */
 export interface PendingAuthorization {
   readonly schemeId: string;
   readonly flow: OAuthFlowKind;
@@ -202,6 +216,12 @@ export interface PendingAuthorization {
   readonly redirectUri: string;
   /** Where the reader was, so they land back on it. */
   readonly returnPath: string;
+  /** The flow itself, so the exchange can be built on a page that never ran `signIn`. */
+  readonly runnableFlow?: RunnableOAuthFlow;
+  /** The client as the reader supplied it, with the secret removed. */
+  readonly client?: OAuthClient;
+  /** Whether a secret was supplied, so the return can say why it refuses instead of guessing. */
+  readonly secretSupplied?: boolean;
 }
 
 /** A callback's parameters, as they arrived in the query string or the fragment. */
@@ -286,6 +306,15 @@ export function readImplicitToken(
       undefined,
       { schemeId: pending.schemeId },
     );
+  }
+
+  // THE IMPLICIT FLOW'S TOKEN COMES OUT OF A URL FRAGMENT AND NOT OUT OF A JSON BODY, so it does
+  // not pass through `parseTokenResponse` and needs the same refusal of its own.
+  const unsendable = unsendableTokenReason(accessToken);
+  if (unsendable !== undefined) {
+    throw new AuthError(unsendable, ErrorCode.RUN_AUTH_FAILED, undefined, {
+      schemeId: pending.schemeId,
+    });
   }
 
   const expires = Number(params.expires_in ?? '');
@@ -522,6 +551,49 @@ function numberField(record: Record<string, unknown>, name: string): number | un
 }
 
 /**
+ * The largest access token this console will hold.
+ *
+ * 32 KB, which is above every real bearer token including the large signed ones, and below the
+ * point where holding it does damage. A token becomes an `Authorization` header on the next Send:
+ * the common server limit for one header is 8 KB and for the whole block 16 KB, so anything near
+ * this is already unsendable, and something has gone wrong at the authorization server rather than
+ * a very large credential having been issued on purpose.
+ */
+export const MAX_ACCESS_TOKEN_CHARS = 32 * 1024;
+
+/**
+ * Whether an access token can become a header at all, and what is wrong when it cannot.
+ *
+ * IT IS CHECKED WHERE THE TOKEN ARRIVES AND NOT WHERE IT IS SENT, per T035. A token carrying CR or
+ * LF was accepted, written to storage and reported as a successful sign in; the failure arrived
+ * later, when `applyCredentials` built `Authorization: Bearer <value>` and `fetch` refused the
+ * header, and the reader was told the request did not reach a server. That sentence is about a
+ * network, and the fault was in the answer the authorization server gave minutes earlier.
+ *
+ * @param token - The access token as the endpoint sent it
+ * @returns The reason it cannot be held, or undefined when it can
+ */
+export function unsendableTokenReason(token: string): string | undefined {
+  if (token.length > MAX_ACCESS_TOKEN_CHARS) {
+    return (
+      `the authorization server answered with an access token of ${String(token.length)} ` +
+      `characters, and this console holds at most ${String(MAX_ACCESS_TOKEN_CHARS)}; a token ` +
+      'that size cannot be sent as a header by any server this console can reach'
+    );
+  }
+
+  if (/[\u0000-\u001f\u007f]/u.test(token)) {
+    return (
+      'the authorization server answered with an access token carrying control characters, ' +
+      'which cannot go into an Authorization header; it is refused here rather than at the ' +
+      'moment you press Send, where it would read as a network failure'
+    );
+  }
+
+  return undefined;
+}
+
+/**
  * Classifies what a token endpoint answered, before anything acts on it.
  *
  * @param status - HTTP status of the answer
@@ -532,6 +604,22 @@ function numberField(record: Record<string, unknown>, name: string): number | un
  * const outcome = parseTokenResponse(400, '{"error":"invalid_grant"}');
  */
 export function parseTokenResponse(status: number, body: string): TokenOutcome {
+  // A REDIRECT IS THE ONE ANSWER THAT HAS ITS OWN SENTENCE, because the plan asked for `manual`
+  // and this is what that looks like coming back: status 0 for the opaque response a browser
+  // gives, the 3xx itself under Node. Without this the refusal is real and the reason printed is
+  // `not a JSON object`, which sends a reader to look at a body that was never delivered. The
+  // discovery reader has had the right sentence for this since T028; T035 found the token side
+  // never got one, because only a browser produces the input.
+  if (status === 0 || (status >= 300 && status < 400)) {
+    return {
+      kind: 'unknown',
+      reason: 'refused',
+      message:
+        'the token endpoint answered with a redirect, which is not followed: a request carrying ' +
+        'a client secret and a code verifier is not moved to whatever host the answer names',
+    };
+  }
+
   const record = asRecord(body);
 
   if (record === null) {
@@ -585,6 +673,13 @@ export function parseTokenResponse(status: number, body: string): TokenOutcome {
       reason: 'malformed',
       message: 'the token endpoint answered without an access token, so nothing is known yet',
     };
+  }
+
+  // REFUSED WHERE IT ARRIVES, per T035. Every flow's token comes through here, so one check covers
+  // the exchange, the refresh, the password and client credentials grants and the device poll.
+  const unsendable = unsendableTokenReason(accessToken);
+  if (unsendable !== undefined) {
+    return { kind: 'unknown', reason: 'malformed', message: unsendable };
   }
 
   const refreshToken = stringField(record, 'refresh_token');

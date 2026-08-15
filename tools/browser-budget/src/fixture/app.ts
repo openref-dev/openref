@@ -20,6 +20,7 @@
 import { randomBytes } from 'node:crypto';
 import express from 'express';
 import { OpenRefModule } from '@openref/nest';
+import { authorizationDocumentSurface } from './authorization-server.js';
 import {
   largeSpecification,
   memorySpecification,
@@ -54,6 +55,21 @@ export interface FixtureOptions {
    * works, and once with it on, which proves the policy stops what the eye can see.
    */
   readonly policy?: boolean;
+  /**
+   * Origin of the fake authorization server, when this boot serves the sign in cases.
+   *
+   * Absent everywhere else, and its absence is what keeps every other measurement free of five
+   * operations and five security schemes it never asked for.
+   */
+  readonly authorizationServer?: string;
+  /**
+   * Whether `connect-src` names the authorization server.
+   *
+   * ON WHENEVER THERE IS ONE, EXCEPT IN THE PROOF THAT NEEDS IT OFF. A reference served under the
+   * bare `connect-src 'self'` cannot run the exchange, and that is a fact about the policy this
+   * project recommends rather than about this fixture, so it is proved rather than assumed.
+   */
+  readonly allowAuthorizationConnect?: boolean;
 }
 
 /**
@@ -70,14 +86,18 @@ export interface FixtureOptions {
  * @param nonce - The nonce generated for this response
  * @returns The header value
  */
-export function contentSecurityPolicy(nonce: string): string {
+export function contentSecurityPolicy(nonce: string, connect: readonly string[] = []): string {
   return [
     "default-src 'none'",
     `script-src 'self' 'nonce-${nonce}'`,
     `style-src 'self' 'nonce-${nonce}'`,
     "font-src 'self'",
     "img-src 'self' data:",
-    "connect-src 'self'",
+    // `connect-src` IS THE ONE DIRECTIVE A HOST HAS TO WIDEN, and T035 is where that stopped being
+    // a note. The token exchange of the authorization code flow is a browser `fetch` to the
+    // authorization server, so a reference under `connect-src 'self'` cannot sign in at all. The
+    // extra origins are passed in rather than defaulted, so a case can be run both ways.
+    ['connect-src', "'self'", ...connect].join(' '),
     "base-uri 'none'",
     "form-action 'none'",
     "frame-ancestors 'none'",
@@ -90,10 +110,24 @@ export function contentSecurityPolicy(nonce: string): string {
  * @param document - Which document to serve
  * @returns The specification, as a host would hand it to `setup`
  */
-function specificationFor(document: FixtureDocument): Record<string, unknown> | string {
+function specificationFor(
+  document: FixtureDocument,
+  authorizationServer?: string,
+): Record<string, unknown> | string {
   if (document === 'memory') return memorySpecification();
 
-  return largeSpecification(document === 'large' ? TTI_NODE_COUNT : PROOF_NODE_COUNT);
+  const base = largeSpecification(document === 'large' ? TTI_NODE_COUNT : PROOF_NODE_COUNT);
+  if (authorizationServer === undefined) return base;
+
+  const surface = authorizationDocumentSurface(authorizationServer);
+  const components = base.components as Record<string, unknown>;
+
+  return {
+    ...base,
+    servers: surface.servers,
+    paths: { ...(base.paths as Record<string, unknown>), ...surface.paths },
+    components: { ...components, securitySchemes: surface.securitySchemes },
+  };
 }
 
 /**
@@ -112,11 +146,16 @@ export function createFixture(
   // A NONCE PER RESPONSE, AND A REAL ONE. A fixed nonce would authorize a script written once
   // and served forever, which is the thing a nonce exists to prevent, and it would also let a
   // planted inline script inherit an attribute the harness already knows.
+  const connect =
+    options.authorizationServer !== undefined && options.allowAuthorizationConnect !== false
+      ? [options.authorizationServer]
+      : [];
+
   app.use((_request: Request, response: Response, next: () => void) => {
     const nonce = randomBytes(16).toString('base64');
     response.locals.cspNonce = nonce;
     if (options.policy !== false) {
-      response.setHeader('Content-Security-Policy', contentSecurityPolicy(nonce));
+      response.setHeader('Content-Security-Policy', contentSecurityPolicy(nonce, connect));
     }
     next();
   });
@@ -134,7 +173,7 @@ export function createFixture(
           app.post(path, handler),
       }),
     },
-    { document: specificationFor(document) },
+    { document: specificationFor(document, options.authorizationServer) },
   );
 
   return app;

@@ -33,7 +33,16 @@ const port = Number(value('port') ?? 0);
 // depends on one pass while proving nothing.
 const policy = value('policy') !== 'off';
 
-const app = createFixture(document, { policy });
+// THE AUTHORIZATION SERVER IS ABSENT UNLESS NAMED, so every other boot serves the document it
+// always served. `connect` off is the proof that the recommended policy blocks the exchange.
+const authorizationServer = value('auth');
+const allowAuthorizationConnect = value('auth-connect') !== 'off';
+
+const app = createFixture(document, {
+  policy,
+  allowAuthorizationConnect,
+  ...(authorizationServer === undefined ? {} : { authorizationServer }),
+});
 
 const url = await new Promise<string>((resolve) => {
   const server = app.listen(port, '127.0.0.1', () => {

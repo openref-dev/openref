@@ -40,7 +40,17 @@ export async function bootFixture(
 
   const server = await spawnServer({
     entry: join(root, FIXTURE_ENTRY),
-    args: [`--document=${document}`, '--port=0', `--policy=${policy ? 'on' : 'off'}`],
+    args: [
+      `--document=${document}`,
+      '--port=0',
+      `--policy=${policy ? 'on' : 'off'}`,
+      ...(options.authorizationServer === undefined
+        ? []
+        : [
+            `--auth=${options.authorizationServer}`,
+            `--auth-connect=${options.allowAuthorizationConnect === false ? 'off' : 'on'}`,
+          ]),
+    ],
     cwd: root,
     label: `the ${document} fixture`,
     timeoutMs: 120_000,

@@ -149,8 +149,8 @@ describe('parameter-unread', () => {
     }
   });
 
-  it('should never fire on unaccounted, which is the scan speaking about itself', () => {
-    // Given a location the scan could not follow
+  it('should be out of scope when the scan accounted for nothing, rather than quietly passing', () => {
+    // Given a location the scan could not follow, and nothing else
     const document = documentOf([
       operation({
         parameters: [parameter({ name: 'session', in: 'cookie' })],
@@ -163,7 +163,38 @@ describe('parameter-unread', () => {
     // When
     const result = resultOf('parameter-unread', document);
 
-    // Then examined and quiet: the absence of sight is not an absence of reading
+    // Then nothing is reported, which was always right, AND nothing is counted as examined, which
+    // T035 found was not. This case asserted `total: 1, passed: 1` until then: the rule still does
+    // not fire on the scan's own blindness, but counting a wholly blind scan among the operations
+    // it checked is what let the parity row draw `=` beside a cell reading `0 of 1 seen read, 1 not
+    // accounted for by the scan`. The absence of sight is not an absence of reading and it is not
+    // a reading either.
+    expect(result.total).toBe(0);
+    expect(result.passed).toBe(0);
+    expect(result.issues).toEqual([]);
+  });
+
+  it('should still examine an operation where the scan accounted for at least one parameter', () => {
+    // Given one parameter the scan followed and one it could not
+    const document = documentOf([
+      operation({
+        parameters: [
+          parameter({ name: 'id', in: 'query' }),
+          parameter({ name: 'session', in: 'cookie' }),
+        ],
+        runtime: {
+          parameterReads: reads([
+            { in: 'query', name: 'id', verdict: 'read' },
+            { in: 'cookie', name: 'session', verdict: 'unaccounted' },
+          ]),
+        },
+      }),
+    ]);
+
+    // When
+    const result = resultOf('parameter-unread', document);
+
+    // Then the operation is examined and quiet, because one parameter really was observed
     expect(result.total).toBe(1);
     expect(result.passed).toBe(1);
   });

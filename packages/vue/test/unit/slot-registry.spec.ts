@@ -109,3 +109,40 @@ describe('createSlotRegistry', () => {
     expect(first.resolve('StateNotice')).toBe(Stub);
   });
 });
+
+describe('a theme that registers a position with nothing to render', () => {
+  it('should refuse the registration rather than falling back silently', () => {
+    // Given a theme whose component record carries an undefined value, which is what a broken
+    // default export and a circular import both produce
+    const build = (): unknown =>
+      createSlotRegistry({ NavTree: undefined as unknown as typeof Stub });
+
+    // Then it is named. Until T035 this succeeded: `resolve` returns undefined for a position
+    // registered with undefined and for one never registered at all, `useSlot` reads both as
+    // "fall back to the reference component", and `checkTheme` counts the keys of the record
+    // rather than its values, so the theme believed it had drawn its own markup while the
+    // reference drew its own, with nothing red on either side.
+    expect(build).toThrow(SlotNotFoundError);
+    expect(build).toThrow(/registered slot "NavTree" with nothing to render/);
+  });
+
+  it('should refuse the same through register, which is the door a layout comes through', () => {
+    // Given a registry and a late registration of nothing
+    const registry = createSlotRegistry({});
+
+    // Then both doors are shut the same way
+    expect(() => {
+      registry.register('AppShell', undefined as unknown as typeof Stub);
+    }).toThrow(SlotNotFoundError);
+  });
+
+  it('should leave a position alone when a theme omits it, which is how a theme means that', () => {
+    // Given a theme that overrides one position and says nothing about the rest
+    const registry = createSlotRegistry({ NavTree: Stub });
+
+    // Then the omitted position resolves to nothing and the caller falls back, which is the
+    // design the refusal above exists to keep distinguishable from a mistake
+    expect(registry.resolve('CommandPalette')).toBeUndefined();
+    expect(registry.overridden()).toEqual(['NavTree']);
+  });
+});

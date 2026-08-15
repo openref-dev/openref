@@ -5,6 +5,7 @@ import { BUILD_FILE, CLAIM_MAP_FILE, SPEC_20_BUDGET_IDS, SPEC_FILE } from '../..
 import { aiDocsPresent } from '../../src/lib/ai-docs';
 import { planTaskIds } from '../../src/lib/build-manifest';
 import {
+  boundDirectionOfCell,
   checkClaimFigures,
   checkClaimMap,
   compareBudgetValues,
@@ -460,4 +461,46 @@ describe('the committed claim map', () => {
       expect(issues).toEqual([]);
     },
   );
+});
+
+describe('the direction a SPEC 20 threshold cell states', () => {
+  it('should read an upper bound, a lower bound and a bare figure apart', () => {
+    // Given the three shapes a cell is written in
+    // Then the operator is a fact the parse carries, which it did not until T035: the leading
+    // number was read and the sign in front of it was dropped, so the table could invert every
+    // bound it states while the configuration went on enforcing ceilings.
+    expect(boundDirectionOfCell('<= 100 KB')).toBe('at-most');
+    expect(boundDirectionOfCell('не более 100 КБ')).toBe('at-most');
+    expect(boundDirectionOfCell('>= 100 KB')).toBe('at-least');
+    expect(boundDirectionOfCell('не менее 100 КБ')).toBe('at-least');
+    expect(boundDirectionOfCell('100 KB, was 90 until TX-SHAPES')).toBe('unstated');
+  });
+
+  it('should read only the leading segment, so history after a comma cannot invert a row', () => {
+    // Given a cell whose present tense is a ceiling and whose history mentions a floor
+    expect(boundDirectionOfCell('<= 61 KB, не менее 56 until TX-SHAPES')).toBe('at-most');
+  });
+
+  it('should fail a table row that promises a floor where the gates enforce a ceiling', () => {
+    // Given a row stating a lower bound of a value the configuration does enforce
+    const issues = compareBudgetValues(
+      [{ label: 'Client JS, gzip', threshold: '>= 100 KB' }],
+      [{ id: 'client-js', threshold: { kind: 'bytes', value: 100 * 1024 } }],
+    );
+
+    // Then the value matches and the direction does not, and the direction is reported. A
+    // multiset comparison alone called these two equal.
+    expect(issues.map((issue) => issue.rule)).toContain('budget-bound-inverted');
+  });
+
+  it('should stay quiet on an ordinary ceiling row', () => {
+    // Given the shape every live row is written in
+    const issues = compareBudgetValues(
+      [{ label: 'Client JS, gzip', threshold: '<= 100 KB' }],
+      [{ id: 'client-js', threshold: { kind: 'bytes', value: 100 * 1024 } }],
+    );
+
+    // Then nothing is reported
+    expect(issues).toEqual([]);
+  });
 });

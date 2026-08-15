@@ -6,6 +6,7 @@ import {
   codeExchangePlan,
   pkceChallengeFor,
   readAuthorizationCode,
+  parseTokenResponse,
   readImplicitToken,
   PKCE_METHOD,
   type PendingAuthorization,
@@ -263,5 +264,35 @@ describe('pkceChallengeFor', () => {
 
     // Then
     expect(challenge).toBe('E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM');
+  });
+});
+
+describe('a token endpoint that answers with a redirect', () => {
+  it('should name the redirect rather than blaming the body, as a browser reports it', () => {
+    // Given the answer a browser gives for the `manual` redirect mode the token plan asks for:
+    // an opaque response, status 0, empty body
+    const outcome = parseTokenResponse(0, '');
+
+    // Then the sentence is about the redirect. It read `not a JSON object` until T035, which sent
+    // a reader to look at a body that was never delivered; the discovery reader has had the right
+    // sentence for exactly this since T028, and only a browser produces the input.
+    expect(outcome.kind).toBe('unknown');
+    expect(outcome.kind === 'unknown' ? outcome.message : '').toContain('answered with a redirect');
+  });
+
+  it('should say the same for the 3xx Node reports for the same refusal', () => {
+    // Given what Node hands back for the same plan
+    const outcome = parseTokenResponse(307, '');
+
+    // Then one finding, one sentence, whichever engine produced it
+    expect(outcome.kind === 'unknown' ? outcome.message : '').toContain('answered with a redirect');
+  });
+
+  it('should still call a genuinely malformed body malformed', () => {
+    // Given a 200 that is not JSON, which is the case the old sentence belonged to
+    const outcome = parseTokenResponse(200, 'not json at all');
+
+    // Then the two are told apart
+    expect(outcome.kind === 'unknown' ? outcome.message : '').toContain('not a JSON object');
   });
 });

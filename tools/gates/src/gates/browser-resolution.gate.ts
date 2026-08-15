@@ -34,10 +34,17 @@ import type { Gate, GateFinding, GateResult } from '../types.js';
  */
 
 /** What a kind of specifier costs a reader, in the words the finding uses. */
-const CONSEQUENCE: Record<Exclude<SpecifierKind, 'relative' | 'absolute-path'>, string> = {
+const CONSEQUENCE: Record<Exclude<SpecifierKind, 'relative'>, string> = {
   bare: 'a browser has no import map, so this module never evaluates and neither does anything that imports it',
   'external-url':
     'this resolves to a server that is not the one serving the page, and SPEC 19 promises a reference that makes no external request',
+  // FOUND BY T035: this kind was classified and then skipped, so the one specifier form whose
+  // failure is exactly the sentence below was the one form nothing checked. It cannot be resolved
+  // against the repository either, and that is the point rather than an obstacle: an absolute
+  // specifier is resolved against the origin's root, the reference is mounted under a base path a
+  // host chooses, and a chunk that assumes the root mount is wrong everywhere else.
+  'absolute-path':
+    'an absolute specifier resolves against the origin root, and the reference is mounted under a base path the host chooses, so this answers 404 on every mount that is not the root',
 };
 
 export const browserResolutionGate: Gate = {
@@ -65,7 +72,7 @@ export const browserResolutionGate: Gate = {
         for (const entry of found.specifiers) {
           specifierCount += 1;
 
-          if (entry.kind === 'bare' || entry.kind === 'external-url') {
+          if (entry.kind !== 'relative') {
             if (reported.has(entry.specifier)) continue;
             reported.add(entry.specifier);
             failed = true;
@@ -75,8 +82,6 @@ export const browserResolutionGate: Gate = {
             });
             continue;
           }
-
-          if (entry.kind !== 'relative') continue;
 
           const target = posix.normalize(posix.join(dirname(file), entry.specifier));
           if (existsSync(join(context.repoRoot, target))) continue;
