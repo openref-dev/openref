@@ -191,7 +191,37 @@ function remainderOf(schema: IRJsonSchema): IRJsonSchema | undefined {
     held = true;
   }
 
+  // A conditional is a unit: flattening `then.required` into `required` would turn required
+  // at a value into required always, per SPEC 5.4. One branch's conditional rides the merged
+  // schema whole; two conditionals stay two, as allOf members, because each keeps its own if.
+  if (schema.if !== undefined || schema.then !== undefined || schema.else !== undefined) {
+    if (schema.if !== undefined) draft.if = schema.if;
+    if (schema.then !== undefined) draft.then = schema.then;
+    if (schema.else !== undefined) draft.else = schema.else;
+    held = true;
+  }
+
   return held ? draft : undefined;
+}
+
+/**
+ * Unions two `dependentRequired` maps by key, the `required` rule applied per key.
+ *
+ * Both sides state names that become required when the keying property is present, and both
+ * statements hold under `allOf`, so the union loses nothing and invents nothing.
+ */
+function mergeDependentRequired(
+  left: Readonly<Record<string, readonly string[]>> | undefined,
+  right: Readonly<Record<string, readonly string[]>> | undefined,
+): Readonly<Record<string, readonly string[]>> | undefined {
+  if (left === undefined) return right;
+  if (right === undefined) return left;
+
+  const merged: Record<string, readonly string[]> = { ...left };
+  for (const [name, names] of Object.entries(right)) {
+    merged[name] = mergeRequired(merged[name], names) ?? names;
+  }
+  return merged;
 }
 
 function mergeTwo(left: IRJsonSchema, right: IRJsonSchema, path: string): IRJsonSchema {
@@ -231,6 +261,11 @@ function mergeTwo(left: IRJsonSchema, right: IRJsonSchema, path: string): IRJson
 
   assign(draft, 'enum', mergeEnums(left.enum, right.enum, path));
   assign(draft, 'required', mergeRequired(left.required, right.required));
+  assign(
+    draft,
+    'dependentRequired',
+    mergeDependentRequired(left.dependentRequired, right.dependentRequired),
+  );
   assign(
     draft,
     'properties',

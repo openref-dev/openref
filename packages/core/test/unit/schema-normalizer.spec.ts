@@ -657,3 +657,132 @@ describe('normalizeSchema keyword handling', () => {
     expect(result).toEqual({ maximum: 10 });
   });
 });
+
+describe('normalizeSchema conditional keywords', () => {
+  it('should carry if, then and else, resolving references inside each position', () => {
+    // Given
+    const rootDocument = documentWith({ Zip: { type: 'string', pattern: '^[0-9]{5}$' } });
+    const input = {
+      type: 'object',
+      properties: { country: { type: 'string' }, postalCode: { type: 'string' } },
+      if: { properties: { country: { const: 'US' } }, required: ['country'] },
+      then: { required: ['postalCode'], properties: { postalCode: reference('Zip') } },
+      else: { properties: { postalCode: { maxLength: 12 } } },
+    };
+
+    // When
+    const result = normalizeSchema(input, { rootDocument });
+
+    // Then, the condition survives whole and the reference inside it stays a reference
+    expect(result.if).toEqual({
+      properties: { country: { const: 'US' } },
+      required: ['country'],
+    });
+    expect(result.then?.required).toEqual(['postalCode']);
+    expect(result.then?.properties?.postalCode?.$ref).toBe('Zip');
+    expect(result.else?.properties?.postalCode?.maxLength).toBe(12);
+  });
+
+  it('should carry dependentRequired and drop members that are not name lists', () => {
+    // Given
+    const input = {
+      type: 'object',
+      dependentRequired: { bic: ['bankName'], broken: 'not-a-list' },
+    };
+
+    // When
+    const result = normalizeSchema(input, { rootDocument: {} });
+
+    // Then
+    expect(result.dependentRequired).toEqual({ bic: ['bankName'] });
+  });
+
+  it('should fold items false into the boolean schema form, closing a tuple tail', () => {
+    // Given
+    const input = {
+      type: 'array',
+      prefixItems: [{ type: 'number' }, { type: 'number' }],
+      items: false,
+    };
+
+    // When
+    const result = normalizeSchema(input, { rootDocument: {} });
+
+    // Then, the closed tail is the false schema, so a consumer can tell it from an open one
+    expect(result.prefixItems).toHaveLength(2);
+    expect(result.items).toEqual({ not: {} });
+  });
+
+  it('should ride one conditional whole through an allOf merge instead of flattening it', () => {
+    // Given, a class reference wrapped with a conditional at the use site
+    const rootDocument = documentWith({
+      Address: {
+        type: 'object',
+        properties: { country: { type: 'string' }, postalCode: { type: 'string' } },
+        required: ['country'],
+      },
+    });
+    const input = {
+      allOf: [
+        reference('Address'),
+        {
+          if: { properties: { country: { const: 'US' } }, required: ['country'] },
+          then: { required: ['postalCode'] },
+        },
+      ],
+    };
+
+    // When
+    const result = normalizeSchema(input, { rootDocument });
+
+    // Then, postalCode stays out of required and the condition stands beside it
+    expect(result.required).toEqual(['country']);
+    expect(result.if?.properties?.country?.const).toBe('US');
+    expect(result.then?.required).toEqual(['postalCode']);
+  });
+
+  it('should keep two conditionals as two allOf members, because each keeps its own if', () => {
+    // Given
+    const input = {
+      allOf: [
+        {
+          type: 'object',
+          if: { properties: { a: { const: 1 } } },
+          then: { required: ['b'] },
+        },
+        {
+          type: 'object',
+          if: { properties: { c: { const: 2 } } },
+          then: { required: ['d'] },
+        },
+      ],
+    };
+
+    // When
+    const result = normalizeSchema(input, { rootDocument: {} });
+
+    // Then, neither condition swallowed the other
+    expect(result.if).toBeUndefined();
+    expect(result.allOf).toHaveLength(2);
+    expect(result.allOf?.map((member) => member.then?.required?.[0])).toEqual(['b', 'd']);
+  });
+
+  it('should union dependentRequired by key across an allOf merge', () => {
+    // Given
+    const input = {
+      allOf: [
+        { type: 'object', dependentRequired: { bic: ['bankName'] } },
+        { type: 'object', dependentRequired: { bic: ['bankCity'], iban: ['bic'] } },
+      ],
+    };
+
+    // When
+    const result = normalizeSchema(input, { rootDocument: {} });
+
+    // Then
+    expect(result.dependentRequired).toEqual({
+      bic: ['bankName', 'bankCity'],
+      iban: ['bic'],
+    });
+  });
+});

@@ -28,5 +28,5 @@ site, which is what SPEC 5.1.1 replaced.
 | oai-tictactoe.yaml | 6753 | 6965 | 1.03 | 3 | 6 |
 | oai-uspto.yaml | 7743 | 8619 | 1.11 | 3 | 1 |
 | oai-webhook-example.yaml | 947 | 1081 | 1.14 | 0 | 1 |
-| stripe.yaml | 6364174 | 5476002 | 0.86 | 589 | 1440 |
+| stripe.yaml | 6364174 | 5546832 | 0.87 | 589 | 1440 |
 | twilio-api-v2010.yaml | 1496453 | 1612794 | 1.08 | 197 | 148 |

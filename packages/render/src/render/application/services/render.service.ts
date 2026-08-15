@@ -36,6 +36,11 @@ import {
  * Bumped by hand when a change to a component changes the bytes of an unchanged document.
  * It is part of the cache key, so bumping it invalidates every stored page at once.
  *
+ * 9 to 10 with `TX-SHAPES`: the shapes page draws both halves of the layout, the reading
+ * rows with requiredness and condition columns on the left and the value driven form's
+ * initial state on the right, where it drew the request view schema tree. Same document,
+ * different bytes on every shapes page.
+ *
  * 8 to 9 with `TX-PARITY-UI`: the bar carries the six constant tab kinds, the header leads
  * with the badge and the path, the responses collapse to the compact index, the parameter
  * table gains the scan's columns, the health page gains the KPI triple, the rule sentences
@@ -62,7 +67,7 @@ import {
  * media type example now wins over the generated one, zero denominator health checks stopped
  * rendering a row, and the rule heading gained its separator. Same document, different bytes.
  */
-export const RENDER_VERSION = 9;
+export const RENDER_VERSION = 10;
 
 /** How one page is rendered. */
 export interface RenderPageOptions {

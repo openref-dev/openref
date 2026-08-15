@@ -5,13 +5,19 @@ import { BUILD_FILE, CLAIM_MAP_FILE, SPEC_20_BUDGET_IDS, SPEC_FILE } from '../..
 import { aiDocsPresent } from '../../src/lib/ai-docs';
 import { planTaskIds } from '../../src/lib/build-manifest';
 import {
+  checkClaimFigures,
   checkClaimMap,
+  compareBudgetValues,
   parseBudgetRows,
   parseClaimMap,
   parseSecurityClaims,
+  thresholdOfCell,
+  type BudgetRow,
   type ClaimCheckInput,
   type ClaimMapRow,
+  type ConfigThreshold,
 } from '../../src/lib/claims';
+import { configThresholds } from '../../src/gates/claims.gate';
 
 const repoRoot = join(import.meta.dirname, '..', '..', '..', '..');
 
@@ -36,7 +42,10 @@ function check(map: readonly ClaimMapRow[], missing: readonly string[] = []): Cl
   return {
     securityClaims: CLAIMS,
     budgetIds: ['client-js', 'tti'],
-    budgetRows: ['Клиентский JS', 'TTI'],
+    budgetRows: [
+      { label: 'Клиентский JS', threshold: '≤ 100 КБ' },
+      { label: 'TTI', threshold: 'записывается и печатается, порога нет' },
+    ] as BudgetRow[],
     map,
     taskIds: ['T029', 'T039', 'TX-VIS'],
     exists: (path) => !missing.includes(path),
@@ -45,11 +54,17 @@ function check(map: readonly ClaimMapRow[], missing: readonly string[] = []): Cl
 
 const proved = (id: string, proofs: string[] = ['test/a.spec.ts']): ClaimMapRow => ({
   id,
+  text: 'bounds',
   proofs,
   status: 'proved',
 });
 
-const scheduled = (id: string, status: string): ClaimMapRow => ({ id, proofs: [], status });
+const scheduled = (id: string, status: string): ClaimMapRow => ({
+  id,
+  text: 'bounds',
+  proofs: [],
+  status,
+});
 
 describe('parseSecurityClaims', () => {
   it.skipIf(!HAVE_AI_DOCS)('should read the ten claims out of the specification itself', () => {
@@ -87,7 +102,7 @@ describe('parseBudgetRows', () => {
 
       // Then
       expect(rows).toHaveLength(SPEC_20_BUDGET_IDS.length);
-      expect(rows.some((row) => row.includes('TTI'))).toBe(true);
+      expect(rows.some((row) => row.label.includes('TTI'))).toBe(true);
     },
   );
 });
@@ -165,7 +180,7 @@ describe('checkClaimMap', () => {
     // Given, because either the file proves it, and then it is proved, or it does not belong
     const map = [
       proved('19.1'),
-      { id: '19.2', proofs: ['test/a.spec.ts'], status: 'T029' },
+      { id: '19.2', text: 'bounds', proofs: ['test/a.spec.ts'], status: 'T029' },
       proved('client-js'),
       proved('tti'),
     ];
@@ -265,7 +280,11 @@ describe('checkClaimMap', () => {
     // protecting nothing
     const input = {
       ...check([proved('19.1'), proved('19.2'), proved('client-js'), proved('tti')]),
-      budgetRows: ['Клиентский JS', 'TTI', 'Something new'],
+      budgetRows: [
+        { label: 'Клиентский JS', threshold: '≤ 100 КБ' },
+        { label: 'TTI', threshold: 'записывается и печатается, порога нет' },
+        { label: 'Something new', threshold: '≤ 1 КБ' },
+      ] as BudgetRow[],
     };
 
     // When
@@ -274,6 +293,143 @@ describe('checkClaimMap', () => {
     // Then
     expect(issues.map((issue) => issue.rule)).toEqual(['budget-count']);
   });
+});
+
+describe('thresholdOfCell', () => {
+  it('should read every cell form the table writes, leading segment only', () => {
+    // Given, When, Then: the present tense is before the first comma, history after it
+    expect(thresholdOfCell('≤ 100 КБ')).toEqual({ kind: 'bytes', value: 102_400 });
+    expect(thresholdOfCell('≤ 22 300 байт')).toEqual({ kind: 'bytes', value: 22_300 });
+    expect(thresholdOfCell('≤ 61 КБ, был 56 до TX-SHAPES: пересчитан')).toEqual({
+      kind: 'bytes',
+      value: 62_464,
+    });
+    expect(thresholdOfCell('≤ 250 МБ')).toEqual({ kind: 'bytes', value: 262_144_000 });
+    expect(thresholdOfCell('≤ 2 с (один раз на хеш)')).toEqual({ kind: 'seconds', value: 2 });
+    expect(thresholdOfCell('≤ 2 (медиана 25 навигаций)')).toEqual({ kind: 'count', value: 2 });
+    expect(thresholdOfCell('0')).toEqual({ kind: 'count', value: 0 });
+    expect(thresholdOfCell('записывается и печатается, порога нет')).toEqual({ kind: 'report' });
+    expect(thresholdOfCell('250 KB')).toEqual({ kind: 'bytes', value: 256_000 });
+    expect(thresholdOfCell('2, as a median of 25 navigations')).toEqual({
+      kind: 'count',
+      value: 2,
+    });
+  });
+});
+
+describe('compareBudgetValues, planted with the drift T031 found', () => {
+  /**
+   * The plant the T034 amendment demands: the four numbers TX-SLOTWIRE moved in the
+   * configuration while SPEC 20 kept the old ones. The first version of this check has to
+   * name all of them against the configuration of that day.
+   */
+  const CONFIG_OF_THAT_DAY: ConfigThreshold[] = [
+    { id: 'client-js-raw', threshold: { kind: 'bytes', value: 103 * 1024 } },
+    { id: 'client-js-palette', threshold: { kind: 'bytes', value: 2_200 } },
+    { id: 'client-js-palette-raw', threshold: { kind: 'bytes', value: 4_900 } },
+    { id: 'client-js-schema-raw', threshold: { kind: 'bytes', value: 4_700 } },
+  ];
+
+  const STALE_TABLE: BudgetRow[] = [
+    { label: 'Клиентский JS, сырые байты', threshold: '≤ 98 КБ' },
+    { label: 'Палитра, gzip', threshold: '≤ 1 900 байт' },
+    { label: 'Палитра, сырые байты', threshold: '≤ 3 900 байт' },
+    { label: 'Схема, сырые байты', threshold: '≤ 4 200 байт' },
+  ];
+
+  it('should name all four table numbers that drifted, stale and missing both ways', () => {
+    // When the checker of today reads the table of that day
+    const issues = compareBudgetValues(STALE_TABLE, CONFIG_OF_THAT_DAY);
+
+    // Then every stale value is named as stale and every enforced value as unstated:
+    // eight findings over four rows, the two directions of one drift
+    expect(issues.filter((issue) => issue.rule === 'budget-value-stale')).toHaveLength(4);
+    expect(issues.filter((issue) => issue.rule === 'budget-value-missing')).toHaveLength(4);
+    expect(issues.map((issue) => issue.message).join('\n')).toContain('98 KB');
+    expect(issues.map((issue) => issue.message).join('\n')).toContain('1,900 bytes');
+  });
+
+  it('should be silent when both files state the same values, whatever the order', () => {
+    // Given the same values in a different row order, since the table owns its order
+    const table: BudgetRow[] = [
+      { label: 'Схема, сырые байты', threshold: '≤ 4 700 байт' },
+      { label: 'Клиентский JS, сырые байты', threshold: '≤ 103 КБ' },
+      { label: 'Палитра, сырые байты', threshold: '≤ 4 900 байт' },
+      { label: 'Палитра, gzip', threshold: '≤ 2 200 байт' },
+    ];
+
+    // When, Then: a commit that moves a cap in both files together is green
+    expect(compareBudgetValues(table, CONFIG_OF_THAT_DAY)).toEqual([]);
+  });
+});
+
+describe('checkClaimFigures, planted with the send pair T031 found in the map', () => {
+  it('should name a map row whose figure is not the one the gate holds', () => {
+    // Given the two rows that had been wrong since T027, against the configuration of that day
+    const config: ConfigThreshold[] = [
+      { id: 'client-js-send', threshold: { kind: 'bytes', value: 22_300 } },
+      { id: 'client-js-send-raw', threshold: { kind: 'bytes', value: 65_900 } },
+    ];
+    const map: ClaimMapRow[] = [
+      {
+        id: 'client-js-send',
+        text: 'What a press on Send downloads, gzip, 18,700 bytes',
+        proofs: ['test/a.spec.ts'],
+        status: 'proved',
+      },
+      {
+        id: 'client-js-send-raw',
+        text: 'The same chunks, raw, 53,600 bytes',
+        proofs: ['test/a.spec.ts'],
+        status: 'proved',
+      },
+    ];
+
+    // When
+    const issues = checkClaimFigures(map, config);
+
+    // Then both are named
+    expect(issues.map((issue) => issue.rule)).toEqual(['claim-figure-stale', 'claim-figure-stale']);
+  });
+
+  it('should accept a row that states the enforced value in KB beside its history', () => {
+    // Given a row whose prose carries an old figure and the current one
+    const config: ConfigThreshold[] = [
+      { id: 'theme-css-raw', threshold: { kind: 'bytes', value: 61 * 1024 } },
+    ];
+    const map: ClaimMapRow[] = [
+      {
+        id: 'theme-css-raw',
+        text: 'Default theme CSS, raw, 61 KB since TX-SHAPES, was 56 KB',
+        proofs: ['test/a.spec.ts'],
+        status: 'proved',
+      },
+    ];
+
+    // When, Then: history beside the current figure is not drift
+    expect(checkClaimFigures(map, config)).toEqual([]);
+  });
+});
+
+describe('the committed threshold agreement', () => {
+  it.skipIf(!HAVE_AI_DOCS)(
+    'should hold the table, the configuration and the map to the same values today',
+    () => {
+      // Given the real three files, which is the state every commit must keep: the home is
+      // config.ts and the two references agree with it, per the T034 amendment
+      const spec = readFileSync(join(repoRoot, SPEC_FILE), 'utf8');
+      const map = readFileSync(join(repoRoot, CLAIM_MAP_FILE), 'utf8');
+      const thresholds = configThresholds();
+
+      // When
+      const tableIssues = compareBudgetValues(parseBudgetRows(spec), thresholds);
+      const mapIssues = checkClaimFigures(parseClaimMap(map), thresholds);
+
+      // Then
+      expect(tableIssues).toEqual([]);
+      expect(mapIssues).toEqual([]);
+    },
+  );
 });
 
 describe('the committed claim map', () => {

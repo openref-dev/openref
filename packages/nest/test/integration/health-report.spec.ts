@@ -122,7 +122,7 @@ describe('the health report, against the running example application', () => {
 
       // Then. THE REPORT BEING ON THE DOCUMENT IS THE ASSERTION, because everything downstream
       // reads it from there: the panel of T023, `doctor` of T037, and the agent surface of T058.
-      expect(found.operationCount).toBe(7);
+      expect(found.operationCount).toBe(8);
       expect(found.score).toBeGreaterThan(0);
       expect(found.score).toBeLessThan(100);
       expect(found.checks.map((one) => one.id)).toEqual([
@@ -159,7 +159,7 @@ describe('the health report, against the running example application', () => {
         expect(issue.runtimeValue).toContain('ScopesGuard');
         expect(issue.basis).toEqual({ kind: 'collected', confidence: 'derived' });
       }
-      expect(check(found, 'security-drift')).toMatchObject({ passed: 0, total: 7 });
+      expect(check(found, 'security-drift')).toMatchObject({ passed: 0, total: 8 });
     },
   );
 
@@ -183,8 +183,8 @@ describe('the health report, against the running example application', () => {
     'should stay quiet about everything the example does document',
     { timeout: SPAWNED_PROCESS_TIMEOUT_MS },
     () => {
-      // Given a throttled route that documents 429, a stream that declares its item type, two
-      // handlers whose `@ApiErrors` statuses both have responses, and seven paired routes
+      // Given a throttled route that documents 429, a stream that declares its item type, three
+      // handlers whose `@ApiErrors` statuses all have responses, and eight paired routes
       const found = report();
 
       // Then. THIS IS THE HALF THAT MAKES THE OTHER HALF WORTH READING: a rule that never stays
@@ -198,10 +198,12 @@ describe('the health report, against the running example application', () => {
       // documented required, and create's explicit 201 is among its documented codes.
       expect(issues(found, 'header-requiredness-drift')).toEqual([]);
       expect(issues(found, 'status-drift')).toEqual([]);
-      expect(check(found, 'orphan-operation')).toMatchObject({ passed: 7, total: 7 });
+      expect(check(found, 'orphan-operation')).toMatchObject({ passed: 8, total: 8 });
       expect(check(found, 'ratelimit-undocumented')).toMatchObject({ passed: 1, total: 1 });
       expect(check(found, 'header-requiredness-drift')).toMatchObject({ passed: 1, total: 1 });
-      expect(check(found, 'status-drift')).toMatchObject({ passed: 1, total: 1 });
+      // Two since TX-SHAPES: create's explicit 201 and the payment route's explicit 202, each
+      // among its documented codes.
+      expect(check(found, 'status-drift')).toMatchObject({ passed: 2, total: 2 });
     },
   );
 

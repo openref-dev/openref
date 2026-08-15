@@ -547,6 +547,29 @@ function convertNode(input: unknown, context: Context, path: string): IRJsonSche
     draft.not = convert(input.not, context, `${path}.not`);
   }
 
+  // The conditional keywords of 2020-12, per SPEC 5.4. Dropped silently until TX-SHAPES,
+  // which erased conditional requiredness from the IR: a consumer could not tell a field
+  // required always from one required at a value.
+  if (Object.hasOwn(input, 'if')) {
+    draft.if = convert(input.if, context, `${path}.if`);
+  }
+  if (Object.hasOwn(input, 'then')) {
+    draft.then = convert(input.then, context, `${path}.then`);
+  }
+  if (Object.hasOwn(input, 'else')) {
+    draft.else = convert(input.else, context, `${path}.else`);
+  }
+
+  const rawDependentRequired = input.dependentRequired;
+  if (isPlainObject(rawDependentRequired)) {
+    const dependentRequired: Record<string, readonly string[]> = {};
+    for (const [name, members] of Object.entries(rawDependentRequired)) {
+      const names = asStringArray(members);
+      if (names !== undefined) dependentRequired[name] = names;
+    }
+    if (Object.keys(dependentRequired).length > 0) draft.dependentRequired = dependentRequired;
+  }
+
   const rawPrefixItems = input.prefixItems;
   if (isUnknownArray(rawPrefixItems)) {
     draft.prefixItems = rawPrefixItems.map((member, index) =>

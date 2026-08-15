@@ -17,8 +17,12 @@ export const PACKAGE_NAME = '@openref/core';
  * Version of the intermediate representation produced by this package.
  *
  * Bumped only when the IR shape changes in a way that invalidates a stored hash.
+ *
+ * 2, TX-SHAPES: the normalizer carries `if`, `then`, `else` and `dependentRequired` instead
+ * of dropping them, so a document that writes them normalizes to a different IR and a
+ * different hash than it did under 1.
  */
-export const IR_VERSION = 1;
+export const IR_VERSION = 2;
 
 export type { IRConfidence, IRFact } from './ir/domain/confidence.types';
 

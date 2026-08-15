@@ -413,6 +413,14 @@ export const CLIENT_JS_GESTURES: readonly DeferredGesture[] = [
   { id: 'palette', roots: ['CommandPalette'] },
   { id: 'schema', roots: ['SchemaView'] },
   {
+    // THE FIFTH GESTURE IS THE VALUE DRIVEN FORM, added at TX-SHAPES: a reader who reaches
+    // into the filling half of a shapes page downloads the engine, and nobody else does. The
+    // reading half is server markup the client adopts, so it is deliberately not here: it has
+    // no chunk, the Health panel precedent.
+    id: 'shapes',
+    roots: ['ShapesFillPanel'],
+  },
+  {
     // THE FOURTH GESTURE IS THE ONE A READER MAKES ON A DIFFERENT PAGE LOAD, added at T028. An
     // authorization server returns the reader to the callback route, which sends them back to the
     // page they started from; that load carries a marker in its url, and the entry fetches this
@@ -672,6 +680,35 @@ export const SIZE_BUDGETS: readonly SizeBudget[] = [
     partition: { entry: CLIENT_JS_ENTRY, side: 'deferred', gesture: 'schema' },
   },
   {
+    id: 'client-js-shapes',
+    label: 'Client JS reaching into the shapes form downloads, gzip',
+    // 4,642 measured at TX-SHAPES on the first build of the engine, over three files, the
+    // panel's chunk plus its share of two chunks the console also reaches, counted here for
+    // the recorded reason: a reader who makes this gesture and no other downloads them. Plus
+    // ten percent, rounded down to a hundred bytes, the T011-R derivation every gesture cap
+    // uses.
+    limitBytes: 5_100,
+    roots: CLIENT_JS_ROOTS,
+    extensions: ['.js', '.mjs'],
+    quantity: 'transfer',
+    producedBy: 'TX-SHAPES',
+    partition: { entry: CLIENT_JS_ENTRY, side: 'deferred', gesture: 'shapes' },
+  },
+  {
+    id: 'client-js-shapes-raw',
+    label: 'Client JS reaching into the shapes form downloads, raw bytes',
+    // 13,527 measured at TX-SHAPES over the same three files, plus ten percent, rounded down
+    // to a hundred bytes. The engine is the derivation, the conditions translator and the
+    // announce logic; the reading half costs this gesture nothing because it is adopted
+    // server markup with no chunk at all.
+    limitBytes: 14_800,
+    roots: CLIENT_JS_ROOTS,
+    extensions: ['.js', '.mjs'],
+    quantity: 'parse',
+    producedBy: 'TX-SHAPES',
+    partition: { entry: CLIENT_JS_ENTRY, side: 'deferred', gesture: 'shapes' },
+  },
+  {
     id: 'theme-css',
     label: 'Default theme CSS, gzip',
     limitBytes: 15 * 1024,
@@ -744,13 +781,24 @@ export const SIZE_BUDGETS: readonly SizeBudget[] = [
     // step that keeps the derived property exactly: a navigation sized region, 2,520, still
     // fits, 57,080 under the cap; a page frame sized one, 3,287, and a console sized one,
     // 3,669, still land over it.
+    //
+    // RECOMPUTED AT TX-SHAPES, 56 TO 61 KB, SAME REASON, SAME WORDS, FIFTH ARRIVAL: it moved
+    // because the renderer emits a class family the two way sweep must style, which is a
+    // capability arriving, not drift. The shapes page of SPEC 11 arrived: the two column
+    // grid with its container query collapse, the reading rows with their requiredness and
+    // condition cells, the seven nesting steps, the status line, the field, hint and mark
+    // families of the filling half, and the chooser, pattern and tuple blocks. Measured
+    // 59,412 after it: 45,494 theme.css, 9,707 tokens.css, 4,211 fonts.css. 61 KB is 62,464
+    // and is the one whole KB step that keeps the derived property exactly: a navigation
+    // sized region, 2,520, still fits, 61,932 under the cap; a page frame sized one, 3,287,
+    // and a console sized one, 3,669, still land over it.
     id: 'theme-css-raw',
     label: 'Default theme CSS, raw bytes',
-    limitBytes: 56 * 1024,
+    limitBytes: 61 * 1024,
     quantity: 'parse',
     roots: THEME_CSS_ROOTS,
     extensions: ['.css'],
-    producedBy: 'T009, recomputed at TX-GUTTER, TX-FRAME, TX-MARKUP and TX-PARITY-UI',
+    producedBy: 'T009, recomputed at TX-GUTTER, TX-FRAME, TX-MARKUP, TX-PARITY-UI and TX-SHAPES',
   },
 
   // THE WEB COMPONENT OUTPUTS OF SPEC 10.3, both files of one directory under one cap pair,
@@ -758,45 +806,56 @@ export const SIZE_BUDGETS: readonly SizeBudget[] = [
   // names through, so the element pays its whole cost once, and the cap says what that cost may
   // be. Derived the way T011-R derived its caps: measured on the first build, 353,710 raw and
   // 124,942 gzip for the pair, plus ten percent headroom, rounded to a whole KiB.
+  //
+  // RE-DERIVED AT TX-SHAPES FROM ITS OWN MEASUREMENT, the named artefact change being the one
+  // an inlined bundle cannot avoid: every gesture is in the file by design, so the frame, the
+  // markup and the collectors columns of TX-FRAME through TX-PARITY-UI and now the shapes
+  // engine and reading rows all landed inside both formats. Measured 410,322 raw and 141,982
+  // gzip for the pair, plus ten percent, whole KiB. The trade the comment above names is
+  // unchanged: what bounds an embed is its whole cost, and this is that cost, measured.
   {
     id: 'client-wc',
     label: 'Web Component outputs, both formats, transfer',
-    limitBytes: 135 * 1024,
+    limitBytes: 153 * 1024,
     quantity: 'transfer',
     roots: ['packages/nest/dist/browser-wc', 'packages/nest/dist/browser-iife'],
     extensions: ['.js'],
-    producedBy: 'T033',
+    producedBy: 'T033, re-derived at TX-SHAPES',
   },
   {
     id: 'client-wc-raw',
     label: 'Web Component outputs, both formats, raw',
-    limitBytes: 380 * 1024,
+    limitBytes: 441 * 1024,
     quantity: 'parse',
     roots: ['packages/nest/dist/browser-wc', 'packages/nest/dist/browser-iife'],
     extensions: ['.js'],
-    producedBy: 'T033',
+    producedBy: 'T033, re-derived at TX-SHAPES',
   },
 
   // THE THEMED ENTRY OF `@openref/theme-telltale`, the whole directory, entry and chunks, since
   // T033: what a page under that theme downloads across every gesture. Derived the same way:
   // 198,034 raw and 72,088 gzip measured on the first build, plus ten percent, whole KiB.
+  //
+  // RE-DERIVED AT TX-SHAPES, same move as the pair above: the directory holds every gesture's
+  // chunk, so the shapes engine's chunk and the entry growth of the TX work land here by
+  // construction. Measured 226,778 raw and 81,562 gzip, plus ten percent, whole KiB.
   {
     id: 'theme-entry',
     label: 'telltale themed entry, whole directory, transfer',
-    limitBytes: 78 * 1024,
+    limitBytes: 88 * 1024,
     quantity: 'transfer',
     roots: ['packages/theme-telltale/dist/entry'],
     extensions: ['.js'],
-    producedBy: 'T033',
+    producedBy: 'T033, re-derived at TX-SHAPES',
   },
   {
     id: 'theme-entry-raw',
     label: 'telltale themed entry, whole directory, raw',
-    limitBytes: 213 * 1024,
+    limitBytes: 244 * 1024,
     quantity: 'parse',
     roots: ['packages/theme-telltale/dist/entry'],
     extensions: ['.js'],
-    producedBy: 'T033',
+    producedBy: 'T033, re-derived at TX-SHAPES',
   },
 ];
 
@@ -1143,12 +1202,13 @@ export const BUDGET_EXCEPTIONS: readonly BudgetException[] = [
   },
   {
     budget: 'client-js-raw',
-    measured: '117,011 bytes, 114.3 KB, over by 12,563',
+    measured: '117,424 bytes, 114.7 KB, over by 12,976',
     target: '102 KB, 104,448 bytes',
     owners: ['TX-ADOPT'],
     clearBy: 'M3',
     recordedAt:
-      '2026-08-14, at TX-GUTTER, grown at TX-FRAME, TX-MARKUP and TX-PARITY-UI the same day',
+      '2026-08-14, at TX-GUTTER, grown at TX-FRAME, TX-MARKUP, TX-PARITY-UI and TX-SHAPES ' +
+      'the same day',
     diagnosis:
       'The first paint gained the parity scale of SPEC 6.3: eleven paired rows with verdicts, ' +
       'the FixBar and the empty side treatment, ordered by the maintainer in the TX-GUTTER ' +
@@ -1186,7 +1246,12 @@ export const BUDGET_EXCEPTIONS: readonly BudgetException[] = [
       'the response media blocks back out. Measured 117,011 across the same six chunks, so ' +
       'the net is 3,750 raw on top of the markup. The memory is the one part with live ' +
       'handlers; the rest is the same adoptable shape, and the same payer covers it under ' +
-      'the same terms.',
+      'the same terms. GROWN AT TX-SHAPES, same day, by the smallest step of the five: the ' +
+      'shapes page entered the registry, and what the first paint pays is only the gate, ' +
+      'the deferral spec of the filling half and the adopt of the reading half, because the ' +
+      'engine rides its own gesture chunk and the reading rows are server markup with no ' +
+      'chunk at all. Measured 117,424 across seven initial chunks, 413 raw on top of the ' +
+      'memory, and the same payer covers it under the same terms.',
   },
 ];
 

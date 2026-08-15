@@ -92,6 +92,19 @@ export interface IRJsonSchema {
   readonly minProperties?: number;
   readonly maxProperties?: number;
 
+  /**
+   * Conditional application, per SPEC 5.4 as of TX-SHAPES.
+   *
+   * Carried rather than dropped because conditional requiredness lives here: a name in
+   * `then.required` is required at a value, not always, and a consumer that cannot see the
+   * condition can only misreport the field.
+   */
+  readonly if?: IRJsonSchema;
+  readonly then?: IRJsonSchema;
+  readonly else?: IRJsonSchema;
+  /** Names that become required when the keying property is present, per 2020-12. */
+  readonly dependentRequired?: Readonly<Record<string, readonly string[]>>;
+
   readonly items?: IRJsonSchema;
   readonly prefixItems?: readonly IRJsonSchema[];
   readonly minItems?: number;

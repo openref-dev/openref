@@ -1,15 +1,66 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { BUILD_FILE, CLAIM_MAP_FILE, SPEC_20_BUDGET_IDS, SPEC_FILE } from '../config.js';
+import {
+  BUILD_FILE,
+  CLAIM_MAP_FILE,
+  FONT_BUDGET_LIMITS,
+  MEASURED_BUDGETS,
+  SIZE_BUDGETS,
+  SPEC_20_BUDGET_IDS,
+  SPEC_FILE,
+} from '../config.js';
 import { aiDocsAbsentMessage, aiDocsPresent } from '../lib/ai-docs.js';
 import { planTaskIds } from '../lib/build-manifest.js';
 import {
+  checkClaimFigures,
   checkClaimMap,
+  compareBudgetValues,
   parseBudgetRows,
   parseClaimMap,
   parseSecurityClaims,
+  thresholdOfCell,
+  type ConfigThreshold,
 } from '../lib/claims.js';
 import type { Gate, GateFinding, GateResult } from '../types.js';
+
+/**
+ * What the configuration enforces, as comparable quantities, one entry per budget id.
+ *
+ * THE HOME OF EVERY THRESHOLD IS `config.ts`, per the T034 amendment's recommendation: the one
+ * of the three places where a number can be enforced. SPEC 20's table and the claim map are
+ * references, and this list is what they are compared against, value for value, so a number
+ * that moves in one place and not the others goes red instead of drifting for five tasks.
+ */
+export function configThresholds(): ConfigThreshold[] {
+  const thresholds: ConfigThreshold[] = SIZE_BUDGETS.map((budget) => ({
+    id: budget.id,
+    threshold: { kind: 'bytes', value: budget.limitBytes },
+  }));
+
+  thresholds.push(
+    {
+      id: 'fonts-first-paint',
+      threshold: { kind: 'bytes', value: FONT_BUDGET_LIMITS.firstPaintBytes },
+    },
+    { id: 'fonts-latin', threshold: { kind: 'bytes', value: FONT_BUDGET_LIMITS.latinBytes } },
+    { id: 'fonts-total', threshold: { kind: 'bytes', value: FONT_BUDGET_LIMITS.totalBytes } },
+  );
+
+  for (const budget of MEASURED_BUDGETS) {
+    if (budget.reportOnly === true) {
+      thresholds.push({ id: budget.id, threshold: { kind: 'report' } });
+      continue;
+    }
+
+    const parsed = thresholdOfCell(budget.limit);
+    thresholds.push({
+      id: budget.id,
+      threshold: parsed ?? { kind: 'report' },
+    });
+  }
+
+  return thresholds;
+}
 
 /**
  * Every SPEC 19 promise and every SPEC 20 number is answered by something that can go red.
@@ -86,15 +137,23 @@ export const claimsGate: Gate = {
 
     const securityClaims = parseSecurityClaims(spec);
     const rows = parseClaimMap(map);
+    const budgetRows = parseBudgetRows(spec);
+    const thresholds = configThresholds();
 
     const issues = checkClaimMap({
       securityClaims,
       budgetIds: SPEC_20_BUDGET_IDS,
-      budgetRows: parseBudgetRows(spec),
+      budgetRows,
       map: rows,
       taskIds: planTaskIds(build, amendments ?? ''),
       exists: (path) => existsSync(join(context.repoRoot, path)),
     });
+
+    // VALUE AGAINST VALUE, per the T034 amendment: the count check above says the two lists
+    // are the same length, and these two say they promise the same numbers. The table is
+    // compared as a multiset because it has no ids; the map is compared by id because it does.
+    issues.push(...compareBudgetValues(budgetRows, thresholds));
+    issues.push(...checkClaimFigures(rows, thresholds));
 
     for (const issue of issues) {
       findings.push({ level: 'error', message: `[${issue.rule}] ${issue.message}` });

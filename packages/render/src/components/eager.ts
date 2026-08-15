@@ -18,6 +18,8 @@ import { h, type Component, type VNode } from 'vue';
 import { CommandPalette } from './CommandPalette';
 import { HealthPanel } from './HealthPanel';
 import { SchemaView } from './SchemaView';
+import { ShapesFillPanel } from './ShapesFillPanel';
+import { ShapesReader } from './ShapesReader';
 import { TryItPanel } from './TryItPanel';
 import type { DeferrableComponents } from './deferrable';
 import type { HealthModel } from '@openref/vue';
@@ -32,4 +34,6 @@ export const EAGER_COMPONENTS: DeferrableComponents = {
   tryIt: TryItPanel,
   commandPalette: CommandPalette,
   healthPanel: HealthScore,
+  shapesReader: ShapesReader,
+  shapesFill: ShapesFillPanel,
 };

@@ -5,6 +5,7 @@ import { OpenRefModule } from '@openref/nest';
 import type { INestApplication } from '@nestjs/common';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { AppModule } from './app.module.js';
+import { registerPaymentInstructionSchemas } from './orders.payment.js';
 import { registerPortal } from './portal.js';
 
 /** Which platform adapter to boot on. */
@@ -43,6 +44,10 @@ export async function createApp(platform: Platform = 'express'): Promise<INestAp
       .addTag('orders')
       .build(),
   );
+
+  // The value dependent shapes of SPEC 11, registered raw on the document the application
+  // owns, because the decorator DSL has no conditional vocabulary: see orders.payment.ts.
+  registerPaymentInstructionSchemas(document);
 
   OpenRefModule.setup('/docs', app, {
     document,

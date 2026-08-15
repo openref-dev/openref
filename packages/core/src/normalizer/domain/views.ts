@@ -64,6 +64,10 @@ function walk(schema: IRJsonSchema, view: IRSchemaView, seen: Set<IRJsonSchema>)
     }
     if (schema.not !== undefined) draft.not = walk(schema.not, view, seen);
 
+    if (schema.if !== undefined) draft.if = walk(schema.if, view, seen);
+    if (schema.then !== undefined) draft.then = walk(schema.then, view, seen);
+    if (schema.else !== undefined) draft.else = walk(schema.else, view, seen);
+
     if (typeof schema.additionalProperties === 'object') {
       draft.additionalProperties = walk(schema.additionalProperties, view, seen);
     }

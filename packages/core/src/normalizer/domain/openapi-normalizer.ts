@@ -13,6 +13,7 @@ import type {
 } from '../../ir/domain/document.types';
 import type {
   IRCodeSample,
+  IREncoding,
   IRExample,
   IRHeader,
   IRMediaType,
@@ -520,6 +521,45 @@ function readParameters(raw: unknown, context: Context, path: string): IRParamet
   return parameters;
 }
 
+/**
+ * Reads a media type's `encoding` block, per SPEC 14.3 and the T034 amendment.
+ *
+ * DECLARED SINCE M0 AND FILLED SINCE T034: the field was read and never written, so a consumer
+ * could not tell "this document declares no encoding" from "nothing ever filled this in". The
+ * multipart part rule of SPEC 14.3 is what it serves: `contentType` here is how a document
+ * says a part is not what the default rule would make it.
+ */
+function readEncoding(
+  raw: unknown,
+  context: Context,
+  path: string,
+): Record<string, IREncoding> | undefined {
+  if (!isPlainObject(raw)) return undefined;
+
+  const encoding: Record<string, IREncoding> = {};
+  for (const property of Object.keys(raw).sort(compareByCodePoint)) {
+    const source = raw[property];
+    if (!isPlainObject(source)) continue;
+
+    const entry: { -readonly [Key in keyof IREncoding]: IREncoding[Key] } = {};
+    const contentType = asString(source.contentType);
+    const style = PARAMETER_STYLES.find((candidate) => candidate === source.style);
+    const explode = asBoolean(source.explode);
+    const allowReserved = asBoolean(source.allowReserved);
+    const headers = readHeaders(source.headers, context, `${path}.${property}`);
+
+    if (contentType !== undefined) entry.contentType = contentType;
+    if (style !== undefined) entry.style = style;
+    if (explode !== undefined) entry.explode = explode;
+    if (allowReserved !== undefined) entry.allowReserved = allowReserved;
+    if (headers !== undefined) entry.headers = headers;
+
+    encoding[property] = entry;
+  }
+
+  return Object.keys(encoding).length > 0 ? encoding : undefined;
+}
+
 function readContent(raw: unknown, context: Context, path: string): IRMediaType[] {
   if (!isPlainObject(raw)) return [];
 
@@ -532,10 +572,12 @@ function readContent(raw: unknown, context: Context, path: string): IRMediaType[
     const slot = schemaSlot(source.schema, context, `${path}.${mediaType}`);
     const example = asJsonValue(source.example);
     const examples = readExamples(source.examples);
+    const encoding = readEncoding(source.encoding, context, `${path}.${mediaType}.encoding`);
 
     if (slot !== undefined) entry.schema = slot;
     if (example !== undefined) entry.example = example;
     if (examples !== undefined) entry.examples = examples;
+    if (encoding !== undefined) entry.encoding = encoding;
 
     media.push(entry);
   }

@@ -95,6 +95,9 @@ const NOT_CLASSES = new Set([
   'oref-verdict-',
   'oref-fixbar-',
   'oref-sev-',
+  // The shapes page's nesting steps, per TX-SHAPES: `oref-shape-d${depth}` is built from the
+  // walk's depth at runtime, and d0 through d6 are in the stylesheet, the `oref-prov-` shape.
+  'oref-shape-d',
 ]);
 
 /**
@@ -115,6 +118,9 @@ const GENERATED_PREFIXES = [
   'oref-verdict-',
   'oref-fixbar-',
   'oref-sev-',
+  // The shapes page's nesting steps, per TX-SHAPES: seven full names in the stylesheet, the
+  // depth suffix built at runtime.
+  'oref-shape-d',
 ];
 
 /**

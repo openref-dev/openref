@@ -37,7 +37,7 @@ interface OperationLike {
 
 interface SchemaLike {
   readonly properties?: Record<string, SchemaLike>;
-  readonly items?: SchemaLike;
+  readonly items?: SchemaLike | boolean;
   readonly $ref?: string;
   readonly allOf?: readonly SchemaLike[];
   readonly oneOf?: readonly { readonly $ref?: string }[];
@@ -45,6 +45,16 @@ interface SchemaLike {
     readonly propertyName: string;
     readonly mapping?: Record<string, string>;
   };
+  readonly const?: string;
+  readonly maxLength?: number;
+  readonly exclusiveMinimum?: number;
+  readonly required?: readonly string[];
+  readonly if?: SchemaLike;
+  readonly then?: SchemaLike;
+  readonly else?: SchemaLike;
+  readonly dependentRequired?: Record<string, readonly string[]>;
+  readonly patternProperties?: Record<string, SchemaLike>;
+  readonly prefixItems?: readonly SchemaLike[];
 }
 
 beforeAll(async () => {
@@ -80,7 +90,7 @@ function deref(schema: SchemaLike): SchemaLike {
 }
 
 describe('the demo API surface', () => {
-  it('should carry the six paths the README sends a reader to', () => {
+  it('should carry the seven paths the README sends a reader to', () => {
     // Given the paths the served document declares
     const paths = Object.keys(specification.paths).sort();
 
@@ -91,8 +101,36 @@ describe('the demo API surface', () => {
       '/orders/events',
       '/orders/page',
       '/orders/{id}',
+      '/orders/{id}/payment',
       '/orders/{id}/receipt',
     ]);
+  });
+
+  it('should carry the value dependent shapes fixture, raw keywords intact, per TX-SHAPES', () => {
+    // Given the schemas the application registered on the document it owns, because the
+    // decorator DSL has no conditional vocabulary. THE POINT IS THAT THEY ARE IN THE SERVED
+    // BYTES: what a generator downloads is what the shapes page reads.
+    const instruction = specification.components.schemas.PaymentInstruction ?? {};
+    const card = specification.components.schemas.CardMethod ?? {};
+    const bank = specification.components.schemas.BankTransferMethod ?? {};
+    const milestone = specification.components.schemas.MilestoneTerms ?? {};
+
+    // Then the root conditional, the branch conditional naming a root field, the presence
+    // dependency, the pattern keys, the closed tuple and the oneOf inside a oneOf branch are
+    // all in the document, verbatim
+    expect(instruction.if?.properties?.country?.const).toBe('US');
+    expect(instruction.then?.required).toEqual(['postalCode']);
+    expect(instruction.else?.properties?.postalCode?.maxLength).toBe(12);
+    expect(instruction.discriminator?.propertyName).toBe('method');
+    expect(card.if?.properties?.amountMinor?.exclusiveMinimum).toBe(5000);
+    expect(card.then?.required).toEqual(['threeDSecure']);
+    expect(bank.dependentRequired).toEqual({ bic: ['bankName'] });
+    expect(Object.keys(instruction.properties?.metadata?.patternProperties ?? {})).toEqual([
+      '^x-[a-z0-9_]{2,32}$',
+    ]);
+    expect(instruction.properties?.geo?.prefixItems).toHaveLength(2);
+    expect(instruction.properties?.geo?.items).toBe(false);
+    expect(milestone.properties?.schedule?.oneOf).toHaveLength(2);
   });
 
   it('should carry the synthetic schema of the generic wrapper, per SPEC 13.5', () => {
@@ -108,7 +146,10 @@ describe('the demo API surface', () => {
       'perPage',
       'total',
     ]);
-    expect(wrapper.properties?.items?.items?.$ref).toBe('#/components/schemas/OrderDto');
+    const wrapped = wrapper.properties?.items?.items;
+    expect(typeof wrapped === 'object' ? wrapped.$ref : undefined).toBe(
+      '#/components/schemas/OrderDto',
+    );
   });
 
   it('should nest four levels deep, from an order down to a pair of coordinates', () => {
@@ -153,10 +194,12 @@ describe('the demo API surface', () => {
     const category = specification.components.schemas.CategoryDto ?? {};
 
     // When
-    const children = category.properties?.children ?? {};
+    const children = category.properties?.children?.items;
 
     // Then the cycle is in the document, which is what a reference has to survive
-    expect(children.items?.$ref).toBe('#/components/schemas/CategoryDto');
+    expect(typeof children === 'object' ? children.$ref : undefined).toBe(
+      '#/components/schemas/CategoryDto',
+    );
   });
 
   it('should give one operation more parameters than fit on a line', () => {

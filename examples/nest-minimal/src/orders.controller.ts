@@ -5,10 +5,12 @@ import {
   Get,
   Header,
   HttpCode,
+  NotFoundException,
   Param,
   Post,
   Query,
   Sse,
+  UnprocessableEntityException,
   UseGuards,
   UseInterceptors,
   UsePipes,
@@ -17,6 +19,7 @@ import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import { ApiAudience, ApiErrors, ApiSample, ApiScopes, ApiStream, paginated } from '@openref/nest';
 import { from, map, type Observable } from 'rxjs';
 import {
+  ApiBody,
   ApiExtraModels,
   ApiHeader,
   ApiOkResponse,
@@ -442,5 +445,115 @@ export class OrdersController {
       lines: body.lines,
       payment: body.payment,
     };
+  }
+
+  /**
+   * Accepts a payment instruction for an order.
+   *
+   * THE BODY IS THE VALUE DEPENDENT SHAPES FIXTURE of `orders.payment.ts`: its shape depends
+   * on the values inside it, and the schema is registered raw on the document because the
+   * decorator DSL has no conditional vocabulary. The reference to it from here is an ordinary
+   * `$ref`, which is all a route has to say about a body the classes cannot express.
+   *
+   * @param id - Identifier of the order the instruction pays
+   * @param instruction - The instruction, in whichever of its shapes the values select
+   * @returns Acceptance, since collection happens later
+   */
+  @Post(':id/payment')
+  @Scopes('orders:write')
+  // Explicit where it was implicit, the `create` rule: acceptance without collection is 202,
+  // the decorator writes the decision on the route, and the documented 202 below agrees, so
+  // SP012 examines and is quiet.
+  @HttpCode(202)
+  @ApiErrors(OrderNotFoundError)
+  @ApiOperation({
+    summary: 'Submit a payment instruction',
+    description:
+      'The shape of the body depends on the values inside it. The method selects a branch, ' +
+      'the country decides whether a postal code is required, and the amount decides whether ' +
+      'the card branch must carry a 3-D Secure block.',
+  })
+  @ApiBody({
+    description: 'How to pay for the order.',
+    schema: { $ref: '#/components/schemas/PaymentInstruction' },
+    examples: {
+      card: {
+        summary: 'A card above the 3-D Secure line',
+        value: {
+          amountMinor: 7400,
+          currency: 'USD',
+          country: 'US',
+          postalCode: '20003',
+          method: 'card',
+          pan: '4111111111111111',
+          holder: 'ACME GmbH',
+          threeDSecure: { version: '2.2.0' },
+          metadata: { 'x-cost-center': 'AC-4417' },
+          geo: [38.8977, -77.0365],
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 202,
+    description: 'Accepted. Collection happens asynchronously.',
+    content: {
+      'application/json': {
+        schema: {
+          type: 'object',
+          properties: {
+            status: { type: 'string', description: 'Always accepted here.' },
+            orderId: { type: 'string', description: 'The order the instruction pays.' },
+          },
+          required: ['status', 'orderId'],
+        },
+        example: { status: 'accepted', orderId: 'ord_1024' },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'No order with that identifier.',
+    type: ProblemDto,
+    example: problem(404, 'order_not_found', 'No order exists with the identifier given.'),
+  })
+  @ApiResponse({
+    status: 422,
+    description: 'The values select no branch of the body.',
+    type: ProblemDto,
+    example: problem(
+      422,
+      'instruction_invalid',
+      'The instruction names no known method, so no branch of the body applies.',
+    ),
+  })
+  submitPayment(
+    @Param('id') id: string,
+    @Body() instruction?: Record<string, unknown>,
+  ): { status: string; orderId: string } {
+    const order = ORDERS.find((entry) => entry.id === id);
+    if (order === undefined) {
+      throw new NotFoundException(
+        problem(404, 'order_not_found', 'No order exists with the identifier given.'),
+      );
+    }
+
+    // The route's own honesty about the answer it documents, the `create` rule: the documented
+    // 422 is answered for real, on the same check the schema states as the leading value.
+    const method = instruction?.method;
+    if (
+      typeof method !== 'string' ||
+      !['card', 'bank_transfer', 'wallet', 'invoice'].includes(method)
+    ) {
+      throw new UnprocessableEntityException(
+        problem(
+          422,
+          'instruction_invalid',
+          'The instruction names no known method, so no branch of the body applies.',
+        ),
+      );
+    }
+
+    return { status: 'accepted', orderId: id };
   }
 }

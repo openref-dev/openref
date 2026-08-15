@@ -1881,6 +1881,246 @@ button.oref-schema-row:hover {
   max-width: var(--oref-layout-measure);
 }
 
+/* THE SHAPES PAGE, per SPEC 11 and TX-SHAPES: the layout's two halves side by side, reading on
+ * the left and filling on the right, collapsing to one column by the page's own width through
+ * the container the frame already establishes for the parity scale's query. */
+
+.oref-shapes {
+  container-type: inline-size;
+  display: grid;
+  gap: var(--oref-space-800);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  margin-block-start: var(--oref-space-600);
+}
+
+.oref-shapes-read {
+  border-inline-end: var(--oref-border-hair) solid var(--oref-color-line-edge);
+  padding-inline-end: var(--oref-space-800);
+}
+
+.oref-shapes-fill {
+  min-width: 0;
+}
+
+@container (max-width: 56rem) {
+  .oref-shapes {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .oref-shapes-read {
+    border-block-end: var(--oref-border-hair) solid var(--oref-color-line-edge);
+    border-inline-end: 0;
+    padding-block-end: var(--oref-space-700);
+    padding-inline-end: 0;
+  }
+}
+
+/* The reading half: one row per field, name, type and requiredness as columns, the condition
+ * line under them in the row's own words. */
+
+.oref-shape-rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.oref-shape-row {
+  border-block-end: var(--oref-border-hair) solid var(--oref-color-line);
+  column-gap: var(--oref-space-400);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  padding-block: var(--oref-space-300);
+}
+
+.oref-shape-variant {
+  background: var(--oref-color-surface);
+}
+
+.oref-shape-variant > .oref-shape-name {
+  color: var(--oref-color-accent-runtime);
+}
+
+.oref-shape-pattern-row > .oref-shape-name {
+  color: var(--oref-color-fg-secondary);
+}
+
+.oref-shape-name {
+  font-family: var(--oref-font-family-mono);
+  font-size: var(--oref-font-size-200);
+}
+
+.oref-shape-type {
+  color: var(--oref-color-fg-secondary);
+  font-size: var(--oref-font-size-100);
+}
+
+.oref-shape-req {
+  color: var(--oref-color-fg-secondary);
+  font-size: var(--oref-font-size-100);
+  text-align: end;
+}
+
+.oref-shape-req-cond {
+  color: var(--oref-prov-derived-fg);
+}
+
+.oref-shape-when {
+  color: var(--oref-color-fg-muted);
+  font-family: var(--oref-font-family-mono);
+  font-size: var(--oref-font-size-100);
+  grid-column: 1 / -1;
+  padding-block-start: var(--oref-space-100);
+}
+
+.oref-shape-empty {
+  color: var(--oref-color-fg-muted);
+  font-size: var(--oref-font-size-300);
+  max-width: var(--oref-layout-measure);
+}
+
+/* The nesting steps of both halves: depth as a class, never as an inline style, per SPEC 11. */
+
+.oref-shape-d0 {
+  margin-inline-start: 0;
+}
+
+.oref-shape-d1 {
+  margin-inline-start: var(--oref-space-400);
+}
+
+.oref-shape-d2 {
+  margin-inline-start: var(--oref-space-600);
+}
+
+.oref-shape-d3 {
+  margin-inline-start: var(--oref-space-800);
+}
+
+.oref-shape-d4 {
+  margin-inline-start: calc(var(--oref-space-800) + var(--oref-space-400));
+}
+
+.oref-shape-d5 {
+  margin-inline-start: calc(var(--oref-space-800) + var(--oref-space-600));
+}
+
+.oref-shape-d6 {
+  margin-inline-start: calc(var(--oref-space-800) + var(--oref-space-800));
+}
+
+/* The filling half: the status line first, then the controls the values select. */
+
+.oref-shape-announce {
+  align-items: baseline;
+  border-inline-start: var(--oref-border-mark) solid var(--oref-prov-derived-fg);
+  display: flex;
+  gap: var(--oref-space-400);
+  justify-content: space-between;
+  margin-block-end: var(--oref-space-500);
+  min-height: var(--oref-space-600);
+}
+
+.oref-shape-announce > span {
+  background: var(--oref-prov-derived-bg);
+  color: var(--oref-color-fg);
+  display: block;
+  flex: 1;
+  font-size: var(--oref-font-size-200);
+  padding: var(--oref-space-200) var(--oref-space-400);
+}
+
+.oref-shape-field {
+  padding-block: var(--oref-space-300);
+}
+
+.oref-shape-control {
+  display: block;
+}
+
+.oref-shape-control > .oref-field-control {
+  width: 100%;
+}
+
+.oref-shape-mark {
+  color: var(--oref-state-crit-fg);
+}
+
+.oref-shape-mark-cond {
+  color: var(--oref-prov-derived-fg);
+}
+
+.oref-shape-input-cond {
+  border-color: var(--oref-prov-derived-fg);
+}
+
+.oref-shape-input-error {
+  border-color: var(--oref-state-crit-fg);
+}
+
+.oref-shape-hint {
+  display: block;
+  font-size: var(--oref-font-size-100);
+  padding-block-start: var(--oref-space-100);
+}
+
+.oref-shape-hint-cond {
+  color: var(--oref-prov-derived-fg);
+}
+
+.oref-shape-hint-error {
+  color: var(--oref-state-crit-fg);
+}
+
+/* The chooser, the pattern keys and the tuple: a head row naming the block, controls under. */
+
+.oref-shape-branch,
+.oref-shape-pattern,
+.oref-shape-tuple {
+  border-block-start: var(--oref-border-hair) solid var(--oref-color-line-edge);
+  padding-block: var(--oref-space-500);
+}
+
+.oref-shape-branch-row {
+  align-items: baseline;
+  display: flex;
+  gap: var(--oref-space-400);
+}
+
+.oref-shape-branch-note {
+  color: var(--oref-color-fg-muted);
+  font-size: var(--oref-font-size-100);
+}
+
+.oref-shape-branch-opts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--oref-space-200);
+  margin-block-start: var(--oref-space-300);
+}
+
+.oref-shape-pair {
+  display: grid;
+  gap: var(--oref-space-300);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  margin-block-start: var(--oref-space-300);
+}
+
+.oref-shape-add {
+  background: none;
+  border: var(--oref-border-hair) solid var(--oref-color-line-edge);
+  border-radius: var(--oref-radius-sm);
+  color: var(--oref-color-fg-secondary);
+  cursor: pointer;
+  font-family: var(--oref-font-family-sans);
+  font-size: var(--oref-font-size-100);
+  margin-block-start: var(--oref-space-300);
+  padding: var(--oref-space-100) var(--oref-space-400);
+}
+
+.oref-shape-add:hover {
+  color: var(--oref-color-fg);
+}
+
 .oref-states-lead {
   color: var(--oref-color-fg-secondary);
   font-size: var(--oref-font-size-300);

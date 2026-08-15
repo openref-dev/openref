@@ -192,9 +192,10 @@ export const ReferenceApp = defineComponent({
         ]);
       }
 
-      // THE SHAPES SHOWCASE: the read half of the layout's page, the schema in request view.
-      // The value driven fill half is its own task, and this page draws what exists rather
-      // than promising it.
+      // THE SHAPES PAGE IS BOTH HALVES, per SPEC 11 and `TX-SHAPES`: reading on the left,
+      // every branch at once with its condition in words, and filling on the right, one body
+      // rebuilt by its values. The reading half is server markup the client adopts; the
+      // filling half is the value driven form behind its own gesture.
       if (page.kind === 'shapes' && page.schema !== null) {
         return h('article', { class: 'oref-shapes-page', 'data-oref-schema': page.schema.id }, [
           h('header', { class: 'oref-operation-header' }, [
@@ -207,14 +208,17 @@ export const ReferenceApp = defineComponent({
                 kind: 'schema-missing',
                 message: 'This document declares no such schema.',
               })
-            : h(deferrable.schemaView, {
-                slot: { kind: 'named', schemaId: page.schema.id },
-                label: page.schema.name,
-                view: 'request',
-                schemas: page.schemas,
-                truncated: page.truncatedSchemas,
-                basePath: props.basePath,
-              }),
+            : h('div', { class: 'oref-shapes' }, [
+                h(deferrable.shapesReader, {
+                  schemaId: page.schema.id,
+                  schemas: page.schemas,
+                  basePath: props.basePath,
+                }),
+                h(deferrable.shapesFill, {
+                  schemaId: page.schema.id,
+                  schemas: page.schemas,
+                }),
+              ]),
         ]);
       }
 

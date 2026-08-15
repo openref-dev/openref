@@ -49,6 +49,16 @@ export interface DeferrableComponents {
    * Recorded in SPEC 7.2 and 12 on 2026-08-12.
    */
   readonly healthPanel: Component;
+  /**
+   * The reading half of the shapes page, per SPEC 11.
+   *
+   * The Health panel's shape: no state, no handler, no client render, so the browser adopts
+   * the server's rows rather than redrawing them, and the reading half costs the first paint
+   * nothing.
+   */
+  readonly shapesReader: Component;
+  /** The filling half of the shapes page: the value driven form, behind its own gesture. */
+  readonly shapesFill: Component;
 }
 
 /** How a component tree reaches the three. */

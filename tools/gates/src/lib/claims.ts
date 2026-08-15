@@ -32,6 +32,8 @@ export interface SpecClaim {
 /** One row of the claim map. */
 export interface ClaimMapRow {
   readonly id: string;
+  /** The bounds cell, kept whole so the stated figure can be compared to the enforced one. */
+  readonly text: string;
   /** Repository relative paths said to prove it, empty when the claim is scheduled. */
   readonly proofs: readonly string[];
   /** `proved`, or the id of the task that owns the claim. */
@@ -74,19 +76,26 @@ export function parseSecurityClaims(spec: string): SpecClaim[] {
   return claims;
 }
 
+/** One row of SPEC 20's table: what it is called, and what the threshold cell says. */
+export interface BudgetRow {
+  readonly label: string;
+  readonly threshold: string;
+}
+
 /**
  * The budget rows of SPEC 20.
  *
  * Returned with the label the specification writes rather than an id, because the table has
  * no ids: the ids live in `config.ts`, and tying the two together is the caller's job and the
- * point of the check. What is read here is how many rows there are and what each one says.
+ * point of the check. What is read is how many rows there are and what each one's threshold
+ * cell says, so the values can be compared rather than counted, per the T034 amendment.
  *
  * @param spec - Full text of `ai-docs/SPEC.md`
  * @returns One entry per table row, in document order
  */
-export function parseBudgetRows(spec: string): string[] {
+export function parseBudgetRows(spec: string): BudgetRow[] {
   const section = sectionOf(spec, 20);
-  const rows: string[] = [];
+  const rows: BudgetRow[] = [];
   let seenSeparator = false;
 
   for (const line of section.split('\n')) {
@@ -106,10 +115,210 @@ export function parseBudgetRows(spec: string): string[] {
     if (!seenSeparator) continue;
 
     const cells = trimmed.slice(1, -1).split('|');
-    rows.push((cells[0] ?? '').trim());
+    rows.push({ label: (cells[0] ?? '').trim(), threshold: (cells[1] ?? '').trim() });
   }
 
   return rows;
+}
+
+/**
+ * A threshold as a comparable quantity: a byte count, a duration, a bare count, or the
+ * recorded-only marker two rows carry.
+ */
+export type Threshold =
+  | { readonly kind: 'bytes' | 'seconds' | 'count'; readonly value: number }
+  | { readonly kind: 'report' };
+
+/** The words a Russian table row uses for "recorded, not gated". */
+const REPORT_MARKER = 'порога нет';
+
+/**
+ * Reads the present tense threshold out of one SPEC 20 cell.
+ *
+ * THE LEADING SEGMENT IS THE PRESENT TENSE AND THE REST OF THE CELL IS HISTORY, which is the
+ * prose stance the T034 amendment asked this checker to state: a cell reads `<= 61 KB, was 56
+ * until ...`, the comparison reads the value before the first comma or parenthesis, and the
+ * narrative after it may name any figure it likes, the way the paragraphs under the table do.
+ *
+ * @param cell - The threshold cell as the table writes it
+ * @returns The quantity, or null when the cell states no readable threshold
+ */
+export function thresholdOfCell(cell: string): Threshold | null {
+  if (cell.includes(REPORT_MARKER)) return { kind: 'report' };
+
+  // The unit is matched without a word boundary, deliberately: the boundary class is
+  // ASCII only, so a Cyrillic unit after the digits would read as no unit at all and
+  // seconds would count as a bare count, which the parse cases caught on the first run.
+  const leading = cell.split(/[,(]/, 1)[0] ?? '';
+  const match = /(\d[\d\s ,]*)(КБ|МБ|байт|bytes|KB|MB|с|s)?(?=\s|$)/u.exec(leading);
+  if (match?.[1] === undefined) return null;
+
+  const value = Number(match[1].replace(/[\s ,]/g, ''));
+  if (Number.isNaN(value)) return null;
+
+  const unit = match[2] ?? '';
+  if (unit === 'КБ' || unit === 'KB') return { kind: 'bytes', value: value * 1024 };
+  if (unit === 'МБ' || unit === 'MB') return { kind: 'bytes', value: value * 1024 * 1024 };
+  if (unit === 'байт' || unit === 'bytes') return { kind: 'bytes', value };
+  if (unit === 'с' || unit === 's') return { kind: 'seconds', value };
+  return { kind: 'count', value };
+}
+
+/** A threshold in the words a finding can print. */
+export function thresholdWords(threshold: Threshold): string {
+  if (threshold.kind === 'report') return 'recorded, not gated';
+  if (threshold.kind === 'seconds') return `${String(threshold.value)} s`;
+  if (threshold.kind === 'count') return String(threshold.value);
+
+  return threshold.value % 1024 === 0 && threshold.value >= 1024
+    ? `${String(threshold.value / 1024)} KB`
+    : `${threshold.value.toLocaleString('en-US')} bytes`;
+}
+
+/** What the configuration enforces for one budget id. */
+export interface ConfigThreshold {
+  readonly id: string;
+  readonly threshold: Threshold;
+}
+
+/**
+ * Compares the SPEC 20 table's thresholds to the configuration's, value against value.
+ *
+ * AS MULTISETS AND NOT BY POSITION, because the table has no ids and its order is its own:
+ * matching by position would force the table to mirror an array in a TypeScript file, and a
+ * reordering would read as six moved caps. What the comparison then means: every value the
+ * configuration enforces is stated by some row, and every value some row states is enforced.
+ * A commit that moves a cap moves both files and stays green; a commit that moves one alone
+ * is red at once, which is the answer to the amendment's midway question.
+ *
+ * @param rows - The table, parsed
+ * @param config - What the configuration enforces
+ * @returns Issues, empty when the two agree value for value
+ */
+export function compareBudgetValues(
+  rows: readonly BudgetRow[],
+  config: readonly ConfigThreshold[],
+): ClaimIssue[] {
+  const issues: ClaimIssue[] = [];
+
+  const keyOf = (threshold: Threshold): string =>
+    threshold.kind === 'report' ? 'report' : `${threshold.kind}:${String(threshold.value)}`;
+
+  const enforced = new Map<string, { count: number; ids: string[] }>();
+  for (const entry of config) {
+    const key = keyOf(entry.threshold);
+    const bucket = enforced.get(key) ?? { count: 0, ids: [] };
+    bucket.count += 1;
+    bucket.ids.push(entry.id);
+    enforced.set(key, bucket);
+  }
+
+  for (const row of rows) {
+    const threshold = thresholdOfCell(row.threshold);
+    if (threshold === null) {
+      issues.push({
+        rule: 'budget-value-unreadable',
+        message: `the SPEC 20 row "${row.label}" states no threshold this check can read: "${row.threshold}"`,
+      });
+      continue;
+    }
+
+    const bucket = enforced.get(keyOf(threshold));
+    if (bucket === undefined || bucket.count === 0) {
+      issues.push({
+        rule: 'budget-value-stale',
+        message:
+          `the SPEC 20 row "${row.label}" states ${thresholdWords(threshold)}, which the gate ` +
+          `configuration does not enforce for any budget. One of the two moved without the other`,
+      });
+      continue;
+    }
+
+    bucket.count -= 1;
+  }
+
+  for (const bucket of enforced.values()) {
+    if (bucket.count === 0) continue;
+
+    for (const id of bucket.ids.slice(bucket.ids.length - bucket.count)) {
+      const entry = config.find((candidate) => candidate.id === id);
+      issues.push({
+        rule: 'budget-value-missing',
+        message:
+          `the configuration enforces ${thresholdWords(entry?.threshold ?? { kind: 'report' })} ` +
+          `for ${id} and no SPEC 20 row states that value. One of the two moved without the other`,
+      });
+    }
+  }
+
+  return issues;
+}
+
+/**
+ * The spellings of one threshold a claim map row may state it in.
+ *
+ * @param threshold - The enforced quantity
+ * @returns Patterns, any one of which counts as the row stating the value
+ */
+function figurePatterns(threshold: Threshold): RegExp[] {
+  if (threshold.kind === 'report') return [];
+  if (threshold.kind === 'seconds') {
+    return [new RegExp(`(^|[^\\d])${String(threshold.value)}\\s*s\\b`)];
+  }
+  if (threshold.kind === 'count') {
+    // A separator after the digit counts as a boundary only when no digit follows it: `0,`
+    // ends a count where `22,300` continues one.
+    return [new RegExp(`(^|[^\\d.,])${String(threshold.value)}([^\\d.,]|,(?!\\d)|\\.(?!\\d)|$)`)];
+  }
+
+  const patterns = [new RegExp(`(^|[^\\d])${threshold.value.toLocaleString('en-US')}\\s*bytes`)];
+  if (threshold.value % 1024 === 0) {
+    patterns.push(new RegExp(`(^|[^\\d.])${String(threshold.value / 1024)}\\s*KB`));
+    if (threshold.value % (1024 * 1024) === 0) {
+      patterns.push(new RegExp(`(^|[^\\d.])${String(threshold.value / (1024 * 1024))}\\s*MB`));
+    }
+  }
+  return patterns;
+}
+
+/**
+ * Requires each proved budget row of the claim map to state the enforced value.
+ *
+ * THE MAP DRIFTED FURTHEST AND FOR LONGEST, per the T034 amendment, and it is the file whose
+ * whole purpose is that a claim is answered by something that can fail. A row may carry any
+ * history it likes; what it must contain somewhere is the current figure in one of its
+ * accepted spellings, so a cap that moves without the map moving goes red.
+ *
+ * @param map - The claim map rows, with their bounds text
+ * @param config - What the configuration enforces, by id
+ * @returns Issues, empty when every row states its value
+ */
+export function checkClaimFigures(
+  map: readonly ClaimMapRow[],
+  config: readonly ConfigThreshold[],
+): ClaimIssue[] {
+  const issues: ClaimIssue[] = [];
+
+  for (const entry of config) {
+    const patterns = figurePatterns(entry.threshold);
+    if (patterns.length === 0) continue;
+
+    const rows = map.filter(
+      (row) => row.id === entry.id || partIndexOf(row.id, entry.id) !== undefined,
+    );
+    if (rows.length === 0) continue;
+
+    if (!rows.some((row) => patterns.some((pattern) => pattern.test(row.text)))) {
+      issues.push({
+        rule: 'claim-figure-stale',
+        message:
+          `the claim map row for ${entry.id} does not state the enforced threshold, ` +
+          `${thresholdWords(entry.threshold)}. The figure it carries is not the one the gate holds`,
+      });
+    }
+  }
+
+  return issues;
 }
 
 /**
@@ -166,6 +375,7 @@ export function parseClaimMap(map: string): ClaimMapRow[] {
 
     rows.push({
       id,
+      text: cells[1] ?? '',
       proofs:
         proofs === NONE || proofs === ''
           ? []
@@ -191,7 +401,7 @@ export interface ClaimCheckInput {
   /** Budget ids the gate configuration knows, which is what the SPEC 20 table is tied to. */
   readonly budgetIds: readonly string[];
   /** Rows of the SPEC 20 table, so the specification and the configuration are compared. */
-  readonly budgetRows: readonly string[];
+  readonly budgetRows: readonly BudgetRow[];
   readonly map: readonly ClaimMapRow[];
   /** Task ids that exist in `ai-docs/BUILD.md`, so a scheduled claim names a real task. */
   readonly taskIds: readonly string[];
@@ -216,7 +426,7 @@ export function checkClaimMap(input: ClaimCheckInput): ClaimIssue[] {
       message:
         `SPEC 20 lists ${String(input.budgetRows.length)} budget(s) and the gate configuration ` +
         `knows ${String(input.budgetIds.length)}. One of them gained a row the other never ` +
-        `heard of: ${input.budgetRows.join(' / ')}`,
+        `heard of: ${input.budgetRows.map((row) => row.label).join(' / ')}`,
     });
   }
 

@@ -176,6 +176,27 @@ describe('applyView', () => {
     expect(reached).toEqual(Array.from({ length: 8 }, () => ['open']));
   });
 
+  it('should reach into if, then and else', () => {
+    // Given
+    const leaf: IRJsonSchema = {
+      type: 'object',
+      properties: { secret: { type: 'string', writeOnly: true }, open: { type: 'string' } },
+    };
+    const schema: IRJsonSchema = { if: leaf, then: leaf, else: leaf };
+
+    // When
+    const view = toResponseView(schema);
+
+    // Then, the condition's subtrees are filtered and stamped like every other position
+    const reached = [view.if, view.then, view.else];
+    expect(reached.map((member) => Object.keys(member?.properties ?? {}))).toEqual(
+      Array.from({ length: 3 }, () => ['open']),
+    );
+    expect(reached.map((member) => member?.view)).toEqual(
+      Array.from({ length: 3 }, () => 'response'),
+    );
+  });
+
   it('should leave a folded cycle marker alone', () => {
     // Given
     const schema: IRJsonSchema = {

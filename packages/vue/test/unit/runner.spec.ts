@@ -290,9 +290,11 @@ describe('runnerOperationOf, the body editors of SPEC 14.3', () => {
   });
 
   it('should read the file part off the schema and the part types off the property type', () => {
-    // Given the case T027 and SPEC 14.3 both name: a file part beside a JSON part. The part types
-    // here are all derived, because the normalizer fills no `encoding`; the declared path is the
-    // case below.
+    // Given the case T027 and SPEC 14.3 both name: a file part beside a JSON part. Three part
+    // types here are derived from the property types; the fourth is the declared one, because
+    // the fixture's document has always written an `encoding` block for it and the normalizer
+    // carries it since T034. Until then this row read text/plain, which was the defect the
+    // T034 amendment recorded: the declaration was in the document and reached nothing.
     const form = media('multipart/form-data');
 
     // Then
@@ -302,16 +304,15 @@ describe('runnerOperationOf, the body editors of SPEC 14.3', () => {
       { name: 'metadata', required: false, kind: 'text', contentType: 'application/json' },
       // An array takes its item's answer, which for strings is plain text
       { name: 'tags', required: false, kind: 'text', contentType: 'text/plain' },
-      { name: 'sidecar', required: false, kind: 'text', contentType: 'text/plain' },
+      { name: 'sidecar', required: false, kind: 'text', contentType: 'application/xml' },
     ]);
   });
 
   it('should let a declared encoding win over the type it would have derived', () => {
-    // Given an operation built by hand rather than normalized, and that is the finding as much as
-    // the case: `IRMediaType.encoding` is in the IR and the OpenAPI normalizer never fills it, so
-    // a fixture that went through the normalizer could not reach this branch at all. Recorded in
-    // PROJECT_STATE; filling the field moves the corpus digests, because stripe.yaml writes
-    // encoding blocks on hundreds of operations.
+    // Given an operation built by hand. Until T034 this was the only way to reach the branch,
+    // because the normalizer never filled `encoding`; the normalized path is the case below,
+    // and this one stays because it pins the projection's own precedence with no normalizer in
+    // the frame.
     const document = bodyDocument();
     const node = document.nodes.get('post-uploads');
     if (node?.kind !== 'operation') throw new Error('the fixture lost its operation');
@@ -340,6 +341,55 @@ describe('runnerOperationOf, the body editors of SPEC 14.3', () => {
     // And the derived answers beside it are untouched
     expect(form?.fields.find((field) => field.name === 'metadata')?.contentType).toBe(
       'application/json',
+    );
+  });
+
+  it('should carry a document-declared part content type through the normalizer to a page', () => {
+    // Given a document rather than a hand built operation, per the T034 amendment: the
+    // normalizer fills `IRMediaType.encoding` now, so a part content type written in the
+    // document reaches the projection with no hand assembly anywhere on the path.
+    const document = normalizeOpenApiDocument({
+      openapi: '3.1.0',
+      info: { title: 'Uploads', version: '1.0.0' },
+      paths: {
+        '/uploads': {
+          post: {
+            requestBody: {
+              required: true,
+              content: {
+                'multipart/form-data': {
+                  schema: {
+                    type: 'object',
+                    properties: {
+                      file: { type: 'string', format: 'binary' },
+                      sidecar: { type: 'string' },
+                    },
+                    required: ['file'],
+                  },
+                  encoding: { sidecar: { contentType: 'application/xml' } },
+                },
+              },
+            },
+            responses: { '201': { description: 'Created.' } },
+          },
+        },
+      },
+    });
+
+    const node = [...document.nodes.values()].find((candidate) => candidate.kind === 'operation');
+    if (node?.kind !== 'operation') throw new Error('the fixture lost its operation');
+
+    // When
+    const form = runnerOperationOf(node, document).body.find(
+      (entry) => entry.mediaType === 'multipart/form-data',
+    );
+
+    // Then the document's declaration wins over the default rule, end to end
+    expect(form?.fields.find((field) => field.name === 'sidecar')?.contentType).toBe(
+      'application/xml',
+    );
+    expect(form?.fields.find((field) => field.name === 'file')?.contentType).toBe(
+      'application/octet-stream',
     );
   });
 

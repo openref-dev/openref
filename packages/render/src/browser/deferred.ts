@@ -297,6 +297,15 @@ export function deferUntilReached(
 const adoptHealthPanel: Component = () => h('section', { class: 'oref-section-health' });
 
 /**
+ * The reading half of the shapes page, in the browser: the same finding as the Health panel.
+ *
+ * The rows have no state, no handler and no client render, so the client claims the container
+ * and leaves the server's rows alone, and neither the rows nor the walker that computed them
+ * ride any chunk.
+ */
+const adoptShapesReader: Component = () => h('div', { class: 'oref-shapes-read' });
+
+/**
  * The tree the gates listen in, the same structural slice `HydrateRoot` names in `index.ts`.
  *
  * Declared here rather than imported because `index.ts` imports this module: a type-only
@@ -404,5 +413,23 @@ export function deferredComponents(options: DeferredOptions): DeferrableComponen
     ),
 
     healthPanel: adoptHealthPanel,
+
+    shapesReader: adoptShapesReader,
+
+    shapesFill: deferUntilReached(
+      {
+        name: 'ShapesFillPanel',
+        // `focusin` and `keydown` for the reader who arrives on the keyboard, the console's
+        // reasoning: the first Tab into the form arms the loader, and a keystroke into an
+        // unmounted field is recorded and replayed rather than lost.
+        selector: '.oref-shapes-fill',
+        events: ['pointerdown', 'click', 'focusin', 'keydown'],
+        // The served controls are real enabled buttons, so a chunk that never arrives must
+        // say so and stop them promising, per SPEC 11's second half.
+        failure: 'The form failed to load. Reload the page to try again.',
+      },
+      root,
+      async () => (await import('../components/ShapesFillPanel')).ShapesFillPanel,
+    ),
   };
 }
