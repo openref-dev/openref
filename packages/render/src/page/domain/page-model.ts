@@ -66,6 +66,13 @@ import { reasonPhrase } from '../../shared/status';
 /**
  * Version of the page model shape, part of the cache key.
  *
+ * 14 SINCE `TX-ADOPT`: a node carries `drawn`, the list of sections the server drew in draw
+ * order, and a media type carries `hasExample`, because the client walks the first and adopts
+ * the second instead of recomputing conditions over fields the state block no longer ships. A
+ * page cached before this hydrates an operation article whose client walk finds no `drawn`
+ * and draws nothing under the header, which is the page from before the adoption model rather
+ * than a broken one, and the version is what keeps the two from meeting on one screen.
+ *
  * 13 SINCE `TX-PARITY-UI`: the frame carries six constant tab kinds, navigation entries and
  * node headers carry `sse`, parameters carry the scan's columns, responses carry the compact
  * row's phrase and schema link while their examples and payload schemas stay behind, and the
@@ -113,7 +120,7 @@ import { reasonPhrase } from '../../shared/status';
  * 6 was T027: `run.bodyMediaTypes`, a list of strings, became `run.body`, a list of media types
  * each carrying the editor its schema asks for and the fields it is made of.
  */
-export const PAGE_MODEL_VERSION = 13;
+export const PAGE_MODEL_VERSION = 14;
 
 /** Media types an example is generated for. */
 const JSON_MEDIA_TYPE = /^application\/(?:[\w.+-]+\+)?json$/i;
@@ -375,13 +382,18 @@ function mediaTypeModel(
   view: IRSchemaView,
   withExample = true,
 ): MediaTypeModel {
+  // A RESPONSE EXAMPLE IS BUILT EMPTY SINCE `TX-PARITY-UI`: the compact index draws the
+  // schema link instead of the inline expansion, so the highlighted example would be state
+  // bytes on every operation page for markup nothing draws.
+  const example = withExample ? exampleHtml(media, context, view) : '';
+
   return {
     mediaType: media.mediaType,
     typeLabel: typeLabel(media.schema, context.document.schemas),
-    // A RESPONSE EXAMPLE IS BUILT EMPTY SINCE `TX-PARITY-UI`: the compact index draws the
-    // schema link instead of the inline expansion, so the highlighted example would be state
-    // bytes on every operation page for markup nothing draws.
-    exampleHtml: withExample ? exampleHtml(media, context, view) : '',
+    exampleHtml: example,
+    // The flag is what survives redaction, per `TX-ADOPT`: the example is markup the browser
+    // adopts, so the client draws a childless element exactly when the server drew one.
+    hasExample: example !== '',
     schema: media.schema ?? null,
     view,
   };
@@ -550,6 +562,37 @@ function schemaPageModel(context: ModelContext, schemaId: string): SchemaPageMod
   };
 }
 
+/**
+ * Which sections of the operation article the server draws, in draw order, per `TX-ADOPT`.
+ *
+ * THE ONE OWNER OF THE PAGE'S SHAPE. These are the conditions `NodePanel` used to compute
+ * inline, moved here so that both sides of hydration walk one list instead of re-deriving
+ * them: the client's state block empties the fields these conditions read, so a client that
+ * recomputed them would draw a different tree than the server did, silently.
+ */
+function drawnOf(node: Omit<NodeModel, 'drawn'>): NodeModel['drawn'] {
+  const marks = node.runtime?.responseMarks ?? [];
+  const contracts = node.runtime?.contracts ?? [];
+
+  return [
+    'header' as const,
+    ...(node.runtime !== null ? ['runtime' as const] : []),
+    ...(node.descriptionHtml !== '' ? ['description' as const] : []),
+    // The security list draws only when there is no parity scale carrying the same assertion,
+    // which is the rule `TX-GUTTER` set: the authentication and scopes rows are where the
+    // requirement stands when runtime exists.
+    ...(node.security.length > 0 && node.runtime === null ? ['security' as const] : []),
+    ...(node.parameters.length > 0 ? ['params' as const] : []),
+    ...(node.requestBody.length > 0 ? ['request' as const] : []),
+    // The responses section mounts when there is anything to say: documented rows, a code only
+    // the runtime knows, or the error contracts grid, which lives inside it since `TX-ADOPT`.
+    ...(node.responses.length > 0 || marks.length > 0 || contracts.length > 0
+      ? ['responses' as const]
+      : []),
+    ...(node.codeSamples.length > 0 ? ['samples' as const] : []),
+  ];
+}
+
 function nodeModel(context: ModelContext, nodeId: string): NodeModel | null {
   const { document, markdown } = context;
   const node = document.nodes.get(nodeId);
@@ -570,7 +613,7 @@ function nodeModel(context: ModelContext, nodeId: string): NodeModel | null {
   const runtime = buildRuntimeModel(document, nodeId, context.basePath);
 
   if (view.kind === 'channel') {
-    return {
+    const channel: Omit<NodeModel, 'drawn'> = {
       ...base,
       // A channel has no operationId: the field is OpenAPI's, and an empty string is the
       // honest answer the kicker draws nothing from.
@@ -587,6 +630,8 @@ function nodeModel(context: ModelContext, nodeId: string): NodeModel | null {
       run: null,
       runtime,
     };
+
+    return { ...channel, drawn: drawnOf(channel) };
   }
 
   const factOf = parameterFactsOf(view.node.runtime);
@@ -594,7 +639,7 @@ function nodeModel(context: ModelContext, nodeId: string): NodeModel | null {
     .flat()
     .map((parameter) => parameterModel(parameter, context, factOf(parameter)));
 
-  return {
+  const operation: Omit<NodeModel, 'drawn'> = {
     ...base,
     // The public operation id of SPEC 5.4: the author's own whenever they wrote a real one,
     // which is what the kicker quotes.
@@ -627,6 +672,8 @@ function nodeModel(context: ModelContext, nodeId: string): NodeModel | null {
     run: runnerOperationOf(view.node, document),
     runtime,
   };
+
+  return { ...operation, drawn: drawnOf(operation) };
 }
 
 /**

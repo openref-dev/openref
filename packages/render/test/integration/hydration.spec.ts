@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { hydrateReference, readPageState } from '../../src/browser/index';
 import { renderHtmlDocument } from '../../src/page/domain/shell';
 import { renderPage } from '../../src/render/application/services/render.service';
-import { runtimeDocument, smallDocument } from '../mocks/documents';
+import { runtimeDocument, runtimeNodeId, smallDocument } from '../mocks/documents';
 
 /**
  * Server markup and client markup have to agree.
@@ -101,6 +101,87 @@ describe('hydrateReference', () => {
     expect(messages.filter((message) => message.includes('Hydration'))).toEqual([]);
   });
 
+  /**
+   * The adopted node page of `TX-ADOPT`: the same mechanism as the panel, applied to the rest.
+   *
+   * The state block for a node page carries `drawn` and not the models the server drew from,
+   * so the client fills each static position with a childless element. The case counts the
+   * parity rows and the parameter rows before and after, because the failure mode is the same
+   * one the panel case names: an element with children on the same spot clears everything the
+   * server put there, and the page looks right until a reader looks at the scale.
+   */
+  it('should keep the parity scale and the tables after hydrating from a redacted block', async () => {
+    // Given a node page whose operation carries runtime facts, parameters and responses
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const built = runtimeDocument();
+    const page = await renderPage(built, { nodeId: runtimeNodeId(built) });
+    document.documentElement.innerHTML = renderHtmlDocument(page, {
+      nonce: 'r4nd0mNONCEvalue',
+      assets: { stylesheets: ['/assets/theme.css'], modules: ['/assets/openref.js'] },
+    });
+
+    const parityBefore = document.querySelectorAll('.oref-parity').length;
+    const paramsBefore = document.querySelectorAll('.oref-param-row').length;
+    const responsesBefore = document.querySelectorAll('.oref-response').length;
+    expect(parityBefore).toBeGreaterThan(0);
+    expect(paramsBefore).toBeGreaterThan(0);
+    expect(responsesBefore).toBeGreaterThan(0);
+
+    // And the state block carries the walk and none of the drawn models
+    const state = readPageState(document);
+    expect(state?.node?.drawn).toContain('runtime');
+    expect(state?.node?.parameters).toEqual([]);
+    expect(state?.node?.responses).toEqual([]);
+    expect(state?.node?.runtime).toBeNull();
+    expect(state?.node?.run).toBeNull();
+
+    // When
+    const hydrated = hydrateReference();
+
+    // Then the markup the server wrote is still the markup on the page
+    expect(hydrated).toBe(true);
+    expect(document.querySelectorAll('.oref-parity')).toHaveLength(parityBefore);
+    expect(document.querySelectorAll('.oref-param-row')).toHaveLength(paramsBefore);
+    expect(document.querySelectorAll('.oref-response')).toHaveLength(responsesBefore);
+    const messages = [...warn.mock.calls, ...error.mock.calls].map((call) => String(call[0]));
+    expect(messages.filter((message) => message.includes('Hydration'))).toEqual([]);
+  });
+
+  it('should keep the request example and the states catalogue over their childless stubs', async () => {
+    // Given the node page whose request body carries a generated example
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const withBody = smallDocument();
+    const bodyNode = [...withBody.nodes.entries()].find(
+      ([, node]) => node.kind === 'operation' && node.requestBody !== undefined,
+    )?.[0];
+    expect(bodyNode).toBeDefined();
+    document.documentElement.innerHTML = await serveDocument(bodyNode);
+
+    const exampleBefore = document.querySelector('.oref-section-request .oref-example');
+    expect(exampleBefore).not.toBeNull();
+    const exampleHtml = exampleBefore?.innerHTML ?? '';
+    expect(exampleHtml).not.toBe('');
+
+    // And the block carries the flag rather than the markup
+    const state = readPageState(document);
+    const media = state?.node?.requestBody[0];
+    expect(media?.hasExample).toBe(true);
+    expect(media?.exampleHtml).toBe('');
+
+    // When
+    const hydrated = hydrateReference();
+
+    // Then
+    expect(hydrated).toBe(true);
+    expect(document.querySelector('.oref-section-request .oref-example')?.innerHTML).toBe(
+      exampleHtml,
+    );
+    const messages = [...warn.mock.calls, ...error.mock.calls].map((call) => String(call[0]));
+    expect(messages.filter((message) => message.includes('Hydration'))).toEqual([]);
+  });
+
   it('should execute nothing that a hostile description smuggled into the state', async () => {
     // Given
     document.documentElement.innerHTML = await serveDocument();
@@ -192,6 +273,9 @@ describe('readPageState', () => {
     // nothing the runtime knows. TX-PARITY-UI made the bar six constant kinds, the responses
     // compact, the parameters fact-joined and the health model KPI-carrying, and that is 13:
     // a page cached before it hydrates a bar with hidden tabs and responses that re-expand.
-    expect(state?.pageModelVersion).toBe(13);
+    // TX-ADOPT added `drawn` and `hasExample` and redacted what only server resolved
+    // positions read, and that is 14: a page cached before it hydrates an operation article
+    // whose client walk finds no `drawn` and draws nothing under the header.
+    expect(state?.pageModelVersion).toBe(14);
   });
 });

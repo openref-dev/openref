@@ -127,8 +127,17 @@ function contractGroup(group: ErrorContractGroupModel, tag: Component): VNode {
 /**
  * Renders the responses block, and the error contracts grid when any collector produced one.
  *
+ * SINGLE ROOT SINCE `TX-ADOPT`, AND THE REASON IS HYDRATION RATHER THAN TASTE. This position is
+ * server resolved now, so the browser fills it with a childless element that adopts the section
+ * the server drew, and a fragment cannot be adopted by an element: the client would meet the
+ * fragment anchor comment where it expects a section and production hydration replaces a
+ * mismatched node with the client's own, which here is empty. telltale always drew one section,
+ * so the single root is also the shape the one shipped override already has. The error
+ * contracts grid keeps its class and its heading and becomes a section inside this one, which
+ * `.oref-section`'s own top border draws exactly as it drew the sibling.
+ *
  * @param props - The responses, the runtime's marks and contracts, and the schema slice
- * @returns The sections
+ * @returns The section, with the error contracts inside it
  */
 export function ResponseList(props: {
   readonly responses: readonly ResponseModel[];
@@ -137,7 +146,7 @@ export function ResponseList(props: {
   readonly basePath: string;
   readonly marks: readonly ResponseMarkModel[];
   readonly contracts: readonly ErrorContractGroupModel[];
-}): VNode[] {
+}): VNode {
   const tag = useSlot('ProvenanceTag', ProvenanceTag).value;
 
   const byCode = new Map(props.marks.map((mark) => [mark.statusCode, mark]));
@@ -162,28 +171,21 @@ export function ResponseList(props: {
 
   const documented = props.responses.length;
 
-  const sections = [
-    h('section', { class: 'oref-section oref-section-responses' }, [
-      h('h2', { class: 'oref-section-title' }, [
-        'Responses ',
-        h('span', { class: 'oref-section-count' }, `${String(documented)} documented`),
-      ]),
-      ...rows,
+  return h('section', { class: 'oref-section oref-section-responses' }, [
+    h('h2', { class: 'oref-section-title' }, [
+      'Responses ',
+      h('span', { class: 'oref-section-count' }, `${String(documented)} documented`),
     ]),
-  ];
-
-  if (props.contracts.length > 0) {
-    sections.push(
-      h('section', { class: 'oref-section oref-section-errors' }, [
-        h('h2', { class: 'oref-section-title' }, 'Error contracts'),
-        h(
-          'div',
-          { class: 'oref-errgrid' },
-          props.contracts.map((group) => contractGroup(group, tag)),
-        ),
-      ]),
-    );
-  }
-
-  return sections;
+    ...rows,
+    props.contracts.length === 0
+      ? null
+      : h('section', { class: 'oref-section oref-section-errors' }, [
+          h('h2', { class: 'oref-section-title' }, 'Error contracts'),
+          h(
+            'div',
+            { class: 'oref-errgrid' },
+            props.contracts.map((group) => contractGroup(group, tag)),
+          ),
+        ]),
+  ]);
 }

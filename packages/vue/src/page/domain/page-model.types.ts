@@ -135,6 +135,15 @@ export interface MediaTypeModel {
   readonly typeLabel: string;
   /** Highlighted example, empty when the media type is not one an example is generated for. */
   readonly exampleHtml: string;
+  /**
+   * Whether the server drew an example block for this media type, per `TX-ADOPT`.
+   *
+   * The flag and not the markup is what survives into the client's state block: the example is
+   * static markup the browser adopts, so the client draws a childless element exactly when the
+   * server drew one, and `exampleHtml` arrives emptied. On the server the two agree by
+   * construction: `hasExample` is `exampleHtml !== ''` at build time.
+   */
+  readonly hasExample: boolean;
   /** Where the schema viewer starts for this media type, null when it declares no schema. */
   readonly schema: IRSchemaSlot | null;
   /** Which half of a schema this position shows, so the viewer filters the same way. */
@@ -252,9 +261,36 @@ export interface NodeHeaderModel {
   readonly sse: boolean;
 }
 
+/**
+ * One section of the operation article, named for the walk of `TX-ADOPT`.
+ *
+ * `errors` is not here and its absence is the single-root decision of SPEC 10.4: the error
+ * contracts grid is a section inside the responses section since `TX-ADOPT`, so `responses`
+ * covers both and a fragment never has to be adopted.
+ */
+export type NodeSectionMark =
+  | 'header'
+  | 'runtime'
+  | 'description'
+  | 'security'
+  | 'params'
+  | 'request'
+  | 'responses'
+  | 'samples';
+
 /** The node a page is about. */
 export interface NodeModel extends NodeHeaderModel {
   readonly descriptionHtml: string;
+  /**
+   * Which sections of the operation article the server drew, in draw order, per `TX-ADOPT`.
+   *
+   * ONE OWNER FOR THE PAGE'S SHAPE. The model builder computes this from the same conditions
+   * the composition used to hold, and both sides of hydration walk it instead of re-deriving
+   * the conditions from fields the client's state block no longer carries. A section in the
+   * list was drawn; a section not in it was not; a client that recomputed `parameters.length`
+   * over a redacted model would draw a different tree than the server did, silently.
+   */
+  readonly drawn: readonly NodeSectionMark[];
   readonly parameters: readonly ParameterModel[];
   readonly requestBody: readonly MediaTypeModel[];
   readonly responses: readonly ResponseModel[];

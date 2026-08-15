@@ -29,12 +29,18 @@ import {
   PAGE_MODEL_VERSION,
   type PageModel,
 } from '../../../page/domain/page-model';
+import type { NodeModel } from '@openref/vue';
 
 /**
  * Version of the markup this package produces.
  *
  * Bumped by hand when a change to a component changes the bytes of an unchanged document.
  * It is part of the cache key, so bumping it invalidates every stored page at once.
+ *
+ * 10 to 11 with `TX-ADOPT`: the error contracts grid is a section inside the responses
+ * section rather than its sibling, because the position is server resolved now and a fragment
+ * cannot be adopted by a childless element. Same document, different bytes on every operation
+ * page that carries contracts.
  *
  * 9 to 10 with `TX-SHAPES`: the shapes page draws both halves of the layout, the reading
  * rows with requiredness and condition columns on the left and the value driven form's
@@ -67,7 +73,7 @@ import {
  * media type example now wins over the generated one, zero denominator health checks stopped
  * rendering a row, and the rule heading gained its separator. Same document, different bytes.
  */
-export const RENDER_VERSION = 10;
+export const RENDER_VERSION = 11;
 
 /** How one page is rendered. */
 export interface RenderPageOptions {
@@ -180,11 +186,95 @@ async function markdownFor(options: RenderPageOptions): Promise<IMarkdownRendere
  * report and the client must not receive it, and those are two consumers of one build. Writing
  * null keeps `readPageState` honest: the field the client reads has the type it declares.
  *
+ * THE SAME RULE COVERS THE ADOPTED POSITIONS SINCE `TX-ADOPT`, per SPEC 12: what only a server
+ * resolved position reads does not cross. The redaction is by page kind, because what the
+ * client still draws differs by kind: a node page keeps `drawn`, the request body slimmed of
+ * its example markup, and the call samples the language tab redraws from; a bench keeps the
+ * runner projection, the declared codes and the scanner's verdicts its console reads; every
+ * kind keeps the frame, the navigation and the schema payload the islands expand from. Every
+ * emptied field is emptied to a type honest value, never to a lie a component would branch on:
+ * the client walks `drawn` and never recomputes a condition over a redacted field.
+ *
  * @param model - The page model
- * @returns JSON in the order the model was built in, with the report emptied
+ * @returns JSON in the order the model was built in, with the server drawn parts emptied
  */
 export function serializePageModel(model: PageModel): string {
-  return JSON.stringify({ ...model, health: null });
+  return JSON.stringify({
+    ...model,
+    health: null,
+    // The overview article is adopted, so the two fields only it read stay on the server.
+    descriptionHtml: '',
+    servers: [],
+    node: clientNodeModel(model.node, model.kind),
+  });
+}
+
+/**
+ * The node model as the client receives it: what the live parts read, and nothing else.
+ *
+ * @param node - The node the server rendered from, or null
+ * @param kind - Which page this is, which decides what stays
+ * @returns The redacted node, still a `NodeModel` to the letter of the type
+ */
+function clientNodeModel(node: NodeModel | null, kind: PageModel['kind']): NodeModel | null {
+  if (node === null) return null;
+
+  // THE BENCH KEEPS ITS CONSOLE'S FACTS: `run` for the runner, the declared codes for the
+  // verdict chip, the scanner's verdicts for the disabled fields, and the head's identity. The
+  // rest is the operation page's material and stays there.
+  if (kind === 'bench') {
+    return {
+      ...node,
+      tags: [],
+      summary: '',
+      operationId: '',
+      descriptionHtml: '',
+      security: [],
+      codeSamples: [],
+      requestBody: [],
+      runtime: null,
+      drawn: [],
+      parameters: node.parameters.map((parameter) => ({
+        name: parameter.name,
+        location: parameter.location,
+        required: false,
+        deprecated: false,
+        typeLabel: '',
+        descriptionHtml: '',
+        schema: null,
+        runtimeNote: '',
+        confidence: null,
+        collector: '',
+        unread: parameter.unread,
+      })),
+      responses: node.responses.map((response) => ({
+        statusCode: response.statusCode,
+        descriptionHtml: '',
+        content: [],
+        phrase: '',
+        schemaLabel: '',
+        schemaHref: '',
+      })),
+    };
+  }
+
+  // THE NODE PAGE KEEPS THE TREE'S SHAPE AND THE LIVE PARTS: `drawn` for the walk, the request
+  // body slimmed to what the schema tree islands and the media heads draw, and the call
+  // samples whole, because the language tab redraws from them. Everything an adopted position
+  // read is emptied: it is on the page already, as markup.
+  return {
+    ...node,
+    tags: [],
+    summary: '',
+    operationId: '',
+    descriptionHtml: '',
+    parameters: [],
+    responses: [],
+    security: [],
+    run: null,
+    runtime: null,
+    requestBody: node.requestBody.map((media) => ({ ...media, exampleHtml: '' })),
+  };
 }
 
 /**

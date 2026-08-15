@@ -3,6 +3,8 @@ import {
   classifyDrift,
   collectDrift,
   isMechanicallyFixable,
+  OPERATION_DRIFT_RULES,
+  operationRuleOutcome,
   runDriftRules,
   type DriftObservation,
   type IRDocument,
@@ -727,6 +729,55 @@ describe('dto-field-undescribed', () => {
 
     // Then reporting it would report one missing sentence once per use site
     expect(issues).toEqual([]);
+  });
+});
+
+describe('the scope discipline of every rule in the catalogue', () => {
+  /**
+   * NO RULE ANSWERS `clean` FROM A PATH WHERE ITS SUBJECT WAS NEVER OBSERVED. T035 found two
+   * doing exactly that: `security-drift` answered `clean` with no guard to scheme mapping to
+   * compare against (finding B1), and `parameter-unread` answered `clean` over a scan that
+   * accounted for nothing (finding B2). Both now answer `out-of-scope`, and the maintainer's
+   * session 63 instruction is the generalization this sweep pins: `clean` is the verdict the
+   * parity scale draws `=` from and the health denominator counts as passed, so it may only come
+   * from a rule that examined something. The sweep iterates the catalogue, so a rule added later
+   * is asked the same question on the day it lands.
+   *
+   * THE DEEPER SHAPE OF B1 AND B2, a fact that is present with an observation half that is
+   * empty, has no general construction: `unaccounted` is a vocabulary only `parameterReads`
+   * carries, and a second observation channel is something only `security-drift` has. Those two
+   * paths stay pinned one by one, in `rule-codes.spec.ts` and `sp-rules.spec.ts`.
+   */
+  it('should never answer clean about the bare operation nothing was observed about', () => {
+    // Given the bare operation, carrying no runtime fact, asked with no observation at all
+    const bare = operation();
+
+    // When every rule of the catalogue is asked
+    const answered = OPERATION_DRIFT_RULES.map((rule) => ({
+      rule: rule.id,
+      outcome: operationRuleOutcome(bare, rule.id),
+    }));
+
+    // Then no rule claims it examined something and found it fine. A rule about the document's
+    // own text may find, since the text is in hand, and every other rule is out of scope.
+    expect(answered.length).toBeGreaterThan(0);
+    expect(answered.filter((entry) => entry.outcome === 'clean')).toEqual([]);
+  });
+
+  it('should never answer clean when the pass that ran observed nothing about the operation', () => {
+    // Given the same bare operation and a pass that really ran, finding no handler and no mapping
+    const bare = operation();
+    const emptyPass: DriftObservation = { handledNodeIds: new Set() };
+
+    // When every rule of the catalogue is asked with that observation
+    const answered = OPERATION_DRIFT_RULES.map((rule) => ({
+      rule: rule.id,
+      outcome: operationRuleOutcome(bare, rule.id, emptyPass),
+    }));
+
+    // Then an empty pass is a real report of absence, so `orphan-operation` may find, and still
+    // nothing answers clean
+    expect(answered.filter((entry) => entry.outcome === 'clean')).toEqual([]);
   });
 });
 

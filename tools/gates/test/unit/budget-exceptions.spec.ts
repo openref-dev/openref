@@ -239,38 +239,39 @@ describe('the committed exception list', () => {
     expect(unknown).toEqual([]);
   });
 
-  it('should hold two live entries and the one that closed, and confuse none for another', () => {
+  it('should hold one live entry and the two that closed, and confuse none for another', () => {
     // Given three entries ended or living differently. `tti` was the first and it closed on
     // 2026-08-10 because SPEC 20 stopped gating elapsed time, which is neither a debt paid nor
     // a debt dropped, and the record is what keeps those three apart. `page-bytes` is the
     // second, live since 2026-08-11: T020 through T023 took the page to 199,612 bytes against
-    // 198,656 on the same input, so the cap stayed and the debt got a name. `client-js-raw` is
-    // the third, live since TX-GUTTER on 2026-08-14: the parity scale grew the first paint by
-    // 1,952 raw against a cap whose property forbids raising it, and TX-ADOPT is the named
-    // payer. The served document was named alongside `tti` when the list was first asked for
-    // and has never entered either, because listing a budget that passes records a debt that
-    // does not exist.
+    // 198,656 on the same input, so the cap stayed and the debt got a name. `client-js-raw`
+    // was the third, filed at TX-GUTTER on 2026-08-14 and CLOSED the same day by TX-ADOPT
+    // paying 10,314 raw bytes and the cap being re-derived from the artefact that remains,
+    // which is the third kind of ending: paid by the payer the entry named. The served
+    // document was named alongside `tti` when the list was first asked for and has never
+    // entered either, because listing a budget that passes records a debt that does not exist.
     const live = BUDGET_EXCEPTIONS.map((entry) => entry.budget);
     const closed = BUDGET_EXCEPTION_HISTORY.map((entry) => entry.budget);
 
     // When
     const servedDocument = [...live, ...closed].includes('served-document');
     const pageBytes = BUDGET_EXCEPTIONS.find((entry) => entry.budget === 'page-bytes');
-    const clientJs = BUDGET_EXCEPTIONS.find((entry) => entry.budget === 'client-js-raw');
+    const clientJs = BUDGET_EXCEPTION_HISTORY.find((entry) => entry.budget === 'client-js-raw');
 
     // Then
-    expect(live).toEqual(['page-bytes', 'client-js-raw']);
-    expect(closed).toEqual(['tti']);
+    expect(live).toEqual(['page-bytes']);
+    expect(closed).toEqual(['tti', 'client-js-raw']);
     expect(servedDocument).toBe(false);
 
     // And the terms, which are what make it an exception rather than a raised threshold. The
     // owner is a task the plan carries and the expiry is a milestone that has not closed, both
     // of which `checkBudgetExceptions` enforces against the real files; what is pinned here is
-    // that they are the ones the maintainer decided on.
+    // that they are the ones the maintainer decided on, and that the closed entry still names
+    // the payer that paid it.
     expect(pageBytes?.owners).toEqual(['T012-R4']);
     expect(pageBytes?.clearBy).toBe('M2');
     expect(clientJs?.owners).toEqual(['TX-ADOPT']);
-    expect(clientJs?.clearBy).toBe('M3');
+    expect(clientJs?.closedBecause).toContain('10,314');
   });
 
   it('should say in the entry itself that the six marks are not what pays it back', () => {

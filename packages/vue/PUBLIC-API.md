@@ -138,14 +138,15 @@ would have been 1 612 858 bytes on `twilio-api-v2010.yaml` against a node page's
 | `FrameTabModel` | type | One tab with its target resolved, so no theme spells an address twice |
 | `FrameTabKind` | type | Which tab it is. Six since `TX-PARITY-UI`: the showcase pages entered the bar by the maintainer's reversal, and the bar is constant by remembering, per SPEC 11 |
 | `FrameStatsModel` | type | The rail's stats row; `drift` is null on a document nothing measured, which is not zero |
-| `NodeModel` | type | A node page |
+| `NodeModel` | type | A node page. Carries `drawn` since `TX-ADOPT`: the sections the server drew, in draw order, which is what both sides of hydration walk |
+| `NodeSectionMark` | type | One entry of `drawn`. No `errors` member: the contracts grid is inside the responses section since `TX-ADOPT` |
 | `NodeHeaderModel` | type | Its header. Promises `tags` and `operationId` since `TX-MARKUP`, for the kicker, and `sse` since `TX-PARITY-UI`, for the badge |
 | `SchemaPageModel` | type | A named schema on its own page. Carries `dialect` since `TX-MARKUP` |
 | `NavEntryModel` | type | One row of the navigation. Carries `driftCount` since `TX-FRAME`, summed over children for a group; zero draws no marker and asserts nothing. Carries `method` since `TX-MARKUP`, for the rail's badge, and `sse` since `TX-PARITY-UI`, for the badge that says SSE |
 | `PaletteHitModel` | type | One row of the command palette |
 | `ParameterModel` | type | One parameter row, with its description already HTML. Carries the scan's columns since `TX-PARITY-UI`: `runtimeNote`, `confidence`, `collector`, `unread` |
 | `ResponseModel` | type | One response, compact since `TX-PARITY-UI`: `phrase`, `schemaLabel` and `schemaHref` added, `content` kept with its `exampleHtml` built empty, the schemas on their own pages |
-| `MediaTypeModel` | type | One media type of a request or response |
+| `MediaTypeModel` | type | One media type of a request or response. Carries `hasExample` since `TX-ADOPT`: the example is markup the browser adopts, so the flag survives redaction and the bytes do not |
 | `CodeSampleModel` | type | One call sample, per SPEC 18 |
 | `SecurityModel` | type | The security a node declares |
 | `RuntimeModel` | type | The runtime block of a node page. Carries `responseMarks` and `contracts` since `TX-MARKUP`, empty when no error collector ran |
@@ -175,6 +176,9 @@ would have been 1 612 858 bytes on `twilio-api-v2010.yaml` against a node page's
 | `SlotProps` | type | The props of one named slot |
 | `SlotPropsMap` | type | Every slot's props, which is the frozen contract |
 | `SLOT_NAMES_ARE_COMPLETE` | type | The compile time proof that the list and the map name the same slots |
+| `SERVER_RESOLVED_SLOTS` | value | The eight positions whose override resolves on the server only, per SPEC 10.4 and `TX-ADOPT`; the browser adopts their markup and never hydrates them |
+| `ServerResolvedSlot` | type | One of them |
+| `SERVER_RESOLVED_ROOTS` | value | The root element each stubbed server resolved position must keep, shared by the renderer's stubs and `@openref/theme-kit`'s refusal |
 | `SchemaPayloadMap` | type | The schemas a page carries, keyed by id, as `SchemaTree` is handed them |
 | `StateNoticeKind` | type | Which sentence a `StateNotice` is drawing. Nine since `TX-FRAME`: `health-missing` is the health page nothing measured |
 | `StreamCounts` | type | What a `StreamLog` is handed beside its elements |

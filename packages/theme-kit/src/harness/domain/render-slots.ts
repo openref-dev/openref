@@ -1,6 +1,7 @@
 import { createSSRApp, defineComponent, h, type Component, type VNode } from 'vue';
 import { renderToString } from 'vue/server-renderer';
 import { createSlotRegistry, provideDocState, type DocState, type SlotName } from '@openref/vue';
+import { isServerResolved, probeAdoptedSlot, type AdoptedSlotProblem } from './probe-adopted';
 
 /**
  * The dev harness: run a theme's components against a real document and say what happened.
@@ -36,6 +37,12 @@ export interface SlotOutcome {
 export interface HarnessReport {
   readonly rendered: readonly SlotOutcome[];
   readonly failed: readonly SlotOutcome[];
+  /**
+   * Overrides of server resolved positions that would be dead or lost in the adopted page,
+   * per SPEC 10.4 and `TX-ADOPT`: a handler that is never attached, or a root element the
+   * childless stub cannot adopt. Each message names the server resolved list.
+   */
+  readonly refused: readonly AdoptedSlotProblem[];
 }
 
 /** Props to hand each slot, keyed by slot name. A slot with no entry is not run. */
@@ -65,6 +72,7 @@ export async function renderThemeSlots(
   const registry = createSlotRegistry(components);
   const rendered: SlotOutcome[] = [];
   const failed: SlotOutcome[] = [];
+  const refused: AdoptedSlotProblem[] = [];
 
   for (const slot of registry.overridden()) {
     const component = registry.resolve(slot);
@@ -80,10 +88,17 @@ export async function renderThemeSlots(
 
     try {
       rendered.push({ slot, html: await renderToString(createSSRApp(host)) });
+
+      // ONLY A COMPONENT THAT RENDERS IS PROBED. A throwing override is already in `failed`
+      // with its own message, and probing it would report the crash a second time as a
+      // different kind of problem.
+      if (isServerResolved(slot)) {
+        refused.push(...probeAdoptedSlot(slot, component, props[slot] ?? {}));
+      }
     } catch (error) {
       failed.push({ slot, error: error instanceof Error ? error.message : String(error) });
     }
   }
 
-  return { rendered, failed };
+  return { rendered, failed, refused };
 }

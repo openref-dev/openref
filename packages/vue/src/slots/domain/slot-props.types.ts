@@ -495,3 +495,54 @@ export const SLOT_NAMES = [
  * which is the direction that would otherwise ship a slot no theme can reach.
  */
 export type SLOT_NAMES_ARE_COMPLETE = SlotName extends (typeof SLOT_NAMES)[number] ? true : never;
+
+/**
+ * The positions whose override resolves in the server render and nowhere else, per SPEC 10.4
+ * and `TX-ADOPT`.
+ *
+ * Each has no client state, no handler and no value the browser recomputes, so the browser
+ * fills it with a childless element that adopts the markup the server drew. A component with
+ * client state in one of these receives nothing: its handler is never attached, and
+ * `@openref/theme-kit` refuses such an override where the theme is authored, naming this list.
+ * `DriftCard` and `ProvenanceTag` are here because only server resolved positions resolve
+ * them; no client position asks.
+ *
+ * ONE HOME, TWO READERS, per the standing rule: `@openref/theme-kit` reads it to refuse, and
+ * the renderer's browser filling is pinned against it by a test, so the stub set and this list
+ * cannot drift apart in silence.
+ */
+export const SERVER_RESOLVED_SLOTS = [
+  'DocumentOverview',
+  'OperationHeader',
+  'RuntimePanel',
+  'ProvenanceTag',
+  'DriftCard',
+  'ParamTable',
+  'ResponseList',
+  'HealthScore',
+] as const satisfies readonly SlotName[];
+
+/** A position whose override resolves on the server only. */
+export type ServerResolvedSlot = (typeof SERVER_RESOLVED_SLOTS)[number];
+
+/**
+ * The root element each stubbed server resolved position must keep, per SPEC 10.4.
+ *
+ * THE TAG IS LOAD BEARING AND THE MAP IS THE ONE HOME. Production hydration replaces a node
+ * whose element type does not match the childless stub's, so an override that changes the root
+ * tag is a page that loses the position's markup the moment it hydrates. `@openref/theme-kit`
+ * refuses such an override where the theme is authored, and the renderer's browser stubs are
+ * pinned against this map by a test, so the two readers cannot drift.
+ *
+ * `DriftCard` and `ProvenanceTag` are absent deliberately: they resolve inside the stubbed
+ * positions and never meet a stub of their own, so their root is the overriding theme's
+ * business.
+ */
+export const SERVER_RESOLVED_ROOTS: Partial<Record<ServerResolvedSlot, string>> = {
+  DocumentOverview: 'article',
+  OperationHeader: 'header',
+  RuntimePanel: 'section',
+  ParamTable: 'section',
+  ResponseList: 'section',
+  HealthScore: 'section',
+};

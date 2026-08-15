@@ -57,6 +57,14 @@ export function mediaTypeBlock(media: MediaTypeModel, key: string, context: Sche
           truncated: context.truncated,
           basePath: context.basePath,
         }),
-    h(MarkdownBlock, { html: media.exampleHtml, className: 'oref-example' }),
+    // THE EXAMPLE IS ADOPTED, NOT REDRAWN, per `TX-ADOPT`: it is static markup, so the client's
+    // state block carries the flag and not the bytes. On the server `hasExample` and a non-empty
+    // `exampleHtml` agree by construction and the markup is drawn; in the browser the html
+    // arrives emptied and the childless element adopts what the server drew.
+    !media.hasExample
+      ? null
+      : media.exampleHtml === ''
+        ? h('div', { class: 'oref-example' })
+        : h(MarkdownBlock, { html: media.exampleHtml, className: 'oref-example' }),
   ]);
 }

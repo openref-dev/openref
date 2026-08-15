@@ -6,34 +6,28 @@
  * render on the server and hydrate in the browser without either `marked` or `shiki`
  * crossing into the client bundle.
  *
- * IT IS A COMPOSITION OF SLOTS AND NOT A SLOT. A reader opens three kinds of page, and two of
- * them are one position each; this one is six, because a theme varies a node page by moving its
- * parts rather than by replacing the page. What is not a slot here is the frame around the parts:
- * the security list, the request body block and the block order, which are the shell's business.
- * The page-level columns the frame used to draw died with `TX-GUTTER`: the spec and runtime pair
- * exists only inside a parity row, and everything else is one column at full width.
+ * IT WALKS `NodeModel.drawn` AND HOLDS NO CONDITIONS OF ITS OWN, since `TX-ADOPT`. The model
+ * builder computes which sections exist, once, and both sides of hydration walk that list:
+ * the client's state block empties the fields the old conditions read, so a composition that
+ * recomputed `parameters.length > 0` here would draw one tree on the server and another in
+ * the browser, silently. The static sections resolve through the deferrable registry, which
+ * the server fills with the components that draw them and the browser fills with childless
+ * elements that adopt what the server drew, the Health panel's mechanism applied to the rest
+ * of the page.
+ *
+ * WHAT STAYS LIVE IN THIS FILE, each with the question it fails from SPEC 12: the request
+ * body section hosts the schema tree islands, and the call samples block holds the language
+ * tab, which is client state with a handler.
  */
 
 import { useSlot } from '@openref/vue';
 import { defineComponent, h, ref, type PropType, type VNode } from 'vue';
 import { CodeSample } from './CodeSample';
-import { MarkdownBlock } from './MarkdownBlock';
-import { OperationHeader } from './OperationHeader';
-import { ParamTable } from './ParamTable';
-import { ResponseList } from './ResponseList';
-import { RuntimePanel } from './RuntimePanel';
 import { mediaTypeBlock, type SchemaContext } from './MediaTypeBlock';
 import { useDeferrable } from './deferrable';
 import { benchHref } from '../page/domain/links';
 import type { IRSchema } from '@openref/core';
 import type { NodeModel } from '@openref/vue';
-
-function section(title: string, className: string, body: readonly VNode[]): VNode {
-  return h('section', { class: `oref-section ${className}` }, [
-    h('h2', { class: 'oref-section-title' }, title),
-    ...body,
-  ]);
-}
 
 /** Renders one operation or channel. */
 export const NodePanel = defineComponent({
@@ -48,11 +42,7 @@ export const NodePanel = defineComponent({
 
   setup(props) {
     const deferrable = useDeferrable();
-    const header = useSlot('OperationHeader', OperationHeader);
-    const params = useSlot('ParamTable', ParamTable);
-    const responses = useSlot('ResponseList', ResponseList);
     const samples = useSlot('CodeSample', CodeSample);
-    const runtime = useSlot('RuntimePanel', RuntimePanel);
 
     // Which call sample is showing. The first on both sides, so the server render and the first
     // client render agree without anything being carried between them.
@@ -66,122 +56,62 @@ export const NodePanel = defineComponent({
         basePath: props.basePath,
         schemaView: deferrable.schemaView,
       };
-      const parts: (VNode | null)[] = [];
-      // What the specification says, which is everything between the header and the console,
-      // in one column at full width: the page-level columns died with `TX-GUTTER`, and the
-      // spec and runtime pair exists only inside a parity row.
-      const spec: (VNode | null)[] = [];
 
-      // The bench href mirrors the frame's own rule: a bench exists exactly when `run` does,
-      // so the header's button and the tab can never disagree about whether there is one.
-      parts.push(
-        h(header.value, {
-          node,
-          drift: node.runtime?.drift ?? [],
-          benchHref: node.run === null ? '' : benchHref(node.id, props.basePath),
-        }),
-      );
-
-      // THE SCALE STANDS DIRECTLY UNDER THE HEADER, per the design's own order, and the
-      // description follows it: a reader meets the comparison first and the prose second.
-      // A node with no runtime facts gets no scale at all rather than an empty half, which is
-      // SPEC 6.3 applied to the frame, and the state every reader with no collectors is in.
-      if (node.runtime !== null) {
-        parts.push(h(runtime.value, { nodeId: node.id, runtime: node.runtime }));
-      }
-
-      // THE DESCRIPTION SECTION CARRIES ITS HEADING AND THE PARAGRAPH COUNT, per the layout
-      // and `TX-PARITY-UI`. The count is the rendered paragraphs, which is what a reader
-      // scrolls past; a description with none, one line of text without a break, still counts
-      // its one block. No description, no section, per SPEC 6.3's absent-rather-than-empty.
-      if (node.descriptionHtml !== '') {
-        const paragraphs = Math.max(1, (node.descriptionHtml.match(/<p[\s>]/g) ?? []).length);
-        parts.push(
-          h('section', { class: 'oref-section oref-section-description' }, [
-            h('h2', { class: 'oref-section-title' }, [
-              'Description ',
-              h(
-                'span',
-                { class: 'oref-section-count' },
-                `${String(paragraphs)} ${paragraphs === 1 ? 'paragraph' : 'paragraphs'}`,
+      // ONE PART PER DRAWN MARK, in the order the server drew them. The props travel to every
+      // filling; the server's components read them and the browser's childless elements ignore
+      // them, which is what lets the state block arrive redacted.
+      const parts = node.drawn.map((mark): VNode => {
+        switch (mark) {
+          case 'header':
+            // The bench href mirrors the frame's own rule: a bench exists exactly when `run`
+            // does. On the client `run` arrives redacted to null and the stub ignores the prop.
+            return h(deferrable.operationHeader, {
+              node,
+              drift: node.runtime?.drift ?? [],
+              benchHref: node.run === null ? '' : benchHref(node.id, props.basePath),
+            });
+          case 'runtime':
+            // THE SCALE STANDS DIRECTLY UNDER THE HEADER, per the design's own order. A node
+            // with no runtime facts gets no scale at all rather than an empty half, which is
+            // SPEC 6.3 applied by `drawnOf` rather than here.
+            return h(deferrable.runtimePanel, { nodeId: node.id, runtime: node.runtime });
+          case 'description':
+            return h(deferrable.nodeDescription, { html: node.descriptionHtml });
+          case 'security':
+            return h(deferrable.nodeSecurity, { security: node.security });
+          case 'params':
+            return h(deferrable.paramTable, { parameters: node.parameters });
+          case 'request':
+            // LIVE, because the schema tree islands inside it hydrate in place when a reader
+            // reaches for them; the example block inside each media type is adopted by
+            // `mediaTypeBlock` itself, per `MediaTypeModel.hasExample`.
+            return h('section', { class: 'oref-section oref-section-request' }, [
+              h('h2', { class: 'oref-section-title' }, 'Request body'),
+              ...node.requestBody.map((media) =>
+                mediaTypeBlock(media, `request:${media.mediaType}`, context),
               ),
-            ]),
-            h(MarkdownBlock, { html: node.descriptionHtml }),
-          ]),
-        );
-      }
-
-      // The security list draws only when there is no parity scale carrying the same
-      // assertion: the authentication and scopes rows are where the requirement stands when
-      // runtime exists, and one page saying one thing twice was the layout this task removed.
-      if (node.security.length > 0 && node.runtime === null) {
-        spec.push(
-          section('Security', 'oref-section-security', [
-            h(
-              'ul',
-              { class: 'oref-security-list' },
-              node.security.map((requirement) =>
-                h('li', { class: 'oref-security-item', key: requirement.schemeId }, [
-                  h('code', {}, requirement.schemeId),
-                  h('span', { class: 'oref-security-type' }, requirement.type),
-                  requirement.scopes.length === 0
-                    ? null
-                    : h('span', { class: 'oref-security-scopes' }, requirement.scopes.join(', ')),
-                ]),
-              ),
-            ),
-          ]),
-        );
-      }
-
-      if (node.parameters.length > 0) {
-        spec.push(h(params.value, { parameters: node.parameters }));
-      }
-
-      if (node.requestBody.length > 0) {
-        spec.push(
-          section(
-            'Request body',
-            'oref-section-request',
-            node.requestBody.map((media) =>
-              mediaTypeBlock(media, `request:${media.mediaType}`, context),
-            ),
-          ),
-        );
-      }
-
-      // The position mounts when there is anything to say about responses: documented rows,
-      // a code only the runtime knows, or the error contracts grid. An operation with no
-      // documented responses and a guard behind it still answers with something, and a page
-      // that drew nothing there would hide exactly the codes nobody documented.
-      const marks = node.runtime?.responseMarks ?? [];
-      const contracts = node.runtime?.contracts ?? [];
-      if (node.responses.length > 0 || marks.length > 0 || contracts.length > 0) {
-        spec.push(
-          h(responses.value, {
-            responses: node.responses,
-            schemas: props.schemas,
-            truncated: props.truncated,
-            basePath: props.basePath,
-            marks,
-            contracts,
-          }),
-        );
-      }
-
-      if (node.codeSamples.length > 0) {
-        spec.push(
-          h(samples.value, {
-            samples: node.codeSamples,
-            activeLang: activeLang.value,
-            onSelect: (lang: string): void => {
-              activeLang.value = lang;
-            },
-          }),
-        );
-      }
-
-      parts.push(...spec);
+            ]);
+          case 'responses':
+            return h(deferrable.responseList, {
+              responses: node.responses,
+              schemas: props.schemas,
+              truncated: props.truncated,
+              basePath: props.basePath,
+              marks: node.runtime?.responseMarks ?? [],
+              contracts: node.runtime?.contracts ?? [],
+            });
+          case 'samples':
+            // LIVE: the language tab is client state with a handler, the one section of the
+            // article that fails the adoption question, named in SPEC 12.
+            return h(samples.value, {
+              samples: node.codeSamples,
+              activeLang: activeLang.value,
+              onSelect: (lang: string): void => {
+                activeLang.value = lang;
+              },
+            });
+        }
+      });
 
       // THE CONSOLE IS NOT HERE, since `TX-FRAME`: the bench is a page of its own, per SPEC
       // 13.3, and the bench tab in the frame is how a reader reaches it from every page of

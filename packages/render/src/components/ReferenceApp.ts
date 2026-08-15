@@ -30,14 +30,12 @@ import {
   type VNode,
 } from 'vue';
 import { AppShell, MAIN_ID } from './AppShell';
-import { DocumentOverview } from './DocumentOverview';
 import { MarkdownBlock } from './MarkdownBlock';
 import { methodBadge } from './method-badge';
 import { NavigationTree } from './NavigationTree';
 import { NodePanel } from './NodePanel';
 import { SchemaPanel } from './SchemaPanel';
 import { StateNotice } from './StateNotice';
-import { StatesPanel } from './StatesPanel';
 import { useDeferrable } from './deferrable';
 import { createNavigationStore, NAVIGATION_KEY } from '../page/api/nav-context';
 import {
@@ -85,7 +83,6 @@ export const ReferenceApp = defineComponent({
     const deferrable = useDeferrable();
     const shell = useSlot('AppShell', AppShell);
     const navTree = useSlot('NavTree', NavigationTree);
-    const overview = useSlot('DocumentOverview', DocumentOverview);
     const schemaPage = useSlot('SchemaPage', SchemaPanel);
     const notice = useSlot('StateNotice', StateNotice);
 
@@ -223,7 +220,10 @@ export const ReferenceApp = defineComponent({
       }
 
       if (page.kind === 'states') {
-        return h(StatesPanel);
+        // Adopted since `TX-ADOPT`: the catalogue is static markup only its own address draws,
+        // the residue the client-js-raw entry named, so the browser fills the position with an
+        // element that adopts it and the panel rides no chunk at all.
+        return h(deferrable.statesPage);
       }
 
       if (page.node !== null) {
@@ -250,8 +250,10 @@ export const ReferenceApp = defineComponent({
       }
 
       // The overview carries no panel since `TX-FRAME`: the health tab leads to the page
-      // that does.
-      return h(overview.value, {
+      // that does. The position is server resolved since `TX-ADOPT`, so the slot override
+      // happens in the eager filling and the browser adopts whatever the theme drew; the
+      // props arrive redacted on the client and the childless element ignores them.
+      return h(deferrable.overviewPage, {
         title: page.title,
         descriptionHtml: page.descriptionHtml,
         servers: page.servers,

@@ -31,5 +31,8 @@ export type {
 export { renderThemeSlots } from './harness/domain/render-slots';
 export type { HarnessReport, SlotOutcome, SlotPropsBySlot } from './harness/domain/render-slots';
 
+export { isServerResolved, probeAdoptedSlot } from './harness/domain/probe-adopted';
+export type { AdoptedSlotProblem } from './harness/domain/probe-adopted';
+
 export { scaffoldTheme } from './scaffold/domain/scaffold-theme';
 export type { ScaffoldFile, ScaffoldOptions } from './scaffold/domain/scaffold-theme';

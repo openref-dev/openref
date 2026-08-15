@@ -61,6 +61,33 @@ describe('client bundle', () => {
     expect(markers.filter((marker) => bundle.includes(marker))).toEqual([]);
   });
 
+  /**
+   * The adopted positions of `TX-ADOPT` ride no chunk, per SPEC 12: the browser fills each
+   * with a childless element, so the component that draws it lives in `eager.ts` and the
+   * server render alone. One marker per adopted component, each a string only that component
+   * emits, so the case names the position that leaked rather than saying "the bundle grew".
+   */
+  it('should carry none of the components the browser adopts instead of drawing', () => {
+    // Given
+    const bundle = readBundle();
+
+    // When
+    const markers = [
+      'oref-driftbox', // OperationHeader
+      'oref-parity-grid', // RuntimePanel
+      'oref-param-name', // ParamTable
+      'Error contracts', // ResponseList
+      'oref-prov-glyph', // ProvenanceTag
+      'oref-drift-rule', // DriftCard
+      'Empty and degraded states', // StatesPanel
+      'oref-server-list', // DocumentOverview
+      'oref-security-item', // NodeSections
+    ];
+
+    // Then
+    expect(markers.filter((marker) => bundle.includes(marker))).toEqual([]);
+  });
+
   it('should hydrate on load rather than needing an inline script to call it', () => {
     // Given
     const bundle = readBundle();

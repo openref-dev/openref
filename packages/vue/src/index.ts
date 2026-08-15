@@ -104,6 +104,7 @@ export type {
   NavEntryModel,
   NodeHeaderModel,
   NodeModel,
+  NodeSectionMark,
   PageKind,
   PageModel,
   PaletteHitModel,
@@ -123,8 +124,13 @@ export type {
   SecurityModel,
 } from './page/domain/page-model.types';
 
-export { SLOT_NAMES } from './slots/domain/slot-props.types';
+export {
+  SERVER_RESOLVED_ROOTS,
+  SERVER_RESOLVED_SLOTS,
+  SLOT_NAMES,
+} from './slots/domain/slot-props.types';
 export type {
+  ServerResolvedSlot,
   SLOT_NAMES_ARE_COMPLETE,
   SlotName,
   SlotProps,

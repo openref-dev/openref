@@ -59,6 +59,31 @@ export interface DeferrableComponents {
   readonly shapesReader: Component;
   /** The filling half of the shapes page: the value driven form, behind its own gesture. */
   readonly shapesFill: Component;
+  /**
+   * THE ADOPTED POSITIONS OF `TX-ADOPT`, all the Health panel's shape: no state, no handler,
+   * no value the browser recomputes. The server fills each with the component that draws it,
+   * resolving the slot where one exists, per SPEC 10.4's server resolved list; the browser
+   * fills each with a childless element that adopts the markup the server drew, so none of the
+   * components ride the first paint. The node page walks `NodeModel.drawn` to know which of
+   * them the server mounted, which is what keeps the two trees identical over a redacted
+   * state block, per SPEC 12.
+   */
+  /** The head of a node page: kicker, badge and path, drift box, meta line. */
+  readonly operationHeader: Component;
+  /** The parity scale and the remainder drift list. */
+  readonly runtimePanel: Component;
+  /** The description section, heading and paragraph count included. */
+  readonly nodeDescription: Component;
+  /** The security section a document-only page draws. */
+  readonly nodeSecurity: Component;
+  /** The parameters table. */
+  readonly paramTable: Component;
+  /** The responses section, error contracts grid inside it, single root per SPEC 10.4. */
+  readonly responseList: Component;
+  /** The document overview article, which is the page a reader lands on. */
+  readonly overviewPage: Component;
+  /** The states showcase article, which only its own address draws. */
+  readonly statesPage: Component;
 }
 
 /** How a component tree reaches the three. */

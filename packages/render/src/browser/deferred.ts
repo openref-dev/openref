@@ -306,6 +306,35 @@ const adoptHealthPanel: Component = () => h('section', { class: 'oref-section-he
 const adoptShapesReader: Component = () => h('div', { class: 'oref-shapes-read' });
 
 /**
+ * The adopted positions of `TX-ADOPT`: one childless element each, over markup that is
+ * already right.
+ *
+ * THE ELEMENT TYPE IS THE LOAD BEARING HALF AND THE CLASS IS THE QUIET HALF. Production
+ * hydration replaces a node whose element type does not match the vnode's, so each stub's tag
+ * is the contract of SPEC 10.4 and a theme's override must keep it. The class is compared only
+ * in development, where a matching one is zero warnings on the un-themed page; a theme with
+ * its own root class pays a dev-only log and nothing else, which SPEC 10.4 states.
+ *
+ * THE PROPS ARE ACCEPTED AND IGNORED. `NodePanel` hands every filling the same props the
+ * server's components read, so the walk stays one code path; what a childless element does
+ * with them is nothing, which is the point: the models behind these positions leave the state
+ * block entirely, per SPEC 12's redaction rule.
+ */
+const adoptOperationHeader: Component = () => h('header', { class: 'oref-operation-header' });
+const adoptRuntimePanel: Component = () =>
+  h('section', { class: 'oref-section oref-section-runtime' });
+const adoptNodeDescription: Component = () =>
+  h('section', { class: 'oref-section oref-section-description' });
+const adoptNodeSecurity: Component = () =>
+  h('section', { class: 'oref-section oref-section-security' });
+const adoptParamTable: Component = () =>
+  h('section', { class: 'oref-section oref-section-parameters' });
+const adoptResponseList: Component = () =>
+  h('section', { class: 'oref-section oref-section-responses' });
+const adoptOverviewPage: Component = () => h('article', { class: 'oref-overview' });
+const adoptStatesPage: Component = () => h('article', { class: 'oref-states-page' });
+
+/**
  * The tree the gates listen in, the same structural slice `HydrateRoot` names in `index.ts`.
  *
  * Declared here rather than imported because `index.ts` imports this module: a type-only
@@ -415,6 +444,15 @@ export function deferredComponents(options: DeferredOptions): DeferrableComponen
     healthPanel: adoptHealthPanel,
 
     shapesReader: adoptShapesReader,
+
+    operationHeader: adoptOperationHeader,
+    runtimePanel: adoptRuntimePanel,
+    nodeDescription: adoptNodeDescription,
+    nodeSecurity: adoptNodeSecurity,
+    paramTable: adoptParamTable,
+    responseList: adoptResponseList,
+    overviewPage: adoptOverviewPage,
+    statesPage: adoptStatesPage,
 
     shapesFill: deferUntilReached(
       {
