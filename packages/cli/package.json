@@ -8,6 +8,9 @@
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "source": "./src/index.ts",
+  "bin": {
+    "openref": "./dist/bin.js"
+  },
   "exports": {
     ".": {
       "source": "./src/index.ts",

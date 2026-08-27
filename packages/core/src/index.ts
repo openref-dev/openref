@@ -121,7 +121,9 @@ export { freezeDocument } from './ir/domain/freeze';
 export { sha256Hex, utf8Encode } from './hashing/domain/sha256';
 
 export {
+  ApplicationBootError,
   AuthError,
+  CliError,
   CollectorError,
   CollectorNotAvailableError,
   ConfigError,
@@ -138,11 +140,13 @@ export {
   RemoteUnavailableError,
   RunnerError,
   SerializationError,
+  ShutdownTimeoutError,
   SlotNotFoundError,
   StreamError,
   ThemeContractError,
   ThemeError,
   UnsupportedDialectError,
+  UsageError,
 } from './shared/errors/index';
 
 export { intersectTypes, mergeAllOf, mergeRequired } from './normalizer/domain/compose';
@@ -256,6 +260,8 @@ export {
   healthScore,
 } from './drift/domain/health';
 export type { DriftRuleGroup, HealthReportOptions } from './drift/domain/health';
+export { buildDoctorReport, DOCTOR_REPORT_VERSION } from './drift/domain/doctor-report';
+export type { IRDoctorCheck, IRDoctorFinding, IRDoctorReport } from './drift/domain/doctor-report';
 
 export { hasRuntimeFacts, RUNTIME_FACT_FIELDS } from './runtime/domain/runtime-view';
 export type { RuntimeFactField } from './runtime/domain/runtime-view';

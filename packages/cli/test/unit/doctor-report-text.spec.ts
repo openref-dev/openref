@@ -1,0 +1,266 @@
+import { describe, expect, it } from 'vitest';
+import type { IRDoctorFinding, IRDoctorReport } from '@openref/core';
+import {
+  renderDoctorFinding,
+  renderDoctorFindings,
+  renderDoctorSummary,
+} from '../../src/cli/api/commands/doctor-report-text';
+
+/** A minimal, otherwise clean report, so each test overrides only what it is about. */
+function report(overrides: Partial<IRDoctorReport> = {}): IRDoctorReport {
+  return { version: 1, score: 100, operationCount: 1, checks: [], findings: [], ...overrides };
+}
+
+/** A minimal finding, so each test overrides only what it is about. */
+function finding(overrides: Partial<IRDoctorFinding> = {}): IRDoctorFinding {
+  return {
+    rule: 'security-drift',
+    code: 'RT010',
+    severity: 'error',
+    classification: { bucket: 'silence' },
+    subject: 'POST /users',
+    message: 'A guard stands on this operation and the specification asserts no security.',
+    suggestion: 'add @ApiBearerAuth() or declare security in DocumentBuilder',
+    ...overrides,
+  };
+}
+
+describe('renderDoctorSummary', () => {
+  it('should print the title, health percentage and operation count', () => {
+    // Given
+    const built = report({ score: 87, operationCount: 127 });
+
+    // When
+    const text = renderDoctorSummary(built, 'Orders 1.0.0');
+
+    // Then
+    expect(text).toBe('Orders 1.0.0\n\nDocumentation health: 87%\n127 operations');
+  });
+
+  it('should say one operation in the singular', () => {
+    // Given / When
+    const text = renderDoctorSummary(report({ operationCount: 1 }), 'Mini 1.0.0');
+
+    // Then
+    expect(text.endsWith('1 operation')).toBe(true);
+  });
+
+  it('should mark a fully clean check with a checkmark and the pass count', () => {
+    // Given
+    const built = report({
+      checks: [
+        {
+          id: 'missing-description',
+          label: 'Operations with a description',
+          passed: 5,
+          total: 5,
+          severity: 'warning',
+        },
+      ],
+    });
+
+    // When
+    const text = renderDoctorSummary(built, 'Orders 1.0.0');
+
+    // Then
+    expect(text).toContain('✓ 5/5  Operations with a description');
+  });
+
+  it('should mark a warning severity check with a failure with a warning triangle', () => {
+    // Given
+    const built = report({
+      checks: [
+        {
+          id: 'missing-description',
+          label: 'Operations with a description',
+          passed: 3,
+          total: 5,
+          severity: 'warning',
+        },
+      ],
+    });
+
+    // When
+    const text = renderDoctorSummary(built, 'Orders 1.0.0');
+
+    // Then
+    expect(text).toContain('⚠ 3/5  Operations with a description');
+  });
+
+  it('should mark an error severity check with a failure with a cross', () => {
+    // Given
+    const built = report({
+      checks: [
+        {
+          id: 'stream-unspecified',
+          label: 'Streaming operations with an item schema',
+          passed: 0,
+          total: 2,
+          severity: 'error',
+        },
+      ],
+    });
+
+    // When
+    const text = renderDoctorSummary(built, 'Orders 1.0.0');
+
+    // Then
+    expect(text).toContain('✗ 0/2  Streaming operations with an item schema');
+  });
+
+  it('should draw no line for a check with nothing in scope', () => {
+    // Given
+    const built = report({
+      checks: [
+        {
+          id: 'stream-unspecified',
+          label: 'Streaming operations with an item schema',
+          passed: 0,
+          total: 0,
+          severity: 'error',
+        },
+        {
+          id: 'missing-description',
+          label: 'Operations with a description',
+          passed: 1,
+          total: 1,
+          severity: 'warning',
+        },
+      ],
+    });
+
+    // When
+    const text = renderDoctorSummary(built, 'Orders 1.0.0');
+
+    // Then
+    expect(text).not.toContain('Streaming operations');
+    expect(text).toContain('Operations with a description');
+  });
+
+  it('should print no check lines at all when every check has nothing in scope', () => {
+    // Given
+    const built = report({
+      checks: [
+        { id: 'stream-unspecified', label: 'Streaming', passed: 0, total: 0, severity: 'error' },
+      ],
+    });
+
+    // When
+    const text = renderDoctorSummary(built, 'Orders 1.0.0');
+
+    // Then
+    expect(text).toBe('Orders 1.0.0\n\nDocumentation health: 100%\n1 operation');
+  });
+});
+
+describe('renderDoctorFinding', () => {
+  it('should print the code and subject on the header line', () => {
+    // Given / When
+    const text = renderDoctorFinding(finding());
+
+    // Then
+    expect(text.split('\n')[0]).toBe('DRIFT  RT010  POST /users');
+  });
+
+  it('should print the runtime and spec values when present', () => {
+    // Given
+    const built = finding({
+      runtimeValue: 'JwtAuthGuard, RolesGuard',
+      specValue: 'security: undefined',
+    });
+
+    // When
+    const text = renderDoctorFinding(built);
+
+    // Then
+    expect(text).toContain('  Runtime:  JwtAuthGuard, RolesGuard');
+    expect(text).toContain('  OpenAPI:  security: undefined');
+  });
+
+  it('should omit the runtime and spec lines when neither is present', () => {
+    // Given / When
+    const text = renderDoctorFinding(finding());
+
+    // Then
+    expect(text).not.toContain('Runtime:');
+    expect(text).not.toContain('OpenAPI:');
+  });
+
+  it('should always print the suggestion with an arrow', () => {
+    // Given / When
+    const text = renderDoctorFinding(finding({ suggestion: 'add @ApiBearerAuth()' }));
+
+    // Then
+    expect(text).toContain('  →  add @ApiBearerAuth()');
+  });
+
+  it('should print the resolved link when the source expanded to one', () => {
+    // Given
+    const built = finding({
+      source: { controller: 'OrdersController', handler: 'list', file: 'orders.ts', line: 12 },
+      sourceLink: { url: 'https://example.test/orders.ts#L12' },
+    });
+
+    // When
+    const text = renderDoctorFinding(built);
+
+    // Then
+    expect(text).toContain(
+      '  Source:   OrdersController.list()  https://example.test/orders.ts#L12',
+    );
+  });
+
+  it('should fall back to file and line when there is no resolved link', () => {
+    // Given
+    const built = finding({
+      source: { controller: 'OrdersController', handler: 'list', file: 'orders.ts', line: 12 },
+      sourceLink: { reason: 'no source link template is configured' },
+    });
+
+    // When
+    const text = renderDoctorFinding(built);
+
+    // Then
+    expect(text).toContain('  Source:   OrdersController.list()  orders.ts:12');
+  });
+
+  it('should fall back to the class and method when there is no file at all', () => {
+    // Given
+    const built = finding({ source: { controller: 'OrdersController', handler: 'list' } });
+
+    // When
+    const text = renderDoctorFinding(built);
+
+    // Then
+    expect(text).toContain('  Source:   OrdersController.list()');
+    expect(text).not.toContain('undefined');
+  });
+
+  it('should print no source line at all for a finding with no source location', () => {
+    // Given / When
+    const text = renderDoctorFinding(finding());
+
+    // Then
+    expect(text).not.toContain('Source:');
+  });
+});
+
+describe('renderDoctorFindings', () => {
+  it('should separate blocks with a blank line', () => {
+    // Given
+    const findings = [finding({ subject: 'POST /users' }), finding({ subject: 'GET /users' })];
+
+    // When
+    const text = renderDoctorFindings(findings);
+
+    // Then
+    expect(text).toBe(
+      `${renderDoctorFinding(findings[0]!)}\n\n${renderDoctorFinding(findings[1]!)}`,
+    );
+  });
+
+  it('should print nothing for no findings', () => {
+    // Given / When / Then
+    expect(renderDoctorFindings([])).toBe('');
+  });
+});

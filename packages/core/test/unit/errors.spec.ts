@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
+  ApplicationBootError,
   AuthError,
+  CliError,
   CollectorError,
   CollectorNotAvailableError,
   ConfigError,
@@ -17,11 +19,13 @@ import {
   RemoteUnavailableError,
   RunnerError,
   SerializationError,
+  ShutdownTimeoutError,
   SlotNotFoundError,
   StreamError,
   ThemeContractError,
   ThemeError,
   UnsupportedDialectError,
+  UsageError,
 } from '../../src/index';
 
 describe('OpenRefError', () => {
@@ -141,6 +145,12 @@ describe('error hierarchy', () => {
         error: new InvalidOptionsError('m', ErrorCode.CONFIG_INVALID_OPTIONS),
         parent: ConfigError,
       },
+      { error: new ApplicationBootError('m', ErrorCode.CLI_BOOT_FAILED), parent: CliError },
+      { error: new UsageError('m', ErrorCode.CLI_USAGE_INVALID), parent: CliError },
+      {
+        error: new ShutdownTimeoutError('m', ErrorCode.CLI_SHUTDOWN_TIMEOUT),
+        parent: CliError,
+      },
     ];
 
     // When
@@ -182,7 +192,7 @@ describe('ErrorCode', () => {
 
     // When
     const malformed = codes.filter(
-      (code) => !/^(NORM|COLLECT|RUN|FED|THEME|CONFIG)_[A-Z_]+$/.test(code),
+      (code) => !/^(NORM|COLLECT|RUN|FED|THEME|CONFIG|CLI)_[A-Z_]+$/.test(code),
     );
 
     // Then

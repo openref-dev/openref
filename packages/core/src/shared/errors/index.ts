@@ -70,6 +70,13 @@ export enum ErrorCode {
 
   /** Options handed to a module or to the CLI are invalid. */
   CONFIG_INVALID_OPTIONS = 'CONFIG_INVALID_OPTIONS',
+
+  /** `--from-nest` could not produce a document: the entry failed to load, boot, or mount one. */
+  CLI_BOOT_FAILED = 'CLI_BOOT_FAILED',
+  /** The command line was invalid: a missing argument, an unknown flag, an unknown command. */
+  CLI_USAGE_INVALID = 'CLI_USAGE_INVALID',
+  /** The loaded application did not close within the allotted time and was terminated. */
+  CLI_SHUTDOWN_TIMEOUT = 'CLI_SHUTDOWN_TIMEOUT',
 }
 
 /**
@@ -164,3 +171,15 @@ export class ConfigError extends OpenRefError {}
 
 /** Options handed to a module or to the CLI are invalid. */
 export class InvalidOptionsError extends ConfigError {}
+
+/** The CLI could not do what it was asked. */
+export class CliError extends OpenRefError {}
+
+/** `--from-nest` could not produce a document. */
+export class ApplicationBootError extends CliError {}
+
+/** The command line itself was invalid, independent of any document. */
+export class UsageError extends CliError {}
+
+/** The loaded application did not close within its allotted time and was terminated. */
+export class ShutdownTimeoutError extends CliError {}
