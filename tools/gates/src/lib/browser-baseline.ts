@@ -179,6 +179,18 @@ export interface BaselineFreshness {
  * is visibility in two places: this line on every run, and the commit carried beside the
  * figure in any exception entry that cites the record, which `budget-exceptions` enforces.
  *
+ * ASKED AGAIN BY THE REVIEW BEFORE M4, AND THE ANSWER IS STILL WARN, WITH ONE CORRECTION. The
+ * argument above holds and nothing in it has moved: there is no failing distance that is both
+ * honest and holdable. What did not hold is where the qualifier lived. It was one warning among
+ * roughly thirty findings of the budgets gate, and every recorded row underneath printed
+ * `figure of limit` with nothing on it, so a reader who scrolls to the row they came for reads a
+ * figure that looks checked. It is checked, against a page that may no longer exist, and that is
+ * a property of the figure and not of the run. Since 2026-08-28 the recorded rows carry
+ * `FROM A STALE RECORD` in their own text, in `budget-report.ts`, and this line stays as the
+ * explanation. A third place was considered and refused: making the gate skip when the record is
+ * stale, which would have hidden a recorded figure that is over its ceiling behind a skip, and an
+ * over budget has to be loud whatever it was measured on.
+ *
  * @param baseline - The committed record
  * @param commitsSince - Commits touching {@link BASELINE_INPUT_PATHS} past the record's
  *   commit, or null when git could not answer

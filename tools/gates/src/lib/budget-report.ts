@@ -390,6 +390,17 @@ export function collectBudgetOutcomes(repoRoot: string): BudgetReport {
     notes.push(freshness.message);
   }
 
+  // AND THE QUALIFIER TRAVELS WITH EVERY FIGURE IT QUALIFIES, decided by the review before M4,
+  // which asked whether a stale record should fail rather than warn. The answer is that it should
+  // not fail, for the reason `baselineFreshness` already gives: any failing distance N admits N
+  // sessions of the silence it exists to end, and N = 0 demands a study run on every commit that
+  // touches `packages/`, a cadence CI cannot hold. What was wrong was narrower. The staleness was
+  // one warning among thirty findings while each recorded row printed `figure of limit` with
+  // nothing on it, and a reader who scrolls to the row they came for reads a number that looks
+  // checked. It is checked; it is checked against a page that may no longer exist, and that is a
+  // property of the number rather than of the run. So the marker is on the line.
+  const staleMark = freshness.state === 'stale' ? ', FROM A STALE RECORD' : '';
+
   for (const budget of MEASURED_BUDGETS) {
     const recorded = recordedFigure(baseline, budget.id);
     const over = overBudget.get(budget.id);
@@ -425,8 +436,8 @@ export function collectBudgetOutcomes(repoRoot: string): BudgetReport {
       source: 'recorded',
       message:
         budget.reportOnly === true
-          ? `${budget.id}: ${recorded}, RECORDED AND NOT GATED (${budget.enforcedBy}, from ${BROWSER_BASELINE_FILE})`
-          : `${budget.id}: ${recorded} of ${budget.limit} (${budget.enforcedBy}, from ${BROWSER_BASELINE_FILE})`,
+          ? `${budget.id}: ${recorded}, RECORDED AND NOT GATED (${budget.enforcedBy}, from ${BROWSER_BASELINE_FILE}${staleMark})`
+          : `${budget.id}: ${recorded} of ${budget.limit} (${budget.enforcedBy}, from ${BROWSER_BASELINE_FILE}${staleMark})`,
     });
   }
 

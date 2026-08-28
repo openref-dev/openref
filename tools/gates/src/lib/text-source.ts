@@ -13,6 +13,18 @@
  * is no build output, no type and no assertion anywhere in this repository that changes when a
  * source file becomes unreadable to the tools people search it with.
  *
+ * IT HAS HAPPENED FOUR TIMES, AND THE COUNT IS KEPT HERE SO NOBODY HAS TO RECONSTRUCT IT. The
+ * argument for a gate is not the first occurrence, which is a story, but the rate, which is a
+ * measurement, and until the pre-M4 review the rate lived only in `ai-docs/PROJECT_STATE.md`
+ * across four sessions that each wrote down their own instance without a running total. In order:
+ * `TryItPanel.ts`, found by a file refusing a tool rather than by any check, five tasks after it
+ * was written; a second before this gate existed; `BINARY_FIELD` in the extracted `ShapeForm`,
+ * written through a shell heredoc and caught the same hour, on the first source file written after
+ * the gate existed; and the fake authorization server of the runner suite, caught the hour it was
+ * written and named by byte offset. Every one of the last two was the author of the session the
+ * gate was protecting, which is the point: it is not a check against a careless contributor, it is
+ * a check against a heredoc.
+ *
  * WHAT IS CHECKED IS THE CLASSIFICATION AND NOT THE ENCODING IN GENERAL. Two conditions make a
  * tool refuse: a NUL byte, which is the marker every such heuristic starts from, and a byte
  * sequence that is not valid UTF-8, which is the other half of what GNU grep decides on. Both are
