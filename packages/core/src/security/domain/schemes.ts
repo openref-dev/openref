@@ -37,6 +37,40 @@ export function isHttpUrl(url: URL): boolean {
 }
 
 /**
+ * The hosts a browser already treats as a secure context without https.
+ *
+ * The exception exists because an authorization server on a developer's own machine is the case a
+ * try-it console meets most, and refusing it would refuse the ordinary local setup rather than an
+ * attack. Shared so the two places that make it do not come to disagree about what loopback means.
+ */
+export const LOOPBACK_HOSTS = ['localhost', '127.0.0.1', '[::1]', '::1'] as const;
+
+/**
+ * Whether a url may be fetched or handed a credential.
+ *
+ * HTTPS, OR HTTP ON A LOOPBACK HOST, and it is asked of every address a flow uses rather than only
+ * of the ones a discovery document supplied. SPEC 14.4 carried this sentence about discovery alone
+ * until the pre-M4 review, and a flow the OpenAPI document declared went around it: measured,
+ * `clientCredentials` built a request to `http://evil.example/token` carrying the client secret in
+ * a `Basic` header, and a code exchange built one to `http://169.254.169.254/token` carrying the
+ * PKCE verifier. A specification is somebody else's document, and its `tokenUrl` arrives by the
+ * same road as an `openIdConnectUrl`.
+ *
+ * @param url - A parsed url
+ * @returns True when a credential may be sent to it
+ *
+ * @example
+ * isSecureCredentialUrl(new URL('https://id.example.com/token')); // true
+ * isSecureCredentialUrl(new URL('http://localhost:9000/token'));  // true
+ * isSecureCredentialUrl(new URL('http://evil.example/token'));    // false
+ */
+export function isSecureCredentialUrl(url: URL): boolean {
+  if (url.protocol === 'https:') return true;
+  if (url.protocol !== 'http:') return false;
+  return LOOPBACK_HOSTS.some((host) => host === url.hostname);
+}
+
+/**
  * What a link in a document's own prose may point at.
  *
  * `http`, `https` and `mailto`, plus everything that names no scheme at all, which is what keeps a

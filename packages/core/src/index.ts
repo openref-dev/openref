@@ -125,7 +125,13 @@ export { caseFoldForFilesystem } from './security/domain/case-fold';
 export { addressRefusal, isAddressLiteral, parseIpv4, parseIpv6 } from './security/domain/address';
 export type { AddressRefusal } from './security/domain/address';
 export { PATH_SUFFIX_GUARD_SOURCE, refusesPathSuffix } from './security/domain/path-suffix';
-export { DOCUMENT_LINK_SCHEMES, HTTP_SCHEMES, isHttpUrl } from './security/domain/schemes';
+export {
+  DOCUMENT_LINK_SCHEMES,
+  HTTP_SCHEMES,
+  isHttpUrl,
+  isSecureCredentialUrl,
+  LOOPBACK_HOSTS,
+} from './security/domain/schemes';
 export type { HttpScheme } from './security/domain/schemes';
 export {
   BIDI_CONTROL_CODE_POINTS,

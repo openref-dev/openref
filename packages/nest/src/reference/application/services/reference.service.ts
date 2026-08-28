@@ -567,6 +567,17 @@ export class ReferenceService {
     // check that keeps a registered redirect uri from becoming somebody's open redirector.
     const path = decoded.split('#')[0] ?? '';
     if (!path.startsWith('/') || path.startsWith('//') || path.includes('\\')) return overview;
+
+    // AND A CHARACTER A BROWSER DELETES BEFORE IT READS THE URL IS AS GOOD AS ABSENT, which is the
+    // hole the three checks above left open at the root mount. Found by the pre-M4 review and
+    // driven to the wire: `/\t/evil.example/x` passes all three, Node's header validator admits a
+    // horizontal tab in a `Location`, and every browser strips tab, carriage return and line feed
+    // out of a url per the WHATWG standard, so what the reader follows is `//evil.example/x`. The
+    // `\n` and `\r` spellings are refused by Node itself, so the tab was the live one; all three
+    // are refused here rather than the one that happened to get through. Under a mounted base path
+    // the check below already contained this, which is why it read as safe.
+    if (/[\t\n\r]/.test(path)) return overview;
+
     if (this.basePath !== '' && !path.startsWith(`${this.basePath}/`) && path !== this.basePath) {
       return overview;
     }

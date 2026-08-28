@@ -105,6 +105,49 @@ describe('the oauth callback route', () => {
     expect(reply.headers.location?.startsWith('/docs?')).toBe(true);
   });
 
+  /**
+   * The mount with no base path, which is where the three checks above stopped containing this.
+   *
+   * FOUND BY THE PRE-M4 REVIEW AND DRIVEN TO THE WIRE. `/\t/evil.example/x` starts with one slash,
+   * not two, and carries no backslash, so it passed every check; the under-the-mount check that
+   * would have caught it is guarded by `basePath !== ''` and does not run at the root. Node's own
+   * header validator admits a horizontal tab in a `Location`, and every browser deletes tab,
+   * carriage return and line feed from a url before reading it, so what the reader follows is
+   * `//evil.example/x`. The `\n` and `\r` spellings Node refuses itself, which is why the tab was
+   * the live one and why all three are refused here rather than only the one that got through.
+   */
+  it.each([
+    ['a tab a browser deletes', '/\t/attacker.example/x'],
+    ['a line feed', '/\n/attacker.example/x'],
+    ['a carriage return', '/\r/attacker.example/x'],
+  ])('should refuse %s in the state at the root mount', async (_name, path) => {
+    // Given a reference mounted at the root, where there is no base path to contain a return path
+    const reference = service('');
+
+    // When
+    const reply = await reference.handle(
+      'oauth-callback',
+      callback({ code: 'abc', state: state(path) }),
+    );
+
+    // Then the reader lands on the overview rather than off site
+    expect(reply.headers.location?.startsWith('/?')).toBe(true);
+  });
+
+  it('should still take an ordinary return path at the root mount', async () => {
+    // Given the same root mount and a path a page really returns to
+    const reference = service('');
+
+    // When
+    const reply = await reference.handle(
+      'oauth-callback',
+      callback({ code: 'abc', state: state('/get-orders-id') }),
+    );
+
+    // Then the guard has not made the root mount unusable
+    expect(reply.headers.location?.startsWith('/get-orders-id?')).toBe(true);
+  });
+
   it('should go to the overview when the state carries no return path at all', async () => {
     // Given
     const reference = service();
