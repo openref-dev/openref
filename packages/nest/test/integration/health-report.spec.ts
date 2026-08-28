@@ -140,6 +140,10 @@ describe('the health report, against the running example application', () => {
         'missing-example',
         'missing-operation-id',
         'dto-field-undescribed',
+        // `T043`. Zero of zero here, because the example spells every path item key the way
+        // OpenAPI spells one; the row is still emitted, exactly as every other rule's is when its
+        // scope is empty.
+        'operation-key-unread',
       ]);
     },
   );

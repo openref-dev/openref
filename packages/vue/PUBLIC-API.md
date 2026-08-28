@@ -194,6 +194,44 @@ would have been 1 612 858 bytes on `twilio-api-v2010.yaml` against a node page's
 | `useSlotRegistry` | value | The registry provided above, or nothing, which is the L0 case |
 | `useSlot` | value | The component in one position: the theme's, or the one the renderer ships |
 
+### The IR types the props above are declared in
+
+Re-exported from `@openref/core` since `T031-R1`, so that a theme which types the value it is
+handed installs one package rather than two. `export type` only: the emitted module gains nothing
+and no reader pays a byte. Each is frozen where it is declared, in `@openref/core`, and appears
+here because it is the declared type of something a theme is handed.
+
+| Name | Kind | What it is |
+| --- | --- | --- |
+| `IRConfidence` | type | The three levels of SPEC 6.1, as `ProvenanceTag.confidence` carries one |
+| `IRSchema` | type | One schema of the IR, which is the value type of `SchemaPayloadMap` |
+| `IRSchemaView` | type | A schema resolved for one direction, as `SchemaTree.view` is handed it |
+| `UnsendableCause` | type | Why a scheme cannot be signed in from a browser, as `RunnerSecuritySchemeView` reports it |
+
+### What is on a page and is not on this surface
+
+**The class names the reference leaves in the markup are not frozen, and a theme styles them.**
+An L2 theme replaces every position and still receives markup drawn outside all of them, under the
+reference's own `oref-` names. 37 of them as of 2026-08-28, measured on the five kinds of page a
+reader can open, up from 25 when the second theme was written. A theme that does not style them
+ships unstyled regions, and nothing on the theme's own side goes red when a new one arrives: it
+compiles, it renders, and the page has a gap in it.
+
+The list is pinned in one place, `packages/theme-telltale/test/integration/theme-boundary.spec.ts`,
+which fails when a name arrives or leaves, so the fact is read rather than absorbed. It is not
+repeated here, because a number written in three places drifts in two.
+
+Freezing it would make every `oref-` class public API and every removal a major version, which is a
+release decision and not a session's. It is owned by `T064`, release engineering, with the
+published package list. Until then the rule that keeps the list from growing is `TX-MARKUP`'s: new
+markup goes inside an existing position unless there is a reason it cannot.
+
+Two more things a theme reproduces by hand rather than importing, for the same reason and with the
+same owner: the route table of SPEC 13.3, which `NavTree` needs to build an href out of the parts
+it is handed, and the structural DOM shims that let a component compile in a program with no DOM
+types. Both live in `@openref/render`, which is private. Each transcription is compared against its
+origin by a case in the file named above, because a wrong href is a string and renders.
+
 ### Theme
 
 | Name | Kind | What it is |

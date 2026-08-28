@@ -1,4 +1,4 @@
-import type { IRDiffChange, IRDiffReport } from '@openref/core';
+import { plainArtefactText, type IRDiffChange, type IRDiffReport } from '@openref/core';
 import { NO_CHANGES_LINE, renderDiffReport } from './diff-report-text';
 
 /**
@@ -133,24 +133,32 @@ export function renderPrComment(report: IRDiffReport, context: PrCommentContext 
   const summary = summarizeForComment(report);
   const empty = summary.operations.length === 0 && summary.others.length === 0;
 
-  const parts: string[] = [PR_COMMENT_MARKER, '### API changes'];
+  // WHAT MUST SURVIVE THE CUT AND WHAT MAY BE CUT, kept apart since `T043`. A pull request
+  // touching thousands of files produces thousands of change lines, and the cut ran over the
+  // whole body from the end: measured at five thousand changes, the comment came to 65508 bytes,
+  // posted, and carried neither the breaking count nor the preview address. Those two are the
+  // whole point of the comment per SPEC 17.2, they are a fixed handful of bytes, and the list
+  // that does not fit is the part a reader was always going to open `openref diff` for.
+  const kept: string[] = [PR_COMMENT_MARKER, '### API changes'];
+  const cuttable: string[] = [];
+  const tail: string[] = [];
 
   if (empty) {
-    parts.push(NO_CHANGES_LINE);
+    kept.push(NO_CHANGES_LINE);
   } else {
-    if (summary.operations.length > 0) parts.push(fenced(summary.operations, true));
+    if (summary.operations.length > 0) cuttable.push(fenced(summary.operations, true));
     if (summary.others.length > 0) {
-      parts.push('Schemas, security and servers:', fenced(summary.others, false));
+      cuttable.push('Schemas, security and servers:', fenced(summary.others, false));
     }
-    parts.push(breakingCountLine(report.breaking.length));
+    tail.push(breakingCountLine(report.breaking.length));
   }
 
   if (context.previewUrl !== undefined && context.previewUrl !== '') {
-    parts.push(`Preview: ${context.previewUrl}`);
+    tail.push(`Preview: ${context.previewUrl}`);
   }
 
   if (!empty) {
-    parts.push(
+    cuttable.push(
       [
         '<details><summary>Full report</summary>',
         '',
@@ -163,8 +171,21 @@ export function renderPrComment(report: IRDiffReport, context: PrCommentContext 
     );
   }
 
-  return truncateComment(`${parts.join('\n\n')}\n`, limit);
+  // ONE CALL AT THE ARTEFACT BOUNDARY, per SPEC 19.1 as extended by `T043`, and before the
+  // truncation rather than after it: the limit is about the bytes that reach the comment.
+  const fixed = plainArtefactText(`${[...kept, ...tail].join('\n\n')}\n`);
+  if (cuttable.length === 0) return fixed;
+
+  const middle = truncateComment(
+    plainArtefactText(cuttable.join('\n\n')),
+    Math.max(limit - fixed.length - SEPARATOR_BYTES, 0),
+  );
+
+  return `${[...kept, middle, ...tail].join('\n\n')}\n`;
 }
+
+/** Room the joins between the kept parts and the cut one take, so the budget is not optimistic. */
+const SEPARATOR_BYTES = 4;
 
 /**
  * The body cut down to a limit, at a line boundary, saying what it cut.

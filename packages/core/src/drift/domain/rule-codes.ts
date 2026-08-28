@@ -34,4 +34,5 @@ export const DRIFT_RULE_CODES: Readonly<Record<IRDriftRule, string>> = {
   'missing-example': 'DX020',
   'missing-operation-id': 'DX030',
   'dto-field-undescribed': 'DX040',
+  'operation-key-unread': 'DX050',
 };

@@ -32,6 +32,31 @@ const UNSAFE_SEGMENT_CHARACTER =
  */
 const ESCAPE_LOOKALIKE = /_(?=u[0-9a-f]{1,6}_)/g;
 
+/**
+ * Names Windows refuses as a file name whatever extension follows them.
+ *
+ * NOT A CHARACTER PROBLEM BUT A WHOLE NAME ONE, which is why it is a set rather than a member of
+ * the pattern above. A schema called `CON` writes nowhere on Windows, and a schema called `NUL`
+ * writes to the null device: the build reports the page and the reader gets a 404 or an empty
+ * file, with nothing anywhere saying so. Recorded as a residual by `T039` and closed by `T043`.
+ *
+ * WHATEVER EXTENSION FOLLOWS THEM, and the first cut of this said so and did not do it. Windows
+ * refuses `NUL.json` and `CON.txt` exactly as it refuses the bare names, because the device is
+ * matched before the extension is considered; an anchored `$` after the name let every one of
+ * them through. Found by review of `T043`'s own fix.
+ */
+const RESERVED_DEVICE_NAME =
+  /^(conin\$|conout\$|con|prn|aux|nul|com[1-9\u00b9\u00b2\u00b3]|lpt[1-9\u00b9\u00b2\u00b3])(\..*)?$/i;
+
+/**
+ * The last character of a name that Windows strips rather than storing.
+ *
+ * A trailing dot or space is dropped silently by the Win32 layer, so `Order.` and `Order` become
+ * one file there and the second one written wins. Escaping the last character keeps the two
+ * apart without touching any name that does not end in one.
+ */
+const TRIMMED_TAIL = /[. ]$/;
+
 /** One character as this file escapes it. */
 function escapeSegmentCharacter(character: string): string {
   const codePoint = character.codePointAt(0) ?? 0;
@@ -53,10 +78,23 @@ function escapeSegmentCharacter(character: string): string {
  */
 export function pathSegmentOf(id: string): string {
   const guarded = id.replace(ESCAPE_LOOKALIKE, '_u005f_');
-  const escaped = guarded.replace(UNSAFE_SEGMENT_CHARACTER, escapeSegmentCharacter);
+  let escaped = guarded.replace(UNSAFE_SEGMENT_CHARACTER, escapeSegmentCharacter);
 
   if (escaped === '.') return '_u002e_';
   if (escaped === '..') return '_u002e__u002e_';
+
+  // BOTH, NOT ONE OF THE TWO. `T043`'s verification found these written as alternatives, so
+  // `con` became `_u0063_on` and `con.` became `_u0063_on.`, whose trailing dot Win32 strips,
+  // putting the two back into one file. Each escape answers a different fact about the name.
+  if (RESERVED_DEVICE_NAME.test(escaped)) {
+    // The whole name is the problem, so the first character carries the escape and the rest
+    // stays readable: `CON` becomes `_u0043_ON`, which is no device on any system.
+    escaped = `${escapeSegmentCharacter(escaped)}${escaped.slice(1)}`;
+  }
+  if (TRIMMED_TAIL.test(escaped)) {
+    escaped = `${escaped.slice(0, -1)}${escapeSegmentCharacter(escaped.slice(-1))}`;
+  }
+
   return escaped;
 }
 

@@ -102,13 +102,21 @@ import type { StateNoticeKind, StreamCounts } from './slot-value.types';
  */
 export interface SlotPropsMap {
   /**
-   * The whole page: header, navigation rail, content column, and the order of the blocks
-   * inside it. Replaced by an L2 theme.
+   * The whole page: header, navigation rail, and the content column the page arrives in.
+   * Replaced by an L2 theme. Not the order of the blocks inside it, per the paragraph below.
    *
    * THE CONTENT ARRIVES AS CHILDREN AND NOT AS DATA. A shell that took the page would be a
    * second renderer, and the three reference themes disagree about where the blocks go rather
-   * than about what they say. Block order is the shell's business for the same reason: a slot
-   * per region would have frozen one theme's answer into the contract.
+   * than about what they say.
+   *
+   * BLOCK ORDER IS NOT THE SHELL'S BUSINESS, AND THIS COMMENT SAID IT WAS UNTIL `T031-R1`. The
+   * order of the blocks on a node page is decided by `NodePanel`, which walks `NodeModel.drawn`
+   * and is not a slot; the shell receives the result through the default slot as children it
+   * cannot look inside, so no theme can reorder them. The sentence removed here claimed the
+   * opposite and was found from outside, by the second theme, whose stated thesis is a block
+   * order it turned out to have no way to express. SPEC 10.4 records the answer and its cost: the
+   * way to give a theme block order is a position per block, which is a minor version, and it is
+   * open under the chrome rule of SPEC 10.2 for the day a theme needs one.
    *
    * `defineTheme.layout` IS THIS POSITION BY ANOTHER NAME AND RESOLVES INTO IT. It stays as the
    * authoring surface, because `layout: () => import('./Layout.vue')` reads better than a

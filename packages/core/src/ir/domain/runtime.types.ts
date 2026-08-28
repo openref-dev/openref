@@ -18,12 +18,35 @@ export type IRParameterLocation = 'path' | 'query' | 'header' | 'cookie';
  * not. Populated in M1; declared from M0 so the IR shape never has to change to admit them.
  */
 
-/** Where a node is implemented, and where to find it in the repository. */
+/**
+ * Where a node is implemented, and where to find it in the repository.
+ *
+ * TWO PATHS BECAUSE THEY ARE TWO DIFFERENT FACTS, per SPEC 6.3 and `T018-R1`. `file` is a path a
+ * forge can resolve, relative to a repository root and true for every reader; `absolutePath` is a
+ * path only the machine that built the document can resolve, and it is what an editor's URL
+ * scheme needs. The second is absent unless the host asked for it, because a served document
+ * carrying one publishes that machine's directory layout to everyone who opens the page.
+ */
 export interface IRSourceLocation {
   readonly controller: string;
   readonly handler: string;
+  /** Repository relative, forward slashes, no leading slash. Absent when there is no repository. */
   readonly file?: string;
   readonly line?: number;
+  /**
+   * Absolute path on the machine the document was built on, as the locator returned it.
+   *
+   * PRESENT ONLY BEHIND AN OPT IN, which is `sourceCollector({ absolutePath: true })` and nothing
+   * else. SPEC 6.3 says what it costs the host who sets it.
+   */
+  readonly absolutePath?: string;
+  /**
+   * One based column, from the source map rather than defaulted.
+   *
+   * IT RIDES WITH {@link absolutePath} AND ONLY WITH IT, per SPEC 6.3: no forge takes a column,
+   * so on its own it says nothing to anybody and spends a document's bytes saying it.
+   */
+  readonly column?: number;
 }
 
 /**
@@ -204,6 +227,7 @@ export type IRDriftRule =
   | 'parameter-unread'
   | 'header-requiredness-drift'
   | 'status-drift'
+  | 'operation-key-unread'
   | 'missing-description'
   | 'missing-example'
   | 'missing-operation-id'
@@ -234,6 +258,39 @@ export type IRDriftEdit =
   | 'deleted-assertion'
   /** The source already asserts it; the gap is in the generated document, which is never written. */
   | 'already-asserted';
+
+/**
+ * The add-only assertion that would describe the observed fact, in values rather than in prose.
+ *
+ * IT EXISTS BECAUSE `suggestion` IS A SENTENCE AND A REWRITER MUST NOT READ SENTENCES. Every value
+ * a mechanical edit needs was already computed by the rule that found the drift, and until this
+ * type the only place it survived was inside the English of `suggestion`: the security scheme a
+ * guard maps to appeared nowhere else at all, so a fix mode could either parse prose, which is the
+ * guess SPEC 6.1 forbids, or refuse a rule SPEC 7.4 calls fixable. This carries the same values
+ * the sentence names, so the two cannot disagree and neither has to be parsed.
+ *
+ * A FINDING CARRIES ONE ONLY WHEN THE RULE COULD NAME ONE, AND CARRYING ONE IS NOT A CLAIM THAT
+ * ANYTHING SHOULD BE WRITTEN. Whether it may be is {@link IRDriftClassification}'s answer and
+ * nothing else's: a contradiction can carry an assertion it must never apply, and a consumer that
+ * reads this field without asking the classifier first has reimplemented the defect the classifier
+ * exists to prevent.
+ */
+export type IRDriftAssertion =
+  /** The operation is guarded and asserts no security; this is the scheme the guard maps to. */
+  | { readonly kind: 'security-scheme'; readonly scheme: string }
+  /** The runtime answers this status and no response documents it. */
+  | { readonly kind: 'response-status'; readonly status: number; readonly description?: string }
+  /** The document names no stable id for an operation whose handler is known. */
+  | { readonly kind: 'operation-id'; readonly operationId: string }
+  /**
+   * There is a fact and no name for it, so no assertion can be spelled.
+   *
+   * A GUARD CLASS NAME IS NOT A SECURITY SCHEME, per SPEC 7.1, so a host that configured no
+   * `runtime.guardSecuritySchemes` leaves `security-drift` with an observed fact and nothing to
+   * write. Saying that here is what lets a fix mode report `unconfigured mapping` as the reason a
+   * finding was left, rather than reporting the absence of a field as the absence of a finding.
+   */
+  | { readonly kind: 'unnameable'; readonly reason: 'unconfigured-mapping' };
 
 /**
  * The runtime side of a finding: a fact somebody collected, or nothing at all.
@@ -297,6 +354,8 @@ export interface IRDriftIssue {
   readonly edit: IRDriftEdit;
   /** The runtime fact behind the finding, whose confidence gates any mechanical edit. */
   readonly basis: IRDriftBasis;
+  /** The assertion that would describe the fact, in values, when the rule could name one. */
+  readonly assertion?: IRDriftAssertion;
 }
 
 /** Runtime facts attached to one node. */

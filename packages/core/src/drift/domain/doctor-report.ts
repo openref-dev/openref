@@ -25,6 +25,7 @@ import type { IRConfidence } from '../../ir/domain/confidence.types';
 import type { IRDocument } from '../../ir/domain/document.types';
 import type { IRHealthCheck } from '../../ir/domain/health.types';
 import type {
+  IRDriftAssertion,
   IRDriftClassification,
   IRDriftIssue,
   IRDriftRule,
@@ -55,6 +56,13 @@ export interface IRDoctorFinding {
   readonly classification: IRDriftClassification;
   /** Confidence of the runtime fact behind the finding. Absent when nothing was observed. */
   readonly confidence?: IRConfidence;
+  /**
+   * The assertion that would describe the fact, in values, when the rule could name one.
+   *
+   * CARRIED VERBATIM AND NOT RECOMPUTED, exactly as `classification` is. It is what lets a fix
+   * mode write an edit without reading `suggestion`, which is a sentence written for a person.
+   */
+  readonly assertion?: IRDriftAssertion;
   readonly nodeId?: string;
   readonly schemaId?: string;
   readonly pointer?: string;
@@ -139,6 +147,7 @@ function doctorFinding(document: IRDocument, issue: IRDriftIssue): IRDoctorFindi
     severity: issue.severity,
     classification: issue.classification,
     ...(confidence === undefined ? {} : { confidence }),
+    ...(issue.assertion === undefined ? {} : { assertion: issue.assertion }),
     ...(issue.nodeId === undefined ? {} : { nodeId: issue.nodeId }),
     ...(issue.schemaId === undefined ? {} : { schemaId: issue.schemaId }),
     ...(issue.pointer === undefined ? {} : { pointer: issue.pointer }),

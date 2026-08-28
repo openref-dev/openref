@@ -17,7 +17,7 @@
  * would report zero for the wrong reason.
  */
 
-import type { IRDocument } from '@openref/core';
+import { sha256Hex, type IRDocument } from '@openref/core';
 import {
   APP_ROOT_ID,
   buildAssetCatalog,
@@ -199,19 +199,22 @@ export async function buildSite(options: BuildSiteOptions): Promise<BuildReport>
   const rendered: string[] = [];
   const carried: string[] = [];
 
+  const written = new Map<string, string>();
+
   for (const page of pages) {
-    const wasCarried = await writeOnePage(page, {
+    const outcome = await writeOnePage(page, {
       options,
       base,
       catalog,
       stylesheets,
       modules,
-      previousKey: reusable.get(page.file)?.key,
+      previous: reusable.get(page.file),
       directTarget: proxy.directTarget,
       staticProxy,
     });
 
-    (wasCarried ? carried : rendered).push(page.file);
+    written.set(page.file, outcome.bytes);
+    (outcome.carried ? carried : rendered).push(page.file);
   }
 
   const files = [...(await writeSiteFiles(options, base, catalog, pages))];
@@ -233,7 +236,11 @@ export async function buildSite(options: BuildSiteOptions): Promise<BuildReport>
     siteUrl: base.siteUrl,
     directTarget: proxy.directTarget,
     staticProxy,
-    pages: pages.map((page) => ({ file: page.file, key: page.key })),
+    pages: pages.map((page) => ({
+      file: page.file,
+      key: page.key,
+      bytes: written.get(page.file) ?? '',
+    })),
     files,
   };
 
@@ -269,31 +276,44 @@ interface PageContext {
   readonly catalog: AssetCatalog;
   readonly stylesheets: readonly string[];
   readonly modules: readonly string[];
-  readonly previousKey: string | undefined;
+  readonly previous: ManifestPage | undefined;
   /** The direct mode warning of SPEC 16.2, or null; every page of a build carries the same. */
   readonly directTarget: string | null;
   /** The generated rules of SPEC 16.2, or null; every page of a build carries the same. */
   readonly staticProxy: StaticProxyModel | null;
 }
 
+/** What writing one page did. */
+interface WrittenPage {
+  /** True when the page was carried forward rather than rendered. */
+  readonly carried: boolean;
+  /** `sha256` of the bytes written, for the manifest. */
+  readonly bytes: string;
+}
+
 /**
  * Writes one page, rendering it or carrying the previous one forward.
  *
+ * THE KEY SAYS THE PAGE MAY BE CARRIED AND THE DIGEST SAYS THE FILE IS THE ONE IT MAY BE CARRIED
+ * FROM, per `BUILD_MANIFEST_VERSION` 4. Before `T043` only the key was checked, so an
+ * interrupted build's bytes at the same path were carried into the next build of the original
+ * document with nothing reporting it.
+ *
  * @param page - The planned page
  * @param context - Everything shared across pages
- * @returns True when the page was carried rather than rendered
+ * @returns Whether the page was carried, and the digest of what was written
  */
-async function writeOnePage(page: PlannedPage, context: PageContext): Promise<boolean> {
+async function writeOnePage(page: PlannedPage, context: PageContext): Promise<WrittenPage> {
   const { options, base } = context;
   const { document } = options;
 
   let carried = false;
   let rendered: RenderedPage | null = null;
 
-  if (context.previousKey === page.key) {
+  if (context.previous?.key === page.key) {
     const existing = await options.store.read(page.file);
     rendered =
-      existing === null
+      existing === null || sha256Hex(existing) !== context.previous.bytes
         ? null
         : readdressPage(existing, APP_ROOT_ID, document.hash, page.nodeId, page.schemaId);
     carried = rendered !== null;
@@ -326,7 +346,7 @@ async function writeOnePage(page: PlannedPage, context: PageContext): Promise<bo
 
   await options.store.write(page.file, html);
 
-  return carried;
+  return { carried, bytes: sha256Hex(html) };
 }
 
 /**

@@ -12,6 +12,7 @@
 import { readRequestBody } from '../../domain/request-body';
 import { readNestedString, readStringRecord } from '../../domain/request-shape';
 import { failureReply, type ErrorReporter } from '../../domain/reply';
+import type { RouteAdmission, RouteGate } from '../../../visibility/domain/admission';
 import type {
   IReferenceHttpAdapter,
   ReferenceHandler,
@@ -79,58 +80,91 @@ export class ExpressReferenceAdapter implements IReferenceHttpAdapter {
 
   /**
    * @param adapter - The NestJS http adapter to register routes on
+   * @param admission - The decision of SPEC 19.6, run in front of every route registered here
    * @param options - Nonce lookup and error reporting
    */
   constructor(
     private readonly adapter: HttpAdapterLike,
+    private readonly admission: RouteAdmission,
     private readonly options: ReferenceAdapterOptions = {},
   ) {}
 
   /** @inheritdoc */
   get(pattern: string, handler: ReferenceHandler): void {
+    const gate = this.admission.at('get', pattern);
+
     this.adapter.get(pattern, (request: unknown, reply: unknown): void => {
-      this.answer(handler, request, reply, null);
+      this.answer(gate, handler, request, reply, null);
     });
   }
 
   /** @inheritdoc */
   post(pattern: string, handler: ReferenceHandler): void {
+    const gate = this.admission.at('post', pattern);
+
     this.adapter.post(pattern, (request: unknown, reply: unknown): void => {
-      this.answer(handler, request, reply, readRequestBody(request));
+      this.answer(gate, handler, request, reply, () => readRequestBody(request));
     });
   }
 
   /**
    * Runs one handler and writes what it answered.
    *
+   * @param gate - The admission for this route
    * @param handler - What answers the route
    * @param request - Framework request
    * @param reply - Framework response
-   * @param body - The body being read, or null on a route that takes none
+   * @param readBody - Reads the body, or null on a route that takes none
    */
   private answer(
+    gate: RouteGate,
     handler: ReferenceHandler,
     request: unknown,
     reply: unknown,
-    body: Promise<string> | null,
+    readBody: (() => Promise<string>) | null,
   ): void {
-    const nonce = this.nonceOf(request, reply);
-
-    void (body ?? Promise.resolve(null))
-      .then((text) =>
-        handler({
-          params: readStringRecord(request, 'params'),
-          headers: readStringRecord(request, 'headers'),
-          query: readStringRecord(request, 'query'),
-          ...(nonce === undefined ? {} : { nonce }),
-          ...(text === null ? {} : { body: text }),
-        }),
-      )
+    void this.resolve(gate, handler, request, reply, readBody)
       .then((response) => writeExpressReply(reply, response))
       .catch((cause: unknown) => {
         this.options.onError?.(cause);
         writeExpressReply(reply, failureReply());
       });
+  }
+
+  /**
+   * The reply for one request: the refusal, or whatever the handler answered.
+   *
+   * THE BODY IS READ AFTER THE ADMISSION AND NEVER BEFORE. It is the one route that takes one, it
+   * is bounded at eight megabytes, and reading it first would let a request that is about to be
+   * refused spend that budget anyway, which is the shape of a denial of service written by us.
+   *
+   * @param gate - The admission for this route
+   * @param handler - What answers the route
+   * @param request - Framework request
+   * @param reply - Framework response
+   * @param readBody - Reads the body, or null on a route that takes none
+   * @returns What to write
+   */
+  private async resolve(
+    gate: RouteGate,
+    handler: ReferenceHandler,
+    request: unknown,
+    reply: unknown,
+    readBody: (() => Promise<string>) | null,
+  ): Promise<ReferenceReply> {
+    const refusal = await gate(request, reply);
+    if (refusal !== undefined) return refusal;
+
+    const nonce = this.nonceOf(request, reply);
+    const text = readBody === null ? null : await readBody();
+
+    return handler({
+      params: readStringRecord(request, 'params'),
+      headers: readStringRecord(request, 'headers'),
+      query: readStringRecord(request, 'query'),
+      ...(nonce === undefined ? {} : { nonce }),
+      ...(text === null ? {} : { body: text }),
+    });
   }
 
   /**

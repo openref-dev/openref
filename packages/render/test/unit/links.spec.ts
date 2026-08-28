@@ -137,3 +137,122 @@ describe('overviewHref', () => {
     expect(result).toBe('/docs');
   });
 });
+
+/**
+ * The residuals of `T039` and the finding of `T043`, all about a name a filesystem will not
+ * store as written. Each spelling below was measured writing badly, or not at all, before the
+ * escapes and the bound that answer them.
+ */
+describe('pathSegmentOf, names a filesystem refuses or rewrites', () => {
+  it.each(['CON', 'con', 'NUL', 'PRN', 'AUX', 'COM1', 'LPT9'])(
+    'should escape the reserved device name %s, which Windows stores nowhere',
+    (id) => {
+      // Given the id above
+
+      // When
+      const segment = pathSegmentOf(id);
+
+      // Then: the escape is on the first character, so the rest stays readable.
+      expect(segment).not.toBe(id);
+      expect(segment).toMatch(/^_u00[0-9a-f]{2}_/);
+      expect(segment.toLowerCase()).toContain(id.slice(1).toLowerCase());
+    },
+  );
+
+  it.each(['NUL.json', 'CON.txt', 'COM1.v2', 'AUX.a.b', 'nul.CSS', 'LPT9.tar.gz'])(
+    'should escape the reserved device name in %s, whatever extension follows it',
+    (id) => {
+      // Given: Windows matches the device before it looks at the extension, and the first cut of
+      // this rule anchored the name at the end of the string, so every one of these went through.
+
+      // When
+      const segment = pathSegmentOf(id);
+
+      // Then
+      expect(segment).not.toBe(id);
+      expect(segment).toMatch(/^_u00[0-9a-f]{2}_/);
+      expect(segment.endsWith(id.slice(id.indexOf('.')))).toBe(true);
+    },
+  );
+
+  it.each(['CONIN$', 'CONOUT$', 'conin$', 'conout$'])(
+    'should escape the console handle name %s, which the first list left out',
+    (id) => {
+      // Given the id above
+
+      // When
+      const segment = pathSegmentOf(id);
+
+      // Then
+      expect(segment).not.toBe(id);
+      expect(segment).toMatch(/^_u00[0-9a-f]{2}_/);
+    },
+  );
+
+  it.each(['con.', 'NUL.', 'aux.', 'con.json.'])(
+    'should apply both escapes to %s, since Win32 folds the trailing dot away',
+    (id) => {
+      // Given: the two escapes were written as alternatives, so `con` and `con.` both came out as
+      // `_u0063_on` once Win32 stripped the dot, which is one file for two schemas.
+
+      // When
+      const segment = pathSegmentOf(id);
+
+      // Then
+      expect(segment).toMatch(/^_u00[0-9a-f]{2}_/);
+      expect(segment.endsWith('.')).toBe(false);
+      expect(segment).not.toBe(pathSegmentOf(id.slice(0, -1)));
+    },
+  );
+
+  it.each(['console.log', 'Contract', 'Auxiliary', 'nullable.json', 'common.ts', 'conintent'])(
+    'should leave %s alone, since only the whole device name is reserved',
+    (id) => {
+      // Given the id above
+
+      // When
+      const segment = pathSegmentOf(id);
+
+      // Then
+      expect(segment).toBe(id);
+    },
+  );
+
+  it.each([
+    ['a trailing dot', 'Order.'],
+    ['a trailing space', 'Order '],
+  ])('should escape %s, which the Win32 layer strips before storing', (_reason, id) => {
+    // Given the id above
+
+    // When
+    const segment = pathSegmentOf(id);
+
+    // Then
+    expect(segment).not.toBe(id);
+    expect(segment.endsWith('.')).toBe(false);
+    expect(segment.endsWith(' ')).toBe(false);
+    expect(segment.startsWith('Order')).toBe(true);
+  });
+
+  it('should leave a name that merely contains a dot or a space alone', () => {
+    // Given
+    const id = 'Order.Line item';
+
+    // When
+    const segment = pathSegmentOf(id);
+
+    // Then
+    expect(segment).toBe(id);
+  });
+
+  it('should leave an ordinary id identical, per SPEC 16.1', () => {
+    // Given
+    const ids = ['get-orders-id', 'User', 'Order__1a2b3c4d', 'get-v1-refund'];
+
+    // When
+    const segments = ids.map((id) => pathSegmentOf(id));
+
+    // Then
+    expect(segments).toEqual(ids);
+  });
+});

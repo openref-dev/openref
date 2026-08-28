@@ -386,6 +386,9 @@ describe('T025 attack: the same metadata key claimed by two libraries', () => {
   });
 });
 
+/** Ceiling on the flood merge below. A hang catcher; the reason is at the assertion. */
+const FLOOD_HANG_MS = 2000;
+
 describe('T025 attack: a collector that returns an enormous amount', () => {
   it('should not spend the boot merging a list nobody can read', () => {
     // Given a collector reporting fifty thousand guards on one route
@@ -406,10 +409,19 @@ describe('T025 attack: a collector that returns an enormous amount', () => {
     const result = registryOf([flood]).collect(targetOf());
     const elapsed = performance.now() - started;
 
-    // Then, recorded rather than asserted about: what this case exists to catch is the day the
-    // merge becomes quadratic in the length of a list a collector chose
+    // Then. What this case exists to catch is the day the merge becomes quadratic in the length
+    // of a list a collector chose.
+    //
+    // THE ELAPSED BOUND IS A HANG CATCHER AND NOT A BUDGET, AND IT NAMES NO MACHINE ON PURPOSE,
+    // which is what `TX-CLOCK` asks of every elapsed threshold a committed test enforces. The
+    // comment here used to say the time was recorded rather than asserted about, on the line
+    // above an assertion about it. Measured about 21 ms of its 2000 on a workstation, two orders
+    // of magnitude inside, and a quadratic merge over fifty thousand entries would be two and a
+    // half billion operations, so no machine this runs on could bring one under the ceiling.
+    // Telling a latency regression from a slow runner is something elapsed time on unfixed
+    // hardware cannot do, which is why the distance is this wide and stated rather than tuned.
     expect(result?.guards).toHaveLength(50_000);
-    expect(elapsed).toBeLessThan(2000);
+    expect(elapsed).toBeLessThan(FLOOD_HANG_MS);
   });
 });
 

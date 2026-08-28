@@ -7,9 +7,10 @@ Everything is monospace. Every row sits on a 21 px grid. Provenance is a three l
 and reaches a screen reader as text. A bench line across the bottom says what the page weighs.
 
 It is a level 2 theme, per SPEC 10.1: its own layout, all 21 positions of the frozen registry, all
-109 tokens of the design contract in both colour modes, and its own faces. It reads
-`@openref/vue` for the contract and `@openref/core` for the three IR types the contract's props are
-declared in, and it imports nothing else of this project.
+109 tokens of the design contract in both colour modes, and its own faces. It reads `@openref/vue`
+and nothing else of this project: the four IR types the contract's props are declared in came onto
+that surface with `T031-R1`, and the `@openref/core` dependency this package used to carry for them
+came off.
 
 ## Install
 

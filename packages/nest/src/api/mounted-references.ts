@@ -16,7 +16,9 @@
 import { loadDefaultAssets } from '@openref/render';
 import { createReferenceAdapter } from '../http/infrastructure/adapters/reference-adapter.factory';
 import { ReferenceService } from '../reference/application/services/reference.service';
-import { normalizeRoute, referenceRoutes } from '../reference/domain/routes';
+import { normalizeRoute } from '../reference/domain/routes';
+import { admissionFor } from '../visibility/application/services/admission.service';
+import { mountRouteTable } from './route-table';
 import {
   runRuntimePass,
   type RuntimePassResult,
@@ -146,18 +148,32 @@ export class MountedReferences {
       ...(entry.lang === undefined ? {} : { lang: entry.lang }),
       ...(entry.colorScheme === undefined ? {} : { colorScheme: entry.colorScheme }),
       ...(entry.onError === undefined ? {} : { onError: entry.onError }),
+      // Passed on since TX-VIS, which found it missing: `documents` entries are setup options plus
+      // an id and a route, so the proxy option was accepted here and read by nothing. A host that
+      // enabled the proxy on a `forRoot` document got the permanent 403 of a proxy that is off.
+      ...(entry.proxy === undefined ? {} : { proxy: entry.proxy }),
     });
 
-    const adapter = createReferenceAdapter(httpAdapter, {
+    // THE ADMISSION IS BUILT BEFORE THE ADAPTER AND THROWS RATHER THAN WARNS. A guard the container
+    // cannot resolve stops the boot here, per SPEC 19.6, which is the last moment before the route
+    // table exists and therefore the last moment a refusal costs nobody a served page.
+    const admission = admissionFor(
+      `the document "${entry.id}"`,
+      entry,
+      (token) => this.dependencies.moduleRef.get(token, { strict: false }),
+      entry.onError,
+    );
+
+    const adapter = createReferenceAdapter(httpAdapter, admission, {
       ...(entry.nonce === undefined ? {} : { nonce: entry.nonce }),
       ...(entry.onError === undefined ? {} : { onError: entry.onError }),
     });
 
-    const health = this.options.runtime?.health ?? true;
-    for (const { id, pattern } of referenceRoutes(basePath)) {
-      if (id === 'health' && !health) continue;
-      adapter.get(pattern, (request) => service.handle(id, request));
-    }
+    mountRouteTable(adapter, {
+      basePath,
+      health: this.options.runtime?.health ?? true,
+      handle: async (id, request) => service.handle(id, request),
+    });
 
     // `augment` is called by the constructor above, synchronously, so this is defined by the
     // time it is read. It is checked rather than asserted because the alternative is a cast.

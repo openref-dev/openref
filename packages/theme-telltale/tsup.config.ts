@@ -15,7 +15,10 @@ export default defineConfig([
     sourcemap: true,
     clean: true,
     treeshake: true,
-    external: ['vue', '@openref/vue', '@openref/core'],
+    // ONE OPENREF PACKAGE SINCE `T031-R1`. `@openref/core` left this list with the peer
+    // dependency: the four IR types this theme's props are declared in are re-exported by
+    // `@openref/vue`, so no file under `src` names the core package any more.
+    external: ['vue', '@openref/vue'],
     outExtension: ({ format }) => ({ js: format === 'cjs' ? '.cjs' : '.js' }),
   },
   {

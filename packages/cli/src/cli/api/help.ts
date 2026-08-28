@@ -39,7 +39,7 @@ accepted here, per SPEC 17's own command surface.
   --help         print this message
 `;
 
-export const DOCTOR_USAGE = `Usage: openref doctor --from-nest <path> [--fail-on=drift|warn|error] [--json]
+export const DOCTOR_USAGE = `Usage: openref doctor --from-nest <path> [--fail-on=drift|warn|error] [--json] [--fix] [--dry-run]
 
 Boots a NestJS application and reports on documentation health. --from-nest is required:
 doctor compares the specification against the running application, and there is nothing to
@@ -49,6 +49,9 @@ compare a document on disk against itself.
   --fail-on <level>   drift, warn or error; which findings exit 1 rather than 0. Omitted, this
                        command always exits 0 and only reports
   --json              print the versioned machine readable report instead of the text one
+  --fix               write the findings the report classifies as silence into source as new
+                       decorators. Adds only, never alters, and refuses a dirty working tree
+  --dry-run           with --fix, print the same edits and write nothing
   --help              print this message
 `;
 

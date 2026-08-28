@@ -1,4 +1,4 @@
-import type { IRDiffChange, IRDiffReport } from '@openref/core';
+import { plainArtefactText, type IRDiffChange, type IRDiffReport } from '@openref/core';
 
 /**
  * The text rendering of the diff report, in the shape of SPEC 17.1.
@@ -75,6 +75,8 @@ export function renderDiffChange(change: IRDiffChange): string {
       return `CHANGED ${change.subject}`;
     case 'constraints-changed':
       return `CHANGED constraints of ${change.subject}`;
+    case 'operation-unread':
+      return `UNREAD ${change.subject}  declared under a key OpenAPI does not spell that way`;
   }
 }
 
@@ -100,5 +102,5 @@ export function renderDiffReport(report: IRDiffReport): string {
     );
   }
 
-  return sections.length === 0 ? NO_CHANGES_LINE : sections.join('\n\n');
+  return plainArtefactText(sections.length === 0 ? NO_CHANGES_LINE : sections.join('\n\n'));
 }

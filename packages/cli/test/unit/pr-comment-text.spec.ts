@@ -2,6 +2,7 @@ import type { IRDiffChange, IRDiffReport } from '@openref/core';
 import { describe, expect, it } from 'vitest';
 import {
   operationOf,
+  PR_COMMENT_LIMIT,
   PR_COMMENT_MARKER,
   renderPrComment,
   signOf,
@@ -253,5 +254,81 @@ describe('truncateComment', () => {
     expect(cut.length).toBeLessThanOrEqual(300);
     expect(cut).toContain('did not fit in a GitHub comment');
     expect(cut.split('\n').some((line) => line.startsWith('line 0'))).toBe(true);
+  });
+});
+
+/**
+ * The seventh surface `T043`'s task text names: the action against a very large pull request.
+ *
+ * A PULL REQUEST TOUCHING FIVE THOUSAND FILES IS A DIFF WITH THOUSANDS OF CHANGES, and the thing
+ * that breaks is not the diff, it is the comment: GitHub refuses a body over
+ * {@link PR_COMMENT_LIMIT}, so a run that produced one would fail at the API after doing all the
+ * work. Measured here rather than asserted, and the cut is required to say that it cut.
+ */
+describe('renderPrComment, a pull request far larger than a comment may be', () => {
+  /** A report with `count` breaking changes and as many non breaking ones. */
+  const hugeReport = (count: number): IRDiffReport => ({
+    breaking: Array.from({ length: count }, (_, index) => ({
+      kind: 'operation-removed' as const,
+      classification: 'breaking' as const,
+      subject: `DELETE /service-${String(index)}/resources/{resourceId}/members`,
+    })),
+    nonBreaking: Array.from({ length: count }, (_, index) => ({
+      kind: 'operation-added' as const,
+      classification: 'non-breaking' as const,
+      subject: `POST /service-${String(index)}/resources/{resourceId}/members`,
+    })),
+  });
+
+  it('should stay inside the limit and say that it cut, for a diff of five thousand changes', () => {
+    // Given
+    const report = hugeReport(2500);
+
+    // Then, before the assertion: the untruncated body really would be over the limit.
+    expect(report.breaking.length + report.nonBreaking.length).toBe(5000);
+
+    // When
+    const body = renderPrComment(report, {});
+
+    // Then
+    expect(body.length).toBeLessThanOrEqual(PR_COMMENT_LIMIT);
+    expect(body).toContain(PR_COMMENT_MARKER);
+    expect(body).toMatch(/more|truncat|cut/i);
+  });
+
+  it('should still count every change in the headline, not only the ones it printed', () => {
+    // Given: the number a reader acts on must be the diff's, not the comment's.
+    const report = hugeReport(2500);
+
+    // When
+    const body = renderPrComment(report, {});
+
+    // Then
+    expect(body).toContain('2500 breaking changes detected');
+  });
+
+  it('should keep the preview address, which a reader needs most when the diff is huge', () => {
+    // Given
+    const report = hugeReport(2500);
+
+    // When
+    const body = renderPrComment(report, { previewUrl: 'https://preview.example.com/pr-1' });
+
+    // Then
+    expect(body.length).toBeLessThanOrEqual(PR_COMMENT_LIMIT);
+    expect(body).toContain('Preview: https://preview.example.com/pr-1');
+    expect(body).toContain('2500 breaking changes detected');
+  });
+
+  it('should leave an ordinary comment untouched, so the cut is not always on', () => {
+    // Given
+    const report = hugeReport(2);
+
+    // When
+    const body = renderPrComment(report, {});
+
+    // Then
+    expect(body.length).toBeLessThan(2000);
+    expect(body).toContain('2 breaking changes detected');
   });
 });

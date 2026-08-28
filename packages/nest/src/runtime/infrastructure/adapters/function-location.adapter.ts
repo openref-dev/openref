@@ -42,6 +42,15 @@ export interface FunctionLocation {
   readonly file: string;
   /** One based line, absent when only the file could be resolved. */
   readonly line?: number;
+  /**
+   * One based column, read from the source map rather than defaulted, per SPEC 6.3 and `T018-R1`.
+   *
+   * IT IS REPORTED HERE AND KEPT ONLY BEHIND THE OPT IN, which is the collector's decision and
+   * not this file's. V8 and the map both answer with a column whenever they answer with a line,
+   * so refusing to read it here would mean the fact was thrown away in the one place that had it,
+   * which is what this entry reopened `T018` to stop doing with the absolute path.
+   */
+  readonly column?: number;
 }
 
 /** The answer, or why there is none. The two are never both present and never both absent. */
@@ -302,8 +311,11 @@ function resolve(script: ParsedScript, raw: RawLocation): FunctionLocationResult
 
   if (script.sourceMapURL === '') {
     // No map, so the script is the source. This is `ts-node`, `tsx`, plain JavaScript, and any
-    // build that emits no maps at all.
-    return { location: { file: compiled, line: raw.lineNumber + 1 } };
+    // build that emits no maps at all. Both axes of `[[FunctionLocation]]` are zero based and both
+    // are true of this file, so the column comes from the same place the line does.
+    return {
+      location: { file: compiled, line: raw.lineNumber + 1, column: raw.columnNumber + 1 },
+    };
   }
 
   const map = mapFor(script);
@@ -331,7 +343,18 @@ function resolve(script: ParsedScript, raw: RawLocation): FunctionLocationResult
     };
   }
 
-  return { location: { file: original, line: entry.originalLine + 1 } };
+  // THE COLUMN IS THE MAP'S OR IT IS ABSENT, per SPEC 6.3. A map that carries a line and no column
+  // is unusual and it is not an invitation to write 1: an editor asked to open column 1 puts the
+  // caret somewhere the map never claimed, which is the class of guess this package refuses.
+  const column = typeof entry.originalColumn === 'number' ? entry.originalColumn + 1 : undefined;
+
+  return {
+    location: {
+      file: original,
+      line: entry.originalLine + 1,
+      ...(column === undefined ? {} : { column }),
+    },
+  };
 }
 
 /** A parsed source map and the URL its `sources` are relative to. */

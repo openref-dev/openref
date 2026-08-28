@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { IRServer } from '@openref/core';
-import { planUpstreams, UPSTREAM_EXPANSION_LIMIT } from '../../src/index';
+import { planUpstreams, UPSTREAM_EXPANSION_LIMIT, UPSTREAM_TOTAL_LIMIT } from '../../src/index';
 
 describe('planUpstreams, the pinning of SPEC 16.2', () => {
   it('should pin an absolute http(s) server as one upstream, trailing slash normalized', () => {
@@ -205,5 +205,172 @@ describe('planUpstreams, the pinning of SPEC 16.2', () => {
     // Then
     expect(plan.upstreams).toEqual(['https://api.example.com/v1']);
     expect(JSON.stringify(plan)).not.toContain('secret');
+  });
+});
+
+/**
+ * The `T043` finding that the per template cap does not bound what a document can generate.
+ *
+ * MEASURED BEFORE THE FIX: forty servers, each with a fifty value enum and so each under
+ * `UPSTREAM_EXPANSION_LIMIT`, pinned two thousand upstreams; a thousand such servers pinned fifty
+ * thousand and produced a 1.69 MB Cloudflare Pages Function from a 379 KB specification, over
+ * that platform's script limit, with the build reporting success.
+ */
+describe('planUpstreams, the total a document may pin', () => {
+  /** One server whose enum expands to `count` upstreams, all distinct. */
+  const templateOf = (zone: number, count: number): IRServer => ({
+    url: `https://{host}.z${String(zone)}.example.com`,
+    variables: {
+      host: {
+        default: 'h0',
+        enum: Array.from({ length: count }, (_, index) => `h${String(index)}`),
+      },
+    },
+  });
+
+  it('should pin nothing and name the number when the templates multiply past the total', () => {
+    // Given: forty templates of fifty, every one of them under the per template cap.
+    const servers = Array.from({ length: 40 }, (_, zone) => templateOf(zone, 50));
+
+    // When
+    const plan = planUpstreams(servers);
+
+    // Then
+    expect(plan.upstreams).toEqual([]);
+    expect(plan.warnings.join('')).toContain(`more than ${String(UPSTREAM_TOTAL_LIMIT)}`);
+  });
+
+  it('should pin a document that stays under the total, so the cap is about the total', () => {
+    // Given: nine templates of fifty, which is 450 and under the limit.
+    const servers = Array.from({ length: 9 }, (_, zone) => templateOf(zone, 50));
+
+    // When
+    const plan = planUpstreams(servers);
+
+    // Then
+    expect(plan.upstreams).toHaveLength(450);
+    expect(plan.warnings).toEqual([]);
+  });
+
+  it('should never materialise more than the limit, whatever the product would have been', () => {
+    // Given: a product of 100000, two hundred times the limit. The first version of this case
+    // asserted a duration against a budget set at about twice the mutated figure, so it stayed
+    // green with the guard removed on a machine that was merely fast. The property is the count,
+    // not the clock, and the plan now reports it.
+    const servers = Array.from({ length: 2000 }, (_, zone) => templateOf(zone, 50));
+
+    // When
+    const plan = planUpstreams(servers);
+
+    // Then
+    expect(plan.upstreams).toEqual([]);
+    expect(plan.materialized).toBeLessThanOrEqual(UPSTREAM_TOTAL_LIMIT + 1);
+  });
+
+  it('should report what it materialised for a document it accepts, so the count is not only a refusal', () => {
+    // Given
+    const servers = Array.from({ length: 9 }, (_, zone) => templateOf(zone, 50));
+
+    // When
+    const plan = planUpstreams(servers);
+
+    // Then
+    expect(plan.materialized).toBe(450);
+    expect(plan.upstreams).toHaveLength(450);
+  });
+
+  it('should still pin the two hundred distinct upstreams the adversarial task names', () => {
+    // Given
+    const servers = Array.from({ length: 200 }, (_, index) => ({
+      url: `https://api${String(index)}.example.com/v1`,
+    }));
+
+    // When
+    const plan = planUpstreams(servers);
+
+    // Then
+    expect(plan.upstreams).toHaveLength(200);
+    expect(plan.warnings).toEqual([]);
+  });
+});
+
+/**
+ * The verification finding of `T043`: a generated gateway aimed at the machine it runs on.
+ *
+ * SPEC 16.2 SAID THE SSRF CLASS DISAPPEARS BY CONSTRUCTION, and it does, for the client: a
+ * reader's request cannot choose a host. The host is chosen by `servers[]` of a document this
+ * project did not write, and nothing checked it. Measured: a specification naming three cloud
+ * metadata endpoints pinned eight upstreams and produced eight rules with no warning at all.
+ */
+describe('planUpstreams, a server that names infrastructure rather than an API', () => {
+  it.each([
+    ['IPv4 link local, where cloud metadata answers', 'http://169.254.169.254/latest/meta-data'],
+    ['a metadata host by name', 'http://metadata.google.internal/computeMetadata/v1'],
+    ['another metadata address', 'http://100.100.100.200/latest'],
+    ['IPv6 link local', 'http://[fe80::1]/x'],
+    ['IPv6 unique local', 'http://[fd00::1]/x'],
+    ['loopback by name', 'http://localhost:9000/x'],
+    ['loopback by address', 'http://127.0.0.1:9000/x'],
+  ])('should pin nothing for %s, and say why', (_reason, url) => {
+    // Given the server above
+
+    // When
+    const plan = planUpstreams([{ url }]);
+
+    // Then
+    expect(plan.upstreams).toEqual([]);
+    expect(plan.warnings).toHaveLength(1);
+    expect(plan.warnings[0]).toContain('public gateway to infrastructure');
+  });
+
+  it('should keep pinning the ordinary servers of a document that also names one', () => {
+    // Given: a skip is per server, so one hostile entry does not disarm the whole proxy.
+    const servers = [
+      { url: 'http://169.254.169.254/latest' },
+      { url: 'https://api.example.com/v1' },
+    ];
+
+    // When
+    const plan = planUpstreams(servers);
+
+    // Then
+    expect(plan.upstreams).toEqual(['https://api.example.com/v1']);
+    expect(plan.warnings).toHaveLength(1);
+  });
+});
+
+/**
+ * The task's own bullet about an upstream that is an IP address, a port and a path.
+ *
+ * DRIVEN BY HAND DURING THE PASS AND PINNED HERE, because a measured negative nobody committed is
+ * not evidence: all four spellings pinned correctly and nothing would have said so again.
+ */
+describe('planUpstreams, an upstream that is an address rather than a name', () => {
+  it.each([
+    ['a public IPv4 address', 'https://203.0.113.7/internal', 'https://203.0.113.7/internal'],
+    [
+      'an address with a port and a path',
+      'http://198.51.100.5:8443/edge/api',
+      'http://198.51.100.5:8443/edge/api',
+    ],
+    [
+      'an IPv6 address with a port',
+      'https://[2001:db8::1]:9443/v6',
+      'https://[2001:db8::1]:9443/v6',
+    ],
+    [
+      'a name with a port and a path',
+      'https://api.example.com:8443/v1',
+      'https://api.example.com:8443/v1',
+    ],
+  ])('should pin %s exactly as written', (_reason, url, expected) => {
+    // Given the server above
+
+    // When
+    const plan = planUpstreams([{ url }]);
+
+    // Then
+    expect(plan.upstreams).toEqual([expected]);
+    expect(plan.warnings).toEqual([]);
   });
 });

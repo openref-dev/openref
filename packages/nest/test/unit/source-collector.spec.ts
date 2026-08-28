@@ -3,7 +3,10 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { expandSourceLink, type IRDocument, type IROperation } from '@openref/core';
 import { runRuntimePass } from '../../src/runtime/application/services/runtime-pass.service';
-import { sourceCollector } from '../../src/runtime/infrastructure/collectors/source.collector';
+import {
+  sourceCollector,
+  type SourceCollectorOptions,
+} from '../../src/runtime/infrastructure/collectors/source.collector';
 import { closeFunctionLocator } from '../../src/runtime/infrastructure/adapters/function-location.adapter';
 import type { FunctionLocationResult } from '../../src/runtime/infrastructure/adapters/function-location.adapter';
 import { NEST_ROUTE_METADATA } from '../../src/shared/types/nest-surface';
@@ -167,9 +170,13 @@ function findInherited(prototype: object, name: string): unknown {
 function sourcesOf(
   specs: readonly RouteSpec[],
   locate?: (handler: HandlerLike) => FunctionLocationResult,
+  options: Omit<SourceCollectorOptions, 'locate'> = {},
 ): Map<string, IROperation['runtime']> {
   const built = harness(specs);
-  const collector = sourceCollector(locate === undefined ? {} : { locate });
+  const collector = sourceCollector({
+    ...options,
+    ...(locate === undefined ? {} : { locate }),
+  });
 
   const result = runRuntimePass(built.document, {
     collectors: [collector],
@@ -343,6 +350,118 @@ describe('sourceCollector', () => {
     const source = sources.get('OrdersController_findAll')?.source;
     expect(source?.file).toBeUndefined();
     expect(source?.controller).toBe('OrdersController');
+  });
+
+  it('should leave the machine out of the document unless the host asked for it', () => {
+    // Given the default registration, which is what a reference served to a team is built with.
+    // The locator has the absolute path and the column in hand for every one of these.
+    const specs: RouteSpec[] = [
+      { controller: OrdersController, prefix: 'orders', handlers: [{ name: 'findAll', path: '' }] },
+    ];
+
+    // When
+    const sources = sourcesOf(specs, () => ({
+      location: { file: TRACKED_FILE, line: 7, column: 5 },
+    }));
+
+    // Then the repository relative path is there and nothing about this machine is
+    const source = sources.get('OrdersController_findAll')?.source;
+    expect(source?.file).toBe(TRACKED_RELATIVE);
+    expect(source?.line).toBe(7);
+    expect(source?.absolutePath).toBeUndefined();
+    expect(source?.column).toBeUndefined();
+  });
+
+  it('should record the absolute path and the column when the host opts in', () => {
+    // Given the opt in of SPEC 6.3, which is the only thing that admits either field.
+    const specs: RouteSpec[] = [
+      { controller: OrdersController, prefix: 'orders', handlers: [{ name: 'findAll', path: '' }] },
+    ];
+
+    // When
+    const sources = sourcesOf(
+      specs,
+      () => ({ location: { file: TRACKED_FILE, line: 7, column: 5 } }),
+      { absolutePath: true },
+    );
+
+    // Then both halves are there: the forge path for a reader elsewhere and the machine path for
+    // the reader who built it
+    const source = sources.get('OrdersController_findAll')?.source;
+    expect(source?.file).toBe(TRACKED_RELATIVE);
+    expect(source?.absolutePath).toBe(TRACKED_FILE);
+    expect(source?.column).toBe(5);
+  });
+
+  it('should keep the position when there is no repository, since only the forge link fails', () => {
+    // Given a handler in a directory with no `.git` above it, which is a container image built
+    // from a copied tree and a checkout that is not a repository at all. This is the branch that
+    // used to return the class and the method and throw the located position away.
+    const specs: RouteSpec[] = [
+      { controller: OrdersController, prefix: 'orders', handlers: [{ name: 'findAll', path: '' }] },
+    ];
+
+    // When
+    const sources = sourcesOf(
+      specs,
+      () => ({ location: { file: '/elsewhere/src/a.ts', line: 4, column: 9 } }),
+      { absolutePath: true },
+    );
+
+    // Then there is no `{file}` to build a forge link from, and the editor form has everything it
+    // needs
+    const source = sources.get('OrdersController_findAll')?.source;
+    expect(source?.file).toBeUndefined();
+    expect(source?.absolutePath).toBe('/elsewhere/src/a.ts');
+    expect(source?.line).toBe(4);
+    expect(source?.column).toBe(9);
+
+    // And the editor link expands from those facts alone, with no revision passed at all
+    expect(
+      expandSourceLink(
+        'vscode://file/{absolutePath}:{line}:{column}',
+        source ?? { controller: '', handler: '' },
+      ).url,
+    ).toBe('vscode://file/elsewhere/src/a.ts:4:9');
+  });
+
+  it('should still say nothing about the machine with no repository and no opt in', () => {
+    // Given the same directory with the default registration. A PROOF OF ABSENCE ASSERTS PRESENCE
+    // FIRST: the case above shows the locator hands over all three fields here.
+    const specs: RouteSpec[] = [
+      { controller: OrdersController, prefix: 'orders', handlers: [{ name: 'findAll', path: '' }] },
+    ];
+
+    // When
+    const sources = sourcesOf(specs, () => ({
+      location: { file: '/elsewhere/src/a.ts', line: 4, column: 9 },
+    }));
+
+    // Then the node names the class and the method and nothing else, which is what it did before
+    // this option existed
+    const source = sources.get('OrdersController_findAll')?.source;
+    expect(source).toEqual({ controller: 'OrdersController', handler: 'findAll' });
+  });
+
+  it('should keep the position for a handler outside the configured repository root', () => {
+    // Given a host that named its own root, and a handler in a linked package beside it. The forge
+    // link would leave that repository's tree; the editor link opens the file it names.
+    const specs: RouteSpec[] = [
+      { controller: OrdersController, prefix: 'orders', handlers: [{ name: 'findAll', path: '' }] },
+    ];
+
+    // When
+    const sources = sourcesOf(
+      specs,
+      () => ({ location: { file: '/elsewhere/src/a.ts', line: 4, column: 9 } }),
+      { absolutePath: true, repositoryRoot: '/srv/app' },
+    );
+
+    // Then
+    const source = sources.get('OrdersController_findAll')?.source;
+    expect(source?.file).toBeUndefined();
+    expect(source?.absolutePath).toBe('/elsewhere/src/a.ts');
+    expect(source?.line).toBe(4);
   });
 
   it('should keep the reason for every source it could not resolve', () => {

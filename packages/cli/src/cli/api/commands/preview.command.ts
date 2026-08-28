@@ -1,7 +1,7 @@
 import { runWithDocument } from '../../application/services/run-with-document.service';
 import type { CommandContext, CommandOutcome } from '../../domain/command.types';
 import { EXIT_CODE } from '../../domain/exit-code.constants';
-import { parseArgs, stringFlag } from '../argv';
+import { parseArgs, stringFlag, unknownFlagRefusal } from '../argv';
 import { PREVIEW_USAGE } from '../help';
 import { describeDocument } from './document-summary';
 
@@ -12,11 +12,17 @@ import { describeDocument } from './document-summary';
  * its own in BUILD.md; this task's job is the source it would serve.
  */
 export async function runPreview(context: CommandContext): Promise<CommandOutcome> {
-  const { flags } = parseArgs(context.args, ['spec']);
+  const { flags, unknown } = parseArgs(context.args, ['spec'], ['watch']);
 
   if (flags.has('help')) {
     context.stdout(PREVIEW_USAGE);
     return { exitCode: EXIT_CODE.SUCCESS };
+  }
+
+  const refusal = unknownFlagRefusal('preview', unknown);
+  if (refusal !== undefined) {
+    context.stderr(`${refusal}\n\n${PREVIEW_USAGE}`);
+    return { exitCode: EXIT_CODE.USAGE_ERROR };
   }
 
   const spec = stringFlag(flags, 'spec');

@@ -323,4 +323,20 @@ describe('buildDoctorReport', () => {
       JSON.parse(first);
     }).not.toThrow();
   });
+  it('should carry the assertion a rule named, so a fix mode never has to read the suggestion', () => {
+    // Given
+    const unnamed = operation({
+      operationId: 'OrdersController_list',
+      rawOperationId: 'OrdersController_list',
+      runtime: { source: { controller: 'OrdersController', handler: 'list' } },
+    });
+    const document = documentOf([unnamed]);
+
+    // When
+    const report = buildDoctorReport(document);
+    const finding = report.findings.find((entry) => entry.rule === 'missing-operation-id');
+
+    // Then
+    expect(finding?.assertion).toEqual({ kind: 'operation-id', operationId: 'list' });
+  });
 });

@@ -27,7 +27,9 @@
 import { loadDefaultAssets } from '@openref/render';
 import { createReferenceAdapter } from '../http/infrastructure/adapters/reference-adapter.factory';
 import { ReferenceService } from '../reference/application/services/reference.service';
-import { normalizeRoute, referenceRoutes } from '../reference/domain/routes';
+import { normalizeRoute } from '../reference/domain/routes';
+import { admissionFor } from '../visibility/application/services/admission.service';
+import { mountRouteTable } from './route-table';
 import { isNestApplication } from '../shared/types/nest-surface';
 import type { DynamicModuleLike } from '../shared/types/nest-surface';
 import type { DynamicModule } from '@nestjs/common';
@@ -119,14 +121,27 @@ export class OpenRefModule {
       ...(options.proxy === undefined ? {} : { proxy: options.proxy }),
     });
 
-    const adapter = createReferenceAdapter(app.getHttpAdapter(), {
+    // The guard of SPEC 19.6 lands on this entry point too, and SPEC 13.2 says why: the document a
+    // host builds with `SwaggerModule` does not exist until after `NestFactory.create` has
+    // returned, so `setup` is the only way that application mounts anything. A visibility that
+    // existed only on `documents` would be a reference the ordinary NestJS application cannot close.
+    const admission = admissionFor(
+      `the reference mounted on "${route}"`,
+      options,
+      (token) => guardResolverFor(app)(token),
+      options.onError,
+    );
+
+    const adapter = createReferenceAdapter(app.getHttpAdapter(), admission, {
       ...(options.nonce === undefined ? {} : { nonce: options.nonce }),
       ...(options.onError === undefined ? {} : { onError: options.onError }),
     });
 
-    for (const { id, pattern, method } of referenceRoutes(basePath)) {
-      adapter[method](pattern, (request) => service.handle(id, request));
-    }
+    mountRouteTable(adapter, {
+      basePath,
+      health: true,
+      handle: async (id, request) => service.handle(id, request),
+    });
 
     // Recorded so a host that mounted through `setup` can still read the pass by document id,
     // and so `all()` answers for every reference this process serves rather than for the subset
@@ -230,6 +245,31 @@ export class OpenRefModule {
  */
 function asDynamicModule(dynamic: DynamicModuleLike): DynamicModule {
   return dynamic as unknown as DynamicModule;
+}
+
+/**
+ * How `setup` resolves a guard class, which is the application itself.
+ *
+ * IT THROWS RATHER THAN ANSWERING NOTHING WHEN THE APPLICATION CANNOT BE ASKED. `get` is optional
+ * on `NestApplicationLike`, deliberately, because `setup` works perfectly well without it; a mount
+ * that names a guard class does not, and the caller of this turns a throw into a refusal at boot
+ * naming the guard, which is the closed direction.
+ *
+ * @param app - The application `setup` was given
+ * @returns A resolver over that application's container
+ */
+function guardResolverFor(app: NestApplicationLike): (token: unknown) => unknown {
+  return (token: unknown): unknown => {
+    if (typeof app.get !== 'function') {
+      throw new InvalidOptionsError(
+        'this application cannot be asked for a provider, so a guard class cannot be resolved. ' +
+          'Pass a guard instance instead',
+        ErrorCode.CONFIG_INVALID_OPTIONS,
+      );
+    }
+
+    return app.get(token, { strict: false });
+  };
 }
 
 /**

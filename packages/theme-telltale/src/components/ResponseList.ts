@@ -3,7 +3,7 @@ import { defineComponent, h, type PropType, type VNode } from 'vue';
 import SchemaTree from './SchemaTree';
 import StateNotice from './StateNotice';
 import { mediaBlock } from './media';
-import type { IRSchema } from '@openref/core';
+import type { IRSchema } from '@openref/vue';
 
 /**
  * Responses, one strip per status code, on the same grid as everything else.

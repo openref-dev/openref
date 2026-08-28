@@ -204,8 +204,12 @@ describe('the published tarball of the second theme', () => {
     // When
     const boundary = readFileSync(join(root, 'THEME-BOUNDARY.md'), 'utf8');
 
-    // Then
-    expect(boundary).toContain('Twenty five class names the theme did not write');
+    // Then. The count is matched as a number rather than as the word it was written as, because
+    // this case is about the finding travelling in the tarball and not about its size: the size
+    // moved from 25 to 37 across four tasks and this assertion was the last thing still saying
+    // twenty five. Which number is correct is held by `theme-boundary.spec.ts`, against the
+    // measurement, which is the only place that can know it.
+    expect(boundary).toMatch(/^## 1\. \d+ class names the theme did not write/m);
     expect(readdirSync(root)).toContain('README.md');
   });
 

@@ -85,6 +85,7 @@ export type IRDiffChangeKind =
   | 'server-added'
   | 'server-changed'
   | 'operation-security-changed'
+  | 'operation-unread'
   | 'constraints-changed';
 
 /** One reported change, self contained: a consumer renders it without loading either document. */
@@ -140,6 +141,7 @@ const KIND_ORDER: readonly IRDiffChangeKind[] = [
   'server-added',
   'server-changed',
   'operation-security-changed',
+  'operation-unread',
   'constraints-changed',
 ];
 
@@ -891,6 +893,30 @@ function operationsOf(document: IRDocument): readonly IROperation[] {
   return operations;
 }
 
+/**
+ * The matching keys of the operations a document declares and this normalizer would not read.
+ *
+ * SO A KEY THAT CHANGED CASE IS NOT A DELETION, per SPEC 7.1's `operation-key-unread` as added by
+ * `T043`. Before it, renaming `get` to `GET` dropped the operation out of the IR and `diff` called
+ * it a removed operation, which failed the gate on a breaking change nobody made: the contract on
+ * the wire did not move at all, one key was misspelled. The defect has its own rule, its own code
+ * and its own `lint` failure, and this is where the diff stops reporting it as a second thing it
+ * is not.
+ *
+ * THE EXACT PATH, NOT THE MATCHING KEY. Operations pair on the path with template variable names
+ * erased, so `/users/{id}` and `/users/{name}` share one bucket; keying this on the same erased
+ * form would have let one misspelled key downgrade every unmatched removal in that bucket, hiding
+ * a real deletion behind a typo in its sibling. Residual, recorded in SPEC 17.1: renaming a
+ * template variable and changing the key's case in one commit still reads as a removal, which is
+ * the safe direction to fail in.
+ *
+ * @param document - Either version
+ * @returns The keys, as `<method> <path>` exactly as the document wrote the path
+ */
+function unreadKeysOf(document: IRDocument): ReadonlySet<string> {
+  return new Set((document.unreadKeys ?? []).map((entry) => `${entry.method} ${entry.path}`));
+}
+
 /** Groups operations by their matching key. */
 function bucketByKey(operations: readonly IROperation[]): Map<string, IROperation[]> {
   const buckets = new Map<string, IROperation[]>();
@@ -912,6 +938,7 @@ function bucketByKey(operations: readonly IROperation[]): Map<string, IROperatio
 function diffOperations(context: DiffContext): void {
   const oldBuckets = bucketByKey(operationsOf(context.oldDocument));
   const newBuckets = bucketByKey(operationsOf(context.newDocument));
+  const newUnread = unreadKeysOf(context.newDocument);
   const keys = [...new Set([...oldBuckets.keys(), ...newBuckets.keys()])].sort();
 
   for (const key of keys) {
@@ -943,6 +970,18 @@ function diffOperations(context: DiffContext): void {
     }
 
     for (const older of unmatchedOld) {
+      // NOT REMOVED, JUST UNREADABLE. The new version still declares this operation; it declares
+      // it under a key OpenAPI does not spell that way, so nothing read it. Reported so the run
+      // is not silent about a real edit, and non breaking because the wire contract did not move.
+      if (newUnread.has(`${older.method} ${older.path}`)) {
+        emit(context, {
+          kind: 'operation-unread',
+          classification: 'non-breaking',
+          subject: operationSubject(older),
+        });
+        continue;
+      }
+
       emit(context, {
         kind: 'operation-removed',
         classification: 'breaking',

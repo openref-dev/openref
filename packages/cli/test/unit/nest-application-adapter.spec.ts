@@ -1,7 +1,7 @@
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { ApplicationBootError, ShutdownTimeoutError } from '@openref/core';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { loadFromNestApplication } from '../../src/cli/infrastructure/adapters/nest-application.adapter';
 
 const FIXTURES = fileURLToPath(new URL('../mocks/from-nest/', import.meta.url));
@@ -113,14 +113,39 @@ describe('loadFromNestApplication', () => {
   });
 
   it('should not hold the process open once a fast close has already won the race', async () => {
-    // Given
-    const loaded = await loadFromNestApplication(resolve(FIXTURES, 'succeeds.mjs'), 20);
-    const started = Date.now();
+    // Given fake timers, so the question is which timers are left rather than how long anything
+    // took. THIS CASE USED TO ASSERT THAT `close` RETURNED IN UNDER 20 MS, AND THAT WAS WRONG
+    // TWICE, which is why it is written this way and why the change is recorded in SPEC 20 under
+    // `TX-CLOCK`. It was an elapsed threshold on unfixed hardware, 20 ms against a 20 ms timeout,
+    // which is neither a recorded machine nor a hang catcher loose by an order of magnitude. And
+    // it did not prove its own title: a timer that is never cleared holds the event loop open
+    // while `close` still returns at once, so the clock reading was consistent with the defect
+    // it was meant to exclude. What holds the process open is a pending timer, so a pending
+    // timer is what is counted.
+    vi.useFakeTimers();
 
-    // When
-    await loaded.close();
+    try {
+      // Given the timer is really armed, asserted before anything is asserted absent: a close
+      // that never settles leaves it pending, and a count of zero at the end would otherwise be
+      // satisfied by a `close` that never armed one at all.
+      const hanging = await loadFromNestApplication(resolve(FIXTURES, 'hangs-on-close.mjs'), 20);
+      // The expectation is attached before the clock moves, not after: a rejection with nothing
+      // watching it yet is an unhandled rejection, which vitest reports as an error beside a
+      // passing run.
+      const timedOut = expect(hanging.close()).rejects.toBeInstanceOf(ShutdownTimeoutError);
+      const armed = vi.getTimerCount();
+      await vi.advanceTimersByTimeAsync(20);
+      await timedOut;
 
-    // Then
-    expect(Date.now() - started).toBeLessThan(20);
+      // When a close that settles at once wins the same race
+      const loaded = await loadFromNestApplication(resolve(FIXTURES, 'succeeds.mjs'), 20);
+      await loaded.close();
+
+      // Then
+      expect(armed).toBe(1);
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

@@ -15,10 +15,18 @@ import type {
   OpenRefThemeOptions,
   ProxyOptions,
 } from '../reference/application/services/reference.service';
+import type { OpenRefVisibilityOptions } from '../visibility/domain/visibility';
 import type { AssetPlan, IRenderCache } from '@openref/render';
 
-/** Everything `setup` accepts. Only `document` is required, per SPEC 13.1. */
-export interface OpenRefSetupOptions {
+/**
+ * Everything `setup` accepts. Only `document` is required, per SPEC 13.1.
+ *
+ * IT EXTENDS THE VISIBILITY PAIR SINCE `TX-VIS`, AND THAT IS WHERE BOTH ENTRY POINTS GET IT. An
+ * entry of `documents` is these options plus an id and a route, so declaring `visibility` and
+ * `guard` here puts them on both forms at once and makes it impossible for one of the two to gain a
+ * security option the other quietly lacks. SPEC 13.2 records why `setup` needs them at all.
+ */
+export interface OpenRefSetupOptions extends OpenRefVisibilityOptions {
   /** The OpenAPI document, as the object `SwaggerModule.createDocument` returns, or as text. */
   readonly document: unknown;
   /**

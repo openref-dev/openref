@@ -22,6 +22,14 @@
  * Recorded here rather than worked around: the boundary problem this file documents is now
  * measurably worse, and the fix is for the link builders to be published rather than copied.
  *
+ * AND IT GREW AGAIN AT T043, WHICH THIS FILE MISSED FOR A FORTNIGHT. The renderer added two whole
+ * name rules beside the character rule: a reserved Windows device name is escaped on its first
+ * character, and a name ending in a dot or a space has that last character escaped, because Win32
+ * strips it and merges two pages into one file. This transcription had neither until `T031-R1`
+ * measured it, so every link this theme drew to a schema called `CON`, `NUL` or `Order.` pointed
+ * at an address the server does not serve. Nothing went red, which is the point of the finding:
+ * the case that exists to catch exactly this compared one of the three rules.
+ *
  * It is not worked around by importing the renderer. See `THEME-BOUNDARY.md`.
  */
 
@@ -38,16 +46,42 @@ const UNSAFE_SEGMENT_CHARACTER =
 /** A literal underscore that would read as one of the renderer's own escapes. */
 const ESCAPE_LOOKALIKE = /_(?=u[0-9a-f]{1,6}_)/g;
 
-/** The path segment of one id, transcribed from `pathSegmentOf`. */
+/**
+ * Names Windows refuses whatever extension follows them, transcribed from the renderer.
+ *
+ * A whole name rule and not a character one, which is why it is a separate pattern: a schema
+ * called `CON` writes nowhere on Windows and `NUL` writes to the null device, so the static build
+ * reports the page and the reader gets a 404 or an empty file.
+ */
+const RESERVED_DEVICE_NAME =
+  /^(conin\$|conout\$|con|prn|aux|nul|com[1-9\u00b9\u00b2\u00b3]|lpt[1-9\u00b9\u00b2\u00b3])(\..*)?$/i;
+
+/** The last character Win32 strips rather than storing, transcribed from the renderer. */
+const TRIMMED_TAIL = /[. ]$/;
+
+/** One character as the renderer escapes it. */
+function escapeSegmentCharacter(character: string): string {
+  const codePoint = character.codePointAt(0) ?? 0;
+  return `_u${codePoint.toString(16).padStart(4, '0')}_`;
+}
+
+/** The path segment of one id, transcribed from `pathSegmentOf`: one character rule and two name rules. */
 export function pathSegmentOf(id: string): string {
   const guarded = id.replace(ESCAPE_LOOKALIKE, '_u005f_');
-  const escaped = guarded.replace(UNSAFE_SEGMENT_CHARACTER, (character) => {
-    const codePoint = character.codePointAt(0) ?? 0;
-    return `_u${codePoint.toString(16).padStart(4, '0')}_`;
-  });
+  let escaped = guarded.replace(UNSAFE_SEGMENT_CHARACTER, escapeSegmentCharacter);
 
   if (escaped === '.') return '_u002e_';
   if (escaped === '..') return '_u002e__u002e_';
+
+  // BOTH RULES, NEVER ONE OF THE TWO, for the reason the renderer states: `con` and `con.` would
+  // otherwise land in one file, the trailing dot having been stripped by Win32.
+  if (RESERVED_DEVICE_NAME.test(escaped)) {
+    escaped = `${escapeSegmentCharacter(escaped)}${escaped.slice(1)}`;
+  }
+  if (TRIMMED_TAIL.test(escaped)) {
+    escaped = `${escaped.slice(0, -1)}${escapeSegmentCharacter(escaped.slice(-1))}`;
+  }
+
   return escaped;
 }
 

@@ -18,7 +18,7 @@
  */
 
 import { createHash } from 'node:crypto';
-import { ErrorCode, InvalidOptionsError } from '@openref/core';
+import { caseFoldForFilesystem, ErrorCode, InvalidOptionsError } from '@openref/core';
 
 /** Number of hexadecimal characters of the digest that appear in a served name. */
 export const DIGEST_LENGTH = 16;
@@ -391,7 +391,54 @@ export function buildAssetCatalog(sources: readonly AssetSource[]): AssetCatalog
     pending = pending.filter((source) => !ready.includes(source));
   }
 
+  refuseCollidingServedNames(assets);
+
   const byServedName = new Map(assets.map((asset) => [asset.servedName, asset]));
 
   return { assets, byServedName, byName };
+}
+
+/**
+ * Refuses two assets a filesystem or a request would not tell apart.
+ *
+ * THERE WAS NO CHECK HERE AT ALL, found by `T043`. A served name carries sixteen hexadecimal
+ * characters of the digest, which is sixty four bits, and `byServedName` is a `Map`: two assets
+ * arriving at one served name would have left the second silently overwriting the first, both
+ * written into the asset directory with the second winning, and a page linking to the first would
+ * have received the second's bytes under a name served `immutable` for a year. The duplicate disk
+ * name above was checked; the name that is actually requested was not.
+ *
+ * CASE AND NFC FOLDING, NOT ONLY EQUALITY, and that half is reachable today without any digest
+ * collision at all: two sources named `Theme.css` and `theme.css` with the same bytes get the same
+ * digest and so two served names that APFS and NTFS store as one file. Measured: the catalog
+ * reported three distinct served names for a directory that would hold two.
+ *
+ * THE FOLD IS `@openref/core`'s, SHARED WITH THE PAGE PLAN, since `T043`'s verification found this
+ * guard using a bare `toLowerCase` and letting `sample.css` and `ſample.css` through to a
+ * directory that holds one entry. The page plan had the same defect, written in the same round,
+ * which is what two copies of a rule are for.
+ *
+ * @param assets - Every asset, already named
+ * @throws {InvalidOptionsError} When two served names are one file or one request
+ */
+function refuseCollidingServedNames(assets: readonly CatalogAsset[]): void {
+  const seen = new Map<string, CatalogAsset>();
+
+  for (const asset of assets) {
+    const folded = caseFoldForFilesystem(asset.servedName);
+    const first = seen.get(folded);
+
+    if (first !== undefined) {
+      throw new InvalidOptionsError(
+        `the assets "${first.name}" and "${asset.name}" are both served as ` +
+          `"${asset.servedName}" once case and unicode normalization are folded, so one would be ` +
+          'served in place of the other under a name cached as immutable',
+        ErrorCode.CONFIG_INVALID_OPTIONS,
+        undefined,
+        { first: first.name, second: asset.name, servedName: asset.servedName },
+      );
+    }
+
+    seen.set(folded, asset);
+  }
 }

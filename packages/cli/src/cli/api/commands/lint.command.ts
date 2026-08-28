@@ -2,7 +2,7 @@ import { buildDoctorReport } from '@openref/core';
 import { runWithDocument } from '../../application/services/run-with-document.service';
 import type { CommandContext, CommandOutcome } from '../../domain/command.types';
 import { EXIT_CODE } from '../../domain/exit-code.constants';
-import { parseArgs } from '../argv';
+import { parseArgs, unknownFlagRefusal } from '../argv';
 import { LINT_USAGE } from '../help';
 import { renderDoctorFindings } from './doctor-report-text';
 
@@ -21,11 +21,17 @@ import { renderDoctorFindings } from './doctor-report-text';
  * purpose, the same way `health-report.spec.ts`'s own case proves for `buildHealthReport`.
  */
 export async function runLint(context: CommandContext): Promise<CommandOutcome> {
-  const { flags, positionals } = parseArgs(context.args);
+  const { flags, positionals, unknown } = parseArgs(context.args);
 
   if (flags.has('help')) {
     context.stdout(LINT_USAGE);
     return { exitCode: EXIT_CODE.SUCCESS };
+  }
+
+  const refusal = unknownFlagRefusal('lint', unknown);
+  if (refusal !== undefined) {
+    context.stderr(`${refusal}\n\n${LINT_USAGE}`);
+    return { exitCode: EXIT_CODE.USAGE_ERROR };
   }
 
   const [spec] = positionals;

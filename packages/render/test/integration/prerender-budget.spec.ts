@@ -30,11 +30,26 @@ import { largeDocument } from '../mocks/documents';
  * thresholds; a latency budget written next to that conclusion would contradict it.
  *
  * SPEC 20 says the same, and it is repeated here because the reader of a threshold opens the
- * file and not the specification. `TX-CLOCK` in the amendments owns the three elapsed thresholds
- * this does not close.
+ * file and not the specification. The second elapsed bound in this file, on the cached render,
+ * is the other one `TX-CLOCK` asks of it and it is stated at its own constant below.
  */
 const NODE_COUNT = 1000;
 const BUDGET_MS = 2000;
+
+/**
+ * Ceiling on the second render of one page, which the cache answers.
+ *
+ * THIS ONE IS A HANG CATCHER TOO, AND BY A WIDER MARGIN THAN THE ONE ABOVE. It names no machine
+ * for the same reason and states the reason here, which is what `TX-CLOCK` asks of every elapsed
+ * threshold a committed test enforces. A cache hit is a map read: measured about 0.005 ms of its
+ * 200 on a workstation, four orders of magnitude inside.
+ *
+ * IT IS NOT WHAT PROVES THE CACHE ANSWERED, and that matters more than the number. A cache that
+ * silently missed would re-render, which costs about 32 ms on the same machine and passes this
+ * bound comfortably. What proves the cache answered is the `hits` and `misses` assertion in the
+ * case below. What is left for this bound to catch is a second render that never returned at all.
+ */
+const CACHED_BUDGET_MS = BUDGET_MS / 10;
 
 describe('prerender budget', () => {
   it('should render a page of a 1000 node document within the budget', async () => {
@@ -70,7 +85,7 @@ describe('prerender budget', () => {
     // Then
     expect(cache.stats()).toMatchObject({ hits: 1, misses: 1 });
     expect(second.appHtml).toContain('oref-nav');
-    expect(elapsed).toBeLessThan(BUDGET_MS / 10);
+    expect(elapsed).toBeLessThan(CACHED_BUDGET_MS);
   });
 
   it('should window the navigation in the markup and ship only what it can draw', async () => {

@@ -35,7 +35,7 @@ export function resolveSiteBase(base?: string): SiteBase {
   if (value === '' || value === '/') return { basePath: '', siteUrl: null };
 
   if (value.startsWith('/')) {
-    return { basePath: stripTrailingSlash(value), siteUrl: null };
+    return { basePath: stripTrailingSlash(parsedPath(value, base ?? '')), siteUrl: null };
   }
 
   // A SCHEME IS WHAT MAKES IT AN ORIGIN, AND ONLY TWO ARE PAGES. Anything else, `file:`
@@ -79,6 +79,100 @@ export function absoluteUrlOf(base: SiteBase, href: string): string | null {
   const origin = base.siteUrl.slice(0, base.siteUrl.length - base.basePath.length);
   return href === '/' && base.basePath === '' ? `${origin}/` : `${origin}${href}`;
 }
+
+/**
+ * A base that is a path alone, taken from the url parser rather than from the string.
+ *
+ * THE PATH IS PARSED, NOT INTERPOLATED, which is the rule SPEC 19 item 11 already states for the
+ * one other address this tool assembles from a flag. Before `T043` the path half of `--base` was
+ * whatever followed a slash, and it reaches the generated proxy configuration of SPEC 16.2 as
+ * text: a newline in it wrote a working `location / { proxy_pass ... }` into the nginx snippet,
+ * so the value that decides where the documentation is mounted also decided where the whole site
+ * goes. The absolute url branch never had the hole, because the parser had already laundered it.
+ *
+ * REFUSED RATHER THAN REWRITTEN when the parser would change the value: a base silently
+ * percent encoded is a base whose pages answer at an address the deployer did not choose, and
+ * nothing downstream would say so.
+ *
+ * @param value - The trimmed value, known to start with a slash
+ * @param original - What the caller wrote, for the message
+ * @returns The path exactly as the url parser produces it
+ * @throws {InvalidOptionsError} When the parser would not produce this path from this value
+ */
+function parsedPath(value: string, original: string): string {
+  const parsed = new URL(value, 'http://openref.invalid');
+
+  if (parsed.pathname !== value || parsed.search !== '' || parsed.hash !== '') {
+    throw new InvalidOptionsError(
+      `--base must be a path a url can carry as written, such as /docs; "${original}" is not one, ` +
+        `a url reads it as "${parsed.pathname}${parsed.search}${parsed.hash}"`,
+      ErrorCode.CONFIG_INVALID_OPTIONS,
+      undefined,
+      { base: original },
+    );
+  }
+
+  const unsafe = FOREIGN_BASE_CHARACTER.exec(parsed.pathname);
+  if (unsafe !== null) {
+    throw new InvalidOptionsError(
+      `--base may not carry "${unsafe[0]}": at least one generated proxy configuration reads it ` +
+        `as syntax rather than as a path, so "${original}" would produce a file the platform ` +
+        'refuses to load. A base path is letters, digits and -._~%, separated by /',
+      ErrorCode.CONFIG_INVALID_OPTIONS,
+      undefined,
+      { base: original },
+    );
+  }
+
+  // AND THE ESCAPES ARE CHECKED AFTER ONE DECODE, so a percent escape cannot smuggle a character
+  // past the class above into a platform that decodes before it routes. `%2A` is a star and `%0A`
+  // is a newline; both survived the class and neither is a path.
+  const decoded = decodeOnce(parsed.pathname);
+  if (decoded === null || FOREIGN_BASE_CHARACTER.test(decoded.replace(/%/g, ''))) {
+    throw new InvalidOptionsError(
+      `--base carries a percent escape that is not part of a path: "${original}" decodes to ` +
+        'something a generated configuration would read as syntax. A base path is letters, ' +
+        'digits and -._~, separated by /',
+      ErrorCode.CONFIG_INVALID_OPTIONS,
+      undefined,
+      { base: original },
+    );
+  }
+
+  return parsed.pathname;
+}
+
+/**
+ * One decoding pass over a path, or null when the escapes are not well formed.
+ *
+ * EXACTLY ONE PASS, the same rule SPEC 19 states for the proxy path guard: a value that is still
+ * ambiguous after one decode is refused rather than decoded again, because deciding how many times
+ * a platform will decode is deciding for the platform.
+ *
+ * @param path - The parsed pathname
+ * @returns The decoded path, or null when it cannot be decoded
+ */
+function decodeOnce(path: string): string | null {
+  try {
+    return decodeURIComponent(path);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Anything a base path is not made of.
+ *
+ * AN ALLOWLIST, AFTER A DENYLIST WAS FOUND SHORT TWICE. The first cut named the four characters
+ * `unsafeUpstreamCharacter` refuses; `T043`'s verification then drove `*`, `|`, `[`, `]`, `!`, `,`
+ * and `=` straight through it. A base ending in a star put one into the middle of a Caddy
+ * `handle_path` and into the middle of a Netlify rule, and both platforms allow one only at the
+ * start or the end. A denylist of route syntax has to know every generator's grammar and stay
+ * right as generators are added. What a path is made of does not change: the unreserved characters
+ * of the URL grammar, the percent that introduces an escape, and the slash that separates
+ * segments. Everything else is refused by name.
+ */
+const FOREIGN_BASE_CHARACTER = /[^A-Za-z0-9\-._~%/]/;
 
 /** A path with any trailing slashes removed, `''` for the root. */
 function stripTrailingSlash(path: string): string {

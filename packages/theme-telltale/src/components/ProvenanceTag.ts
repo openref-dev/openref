@@ -1,5 +1,5 @@
 import { h, type VNode } from 'vue';
-import type { IRConfidence } from '@openref/core';
+import type { IRConfidence } from '@openref/vue';
 
 /**
  * The mark that says where one runtime fact came from, per SPEC 6.1.

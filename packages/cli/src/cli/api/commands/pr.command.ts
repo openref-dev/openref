@@ -13,6 +13,7 @@ import {
   type PullRequestEvent,
 } from '../../domain/pr-event';
 import {
+  PR_BOOLEAN_FLAGS,
   PR_OUTPUT_NAMES,
   PR_VALUE_FLAGS,
   resolvePrInputs,
@@ -25,7 +26,7 @@ import {
   MAX_COMMENT_PAGES,
   upsertMarkedComment,
 } from '../../infrastructure/adapters/github-comment.adapter';
-import { parseArgs, type FlagValue } from '../argv';
+import { parseArgs, unknownFlagRefusal, type FlagValue } from '../argv';
 import { PR_USAGE } from '../help';
 import { PR_COMMENT_MARKER, renderPrComment } from './pr-comment-text';
 
@@ -120,7 +121,11 @@ function exitFor(report: IRDiffReport, failOnBreaking: boolean): CommandOutcome 
 }
 
 export async function runPr(context: CommandContext): Promise<CommandOutcome> {
-  const { flags } = parseArgs(context.args, [...PR_VALUE_FLAGS, 'target']);
+  const { flags, unknown } = parseArgs(
+    context.args,
+    [...PR_VALUE_FLAGS, 'target'],
+    PR_BOOLEAN_FLAGS,
+  );
   const env: Environment = context.env ?? {};
 
   if (flags.has('help')) {
@@ -134,6 +139,17 @@ export async function runPr(context: CommandContext): Promise<CommandOutcome> {
     context.stderr(
       `openref pr: --token does not exist. A token on the command line is visible in ps and in shell history; set GITHUB_TOKEN instead\n`,
     );
+    return { exitCode: EXIT_CODE.USAGE_ERROR };
+  }
+
+  // AFTER `--token`, SO THE FLAG THAT HAS ITS OWN REASON KEEPS IT. Everything else undeclared is
+  // the SPEC 17 usage error `T043` found `doctor` accepting in silence.
+  const flagRefusal = unknownFlagRefusal(
+    'pr',
+    unknown.filter((name) => name !== 'token'),
+  );
+  if (flagRefusal !== undefined) {
+    context.stderr(`${flagRefusal}\n\n${PR_USAGE}`);
     return { exitCode: EXIT_CODE.USAGE_ERROR };
   }
 

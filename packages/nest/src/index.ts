@@ -361,23 +361,54 @@ export {
   SUPPORTED_PLATFORMS,
 } from './http/infrastructure/adapters/reference-adapter.factory';
 
+export { mountRouteTable } from './api/route-table';
+export type { RouteTableMount } from './api/route-table';
+
+// The guard of SPEC 19.6, from TX-VIS. The routes are registered on the http adapter rather than
+// on a controller, so NestJS never sees them and no `@UseGuards` applies: the host's guard is
+// resolved once at mount and run here, in front of every route the table registers.
+export { RouteAdmission, REFUSED_BODY, REFUSED_STATUS } from './visibility/domain/admission';
+export type { RouteGate } from './visibility/domain/admission';
+export { DEFAULT_VISIBILITY, VISIBILITIES } from './visibility/domain/visibility';
+export type { OpenRefVisibilityOptions } from './visibility/domain/visibility';
+export {
+  admissionFor,
+  assertVisibility,
+} from './visibility/application/services/admission.service';
+export type { GuardResolver } from './visibility/application/services/admission.service';
+export {
+  OpenRefReferenceRoute,
+  referenceRouteHandler,
+  synthesizeExecutionContext,
+} from './visibility/domain/execution-context';
+export type { ReferenceRouteIdentity } from './visibility/domain/execution-context';
+
 export { isNestApplication } from './shared/types/nest-surface';
 export {
+  isCanActivateLike,
+  isHttpExceptionLike,
   NEST_CORE_VALUE_NAMES,
   NEST_REQUEST_METHODS,
   NEST_ROUTE_METADATA,
 } from './shared/types/nest-surface';
 export type {
+  CanActivateLike,
   ControllerLike,
   DiscoveryServiceLike,
   DynamicModuleLike,
+  ExecutionContextLike,
+  GuardLike,
   HandlerLike,
   HttpAdapterHostLike,
   HttpAdapterLike,
+  HttpArgumentsHostLike,
+  HttpExceptionLike,
   InstanceWrapperLike,
   ModuleRefLike,
   NestApplicationLike,
   ReflectorLike,
+  RpcArgumentsHostLike,
+  WsArgumentsHostLike,
 } from './shared/types/nest-surface';
 
 // The collector contract of SPEC 6.2, public API and frozen from T017. A third party writes a

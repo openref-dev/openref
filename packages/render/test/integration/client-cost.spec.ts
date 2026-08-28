@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { normalizeOpenApiDocument, parseSpecification } from '@openref/core';
 import { afterEach, describe, expect, it } from 'vitest';
 import { hydrateReference } from '../../src/browser/index';
+import { createOpenRefHighlighter } from '../../src/highlight/domain/highlight';
 import { createMarkdownRenderer } from '../../src/markdown/domain/markdown';
 import { buildPageModel } from '../../src/page/domain/page-model';
 import { renderHtmlDocument } from '../../src/page/domain/shell';
@@ -30,7 +31,22 @@ import { largeDocument } from '../mocks/documents';
  *   a heap in either runtime and the number is not a proxy for anything
  */
 
-const markdown = await createMarkdownRenderer();
+/**
+ * The markdown renderer the served page uses, highlighter included.
+ *
+ * IT WAS BUILT WITHOUT ONE UNTIL TX-SERVED, AND THAT OMISSION WAS 15,692 BYTES. `ReferenceService`
+ * always hands `renderPage` a highlighter; this file handed it a renderer built without one, so
+ * every fenced block the server tokenises came out here as plain `pre` and `code`. Measured at
+ * commit dd18885, the commit the gap was filed on: the same page rendered 49,114 bytes here and
+ * 64,806 with the highlighter, against 65,326 served. On today's tree the term is zero, because
+ * after TX-FRAME and TX-ADOPT the server rendered markup of an operation page carries no code
+ * block at all. Zero today is exactly why it is passed now rather than when it next matters: a
+ * quantity that was once fifteen kilobytes must be inside the cheap early warning on the day a
+ * sample returns to the first paint, not on the day somebody notices it did.
+ */
+const markdown = await createMarkdownRenderer({
+  highlighter: await createOpenRefHighlighter(['json', 'yaml', 'bash', 'http']),
+});
 
 /** Nodes SPEC 20 budgets TTI and the prerender against. */
 const NODE_COUNT = 1000;
@@ -55,22 +71,34 @@ const MEMORY_CEILING_BYTES = 250 * 1024 * 1024;
  * browser spent 143 ms of a 150 ms budget parsing it. What costs the reader here is bytes
  * parsed, so bytes parsed is what is bounded.
  *
- * IT IS NOT THE SPEC 20 NUMBER ANY MORE, AND SAYING SO IS THE POINT. This file used to claim
- * that it and the browser study were "one measurement in two places", and on the old fixture
- * that was nearly true: 28,217 here against 29,682 there, five percent apart. On the
- * representative fixture of T016 the two are 49,114 here and 65,326 in Chrome, 16,083 bytes
- * apart, and neither `basePath` nor the real asset lists nor a nonce accounts for more than 259
- * of it. WHAT THE REST IS HAS NOT BEEN FOUND, and it is recorded as an open finding rather than
- * papered over with one threshold covering both. The gated SPEC 20 ceiling is 72 KB and is
- * checked against Chrome, where a reader actually pays. This one is derived from what this
- * harness measures, so that it goes on being the cheap early warning it was built to be
- * instead of a number with 47 percent of slack in it. Measured 49,114 plus about ten percent
- * at derivation; re-derived 2026-08-14 with TX-MARKUP at 56,355 plus the same ten percent,
- * because the input changed for the sanctioned reason: the rail rows carry the method badge
- * and path and the navigation entries carry `method`, which is a capability arriving, not
- * drift. The before and after figures are in the session log.
+ * IT IS NOT THE SPEC 20 NUMBER AND IT MEASURES A DIFFERENT QUANTITY, WHICH IS NOW SAID IN BOTH
+ * BUDGET LINES. This file used to claim that it and the browser study were "one measurement in
+ * two places", and on the old fixture that was nearly true: 28,217 here against 29,682 there,
+ * five percent apart. On the representative fixture of T016 the two were 49,114 here and 65,326
+ * in Chrome, and TX-SERVED closed the question of what the difference was. It is three things,
+ * measured at commit dd18885 by adding one condition at a time to this render: 15,692 bytes of
+ * syntax highlighting this harness was not doing, 259 bytes of `basePath` written into every
+ * link, and 261 bytes the host brings, being three real hashed stylesheet hrefs against one
+ * `/s.css`, the real module href, and the nonce on the state element. 15,692 + 259 + 261 =
+ * 16,212, which is the whole gap; the 16,083 recorded before was a subtraction slip. The
+ * highlighter is now passed above, so what remains between the two is the host's contribution
+ * alone, and `tools/browser-budget/test/integration/served-document-parity.spec.ts` holds it to
+ * that position by position rather than as one sum.
+ *
+ * SO THIS IS AN APPROXIMATION AND IT ALWAYS UNDERSTATES. Every term of the difference is
+ * something the host adds and this harness does not, so a served page cannot be lighter than
+ * what is measured here; this ceiling is a floor on the reader's cost, never a promise about it.
+ * The size of the error is not bounded by anything: it was 616 bytes on the tree that derived
+ * this figure and 16,212 on dd18885, from the same check.
+ *
+ * THE FIGURE FOLLOWS THIS HARNESS DOWN. Derived from its own measurement plus about ten percent,
+ * rounded up to the whole KB, which is the rule every other re-derived cap here uses: 54 KB from
+ * 49,114 when it was written, 61 KB from 56,355 at TX-MARKUP when the rail rows gained the method
+ * badge, and 41 KB now from 37,278, after TX-ADOPT's compact response index and redacted state
+ * block took the page down. 61 KB against 37,278 was 67 percent of slack, which is the thing this
+ * separate ceiling exists not to be.
  */
-const DOCUMENT_CEILING_BYTES = 61 * 1024;
+const DOCUMENT_CEILING_BYTES = 41 * 1024;
 
 /**
  * The largest document in the corpus, which is what SPEC 20's figure is about.
@@ -165,10 +193,12 @@ describe('the cost of a page of a thousand nodes', () => {
     expect(after - before).toBeLessThan(MEMORY_CEILING_BYTES);
   }, 300_000);
 
-  it('should serve a document the browser can parse inside the TTI budget', async () => {
-    // Given the page SPEC 20 writes both the TTI budget and this one about. This one fails in
+  it('should keep the shell the renderer produces, with no host contribution, under its own ceiling', async () => {
+    // Given the page SPEC 20 writes both the TTI budget and this one about. This one runs in
     // every CI run and costs a second; the browser study measures what it actually costs a
-    // reader, and the two are not the same number, which is written out at the ceiling above.
+    // reader. THE TWO ARE TWO QUANTITIES AND THE NAME OF THIS CASE IS THE ONE IT MEASURES: no
+    // base path, no asset catalogue and no nonce, all three of which the host adds and the
+    // ceiling above accounts for.
     const document_ = largeDocument(NODE_COUNT);
     const nodeId = [...document_.nodes.keys()][500] ?? '';
 

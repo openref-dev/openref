@@ -60,6 +60,7 @@ export {
   planUpstreams,
   unsafeUpstreamCharacter,
   UPSTREAM_EXPANSION_LIMIT,
+  UPSTREAM_TOTAL_LIMIT,
 } from './proxy/domain/proxy-upstreams';
 export type { UpstreamPlan } from './proxy/domain/proxy-upstreams';
 export {
@@ -75,6 +76,7 @@ export type { ProxyPlan, ProxyPlanOptions } from './proxy/domain/proxy-plan';
 export { frameHashOf, PAGE_KEY_VERSION, pageKeyOf } from './build/domain/page-key';
 export {
   ASSET_DIRECTORY,
+  MAX_SEGMENT_BYTES,
   navigationFileOf,
   planPages,
   SEARCH_INDEX_FILE,

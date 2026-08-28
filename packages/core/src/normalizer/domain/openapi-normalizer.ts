@@ -2,6 +2,7 @@ import { finalizeDocument } from '../../hashing/domain/hash';
 import type {
   IRContact,
   IRDocument,
+  IRUnreadKey,
   IRInfo,
   IRLicense,
   IROAuthFlow,
@@ -689,13 +690,39 @@ interface RawOperation {
  * order of the method name.
  */
 function collectOperations(raw: unknown): RawOperation[] {
-  if (!isPlainObject(raw)) return [];
+  return collectPathItems(raw).operations;
+}
+
+/**
+ * Every path item key that names an operation, split into the ones this reads and the ones it
+ * will not, per SPEC 7.1's `operation-key-unread` as added by `T043`.
+ *
+ * THE SECOND HALF IS THE POINT. A key spelled `GET` is not a path item field in any version of
+ * OpenAPI, so nothing here reads it and nothing should; before `T043` that meant the operation
+ * left the document with nothing anywhere recording that it had. It is recorded rather than read,
+ * because reading it would invent a document the specification does not describe, and reported
+ * through the doctor, because SPEC 6 says a fact that cannot be obtained is named and never
+ * silently substituted.
+ */
+function collectPathItems(raw: unknown): {
+  readonly operations: RawOperation[];
+  readonly unread: IRUnreadKey[];
+} {
+  if (!isPlainObject(raw)) return { operations: [], unread: [] };
 
   const operations: RawOperation[] = [];
+  const unread: IRUnreadKey[] = [];
 
   for (const path of Object.keys(raw).sort(compareByCodePoint)) {
     const pathItem = raw[path];
     if (!isPlainObject(pathItem)) continue;
+
+    for (const key of Object.keys(pathItem).sort(compareByCodePoint)) {
+      const method = key.toLowerCase();
+      if (key === method || !isStandardHttpMethod(method)) continue;
+      if (!isPlainObject(pathItem[key])) continue;
+      unread.push({ path, key, method });
+    }
 
     for (const method of STANDARD_HTTP_METHODS) {
       const source = pathItem[method];
@@ -713,7 +740,7 @@ function collectOperations(raw: unknown): RawOperation[] {
     }
   }
 
-  return operations;
+  return { operations, unread };
 }
 
 function readOperation(entry: RawOperation, context: Context, id: string): IROperation {
@@ -884,7 +911,8 @@ export function normalizeOpenApiDocument(
   const info = readInfo(input.info);
   produceDeclaredSchemas(context);
 
-  const rawOperations = collectOperations(input.paths);
+  const paths = collectPathItems(input.paths);
+  const rawOperations = paths.operations;
   const identities = assignOperationIdentities(
     rawOperations.map((entry) => {
       const raw = asString(entry.source.operationId);
@@ -948,6 +976,7 @@ export function normalizeOpenApiDocument(
 
   const extensions = readExtensions(input);
   if (extensions !== undefined) document.extensions = extensions;
+  if (paths.unread.length > 0) document.unreadKeys = paths.unread;
 
   return finalizeDocument(document);
 }

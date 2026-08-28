@@ -33,6 +33,7 @@
  */
 
 import { ErrorCode, InvalidOptionsError } from '@openref/core';
+import { assertVisibility } from '../visibility/application/services/admission.service';
 import type { CollectorRegistration } from '../runtime/application/ports/collector.port';
 import type { OpenRefThemeOptions } from '../reference/application/services/reference.service';
 import type { OpenRefSetupOptions } from './reference-options';
@@ -40,16 +41,19 @@ import type { OpenRefSetupOptions } from './reference-options';
 /**
  * Who the reference is for, per SPEC 13.2 and `@ApiAudience`.
  *
- * REFUSED WHEN IT IS NOT `public`, UNTIL `TX-VIS` SHIPS THE GUARD. The option exists here because
- * SPEC 13.2 puts it here and because T014 relocated it out of the browser entry, and the guard
- * that makes a non public reference actually non public is a separate scheduled entry. Accepting
- * `internal` and serving the reference to anyone who asks would be worse than not offering the
- * option: the host would have configured a private reference, read no error, and shipped a public
- * one. Fail closed is the policy for anything security shaped, per STANDARDS 8.
+ * DECLARED IN `visibility/domain/visibility.ts` SINCE `TX-VIS`, beside the guard that enforces it
+ * and beside the default, and re-exported here because this is where the option surface is written
+ * down and where a reader of `forRoot` looks for it. It stopped living here when it stopped being a
+ * `forRoot` option alone: `setup` carries the same pair, per SPEC 13.2.
  */
-export type OpenRefVisibility = 'public' | 'partner' | 'internal';
+export type { OpenRefVisibility } from '../visibility/domain/visibility';
 
-/** One mounted document. */
+/**
+ * One mounted document.
+ *
+ * `visibility` AND `guard` ARE INHERITED RATHER THAN DECLARED HERE, from `OpenRefSetupOptions`, so
+ * the two forms of SPEC 13 cannot drift apart on a security option.
+ */
 export interface OpenRefDocumentOptions extends OpenRefSetupOptions {
   /**
    * Stable identifier for this document, which federation and the CLI address it by.
@@ -60,8 +64,6 @@ export interface OpenRefDocumentOptions extends OpenRefSetupOptions {
   readonly id: string;
   /** Where to mount it, such as `/docs`. */
   readonly route: string;
-  /** Who it is for. Defaults to `public`. */
-  readonly visibility?: OpenRefVisibility;
 }
 
 /**
@@ -73,7 +75,19 @@ export interface OpenRefDocumentOptions extends OpenRefSetupOptions {
  * the string form is the one to use and the revision is read from the repository.
  */
 export interface OpenRefSourceLink {
-  /** Template holding `{ref}`, `{file}` and `{line}`, per SPEC 6.3. */
+  /**
+   * Template holding `{ref}`, `{file}`, `{line}`, `{absolutePath}` and `{column}`, per SPEC 6.3.
+   *
+   * THE FORGE FORM AND THE EDITOR FORM ARE ONE TEMPLATE AND THE HOST PICKS WHICH, per SPEC 6.3's
+   * decision that the choice belongs to whoever renders the page rather than to whoever reads it.
+   * `https://github.com/org/repo/blob/{ref}/{file}#L{line}` is the reference served to a team;
+   * `vscode://file/{absolutePath}:{line}:{column}` is the reference read on the machine that built
+   * it, and it needs no git, no push and no forge.
+   *
+   * THE EDITOR FORM ALSO NEEDS `sourceCollector({ absolutePath: true })`, which is the other half
+   * of the opt in and is off by default. Without it the template produces no link and says so,
+   * rather than the absolute path of a build machine reaching every reader of the page.
+   */
   readonly template: string;
   /** The git revision, when it cannot be read from the build environment. */
   readonly ref?: string;
@@ -220,7 +234,10 @@ export function assertRootOptions(options: OpenRefRootOptions): void {
     }
     routes.add(entry.route);
 
-    assertVisibility(entry);
+    // Checked here as well as at mount, and the two are different moments on purpose: this one
+    // fires while `forRoot` is being evaluated, before the container exists, so a document asking
+    // for a visibility it cannot honour never reaches a route table at all.
+    assertVisibility(`the document "${entry.id}"`, entry);
   }
 
   // Checked here rather than where it is used, so a malformed template is an error at boot rather
@@ -250,24 +267,6 @@ function assertGuardSecuritySchemes(mapping: Readonly<Record<string, string>> | 
       );
     }
   }
-}
-
-/**
- * Refuses a visibility this build cannot honour.
- *
- * @param entry - One document entry
- * @throws {InvalidOptionsError} When visibility is set to anything but `public`
- */
-function assertVisibility(entry: OpenRefDocumentOptions): void {
-  const visibility = entry.visibility ?? 'public';
-  if (visibility === 'public') return;
-
-  throw invalid(
-    `the document "${entry.id}" asks for visibility "${visibility}", and the guard that would ` +
-      'enforce it is not built yet: it is the scheduled entry TX-VIS, positioned after T023. ' +
-      'The option is refused rather than accepted, because accepting it would serve a reference ' +
-      'to everyone while the host believed it was private',
-  );
 }
 
 /**

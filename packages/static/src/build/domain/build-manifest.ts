@@ -36,7 +36,19 @@ import { PAGE_KEY_VERSION } from './page-key';
  * expects the new shape. So the manifest now records the renderer triple the render cache key
  * already uses, and a build under a different one renders everything.
  */
-export const BUILD_MANIFEST_VERSION = 3;
+export const BUILD_MANIFEST_VERSION = 4;
+
+/**
+ * 4 SINCE `T043`: every page records the digest of the bytes that build actually wrote.
+ *
+ * A MANIFEST RECORDED INTENT AND WAS READ AS FACT. It is written last, so a build killed part way
+ * leaves a directory whose contents belong to no manifest at all, and the next build compared
+ * keys, found them equal, and carried whatever bytes were sitting at the path. Measured on this
+ * workstation: a complete build of one document, an interrupted build of a second, then the first
+ * document again reported `rendered 0, carried 13`, exit 0, with the second document's text still
+ * on the page. The digest is what turns the manifest's claim into one this build can check, and a
+ * page whose bytes disagree is rendered rather than carried.
+ */
 
 /**
  * The renderer identity a manifest's pages were rendered by.
@@ -52,6 +64,8 @@ export interface ManifestPage {
   readonly file: string;
   /** The key that decided whether it had to be rendered. */
   readonly key: string;
+  /** `sha256` of the bytes that build wrote to {@link ManifestPage.file}. */
+  readonly bytes: string;
 }
 
 /** What a build wrote. */
@@ -138,7 +152,8 @@ export function readManifest(text: string): BuildManifest | null {
     if (typeof entry !== 'object' || entry === null) return null;
     const page = entry as Record<string, unknown>;
     if (typeof page.file !== 'string' || typeof page.key !== 'string') return null;
-    pages.push({ file: page.file, key: page.key });
+    if (typeof page.bytes !== 'string') return null;
+    pages.push({ file: page.file, key: page.key, bytes: page.bytes });
   }
 
   const files: string[] = [];

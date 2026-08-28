@@ -38,7 +38,8 @@
     "@openref/render": "workspace:*",
     "@openref/search": "workspace:*",
     "@openref/static": "workspace:*",
-    "@openref/theme": "workspace:*"
+    "@openref/theme": "workspace:*",
+    "ts-morph": "28.0.0"
   },
   "devDependencies": {
     "tsup": "8.5.1",

@@ -335,6 +335,59 @@ describe('the pass runs once, at bootstrap', () => {
   });
 });
 
+describe('the route table forRoot registers, which used to drop the method', () => {
+  // Found by TX-VIS while putting the admission in front of the same loop. `setup` read `method`
+  // off the table and this path did not, so the one route of the seventeen that is not a GET, the
+  // proxy of SPEC 14.5, was registered as a GET: the POST a page sends reached nothing at all.
+  @Module({
+    controllers: [OrdersController],
+    imports: [
+      OpenRefModule.forRoot({
+        documents: [
+          {
+            id: 'public',
+            route: '/docs',
+            document: document(),
+            assetPlan: assetPlan(),
+            proxy: { enabled: true },
+          },
+        ],
+      }),
+    ],
+  })
+  // eslint-disable-next-line @typescript-eslint/no-extraneous-class
+  class ProxyModule {}
+
+  it('should answer the proxy on POST and not on GET', async () => {
+    // Given
+    const url = await boot('express', ProxyModule);
+
+    // When
+    const asGet = await fetch(`${url}/docs/_proxy`);
+    const asPost = await fetch(`${url}/docs/_proxy`, { method: 'POST', body: '{}' });
+
+    // Then
+    expect(asGet.status).toBe(404);
+    expect(asPost.status).toBe(403);
+  });
+
+  it('should carry the proxy option a documents entry set, which nothing used to read', async () => {
+    // Given, `documents` entries are setup options plus an id and a route, so `proxy` was accepted
+    // here and read by nobody: a host that turned the proxy on got the permanent 403 of one that
+    // is off, which is a configured feature doing nothing with no error anywhere
+    const url = await boot('express', ProxyModule);
+
+    // When
+    const refusal = await (
+      await fetch(`${url}/docs/_proxy`, { method: 'POST', body: '{}' })
+    ).json();
+
+    // Then, the refusal is the one an enabled proxy gives a body it cannot read
+    expect(JSON.stringify(refusal)).toContain('envelope');
+    expect(JSON.stringify(refusal)).not.toContain('not enabled');
+  });
+});
+
 describe('the health route, which the runtime option gates', () => {
   @Module({
     controllers: [OrdersController],

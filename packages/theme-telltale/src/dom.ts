@@ -5,10 +5,18 @@
  * the integration suite so that a server only path cannot reach `document` by accident and so that
  * `tsc` over the main program fails when one tries. A theme's components render on the server and
  * in the browser, so they are inside that program and cannot name a DOM type. `@openref/render`
- * has exactly this file, `shared/dom.ts`, and exports two of its four shapes; it is a private
- * package, so a theme author cannot reach any of them and writes them again. Recorded in
- * `THEME-BOUNDARY.md` rather than worked around by adding `"lib": ["DOM"]` to this package, which
- * would compile and would put `document` within reach of every component here.
+ * has this file too, as `shared/dom.ts`: 11 shapes there, 11 here, 5 of them the same. It is a
+ * private package, so a theme author cannot reach any of them and writes them again. Recorded in
+ * `THEME-BOUNDARY.md`, finding 6, rather than worked around by adding `"lib": ["DOM"]` to this
+ * package, which would compile and would put `document` within reach of every component here.
+ *
+ * THE CROSS REFERENCE ABOVE WAS DANGLING UNTIL `T031-R1`: this comment named a section of that
+ * document which had never been written, so the transcription was recorded nowhere and checked by
+ * nothing. It now has a case in `test/integration/theme-boundary.spec.ts` which pins the five
+ * shared names, compares both transcribed functions against the reference's over the same events,
+ * and holds the three shared shapes mutually assignable at compile time. The route table next
+ * door had a case and drifted anyway, because the case compared one of its three rules; that is
+ * the standard this one is written to.
  *
  * These are not re-declarations of the DOM. They are the handful of members this theme touches,
  * and anything structurally compatible satisfies them, which is also what makes them testable

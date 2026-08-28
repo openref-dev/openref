@@ -6,7 +6,7 @@ import {
   type SchemaTreeNode,
 } from '@openref/vue';
 import { h, type Component, type VNode } from 'vue';
-import type { IRSchema } from '@openref/core';
+import type { IRSchema } from '@openref/vue';
 
 /**
  * One request or response body, drawn the same way wherever it appears.

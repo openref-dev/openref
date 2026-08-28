@@ -22,6 +22,7 @@ import { classifyDrift } from './classification';
 import type { IROperation } from '../../ir/domain/node.types';
 import type { IRDocument } from '../../ir/domain/document.types';
 import type {
+  IRDriftAssertion,
   IRDriftBasis,
   IRDriftEdit,
   IRDriftIssue,
@@ -67,6 +68,8 @@ interface Finding {
   readonly suggestion: string;
   readonly edit: IRDriftEdit;
   readonly basis: IRDriftBasis;
+  /** The same values `suggestion` names, in a form nothing has to parse. */
+  readonly assertion?: IRDriftAssertion;
 }
 
 /** One check's verdict about one subject. */
@@ -207,6 +210,15 @@ const SECURITY_DRIFT: OperationRule = {
               'for example @ApiBearerAuth(name), or declare it in DocumentBuilder',
         edit: 'new-assertion',
         basis,
+        // THE FIRST MAPPED SCHEME AND NOT ALL OF THEM. Several guards may stand on one route and
+        // each may map, but the assertion this fills is the operation's silence about security,
+        // and one requirement ends that silence. Writing every mapped scheme would assert that the
+        // operation requires all of them together, which is a claim about the guards' composition
+        // that nothing observed.
+        assertion:
+          mapped[0] === undefined
+            ? { kind: 'unnameable', reason: 'unconfigured-mapping' }
+            : { kind: 'security-scheme', scheme: mapped[0] },
       });
     }
 
@@ -296,6 +308,7 @@ const RATELIMIT_UNDOCUMENTED: OperationRule = {
           "add @ApiResponse({ status: 429, description: 'Too Many Requests' }) to the handler",
         edit: 'new-assertion',
         basis,
+        assertion: { kind: 'response-status', status: 429, description: 'Too Many Requests' },
       });
     }
 
@@ -585,6 +598,7 @@ const STATUS_DRIFT: OperationRule = {
       suggestion: `add @ApiResponse({ status: ${code} }) to the handler`,
       edit: 'new-assertion',
       basis: collected(fact.confidence),
+      assertion: { kind: 'response-status', status: fact.value },
     });
   },
 };
@@ -688,6 +702,7 @@ const MISSING_OPERATION_ID: OperationRule = {
         'name does not change with whatever the generator produces next version',
       edit: 'new-assertion',
       basis: collected('declared'),
+      assertion: { kind: 'operation-id', operationId: source.handler },
     });
   },
 };
@@ -719,6 +734,20 @@ export const DTO_FIELD_RULE = {
   id: 'dto-field-undescribed' as const,
   severity: 'info' as const,
   label: 'DTO fields with a description',
+};
+
+/**
+ * The rule whose subject is the document rather than anything inside it.
+ *
+ * `warning` RATHER THAN `info`, since `T043`: an operation nobody can see is not a shortfall in
+ * how well the document is written, it is a piece of the API the document appears to describe and
+ * does not. It is in the `DX` group because it is a defect of the specification's own text, and
+ * so it is one `lint` reports over a bare file with no application anywhere near it.
+ */
+export const UNREAD_KEY_RULE = {
+  id: 'operation-key-unread' as const,
+  severity: 'warning' as const,
+  label: 'Path item keys read as operations',
 };
 
 /**
@@ -822,6 +851,7 @@ function issueOf(
     classification: classifyDrift(finding.edit, finding.basis),
     edit: finding.edit,
     basis: finding.basis,
+    ...(finding.assertion === undefined ? {} : { assertion: finding.assertion }),
   };
 }
 
@@ -872,8 +902,49 @@ export function runDriftRules(
   });
 
   results.push(dtoFieldResult(document));
+  results.push(unreadKeyResult(document));
 
   return results;
+}
+
+/**
+ * The rule about keys the normalizer would not read, per SPEC 7.1 as amended by `T043`.
+ *
+ * ITS SCOPE IS THE UNREAD KEYS THEMSELVES, which is how every other rule of SPEC 7.1 defines one:
+ * a subject outside the scope counts as neither passed nor failed and stays out of the health
+ * denominator. A document with no such key has no subject here, so the panel gains no row and the
+ * volume this rule adds to an ordinary reference is zero.
+ *
+ * @param document - The document being checked
+ * @returns Its result, shaped like every other rule's
+ */
+function unreadKeyResult(document: IRDocument): RuleResult {
+  const unread = document.unreadKeys ?? [];
+
+  const issues = unread.map((entry) =>
+    issueOf(
+      UNREAD_KEY_RULE,
+      {},
+      {
+        message:
+          `"${entry.path}" declares an operation under the key "${entry.key}". OpenAPI spells a ` +
+          `path item key in lower case, so this operation was not read and appears nowhere in ` +
+          `this reference, in the search index, or in a diff against it.`,
+        suggestion: `rename the key "${entry.key}" to "${entry.method}" in the document`,
+        edit: 'nothing-to-write',
+        basis: UNOBSERVED,
+      },
+    ),
+  );
+
+  return {
+    rule: UNREAD_KEY_RULE.id,
+    severity: UNREAD_KEY_RULE.severity,
+    label: UNREAD_KEY_RULE.label,
+    total: unread.length,
+    passed: 0,
+    issues,
+  };
 }
 
 /**

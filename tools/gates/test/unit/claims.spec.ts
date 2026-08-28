@@ -74,17 +74,20 @@ describe('parseSecurityClaims', () => {
   it.skipIf(!HAVE_AI_DOCS)('should read every claim out of the specification itself', () => {
     // Given the real document, because a parse tested only against a fixture proves nothing
     // about the file it will run on. The count moved from ten to eleven when T041's review found
-    // the token bearing address guarantee recorded in SPEC 17.2 and nowhere the claims gate reads.
+    // the token bearing address guarantee recorded in SPEC 17.2 and nowhere the claims gate reads,
+    // and from eleven to twelve when T043 measured the static build writing and deleting outside
+    // its own output directory through a symbolic link planted in it.
     const spec = readFileSync(join(repoRoot, SPEC_FILE), 'utf8');
 
     // When
     const claims = parseSecurityClaims(spec);
 
     // Then
-    expect(claims).toHaveLength(11);
+    expect(claims).toHaveLength(12);
     expect(claims[0]?.id).toBe('19.1');
     expect(claims[9]?.id).toBe('19.10');
     expect(claims[10]?.id).toBe('19.11');
+    expect(claims[11]?.id).toBe('19.12');
     expect(claims[3]?.text).toContain('origin');
   });
 
@@ -600,7 +603,7 @@ describe('checkClaimQuotes, planted with the rewrite T035 measured going through
     const issues = checkClaimQuotes(parseSecurityClaims(spec), rows);
 
     // Then the check reached the rows before it found them clean
-    expect(rows.filter((entry) => entry.quoted !== '')).toHaveLength(16);
+    expect(rows.filter((entry) => entry.quoted !== '')).toHaveLength(17);
     expect(issues).toEqual([]);
   });
 });

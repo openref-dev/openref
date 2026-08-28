@@ -62,6 +62,7 @@ export type {
 } from './ir/domain/node.types';
 
 export type {
+  IRDriftAssertion,
   IRDriftBasis,
   IRDriftBucket,
   IRDriftClassification,
@@ -96,6 +97,7 @@ export type { IRRelationship, IRRelationshipType } from './ir/domain/relationshi
 export type {
   IRContact,
   IRDocument,
+  IRUnreadKey,
   IRDocumentKind,
   IRInfo,
   IRLicense,
@@ -119,6 +121,12 @@ export {
 export { finalizeDocument, hash, hashDocument } from './hashing/domain/hash';
 export { freezeDocument } from './ir/domain/freeze';
 export { sha256Hex, utf8Encode } from './hashing/domain/sha256';
+export { caseFoldForFilesystem } from './security/domain/case-fold';
+export {
+  BIDI_CONTROL_CODE_POINTS,
+  carriesControlCharacters,
+  plainArtefactText,
+} from './security/domain/plain-text';
 
 export {
   ApplicationBootError,

@@ -137,8 +137,10 @@ describe('buildHealthReport', () => {
     // Then a reader is told how much to trust the rest before reading the rest
     expect(report.checks[0]).toEqual(collectors);
     expect(report.checks.filter((check) => check.id === 'missing-description')).toHaveLength(1);
-    // One per rule of SPEC 7.1, thirteen since TX-COLLECTORS, plus the registry's own line.
-    expect(report.checks).toHaveLength(14);
+    // One per rule of SPEC 7.1, fourteen since `T043` added `operation-key-unread` to the
+    // thirteen `TX-COLLECTORS` left, plus the registry's own line. The count is pinned rather
+    // than derived so that a rule added anywhere has to be acknowledged here.
+    expect(report.checks).toHaveLength(15);
   });
 
   it('should count operations and not schemas', () => {

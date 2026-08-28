@@ -4,7 +4,7 @@ import { loadDocument } from '../../application/services/load-document.service';
 import type { CommandContext, CommandOutcome } from '../../domain/command.types';
 import { resolveDiffSides } from '../../domain/diff-side';
 import { EXIT_CODE } from '../../domain/exit-code.constants';
-import { parseArgs, stringFlag } from '../argv';
+import { parseArgs, stringFlag, unknownFlagRefusal } from '../argv';
 import { DIFF_USAGE } from '../help';
 import { renderDiffReport } from './diff-report-text';
 
@@ -20,11 +20,17 @@ import { renderDiffReport } from './diff-report-text';
  * reserved for the command having run and found something.
  */
 export async function runDiff(context: CommandContext): Promise<CommandOutcome> {
-  const { flags, positionals } = parseArgs(context.args, ['spec']);
+  const { flags, positionals, unknown } = parseArgs(context.args, ['spec']);
 
   if (flags.has('help')) {
     context.stdout(DIFF_USAGE);
     return { exitCode: EXIT_CODE.SUCCESS };
+  }
+
+  const refusal = unknownFlagRefusal('diff', unknown);
+  if (refusal !== undefined) {
+    context.stderr(`${refusal}\n\n${DIFF_USAGE}`);
+    return { exitCode: EXIT_CODE.USAGE_ERROR };
   }
 
   const [oldSide, newSide] = positionals;

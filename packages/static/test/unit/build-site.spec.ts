@@ -335,10 +335,11 @@ describe('buildSite, the manifest', () => {
       string,
       unknown
     >;
-    // 3 SINCE `T042`, when the manifest gained `staticProxy`. The literal is pinned rather than
-    // read from the constant so that a bump has to be noticed here, which is the whole point of
-    // a version a reader can refuse.
-    expect(manifest.version).toBe(3);
+    // 4 SINCE `T043`, when every page gained the digest of the bytes that build wrote; 3 was
+    // `T042` adding `staticProxy`. The literal is pinned rather than read from the constant so
+    // that a bump has to be noticed here, which is the whole point of a version a reader can
+    // refuse, and this pin did its job on both bumps.
+    expect(manifest.version).toBe(4);
     manifest.version = 99;
 
     // When

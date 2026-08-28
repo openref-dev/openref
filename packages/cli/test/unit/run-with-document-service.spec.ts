@@ -99,3 +99,74 @@ describe('runWithDocument', () => {
     expect(io.err[0]).toContain('action blew up');
   });
 });
+
+/**
+ * The `T043` finding that `close` returning is not the same as the process being able to leave.
+ *
+ * SPEC 17 PROMISED A FORCED SHUTDOWN AND COVERED ONE CASE OF TWO. The timeout above is `close`
+ * hanging; this is `close` resolving at once while the application still holds a handle it
+ * opened during boot. Measured before the fix: `doctor --from-nest` against an entry calling
+ * `setInterval` printed its whole report and then never exited, because nothing forced the point
+ * and Node waits for a refed timer forever.
+ */
+describe('runWithDocument, an application that leaves a handle open', () => {
+  it('should name the handle and force the shutdown when a booted application keeps the loop alive', async () => {
+    // Given: an application whose close resolves, having left a timer running.
+    let timer: ReturnType<typeof setInterval> | undefined;
+    loadDocumentMock.mockImplementation(() => {
+      timer = setInterval(() => undefined, 1000);
+      return Promise.resolve({ document: FAKE_DOCUMENT, close: () => Promise.resolve() });
+    });
+    const io = fakeIo();
+
+    // When
+    const outcome = await runWithDocument({ kind: 'from-nest', path: 'app.mjs' }, io, () =>
+      Promise.resolve({ exitCode: EXIT_CODE.SUCCESS }),
+    );
+    clearInterval(timer);
+
+    // Then
+    expect(outcome.forcedShutdown).toBe(true);
+    expect(io.err.join('')).toContain('Timeout');
+    expect(io.err.join('')).toContain('left');
+  });
+
+  it('should say nothing and not force when a booted application leaves nothing behind', async () => {
+    // Given
+    loadDocumentMock.mockResolvedValue({
+      document: FAKE_DOCUMENT,
+      close: () => Promise.resolve(),
+    });
+    const io = fakeIo();
+
+    // When
+    const outcome = await runWithDocument({ kind: 'from-nest', path: 'app.mjs' }, io, () =>
+      Promise.resolve({ exitCode: EXIT_CODE.SUCCESS }),
+    );
+
+    // Then
+    expect(outcome).toEqual({ exitCode: EXIT_CODE.SUCCESS, forcedShutdown: false });
+    expect(io.err).toEqual([]);
+  });
+
+  it('should not look at handles for a source this package reads itself', async () => {
+    // Given: a spec file, where every handle opened belongs to this package and answering for
+    // an application's leftovers would be answering for its own reads.
+    let timer: ReturnType<typeof setInterval> | undefined;
+    loadDocumentMock.mockImplementation(() => {
+      timer = setInterval(() => undefined, 1000);
+      return Promise.resolve({ document: FAKE_DOCUMENT, close: () => Promise.resolve() });
+    });
+    const io = fakeIo();
+
+    // When
+    const outcome = await runWithDocument({ kind: 'spec', path: 'x.json' }, io, () =>
+      Promise.resolve({ exitCode: EXIT_CODE.SUCCESS }),
+    );
+    clearInterval(timer);
+
+    // Then
+    expect(outcome.forcedShutdown).toBe(false);
+    expect(io.err).toEqual([]);
+  });
+});

@@ -3,6 +3,7 @@ import { ConfigError } from '@openref/core';
 import { ExpressReferenceAdapter } from '../../src/http/infrastructure/adapters/express-reference.adapter';
 import { FastifyReferenceAdapter } from '../../src/http/infrastructure/adapters/fastify-reference.adapter';
 import { createReferenceAdapter } from '../../src/http/infrastructure/adapters/reference-adapter.factory';
+import { RouteAdmission } from '../../src/visibility/domain/admission';
 import { readNestedString, readStringRecord } from '../../src/http/domain/request-shape';
 import { fakeExpressResponse, fakeFastifyReply, fakeHttpAdapter } from '../mocks/fixtures';
 import type {
@@ -73,7 +74,7 @@ describe('ExpressReferenceAdapter', () => {
   it('should write status, headers and body to the Node response', async () => {
     // Given
     const nest = fakeHttpAdapter('express');
-    const adapter = new ExpressReferenceAdapter(nest);
+    const adapter = new ExpressReferenceAdapter(nest, RouteAdmission.open());
     adapter.get('/docs', () => Promise.resolve(OK));
     const reply = fakeExpressResponse();
 
@@ -92,7 +93,7 @@ describe('ExpressReferenceAdapter', () => {
   it('should take the nonce a helmet integration left on res.locals', async () => {
     // Given
     const nest = fakeHttpAdapter('express');
-    const adapter = new ExpressReferenceAdapter(nest);
+    const adapter = new ExpressReferenceAdapter(nest, RouteAdmission.open());
     const seen: ReferenceRequest[] = [];
     adapter.get('/docs', (request) => {
       seen.push(request);
@@ -110,7 +111,9 @@ describe('ExpressReferenceAdapter', () => {
   it('should prefer the nonce the host supplied over the convention', async () => {
     // Given
     const nest = fakeHttpAdapter('express');
-    const adapter = new ExpressReferenceAdapter(nest, { nonce: () => 'from-host' });
+    const adapter = new ExpressReferenceAdapter(nest, RouteAdmission.open(), {
+      nonce: () => 'from-host',
+    });
     const seen: ReferenceRequest[] = [];
     adapter.get('/docs', (request) => {
       seen.push(request);
@@ -129,7 +132,7 @@ describe('ExpressReferenceAdapter', () => {
     // Given
     const nest = fakeHttpAdapter('express');
     const onError = vi.fn();
-    const adapter = new ExpressReferenceAdapter(nest, { onError });
+    const adapter = new ExpressReferenceAdapter(nest, RouteAdmission.open(), { onError });
     adapter.get('/docs', () => Promise.reject(new Error('secret path /etc/passwd')));
     const reply = fakeExpressResponse();
 
@@ -148,7 +151,7 @@ describe('FastifyReferenceAdapter', () => {
   it('should write through the reply object rather than the raw socket', async () => {
     // Given
     const nest = fakeHttpAdapter('fastify');
-    const adapter = new FastifyReferenceAdapter(nest);
+    const adapter = new FastifyReferenceAdapter(nest, RouteAdmission.open());
     adapter.get('/docs', () => Promise.resolve(OK));
     const reply = fakeFastifyReply();
 
@@ -167,7 +170,7 @@ describe('FastifyReferenceAdapter', () => {
   it('should send bytes as a Buffer, since Fastify would serialize an array to JSON', async () => {
     // Given
     const nest = fakeHttpAdapter('fastify');
-    const adapter = new FastifyReferenceAdapter(nest);
+    const adapter = new FastifyReferenceAdapter(nest, RouteAdmission.open());
     const font = new Uint8Array([119, 79, 70, 50]);
     adapter.get('/docs', () =>
       Promise.resolve({ status: 200, headers: {}, body: font } satisfies ReferenceReply),
@@ -186,7 +189,7 @@ describe('FastifyReferenceAdapter', () => {
   it('should take the nonce @fastify/helmet left on the reply', async () => {
     // Given
     const nest = fakeHttpAdapter('fastify');
-    const adapter = new FastifyReferenceAdapter(nest);
+    const adapter = new FastifyReferenceAdapter(nest, RouteAdmission.open());
     const seen: ReferenceRequest[] = [];
     adapter.get('/docs', (request) => {
       seen.push(request);
@@ -209,7 +212,7 @@ describe('createReferenceAdapter', () => {
 
     // When
     const kinds = platforms.map(
-      (platform) => createReferenceAdapter(fakeHttpAdapter(platform)).kind,
+      (platform) => createReferenceAdapter(fakeHttpAdapter(platform), RouteAdmission.open()).kind,
     );
 
     // Then
@@ -221,7 +224,7 @@ describe('createReferenceAdapter', () => {
     const nest = fakeHttpAdapter('hapi');
 
     // When
-    const act = (): unknown => createReferenceAdapter(nest);
+    const act = (): unknown => createReferenceAdapter(nest, RouteAdmission.open());
 
     // Then
     expect(act).toThrow(ConfigError);

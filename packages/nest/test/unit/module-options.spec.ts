@@ -79,8 +79,9 @@ describe('assertRootOptions', () => {
     }).toThrow(/mounted on "\/docs"/);
   });
 
-  it('should refuse a visibility it cannot enforce, and name the entry that will', () => {
-    // Given, the guard is TX-VIS and it is positioned after T023
+  it('should refuse a non public visibility that supplies no guard, before the container', () => {
+    // Given, SPEC 19.6: a document that asks to be private and names nothing to enforce it would
+    // be served to everyone while the host read no error at all
     const bad = options({
       documents: [{ id: 'admin', route: '/docs', document: {}, visibility: 'internal' }],
     });
@@ -88,7 +89,27 @@ describe('assertRootOptions', () => {
     // When, Then
     expect(() => {
       assertRootOptions(bad);
-    }).toThrow(/TX-VIS/);
+    }).toThrow(/supplies no guard/);
+  });
+
+  it('should accept a non public visibility once a guard stands behind it', () => {
+    // Given
+    const good = options({
+      documents: [
+        {
+          id: 'admin',
+          route: '/docs',
+          document: {},
+          visibility: 'internal',
+          guard: { canActivate: (): boolean => true },
+        },
+      ],
+    });
+
+    // When, Then
+    expect(() => {
+      assertRootOptions(good);
+    }).not.toThrow();
   });
 
   it('should accept the visibility it can honour', () => {

@@ -1,4 +1,9 @@
-import type { IRDoctorCheck, IRDoctorFinding, IRDoctorReport } from '@openref/core';
+import {
+  plainArtefactText,
+  type IRDoctorCheck,
+  type IRDoctorFinding,
+  type IRDoctorReport,
+} from '@openref/core';
 
 /**
  * The text rendering of the doctor report, in the shape of SPEC 7.2: a title, a health line, an
@@ -48,7 +53,7 @@ export function renderDoctorSummary(report: IRDoctorReport, title: string): stri
   const lines = [title, '', `Documentation health: ${String(report.score)}%`, operations];
   if (checkLines.length > 0) lines.push('', ...checkLines);
 
-  return lines.join('\n');
+  return plainArtefactText(lines.join('\n'));
 }
 
 /**
@@ -103,5 +108,5 @@ export function renderDoctorFinding(finding: IRDoctorFinding): string {
  * @returns The blocks joined together, or the empty string for no findings at all
  */
 export function renderDoctorFindings(findings: readonly IRDoctorFinding[]): string {
-  return findings.map(renderDoctorFinding).join('\n\n');
+  return plainArtefactText(findings.map(renderDoctorFinding).join('\n\n'));
 }

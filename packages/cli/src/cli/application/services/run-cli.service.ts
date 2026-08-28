@@ -1,7 +1,35 @@
+import { plainArtefactText } from '@openref/core';
 import { COMMANDS } from '../../api/commands/registry';
 import { TOP_LEVEL_USAGE } from '../../api/help';
 import type { CommandIo, CommandOutcome } from '../../domain/command.types';
 import { EXIT_CODE } from '../../domain/exit-code.constants';
+
+/**
+ * The one boundary every line this tool prints goes through, per SPEC 19.1 as widened by `T043`.
+ *
+ * A TERMINAL IS A FORMAT THAT CANNOT ESCAPE, exactly as `llms.txt` is. The first cut of the rule
+ * put the filter on the four renderers it knew about, and review drove `openref preview --spec`
+ * writing a document's title, NUL, ESC and a bidirectional override included, straight to a
+ * terminal that reads ESC as a control sequence; `build`'s own notices went the same way. So the
+ * filter sits here, above every command, and covers the ones written later too.
+ *
+ * IT WRAPS THE CALLER'S STREAMS RATHER THAN ONLY THE PROCESS ONES, so a test that injects its own
+ * `stdout` exercises the same guard the process does. A guard only the real streams have is a
+ * guard no test can fail.
+ *
+ * @param io - Where the command's output is meant to go
+ * @returns The same, with every control character and bidirectional control removed
+ */
+function filtered(io: CommandIo): CommandIo {
+  return {
+    stdout: (line) => {
+      io.stdout(plainArtefactText(line));
+    },
+    stderr: (line) => {
+      io.stderr(plainArtefactText(line));
+    },
+  };
+}
 
 /** Writes to the real process streams. The only place this package touches them directly. */
 const PROCESS_IO: CommandIo = {
@@ -27,8 +55,9 @@ const PROCESS_IO: CommandIo = {
  */
 export async function runCli(
   argv: readonly string[],
-  io: CommandIo = PROCESS_IO,
+  raw: CommandIo = PROCESS_IO,
 ): Promise<CommandOutcome> {
+  const io = filtered(raw);
   const [name, ...rest] = argv;
 
   if (name === undefined) {

@@ -154,6 +154,113 @@ export interface HttpAdapterHostLike {
   readonly httpAdapter?: HttpAdapterLike;
 }
 
+/** Nest's `HttpArgumentsHost`, which is the half of an execution context an http guard reads. */
+export interface HttpArgumentsHostLike {
+  getRequest(): unknown;
+  getResponse(): unknown;
+  getNext(): unknown;
+}
+
+/** Nest's `RpcArgumentsHost`, present because the context a guard receives carries it. */
+export interface RpcArgumentsHostLike {
+  getData(): unknown;
+  getContext(): unknown;
+}
+
+/** Nest's `WsArgumentsHost`, present for the reason {@link RpcArgumentsHostLike} is. */
+export interface WsArgumentsHostLike {
+  getClient(): unknown;
+  getData(): unknown;
+}
+
+/**
+ * Nest's `ExecutionContext`, which this package synthesizes rather than receives.
+ *
+ * SYNTHESIZED BECAUSE THE REFERENCE ROUTES ARE NOT NEST ROUTES, per SPEC 19.6. They are registered
+ * on the http adapter directly, which is what keeps a documentation page out from behind whatever
+ * the application applies globally, and the price of that is that no framework object exists to
+ * hand a guard. `visibility/domain/execution-context.ts` builds one out of the request and the
+ * reply the router did hand over.
+ *
+ * EVERY MEMBER OF THE REAL INTERFACE IS HERE AND NONE IS NARROWER THAN THE REAL ONE, because a
+ * host's guard is compiled against the framework's own type and has to remain assignable to this.
+ * The returns are `unknown` where Nest's are generic: what a guard does with them is its own
+ * business, and a type parameter here would be this package claiming to know the request type of
+ * an application it has never seen.
+ */
+export interface ExecutionContextLike {
+  getType(): string;
+  getArgs(): readonly unknown[];
+  getArgByIndex(index: number): unknown;
+  getClass(): unknown;
+  getHandler(): unknown;
+  switchToHttp(): HttpArgumentsHostLike;
+  switchToRpc(): RpcArgumentsHostLike;
+  switchToWs(): WsArgumentsHostLike;
+}
+
+/**
+ * Nest's `CanActivate`, as an instance.
+ *
+ * THE RETURN IS `unknown` AND THAT IS DELIBERATE. Nest declares
+ * `boolean | Promise<boolean> | Observable<boolean>`, and the third of those is an rxjs type this
+ * package does not depend on and must not start to. `unknown` accepts all three, and the admission
+ * of SPEC 19.6 decides what each one means, refusing anything that is not exactly `true`.
+ */
+export interface CanActivateLike {
+  canActivate(context: ExecutionContextLike): unknown;
+}
+
+/**
+ * What a host may write as `guard`, per SPEC 13.2.
+ *
+ * A CLASS OR AN INSTANCE, AND NOTHING IS CONSTRUCTED HERE. SPEC 13.2 writes the class, which is
+ * what `@UseGuards` takes, and a class is resolved out of the container. See SPEC 19.6 for why a
+ * class the container does not know is refused at boot rather than instantiated by this package.
+ */
+export type GuardLike = CanActivateLike | (new (...args: never[]) => CanActivateLike);
+
+/**
+ * Nest's `HttpException`, narrowed to the one member that carries a status.
+ *
+ * READ RATHER THAN CAUGHT BY TYPE, because catching by type would mean importing the class, and
+ * the whole of this file exists so that this package holds no value coupling to `@nestjs/common`.
+ * A guard that throws `UnauthorizedException` therefore still produces a 401, per SPEC 19.6.
+ */
+export interface HttpExceptionLike {
+  getStatus(): number;
+}
+
+/**
+ * Reports whether a thrown value carries an http status of its own.
+ *
+ * @param value - Whatever the guard threw
+ * @returns True when `getStatus` is callable on it
+ */
+export function isHttpExceptionLike(value: unknown): value is HttpExceptionLike {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'getStatus' in value &&
+    typeof value.getStatus === 'function'
+  );
+}
+
+/**
+ * Reports whether a value can act as a guard.
+ *
+ * @param value - Whatever the container resolved, or whatever the host passed
+ * @returns True when `canActivate` is callable on it
+ */
+export function isCanActivateLike(value: unknown): value is CanActivateLike {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'canActivate' in value &&
+    typeof value.canActivate === 'function'
+  );
+}
+
 /**
  * What `forRoot` builds, which NestJS reads as plain data.
  *

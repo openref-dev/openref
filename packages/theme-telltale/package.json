@@ -38,7 +38,6 @@
     "access": "public"
   },
   "peerDependencies": {
-    "@openref/core": "workspace:*",
     "@openref/vue": "workspace:*",
     "vue": "^3.5.0"
   },

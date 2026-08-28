@@ -139,6 +139,23 @@ export type {
 } from './slots/domain/slot-props.types';
 export type { StateNoticeKind, StreamCounts } from './slots/domain/slot-value.types';
 export type { SchemaPayloadMap } from './slots/domain/slot-props.types';
+
+/**
+ * The IR types this package declares its own props in, re-exported so a theme installs one package.
+ *
+ * FOUR NAMES, EACH ONE THE DECLARED TYPE OF SOMETHING A THEME IS HANDED. `IRConfidence` is
+ * `ProvenanceTag.confidence`, `IRSchemaView` is `SchemaTree.view`, `IRSchema` is the value type of
+ * `SchemaPayloadMap`, and `UnsendableCause` is `RunnerSecuritySchemeView.unsendableCause`. Without
+ * them a theme that types the value it is handed reaches for `@openref/core`, which SPEC 4 promises
+ * it does not have to. Found on `T032` from outside, where a boundary defect is visible, and closed
+ * on `T031-R1`.
+ *
+ * A TYPE RE-EXPORT AND NOT A VALUE ONE. `export type` erases, so the emitted module gains nothing
+ * and no reader of any page pays a byte; and the four names widen no contract, because adding a
+ * name to this surface is a minor version by `PUBLIC-API.md` while the types themselves stay
+ * frozen where they are declared, in `@openref/core`.
+ */
+export type { IRConfidence, IRSchema, IRSchemaView, UnsendableCause } from '@openref/core';
 export { createSlotRegistry } from './slots/domain/slot-registry';
 export type { SlotRegistry } from './slots/domain/slot-registry';
 export { provideSlots, SLOT_REGISTRY_KEY, useSlotRegistry } from './slots/api/context';

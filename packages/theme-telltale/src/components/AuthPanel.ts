@@ -1,6 +1,6 @@
 import { h, type VNode } from 'vue';
 import { eventValue, type ValueEvent } from '../dom';
-import type { UnsendableCause } from '@openref/core';
+import type { UnsendableCause } from '@openref/vue';
 import type {
   RunnerDeviceAuthorization,
   RunnerOAuthFlowView,

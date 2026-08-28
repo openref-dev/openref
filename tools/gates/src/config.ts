@@ -1161,9 +1161,15 @@ export const MEASURED_BUDGETS: readonly MeasuredBudget[] = [
     limit: '0',
     enforcedBy: 'T015',
   },
+  // WHOSE QUANTITY THIS IS, NAMED IN THE LINE ITSELF, per TX-SERVED and the SPEC 0 rule that the
+  // quantity a budget names is part of its assertion. There are two served document figures and
+  // they measure two things: this one is the document as a host assembles it, with a base path in
+  // every link, the real asset catalogue in the head and a nonce on every script element, and it
+  // is checked in the browser because that is where a reader pays. The jsdom ceiling in
+  // `client-cost.spec.ts` measures the shell without any of the three and is 41 KB of its own.
   {
     id: 'served-document',
-    label: 'Served document, 1000 nodes, raw bytes',
+    label: 'Served document as a host assembles it, 1000 nodes, raw bytes, in the browser',
     limit: '72 KB',
     enforcedBy: 'T015',
   },

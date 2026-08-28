@@ -918,3 +918,131 @@ describe('isMechanicallyFixable', () => {
     expect(isMechanicallyFixable({ bucket: 'silence' }, { kind: 'unobserved' })).toBe(false);
   });
 });
+
+/**
+ * The values a mechanical edit needs, carried as data instead of as English.
+ *
+ * ADDED BY `TX-FIX`, AND THE REASON IT HAD TO BE ADDED IS THE FIRST CASE BELOW. The scheme a guard
+ * maps to appeared nowhere in the report except inside the sentence of `suggestion`, so a rewriter
+ * had a choice between parsing prose, which SPEC 6.1 calls a guess, and refusing a rule SPEC 7.4
+ * calls fixable. Every assertion here is asserted against the same sentence, so the two cannot say
+ * different things without this suite going red.
+ */
+describe('the assertion a finding carries', () => {
+  it('should name the mapped scheme when a guard stands on an operation asserting no security', () => {
+    // Given
+    const guarded = operation({
+      runtime: {
+        guards: [
+          { name: 'JwtGuard', scope: 'route', confidence: 'derived', collector: 'guardsCollector' },
+        ],
+      },
+    });
+    const document = documentOf([guarded]);
+
+    // When
+    const issue = onlyIssue('security-drift', document, observed(document, { JwtGuard: 'bearer' }));
+
+    // Then
+    expect(issue.assertion).toEqual({ kind: 'security-scheme', scheme: 'bearer' });
+    expect(issue.suggestion).toContain('"bearer"');
+  });
+
+  it('should say the mapping is unconfigured rather than leave the field off, so an absence is not read as one', () => {
+    // Given
+    const guarded = operation({
+      runtime: {
+        guards: [
+          { name: 'JwtGuard', scope: 'route', confidence: 'derived', collector: 'guardsCollector' },
+        ],
+      },
+    });
+    const document = documentOf([guarded]);
+
+    // When
+    const issue = onlyIssue('security-drift', document, observed(document));
+
+    // Then
+    expect(issue.classification).toEqual({ bucket: 'silence' });
+    expect(issue.assertion).toEqual({ kind: 'unnameable', reason: 'unconfigured-mapping' });
+  });
+
+  it('should name 429 and its description for a rate limit nothing documents', () => {
+    // Given
+    const limited = operation({
+      runtime: {
+        rateLimit: {
+          value: { limit: 10, ttlMs: 60_000 },
+          confidence: 'derived',
+          collector: 'throttlerCollector',
+        },
+      },
+    });
+    const document = documentOf([limited]);
+
+    // When
+    const issue = onlyIssue('ratelimit-undocumented', document, observed(document));
+
+    // Then
+    expect(issue.assertion).toEqual({
+      kind: 'response-status',
+      status: 429,
+      description: 'Too Many Requests',
+    });
+  });
+
+  it('should name the explicit status code for a status nothing documents', () => {
+    // Given
+    const coded = operation({
+      responses: [],
+      runtime: {
+        statusCode: { value: 204, confidence: 'derived', collector: 'httpCodeCollector' },
+      },
+    });
+    const document = documentOf([coded]);
+
+    // When
+    const issue = onlyIssue('status-drift', document, observed(document));
+
+    // Then
+    expect(issue.classification).toEqual({ bucket: 'silence' });
+    expect(issue.assertion).toEqual({ kind: 'response-status', status: 204 });
+  });
+
+  it('should name the handler as the operation id, which is the pair the source collector read', () => {
+    // Given
+    const unnamed = operation({
+      operationId: 'OrdersController_list',
+      rawOperationId: 'OrdersController_list',
+      runtime: { source: { controller: 'OrdersController', handler: 'list' } },
+    });
+    const document = documentOf([unnamed]);
+
+    // When
+    const issue = onlyIssue('missing-operation-id', document, observed(document));
+
+    // Then
+    expect(issue.assertion).toEqual({ kind: 'operation-id', operationId: 'list' });
+    expect(issue.suggestion).toContain("operationId: 'list'");
+  });
+
+  it('should carry no assertion on a contradiction, since there is nothing an edit could add', () => {
+    // Given
+    const conflicting = operation({
+      security: [{ schemeId: 'basic', scopes: [] }],
+      runtime: {
+        guards: [
+          { name: 'JwtGuard', scope: 'route', confidence: 'derived', collector: 'guardsCollector' },
+        ],
+      },
+    });
+    const document = documentOf([conflicting]);
+
+    // When
+    const issue = onlyIssue('security-drift', document, observed(document, { JwtGuard: 'bearer' }));
+
+    // Then
+    expect(issue.classification).toEqual({ bucket: 'contradiction' });
+    expect(issue.assertion).toBeUndefined();
+  });
+});

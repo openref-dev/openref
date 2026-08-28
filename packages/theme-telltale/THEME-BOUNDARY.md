@@ -11,35 +11,57 @@ the frozen registry are this theme's own, every one of them is driven through `r
 `test/integration/slot-coverage.spec.ts`, and every one of them draws. That is the result the task
 was scheduled for and it is a real one.
 
-Five things came back the other way. None of them is worked around here. Each is pinned by a case
+Six things came back the other way. None of them is worked around here. Each is pinned by a case
 in `test/integration/theme-boundary.spec.ts`, so the task that changes the boundary sees it go red.
 
-## 1. Twenty five class names the theme did not write, and cannot replace
+**Re-measured by `T031-R1`, 2026-08-28.** Every number below had drifted, and the drift was one
+way: the boundary is wider than when this file was written, not narrower. One of the six is closed,
+finding 4. The other five stay open, each now naming who would close it and what closing it costs,
+and two of them gained the check they were missing.
 
-Measured, on the four pages a reader can open, with all 21 positions overridden:
+## 1. 37 class names the theme did not write, and cannot replace
 
-```
-oref-code            oref-node-columns    oref-section-title
-oref-column-runtime  oref-operation       oref-section-tryit
-oref-column-spec     oref-root            oref-security-item
-oref-description     oref-section         oref-security-list
-oref-example         oref-section-health  oref-security-type
-oref-field           oref-section-request oref-tryit-form
-oref-field-control   oref-section-security
-oref-field-label     oref-media
-oref-field-note      oref-media-head
-                     oref-media-type
-```
+Measured on the five kinds of page a reader can open, seven renders in all, with all 21 positions
+overridden. **The list is not repeated here.** It lives in exactly one place, the pinned assertion
+in `test/integration/theme-boundary.spec.ts`, and a case in the same file fails when this document,
+`packages/vue/PUBLIC-API.md` or SPEC 10.4 states a different count, because a figure written in
+three places drifts in two, which is what happened: all three said 25 while the list said 37.
+
+Where the twelve came from, each with the task that drew them:
+
+| Task | Names | Why |
+| --- | --- | --- |
+| `T032` | 25 | The measurement this file was written for |
+| `TX-GUTTER` | minus 3 | The page level columns left the reference; the parity markup lives inside `RuntimePanel`, which this theme overrides |
+| `TX-FRAME` | plus 4 | Two new pages are articles the reference draws outside every position, and the bench head is its own two classes |
+| `TX-PARITY-UI` | plus 11 | Page furniture: the bench head's kicker, badge and path, the actions row, the description section |
 
 SPEC 10.1 says an L2 theme is "a package with its own layout; the core contributes no styles". The
 core contributes no *stylesheet*. It contributes *markup*, under its own class names, and a theme
 that does not style them ships a page with unstyled regions on every operation. So the last block
 of `src/styles/theme.css` styles class names from somebody else's namespace, which is the opposite
-of what a frozen contract is for.
+of what a frozen contract is for. 36 of the 37 are styled here; the one that is not,
+`oref-section-health`, is finding 5 below.
+
+**What it costs a theme author, said plainly.** This list is not part of the frozen contract. A
+minor version of `@openref/vue` can add a name to it, the theme that was written against the
+previous minor keeps compiling and keeps rendering, and the only symptom is a region of a page
+with no styling on it. Nothing on the theme's side can detect that; the case in this repository
+can, and only because the theme and the reference are in one tree.
+
+**Why it is not frozen, which is a decision and not an omission.** Freezing it makes every `oref-`
+class public API, so removing one becomes a major version, and these names move whenever the markup
+moves. That trade belongs to the release, not to a session: `T064`, release engineering, owns it
+along with the published package list. Until then the rule that keeps the list from growing is the
+one below.
 
 Two of them are content rather than frame, and that is the sharp end: **the security requirements
 of an operation and its whole request body block are drawn entirely by the reference.** Not the
-frame around a position. The content. `NodePanel` composes six slots and writes those two itself.
+frame around a position. The content. `NodePanel` resolves the positions of the page and writes
+those two itself. Recorded in SPEC 10.4 by `T031-R1`, in the paragraph that lists the six removed
+slot names and for the same reason: a name enters the registry when a real theme needs to draw
+that region differently, and neither shipped theme has asked. The day one asks it is two names and
+a minor version.
 
 The pattern for new markup, recorded 2026-08-14 after two sessions measured both sides of it:
 **new markup goes inside an existing position unless there is a reason it cannot, because markup
@@ -57,19 +79,26 @@ position, and the list grew by eleven, the badge's generated `oref-method-*` fam
 Whether the bench head becomes a position belongs to the telltale adoption task, with the two
 page heads TX-FRAME already put there.
 
-## 2. This theme cannot express its own thesis
+## 2. This theme cannot express block order, and its thesis got expressed for it
 
 `ai-docs/design/telltale/components.md` opens with what this direction does that the other two do
 not: **the runtime block precedes the specification rather than following it.** That order is
 decided inside `NodePanel`, which is not a slot, and `AppShell` is handed the page as opaque
-children through the default slot. No position of the contract can reorder them.
+children through the default slot. No position of the contract can reorder them. That is still
+true, and it is the half that stays open.
 
-`SlotPropsMap.AppShell` says block order "is the shell's business in the same way the two columns
-are". As built it is nobody's business except `NodePanel`'s. This theme reverses the two columns
-with `flex-direction: column-reverse`, which changes what a sighted reader sees and leaves the
-reading order a screen reader follows exactly as the reference wrote it. That is a worse outcome
-than not doing it, and it is done here only because the alternative is a layout that contradicts
-its own design notes.
+`SlotPropsMap.AppShell` said block order "is the shell's business in the same way the two columns
+are". As built it is nobody's business except `NodePanel`'s, which walks `NodeModel.drawn`. That
+comment was corrected by `T031-R1` on 2026-08-28, and SPEC 10.4 now records that a theme cannot
+express block order and why: the fix is a position per block, which is a minor version, and it is
+open under the chrome rule of SPEC 10.2 for the day a theme needs one.
+
+**What this theme used to do about it, and no longer does.** It reversed the two page level columns
+with `flex-direction: column-reverse`, which changed what a sighted reader saw and left the reading
+order a screen reader follows exactly as the reference wrote it. `TX-GUTTER` removed the columns
+and the parity scale put the runtime block directly after the header, so the document order is now
+this theme's order and the workaround is gone. The thesis is expressed, and it is expressed by the
+reference having changed its own mind, not by anything a theme can say.
 
 ## 3. The route table is transcribed, not imported
 
@@ -80,23 +109,67 @@ route table: it lives in `packages/render/src/page/domain/links.ts` and is not p
 `src/links.ts` is that transcription. A theme that got one rule wrong would ship a reference whose
 every navigation link is a 404, and nothing in the contract, the conformance checker or this
 theme's own rendering tests would say so, because a wrong href is a string and a string renders.
-The only thing that makes it fail is the case in `theme-boundary.spec.ts` that compares all three
-rules with the reference's own, and that case can only exist inside this repository.
+The only thing that makes it fail is the case in `theme-boundary.spec.ts` that compares the rules
+with the reference's own, and that case can only exist inside this repository.
 
-## 4. A theme author installs two packages, and is told about one
+**And it failed to, which is the finding under the finding.** `T043` added two whole name rules to
+the reference beside the character escape `T039` added: a reserved Windows device name is escaped
+on its first character, and a trailing dot or space is escaped because Win32 strips it. This
+transcription got neither, so from `T043` until `T031-R1` measured it on 2026-08-28 every link this
+theme drew to a schema called `CON`, `NUL`, `com1` or `Order.` pointed at an address the server
+does not serve. The case that exists to catch exactly this was green throughout, because it
+compared one of the three rules. Both halves are fixed: the transcription carries all three rules,
+and the case asserts each rule is firing in the reference before comparing, over a table that
+includes every reserved device family and both stripped characters.
 
-Three props of the registry are declared in IR types: `IRConfidence` on `ProvenanceTag`,
-`IRSchema` on `ResponseList`, `IRSchemaView` on `SchemaTree`. `@openref/vue` re-exports none of
-them, and `PUBLIC-API.md` lists 127 names without them. A theme that types the value it is handed
-depends on `@openref/core` as well.
+Publishing the builders instead of copying them is still the real fix, and it is not free: they
+live in `@openref/render`, which depends on `@openref/vue`, so publishing means moving the module
+across a package boundary and freezing the address space of SPEC 13.3 as public API. `T064` owns
+that, with the published package list.
+
+## 4. A theme author installs two packages, and is told about one. CLOSED
+
+Four props of the registry are declared in types of `@openref/core`: `IRConfidence` on
+`ProvenanceTag`, `IRSchema` on `ResponseList` and on the request body, `IRSchemaView` on
+`SchemaTree`, and `UnsendableCause` on `RunnerSecuritySchemeView`. That is one more than this
+document recorded on T032; the fourth arrived with the runner and was never counted.
+
+Closed by `T031-R1` on 2026-08-28. `@openref/vue` re-exports all four as types, which is additive,
+a minor version, and zero runtime bytes, and this package's `@openref/core` peer dependency came
+off. No file under `src` names the core package. The case that pinned the defect is turned over
+and now fails if a name leaves `PUBLIC-API.md`, if the peer dependency comes back, or if any file
+under `src` imports from `@openref/core` again.
 
 ## 5. One position requires a class from the reference's namespace
 
-`HealthScore` is the one server side slot. The browser fills that position with
+`HealthScore` was the one server side slot when this was written; since `TX-ADOPT` there are eight,
+listed in SPEC 10.4. It stays the sharp one. The browser fills that position with
 `h('section', { class: 'oref-section-health' })` and nothing else, so hydration compares the class
 list against exactly that one name. An override whose root also carried `tt-health` would have it
 patched away on hydration, silently, in a browser and nowhere else. This theme's root is therefore
-`section.oref-section-health` with its own class on the element inside.
+`section.oref-section-health` with its own class on the element inside. For the other seven the
+reference's class on the root is a development build warning and nothing more, which is what this
+theme pays.
+
+## 6. The structural DOM shim is transcribed too, and was checked by nothing
+
+T011 scopes DOM types to `src/browser` and the integration suite, so that a server only path cannot
+reach `document` by accident and `tsc` fails over the main program when one tries. A theme's
+components render on both sides, so they are inside that program and cannot name a DOM type.
+`packages/render/src/shared/dom.ts` is what makes that possible for the reference, it is private,
+and every theme writes it again. `src/dom.ts` is this one's.
+
+Each file declares 11 shapes and they share 5: `ValueEvent`, `eventValue`, `PickedFile`,
+`FileEvent`, `eventFile`. The other six here are what this theme's components touch and the
+reference's do not, which is also the measurement that says publishing the reference's shim would
+close less than half of this.
+
+Filed by `T031-R1`, which found that `src/dom.ts` already pointed at this section and this section
+did not exist: the transcription was recorded in a file nobody had written to. It now has a case in
+`theme-boundary.spec.ts` that pins the shared five, compares both transcribed functions against the
+reference's over the same events, and asserts mutual assignability of the three shared shapes at
+compile time, so a drift fails `pnpm lint` before the suite runs. Publishing has the same owner as
+finding 3, `T064`, and the same reason for waiting.
 
 ## Smaller, recorded rather than filed
 

@@ -145,4 +145,23 @@ export interface IRDocument {
   readonly runtime?: IRRuntimeMeta;
   readonly health?: IRHealthReport;
   readonly extensions?: Readonly<Record<string, IRJsonValue>>;
+  /**
+   * Path item keys the normalizer would not read, per SPEC 7.1's `operation-key-unread`.
+   *
+   * ADDITIVE AND OPTIONAL, so a document built before `T043` is still a document. It exists
+   * because a fact that cannot be obtained has to reach the doctor rather than be dropped: an
+   * operation written under `GET` instead of `get` used to vanish with nothing anywhere saying
+   * so, and `diff` then reported a deletion nobody made.
+   */
+  readonly unreadKeys?: readonly IRUnreadKey[];
+}
+
+/** One path item key that named an operation this normalizer does not read. */
+export interface IRUnreadKey {
+  /** The path it was written under, exactly as the document wrote it. */
+  readonly path: string;
+  /** The key, exactly as the document wrote it. */
+  readonly key: string;
+  /** The method it would have been, had the key been spelled the way OpenAPI spells one. */
+  readonly method: string;
 }

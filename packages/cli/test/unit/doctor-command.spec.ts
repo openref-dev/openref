@@ -201,4 +201,30 @@ describe('runDoctor', () => {
     // Then
     expect(first.out).toEqual(second.out);
   });
+
+  it('should refuse --dry-run without --fix, since a flag that does nothing is a flag nobody can trust', async () => {
+    // Given
+    const io = fakeIo();
+    const entry = resolve(FIXTURES, 'succeeds.mjs');
+
+    // When
+    const outcome = await runDoctor({ args: [`--from-nest=${entry}`, '--dry-run'], ...io });
+
+    // Then
+    expect(outcome.exitCode).toBe(EXIT_CODE.USAGE_ERROR);
+    expect(io.err[0]).toContain('--dry-run only means something with --fix');
+  });
+
+  it('should declare --fix and --dry-run as its own flags rather than refuse them as unknown', async () => {
+    // Given
+    const io = fakeIo();
+    const entry = resolve(FIXTURES, 'succeeds.mjs');
+
+    // When
+    const outcome = await runDoctor({ args: [`--from-nest=${entry}`, '--fixx'], ...io });
+
+    // Then
+    expect(outcome.exitCode).toBe(EXIT_CODE.USAGE_ERROR);
+    expect(io.err[0]).toContain('unknown flag --fixx');
+  });
 });

@@ -10,7 +10,7 @@ import { renderStaticSite } from '../../application/services/static-build.servic
 import type { CommandContext, CommandOutcome } from '../../domain/command.types';
 import { EXIT_CODE } from '../../domain/exit-code.constants';
 import type { DocumentSource } from '../../domain/loaded-document.types';
-import { parseArgs, stringFlag, type FlagValue } from '../argv';
+import { parseArgs, stringFlag, unknownFlagRefusal, type FlagValue } from '../argv';
 import { BUILD_USAGE } from '../help';
 
 const SOURCE_FLAGS = ['spec', 'config', 'from-nest'] as const;
@@ -102,7 +102,7 @@ export function buildReportText(report: BuildReport): string {
  * `auto` reads the platform environment variables and falls back to `none` with a warning.
  */
 export async function runBuild(context: CommandContext): Promise<CommandOutcome> {
-  const { flags } = parseArgs(context.args, [
+  const { flags, unknown } = parseArgs(context.args, [
     'spec',
     'config',
     'from-nest',
@@ -114,6 +114,12 @@ export async function runBuild(context: CommandContext): Promise<CommandOutcome>
   if (flags.has('help')) {
     context.stdout(BUILD_USAGE);
     return { exitCode: EXIT_CODE.SUCCESS };
+  }
+
+  const refusal = unknownFlagRefusal('build', unknown);
+  if (refusal !== undefined) {
+    context.stderr(`${refusal}\n\n${BUILD_USAGE}`);
+    return { exitCode: EXIT_CODE.USAGE_ERROR };
   }
 
   const source = resolveSource(flags);

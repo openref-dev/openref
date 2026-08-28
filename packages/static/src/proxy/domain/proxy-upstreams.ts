@@ -23,8 +23,33 @@ import type { IRServer, IRServerVariable } from '@openref/core';
  */
 export const UPSTREAM_EXPANSION_LIMIT = 50;
 
+/**
+ * Greatest number of upstreams one document may pin in total.
+ *
+ * THE LIMIT ABOVE BOUNDS A TEMPLATE AND THE REASON IT GIVES IS ABOUT THE TOTAL, which is the gap
+ * `T043` measured: a document multiplies templates as freely as it multiplies enum values, so
+ * forty servers each under the per template cap pinned two thousand upstreams and a thousand
+ * pinned fifty thousand. A 379 KB specification produced a 1.69 MB Cloudflare Pages Function in
+ * 0.8 seconds, over that platform's own script limit, and the build reported success. Five
+ * hundred is above every real document, above the two hundred the adversarial task names as its
+ * stress case, and far below the size at which a generated artefact stops being one a platform
+ * will take. A document above it pins nothing, with the number in the warning, for the reason a
+ * template above its own cap pins nothing: a silently pinned subset is worse than none.
+ */
+export const UPSTREAM_TOTAL_LIMIT = 500;
+
 /** What planning the upstreams of one document produced. */
 export interface UpstreamPlan {
+  /**
+   * How many upstreams were materialised before the plan was answered.
+   *
+   * REPORTED SO THE BOUND CAN BE ASSERTED RATHER THAN TIMED. `T043`'s verification found the test
+   * for the total limit asserting a duration against a budget set at about twice the mutated
+   * figure, which stays green on a machine that is merely fast; a test that passes for a reason
+   * that is not the property is not a test of the property. This is the property: the number of
+   * entries the expansion ever held, which the limit exists to bound.
+   */
+  readonly materialized: number;
   /**
    * The pinned upstreams: absolute http(s) urls, origin plus path with no trailing slash,
    * deduplicated, in first seen order. The index into this list is the `u<N>` of every rule.
@@ -60,10 +85,33 @@ export function planUpstreams(servers: readonly IRServer[]): UpstreamPlan {
       if (seen.has(url)) continue;
       seen.add(url);
       upstreams.push(url);
+
+      // COUNTED WHILE EXPANDING, NOT AFTER. A limit checked over a finished list bounds the
+      // output and not the memory the list took, which is half of what the limit is for.
+      if (upstreams.length > UPSTREAM_TOTAL_LIMIT) return refuseTotal(warnings, upstreams.length);
     }
   }
 
-  return { upstreams, warnings };
+  return { upstreams, warnings, materialized: upstreams.length };
+}
+
+/**
+ * The plan a document above {@link UPSTREAM_TOTAL_LIMIT} gets: nothing pinned, and the limit said.
+ *
+ * @param warnings - What was already warned about
+ * @returns The refusing plan
+ */
+function refuseTotal(warnings: readonly string[], materialized: number): UpstreamPlan {
+  return {
+    upstreams: [],
+    materialized,
+    warnings: [
+      ...warnings,
+      `no proxy rules were generated: this document's servers pin more than ` +
+        `${String(UPSTREAM_TOTAL_LIMIT)} upstreams in total, and pinning a subset silently would ` +
+        'be worse than pinning none',
+    ],
+  };
 }
 
 /**
@@ -132,6 +180,15 @@ function resolveServer(server: IRServer): readonly string[] | string {
       return '';
     }
 
+    const infrastructure = infrastructureHost(upstream);
+    if (infrastructure !== null) {
+      return (
+        `the server "${server.url}" was skipped: "${upstream}" is ${infrastructure}, and a ` +
+        'generated rule for it would be a public gateway to infrastructure the reader deploys ' +
+        'on rather than to an API'
+      );
+    }
+
     const unsafe = unsafeUpstreamCharacter(upstream);
     if (unsafe !== null) {
       return (
@@ -145,6 +202,61 @@ function resolveServer(server: IRServer): readonly string[] | string {
   }
 
   return urls;
+}
+
+/**
+ * Host names that answer for the machine rather than for an API.
+ *
+ * THE WELL KNOWN METADATA ENDPOINTS BY NAME, because a name resolves to the same place an address
+ * does and the document is free to write either.
+ */
+const METADATA_HOST = new Set([
+  'metadata',
+  'metadata.google.internal',
+  'metadata.goog',
+  'instance-data',
+  'metadata.azure.com',
+]);
+
+/**
+ * What kind of infrastructure address an upstream names, or null when it names none.
+ *
+ * THE HOLE §16.2 THOUGHT IT HAD CLOSED. "The SSRF class disappears by construction" is true about
+ * the client: the reader's request cannot choose a host. It is not true about the document, and
+ * the document is the part this project did not write. `T043`'s verification measured a
+ * specification whose `servers` named `169.254.169.254`, `metadata.google.internal` and
+ * `100.100.100.200` producing eight rules and no warning at all, which is an anonymous public
+ * gateway to an instance's credential endpoint, deployed on the reader's own infrastructure by a
+ * tool the reader trusted.
+ *
+ * SKIPPED RATHER THAN COMMENTED, because a comment in a generated file is read after the
+ * deployment and the rule answers from the first second of it.
+ *
+ * @param upstream - The pinned upstream url
+ * @returns A noun phrase naming what it is, or null
+ */
+export function infrastructureHost(upstream: string): string | null {
+  let host: string;
+  try {
+    host = new URL(upstream).hostname.toLowerCase();
+  } catch {
+    return null;
+  }
+
+  const bare = host.startsWith('[') && host.endsWith(']') ? host.slice(1, -1) : host;
+
+  if (METADATA_HOST.has(host)) return 'a well known cloud metadata host';
+  if (host === 'localhost' || host.startsWith('127.') || bare === '::1') {
+    return 'a loopback address';
+  }
+  if (host.startsWith('169.254.')) {
+    return 'an IPv4 link local address, where cloud metadata answers';
+  }
+  if (host === '100.100.100.200') return 'a well known cloud metadata address';
+  if (/^fe[89ab][0-9a-f]:/.test(bare)) return 'an IPv6 link local address';
+  if (/^f[cd][0-9a-f]{2}:/.test(bare)) return 'an IPv6 unique local address';
+
+  return null;
 }
 
 /**

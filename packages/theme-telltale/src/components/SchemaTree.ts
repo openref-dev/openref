@@ -1,7 +1,7 @@
 import { defineComponent, h, ref, type PropType, type VNode } from 'vue';
 import { schemaHref } from '../links';
 import type { SchemaTreeNode } from '@openref/vue';
-import type { IRSchemaView } from '@openref/core';
+import type { IRSchemaView } from '@openref/vue';
 
 /**
  * The schema tree, one level at a time.

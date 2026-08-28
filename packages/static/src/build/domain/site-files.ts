@@ -10,7 +10,7 @@
  * it, so two builds of one document write the same bytes without anything being sorted here.
  */
 
-import type { IRDocument } from '@openref/core';
+import { plainArtefactText, type IRDocument } from '@openref/core';
 import { materializeNode } from '@openref/render';
 import { plainSummary } from './page-metadata';
 import type { PlannedPage } from './page-plan';
@@ -113,5 +113,8 @@ export function llmsTxt(
 
   lines.push('');
 
-  return lines.join('\n');
+  // ONE CALL AT THE ARTEFACT BOUNDARY, per SPEC 19.1 as extended by `T043`. `T043` measured NUL,
+  // C0 controls, ESC and U+202E reaching this file out of a specification's own strings. It has no
+  // element to isolate on and no syntax to escape into, so it gets the property by removal.
+  return plainArtefactText(lines.join('\n'));
 }

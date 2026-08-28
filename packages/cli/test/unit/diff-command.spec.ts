@@ -141,10 +141,12 @@ describe('a diff side that begins with a hyphen', () => {
     expect(io.err.join('')).toContain('<new> as a git ref "-f" starts with "-"');
   });
 
-  it('should never see a two hyphen side as a positional, and say the count instead', async () => {
+  it('should never see a two hyphen side as a positional, and name the flag instead', async () => {
     // Given: `parseArgs` reads `--upload-pack=x` as a flag, so one positional arrives, not two.
     // The guard cannot be reached here without giving up `--` meaning flag, and this case pins
-    // what happens instead so the substitution is not silent.
+    // what happens instead so the substitution is not silent. SINCE `T043` the refusal names the
+    // flag rather than the count: the exit code is the same usage error it always was, and the
+    // sentence now says which argument was the problem instead of which one was missing.
     const io = fakeIo();
 
     // When
@@ -152,7 +154,7 @@ describe('a diff side that begins with a hyphen', () => {
 
     // Then
     expect(outcome.exitCode).toBe(EXIT_CODE.USAGE_ERROR);
-    expect(io.err.join('')).toContain('two spec paths or git refs are required');
+    expect(io.err.join('')).toContain('openref diff: unknown flag --upload-pack');
   });
 
   it('should read a bare -h as help rather than as a side', async () => {
