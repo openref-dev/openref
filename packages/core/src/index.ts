@@ -192,6 +192,8 @@ export {
   NAMED_SCHEMA_POINTER_PREFIX,
   schemaIdForReference,
   schemaNameFromId,
+  federatedSchemaId,
+  isFederationServiceId,
 } from './normalizer/domain/schema-registry';
 export type { SchemaRegistry } from './normalizer/domain/schema-registry';
 export { applyView, toRequestView, toResponseView } from './normalizer/domain/views';

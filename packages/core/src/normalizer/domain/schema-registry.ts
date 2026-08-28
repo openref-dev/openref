@@ -84,6 +84,25 @@ const SPACE_MARK = '~';
 const EXTERNAL_PREFIX = `${SPACE_MARK}x`;
 
 /**
+ * What a federated id carries between its marker and the id it wraps, per SPEC 15.
+ *
+ * THE THIRD SPACE, AND IT IS DISJOINT FROM THE OTHER TWO BY THE SAME TWO CHARACTER ARGUMENT.
+ * An escaped name begins with `~` only when the name does, and then its second character is `~`
+ * as well, so no internal id begins with `~x` or with `~s`; every external id begins with `~x`
+ * and never with `~s`; every federated id begins with `~s`.
+ *
+ * WHY IT EXISTS AT ALL, MEASURED RATHER THAN ARGUED. SPEC 15 gives node ids the prefix
+ * `<serviceId>_`, which is unambiguous because a derived node id cannot contain an underscore:
+ * `pathSlug` replaces everything that is not a letter or a digit, and over the whole SPEC 21
+ * corpus that is 0 of 1228. Carrying that separator to schemas does not work, and the same
+ * measurement says why: 1504 of 2378 corpus schema ids contain an underscore, which is the whole
+ * of `stripe.yaml`, whose schemas are named `account_annual_revenue` and so on. A service called
+ * `account` merged beside Stripe would claim the id of a real Stripe schema. That is F1 arriving
+ * through a milestone.
+ */
+const FEDERATED_PREFIX = `${SPACE_MARK}s`;
+
+/**
  * Escapes the human part of a name so that it cannot start with the external marker.
  *
  * Doubling the reserved character is the whole mechanism: an escaped name begins with
@@ -110,9 +129,61 @@ function escapeName(name: string): string {
  * schemaNameFromId('~~odd');              // '~odd'
  */
 export function schemaNameFromId(id: string): string {
-  const external = id.startsWith(EXTERNAL_PREFIX);
-  const escaped = external ? id.slice(id.indexOf(SPACE_MARK, EXTERNAL_PREFIX.length) + 1) : id;
+  // The federated marker is stripped first and exactly once, per SPEC 15: what it wraps is an id
+  // of one of the other two spaces, so the rest of this function reads it by the older rules.
+  const federated = id.startsWith(FEDERATED_PREFIX)
+    ? id.slice(id.indexOf(SPACE_MARK, FEDERATED_PREFIX.length) + 1)
+    : id;
+  const external = federated.startsWith(EXTERNAL_PREFIX);
+  const escaped = external
+    ? federated.slice(federated.indexOf(SPACE_MARK, EXTERNAL_PREFIX.length) + 1)
+    : federated;
   return escaped.split(`${SPACE_MARK}${SPACE_MARK}`).join(SPACE_MARK);
+}
+
+/**
+ * Alphabet a federation service id is confined to, per SPEC 15.
+ *
+ * THE CONDITION THE NODE PREFIX DEPENDS ON, WRITTEN DOWN RATHER THAN ASSUMED. `<serviceId>_` is
+ * only unambiguous while the service id cannot itself introduce a character the node id space
+ * does not have, so it is held to the same alphabet a derived node id uses.
+ */
+const SERVICE_ID_PATTERN = /^[a-z0-9-]+$/;
+
+/**
+ * Reports whether a federation service id is one SPEC 15 permits.
+ *
+ * @param serviceId - Id the host gave a remote
+ * @returns True when it is lowercase letters, digits and hyphens
+ */
+export function isFederationServiceId(serviceId: string): boolean {
+  return SERVICE_ID_PATTERN.test(serviceId);
+}
+
+/**
+ * The id a schema of a federated service is filed under, per SPEC 15.
+ *
+ * THE POINT IS THAT THE MERGE NEVER HAS TO ASK WHETHER THIS ID IS FREE. The construction cannot
+ * be imitated by a document naming its own schema, so a namespaced id is available by
+ * construction rather than after a collision check with an escape behind it. An escape that runs
+ * on every schema of a real document is not a fallback, and one whose need depends on which other
+ * services happen to be merged alongside makes the id environment dependent again, which is the
+ * defect SPEC 5.1.1 rejected a conditional suffix over.
+ *
+ * The service id is hashed rather than written, for the reason the external space hashes a URI:
+ * the host writes it, it may carry `~`, and a prefix of fixed shape may not.
+ *
+ * @param serviceId - Id of the remote the schema came from
+ * @param schemaId - The id that schema has in that service's own document
+ * @returns The id in the merged document
+ *
+ * @example
+ * federatedSchemaId('billing', 'Order');              // '~s2a3f...~Order'
+ * federatedSchemaId('billing', '~x1b4f0e98~Order');   // '~s2a3f...~~x1b4f0e98~Order'
+ */
+export function federatedSchemaId(serviceId: string, schemaId: string): string {
+  const digest = sha256Hex(serviceId.normalize('NFC')).slice(0, 8);
+  return `${FEDERATED_PREFIX}${digest}${SPACE_MARK}${schemaId}`;
 }
 
 /**
