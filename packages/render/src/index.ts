@@ -182,6 +182,7 @@ export {
   OVERVIEW_PATH,
   overviewHref,
   pathSegmentOf,
+  PROXY_SEGMENT,
   SCHEMA_SEGMENT,
   schemaHref,
   SHAPES_SEGMENT,

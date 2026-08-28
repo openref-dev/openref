@@ -19,6 +19,7 @@
  */
 
 import { ErrorCode, InvalidOptionsError } from '@openref/core';
+import { PROXY_SEGMENT } from '@openref/render';
 
 /** Segment under which hashed static assets are served. */
 export const ASSET_SEGMENT = '_assets';
@@ -87,8 +88,12 @@ export const OAUTH_CALLBACK_SEGMENT = 'callback';
  * enabled makes the two states indistinguishable from outside: a 404 is what a mount with no
  * proxy answers and also what a mount whose proxy route failed to register answers. This one
  * answers 403 with the reason, which is a fact about the deployment rather than about the url.
+ *
+ * DEFINED IN `links.ts` OF `@openref/render` SINCE `T040`, because the static build of SPEC 16.2
+ * writes its rewrite rules under the same segment and cannot see this package. Re-exported here
+ * so this package's public surface is unchanged.
  */
-export const PROXY_SEGMENT = '_proxy';
+export { PROXY_SEGMENT } from '@openref/render';
 
 /** Name of the parameter carrying an asset file name. */
 export const ASSET_PARAM = 'asset';

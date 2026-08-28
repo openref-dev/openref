@@ -33,7 +33,9 @@
     "@openref/search": "workspace:*"
   },
   "devDependencies": {
+    "@netlify/redirect-parser": "16.1.1",
     "@openref/theme": "workspace:*",
+    "@vercel/routing-utils": "6.5.0",
     "tsup": "8.5.1",
     "typescript": "5.9.3"
   }

@@ -738,4 +738,15 @@ export interface PageModel {
    * same build it always was.
    */
   readonly proxyPath?: string;
+  /**
+   * Name of the deployment platform that cannot rewrite routes, per SPEC 16.2, shown to the
+   * reader beside the console.
+   *
+   * Set by the static build when `--target` named a platform with no rewrite capability and the
+   * document pins at least one absolute upstream, so the console warns that requests go straight
+   * from the reader's browser to the API. Absent everywhere else: a served page and a build with
+   * a working proxy target have nothing to warn about, and a direct request to the page's own
+   * origin is not a degradation.
+   */
+  readonly directTarget?: string;
 }

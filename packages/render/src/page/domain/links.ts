@@ -105,6 +105,18 @@ export function navigationHref(documentHash: string, basePath = ''): string {
   return `${basePath}/${NAVIGATION_SEGMENT}/${encodeURIComponent(documentHash)}`;
 }
 
+/**
+ * Segment of the proxy, the dynamic one of SPEC 14.5 and the static rules of SPEC 16.2 alike.
+ *
+ * HERE SINCE `T040`, MOVED FROM `@openref/nest`, because two producers on opposite sides of the
+ * dependency graph speak it: the Nest module registers the SPEC 14.5 route on this segment, and
+ * the static build writes the SPEC 16.2 rewrite rules under it, one rule per pinned upstream at
+ * `<base>/_proxy/u<N>/...`. This module is the one package both can see, and it already owns the
+ * address space, per SPEC 16.1. `@openref/nest` re-exports it, so its public surface is
+ * unchanged.
+ */
+export const PROXY_SEGMENT = '_proxy';
+
 /** Segment that separates a schema page from a node page, so the two id spaces cannot collide. */
 export const SCHEMA_SEGMENT = 'schema';
 

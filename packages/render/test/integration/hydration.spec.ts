@@ -275,7 +275,10 @@ describe('readPageState', () => {
     // a page cached before it hydrates a bar with hidden tabs and responses that re-expand.
     // TX-ADOPT added `drawn` and `hasExample` and redacted what only server resolved
     // positions read, and that is 14: a page cached before it hydrates an operation article
-    // whose client walk finds no `drawn` and draws nothing under the header.
-    expect(state?.pageModelVersion).toBe(14);
+    // whose client walk finds no `drawn` and draws nothing under the header. T040 added
+    // `directTarget`, the platform name of the SPEC 16.2 direct mode warning, and that is 15:
+    // a page cached before it hydrates a console with no warning, which on a served page is
+    // correct and on a static one is the page from before the warning existed.
+    expect(state?.pageModelVersion).toBe(15);
   });
 });

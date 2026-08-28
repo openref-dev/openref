@@ -9,6 +9,11 @@ export interface CommandIo {
 /** What a command handler is given: its own arguments, already separated from the command name. */
 export interface CommandContext extends CommandIo {
   readonly args: readonly string[];
+  /**
+   * The process environment, injected so a test can fake a platform, per SPEC 16.2's
+   * `--target auto`. Absent means the command reads no environment at all.
+   */
+  readonly env?: Readonly<Record<string, string | undefined>>;
 }
 
 /** What running a command produced. */

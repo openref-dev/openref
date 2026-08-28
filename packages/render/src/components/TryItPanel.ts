@@ -137,6 +137,11 @@ export const TryItPanel = defineComponent({
      * about itself and disables nothing.
      */
     unread: { type: Array as PropType<readonly string[]>, default: () => [] },
+    /**
+     * Name of the deployment platform that cannot rewrite routes, per SPEC 16.2, empty when
+     * there is nothing to warn about. `PageModel.directTarget`, handed down by the layout.
+     */
+    directTarget: { type: String, default: '' },
   },
 
   setup(props) {
@@ -599,6 +604,22 @@ export const TryItPanel = defineComponent({
         );
 
         return h('section', { class: 'oref-section oref-section-tryit' }, body);
+      }
+
+      // THE DIRECT MODE WARNING OF SPEC 16.2, CONSOLE OWNED LIKE RESET AND THE CHORD HINT: it
+      // is a fact about how this reference was published, not a state a slot could be in, so it
+      // is not a `StateNotice` kind. The build sets `directTarget` only when the platform cannot
+      // rewrite routes and the document pins an absolute upstream, so rendering is presence.
+      if (props.directTarget !== '') {
+        body.push(
+          h(
+            'p',
+            { class: 'oref-tryit-notice', role: 'note' },
+            `This reference is published on ${props.directTarget}, which cannot rewrite ` +
+              'routes, so there is no proxy: requests go straight from your browser to the ' +
+              "API and are subject to the API's own CORS policy.",
+          ),
+        );
       }
 
       const media = bodyMedia.value;

@@ -322,7 +322,7 @@ describe('buildSite, the manifest', () => {
       string,
       unknown
     >;
-    expect(manifest.version).toBe(1);
+    expect(manifest.version).toBe(2);
     manifest.version = 99;
 
     // When

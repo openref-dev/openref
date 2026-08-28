@@ -66,6 +66,14 @@ import { reasonPhrase } from '../../shared/status';
 /**
  * Version of the page model shape, part of the cache key.
  *
+ * 15 SINCE `T040`: the model carries `directTarget`, the name of a deployment platform that
+ * cannot rewrite routes, per SPEC 16.2, set only by a static build for such a target and only
+ * when the document pins an absolute upstream. The console reads it to warn that requests go
+ * straight from the reader's browser to the API. A page cached before this hydrates a console
+ * with no warning, which on a served page is correct and on a static one is the page from
+ * before the warning existed rather than a broken one, and the version is what keeps a warned
+ * page and an unwarned client from meeting on one screen.
+ *
  * 14 SINCE `TX-ADOPT`: a node carries `drawn`, the list of sections the server drew in draw
  * order, and a media type carries `hasExample`, because the client walks the first and adopts
  * the second instead of recomputing conditions over fields the state block no longer ships. A
@@ -120,7 +128,7 @@ import { reasonPhrase } from '../../shared/status';
  * 6 was T027: `run.bodyMediaTypes`, a list of strings, became `run.body`, a list of media types
  * each carrying the editor its schema asks for and the fields it is made of.
  */
-export const PAGE_MODEL_VERSION = 14;
+export const PAGE_MODEL_VERSION = 15;
 
 /** Media types an example is generated for. */
 const JSON_MEDIA_TYPE = /^application\/(?:[\w.+-]+\+)?json$/i;
@@ -160,6 +168,13 @@ export interface PageModelOptions {
    * Only the server knows, so it enters the model here or the browser never learns it.
    */
   readonly proxyPath?: string;
+  /**
+   * Name of a deployment platform that cannot rewrite routes, per SPEC 16.2.
+   *
+   * Only the static build knows what it was targeted at, so the fact enters the model here or
+   * the console never learns why it is sending directly.
+   */
+  readonly directTarget?: string;
 }
 
 /**
@@ -991,6 +1006,7 @@ export function buildPageModel(document: IRDocument, options: PageModelOptions):
     descriptionHtml: markdown.render(document.info.description),
     basePath,
     ...(options.proxyPath === undefined ? {} : { proxyPath: options.proxyPath }),
+    ...(options.directTarget === undefined ? {} : { directTarget: options.directTarget }),
     servers: document.servers.map((server) => server.url),
     navigation: navigation.entries,
     navigationComplete: navigation.complete,

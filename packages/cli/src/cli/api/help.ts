@@ -18,8 +18,13 @@ Builds a static reference from one document source. Exactly one of --spec, --con
   --base <base>       a path such as /docs, or an absolute url such as
                       https://docs.example.com/api. Only an absolute base can
                       produce sitemap.xml, the canonical link and og:url
-  --target <name>     hosting target the proxy configuration is generated for.
-                      Refused until T040 builds it, rather than ignored
+  --target <name>     hosting target the proxy configuration of SPEC 16.2 is
+                      generated for: nitro, nginx, caddy, netlify, vercel,
+                      cloudflare-pages or s3-cloudfront. github-pages,
+                      gitlab-pages and s3 cannot rewrite routes, so pages carry
+                      the direct mode warning instead. auto detects the platform
+                      from its environment variables and falls back to none with
+                      a warning. Absent means no proxy is generated at all
   --help              print this message
 `;
 

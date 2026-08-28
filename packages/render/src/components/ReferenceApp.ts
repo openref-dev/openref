@@ -160,6 +160,9 @@ export const ReferenceApp = defineComponent({
           h(deferrable.tryIt, {
             run: node.run,
             basePath: props.basePath,
+            // The direct mode warning of SPEC 16.2, present only on a static build for a
+            // platform with no rewrite capability.
+            directTarget: page.directTarget ?? '',
             // The verdict chip's declaration, per TX-MARKUP: what the document says this
             // operation answers with, read off the same rows the responses section draws.
             declared: node.responses.map((response) => response.statusCode),

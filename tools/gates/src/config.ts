@@ -1488,6 +1488,34 @@ export const CAPABILITY_DEBTS: readonly CapabilityDebt[] = [
       'amendment paragraph that moves with the work, the way theme-css-raw was derived from ' +
       'its own measurement.',
   },
+  {
+    id: 'static-proxy-transport',
+    capability:
+      'the static proxy rules of SPEC 16.2 are generated, validated per platform and proven to ' +
+      'pin their upstreams, and no page this project ships ever sends through them; the ' +
+      'console on a static build sends direct whatever --target generated',
+    owners: ['T042'],
+    reachableBy: 'M3',
+    recordedAt: '2026-08-27',
+    roots: ['packages/nest/dist/browser'],
+    marker: 'staticProxy',
+    diagnosis:
+      'T040 built the generation side whole: one rule per pinned upstream under ' +
+      '<base>/_proxy/u<N>/, seven platform artefacts, determinism, the SPEC 19.9 proof that no ' +
+      'request can name a target, and the direct mode warning for platforms with no rewrite. ' +
+      'What no task has built is the browser half: ProxyHttpTransport speaks the SPEC 14.5 ' +
+      'envelope, a POST of {method, url, headers, body} to one route, and a platform rewrite ' +
+      'rule cannot read an envelope, so the generated routes need a transport that rewrites ' +
+      'the request url onto the u<N> path prefix and sends the request itself. The page model ' +
+      'carries proxyPath for the envelope proxy and nothing for this one, so the runner ' +
+      'factory in packages/nest/src/browser/runner-factory.ts has no fact to choose by, and ' +
+      'the console on every static build sends direct. Paying the debt means a path rewrite ' +
+      'transport in @openref/runner, a page model fact naming the prefix and the pinned ' +
+      'upstream order, the factory branch that reads it, and a browser case proving a Send on ' +
+      "a built page reaches its own origin under the prefix. The marker is that fact's field " +
+      "name, absent from the shipped bundle until the choice exists, per this list's own " +
+      'convention. T042 owns it as the gates task of the milestone SPEC 16.2 ships in.',
+  },
 ];
 
 /** The claim map, which answers every SPEC 19 and SPEC 20 claim with what would go red. */

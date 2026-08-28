@@ -68,20 +68,37 @@ describe('runBuild, its own arguments', () => {
     expect(io.err[0]).toContain('--out <dir> is required');
   });
 
-  it('should refuse --target rather than accepting it into a build that ignores it', async () => {
+  it('should refuse a --target it does not know, listing what it does', async () => {
     // Given
     const io = fakeIo();
     const spec = resolve(MOCKS, 'mini-spec.json');
 
     // When
     const outcome = await runBuild({
-      args: [`--spec=${spec}`, `--out=${directory}`, '--target=netlify'],
+      args: [`--spec=${spec}`, `--out=${directory}`, '--target=heroku'],
       ...io,
     });
 
     // Then
     expect(outcome.exitCode).toBe(EXIT_CODE.USAGE_ERROR);
-    expect(io.err[0]).toContain('T040');
+    expect(io.err[0]).toContain('"heroku"');
+    expect(io.err[0]).toContain('netlify');
+  });
+
+  it('should refuse a bare --target with no value', async () => {
+    // Given
+    const io = fakeIo();
+    const spec = resolve(MOCKS, 'mini-spec.json');
+
+    // When
+    const outcome = await runBuild({
+      args: [`--spec=${spec}`, `--out=${directory}`, '--target'],
+      ...io,
+    });
+
+    // Then
+    expect(outcome.exitCode).toBe(EXIT_CODE.USAGE_ERROR);
+    expect(io.err[0]).toContain('--target needs a value');
   });
 
   it('should print its usage and stop on --help', async () => {
@@ -145,6 +162,7 @@ describe('runBuild, the build it performs', () => {
       removed,
       sitemap: false,
       notices: [],
+      proxy: null,
     });
 
     // When
@@ -202,5 +220,120 @@ describe('runBuild, the build it performs', () => {
     // Then
     expect(outcome.exitCode).toBe(EXIT_CODE.USAGE_ERROR);
     expect(io.err.join('')).toContain('--base must be');
+  });
+});
+
+describe('runBuild, the --target of SPEC 16.2', () => {
+  it('should generate the netlify rules for --target netlify and report them', async () => {
+    // Given
+    const io = fakeIo();
+    const spec = resolve(MOCKS, 'proxy-spec.json');
+
+    // When
+    const outcome = await runBuild({
+      args: [`--spec=${spec}`, `--out=${directory}`, '--target=netlify'],
+      ...io,
+    });
+
+    // Then
+    expect(outcome.exitCode).toBe(EXIT_CODE.SUCCESS);
+    const redirects = await readFile(join(directory, '_redirects'), 'utf8');
+    expect(redirects).toContain('/_proxy/u0/* https://api.example.com/v1/:splat 200');
+    expect(io.out.join('')).toContain('proxy     netlify: 1 upstream, wrote _redirects');
+  });
+
+  it('should generate nothing without --target, and remove what a targeted build wrote', async () => {
+    // Given: a targeted build first, so the absence below is the flag's doing and not the
+    // document's, and so the stale removal of a dropped target is proven with it.
+    const spec = resolve(MOCKS, 'proxy-spec.json');
+    await runBuild({
+      args: [`--spec=${spec}`, `--out=${directory}`, '--target=netlify'],
+      ...fakeIo(),
+    });
+    expect(await readFile(join(directory, '_redirects'), 'utf8')).toContain(':splat 200');
+
+    // When
+    const io = fakeIo();
+    const outcome = await runBuild({ args: [`--spec=${spec}`, `--out=${directory}`], ...io });
+
+    // Then
+    expect(outcome.exitCode).toBe(EXIT_CODE.SUCCESS);
+    await expect(readFile(join(directory, '_redirects'), 'utf8')).rejects.toThrow();
+    expect(io.out.join('')).not.toContain('proxy    ');
+  });
+
+  it('should detect the platform under --target auto from its environment variable', async () => {
+    // Given
+    const io = fakeIo();
+    const spec = resolve(MOCKS, 'proxy-spec.json');
+
+    // When
+    const outcome = await runBuild({
+      args: [`--spec=${spec}`, `--out=${directory}`, '--target=auto'],
+      env: { NETLIFY: 'true' },
+      ...io,
+    });
+
+    // Then
+    expect(outcome.exitCode).toBe(EXIT_CODE.SUCCESS);
+    const redirects = await readFile(join(directory, '_redirects'), 'utf8');
+    expect(redirects).toContain(':splat 200');
+  });
+
+  it('should fall back to none with a warning when --target auto sees no platform', async () => {
+    // Given
+    const io = fakeIo();
+    const spec = resolve(MOCKS, 'proxy-spec.json');
+
+    // When
+    const outcome = await runBuild({
+      args: [`--spec=${spec}`, `--out=${directory}`, '--target=auto'],
+      env: {},
+      ...io,
+    });
+
+    // Then: the build proceeds, nothing is generated, and the warning says so.
+    expect(outcome.exitCode).toBe(EXIT_CODE.SUCCESS);
+    expect(io.err.join('')).toContain('none of NETLIFY, VERCEL or CF_PAGES');
+    await expect(readFile(join(directory, '_redirects'), 'utf8')).rejects.toThrow();
+  });
+
+  it('should warn on the direct fallback of a target with no rewrite capability', async () => {
+    // Given
+    const io = fakeIo();
+    const spec = resolve(MOCKS, 'proxy-spec.json');
+
+    // When
+    const outcome = await runBuild({
+      args: [`--spec=${spec}`, `--out=${directory}`, '--target=github-pages'],
+      ...io,
+    });
+
+    // Then: no file, the report line names the degradation, and the pages carry the warning.
+    expect(outcome.exitCode).toBe(EXIT_CODE.SUCCESS);
+    expect(io.out.join('')).toContain(
+      'proxy     github-pages: no rewrite capability, pages carry the direct mode warning',
+    );
+    const bench = await readFile(join(directory, 'bench', 'get-ping', 'index.html'), 'utf8');
+    expect(bench).toContain('published on GitHub Pages');
+  });
+
+  it('should land the bracketed function path on a real filesystem', async () => {
+    // Given: the Pages Function file is named [[path]].js, and brackets in a directory entry
+    // are the kind of thing a memory store cannot vouch for.
+    const io = fakeIo();
+    const spec = resolve(MOCKS, 'proxy-spec.json');
+
+    // When
+    const outcome = await runBuild({
+      args: [`--spec=${spec}`, `--out=${directory}`, '--target=cloudflare-pages'],
+      ...io,
+    });
+
+    // Then
+    expect(outcome.exitCode).toBe(EXIT_CODE.SUCCESS);
+    const written = await readFile(join(directory, 'functions', '_proxy', '[[path]].js'), 'utf8');
+    expect(written).toContain('const UPSTREAMS = [');
+    expect(written).toContain('"https://api.example.com/v1",');
   });
 });

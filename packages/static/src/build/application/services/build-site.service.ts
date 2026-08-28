@@ -37,10 +37,13 @@ import {
   BUILD_MANIFEST_VERSION,
   manifestApplies,
   readManifest,
+  RENDERER_VERSION,
   serializeManifest,
   type BuildManifest,
   type ManifestPage,
 } from '../../domain/build-manifest';
+import { planProxy, type ProxyPlan } from '../../../proxy/domain/proxy-plan';
+import type { BuildTarget } from '../../../proxy/domain/proxy-target';
 import { headOf } from '../../domain/page-metadata';
 import { PAGE_KEY_VERSION } from '../../domain/page-key';
 import {
@@ -81,6 +84,18 @@ export interface BuildSiteOptions {
   readonly lang?: string;
   /** Forces a colour scheme instead of following the reader's system preference. */
   readonly colorScheme?: 'light' | 'dark';
+  /**
+   * The proxy generation of SPEC 16.2, absent when no `--target` was given.
+   *
+   * ABSENT MEANS NOTHING IS GENERATED, and that is the security posture recorded in SPEC 16.2:
+   * a proxy is a standing gateway, so it exists only where a deployer named a target.
+   */
+  readonly proxy?: {
+    /** The resolved target, detection already done by the caller. */
+    readonly target: BuildTarget;
+    /** SPEC 16.2's `forwardCookies`. False unless explicitly turned on. */
+    readonly forwardCookies?: boolean;
+  };
 }
 
 /** What one build did. */
@@ -109,6 +124,19 @@ export interface BuildReport {
   readonly sitemap: boolean;
   /** Anything a deployer should read, such as {@link NO_ORIGIN_NOTICE}. */
   readonly notices: readonly string[];
+  /**
+   * What the proxy half of the build did, per SPEC 16.2, or null when no target was given.
+   *
+   * `upstreams` are the pinned targets in `u<N>` order, `files` the generated configuration
+   * files, and `directTarget` the platform name the pages warn with when the target cannot
+   * rewrite routes.
+   */
+  readonly proxy: {
+    readonly target: BuildTarget;
+    readonly upstreams: readonly string[];
+    readonly files: readonly string[];
+    readonly directTarget: string | null;
+  } | null;
 }
 
 /**
@@ -120,6 +148,15 @@ export interface BuildReport {
 export async function buildSite(options: BuildSiteOptions): Promise<BuildReport> {
   const { document, store } = options;
   const base = resolveSiteBase(options.base);
+
+  // THE PROXY PLAN IS DECIDED BEFORE ANY PAGE RENDERS, because its `directTarget` is in the
+  // page bytes and in the manifest's applicability. No target plans to nothing, unchanged.
+  const proxy: ProxyPlan = planProxy({
+    target: options.proxy?.target ?? 'none',
+    servers: document.servers,
+    basePath: base.basePath,
+    forwardCookies: options.proxy?.forwardCookies ?? false,
+  });
 
   const catalog = buildAssetCatalog(options.assets.sources);
   const assetHrefOf = (name: string): string => {
@@ -136,7 +173,13 @@ export async function buildSite(options: BuildSiteOptions): Promise<BuildReport>
   const modules = [assetHrefOf(options.assets.moduleName)];
 
   const previous = await readPreviousManifest(store);
-  const reusable = manifestApplies(previous, document, base.basePath, base.siteUrl)
+  const reusable = manifestApplies(
+    previous,
+    document,
+    base.basePath,
+    base.siteUrl,
+    proxy.directTarget,
+  )
     ? new Map(previous.pages.map((page) => [page.file, page]))
     : new Map<string, ManifestPage>();
 
@@ -152,19 +195,30 @@ export async function buildSite(options: BuildSiteOptions): Promise<BuildReport>
       stylesheets,
       modules,
       previousKey: reusable.get(page.file)?.key,
+      directTarget: proxy.directTarget,
     });
 
     (wasCarried ? carried : rendered).push(page.file);
   }
 
-  const files = await writeSiteFiles(options, base, catalog, pages);
+  const files = [...(await writeSiteFiles(options, base, catalog, pages))];
+
+  // THE GENERATED PROXY FILES ARE THE BUILD'S FILES LIKE ANY OTHER, so a rebuild for another
+  // target removes the previous target's configuration instead of leaving a stale gateway
+  // beside the new one.
+  for (const generated of proxy.files) {
+    await store.write(generated.file, generated.content);
+    files.push(generated.file);
+  }
 
   const manifest: BuildManifest = {
     version: BUILD_MANIFEST_VERSION,
     pageKeyVersion: PAGE_KEY_VERSION,
+    rendererVersion: RENDERER_VERSION,
     documentHash: document.hash,
     basePath: base.basePath,
     siteUrl: base.siteUrl,
+    directTarget: proxy.directTarget,
     pages: pages.map((page) => ({ file: page.file, key: page.key })),
     files,
   };
@@ -181,7 +235,16 @@ export async function buildSite(options: BuildSiteOptions): Promise<BuildReport>
     files: [...files, BUILD_MANIFEST_FILE],
     removed,
     sitemap: base.siteUrl !== null,
-    notices: base.siteUrl === null ? [NO_ORIGIN_NOTICE] : [],
+    notices: [...(base.siteUrl === null ? [NO_ORIGIN_NOTICE] : []), ...proxy.warnings],
+    proxy:
+      options.proxy === undefined
+        ? null
+        : {
+            target: proxy.target,
+            upstreams: proxy.upstreams,
+            files: proxy.files.map((generated) => generated.file),
+            directTarget: proxy.directTarget,
+          },
   };
 }
 
@@ -193,6 +256,8 @@ interface PageContext {
   readonly stylesheets: readonly string[];
   readonly modules: readonly string[];
   readonly previousKey: string | undefined;
+  /** The direct mode warning of SPEC 16.2, or null; every page of a build carries the same. */
+  readonly directTarget: string | null;
 }
 
 /**
@@ -223,6 +288,7 @@ async function writeOnePage(page: PlannedPage, context: PageContext): Promise<bo
     nodeId: page.nodeId,
     schemaId: page.schemaId,
     basePath: base.basePath,
+    ...(context.directTarget === null ? {} : { directTarget: context.directTarget }),
     ...(options.highlighter === undefined ? {} : { highlighter: options.highlighter }),
     ...(options.markdown === undefined ? {} : { markdown: options.markdown }),
     ...(options.theme === undefined ? {} : { theme: options.theme }),

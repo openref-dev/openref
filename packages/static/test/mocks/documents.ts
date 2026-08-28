@@ -10,6 +10,8 @@ export interface SpecOptions {
   readonly pongResponse?: string;
   /** Whether the third operation exists at all. */
   readonly withThird?: boolean;
+  /** Servers the document declares, for the proxy cases. Absent keeps the T004-R1 default. */
+  readonly servers?: readonly { readonly url: string }[];
 }
 
 /**
@@ -55,6 +57,7 @@ export function miniDocument(options: SpecOptions = {}): IRDocument {
   return normalizeOpenApiDocument({
     openapi: '3.1.0',
     info: { title: 'Mini', version: '1.0.0', description: 'A **small** reference.' },
+    ...(options.servers === undefined ? {} : { servers: options.servers }),
     paths,
     components: {
       schemas: {

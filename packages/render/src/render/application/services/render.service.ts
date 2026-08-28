@@ -113,6 +113,12 @@ export interface RenderPageOptions {
    * without, is two pages, and a host may hand both mounts one cache.
    */
   readonly proxyPath?: string;
+  /**
+   * Name of a deployment platform that cannot rewrite routes, per SPEC 16.2, for the console's
+   * direct mode warning. Set by the static build and by nothing else. Part of the cache key for
+   * the reason `proxyPath` is: a warned page and an unwarned one are two pages.
+   */
+  readonly directTarget?: string;
 }
 
 /**
@@ -125,6 +131,7 @@ export interface RenderPageOptions {
  * @param themeName - Theme whose overrides this page was drawn with, empty for none
  * @param proxyPath - Proxy endpoint the page carries, empty for none
  * @param page - Which page, since `TX-FRAME`: a node and its bench are two pages of one node
+ * @param directTarget - Platform name of the direct mode warning, since `T040`, empty for none
  * @returns A key that changes whenever the bytes could
  */
 export function renderCacheKey(
@@ -135,9 +142,10 @@ export function renderCacheKey(
   themeName = '',
   proxyPath = '',
   page = '',
+  directTarget = '',
 ): string {
   const versions = `${String(IR_VERSION)}.${String(PAGE_MODEL_VERSION)}.${String(RENDER_VERSION)}`;
-  return `oref:${versions}:${documentHash}:${basePath}:${nodeId ?? ''}:${schemaId ?? ''}:${themeName}:${proxyPath}:${page}`;
+  return `oref:${versions}:${documentHash}:${basePath}:${nodeId ?? ''}:${schemaId ?? ''}:${themeName}:${proxyPath}:${page}:${directTarget}`;
 }
 
 /**
@@ -323,6 +331,7 @@ export async function renderPage(
     options.theme?.name ?? '',
     options.proxyPath ?? '',
     options.page ?? '',
+    options.directTarget ?? '',
   );
 
   const cached = await options.cache?.get(key);
@@ -337,6 +346,7 @@ export async function renderPage(
     markdown,
     basePath,
     ...(options.proxyPath === undefined ? {} : { proxyPath: options.proxyPath }),
+    ...(options.directTarget === undefined ? {} : { directTarget: options.directTarget }),
   });
   const app = createSSRApp({
     name: 'OrefServerRoot',

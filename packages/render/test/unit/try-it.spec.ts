@@ -156,3 +156,58 @@ describe('the try-it console in the server render', () => {
     expect(html).toContain('href="/bench/get-orders"');
   });
 });
+
+describe('the direct mode warning of SPEC 16.2', () => {
+  it('should render the warning on the bench when the model names a direct target', async () => {
+    // Given
+    const page = await renderPage(smallDocument(), {
+      page: 'bench',
+      nodeId: 'get-orders',
+      directTarget: 'GitHub Pages',
+    });
+
+    // When
+    const html = page.appHtml;
+
+    // Then: the sentence stands in the console markup, visible before any gesture.
+    expect(html).toContain('oref-tryit-notice');
+    expect(html).toContain('published on GitHub Pages');
+    expect(html).toContain('straight from your browser to the API');
+  });
+
+  it('should render no warning without the option, proven against the page that shows it', async () => {
+    // Given: the warned page above is this suite's presence proof; this is the same page with
+    // the option absent.
+    const warned = await renderPage(smallDocument(), {
+      page: 'bench',
+      nodeId: 'get-orders',
+      directTarget: 'GitHub Pages',
+    });
+    expect(warned.appHtml).toContain('published on GitHub Pages');
+
+    // When
+    const page = await renderPage(smallDocument(), { page: 'bench', nodeId: 'get-orders' });
+
+    // Then
+    expect(page.appHtml).not.toContain('published on GitHub Pages');
+    expect(page.appHtml).not.toContain('cannot rewrite');
+  });
+
+  it('should carry the platform name in the model, so the client hydrates the same page', () => {
+    // Given
+    const document = smallDocument();
+
+    // When
+    const page = buildPageModel(document, {
+      page: 'bench',
+      nodeId: 'get-orders',
+      markdown,
+      directTarget: 'GitHub Pages',
+    });
+    const bare = buildPageModel(document, { page: 'bench', nodeId: 'get-orders', markdown });
+
+    // Then
+    expect(page.directTarget).toBe('GitHub Pages');
+    expect(bare.directTarget).toBeUndefined();
+  });
+});

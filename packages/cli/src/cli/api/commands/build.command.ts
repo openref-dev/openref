@@ -5,7 +5,15 @@ import {
   plainHighlighter,
   type IHighlighter,
 } from '@openref/render';
-import { buildSite, FsOutputStore, type BuildReport } from '@openref/static';
+import {
+  BUILD_TARGETS,
+  buildSite,
+  detectTarget,
+  FsOutputStore,
+  isBuildTarget,
+  type BuildReport,
+  type BuildTarget,
+} from '@openref/static';
 import { runWithDocument } from '../../application/services/run-with-document.service';
 import type { CommandContext, CommandOutcome } from '../../domain/command.types';
 import { EXIT_CODE } from '../../domain/exit-code.constants';
@@ -70,6 +78,21 @@ export function buildReportText(report: BuildReport): string {
     `  sitemap   ${report.sitemap ? 'written' : 'not written'}`,
   );
 
+  // THE PROXY LINE SAYS WHAT THE TARGET DID, per SPEC 16.2, and only when a target was given:
+  // a build that was never asked about a proxy does not report about one.
+  if (report.proxy !== null) {
+    const { target, upstreams, files, directTarget } = report.proxy;
+    lines.push(
+      `  proxy     ${target}: ${
+        files.length > 0
+          ? `${String(upstreams.length)} upstream${upstreams.length === 1 ? '' : 's'}, wrote ${files.join(', ')}`
+          : directTarget !== null
+            ? 'no rewrite capability, pages carry the direct mode warning'
+            : 'nothing generated'
+      }`,
+    );
+  }
+
   for (const notice of report.notices) lines.push(`\n${notice}`);
 
   return `${lines.join('\n')}\n`;
@@ -82,9 +105,9 @@ export function buildReportText(report: BuildReport): string {
  * build has no defensible default directory, and picking one would mean writing files somewhere
  * the caller never named.
  *
- * `--target` IS PARSED AND ACTED ON NOWHERE YET. It configures the proxy generation of SPEC
- * 16.2, which is `T040`'s whole task; a flag that silently did nothing would be worse than one
- * that says so, so this refuses it rather than accepting it into a build that ignores it.
+ * `--target` GENERATES THE PROXY CONFIGURATION OF SPEC 16.2, SINCE T040. Absent means nothing
+ * is generated, because a proxy is a standing gateway and never appears unasked, per SPEC 16.2;
+ * `auto` reads the platform environment variables and falls back to `none` with a warning.
  */
 export async function runBuild(context: CommandContext): Promise<CommandOutcome> {
   const { flags } = parseArgs(context.args, [
@@ -113,11 +136,9 @@ export async function runBuild(context: CommandContext): Promise<CommandOutcome>
     return { exitCode: EXIT_CODE.USAGE_ERROR };
   }
 
-  if (flags.has('target')) {
-    context.stderr(
-      'openref build: --target generates the proxy configuration of SPEC 16.2, which T040 ' +
-        'builds. It is refused rather than accepted and ignored\n',
-    );
+  const target = resolveTarget(flags, context);
+  if (typeof target === 'object' && 'usageError' in target) {
+    context.stderr(`openref build: ${target.usageError}\n\n${BUILD_USAGE}`);
     return { exitCode: EXIT_CODE.USAGE_ERROR };
   }
 
@@ -136,6 +157,7 @@ export async function runBuild(context: CommandContext): Promise<CommandOutcome>
       // string rather than an edge on the other side of the boundary.
       assets: loadDefaultAssets({ resolveFrom: import.meta.url }),
       ...(base === undefined ? {} : { base }),
+      ...(target === undefined ? {} : { proxy: { target } }),
       highlighter,
       markdown,
     });
@@ -144,6 +166,43 @@ export async function runBuild(context: CommandContext): Promise<CommandOutcome>
 
     return { exitCode: EXIT_CODE.SUCCESS };
   });
+}
+
+/**
+ * Reads `--target`, running the `auto` detection of SPEC 16.2 where asked.
+ *
+ * `undefined` MEANS THE FLAG WAS NEVER GIVEN, and the build then generates nothing, per SPEC
+ * 16.2's posture that a proxy never appears unasked. The `auto` fallback warning goes to stderr
+ * here, because it is about the flag's resolution rather than about the build.
+ *
+ * @param flags - The parsed flags
+ * @param context - For the environment and the warning
+ * @returns The resolved target, undefined for no flag, or a usage error
+ */
+function resolveTarget(
+  flags: ReadonlyMap<string, FlagValue>,
+  context: CommandContext,
+): BuildTarget | undefined | { readonly usageError: string } {
+  if (!flags.has('target')) return undefined;
+
+  const value = stringFlag(flags, 'target');
+  if (value === undefined) {
+    return { usageError: `--target needs a value: one of ${BUILD_TARGETS.join(', ')}, or auto` };
+  }
+
+  if (value === 'auto') {
+    const detection = detectTarget(context.env ?? {});
+    if (detection.warning !== undefined) context.stderr(`openref build: ${detection.warning}\n`);
+    return detection.target;
+  }
+
+  if (!isBuildTarget(value)) {
+    return {
+      usageError: `--target does not know "${value}": one of ${BUILD_TARGETS.join(', ')}, or auto`,
+    };
+  }
+
+  return value;
 }
 
 /**

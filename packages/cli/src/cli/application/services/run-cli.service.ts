@@ -48,7 +48,14 @@ export async function runCli(
   }
 
   try {
-    return await command.run({ args: rest, stdout: io.stdout, stderr: io.stderr });
+    return await command.run({
+      args: rest,
+      stdout: io.stdout,
+      stderr: io.stderr,
+      // THE REAL ENVIRONMENT ENTERS EXACTLY HERE, the way the real streams do above: a command
+      // handler reads `context.env` and never `process.env`, so a test can fake a platform.
+      env: process.env,
+    });
   } catch (error) {
     io.stderr(
       `openref: unexpected error: ${error instanceof Error ? error.message : String(error)}\n`,

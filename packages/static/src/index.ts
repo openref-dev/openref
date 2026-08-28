@@ -35,9 +35,42 @@ export {
   BUILD_MANIFEST_VERSION,
   manifestApplies,
   readManifest,
+  RENDERER_VERSION,
   serializeManifest,
 } from './build/domain/build-manifest';
 export type { BuildManifest, ManifestPage } from './build/domain/build-manifest';
+
+export {
+  BUILD_TARGETS,
+  detectTarget,
+  DIRECT_TARGETS,
+  isBuildTarget,
+  isDirectTarget,
+  isProxyConfigTarget,
+  PROXY_CONFIG_TARGETS,
+  targetLabel,
+} from './proxy/domain/proxy-target';
+export type {
+  BuildTarget,
+  DirectTarget,
+  ProxyConfigTarget,
+  TargetDetection,
+} from './proxy/domain/proxy-target';
+export {
+  planUpstreams,
+  unsafeUpstreamCharacter,
+  UPSTREAM_EXPANSION_LIMIT,
+} from './proxy/domain/proxy-upstreams';
+export type { UpstreamPlan } from './proxy/domain/proxy-upstreams';
+export {
+  generateProxyFiles,
+  PROXY_GATEWAY_COMMENT,
+  proxyPathPrefix,
+  VERCEL_FILE_NOTICE,
+} from './proxy/domain/proxy-files';
+export type { GeneratedProxyFile, ProxyFileOptions } from './proxy/domain/proxy-files';
+export { planProxy } from './proxy/domain/proxy-plan';
+export type { ProxyPlan, ProxyPlanOptions } from './proxy/domain/proxy-plan';
 
 export { frameHashOf, PAGE_KEY_VERSION, pageKeyOf } from './build/domain/page-key';
 export {
