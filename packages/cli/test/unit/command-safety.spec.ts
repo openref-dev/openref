@@ -37,9 +37,9 @@ describe('every command, with --help and with no arguments', () => {
     });
   }
 
-  it('should cover exactly the five commands SPEC 17 names', () => {
-    // Given
-    const expected = ['build', 'preview', 'doctor', 'lint', 'diff'];
+  it('should cover exactly the six commands SPEC 17 names', () => {
+    // Given: `pr` joined the surface with T041, per SPEC 17 as amended
+    const expected = ['build', 'preview', 'doctor', 'lint', 'diff', 'pr'];
 
     // When
     const actual = [...COMMANDS.keys()];

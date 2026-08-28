@@ -5,7 +5,8 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
-import { describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
+import { builtCliProblem, BUILT_CLI_BIN } from '../../../../vitest.built-cli.ts';
 import { SPAWNED_PROCESS_TIMEOUT_MS } from '../../../../vitest.spawn-timeout.ts';
 
 /**
@@ -14,11 +15,13 @@ import { SPAWNED_PROCESS_TIMEOUT_MS } from '../../../../vitest.spawn-timeout.ts'
  * keep the process alive past its timeout. `process.exit` inside a vitest worker would kill the
  * worker, so the force close path in particular has no in-process equivalent.
  *
- * REQUIRES `packages/cli` BUILT FIRST. Skipped rather than failed when it is not, the same way
- * the demo-backed adapter test is, since neither is this repository's job to trigger a build.
+ * REQUIRES `packages/cli` BUILT FIRST, AND SAYS SO RATHER THAN SKIPPING. This suite used to skip
+ * itself in silence when `dist/bin.js` was absent, and it looked at absence alone, so a green run
+ * here could mean the suite ran, mean it never existed, or mean it ran against a bundle older than
+ * the sources it was built from. All three are now distinguishable: see `vitest.built-cli.ts`.
  */
 const execFileAsync = promisify(execFile);
-const BIN_PATH = fileURLToPath(new URL('../../dist/bin.js', import.meta.url));
+const BIN_PATH = BUILT_CLI_BIN;
 const MOCKS = fileURLToPath(new URL('../mocks/', import.meta.url));
 const FIXTURES = fileURLToPath(new URL('../mocks/from-nest/', import.meta.url));
 const DEMO_ENTRY = fileURLToPath(
@@ -41,7 +44,20 @@ async function runCliBinary(args: readonly string[]): Promise<CliResult> {
   }
 }
 
-describe.skipIf(!existsSync(BIN_PATH))('the built openref binary', () => {
+describe('the built openref binary', () => {
+  beforeAll(() => {
+    // NOT A SKIP. The message names the artifact and the command that produces it.
+    const problem = builtCliProblem();
+    if (problem !== undefined) throw new Error(problem);
+  });
+
+  it('should be running against a built and current binary rather than skipping itself', () => {
+    // Given: every case below spawns this file, so its provenance is asserted, not assumed
+    // When / Then
+    expect(builtCliProblem()).toBeUndefined();
+    expect(existsSync(BIN_PATH)).toBe(true);
+  });
+
   it('should exit 2 and print usage on stderr with no arguments, never throwing raw', async () => {
     // When
     const result = await runCliBinary([]);

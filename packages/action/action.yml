@@ -1,0 +1,100 @@
+name: OPENREF API review
+description: Diff a pull request against its base ref, build the static preview, and post the API change comment.
+author: OPENREF
+
+branding:
+  icon: git-pull-request
+  color: blue
+
+# EVERY INPUT REACHES THE COMMAND AS AN ENVIRONMENT VARIABLE AND NONE REACHES IT AS TEXT IN THE
+# RUN STRING. A `${{ }}` substitution inside `run:` is executed by bash as part of the script,
+# which is the standard workflow injection; the run string below therefore holds no substitution
+# at all, and `packages/action/test/unit/action-definition.spec.ts` fails the day one appears.
+#
+# NOTHING IS DOWNLOADED AND NO OTHER ACTION IS USED. `openref-bin` points at the install the
+# calling repository already has, so the version that reviews the pull request is the version that
+# repository pinned. Reaching for a third party action would mean pinning a commit sha that
+# nothing here can verify.
+inputs:
+  spec:
+    description: Path to the OpenAPI document, read at the base ref and in the working tree.
+    required: true
+  base:
+    description: Base ref to compare against. Empty means the base of the pull request event.
+    required: false
+    default: ''
+  out:
+    description: Directory the preview build is written into. Empty means no preview is built.
+    required: false
+    default: ''
+  preview-base:
+    description: Where the preview is published. pr-<number> is appended, and the result is both the build base and the address in the comment.
+    required: false
+    default: ''
+  preview-url:
+    description: A preview address that is already known, printed in the comment exactly as given.
+    required: false
+    default: ''
+  fail-on-breaking:
+    description: Exit 1 when the diff is breaking. Off by default, so the first run reports rather than turning a pull request red.
+    required: false
+    default: 'false'
+  dry-run:
+    description: Print the comment instead of posting it.
+    required: false
+    default: 'false'
+  repository:
+    description: The owner/name to comment on. Empty means the repository the workflow runs in.
+    required: false
+    default: ''
+  pull-request:
+    description: The pull request number. Empty means the number in the event payload.
+    required: false
+    default: ''
+  working-directory:
+    description: Directory the command runs in.
+    required: false
+    default: '.'
+  openref-bin:
+    description: The openref binary, relative to the working directory. The workspace install by default; nothing is fetched.
+    required: false
+    default: node_modules/.bin/openref
+  token:
+    description: Token the comment is posted with. Needs pull-requests write, and is read only on a fork pull request, where the comment is printed instead.
+    required: false
+    default: ${{ github.token }}
+
+outputs:
+  breaking-count:
+    description: How many breaking changes the diff found.
+    value: ${{ steps.review.outputs.breaking-count }}
+  change-count:
+    description: How many changes the diff found in total.
+    value: ${{ steps.review.outputs.change-count }}
+  preview-url:
+    description: The preview address the comment printed, empty when none was known.
+    value: ${{ steps.review.outputs.preview-url }}
+  comment-url:
+    description: The comment that was created or updated, empty when none was posted.
+    value: ${{ steps.review.outputs.comment-url }}
+
+runs:
+  using: composite
+  steps:
+    - name: Review the API surface of this pull request
+      id: review
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: '"$OPENREF_PR_BIN" pr'
+      env:
+        OPENREF_PR_BIN: ${{ inputs.openref-bin }}
+        OPENREF_PR_SPEC: ${{ inputs.spec }}
+        OPENREF_PR_BASE: ${{ inputs.base }}
+        OPENREF_PR_OUT: ${{ inputs.out }}
+        OPENREF_PR_PREVIEW_BASE: ${{ inputs.preview-base }}
+        OPENREF_PR_PREVIEW_URL: ${{ inputs.preview-url }}
+        OPENREF_PR_FAIL_ON_BREAKING: ${{ inputs.fail-on-breaking }}
+        OPENREF_PR_DRY_RUN: ${{ inputs.dry-run }}
+        OPENREF_PR_REPOSITORY: ${{ inputs.repository }}
+        OPENREF_PR_NUMBER: ${{ inputs.pull-request }}
+        GITHUB_TOKEN: ${{ inputs.token }}

@@ -1,0 +1,29 @@
+{
+  "name": "@openref/action",
+  "version": "0.0.0",
+  "description": "OPENREF GitHub Action: the pull request API review of SPEC 17.2",
+  "license": "MIT",
+  "type": "module",
+  "source": "./src/index.ts",
+  "exports": {
+    ".": {
+      "source": "./src/index.ts"
+    }
+  },
+  "files": [
+    "action.yml",
+    "README.md"
+  ],
+  "sideEffects": false,
+  "engines": {
+    "node": "^22.22.2 || ^24.15.0 || >=26.0.0"
+  },
+  "private": true,
+  "dependencies": {
+    "yaml": "2.9.0"
+  },
+  "devDependencies": {
+    "openref": "workspace:*",
+    "typescript": "5.9.3"
+  }
+}

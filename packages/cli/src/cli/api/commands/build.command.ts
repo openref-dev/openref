@@ -1,20 +1,12 @@
 import {
-  createMarkdownRenderer,
-  createOpenRefHighlighter,
-  loadDefaultAssets,
-  plainHighlighter,
-  type IHighlighter,
-} from '@openref/render';
-import {
   BUILD_TARGETS,
-  buildSite,
   detectTarget,
-  FsOutputStore,
   isBuildTarget,
   type BuildReport,
   type BuildTarget,
 } from '@openref/static';
 import { runWithDocument } from '../../application/services/run-with-document.service';
+import { renderStaticSite } from '../../application/services/static-build.service';
 import type { CommandContext, CommandOutcome } from '../../domain/command.types';
 import { EXIT_CODE } from '../../domain/exit-code.constants';
 import type { DocumentSource } from '../../domain/loaded-document.types';
@@ -145,22 +137,7 @@ export async function runBuild(context: CommandContext): Promise<CommandOutcome>
   const base = stringFlag(flags, 'base');
 
   return runWithDocument(source, context, async (document) => {
-    const highlighter = await highlighterFor(context);
-    const markdown = await createMarkdownRenderer({ highlighter });
-
-    const report = await buildSite({
-      document,
-      store: new FsOutputStore(out),
-      // RESOLVED FROM THIS MODULE, per `resolveAssetPath`'s third anchor. The default client
-      // bundle is `@openref/nest/browser`, which is a dependency of this package and not of
-      // `@openref/render`, where the resolver lives; anchoring here is what makes the string a
-      // string rather than an edge on the other side of the boundary.
-      assets: loadDefaultAssets({ resolveFrom: import.meta.url }),
-      ...(base === undefined ? {} : { base }),
-      ...(target === undefined ? {} : { proxy: { target } }),
-      highlighter,
-      markdown,
-    });
+    const report = await renderStaticSite({ document, out, base, target, io: context });
 
     context.stdout(buildReportText(report));
 
@@ -203,27 +180,4 @@ function resolveTarget(
   }
 
   return value;
-}
-
-/**
- * The highlighter, or the plain one when it could not be built.
- *
- * FAIL OPEN, the same policy `ReferenceService` states for the same component: highlighting is
- * presentation, so losing it costs colour while refusing to build costs the documentation. The
- * degradation is named on stderr rather than swallowed.
- *
- * @param context - Where the notice goes
- * @returns The highlighter
- */
-async function highlighterFor(context: CommandContext): Promise<IHighlighter> {
-  try {
-    return await createOpenRefHighlighter();
-  } catch (cause) {
-    context.stderr(
-      `openref build: the syntax highlighter could not be built, so code blocks are plain: ${
-        cause instanceof Error ? cause.message : String(cause)
-      }\n`,
-    );
-    return plainHighlighter;
-  }
 }

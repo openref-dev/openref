@@ -68,18 +68,20 @@ const scheduled = (id: string, status: string): ClaimMapRow => ({
 });
 
 describe('parseSecurityClaims', () => {
-  it.skipIf(!HAVE_AI_DOCS)('should read the ten claims out of the specification itself', () => {
+  it.skipIf(!HAVE_AI_DOCS)('should read every claim out of the specification itself', () => {
     // Given the real document, because a parse tested only against a fixture proves nothing
-    // about the file it will run on
+    // about the file it will run on. The count moved from ten to eleven when T041's review found
+    // the token bearing address guarantee recorded in SPEC 17.2 and nowhere the claims gate reads.
     const spec = readFileSync(join(repoRoot, SPEC_FILE), 'utf8');
 
     // When
     const claims = parseSecurityClaims(spec);
 
     // Then
-    expect(claims).toHaveLength(10);
+    expect(claims).toHaveLength(11);
     expect(claims[0]?.id).toBe('19.1');
     expect(claims[9]?.id).toBe('19.10');
+    expect(claims[10]?.id).toBe('19.11');
     expect(claims[3]?.text).toContain('origin');
   });
 

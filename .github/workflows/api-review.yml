@@ -1,0 +1,70 @@
+name: API review
+
+# THIS REPOSITORY RUNS ITS OWN ACTION ON ITS OWN PULL REQUESTS. Until this file existed, T041's
+# "a pull request shows its API surface change without anyone asking" was true of somebody else's
+# repository and of nothing here: nothing in .github/workflows/ called packages/action, so the
+# definition was code no runner ever started.
+#
+# WHAT IT REVIEWS, AND WHY THAT SUBJECT RATHER THAN A BETTER ONE. This repository ships no HTTP
+# API of its own. The closest thing to one is the document the demo application under
+# examples/nest-minimal builds at run time, and `openref pr` cannot read it: both sides of the
+# diff are files, one read at a git ref and one read in the working tree, and `pr` has no
+# --from-nest. So the subject is the largest OpenAPI document this repository does own, does edit
+# by hand, and can be read at both sides: the head of the diff fixture pair that SPEC 17.1's own
+# transcript is asserted against. A change to it changes what every assertion about `openref diff`
+# and `openref pr` means, which is worth a comment on the pull request that makes it. On a pull
+# request that leaves it alone the comment says "No changes.", which is how SPEC 17.1 keeps a run
+# that found nothing distinguishable from a run that never happened.
+#
+# LEAST PRIVILEGE, AND THE EVENT IS THE SAFE ONE. contents: read for the checkout and
+# pull-requests: write for the comment, nothing else. The event is pull_request, never
+# pull_request_target: that one issues a write scoped token while the head belongs to somebody
+# else, and the command refuses to run under it anyway. No third party action is used beyond the
+# three ci.yml already uses, and no run: step interpolates anything.
+on: pull_request
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: api-review-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    name: review the API surface this pull request changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      # fetch-depth: 0 because the base side is read with `git show <base>:<path>`, and a shallow
+      # clone has no object for it to read.
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      # The action runs the binary this repository already installed, and nothing is fetched. On
+      # a consumer repository that binary is node_modules/.bin/openref; here it is the workspace
+      # link, and it has to be built before it exists.
+      - name: Build
+        run: pnpm run build
+
+      - name: Review the API surface
+        uses: ./packages/action
+        with:
+          spec: packages/cli/test/mocks/diff-new.json
+          openref-bin: packages/action/node_modules/.bin/openref

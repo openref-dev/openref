@@ -24,7 +24,7 @@ describe('runDiff', () => {
 
     // Then
     expect(outcome.exitCode).toBe(EXIT_CODE.USAGE_ERROR);
-    expect(io.err[0]).toContain('two spec paths are required');
+    expect(io.err[0]).toContain('two spec paths or git refs are required');
   });
 
   it('should report a usage error naming which side failed to load', async () => {
@@ -98,6 +98,67 @@ describe('runDiff', () => {
 
     // When
     const outcome = await runDiff({ args: ['--help'], ...io });
+
+    // Then
+    expect(outcome.exitCode).toBe(EXIT_CODE.SUCCESS);
+    expect(io.out[0]).toContain('openref diff <old> <new>');
+  });
+});
+
+/**
+ * What a leading hyphen in a positional actually does, measured rather than assumed.
+ *
+ * A REVIEW READ THE GUARD AS UNREACHABLE FROM A POSITIONAL. It is reachable, and the first two
+ * cases here are the measurement: one hyphen makes a positional and the guard refuses it by name,
+ * on either side. What is genuinely unreachable is the two hyphen spelling, and the reason is that
+ * `parseArgs` reads `--anything` as a flag, so the command never sees two positionals at all and
+ * stops one message earlier. That cost is stated in `domain/git-ref.ts` beside the guard.
+ */
+describe('a diff side that begins with a hyphen', () => {
+  const spec = resolve(MOCKS, 'mini-spec.json');
+
+  it('should refuse a one hyphen old side by name, because git would read it as an option', async () => {
+    // Given
+    const io = fakeIo();
+
+    // When
+    const outcome = await runDiff({ args: ['-f', 'main', '--spec', spec], ...io });
+
+    // Then
+    expect(outcome.exitCode).toBe(EXIT_CODE.USAGE_ERROR);
+    expect(io.err.join('')).toContain('<old> as a git ref "-f" starts with "-"');
+  });
+
+  it('should refuse a one hyphen new side the same way', async () => {
+    // Given
+    const io = fakeIo();
+
+    // When
+    const outcome = await runDiff({ args: ['main', '-f', '--spec', spec], ...io });
+
+    // Then
+    expect(outcome.exitCode).toBe(EXIT_CODE.USAGE_ERROR);
+    expect(io.err.join('')).toContain('<new> as a git ref "-f" starts with "-"');
+  });
+
+  it('should never see a two hyphen side as a positional, and say the count instead', async () => {
+    // Given: `parseArgs` reads `--upload-pack=x` as a flag, so one positional arrives, not two.
+    // The guard cannot be reached here without giving up `--` meaning flag, and this case pins
+    // what happens instead so the substitution is not silent.
+    const io = fakeIo();
+
+    // When
+    const outcome = await runDiff({ args: ['--upload-pack=x', 'main', '--spec', spec], ...io });
+
+    // Then
+    expect(outcome.exitCode).toBe(EXIT_CODE.USAGE_ERROR);
+    expect(io.err.join('')).toContain('two spec paths or git refs are required');
+  });
+
+  it('should read a bare -h as help rather than as a side', async () => {
+    // When
+    const io = fakeIo();
+    const outcome = await runDiff({ args: ['-h', 'main', '--spec', spec], ...io });
 
     // Then
     expect(outcome.exitCode).toBe(EXIT_CODE.SUCCESS);

@@ -1,8 +1,10 @@
+import { existsSync } from 'node:fs';
 import { buildDiffReport } from '@openref/core';
 import { loadDocument } from '../../application/services/load-document.service';
 import type { CommandContext, CommandOutcome } from '../../domain/command.types';
+import { resolveDiffSides } from '../../domain/diff-side';
 import { EXIT_CODE } from '../../domain/exit-code.constants';
-import { parseArgs } from '../argv';
+import { parseArgs, stringFlag } from '../argv';
 import { DIFF_USAGE } from '../help';
 import { renderDiffReport } from './diff-report-text';
 
@@ -10,32 +12,42 @@ import { renderDiffReport } from './diff-report-text';
  * `openref diff <old> <new>`, per SPEC 17.1: classify the changes between two versions of one
  * specification and exit 1 when any of them is breaking.
  *
- * BOTH SIDES ARE SPEC FILE PATHS. SPEC 17.1's own transcript, `openref diff main current`,
- * compares two git refs; resolving a ref to a file is `T041`'s, where the ref exists (a
- * checkout in CI). The classification and the report are all here, in `buildDiffReport` in
- * `@openref/core`, so that consumer needs nothing from this package.
+ * EITHER SIDE MAY BE A FILE OR A GIT REF SINCE T041, which is what makes SPEC 17.1's own
+ * transcript, `openref diff main current`, a command rather than a picture. The whole resolution
+ * table is `../../domain/diff-side.ts` and is pure; the disk enters here, once, as `existsSync`.
  *
  * A side that cannot be loaded is a usage error, exit 2, per the T036 contract: exit 1 is
  * reserved for the command having run and found something.
  */
 export async function runDiff(context: CommandContext): Promise<CommandOutcome> {
-  const { flags, positionals } = parseArgs(context.args);
+  const { flags, positionals } = parseArgs(context.args, ['spec']);
 
   if (flags.has('help')) {
     context.stdout(DIFF_USAGE);
     return { exitCode: EXIT_CODE.SUCCESS };
   }
 
-  const [oldPath, newPath] = positionals;
-  if (oldPath === undefined || newPath === undefined) {
-    context.stderr(`openref diff: two spec paths are required, <old> <new>\n\n${DIFF_USAGE}`);
+  const [oldSide, newSide] = positionals;
+  if (oldSide === undefined || newSide === undefined) {
+    context.stderr(
+      `openref diff: two spec paths or git refs are required, <old> <new>\n\n${DIFF_USAGE}`,
+    );
+    return { exitCode: EXIT_CODE.USAGE_ERROR };
+  }
+
+  const sides = resolveDiffSides(oldSide, newSide, {
+    exists: existsSync,
+    spec: stringFlag(flags, 'spec'),
+  });
+  if (!sides.ok) {
+    context.stderr(`openref diff: ${sides.usageError}\n\n${DIFF_USAGE}`);
     return { exitCode: EXIT_CODE.USAGE_ERROR };
   }
 
   try {
-    const older = await loadDocument({ kind: 'spec', path: oldPath });
+    const older = await loadDocument(sides.older);
     await older.close();
-    const newer = await loadDocument({ kind: 'spec', path: newPath });
+    const newer = await loadDocument(sides.newer);
     await newer.close();
 
     const report = buildDiffReport(older.document, newer.document);

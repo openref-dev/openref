@@ -108,6 +108,13 @@ jobs:
       # empty string on a scheduled run, not the declared default, so the default has to be
       # written twice or the study silently measures zero navigations.
       #
+      # THE TWO INPUTS ARRIVE ON `env:` AND THE SCRIPT READS VARIABLES, WHICH IS THE SHAPE THE
+      # REST OF THIS TREE ALREADY USES. A `${{ }}` inside `run:` is expanded into the script
+      # before bash sees it, so the value is executed rather than read; that is true of a
+      # `workflow_dispatch` input as much as of anything else, since whoever may dispatch the
+      # workflow types it. `packages/action/test/unit/workflow-run-steps.spec.ts` now walks every
+      # workflow and action file in the repository and fails on the next one of these.
+      #
       # `--check` is what makes this a gate rather than a report: the study compares what it
       # just measured against `tools/browser-budget/baseline.json`, fails on a SPEC 20 ceiling
       # always, and fails on a jump beyond the recorded spread while the browser major is
@@ -118,10 +125,13 @@ jobs:
       # `module-floor` job was red for one commit when the claim it checked was false. The
       # report is uploaded before the check runs, so a red run still hands over its numbers.
       - name: Study
+        env:
+          OPENREF_TTI_RUNS: ${{ inputs.tti-runs || '25' }}
+          OPENREF_MEMORY_RUNS: ${{ inputs.memory-runs || '5' }}
         run: >
           node tools/browser-budget/dist/cli.js
-          --tti-runs=${{ inputs.tti-runs || '25' }}
-          --memory-runs=${{ inputs.memory-runs || '5' }}
+          --tti-runs="$OPENREF_TTI_RUNS"
+          --memory-runs="$OPENREF_MEMORY_RUNS"
           --out=browser-budget-study.json
           --check
 

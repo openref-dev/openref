@@ -1,5 +1,6 @@
 import type { DocumentSource, LoadedDocument } from '../../domain/loaded-document.types';
 import { loadConfigDocument } from '../../infrastructure/adapters/config-document.adapter';
+import { loadGitDocument } from '../../infrastructure/adapters/git-ref.adapter';
 import { loadFromNestApplication } from '../../infrastructure/adapters/nest-application.adapter';
 import { loadSpecDocument } from '../../infrastructure/adapters/spec-document.adapter';
 
@@ -7,7 +8,7 @@ import { loadSpecDocument } from '../../infrastructure/adapters/spec-document.ad
  * Loads a document from whichever source a command resolved: a spec file, a config file, or a
  * running application. One dispatch point, so a command never has to know which adapter answers.
  *
- * @throws {UsageError} When a file source cannot be read or parsed
+ * @throws {UsageError} When a file source cannot be read or parsed, or git cannot resolve a ref
  * @throws {NormalizeError} When a file source does not normalize as OpenAPI
  * @throws {ApplicationBootError} When `--from-nest` could not produce a document
  */
@@ -19,5 +20,7 @@ export async function loadDocument(source: DocumentSource): Promise<LoadedDocume
       return loadConfigDocument(source.path);
     case 'from-nest':
       return loadFromNestApplication(source.path);
+    case 'git':
+      return loadGitDocument(source.ref, source.path, source.cwd);
   }
 }

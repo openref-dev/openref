@@ -11,6 +11,7 @@
  *   theme  ->  nothing
  *   nest   ->  core, render, runner, search
  *   cli    ->  core, render, runner, search, static
+ *   action ->  nothing
  *
  * A violation fails the build. Never relax a rule to make a build pass.
  *
@@ -78,6 +79,13 @@ const BOUNDARIES = {
   // for the reason `package-assets.adapter.ts` gives about resolving a theme as files.
   static: ['core', 'render', 'search'],
   cli: ['core', 'render', 'runner', 'search', 'static'],
+
+  // THE GITHUB ACTION REACHES NOTHING, AND THAT IS THE WHOLE SHAPE OF IT. `action.yml` is a
+  // definition and `src/` is the reader that turns it into data for its own tests; the work the
+  // action performs is `openref pr`, in the CLI, where a test can run it. An edge from here to
+  // any package would mean logic had moved into a file nothing in this repository executes.
+  // `openref` is a devDependency for the tests alone, which this boundary does not govern.
+  action: [],
 
   // THE THREE ECOSYSTEM COLLECTORS OF SPEC 4, AND THE EDGE RUNS THE OTHER WAY. `nest` does not
   // depend on any of them and must not: each one exists to read a third party package, and an

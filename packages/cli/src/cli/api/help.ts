@@ -4,6 +4,7 @@ openref preview [--spec] [--watch]
 openref doctor  [--from-nest] [--fail-on=drift|warn|error] [--json]
 openref lint    <spec>
 openref diff    <old> <new>
+openref pr      [--spec] [--base] [--out] [--preview-base] [--preview-url] [--fail-on-breaking]
 `;
 
 export const BUILD_USAGE = `Usage: openref build [--spec <path> | --config <path> | --from-nest <path>] [--out <dir>] [--base <path>] [--target <name>]
@@ -59,11 +60,65 @@ Checks a specification for structural problems, independent of any running appli
   --help  print this message
 `;
 
-export const DIFF_USAGE = `Usage: openref diff <old> <new>
+export const DIFF_USAGE = `Usage: openref diff <old> <new> [--spec <path>]
 
-Compares two specifications and reports breaking and non-breaking changes.
+Compares two specifications and reports breaking and non-breaking changes. Either side may be
+a file on disk or a git ref. A side that names an existing file is that file; a side written
+<ref>:<path> is read at that ref; a bare side is a ref, and the file under it comes from
+--spec or from whichever side named a file.
 
-  <old>   path to the earlier OpenAPI document
-  <new>   path to the later OpenAPI document
-  --help  print this message
+  <old>          the earlier document: a path, <ref>:<path>, or a bare git ref
+  <new>          the later document, read the same three ways
+  --spec <path>  the document to read at a bare git ref, relative to this directory
+  --help         print this message
+`;
+
+export const PR_USAGE = `Usage: openref pr --spec <path> [--base <ref>] [--out <dir>] [--preview-base <url>]
+                  [--preview-url <url>] [--target <name>] [--fail-on-breaking] [--dry-run]
+
+Diffs the working tree against the pull request's base ref, builds the preview when asked, and
+posts the SPEC 17.2 comment, updating the one it posted before rather than adding another.
+
+A comment is updated only when the identity this token authenticates as wrote it. A user token is
+named by GET /user and matched on its login; an installation token, which that endpoint refuses,
+is matched on the fields GitHub sets on its own comments. An identity neither path establishes
+posts a new comment rather than overwriting one it cannot prove is its own.
+
+Every option also answers to an environment variable, which is how the GitHub action passes it
+without interpolating anything into a shell. The token is the exception: it arrives only as
+GITHUB_TOKEN and there is deliberately no flag for it. --repository is parsed into owner and
+name before any address is built; anything that is not exactly two segments, whitespace and
+control characters included, is a usage error, and so is a GITHUB_API_URL that is not an https
+origin or http on the loopback address.
+
+Environment, flag first where both are given:
+
+  OPENREF_PR_SPEC            --spec
+  OPENREF_PR_BASE            --base
+  OPENREF_PR_OUT             --out
+  OPENREF_PR_PREVIEW_BASE    --preview-base
+  OPENREF_PR_PREVIEW_URL     --preview-url
+  OPENREF_PR_FAIL_ON_BREAKING  --fail-on-breaking
+  OPENREF_PR_DRY_RUN         --dry-run
+  OPENREF_PR_REPOSITORY      --repository
+  OPENREF_PR_NUMBER          --pull-request
+
+Read from the workflow itself, with no flag: GITHUB_TOKEN, GITHUB_EVENT_NAME, GITHUB_EVENT_PATH,
+GITHUB_REPOSITORY, GITHUB_API_URL, GITHUB_OUTPUT and GITHUB_STEP_SUMMARY. --target has no
+environment variable and no action input on purpose: it names a hosting target for the preview
+build, per SPEC 16.2, which is a property of where the preview goes rather than of the pull
+request.
+
+  --spec <path>          the OpenAPI document, read at the base ref and on disk. Required
+  --base <ref>           the base ref; taken from the event payload when a workflow supplies one
+  --out <dir>            build the preview into this directory. Absent means no build
+  --preview-base <url>   where the preview is published; pr-<number> is appended, and the result
+                         is both the build's base and the address printed in the comment
+  --preview-url <url>    an address somebody else already knows, printed as it is given
+  --target <name>        proxy configuration for the preview build, per SPEC 16.2
+  --fail-on-breaking     exit 1 when the diff is breaking. Omitted, this command always exits 0
+  --dry-run              print the comment instead of posting it
+  --repository <o/n>     the repository; taken from GITHUB_REPOSITORY otherwise
+  --pull-request <n>     the pull request number; taken from the event payload otherwise
+  --help                 print this message
 `;
