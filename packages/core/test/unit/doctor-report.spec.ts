@@ -10,6 +10,7 @@ import {
   type IRNode,
   type IROperation,
   type IRSchema,
+  readDoctorReport,
 } from '../../src/index';
 
 /**
@@ -338,5 +339,65 @@ describe('buildDoctorReport', () => {
 
     // Then
     expect(finding?.assertion).toEqual({ kind: 'operation-id', operationId: 'list' });
+  });
+});
+
+/**
+ * The reader of the envelope, added by the pre-M4 review.
+ *
+ * `DOCTOR_REPORT_VERSION` had been written into every report since `T036` on the stated promise
+ * that a consumer refuses a shape it does not recognise, and until these cases no consumer
+ * anywhere refused anything: everything in this repository builds the report in process, and the
+ * one place that crossed the JSON boundary crossed it with a cast. These cases and the `--fix`
+ * integration suite are what make the field a check instead of a promise.
+ */
+describe('readDoctorReport', () => {
+  it('should read back what buildDoctorReport wrote', () => {
+    // Given a real report through the serialization the command uses
+    const document = documentOf([operation({ operationId: 'list' })]);
+    const written = canonicalize(buildDoctorReport(document));
+
+    // When
+    const read = readDoctorReport(written);
+
+    // Then
+    expect(read.ok).toBe(true);
+    expect(read.ok ? read.report.version : undefined).toBe(DOCTOR_REPORT_VERSION);
+  });
+
+  it('should refuse a report from a version this build does not read', () => {
+    // Given the shape of a future writer: same envelope, higher number
+    const document = documentOf([operation({ operationId: 'list' })]);
+    const future = { ...buildDoctorReport(document), version: DOCTOR_REPORT_VERSION + 1 };
+
+    // When
+    const read = readDoctorReport(JSON.stringify(future));
+
+    // Then
+    expect(read.ok).toBe(false);
+    expect(read.ok ? '' : read.reason).toContain(`version ${String(DOCTOR_REPORT_VERSION + 1)}`);
+  });
+
+  it.each([
+    ['not JSON at all', 'Applied 0 findings in 0 files.', 'not valid JSON'],
+    ['an array', '[]', 'not an object'],
+    ['an envelope with no version', '{"score":100,"checks":[],"findings":[]}', 'version undefined'],
+    [
+      'an envelope with no score',
+      `{"version":${String(DOCTOR_REPORT_VERSION)},"checks":[],"findings":[]}`,
+      'no score or operation count',
+    ],
+    [
+      'an envelope with no findings',
+      `{"version":${String(DOCTOR_REPORT_VERSION)},"score":100,"operationCount":1,"checks":[]}`,
+      'no checks or findings',
+    ],
+  ])('should refuse %s', (_case, serialized, reason) => {
+    // Given / When
+    const read = readDoctorReport(serialized);
+
+    // Then
+    expect(read.ok).toBe(false);
+    expect(read.ok ? '' : read.reason).toContain(reason);
   });
 });

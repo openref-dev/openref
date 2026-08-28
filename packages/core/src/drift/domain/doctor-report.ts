@@ -38,6 +38,28 @@ import type {
  *
  * Bumped only when an existing field is removed or its meaning changes, never for an addition,
  * per the discipline `SEARCH_INDEX_VERSION` already documents for the same reason.
+ *
+ * A NEW RULE IS NOT AN ADDITION TO THIS SHAPE, AND IT IS STILL A BREAKING CHANGE. This comment
+ * used to stop at the line above, and read as if "never for an addition" settled what an addition
+ * costs. It settles one question of two. The number here describes the wire shape a JSON reader
+ * parses, and a reader on version 1 handed a finding whose `rule` it has never heard of can still
+ * print its `severity`, `subject` and `message`, so the number does not move and must not: bumping
+ * it would make every existing reader reject a report it can read perfectly well.
+ *
+ * The other question is the TypeScript contract, and SPEC 11 already answered it for
+ * `StateNoticeKind`: adding a member to an exported union is breaking, not additive, because a
+ * total `Record<Union, ...>` is a sanctioned spelling and a total record over a grown union does
+ * not compile. `IRDriftRule` is such a union and {@link DRIFT_RULE_CODES} is such a record, in
+ * this package, on purpose, so that a rule added without a display code fails the build instead
+ * of printing an empty one. `ai-docs/design/CONTRACT.md` carries the ruling.
+ *
+ * WHAT THAT MEANS FOR M4 AND M5, WHICH BOTH ADD RULES. Each new rule leaves this constant at 1
+ * and moves the major version of `@openref/core` once the package is published. Nothing is
+ * published yet, so today the cost is only the compile error inside this repository, which is the
+ * point of the total record. From 1.0 on, `T064` carries it into the release notes beside the
+ * `StateNoticeKind` entry: a consumer switching exhaustively over `finding.rule` reads a new rule
+ * as a break, and the report version will not warn it, because the report version is not the
+ * thing that changed.
  */
 export const DOCTOR_REPORT_VERSION = 1;
 
@@ -85,6 +107,73 @@ export interface IRDoctorReport {
   readonly operationCount: number;
   readonly checks: readonly IRDoctorCheck[];
   readonly findings: readonly IRDoctorFinding[];
+}
+
+/** What {@link readDoctorReport} returns: the report, or the reason it refused to hand one over. */
+export type DoctorReportRead =
+  | { readonly ok: true; readonly report: IRDoctorReport }
+  | { readonly ok: false; readonly reason: string };
+
+/**
+ * Reads `doctor --json` output back, refusing anything this build does not recognise.
+ *
+ * THE VERSION FIELD HAD NO READER UNTIL THE PRE-M4 REVIEW, which is what made it a promise
+ * instead of a check. `DOCTOR_REPORT_VERSION` has been written into every report since `T036`,
+ * with the stated purpose that "a consumer that pins or caches refuses a shape it does not
+ * recognise", and nothing anywhere refused anything: every consumer in this repository gets the
+ * report in process from {@link buildDoctorReport}, and the one place that crossed the JSON
+ * boundary, the `--fix` integration suite, crossed it with an unchecked cast. A field written by
+ * a writer and read by nobody is a field that cannot be wrong, which is not the same as right.
+ *
+ * IT RETURNS A REFUSAL RATHER THAN THROWING, unlike `loadSearchIndex`, which is the same idea for
+ * the search index. That reader runs in a browser where a throw is the only signal the call site
+ * can act on. This one runs in a pipeline that wants to print why it stopped, and `core` is the
+ * package that must not decide how a host reports failure. A version mismatch is also an ordinary
+ * outcome of reading a file somebody else wrote, not an exceptional one.
+ *
+ * WHAT IT CHECKS IS THE ENVELOPE, NOT THE FINDINGS. The version, and that the four fields the
+ * envelope declares are present with the right primitive shape. It does not validate every
+ * finding, because a report of the right version is written by this package and a consumer that
+ * has to re-validate the writer's own output gains nothing for the bytes.
+ *
+ * @param serialized - The stdout of `openref doctor --json`
+ * @returns The report, or the reason it was refused
+ *
+ * @example
+ * const read = readDoctorReport(stdout);
+ * if (!read.ok) process.stderr.write(`${read.reason}\n`);
+ */
+export function readDoctorReport(serialized: string): DoctorReportRead {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(serialized);
+  } catch {
+    return { ok: false, reason: 'the doctor report is not valid JSON' };
+  }
+
+  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+    return { ok: false, reason: 'the doctor report is not an object' };
+  }
+
+  const envelope = parsed as Partial<Record<keyof IRDoctorReport, unknown>>;
+  if (envelope.version !== DOCTOR_REPORT_VERSION) {
+    return {
+      ok: false,
+      reason:
+        `the doctor report is version ${JSON.stringify(envelope.version)}, ` +
+        `this build reads version ${String(DOCTOR_REPORT_VERSION)}`,
+    };
+  }
+
+  if (typeof envelope.score !== 'number' || typeof envelope.operationCount !== 'number') {
+    return { ok: false, reason: 'the doctor report carries no score or operation count' };
+  }
+
+  if (!Array.isArray(envelope.checks) || !Array.isArray(envelope.findings)) {
+    return { ok: false, reason: 'the doctor report carries no checks or findings' };
+  }
+
+  return { ok: true, report: parsed as IRDoctorReport };
 }
 
 /**

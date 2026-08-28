@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { readDoctorReport } from '@openref/core';
 import { builtCliProblem, BUILT_CLI_BIN } from '../../../../vitest.built-cli.ts';
 import { SPAWNED_PROCESS_TIMEOUT_MS } from '../../../../vitest.spawn-timeout.ts';
 
@@ -245,12 +246,17 @@ describe('openref doctor --fix', () => {
         ['doctor', '--from-nest', join(app, 'dist', 'main.js'), '--fix', '--json'],
         root,
       );
-      const parsed: unknown = JSON.parse(result.stdout);
-      const report = parsed as { readonly findings: readonly { readonly rule: string }[] };
+      // The one place in this repository where the report crosses the JSON boundary, so it is
+      // the one place that can prove the writer and the reader of DOCTOR_REPORT_VERSION agree.
+      // It read the stdout with an unchecked cast until the pre-M4 review, which is how a version
+      // field written into every report since T036 had never once been checked by anything.
+      const read = readDoctorReport(result.stdout);
 
       // Then
+      expect(read.ok ? '' : read.reason).toBe('');
+      const report = read.ok ? read.report : undefined;
       expect(result.stderr).toContain('Applied 0 findings in 0 files.');
-      expect(report.findings.some((finding) => finding.rule === 'security-drift')).toBe(false);
+      expect(report?.findings.some((finding) => finding.rule === 'security-drift')).toBe(false);
     },
     SPAWNED_PROCESS_TIMEOUT_MS,
   );

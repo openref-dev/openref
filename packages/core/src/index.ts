@@ -281,8 +281,17 @@ export {
   healthScore,
 } from './drift/domain/health';
 export type { DriftRuleGroup, HealthReportOptions } from './drift/domain/health';
-export { buildDoctorReport, DOCTOR_REPORT_VERSION } from './drift/domain/doctor-report';
-export type { IRDoctorCheck, IRDoctorFinding, IRDoctorReport } from './drift/domain/doctor-report';
+export {
+  buildDoctorReport,
+  DOCTOR_REPORT_VERSION,
+  readDoctorReport,
+} from './drift/domain/doctor-report';
+export type {
+  DoctorReportRead,
+  IRDoctorCheck,
+  IRDoctorFinding,
+  IRDoctorReport,
+} from './drift/domain/doctor-report';
 export { buildDiffReport } from './diff/domain/diff-report';
 export type {
   IRDiffChange,
