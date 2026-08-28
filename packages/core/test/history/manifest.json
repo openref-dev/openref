@@ -1,0 +1,268 @@
+{
+  "documents": [
+    {
+      "file": "001-f1b964d.yaml",
+      "title": "Swagger Petstore openapi.yaml as of 2025-03-13, commit f1b964d",
+      "sourceUrl": "https://raw.githubusercontent.com/swagger-api/swagger-petstore/f1b964dafee82dab2e6f4e876e3c7c97fb8cd37f/src/main/resources/openapi.yaml",
+      "retrievedAt": "2026-08-27",
+      "license": "Apache-2.0",
+      "copyrightHolder": "SmartBear Software",
+      "modified": false,
+      "bytes": 21990,
+      "sha256": "87d850a436e5474a9fe4af2e13a43565588d18b96988335ad11adb119479a5e1"
+    },
+    {
+      "file": "002-6118254.yaml",
+      "title": "Swagger Petstore openapi.yaml as of 2025-03-14, commit 6118254",
+      "sourceUrl": "https://raw.githubusercontent.com/swagger-api/swagger-petstore/611825423a50f5cc7bebe91fa8f00f75e0638056/src/main/resources/openapi.yaml",
+      "retrievedAt": "2026-08-27",
+      "license": "Apache-2.0",
+      "copyrightHolder": "SmartBear Software",
+      "modified": false,
+      "bytes": 21999,
+      "sha256": "12168e96fec23d88d5b4c641f0d034aea433cbc5210036ef7e5bd0de4c05e095"
+    },
+    {
+      "file": "003-57ff970.yaml",
+      "title": "Swagger Petstore openapi.yaml as of 2025-03-17, commit 57ff970",
+      "sourceUrl": "https://raw.githubusercontent.com/swagger-api/swagger-petstore/57ff97013d14ffe2b135b8eb8553ebfc61864218/src/main/resources/openapi.yaml",
+      "retrievedAt": "2026-08-27",
+      "license": "Apache-2.0",
+      "copyrightHolder": "SmartBear Software",
+      "modified": false,
+      "bytes": 21990,
+      "sha256": "d5fd36e3763a1bec4ed334b2d0bfbd10d8f1f2134bf5e7ad10767211f7a93713"
+    },
+    {
+      "file": "004-e28cf32.yaml",
+      "title": "Swagger Petstore openapi.yaml as of 2025-03-17, commit e28cf32",
+      "sourceUrl": "https://raw.githubusercontent.com/swagger-api/swagger-petstore/e28cf326d0d0f799130764e067e6ca8bb47b6751/src/main/resources/openapi.yaml",
+      "retrievedAt": "2026-08-27",
+      "license": "Apache-2.0",
+      "copyrightHolder": "SmartBear Software",
+      "modified": false,
+      "bytes": 21999,
+      "sha256": "83a4478ba82cc456ef822d97859835a96a4e7e989f7b7888e8bc7552165a6ec6"
+    },
+    {
+      "file": "005-936df66.yaml",
+      "title": "Swagger Petstore openapi.yaml as of 2025-03-17, commit 936df66",
+      "sourceUrl": "https://raw.githubusercontent.com/swagger-api/swagger-petstore/936df6637d9f1477b03da15a16a8706d53a558cb/src/main/resources/openapi.yaml",
+      "retrievedAt": "2026-08-27",
+      "license": "Apache-2.0",
+      "copyrightHolder": "SmartBear Software",
+      "modified": false,
+      "bytes": 21990,
+      "sha256": "a4e176c7f10a1140267c153065f626eb07122c6f003b10ba5239ba49075f01a0"
+    },
+    {
+      "file": "006-092daa7.yaml",
+      "title": "Swagger Petstore openapi.yaml as of 2025-03-17, commit 092daa7",
+      "sourceUrl": "https://raw.githubusercontent.com/swagger-api/swagger-petstore/092daa7080efb8417a7c84fbd43a194b0f5aaa86/src/main/resources/openapi.yaml",
+      "retrievedAt": "2026-08-27",
+      "license": "Apache-2.0",
+      "copyrightHolder": "SmartBear Software",
+      "modified": false,
+      "bytes": 21999,
+      "sha256": "193c2327c2c19c1b926fec89e2d128b8516c3194580f6701d2a8ead8c5bdbd45"
+    },
+    {
+      "file": "007-0d337bf.yaml",
+      "title": "Swagger Petstore openapi.yaml as of 2025-03-17, commit 0d337bf",
+      "sourceUrl": "https://raw.githubusercontent.com/swagger-api/swagger-petstore/0d337bfe3578ab426e7030b25e7e600ae7d8ec07/src/main/resources/openapi.yaml",
+      "retrievedAt": "2026-08-27",
+      "license": "Apache-2.0",
+      "copyrightHolder": "SmartBear Software",
+      "modified": false,
+      "bytes": 21990,
+      "sha256": "7cf3c18205da037763a635e8ecd38dfe2be84d25e4327b001269cbcccbe1ce32"
+    },
+    {
+      "file": "008-7337614.yaml",
+      "title": "Swagger Petstore openapi.yaml as of 2025-03-17, commit 7337614",
+      "sourceUrl": "https://raw.githubusercontent.com/swagger-api/swagger-petstore/7337614ea4adf2a5db7ad10a60a82168aaa37d23/src/main/resources/openapi.yaml",
+      "retrievedAt": "2026-08-27",
+      "license": "Apache-2.0",
+      "copyrightHolder": "SmartBear Software",
+      "modified": false,
+      "bytes": 21999,
+      "sha256": "007170bf7e3f131df75386de0335a36e524ca4827fc9d73938bd18feeec01383"
+    },
+    {
+      "file": "009-dfb47dd.yaml",
+      "title": "Swagger Petstore openapi.yaml as of 2025-03-18, commit dfb47dd",
+      "sourceUrl": "https://raw.githubusercontent.com/swagger-api/swagger-petstore/dfb47dd85ab03bdfe20871bfb2c952997fa36385/src/main/resources/openapi.yaml",
+      "retrievedAt": "2026-08-27",
+      "license": "Apache-2.0",
+      "copyrightHolder": "SmartBear Software",
+      "modified": false,
+      "bytes": 21990,
+      "sha256": "b27badedf5a3cd679f20582cccc5080124a4aaf3ff386981f2da08502186f885"
+    },
+    {
+      "file": "010-5b7e57c.yaml",
+      "title": "Swagger Petstore openapi.yaml as of 2025-03-18, commit 5b7e57c",
+      "sourceUrl": "https://raw.githubusercontent.com/swagger-api/swagger-petstore/5b7e57cd5d6232cc1b0e9980c336c51966519794/src/main/resources/openapi.yaml",
+      "retrievedAt": "2026-08-27",
+      "license": "Apache-2.0",
+      "copyrightHolder": "SmartBear Software",
+      "modified": false,
+      "bytes": 21999,
+      "sha256": "6c2e9495e24cf0db3868aa806aed92d82d5d751459a8fd6b37c709e0acb547b9"
+    },
+    {
+      "file": "011-bdc1a82.yaml",
+      "title": "Swagger Petstore openapi.yaml as of 2025-03-19, commit bdc1a82",
+      "sourceUrl": "https://raw.githubusercontent.com/swagger-api/swagger-petstore/bdc1a82e66f824825a4235e6bbb8641ed47cab52/src/main/resources/openapi.yaml",
+      "retrievedAt": "2026-08-27",
+      "license": "Apache-2.0",
+      "copyrightHolder": "SmartBear Software",
+      "modified": false,
+      "bytes": 25702,
+      "sha256": "7f5fd6699f68ec14b2cd5c17bb09036320a59559e426861cd9fb58a1de7a695a"
+    },
+    {
+      "file": "012-39b7b5f.yaml",
+      "title": "Swagger Petstore openapi.yaml as of 2025-03-19, commit 39b7b5f",
+      "sourceUrl": "https://raw.githubusercontent.com/swagger-api/swagger-petstore/39b7b5f2ef287548b359b198cb42f3ae89a66f54/src/main/resources/openapi.yaml",
+      "retrievedAt": "2026-08-27",
+      "license": "Apache-2.0",
+      "copyrightHolder": "SmartBear Software",
+      "modified": false,
+      "bytes": 25612,
+      "sha256": "253de9e0f0ae24d78ee354f8d39c649b335be4e050a696f1395c0968b9638f87"
+    },
+    {
+      "file": "013-db14178.yaml",
+      "title": "Swagger Petstore openapi.yaml as of 2025-03-19, commit db14178",
+      "sourceUrl": "https://raw.githubusercontent.com/swagger-api/swagger-petstore/db141781bc79d445b93dbd093feaa11c84c81b11/src/main/resources/openapi.yaml",
+      "retrievedAt": "2026-08-27",
+      "license": "Apache-2.0",
+      "copyrightHolder": "SmartBear Software",
+      "modified": false,
+      "bytes": 25713,
+      "sha256": "8ff4eafcecf4d5dacf7e172bfdee6d2c838acd63217a45a5070a60286bdc95d8"
+    },
+    {
+      "file": "014-c6a8b2c.yaml",
+      "title": "Swagger Petstore openapi.yaml as of 2025-03-19, commit c6a8b2c",
+      "sourceUrl": "https://raw.githubusercontent.com/swagger-api/swagger-petstore/c6a8b2ceae751c4c5cf62fc3b71d6ff4b334b1b1/src/main/resources/openapi.yaml",
+      "retrievedAt": "2026-08-27",
+      "license": "Apache-2.0",
+      "copyrightHolder": "SmartBear Software",
+      "modified": false,
+      "bytes": 25722,
+      "sha256": "01ffc18704cb61e02dc9c5780e2b1a37ed64ef20ec06ebf4975a01265d5d4277"
+    },
+    {
+      "file": "015-99f04dd.yaml",
+      "title": "Swagger Petstore openapi.yaml as of 2025-03-19, commit 99f04dd",
+      "sourceUrl": "https://raw.githubusercontent.com/swagger-api/swagger-petstore/99f04dddeaee799351adf2e8d8a279d24ef529a3/src/main/resources/openapi.yaml",
+      "retrievedAt": "2026-08-27",
+      "license": "Apache-2.0",
+      "copyrightHolder": "SmartBear Software",
+      "modified": false,
+      "bytes": 23182,
+      "sha256": "78de4368a03c8ab7774a9c2553356fb118a18c1a77c3f8b5af78816786b0c76d"
+    },
+    {
+      "file": "016-9e0e42f.yaml",
+      "title": "Swagger Petstore openapi.yaml as of 2025-03-19, commit 9e0e42f",
+      "sourceUrl": "https://raw.githubusercontent.com/swagger-api/swagger-petstore/9e0e42fdf7f380f348c25777ac4ed9087737a4b6/src/main/resources/openapi.yaml",
+      "retrievedAt": "2026-08-27",
+      "license": "Apache-2.0",
+      "copyrightHolder": "SmartBear Software",
+      "modified": false,
+      "bytes": 23182,
+      "sha256": "574e33e0fb4b7e35d6c9ebc366a34bbf24d96be5174450e51895d7907bd57150"
+    },
+    {
+      "file": "017-aa28cc1.yaml",
+      "title": "Swagger Petstore openapi.yaml as of 2025-03-19, commit aa28cc1",
+      "sourceUrl": "https://raw.githubusercontent.com/swagger-api/swagger-petstore/aa28cc1fc608cf3b09863f3ae54eb696174d1687/src/main/resources/openapi.yaml",
+      "retrievedAt": "2026-08-27",
+      "license": "Apache-2.0",
+      "copyrightHolder": "SmartBear Software",
+      "modified": false,
+      "bytes": 23182,
+      "sha256": "1315ee0b6b7e9822cc27a1c117612e5f3804334e50e5cd479601c292b4b0a054"
+    },
+    {
+      "file": "018-409e9ba.yaml",
+      "title": "Swagger Petstore openapi.yaml as of 2025-03-19, commit 409e9ba",
+      "sourceUrl": "https://raw.githubusercontent.com/swagger-api/swagger-petstore/409e9ba00ec059b28b4bff3998c24a894e8dab47/src/main/resources/openapi.yaml",
+      "retrievedAt": "2026-08-27",
+      "license": "Apache-2.0",
+      "copyrightHolder": "SmartBear Software",
+      "modified": false,
+      "bytes": 23173,
+      "sha256": "45a714c4dae9454d8c44ccf6af5e8e3ab8274c7de789c5defc59b21268facc0c"
+    },
+    {
+      "file": "019-f1ed336.yaml",
+      "title": "Swagger Petstore openapi.yaml as of 2025-03-19, commit f1ed336",
+      "sourceUrl": "https://raw.githubusercontent.com/swagger-api/swagger-petstore/f1ed336a08b18ba4a86c496147c4f546ae965a7b/src/main/resources/openapi.yaml",
+      "retrievedAt": "2026-08-27",
+      "license": "Apache-2.0",
+      "copyrightHolder": "SmartBear Software",
+      "modified": false,
+      "bytes": 23182,
+      "sha256": "7c1315ff7d191c2470e1f5fc9c9f7de1c7aacd162f24eaaf0174f88e1b7d9b1d"
+    },
+    {
+      "file": "020-9fb97b1.yaml",
+      "title": "Swagger Petstore openapi.yaml as of 2025-08-04, commit 9fb97b1",
+      "sourceUrl": "https://raw.githubusercontent.com/swagger-api/swagger-petstore/9fb97b14d3c9d15d99aa8e3dbe323284cceb6bee/src/main/resources/openapi.yaml",
+      "retrievedAt": "2026-08-27",
+      "license": "Apache-2.0",
+      "copyrightHolder": "SmartBear Software",
+      "modified": false,
+      "bytes": 23165,
+      "sha256": "ce2fca7e5726ddceff7b0c1b7fb9654fb784ed02c76256839a4858311d2f676b"
+    },
+    {
+      "file": "021-8f0dd28.yaml",
+      "title": "Swagger Petstore openapi.yaml as of 2025-08-06, commit 8f0dd28",
+      "sourceUrl": "https://raw.githubusercontent.com/swagger-api/swagger-petstore/8f0dd286987880b4af7bce552aca3813166f3049/src/main/resources/openapi.yaml",
+      "retrievedAt": "2026-08-27",
+      "license": "Apache-2.0",
+      "copyrightHolder": "SmartBear Software",
+      "modified": false,
+      "bytes": 23156,
+      "sha256": "0d810997f6409d5cff6f0cf2c1466814ba52250a784cd841cacb93514c7a8502"
+    },
+    {
+      "file": "022-5b2111a.yaml",
+      "title": "Swagger Petstore openapi.yaml as of 2026-08-17, commit 5b2111a",
+      "sourceUrl": "https://raw.githubusercontent.com/swagger-api/swagger-petstore/5b2111a970755fa0dba56a093497852df08415e3/src/main/resources/openapi.yaml",
+      "retrievedAt": "2026-08-27",
+      "license": "Apache-2.0",
+      "copyrightHolder": "SmartBear Software",
+      "modified": false,
+      "bytes": 23165,
+      "sha256": "2697bda8ec59defc003c0c2877f59b20fe2e6cbccf784693f9e0f3ae1f931157"
+    },
+    {
+      "file": "023-dfeaa1c.yaml",
+      "title": "Swagger Petstore openapi.yaml as of 2026-08-17, commit dfeaa1c",
+      "sourceUrl": "https://raw.githubusercontent.com/swagger-api/swagger-petstore/dfeaa1ce9572dca6bd8b413faba2b00e30f432e6/src/main/resources/openapi.yaml",
+      "retrievedAt": "2026-08-27",
+      "license": "Apache-2.0",
+      "copyrightHolder": "SmartBear Software",
+      "modified": false,
+      "bytes": 23156,
+      "sha256": "5f5facd6c634e42977203e6242a98a5e6e9c26aecb484767f888412faf4b27f9"
+    },
+    {
+      "file": "024-d57941e.yaml",
+      "title": "Swagger Petstore openapi.yaml as of 2026-08-17, commit d57941e",
+      "sourceUrl": "https://raw.githubusercontent.com/swagger-api/swagger-petstore/d57941e8fe959e508796b27469b1e8bba73392dc/src/main/resources/openapi.yaml",
+      "retrievedAt": "2026-08-27",
+      "license": "Apache-2.0",
+      "copyrightHolder": "SmartBear Software",
+      "modified": false,
+      "bytes": 23165,
+      "sha256": "e1a2480ffa440e44b981db5b038374214c532ffc92026fd51fb957c88bfbdd88"
+    }
+  ]
+}

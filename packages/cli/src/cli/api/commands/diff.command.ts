@@ -1,17 +1,22 @@
+import { buildDiffReport } from '@openref/core';
 import { loadDocument } from '../../application/services/load-document.service';
 import type { CommandContext, CommandOutcome } from '../../domain/command.types';
 import { EXIT_CODE } from '../../domain/exit-code.constants';
 import { parseArgs } from '../argv';
 import { DIFF_USAGE } from '../help';
-import { describeDocument } from './document-summary';
+import { renderDiffReport } from './diff-report-text';
 
 /**
- * `openref diff <old> <new>`, T036's slice of it: requiring both positionals and loading both.
+ * `openref diff <old> <new>`, per SPEC 17.1: classify the changes between two versions of one
+ * specification and exit 1 when any of them is breaking.
  *
- * BOTH ARE SPEC FILE PATHS IN THIS TASK. SPEC 17.1's own example, `openref diff main current`,
- * compares two git refs, which is a resolution step this task does not build. Loading two
- * documents by path is what this task's loader already does; comparing them, and resolving a
- * ref to one, is `T038`'s.
+ * BOTH SIDES ARE SPEC FILE PATHS. SPEC 17.1's own transcript, `openref diff main current`,
+ * compares two git refs; resolving a ref to a file is `T041`'s, where the ref exists (a
+ * checkout in CI). The classification and the report are all here, in `buildDiffReport` in
+ * `@openref/core`, so that consumer needs nothing from this package.
+ *
+ * A side that cannot be loaded is a usage error, exit 2, per the T036 contract: exit 1 is
+ * reserved for the command having run and found something.
  */
 export async function runDiff(context: CommandContext): Promise<CommandOutcome> {
   const { flags, positionals } = parseArgs(context.args);
@@ -33,9 +38,12 @@ export async function runDiff(context: CommandContext): Promise<CommandOutcome> 
     const newer = await loadDocument({ kind: 'spec', path: newPath });
     await newer.close();
 
-    context.stdout(`${oldPath}: ${describeDocument(older.document)}\n`);
-    context.stdout(`${newPath}: ${describeDocument(newer.document)}\n`);
-    return { exitCode: EXIT_CODE.SUCCESS };
+    const report = buildDiffReport(older.document, newer.document);
+    context.stdout(`${renderDiffReport(report)}\n`);
+
+    return {
+      exitCode: report.breaking.length > 0 ? EXIT_CODE.FINDINGS : EXIT_CODE.SUCCESS,
+    };
   } catch (error) {
     context.stderr(`openref: ${error instanceof Error ? error.message : String(error)}\n`);
     return { exitCode: EXIT_CODE.USAGE_ERROR };

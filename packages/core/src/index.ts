@@ -262,6 +262,13 @@ export {
 export type { DriftRuleGroup, HealthReportOptions } from './drift/domain/health';
 export { buildDoctorReport, DOCTOR_REPORT_VERSION } from './drift/domain/doctor-report';
 export type { IRDoctorCheck, IRDoctorFinding, IRDoctorReport } from './drift/domain/doctor-report';
+export { buildDiffReport } from './diff/domain/diff-report';
+export type {
+  IRDiffChange,
+  IRDiffChangeKind,
+  IRDiffClassification,
+  IRDiffReport,
+} from './diff/domain/diff-report';
 
 export { hasRuntimeFacts, RUNTIME_FACT_FIELDS } from './runtime/domain/runtime-view';
 export type { RuntimeFactField } from './runtime/domain/runtime-view';

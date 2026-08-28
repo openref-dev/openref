@@ -98,6 +98,21 @@ export const FIXTURE_ROOTS: readonly FixtureRoot[] = [
     readsLicenseText: false,
     label: 'document(s)',
   },
+  // THE VERSION HISTORY IS A SECOND ROOT RATHER THAN MORE CORPUS DOCUMENTS. The corpus is one
+  // version of many documents and every file in it gets a normalization snapshot; the history is
+  // many versions of one document and is read pairwise by the T038 diff suite. Mixing them would
+  // put twenty four near identical petstore snapshots into the corpus for nothing.
+  {
+    directory: 'packages/core/test/history',
+    producedBy: 'T038',
+    filesDirectory: 'documents',
+    noticeFile: 'NOTICE',
+    manifestKey: 'documents',
+    allowedLicenses: FIXTURE_ALLOWED_LICENSES,
+    extensions: ['.json', '.yaml', '.yml'],
+    readsLicenseText: false,
+    label: 'version(s)',
+  },
   {
     directory: 'packages/theme/fonts',
     producedBy: 'the zone 4 work of 2026-08-10',

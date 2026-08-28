@@ -113,6 +113,19 @@ describe('the committed records', () => {
     expect(issues.map((issue) => issue.message)).toEqual([]);
   });
 
+  it('should account for every field of the version history manifest, through the same partition', () => {
+    // Given the real file: the T038 window of consecutive petstore versions, which SPEC 17.1's
+    // diff suite reads pairwise. Same zone, same entry shape, same partition as the corpus.
+    const entries = entriesOf('packages/core/test/history/manifest.json', 'documents');
+
+    // When
+    const issues = checkFieldPartition(unionOfFields(entries), CORPUS_MANIFEST_PARTITION);
+
+    // Then, twenty being T038's own floor of consecutive versions
+    expect(entries.length).toBeGreaterThanOrEqual(20);
+    expect(issues.map((issue) => issue.message)).toEqual([]);
+  });
+
   it('should account for every field of every font manifest, which is one per shipped theme', () => {
     // Given the font manifests THE CONFIGURATION KNOWS ABOUT rather than one named here. It was one
     // path until T032 added a second theme, and a record listed by hand is accurate exactly as long

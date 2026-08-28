@@ -71,6 +71,22 @@ describe.skipIf(!existsSync(BIN_PATH))('the built openref binary', () => {
     expect(result.stdout).toContain('Mini 1.0.0');
   });
 
+  it('should carry exit code 1 out of the process for a diff with breaking changes', async () => {
+    // Given the pair built to produce the SPEC 17.1 example. The unit suite proves the outcome
+    // object; only a spawned process proves the 1 actually reaches a pipeline, and no other
+    // case in this suite exits 1.
+    const older = resolve(MOCKS, 'diff-old.json');
+    const newer = resolve(MOCKS, 'diff-new.json');
+
+    // When
+    const result = await runCliBinary(['diff', older, newer]);
+
+    // Then
+    expect(result.code).toBe(1);
+    expect(result.stdout).toContain('BREAKING');
+    expect(result.stdout).toContain('DELETE /users/{id}');
+  });
+
   it.skipIf(!existsSync(DEMO_ENTRY))(
     'should exit 0 for doctor --from-nest against the real demo application',
     async () => {
