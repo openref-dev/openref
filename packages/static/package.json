@@ -1,0 +1,40 @@
+{
+  "name": "@openref/static",
+  "version": "0.0.0",
+  "description": "OPENREF static build. Internal, bundled into the openref CLI",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "source": "./src/index.ts",
+  "exports": {
+    ".": {
+      "source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "sideEffects": false,
+  "engines": {
+    "node": "^22.22.2 || ^24.15.0 || >=26.0.0"
+  },
+  "scripts": {
+    "build": "tsup"
+  },
+  "private": true,
+  "dependencies": {
+    "@openref/core": "workspace:*",
+    "@openref/render": "workspace:*",
+    "@openref/search": "workspace:*"
+  },
+  "devDependencies": {
+    "@openref/theme": "workspace:*",
+    "tsup": "8.5.1",
+    "typescript": "5.9.3"
+  }
+}

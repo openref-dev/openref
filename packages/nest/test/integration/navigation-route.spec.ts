@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { buildNavigation, navigationHref, type NavEntryModel } from '@openref/render';
 import { ReferenceService } from '../../src/reference/application/services/reference.service';
 import { NAVIGATION_PARAM, referenceRoutes } from '../../src/reference/domain/routes';
-import { loadDefaultAssets } from '../../src/assets/infrastructure/adapters/package-assets.adapter';
+import { loadDefaultAssets } from '@openref/render';
 
 /**
  * The route that answers the fetch a sliced page makes.

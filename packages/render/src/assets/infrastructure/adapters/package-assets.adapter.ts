@@ -13,17 +13,25 @@
  * one install and one line, and a reference that renders unstyled until the reader finds a
  * second package to install has not kept that promise.
  *
- * THE CLIENT BUNDLE IS RESOLVED THROUGH THIS PACKAGE'S OWN EXPORTS MAP rather than by a path
- * relative to this file. The path from source to `dist/browser` and the path from the bundled
- * `dist/index.js` to it are different, so a relative path would be correct in exactly one of
- * the two layouts and nothing would say which.
+ * THE CLIENT BUNDLE IS RESOLVED THROUGH AN EXPORTS MAP rather than by a path relative to this
+ * file. The path from source to `dist/browser` and the path from the bundled `dist/index.js` to
+ * it are different, so a relative path would be correct in exactly one of the two layouts and
+ * nothing would say which.
+ *
+ * IT LIVES IN `@openref/render` SINCE T039, AND THE SPECIFIER IT DEFAULTS TO IS A STRING RATHER
+ * THAN AN EDGE. `@openref/nest` and `@openref/static` both need exactly this resolution, and
+ * neither may import the other, so one copy had to sit where both can see it. What that costs
+ * is the appearance of this package naming a package downstream of it; what it does not cost is
+ * a dependency, because `@openref/nest/browser` is resolved from a string at runtime, by
+ * whichever anchor has it installed, the same move `nest-surface.ts` makes for the same reason.
+ * A caller that names its own bundle never reaches the default at all.
  */
 
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { ErrorCode, InvalidOptionsError } from '@openref/core';
-import type { AssetSource } from '../../domain/asset-catalog';
+import { chunkReferences, siblingReferences, type AssetSource } from '../../domain/asset-catalog';
 
 /** Resolver used to find a file inside an installed package. */
 const requireFrom = createRequire(import.meta.url);
@@ -51,9 +59,6 @@ export const DEFAULT_THEME_STYLESHEETS: readonly string[] = [
 /** Specifier of the client bundle this package composes. */
 export const CLIENT_BUNDLE_SPECIFIER = '@openref/nest/browser';
 
-/** A relative url written inside a stylesheet. */
-const CSS_URL = /url\(\s*(['"]?)([^'")]+)\1\s*\)/g;
-
 /**
  * Reads one file, naming the specifier when it is missing.
  *
@@ -78,74 +83,39 @@ function readAsset(path: string, specifier: string): Uint8Array {
 /**
  * Resolves a package relative specifier to a path.
  *
+ * A THIRD ANCHOR SINCE T039, AND IT IS THE CALLER'S. `@openref/nest/browser` is the default
+ * client bundle and it is not a dependency of this package, deliberately: the specifier here is
+ * a string rather than an edge. So the package that DOES depend on it, `@openref/nest` itself
+ * or the `openref` CLI, passes its own module url and the resolution happens from there. Tried
+ * first, because a caller that named an anchor named it for a reason.
+ *
  * @param specifier - Package specifier, such as `@openref/theme/theme.css`
+ * @param resolveFrom - A module url or file path to resolve from first
  * @returns Absolute path
  * @throws {InvalidOptionsError} When the package or its export is not installed
  */
-export function resolveAssetPath(specifier: string): string {
-  try {
-    return requireFrom.resolve(specifier);
-  } catch {
+export function resolveAssetPath(specifier: string, resolveFrom?: string): string {
+  const anchors = [
+    ...(resolveFrom === undefined ? [] : [createRequire(resolveFrom)]),
+    requireFrom,
+    requireFromHost,
+  ];
+
+  let last: unknown;
+  for (const anchor of anchors) {
     try {
-      return requireFromHost.resolve(specifier);
+      return anchor.resolve(specifier);
     } catch (cause) {
-      throw new InvalidOptionsError(
-        `"${specifier}" could not be resolved from this package or from the application; is the package installed?`,
-        ErrorCode.CONFIG_INVALID_OPTIONS,
-        cause instanceof Error ? cause : undefined,
-        { specifier },
-      );
+      last = cause;
     }
   }
-}
 
-/**
- * Names of the sibling files a stylesheet points at.
- *
- * The stylesheet is the list. Reading the font manifest instead would let the two disagree,
- * and the disagreement that matters is a face that is declared and not shipped, which is
- * invisible until a reader meets a character in that range.
- *
- * @param css - Stylesheet source
- * @returns Sibling file names, each once, in the order they appear
- */
-export function siblingReferences(css: string): readonly string[] {
-  const names: string[] = [];
-
-  for (const match of css.matchAll(CSS_URL)) {
-    const reference = match[2] ?? '';
-    if (reference === '' || reference.includes(':') || reference.startsWith('/')) continue;
-    if (reference.startsWith('#') || reference.startsWith('..')) continue;
-
-    const name = reference.startsWith('./') ? reference.slice(2) : reference;
-    if (!names.includes(name)) names.push(name);
-  }
-
-  return names;
-}
-
-/** A relative specifier written inside a module, static or dynamic. See the catalog for why. */
-const JS_SPECIFIER = /(['"])\.\/([A-Za-z0-9_.-]+\.js)\1/g;
-
-/**
- * Names of the chunks a module points at.
- *
- * THE BUNDLE IS THE LIST, for the reason the stylesheet is: a directory listing would pick up
- * whatever a previous build left behind, and a hand written list would go stale on the first
- * change to the split. What is served is what the shipped bytes ask for.
- *
- * @param source - Module source
- * @returns Sibling chunk names, each once, in the order they appear
- */
-export function chunkReferences(source: string): readonly string[] {
-  const names: string[] = [];
-
-  for (const match of source.matchAll(JS_SPECIFIER)) {
-    const name = match[2] ?? '';
-    if (name !== '' && !names.includes(name)) names.push(name);
-  }
-
-  return names;
+  throw new InvalidOptionsError(
+    `"${specifier}" could not be resolved from the caller, from this package or from the application; is the package installed?`,
+    ErrorCode.CONFIG_INVALID_OPTIONS,
+    last instanceof Error ? last : undefined,
+    { specifier },
+  );
 }
 
 /** How the default asset set is assembled. */
@@ -154,6 +124,14 @@ export interface DefaultAssetOptions {
   readonly stylesheets?: readonly string[];
   /** Client bundle, as a package specifier or an absolute path. */
   readonly clientBundle?: string;
+  /**
+   * A module url or file path every specifier is resolved from first.
+   *
+   * A caller outside this package's own dependency closure passes its own `import.meta.url`
+   * here, which is how the `openref` CLI reaches `@openref/nest/browser`. See
+   * {@link resolveAssetPath}.
+   */
+  readonly resolveFrom?: string;
 }
 
 /** The assets to serve, and which of them the shell links. */
@@ -182,7 +160,7 @@ export function loadDefaultAssets(options: DefaultAssetOptions = {}): AssetPlan 
 
   const bundlePath = bundleSpecifier.startsWith('/')
     ? bundleSpecifier
-    : resolveAssetPath(bundleSpecifier);
+    : resolveAssetPath(bundleSpecifier, options.resolveFrom);
   const moduleName = basenameOf(bundlePath);
   const bundleBytes = readAsset(bundlePath, bundleSpecifier);
   sources.push({ name: moduleName, bytes: bundleBytes });
@@ -203,7 +181,9 @@ export function loadDefaultAssets(options: DefaultAssetOptions = {}): AssetPlan 
   }
 
   for (const specifier of stylesheets) {
-    const path = specifier.startsWith('/') ? specifier : resolveAssetPath(specifier);
+    const path = specifier.startsWith('/')
+      ? specifier
+      : resolveAssetPath(specifier, options.resolveFrom);
     const bytes = readAsset(path, specifier);
     const name = basenameOf(path);
 

@@ -8,7 +8,7 @@
  * shell puts one in each time.
  *
  * Every asset is external, per SPEC 19.2. The only element with content in it is the
- * state block, which is data rather than code and still carries the nonce.
+ * state block, which is data rather than code and carries the nonce whenever one exists.
  */
 
 import { compareByCodePoint, ErrorCode, InvalidOptionsError } from '@openref/core';
@@ -36,17 +36,39 @@ export interface ShellAssets {
   readonly modules?: readonly string[];
 }
 
+/**
+ * What the static build of SPEC 16.1 adds to the head, per page.
+ *
+ * COMPOSED BY THE CALLER AND WRITTEN HERE, because the shell owns the head and string surgery
+ * on an assembled document is the class of edit nothing can verify. The one script among them,
+ * JSON-LD, is data the way the state block is data: it is never executed, it carries the nonce
+ * the way every script element from this file does when there is one, and its content is
+ * escaped by the same rule, so `</script>` cannot appear inside it.
+ */
+export interface ShellHead {
+  /** Absolute url of the canonical page, written as `link rel=canonical`. */
+  readonly canonicalUrl?: string;
+  /** Plain text summary, written as `meta name=description`. */
+  readonly description?: string;
+  /** OpenGraph properties, written in the given order as `meta property=... content=...`. */
+  readonly openGraph?: readonly { readonly property: string; readonly content: string }[];
+  /** JSON-LD, already serialized. Written as one `script type=application/ld+json`. */
+  readonly jsonLd?: string;
+}
+
 /** How the shell is assembled for one response. */
 export interface ShellOptions {
   /**
    * CSP nonce for this response.
    *
-   * Absent leaves the nonce attributes empty, which is correct only when the host serves
+   * Absent writes no nonce attribute at all, which is correct only when the host serves
    * no `script-src` nonce policy. A static build is the case that has no nonce to give:
    * files on disk are one response reused, and a nonce that is reused is not a nonce.
    */
   readonly nonce?: string;
   readonly assets?: ShellAssets;
+  /** Head additions of the static build, absent on a served page. */
+  readonly head?: ShellHead;
   /** Value of the `lang` attribute. */
   readonly lang?: string;
   /** Forces a colour scheme through `data-oref-color-scheme` instead of the system one. */
@@ -84,24 +106,18 @@ export function assertNonce(nonce: string): string {
   return nonce;
 }
 
-/**
- * Value for the nonce attribute, which is always written.
- *
- * Always, including when the host serves no nonce policy, and then it is empty. Two
- * reasons, and the second is the load bearing one. An empty nonce authorizes nothing, so
- * it costs nothing where there is no policy. And every script element this package can
- * emit then carries the attribute in the source, which is what the CSP gate reads: a
- * conditional attribute would leave a script tag with no `nonce=` in the built file, and
- * the gate cannot tell that apart from a script that genuinely forgot one. For the same
- * reason the attribute is written in the template literal rather than returned from here
- * whole: a scan reads the text of the tag, not the value of a call.
- *
- * @param nonce - Nonce for this response, or undefined
- * @returns The attribute, with an empty value when there is no nonce
+/*
+ * THE NONCE ATTRIBUTE IS WRITTEN EXACTLY WHEN THERE IS A NONCE TO WRITE. A served response
+ * carries the per response nonce it was given; a static build has none to give, and an empty
+ * `nonce=""` is not a smaller version of one: it authorizes nothing under any policy, so on a
+ * file on disk it was decoration that read as machinery. The conditional is spelled inline in
+ * each element's template rather than returned whole from a helper, deliberately: the CSP gate
+ * scans built output as text and requires `nonce=` inside the open tag of every contentful
+ * script and style element, and an attribute that arrives from a call would leave a tag the
+ * scan cannot tell from one that genuinely forgot its nonce. The inline spelling keeps the
+ * machinery in the tag's own text, in the source and in the built file, which is what the
+ * scan reads.
  */
-function nonceValue(nonce: string | undefined): string {
-  return nonce === undefined ? '' : assertNonce(nonce);
-}
 
 /** Token names are `--oref-{group}-{name}`, the same shape `@openref/vue` validates. */
 const TOKEN_NAME = /^--oref-[a-z0-9]+(?:-[a-z0-9]+)*$/;
@@ -168,7 +184,47 @@ function tokenStyleElement(
     })
     .join(';');
 
-  return `<style nonce="${nonceValue(nonce)}">:root{${declarations}}</style>`;
+  return `<style${nonce === undefined ? '' : ` nonce="${assertNonce(nonce)}"`}>:root{${declarations}}</style>`;
+}
+
+/**
+ * The head additions of one page, or nothing.
+ *
+ * Every value is escaped on the way into an attribute; the JSON-LD content is escaped by
+ * {@link escapeJsonForScript}, the state block's own rule, so a `<` can never open an element
+ * inside it and `</script>` cannot appear. The element order is fixed: description, canonical,
+ * OpenGraph, JSON-LD, so the same inputs always produce the same bytes.
+ *
+ * @param head - What the caller composed, possibly absent
+ * @param nonce - Nonce for this response, or undefined
+ * @returns The elements, or an empty string
+ */
+function headElements(head: ShellHead | undefined, nonce: string | undefined): string {
+  if (head === undefined) return '';
+
+  const description =
+    head.description === undefined
+      ? ''
+      : `<meta name="description" content="${escapeHtml(head.description)}">`;
+
+  const canonical =
+    head.canonicalUrl === undefined
+      ? ''
+      : `<link rel="canonical" href="${escapeHtml(head.canonicalUrl)}">`;
+
+  const openGraph = (head.openGraph ?? [])
+    .map(
+      (tag) => `<meta property="${escapeHtml(tag.property)}" content="${escapeHtml(tag.content)}">`,
+    )
+    .join('');
+
+  const jsonLd =
+    head.jsonLd === undefined
+      ? ''
+      : `<script type="application/ld+json"${nonce === undefined ? '' : ` nonce="${assertNonce(nonce)}"`}>` +
+        `${escapeJsonForScript(head.jsonLd)}</script>`;
+
+  return description + canonical + openGraph + jsonLd;
 }
 
 /**
@@ -191,17 +247,19 @@ export function renderHtmlDocument(page: RenderedPage, options: ShellOptions = {
     .map((href) => `<link rel="stylesheet" href="${escapeHtml(href)}">`)
     .join('');
 
+  const head = headElements(options.head, nonce);
+
   const tokens = tokenStyleElement(options.tokens, nonce);
 
   const modules = (assets.modules ?? [])
     .map(
       (src) =>
-        `<script type="module" src="${escapeHtml(src)}" nonce="${nonceValue(nonce)}"></script>`,
+        `<script type="module" src="${escapeHtml(src)}"${nonce === undefined ? '' : ` nonce="${assertNonce(nonce)}"`}></script>`,
     )
     .join('');
 
   const state =
-    `<script type="application/json" id="${STATE_ELEMENT_ID}" nonce="${nonceValue(nonce)}">` +
+    `<script type="application/json" id="${STATE_ELEMENT_ID}"${nonce === undefined ? '' : ` nonce="${assertNonce(nonce)}"`}>` +
     `${escapeJsonForScript(page.stateJson)}</script>`;
 
   return (
@@ -211,6 +269,7 @@ export function renderHtmlDocument(page: RenderedPage, options: ShellOptions = {
     '<meta charset="utf-8">' +
     '<meta name="viewport" content="width=device-width, initial-scale=1">' +
     `<title>${escapeHtml(page.title)}</title>` +
+    head +
     stylesheets +
     tokens +
     '</head>' +

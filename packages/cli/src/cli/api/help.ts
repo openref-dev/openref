@@ -14,9 +14,12 @@ Builds a static reference from one document source. Exactly one of --spec, --con
   --spec <path>       an OpenAPI document on disk, JSON or YAML
   --config <path>     a JSON file naming "spec" and the other options above
   --from-nest <path>  a compiled NestJS entry point, booted headlessly and closed when done
-  --out <dir>         where the static build is written
-  --base <path>       base path the built site is served from
-  --target <name>     hosting target the proxy configuration is generated for
+  --out <dir>         where the static build is written; required
+  --base <base>       a path such as /docs, or an absolute url such as
+                      https://docs.example.com/api. Only an absolute base can
+                      produce sitemap.xml, the canonical link and og:url
+  --target <name>     hosting target the proxy configuration is generated for.
+                      Refused until T040 builds it, rather than ignored
   --help              print this message
 `;
 

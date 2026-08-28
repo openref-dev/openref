@@ -13,12 +13,14 @@
  */
 
 import type { IRJsonSchema, IRSchema, IRSchemaVariant } from '@openref/core';
+import { schemaHref } from './links';
 import {
   conditionsOf,
   isNeverSchema,
   leadingValueOf,
   requirednessOf,
   selectingValueOf,
+  undrawnConditionWords,
   type ShapeRequiredness,
 } from './shape-conditions';
 
@@ -53,9 +55,9 @@ interface WalkContext {
   readonly rows: ShapeRow[];
 }
 
-/** The address of a schema's own page. */
+/** The address of a schema's own page, through the one function `links.ts` states. */
 function schemaHrefOf(context: WalkContext, id: string): string {
-  return `${context.basePath}/schema/${encodeURIComponent(id)}`;
+  return schemaHref(id, context.basePath);
 }
 
 /** Resolves a position to the body to read, following one named reference. */
@@ -104,7 +106,11 @@ function typeWordsOf(body: IRJsonSchema): string {
     body.patternProperties !== undefined &&
     Object.keys(body.patternProperties).length > 0
   ) {
-    return 'object, keys by pattern';
+    // BOTH KINDS OF KEY ARE NAMED WHEN BOTH EXIST, per the T039 filing: `object, keys by
+    // pattern` alone read as if the declared properties were not there.
+    return Object.keys(body.properties ?? {}).length > 0
+      ? 'object, declared keys and keys by pattern'
+      : 'object, keys by pattern';
   }
 
   if (type === 'string') {
@@ -117,14 +123,18 @@ function typeWordsOf(body: IRJsonSchema): string {
   return type ?? 'any';
 }
 
-/** The tuple's condition line: position titles, and the closed tail when it is closed. */
+/** The tuple's condition line: position titles, and whether the tail is open or closed. */
 function tupleWords(body: IRJsonSchema): string {
+  // AN OPEN TUPLE READS AS OPEN, per the T039 filing. Silence used to mean open, but a reader
+  // cannot tell a stated closure apart from a line that simply ended, so both states say so.
+  const tail = isNeverSchema(body.items)
+    ? '; no items beyond the tuple'
+    : '; open: items beyond the tuple are allowed';
   const titles = (body.prefixItems ?? []).map(
     (member, index) => member.title ?? `[${String(index)}]`,
   );
-  const closed = isNeverSchema(body.items) ? '; no items beyond the tuple' : '';
 
-  return `prefixItems: ${titles.join(', ')}${closed}`;
+  return `prefixItems: ${titles.join(', ')}${tail}`;
 }
 
 /** The condition line of one field row: its requiredness condition first, else its shape's. */
@@ -136,6 +146,30 @@ function whenOf(when: string | undefined, body: IRJsonSchema): string {
   return patterns.length > 0 ? patterns.join(', ') : '';
 }
 
+/**
+ * The field names a body's conditions can honestly test at its own instance.
+ *
+ * The body's declared properties, plus the leading value's name when its branches share one:
+ * both are names a reader meets at this level of the rows. A branch's fields join the set of
+ * the instance it constrains, because a `oneOf` branch of an object constrains that same
+ * object rather than a nested one.
+ *
+ * @param body - The object schema
+ * @param leading - The leading value's name, when the body holds variants
+ * @param inherited - Fields of the instance this body joins, for a branch
+ * @returns The names
+ */
+function instanceFieldsOf(
+  body: IRJsonSchema,
+  leading: string | null,
+  inherited: ReadonlySet<string>,
+): ReadonlySet<string> {
+  const fields = new Set(inherited);
+  for (const name of Object.keys(body.properties ?? {})) fields.add(name);
+  if (leading !== null) fields.add(leading);
+  return fields;
+}
+
 /** Emits the rows of one branch of a `oneOf`, selector line first, fields under it. */
 function walkVariant(
   variant: IRSchemaVariant,
@@ -143,6 +177,7 @@ function walkVariant(
   path: string,
   depth: number,
   context: WalkContext,
+  instanceFields: ReadonlySet<string>,
 ): void {
   const { body, id, name } = dereference(variant.schema, context);
   const selecting = selectingValueOf(body, leading, variant.discriminatorValue);
@@ -172,12 +207,28 @@ function walkVariant(
   }
 
   if (id !== undefined) context.refPath.push(id);
-  walkObject(body, `${path}/${variant.label}`, depth + 1, context, leading);
+  // THE BRANCH JOINS THE INSTANCE IT CONSTRAINS: its conditions may honestly name the
+  // enclosing object's own fields, which is the fixture's `CardMethod` writing a condition on
+  // a root field from inside a root `oneOf` branch.
+  walkObject(
+    body,
+    `${path}/${variant.label}`,
+    depth + 1,
+    context,
+    leading,
+    instanceFieldsOf(body, leading, instanceFields),
+  );
   if (id !== undefined) context.refPath.pop();
 }
 
 /** Emits the variant rows of a position that holds them. */
-function walkVariants(body: IRJsonSchema, path: string, depth: number, context: WalkContext): void {
+function walkVariants(
+  body: IRJsonSchema,
+  path: string,
+  depth: number,
+  context: WalkContext,
+  instanceFields: ReadonlySet<string>,
+): void {
   const variants = body.variants ?? [];
   if (variants.length === 0 || depth > DEPTH_LIMIT) return;
 
@@ -187,7 +238,7 @@ function walkVariants(body: IRJsonSchema, path: string, depth: number, context: 
   );
 
   for (const variant of variants) {
-    walkVariant(variant, leading, path, depth, context);
+    walkVariant(variant, leading, path, depth, context, instanceFields);
   }
 }
 
@@ -199,6 +250,7 @@ function walkVariants(body: IRJsonSchema, path: string, depth: number, context: 
  * @param depth - Nesting level of the fields
  * @param context - The walk
  * @param skipProperty - A leading value the enclosing variant already stated, not repeated
+ * @param inheritedFields - Fields of the instance this body joins, for a branch
  */
 function walkObject(
   body: IRJsonSchema,
@@ -206,6 +258,7 @@ function walkObject(
   depth: number,
   context: WalkContext,
   skipProperty: string | null = null,
+  inheritedFields: ReadonlySet<string> = new Set<string>(),
 ): void {
   if (depth > DEPTH_LIMIT) return;
 
@@ -218,6 +271,26 @@ function walkObject(
           body.variants.map((variant) => dereference(variant.schema, context).body),
         );
 
+  // WHAT A CONDITION MAY HONESTLY NAME HERE, per the T039 filing. A condition testing a field
+  // outside this set can never be satisfied at this level, and the row says so rather than
+  // printing a requiredness a reader could never trigger. The reading half asks the same
+  // question the filling half asks through `readCondition`, over the names it draws rather
+  // than over the paths a form drew, because these rows have no values in them.
+  const instanceFields = instanceFieldsOf(body, ownLeading, inheritedFields);
+  const undrawnOf = (name: string): string => {
+    const condition = conditions.find((candidate) => candidate.requires.includes(name));
+    if (condition === undefined) return '';
+
+    const missing = condition.clauses
+      .map((clause) => clause.field)
+      .filter(
+        (field, index, all) =>
+          field !== '' && !instanceFields.has(field) && all.indexOf(field) === index,
+      );
+
+    return missing.length === 0 ? '' : undrawnConditionWords(missing);
+  };
+
   for (const [name, member] of Object.entries(body.properties ?? {})) {
     // The selecting constant of the branch the reader is already inside: its row is the
     // variant's own `when` line, and printing it again would be the F15 class.
@@ -229,6 +302,7 @@ function walkObject(
     const { sort, when } = requirednessOf(name, body, conditions);
     const isLeadingRow = name === ownLeading;
     const hasOwnVariants = (resolved.body.variants?.length ?? 0) > 0;
+    const undrawn = sort === 'conditional' ? undrawnOf(name) : '';
 
     context.rows.push({
       path: `${path}/${name}`,
@@ -242,12 +316,12 @@ function walkObject(
           : typeWordsOf(resolved.body),
       ...(resolved.id === undefined ? {} : { href: schemaHrefOf(context, resolved.id) }),
       requiredness: sort,
-      when: whenOf(when, resolved.body),
+      when: undrawn === '' ? whenOf(when, resolved.body) : `${when ?? ''} ${undrawn}`.trim(),
     });
 
     // The branches of the whole object attach under the row of the value that selects them.
     if (isLeadingRow) {
-      walkVariants(body, `${path}/${name}`, depth + 1, context);
+      walkVariants(body, `${path}/${name}`, depth + 1, context, instanceFields);
       continue;
     }
 
@@ -256,12 +330,22 @@ function walkObject(
       const guarded = resolved.id !== undefined;
       if (guarded && context.refPath.includes(resolved.id ?? '')) continue;
       if (guarded) context.refPath.push(resolved.id ?? '');
-      walkVariants(resolved.body, `${path}/${name}`, depth + 1, context);
+      // A NESTED CHOICE CONSTRAINS ITS OWN INSTANCE, not this one, so its branches start from
+      // that property's own fields rather than inheriting this object's.
+      walkVariants(
+        resolved.body,
+        `${path}/${name}`,
+        depth + 1,
+        context,
+        new Set(Object.keys(resolved.body.properties ?? {})),
+      );
       if (guarded) context.refPath.pop();
       continue;
     }
 
-    // Pattern keys: one row per pattern, under the object that admits them.
+    // Pattern keys: one row per pattern, under the object that admits them. Drawn beside the
+    // declared properties rather than instead of them, per the T039 filing: `typeWordsOf`
+    // names both kinds of key and the schema page holds the declared ones in full.
     for (const [pattern, value] of Object.entries(resolved.body.patternProperties ?? {})) {
       context.rows.push({
         path: `${path}/${name}/${pattern}`,
@@ -273,6 +357,21 @@ function walkObject(
         when: '',
       });
     }
+  }
+
+  // THE BODY'S OWN PATTERN KEYS, per the T039 filing: both walkers reached a pattern only
+  // through a member of `properties`, so root level `patternProperties` was invisible in both
+  // halves. Emitted after the declared fields, at their depth, so both kinds of key are here.
+  for (const [pattern, value] of Object.entries(body.patternProperties ?? {})) {
+    context.rows.push({
+      path: `${path}/${pattern}`,
+      depth,
+      kind: 'pattern',
+      name: pattern,
+      type: typeWordsOf(value),
+      requiredness: '',
+      when: '',
+    });
   }
 
   // A oneOf with no leading property among the fields still shows its branches: they attach
@@ -287,7 +386,7 @@ function walkObject(
       requiredness: '',
       when: '',
     });
-    walkVariants(body, `${path}/oneOf`, depth + 1, context);
+    walkVariants(body, `${path}/oneOf`, depth + 1, context, instanceFields);
   }
 
   if (
@@ -307,7 +406,7 @@ function walkObject(
       requiredness: '',
       when: '',
     });
-    walkVariants(body, `${path}/${ownLeading}`, depth + 1, context);
+    walkVariants(body, `${path}/${ownLeading}`, depth + 1, context, instanceFields);
   }
 }
 

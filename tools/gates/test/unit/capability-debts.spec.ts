@@ -203,7 +203,7 @@ function plant(options: { readonly closed: boolean; readonly bundle: string }): 
       '',
       '**M3 - CLI AND CI**',
       '',
-      `- [${box}] \`T039\`  L1024-L1047  Static build`,
+      `- [${box}] \`T042\`  L1094-L1111  M3 gates`,
       '',
     ].join('\n'),
     'utf8',

@@ -28,15 +28,19 @@ import {
 } from '@openref/core';
 import { mergeSyntheticSchemas } from '../../../schemas/domain/synthetic-schemas';
 import {
+  buildAssetCatalog,
   buildNavigation,
   createMemoryRenderCache,
   createOpenRefHighlighter,
+  pathSegmentOf,
   plainHighlighter,
   OAUTH_MARKER,
   PAGE_MODEL_VERSION,
   RENDER_VERSION,
   renderHtmlDocument,
   renderPage,
+  type AssetCatalog,
+  type AssetPlan,
   type IHighlighter,
   type IRenderCache,
   type PageKind,
@@ -53,8 +57,7 @@ import {
   SCHEMA_PARAM,
   type ReferenceRouteId,
 } from '../../domain/routes';
-import { buildAssetCatalog, type AssetCatalog } from '../../../assets/domain/asset-catalog';
-import type { AssetPlan } from '../../../assets/infrastructure/adapters/package-assets.adapter';
+
 import {
   IMMUTABLE,
   NO_STORE,
@@ -181,6 +184,17 @@ export class ReferenceService {
   /** The proxy of SPEC 14.5, or null when the host did not turn it on. */
   private readonly proxyService: ProxyService | null;
 
+  /**
+   * Node and schema ids by the path segment `links.ts` writes for them.
+   *
+   * A page's link carries `pathSegmentOf(id)` since T039, so the parameter a route matches is
+   * the segment and not the id. For every ordinary id the two are the same string; for an id
+   * carrying a character the segment function escapes, the map is the only way back, and there
+   * is exactly one spelling of each address rather than a raw alias beside an escaped one.
+   */
+  private readonly nodeIdBySegment: ReadonlyMap<string, string>;
+  private readonly schemaIdBySegment: ReadonlyMap<string, string>;
+
   private highlighter: Promise<IHighlighter> | null = null;
   private specificationJson: string | null = null;
   private specificationYaml: string | null = null;
@@ -214,6 +228,8 @@ export class ReferenceService {
     this.stylesheetHrefs = options.assets.stylesheetNames.map(hrefOf);
     this.moduleHrefs = [hrefOf(options.assets.moduleName)];
     this.proxyService = buildProxy(this.document, options.proxy);
+    this.nodeIdBySegment = segmentIndex(this.document.nodes.keys());
+    this.schemaIdBySegment = segmentIndex(this.document.schemas.keys());
   }
 
   /**
@@ -280,11 +296,18 @@ export class ReferenceService {
   private async page(
     request: ReferenceRequest,
     kind: PageKind,
-    nodeId: string | null,
-    schemaId: string | null,
+    nodeSegment: string | null,
+    schemaSegment: string | null,
   ): Promise<ReferenceReply> {
-    if (nodeId !== null && !this.document.nodes.has(nodeId)) return notFoundReply('operation');
-    if (schemaId !== null && !this.document.schemas.has(schemaId)) return notFoundReply('schema');
+    // THE PARAMETER IS THE PATH SEGMENT, NOT THE ID, since T039: what a page links is
+    // `pathSegmentOf(id)`, so the segment index is what a request resolves through. For every
+    // ordinary id the segment is the id and nothing changes.
+    const nodeId = nodeSegment === null ? null : (this.nodeIdBySegment.get(nodeSegment) ?? null);
+    const schemaId =
+      schemaSegment === null ? null : (this.schemaIdBySegment.get(schemaSegment) ?? null);
+
+    if (nodeSegment !== null && nodeId === null) return notFoundReply('operation');
+    if (schemaSegment !== null && schemaId === null) return notFoundReply('schema');
 
     // A CHANNEL HAS NO BENCH. Nothing links here for one, per SPEC 11's dead link rule, so a
     // reader arrives only by hand and the honest answer is that the address holds nothing.
@@ -798,6 +821,18 @@ function proxyRefusal(reason: string): ReferenceReply {
     headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': NO_STORE },
     body: JSON.stringify({ error: reason }),
   };
+}
+
+/**
+ * Ids by the path segment their links carry.
+ *
+ * @param ids - Node or schema ids
+ * @returns Segment to id
+ */
+function segmentIndex(ids: Iterable<string>): ReadonlyMap<string, string> {
+  const index = new Map<string, string>();
+  for (const id of ids) index.set(pathSegmentOf(id), id);
+  return index;
 }
 
 /**

@@ -33,7 +33,12 @@
     "access": "public"
   },
   "dependencies": {
-    "@openref/core": "workspace:*"
+    "@openref/core": "workspace:*",
+    "@openref/nest": "workspace:*",
+    "@openref/render": "workspace:*",
+    "@openref/search": "workspace:*",
+    "@openref/static": "workspace:*",
+    "@openref/theme": "workspace:*"
   },
   "devDependencies": {
     "tsup": "8.5.1",

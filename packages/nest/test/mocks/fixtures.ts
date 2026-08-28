@@ -6,7 +6,7 @@
  * a theme package or a build, and a fixture that needed one of those would take that away.
  */
 
-import type { AssetPlan } from '../../src/assets/infrastructure/adapters/package-assets.adapter';
+import type { AssetPlan } from '@openref/render';
 import type { HttpAdapterLike } from '../../src/shared/types/nest-surface';
 
 /** A tiny OpenAPI document with one tagged operation and one named schema. */

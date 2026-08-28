@@ -10,18 +10,70 @@
 export const OVERVIEW_PATH = '/';
 
 /**
+ * Characters that never survive into a path segment.
+ *
+ * Two families, each with its own reason. The directional and ordering controls, U+061C,
+ * U+200E, U+200F, U+202A to U+202E and U+2066 to U+2069, survive NFC and reorder what a
+ * terminal, a diff or a file listing shows, so a file named with one is a file whose displayed
+ * name and real name disagree (F13's residual, filed against T039). The C0 controls, DEL and
+ * the characters `/ \ : * ? " < > |` are refused by one filesystem or another, or change what
+ * path a name is, so a segment carrying one either fails to write or writes somewhere the link
+ * does not point.
+ */
+const UNSAFE_SEGMENT_CHARACTER =
+  /[\u0000-\u001f\u007f\\/:*?"<>|\u061c\u200e\u200f\u202a-\u202e\u2066-\u2069]/g;
+
+/**
+ * A literal underscore that would read as one of this file's own escapes.
+ *
+ * Escaped first, so that an id which happens to contain the text `_u202e_` cannot collide with
+ * the escape of an id that contains the character U+202E. With this guard the mapping is
+ * injective: every `_u<hex>_` in the output was written by this file.
+ */
+const ESCAPE_LOOKALIKE = /_(?=u[0-9a-f]{1,6}_)/g;
+
+/** One character as this file escapes it. */
+function escapeSegmentCharacter(character: string): string {
+  const codePoint = character.codePointAt(0) ?? 0;
+  return `_u${codePoint.toString(16).padStart(4, '0')}_`;
+}
+
+/**
+ * The path segment of one id: the stated function of the T039 amendment, not an interpolation.
+ *
+ * ONE FUNCTION FOR THE LINK AND FOR THE NAME ON DISK. The hrefs below call it before URL
+ * encoding, and the static build derives a file name from the same call, so the two cannot
+ * disagree: a static host decodes the URL escapes and lands on exactly these characters. For
+ * an ordinary id the function is the identity, so no existing address changes.
+ *
+ * A segment that is `.` or `..` is escaped whole: both are path grammar, not names.
+ *
+ * @param id - Node or schema id, exactly as the document registered it
+ * @returns The segment, safe as a file name and readable in a terminal
+ */
+export function pathSegmentOf(id: string): string {
+  const guarded = id.replace(ESCAPE_LOOKALIKE, '_u005f_');
+  const escaped = guarded.replace(UNSAFE_SEGMENT_CHARACTER, escapeSegmentCharacter);
+
+  if (escaped === '.') return '_u002e_';
+  if (escaped === '..') return '_u002e__u002e_';
+  return escaped;
+}
+
+/**
  * Path of one node's page.
  *
- * The node id is already a slug produced by `operationNodeId`, but it is encoded anyway:
- * the id is derived from a path template written in a third party document, and treating
- * it as safe because it usually is would be the last assumption anyone checks.
+ * The node id is already a slug produced by `operationNodeId`, but it goes through
+ * {@link pathSegmentOf} and URL encoding anyway: the id is derived from a path template
+ * written in a third party document, and treating it as safe because it usually is would be
+ * the last assumption anyone checks.
  *
  * @param nodeId - Key into `IRDocument.nodes`
  * @param basePath - Where the reference is mounted, without a trailing slash
  * @returns Absolute path of the page
  */
 export function nodeHref(nodeId: string, basePath = ''): string {
-  return `${basePath}/${encodeURIComponent(nodeId)}`;
+  return `${basePath}/${encodeURIComponent(pathSegmentOf(nodeId))}`;
 }
 
 /**
@@ -79,7 +131,7 @@ export const STATES_SEGMENT = 'states';
  * @returns Absolute path of the page
  */
 export function benchHref(nodeId: string, basePath = ''): string {
-  return `${basePath}/${BENCH_SEGMENT}/${encodeURIComponent(nodeId)}`;
+  return `${basePath}/${BENCH_SEGMENT}/${encodeURIComponent(pathSegmentOf(nodeId))}`;
 }
 
 /**
@@ -101,7 +153,7 @@ export function healthPageHref(basePath = ''): string {
  * @returns Absolute path of the page
  */
 export function shapesHref(schemaId: string, basePath = ''): string {
-  return `${basePath}/${SHAPES_SEGMENT}/${encodeURIComponent(schemaId)}`;
+  return `${basePath}/${SHAPES_SEGMENT}/${encodeURIComponent(pathSegmentOf(schemaId))}`;
 }
 
 /**
@@ -130,5 +182,5 @@ export function statesHref(basePath = ''): string {
  * @returns Absolute path of the page
  */
 export function schemaHref(schemaId: string, basePath = ''): string {
-  return `${basePath}/${SCHEMA_SEGMENT}/${encodeURIComponent(schemaId)}`;
+  return `${basePath}/${SCHEMA_SEGMENT}/${encodeURIComponent(pathSegmentOf(schemaId))}`;
 }

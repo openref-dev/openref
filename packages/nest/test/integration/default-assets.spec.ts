@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { loadDefaultAssets } from '../../src/assets/infrastructure/adapters/package-assets.adapter';
-import { buildAssetCatalog } from '../../src/assets/domain/asset-catalog';
+import { buildAssetCatalog, loadDefaultAssets } from '@openref/render';
 
 /**
  * The assets a reference serves when a host configures nothing.

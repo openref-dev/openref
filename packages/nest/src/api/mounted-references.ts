@@ -13,8 +13,8 @@
  * it. That is what keeps this file free of a value import of `@nestjs/common`.
  */
 
+import { loadDefaultAssets } from '@openref/render';
 import { createReferenceAdapter } from '../http/infrastructure/adapters/reference-adapter.factory';
-import { loadDefaultAssets } from '../assets/infrastructure/adapters/package-assets.adapter';
 import { ReferenceService } from '../reference/application/services/reference.service';
 import { normalizeRoute, referenceRoutes } from '../reference/domain/routes';
 import {

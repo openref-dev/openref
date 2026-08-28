@@ -716,11 +716,17 @@ export const SIZE_BUDGETS: readonly SizeBudget[] = [
     // the recorded reason: a reader who makes this gesture and no other downloads them. Plus
     // ten percent, rounded down to a hundred bytes, the T011-R derivation every gesture cap
     // uses.
-    limitBytes: 5_100,
+    //
+    // RE-DERIVED AT T039 FROM ITS OWN MEASUREMENT BY THE SAME PROCEDURE: 5,285 measured over
+    // the same three files, plus ten percent, rounded down to a hundred bytes. It moved
+    // because a capability arrived, not drift, and the movement is itemised on the raw cap
+    // beside this one: 182 bytes of T035 pattern safety that landed inside the cap, and 461
+    // bytes of the scope machinery the T039 filing in `ai-docs/BUILD-AMENDMENTS.md` mandated.
+    limitBytes: 5_800,
     roots: CLIENT_JS_ROOTS,
     extensions: ['.js', '.mjs'],
     quantity: 'transfer',
-    producedBy: 'TX-SHAPES',
+    producedBy: 'TX-SHAPES, re-derived in T039',
     partition: { entry: CLIENT_JS_ENTRY, side: 'deferred', gesture: 'shapes' },
   },
   {
@@ -730,11 +736,24 @@ export const SIZE_BUDGETS: readonly SizeBudget[] = [
     // to a hundred bytes. The engine is the derivation, the conditions translator and the
     // announce logic; the reading half costs this gesture nothing because it is adopted
     // server markup with no chunk at all.
-    limitBytes: 14_800,
+    //
+    // RE-DERIVED AT T039, SAME PROCEDURE: 15,384 measured, plus ten percent, rounded down to
+    // a hundred bytes. The whole movement is the panel's own chunk, 13,347 to 14,722; the two
+    // shared chunks did not move a byte. 482 bytes arrived at T035 inside the cap:
+    // `patternVerdict` over core's `isSafePattern` and the `unusable` third verdict, so a
+    // document's pattern is refused rather than compiled raw on the render thread. The 1,375
+    // of T039 are the scope machinery its filing mandated, named by what it buys: the two
+    // walk derivation whose first walk's drawn paths are the second walk's scope,
+    // `readCondition` carrying the undrawn fields as the third answer so an unanswerable
+    // condition is reported on the row and applies neither branch, an object declaring both
+    // `properties` and `patternProperties` drawing both key kinds in both halves, the open
+    // tuple that says its tail exists, and a hidden branch's values outside the scope by
+    // construction so they can no longer satisfy a visible condition.
+    limitBytes: 16_900,
     roots: CLIENT_JS_ROOTS,
     extensions: ['.js', '.mjs'],
     quantity: 'parse',
-    producedBy: 'TX-SHAPES',
+    producedBy: 'TX-SHAPES, re-derived in T039',
     partition: { entry: CLIENT_JS_ENTRY, side: 'deferred', gesture: 'shapes' },
   },
   {
@@ -1439,7 +1458,7 @@ export const CAPABILITY_DEBTS: readonly CapabilityDebt[] = [
       'the full text search index of T007 is built, budgeted and served with an etag at ' +
       '<mount>/_search-index, and no file this module ships ever requests it; the palette ' +
       'matches navigation labels and hints only',
-    owners: ['T039'],
+    owners: ['T042'],
     reachableBy: 'M3',
     recordedAt: '2026-08-13',
     roots: ['packages/nest/dist/browser'],
@@ -1457,10 +1476,17 @@ export const CAPABILITY_DEBTS: readonly CapabilityDebt[] = [
       'page deliberately, 250 KB for a feature one keystroke deep, and the right shape was ' +
       'always the fetch the palette already performs for the navigation payload: the browser ' +
       'bundle carries _navigation today and not _search-index, which is what makes the segment ' +
-      'usable as the marker. T039 owns the wiring because it already owns the two nearest ' +
-      'questions, the navigation payload written as a static file and the raw cap the first ' +
-      'server of this index owes beside the gzip one, and because a fetch that cannot work from ' +
-      'a directory of files would fail exactly there.',
+      'usable as the marker. T039 wrote the index into the static output as one file, ' +
+      '_search-index beside the navigation payload, and stopped at serving it: no page this ' +
+      'module ships requests it, so the capability is unreachable exactly as recorded here. ' +
+      'The wiring moved rather than being paid, which is what the T039 filing in ' +
+      'ai-docs/BUILD-AMENDMENTS.md provides for when the task that first serves the index is ' +
+      'not the one named, the paragraph moves with the work rather than being deleted. T042 ' +
+      'owns it now because it is the gates task of the milestone this entry must be reachable ' +
+      'by, so the debt is answered before M3 closes or it fails there. Whoever pays the ' +
+      'wiring also derives a raw cap beside the gzip one for the search chunk, per the T039 ' +
+      'amendment paragraph that moves with the work, the way theme-css-raw was derived from ' +
+      'its own measurement.',
   },
 ];
 

@@ -70,7 +70,14 @@ const BOUNDARIES = {
   // not re-export them: a theme cannot type the value it is handed without the package SPEC 4 says
   // a theme author does not have to install. T032 filed it; it is not worked around here.
   'theme-telltale': ['core', 'vue'],
-  cli: ['core', 'render', 'runner', 'search'],
+
+  // THE STATIC BUILD OF SPEC 16 REACHES THE RENDERER AND THE INDEX, AND NOT `nest`. It renders
+  // pages, names assets and serializes the search index, which is exactly `render` plus
+  // `search`; what it deliberately cannot see is the server. The one thing it needs from the
+  // Nest side, the browser bundle, arrives as a file path a caller resolved, not as an import,
+  // for the reason `package-assets.adapter.ts` gives about resolving a theme as files.
+  static: ['core', 'render', 'search'],
+  cli: ['core', 'render', 'runner', 'search', 'static'],
 
   // THE THREE ECOSYSTEM COLLECTORS OF SPEC 4, AND THE EDGE RUNS THE OTHER WAY. `nest` does not
   // depend on any of them and must not: each one exists to read a third party package, and an

@@ -214,10 +214,15 @@ describe('licensesGate', () => {
     // alone here. What it is evidence for is a product question, filed against `T064`: the first
     // consumer that needs theme-kit without the rest has appeared, which is the condition SPEC 4
     // names for publishing it.
+    // `@openref/static` JOINED THE SET AT T039, and it is the ordinary case rather than the
+    // counterexample above: it is private, `openref` names it in `dependencies`, and the CLI's
+    // `tsup.config` inlines it by name, so a consumer of the CLI receives it as bytes and its
+    // licence closure belongs in the production zone.
     expect(result.bundled).toEqual([
       '@openref/render',
       '@openref/runner',
       '@openref/search',
+      '@openref/static',
       '@openref/theme-kit',
     ]);
     expect(result.shipped).not.toContain('@openref/gates');

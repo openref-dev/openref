@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { InvalidOptionsError } from '@openref/core';
+import { siblingReferences } from '@openref/render';
 import {
   CLIENT_BUNDLE_SPECIFIER,
   DEFAULT_THEME_STYLESHEETS,
   loadDefaultAssets,
   resolveAssetPath,
-  siblingReferences,
 } from '../../src/assets/infrastructure/adapters/package-assets.adapter';
 
 describe('siblingReferences', () => {

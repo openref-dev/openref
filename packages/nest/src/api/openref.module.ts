@@ -24,8 +24,8 @@
  * in full and is the one place it is written down.
  */
 
+import { loadDefaultAssets } from '@openref/render';
 import { createReferenceAdapter } from '../http/infrastructure/adapters/reference-adapter.factory';
-import { loadDefaultAssets } from '../assets/infrastructure/adapters/package-assets.adapter';
 import { ReferenceService } from '../reference/application/services/reference.service';
 import { normalizeRoute, referenceRoutes } from '../reference/domain/routes';
 import { isNestApplication } from '../shared/types/nest-surface';

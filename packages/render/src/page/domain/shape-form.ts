@@ -16,14 +16,16 @@
 import type { IRJsonSchema, IRSchema } from '@openref/core';
 import { isSafePattern } from '@openref/core';
 import {
-  conditionHolds,
   conditionsOf,
   isNeverSchema,
   leadingValueOf,
+  readCondition,
   requirednessOf,
   selectingValueOf,
+  undrawnConditionWords,
   type ShapeCondition,
   type ShapeRequiredness,
+  type ShapeScope,
   type ShapeValues,
 } from './shape-conditions';
 
@@ -40,6 +42,11 @@ export interface ShapeInputControl {
   readonly conditionActive?: boolean;
   /** The teaching sentence, shown while the condition holds. */
   readonly conditionReason?: string;
+  /**
+   * The report of a condition naming fields the form does not draw at this scope, per the
+   * T039 filing: reported in the row rather than silently false forever.
+   */
+  readonly conditionUndrawn?: string;
   /** The type violation of the current value, when it has one. */
   readonly error?: string;
   /** What the type asks for, as a placeholder. */
@@ -107,6 +114,15 @@ interface DeriveContext {
   readonly values: ShapeValues;
   readonly controls: ShapeControl[];
   readonly refPath: string[];
+  /**
+   * The paths the form draws at these values, from the first walk, or null during it.
+   *
+   * WHICH CONTROLS EXIST NEVER DEPENDS ON A CONDITION: a condition changes requiredness and
+   * constraint overlays, and a branch is selected by a chooser value, so the first walk with
+   * no scope draws exactly the controls the second walk draws with one. That property is what
+   * makes two walks a scope rather than a fixed point.
+   */
+  readonly scope: ShapeScope;
 }
 
 /** Resolves a position to the body to read, following one named reference. */
@@ -242,7 +258,12 @@ function effectiveSchemaOf(
   let effective = member;
 
   for (const condition of conditions) {
-    const overlay = conditionHolds(condition, context.values, prefix)
+    const reading = readCondition(condition, context.values, prefix, context.scope);
+    // AN UNANSWERABLE CONDITION APPLIES NEITHER BRANCH. Overlaying `else` for it would claim
+    // the condition failed, which is exactly the silent reading the scope exists to replace.
+    if (reading.undrawn.length > 0) continue;
+
+    const overlay = reading.holds
       ? condition.thenProperties?.[name]
       : condition.elseProperties?.[name];
     if (overlay !== undefined) effective = { ...effective, ...overlay };
@@ -265,7 +286,11 @@ function pushInput(
   const path = `${prefix}/${name}`;
   const { sort, when } = requirednessOf(name, holder, conditions);
   const condition = conditions.find((candidate) => candidate.requires.includes(name));
-  const active = condition !== undefined && conditionHolds(condition, context.values, prefix);
+  const reading =
+    condition === undefined
+      ? null
+      : readCondition(condition, context.values, prefix, context.scope);
+  const undrawn = reading?.undrawn ?? [];
   const effective = effectiveSchemaOf(name, member, conditions, context, prefix);
   const value = context.values[path] ?? '';
   const error = typeError(value, effective);
@@ -278,10 +303,11 @@ function pushInput(
     depth,
     requiredness: sort,
     ...(when === undefined ? {} : { when }),
-    ...(condition === undefined ? {} : { conditionActive: active }),
-    ...(condition !== undefined && active
+    ...(condition === undefined ? {} : { conditionActive: reading?.holds === true }),
+    ...(reading?.holds === true && condition !== undefined
       ? { conditionReason: conditionReason(condition.words) }
       : {}),
+    ...(undrawn.length === 0 ? {} : { conditionUndrawn: undrawnConditionWords(undrawn) }),
     ...(error === undefined ? {} : { error }),
     ...(placeholder === undefined ? {} : { placeholder }),
   });
@@ -336,29 +362,40 @@ function deriveObject(
       continue;
     }
 
-    if (
+    // AN OBJECT THAT DECLARES BOTH `properties` AND `patternProperties` DRAWS BOTH, per the
+    // T039 filing: the pattern block used to precede the object branch and `continue`, which
+    // silently dropped every declared property of such an object from the form.
+    const memberPatterns =
       resolved.patternProperties !== undefined &&
-      Object.keys(resolved.patternProperties).length > 0
-    ) {
+      Object.keys(resolved.patternProperties).length > 0;
+    const memberProperties =
+      resolved.properties !== undefined && Object.keys(resolved.properties).length > 0;
+
+    if (memberPatterns) {
       pushPattern(name, resolved, path, depth, context);
-      continue;
+      if (!memberProperties) continue;
     }
 
-    if (resolved.prefixItems !== undefined) {
+    if (!memberPatterns && !memberProperties && resolved.prefixItems !== undefined) {
       pushTuple(name, resolved, path, depth, context);
       continue;
     }
 
     // A plain object flattens into dotted labels, the layout's own form: threeDSecure.version.
-    if (resolved.properties !== undefined && Object.keys(resolved.properties).length > 0) {
+    if (memberProperties) {
       // The object itself may be conditionally required; its condition rides its first field,
       // where the reader will meet it.
       const { sort, when } = requirednessOf(name, body, conditions);
       const condition = conditions.find((candidate) => candidate.requires.includes(name));
-      const active = condition !== undefined && conditionHolds(condition, context.values, prefix);
+      const reading =
+        condition === undefined
+          ? null
+          : readCondition(condition, context.values, prefix, context.scope);
+      const undrawn = reading?.undrawn ?? [];
       const nested = conditionsOf(resolved);
+      const properties = resolved.properties ?? {};
 
-      for (const [childName, child] of Object.entries(resolved.properties)) {
+      for (const [childName, child] of Object.entries(properties)) {
         if (child.readOnly === true) continue;
         const childPath = `${path}/${childName}`;
         const childValue = context.values[childPath] ?? '';
@@ -375,10 +412,11 @@ function deriveObject(
           // required inside an optional container inherits the container's sort.
           requiredness: sort === 'conditional' ? 'conditional' : childRequired.sort,
           ...(when === undefined ? {} : { when }),
-          ...(condition === undefined ? {} : { conditionActive: active }),
-          ...(condition !== undefined && active
+          ...(condition === undefined ? {} : { conditionActive: reading?.holds === true }),
+          ...(reading?.holds === true && condition !== undefined
             ? { conditionReason: conditionReason(condition.words) }
             : {}),
+          ...(undrawn.length === 0 ? {} : { conditionUndrawn: undrawnConditionWords(undrawn) }),
           ...(error === undefined ? {} : { error }),
           ...(placeholder === undefined ? {} : { placeholder }),
         });
@@ -387,6 +425,14 @@ function deriveObject(
     }
 
     pushInput(name, resolved, body, conditions, prefix, depth, label, context);
+  }
+
+  // THE BODY'S OWN PATTERN KEYS, per the T039 filing: both walkers used to reach a pattern
+  // only through a member of `properties`, so root level `patternProperties` was invisible in
+  // both halves. A branch body reaches here through its own derivation, so a branch's pattern
+  // keys draw too.
+  if (body.patternProperties !== undefined && Object.keys(body.patternProperties).length > 0) {
+    pushPattern('keys by pattern', body, prefix, depth, context);
   }
 }
 
@@ -530,7 +576,40 @@ function pushTuple(
 }
 
 /**
+ * The paths a set of controls draws: where a reader can put a value.
+ *
+ * @param controls - Controls from a derivation
+ * @returns Every path a control writes, as the scope of a second derivation
+ */
+export function drawnPathsOf(controls: readonly ShapeControl[]): ReadonlySet<string> {
+  const drawn = new Set<string>();
+
+  for (const control of controls) {
+    if (control.kind === 'tuple') {
+      for (const position of control.positions) drawn.add(position.path);
+    } else if (control.kind === 'pattern') {
+      for (const entry of control.entries) {
+        drawn.add(entry.keyPath);
+        drawn.add(entry.valuePath);
+      }
+    } else {
+      // An input and a chooser each own the one path they write.
+      drawn.add(control.path);
+    }
+  }
+
+  return drawn;
+}
+
+/**
  * Derives the controls one body offers at the current values.
+ *
+ * TWO WALKS, AND THE FIRST IS THE SCOPE OF THE SECOND, per the T039 filing. Which controls
+ * exist never depends on a condition, only on the schema and on the chooser values, so the
+ * first walk with no scope draws the same controls the second draws with one; what the scope
+ * changes is how conditions read, and a condition naming a path outside it is reported rather
+ * than silently false. A value under a hidden branch is outside the scope by construction,
+ * because a hidden branch draws no control, so it can no longer satisfy a visible condition.
  *
  * @param schemaId - The named schema the form fills
  * @param schemas - The page's bounded schema payload
@@ -545,7 +624,16 @@ export function deriveControls(
   const root = schemas[schemaId]?.normalized;
   if (root === undefined) return [];
 
-  const context: DeriveContext = { schemas, values, controls: [], refPath: [schemaId] };
+  const probe: DeriveContext = { schemas, values, controls: [], refPath: [schemaId], scope: null };
+  deriveObject(root, '', 0, probe);
+
+  const context: DeriveContext = {
+    schemas,
+    values,
+    controls: [],
+    refPath: [schemaId],
+    scope: drawnPathsOf(probe.controls),
+  };
   deriveObject(root, '', 0, context);
   return context.controls;
 }

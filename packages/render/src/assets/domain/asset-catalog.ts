@@ -118,6 +118,30 @@ export function hashedName(name: string, digest: string): string {
 const CSS_URL = /url\(\s*(['"]?)([^'")]+)\1\s*\)/g;
 
 /**
+ * Names of the sibling files a stylesheet points at.
+ *
+ * The stylesheet is the list. Reading a manifest instead would let the two disagree, and the
+ * disagreement that matters is a face that is declared and not shipped, which is invisible
+ * until a reader meets a character in that range.
+ *
+ * @param css - Stylesheet source
+ * @returns Sibling file names, each once, in the order they appear
+ */
+export function siblingReferences(css: string): readonly string[] {
+  const names: string[] = [];
+
+  for (const match of css.matchAll(CSS_URL)) {
+    const reference = match[2] ?? '';
+    if (!isSiblingReference(reference)) continue;
+
+    const name = reference.startsWith('./') ? reference.slice(2) : reference;
+    if (!names.includes(name)) names.push(name);
+  }
+
+  return names;
+}
+
+/**
  * Whether a url inside a stylesheet points at a file beside it.
  *
  * Anything absolute, protocol relative, `data:` or fragment only is left exactly as written.
@@ -188,6 +212,27 @@ function isScript(name: string): boolean {
  * catalog does not serve, which fails below rather than being rewritten to something wrong.
  */
 const JS_SPECIFIER = /(['"])\.\/([A-Za-z0-9_.-]+\.js)\1/g;
+
+/**
+ * Names of the chunks a module points at.
+ *
+ * THE BUNDLE IS THE LIST, for the reason the stylesheet is: a directory listing would pick up
+ * whatever a previous build left behind, and a hand written list would go stale on the first
+ * change to the split. What is served is what the shipped bytes ask for.
+ *
+ * @param source - Module source
+ * @returns Sibling chunk names, each once, in the order they appear
+ */
+export function chunkReferences(source: string): readonly string[] {
+  const names: string[] = [];
+
+  for (const match of source.matchAll(JS_SPECIFIER)) {
+    const name = match[2] ?? '';
+    if (name !== '' && !names.includes(name)) names.push(name);
+  }
+
+  return names;
+}
 
 /**
  * Rewrites sibling chunk specifiers to the names the chunks are served under.

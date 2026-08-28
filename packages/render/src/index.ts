@@ -57,6 +57,32 @@ export { statusClass } from './shared/status';
 export { eventValue } from './shared/dom';
 export type { ValueEvent, ValueTarget } from './shared/dom';
 
+// THE ASSET CATALOG LIVES HERE SINCE T039, moved from `@openref/nest` because the static build
+// needs the same naming, the same rewrites and the same digests as the served mode, and `static`
+// may not import `nest`. It was always framework free; `nest` re-exports it unchanged.
+export {
+  buildAssetCatalog,
+  chunkReferences,
+  contentTypeFor,
+  DIGEST_LENGTH,
+  digestOf,
+  hashedName,
+  rewriteCssUrls,
+  rewriteJsSpecifiers,
+  siblingReferences,
+} from './assets/domain/asset-catalog';
+export type { AssetCatalog, AssetSource, CatalogAsset } from './assets/domain/asset-catalog';
+export {
+  CLIENT_BUNDLE_SPECIFIER,
+  DEFAULT_THEME_STYLESHEETS,
+  loadDefaultAssets,
+  resolveAssetPath,
+} from './assets/infrastructure/adapters/package-assets.adapter';
+export type {
+  AssetPlan,
+  DefaultAssetOptions,
+} from './assets/infrastructure/adapters/package-assets.adapter';
+
 export type {
   IObservableRenderCache,
   IRenderCache,
@@ -107,6 +133,11 @@ export type {
 // THE THEME CONTRACT TYPES RIDE THE SAME RE-EXPORT, since T033: `@openref/nest` takes a theme
 // as an option and its one upstream for renderer shapes is this package, not `@openref/vue`.
 export type { ThemeAssets, ThemeDefinition, ThemeTokens } from '@openref/vue';
+// AND `materializeNode` RIDES IT SINCE T039, for the same reason and one more: it is the one
+// function that decides what a node is called, and `@openref/static` must name a node in
+// `llms.txt` exactly as the page does. A second spelling of a title is two titles.
+export { materializeNode } from '@openref/vue';
+export type { NodeView } from '@openref/vue';
 export type { PageModelOptions } from './page/domain/page-model';
 export {
   buildHealthModel,
@@ -150,6 +181,7 @@ export {
   nodeHref,
   OVERVIEW_PATH,
   overviewHref,
+  pathSegmentOf,
   SCHEMA_SEGMENT,
   schemaHref,
   SHAPES_SEGMENT,
@@ -158,7 +190,7 @@ export {
   statesHref,
 } from './page/domain/links';
 export { assertNonce, renderHtmlDocument, STATE_ELEMENT_ID } from './page/domain/shell';
-export type { ShellAssets, ShellOptions } from './page/domain/shell';
+export type { ShellAssets, ShellHead, ShellOptions } from './page/domain/shell';
 
 // EVERY DEFAULT OF THE 21 SLOTS IS EXPORTED, and that is what makes an L1 theme composable
 // rather than all or nothing: a theme that wants to wrap the reference's own header, or to draw

@@ -32,8 +32,12 @@ describe('renderHtmlDocument', () => {
     expect(scripts.every((tag) => tag.includes(`nonce="${nonce}"`))).toBe(true);
   });
 
-  it('should write an empty nonce attribute when the host serves no nonce policy', () => {
-    // Given
+  it('should write no nonce attribute at all when there is no nonce to write', () => {
+    // Given the static case: a file on disk is one response reused, so there is no nonce to
+    // give, and an empty `nonce=""` authorizes nothing under any policy. The absence is proved
+    // after the presence case above, which is what establishes that the attribute machinery
+    // writes a nonce when it is handed one, so this case cannot pass by the machinery being
+    // absent altogether.
     const options = { assets: { modules: ['/assets/openref.js'] } };
 
     // When
@@ -42,7 +46,7 @@ describe('renderHtmlDocument', () => {
     // Then
     const scripts = html.match(/<script\b[^>]*>/g) ?? [];
     expect(scripts).toHaveLength(2);
-    expect(scripts.every((tag) => tag.includes('nonce=""'))).toBe(true);
+    expect(html).not.toContain('nonce');
   });
 
   it('should refuse a nonce that would break out of the attribute', () => {

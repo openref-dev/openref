@@ -221,6 +221,26 @@ describe('the markup a complete L2 theme does not own', () => {
     expect(schemaHref('Order', base)).toBe(referenceSchemaHref('Order', base));
     expect(schemaHref('Order__1a2b3c4d', base)).toBe(referenceSchemaHref('Order__1a2b3c4d', base));
 
+    // And the escape the T039 rule added agrees character class by character class, because an
+    // approximate transcription 404s only on the ids it differs on: a directional control from
+    // each escaped range, the literal `_uXXXX_` lookalike the guard exists for, and the two
+    // segments that are path grammar rather than names. Controls are written as escapes so this
+    // source file carries no invisible character.
+    for (const id of [
+      'Order\u202eDto',
+      '\u061cOrder',
+      'Order\u200f',
+      'Order\u2066Dto\u2069',
+      'Order_u202e_Dto',
+      '_u005f_',
+      '.',
+      '..',
+      'Fine.Name',
+    ]) {
+      expect(nodeHref(id, base)).toBe(referenceNodeHref(id, base));
+      expect(schemaHref(id, base)).toBe(referenceSchemaHref(id, base));
+    }
+
     expect(entryHref({ nodeId: 'get-orders', schemaId: null }, base)).toBe(
       referenceNodeHref('get-orders', base),
     );

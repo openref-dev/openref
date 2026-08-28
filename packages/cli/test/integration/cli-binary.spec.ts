@@ -1,6 +1,8 @@
 import { execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { describe, expect, it } from 'vitest';
@@ -60,15 +62,21 @@ describe.skipIf(!existsSync(BIN_PATH))('the built openref binary', () => {
   });
 
   it('should exit 0 for build --spec against a real file on disk', async () => {
-    // Given
+    // Given: `--out` is required since T039, because a build has no defensible default
+    // directory and picking one would write files somewhere the caller never named.
     const spec = resolve(MOCKS, 'mini-spec.json');
+    const out = await mkdtemp(join(tmpdir(), 'openref-binary-build-'));
 
     // When
-    const result = await runCliBinary(['build', `--spec=${spec}`]);
+    const result = await runCliBinary(['build', `--spec=${spec}`, `--out=${out}`]);
 
     // Then
     expect(result.code).toBe(0);
-    expect(result.stdout).toContain('Mini 1.0.0');
+    expect(result.stdout).toContain('Built 5 pages');
+    expect(await readFile(join(out, 'get-ping', 'index.html'), 'utf8')).toContain(
+      '<!DOCTYPE html>',
+    );
+    await rm(out, { recursive: true, force: true });
   });
 
   it('should carry exit code 1 out of the process for a diff with breaking changes', async () => {
@@ -97,6 +105,9 @@ describe.skipIf(!existsSync(BIN_PATH))('the built openref binary', () => {
       expect(result.code).toBe(0);
       expect(result.stdout).toContain('Orders 1.0.0');
     },
+    // Booting the real demo application in a spawned node is the class the constant names:
+    // under full suite load this case has missed the five second default while passing alone.
+    SPAWNED_PROCESS_TIMEOUT_MS,
   );
 
   it(

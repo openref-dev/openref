@@ -9,14 +9,13 @@
  * a cycle in the source, and the next thing added to it may not be a type.
  */
 
-import type { AssetPlan } from '../assets/infrastructure/adapters/package-assets.adapter';
 import type { ErrorReporter } from '../http/domain/reply';
 import type { NonceReader } from '../http/infrastructure/adapters/express-reference.adapter';
 import type {
   OpenRefThemeOptions,
   ProxyOptions,
 } from '../reference/application/services/reference.service';
-import type { IRenderCache } from '@openref/render';
+import type { AssetPlan, IRenderCache } from '@openref/render';
 
 /** Everything `setup` accepts. Only `document` is required, per SPEC 13.1. */
 export interface OpenRefSetupOptions {

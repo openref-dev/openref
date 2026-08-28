@@ -303,27 +303,30 @@ export type {
   ReferenceRouteMethod,
 } from './reference/domain/routes';
 
+// THE CATALOG AND THE FILE RESOLVER MOVED TO `@openref/render` AT T039 and are re-exported
+// here unchanged, so a host that reached either through this package still finds it where it
+// was. They moved because the static build names, rewrites, digests and resolves exactly the
+// same files, and `static` may not import this package.
 export {
   buildAssetCatalog,
+  CLIENT_BUNDLE_SPECIFIER,
   contentTypeFor,
+  DEFAULT_THEME_STYLESHEETS,
   digestOf,
   DIGEST_LENGTH,
   hashedName,
-  rewriteCssUrls,
-} from './assets/domain/asset-catalog';
-export type { AssetCatalog, AssetSource, CatalogAsset } from './assets/domain/asset-catalog';
-
-export {
-  CLIENT_BUNDLE_SPECIFIER,
-  DEFAULT_THEME_STYLESHEETS,
   loadDefaultAssets,
   resolveAssetPath,
+  rewriteCssUrls,
   siblingReferences,
-} from './assets/infrastructure/adapters/package-assets.adapter';
+} from '@openref/render';
 export type {
+  AssetCatalog,
   AssetPlan,
+  AssetSource,
+  CatalogAsset,
   DefaultAssetOptions,
-} from './assets/infrastructure/adapters/package-assets.adapter';
+} from '@openref/render';
 
 export {
   failureReply,

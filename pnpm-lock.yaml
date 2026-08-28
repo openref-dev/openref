@@ -121,6 +121,21 @@ importers:
       '@openref/core':
         specifier: workspace:*
         version: link:../core
+      '@openref/nest':
+        specifier: workspace:*
+        version: link:../nest
+      '@openref/render':
+        specifier: workspace:*
+        version: link:../render
+      '@openref/search':
+        specifier: workspace:*
+        version: link:../search
+      '@openref/static':
+        specifier: workspace:*
+        version: link:../static
+      '@openref/theme':
+        specifier: workspace:*
+        version: link:../theme
     devDependencies:
       tsup:
         specifier: 8.5.1
@@ -338,6 +353,28 @@ importers:
         specifier: 5.9.3
         version: 5.9.3
 
+  packages/static:
+    dependencies:
+      '@openref/core':
+        specifier: workspace:*
+        version: link:../core
+      '@openref/render':
+        specifier: workspace:*
+        version: link:../render
+      '@openref/search':
+        specifier: workspace:*
+        version: link:../search
+    devDependencies:
+      '@openref/theme':
+        specifier: workspace:*
+        version: link:../theme
+      tsup:
+        specifier: 8.5.1
+        version: 8.5.1(postcss@8.5.26)(supports-color@7.2.0)(typescript@5.9.3)(yaml@2.9.0)
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+
   packages/theme:
     devDependencies:
       tsup:
@@ -426,6 +463,9 @@ importers:
       '@openref/render':
         specifier: workspace:*
         version: link:../../packages/render
+      '@openref/static':
+        specifier: workspace:*
+        version: link:../../packages/static
       '@openref/theme':
         specifier: workspace:*
         version: link:../../packages/theme
@@ -2009,6 +2049,7 @@ packages:
   eslint@9.39.5:
     resolution: {integrity: sha512-DgZS62aPLXKlnxILS/AYCoRvHaZeXceIzlXPkkGGzJWSow1aEk0lbTlxUSlyjC8jcaKxAdOnTDz+o1JFSBsyjw==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
+    deprecated: This version is no longer supported. Please see https://eslint.org/version-support for other options.
     hasBin: true
     peerDependencies:
       jiti: '*'

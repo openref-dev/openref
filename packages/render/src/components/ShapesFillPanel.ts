@@ -156,6 +156,13 @@ export const ShapesFillPanel = defineComponent({
                   { class: 'oref-shape-hint oref-shape-hint-cond' },
                   control.conditionReason,
                 ),
+            control.conditionUndrawn === undefined
+              ? null
+              : h(
+                  'span',
+                  { class: 'oref-shape-hint oref-shape-hint-cond' },
+                  control.conditionUndrawn,
+                ),
             control.error === undefined
               ? null
               : h('span', { class: 'oref-shape-hint oref-shape-hint-error' }, control.error),
@@ -232,9 +239,14 @@ export const ShapesFillPanel = defineComponent({
         [
           h('div', { class: 'oref-shape-branch-row' }, [
             h('span', { class: 'oref-shape-name' }, control.label),
-            control.closed
-              ? h('span', { class: 'oref-shape-branch-note' }, 'no items beyond the tuple')
-              : null,
+            // AN OPEN TUPLE SAYS SO, per the T039 filing: without the second note an open
+            // tuple and a closed one filled identically and nothing said the tail exists. The
+            // fuller wording is the reading half's, which is server markup and ships no bytes.
+            h(
+              'span',
+              { class: 'oref-shape-branch-note' },
+              control.closed ? 'no items beyond the tuple' : 'open: more items are allowed',
+            ),
           ]),
           h('div', { class: 'oref-shape-pair' }, [
             ...control.positions.map((position) =>

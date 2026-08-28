@@ -3,7 +3,7 @@ import { ConfigError, InvalidOptionsError } from '@openref/core';
 import { OpenRefModule } from '../../src/api/openref.module';
 import { referenceRoutes } from '../../src/reference/domain/routes';
 import { assetPlan, fakeExpressResponse, fakeHttpAdapter, specification } from '../mocks/fixtures';
-import type { AssetPlan } from '../../src/assets/infrastructure/adapters/package-assets.adapter';
+import type { AssetPlan } from '@openref/render';
 import type { FakeHttpAdapter } from '../mocks/fixtures';
 
 /**
