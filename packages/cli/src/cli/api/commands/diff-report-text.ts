@@ -9,6 +9,12 @@ import { plainArtefactText, type IRDiffChange, type IRDiffReport } from '@openre
  * under carries the verdict. Kinds the example does not show use the same verbs plus `NARROWED`
  * and `WIDENED`, the words T038 itself uses for enums, all recorded in SPEC 17.1.
  *
+ * A CONSTRAINT CHANGE NAMES ITS KEYWORD AND PRINTS BOTH VALUES, per SPEC 17.1 as amended before
+ * M4: `NARROWED maxLength of CreateUser.email: 255 → 32`. The line it replaces was
+ * `CHANGED constraints of CreateUser.email`, which was the second way a narrowing stayed
+ * invisible. The gate not failing was the first, and a reader unable to tell a tightening from a
+ * loosening was the second, so both halves of that finding are fixed in the same place.
+ *
  * AN EMPTY SECTION PRINTS NO HEADER, and a report with nothing at all in it prints one line,
  * `No changes.`, so a clean run is distinguishable from a run that never happened. Nothing is
  * grouped, capped or folded, per the same house rule the doctor renderer states.
@@ -55,13 +61,22 @@ export function renderDiffChange(change: IRDiffChange): string {
       return `ADDED required ${change.subject}`;
     case 'optional-parameter-added':
       return `ADDED optional ${change.subject}`;
+    case 'constraint-narrowed':
+    case 'constraint-widened': {
+      const verb = change.kind === 'constraint-narrowed' ? 'NARROWED' : 'WIDENED';
+      return arrow === undefined
+        ? `${verb} ${change.subject}`
+        : `${verb} ${change.subject}: ${arrow}`;
+    }
     case 'parameter-removed':
     case 'response-removed':
+    case 'response-header-removed':
     case 'media-type-removed':
     case 'security-scheme-removed':
     case 'server-removed':
       return `REMOVED ${change.subject}`;
     case 'response-added':
+    case 'response-header-added':
     case 'media-type-added':
     case 'security-scheme-added':
     case 'server-added':

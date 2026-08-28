@@ -6,7 +6,7 @@ per T038; since then this file is the pin. A change here is a change in what the
 classifier says about the same twenty four documents, and has to be re-reviewed, not
 accepted.
 
-Of 23 pairs: 19 empty, 15 breaking findings, 73 non breaking findings.
+Of 23 pairs: 19 empty, 17 breaking findings, 73 non breaking findings.
 
 ## 001-f1b964d.yaml -> 002-6118254.yaml
 
@@ -101,6 +101,8 @@ BREAKING
 - type-changed  response default of POST /store/order  Order -> Error
 - type-changed  response default of POST /user  User -> Error
 - type-changed  response default of PUT /pet  Pet -> Error
+- response-header-removed  header X-Expires-After of response default of GET /user/login
+- response-header-removed  header X-Rate-Limit of response default of GET /user/login
 
 NON-BREAKING
 - media-type-removed  media type application/xml of response default of GET /pet/findByStatus

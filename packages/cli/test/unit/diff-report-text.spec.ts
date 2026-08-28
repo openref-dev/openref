@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { IRDiffChange, IRDiffReport } from '@openref/core';
+import type { IRDiffChange, IRDiffChangeKind, IRDiffReport } from '@openref/core';
 import {
   NO_CHANGES_LINE,
   renderDiffChange,
@@ -147,6 +147,38 @@ describe('renderDiffChange', () => {
       change({ kind: 'constraints-changed', subject: 'User.name' }),
       'CHANGED constraints of User.name',
     ],
+    [
+      change({
+        kind: 'constraint-narrowed',
+        subject: 'maxLength of CreateUser.email',
+        oldValue: '255',
+        newValue: '32',
+      }),
+      'NARROWED maxLength of CreateUser.email: 255 → 32',
+    ],
+    [
+      change({
+        kind: 'constraint-widened',
+        subject: 'maxLength of CreateUser.email',
+        oldValue: '32',
+        newValue: '255',
+      }),
+      'WIDENED maxLength of CreateUser.email: 32 → 255',
+    ],
+    [
+      change({ kind: 'response-header-removed', subject: 'header X-Rate-Limit of response 200' }),
+      'REMOVED header X-Rate-Limit of response 200',
+    ],
+    [
+      change({ kind: 'response-header-added', subject: 'header X-Trace of response 200' }),
+      'ADDED header X-Trace of response 200',
+    ],
+    // Found by the totality check below on the run that introduced it: the renderer has printed
+    // this line since T038 and no case pinned its wording.
+    [
+      change({ kind: 'operation-unread', subject: 'QUERY /search of /search' }),
+      'UNREAD QUERY /search of /search  declared under a key OpenAPI does not spell that way',
+    ],
   ];
 
   for (const [input, expected] of lines) {
@@ -159,6 +191,59 @@ describe('renderDiffChange', () => {
       expect(line).toBe(expected);
     });
   }
+
+  /**
+   * The table above is hand written, and until the pre-M4 review nothing held it to the union.
+   * The renderer's own switch is exhaustive, so a new kind fails the build there; this table
+   * would simply have carried on covering the kinds it already knew. The record below is total
+   * over `IRDiffChangeKind`, so adding a kind fails to compile until it is listed, and the
+   * assertion then fails until the table renders it.
+   */
+  it('should have a line for every kind the union carries', () => {
+    // Given the union, spelled out once
+    const everyKind: Record<IRDiffChangeKind, true> = {
+      'operation-removed': true,
+      'operation-added': true,
+      'response-field-removed': true,
+      'type-changed': true,
+      'required-property-added': true,
+      'optional-property-added': true,
+      'property-removed': true,
+      'requiredness-changed': true,
+      'enum-narrowed': true,
+      'enum-widened': true,
+      'variant-removed': true,
+      'variant-added': true,
+      'constraint-narrowed': true,
+      'constraint-widened': true,
+      'response-header-removed': true,
+      'response-header-added': true,
+      'required-parameter-added': true,
+      'optional-parameter-added': true,
+      'parameter-removed': true,
+      'response-removed': true,
+      'response-added': true,
+      'media-type-removed': true,
+      'media-type-added': true,
+      'security-scheme-removed': true,
+      'security-scheme-added': true,
+      'security-scheme-changed': true,
+      'server-removed': true,
+      'server-added': true,
+      'server-changed': true,
+      'operation-security-changed': true,
+      'operation-unread': true,
+      'constraints-changed': true,
+    };
+
+    // When
+    const rendered = new Set(lines.map(([input]) => input.kind));
+
+    // Then
+    expect(
+      Object.keys(everyKind).filter((kind) => !rendered.has(kind as IRDiffChangeKind)),
+    ).toEqual([]);
+  });
 });
 
 describe('renderDiffReport', () => {

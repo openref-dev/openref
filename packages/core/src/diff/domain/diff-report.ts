@@ -23,9 +23,19 @@
  *   response; a new obligation breaks a sender, so it needs reachability from a request.
  *   Reachability is computed on both versions and unioned, and a schema reachable from neither
  *   side can break nobody.
- * - presence: only a keyword present on both sides can break the gate. A `type` or an `enum`
- *   appearing where there was none is documentation tightening as often as it is a contract
- *   change, so it is recorded as a constraints change instead of guessed at.
+ * - order: a constraint that accepts less than it did breaks a sender, and the same keyword
+ *   moving the other way does not. `maxLength` 255 to 32 on a request body is a break;
+ *   32 to 255 is recorded and does not gate.
+ *
+ * THE SECOND RULE USED TO BE PRESENCE, AND THE PRE-M4 REVIEW RULED IT OUT. It said only a
+ * keyword standing on both sides could break, on the argument that an arriving `type` or `enum`
+ * is documentation tightening as often as it is a contract change. That argument is about the
+ * editor's intent and the gate is about the sender's request: a server that starts validating
+ * against an `enum` which did not exist yesterday rejects yesterday's request either way.
+ * SPEC 17.1 names a changed type of a reachable schema and a narrowed enum in a request schema
+ * outright, the presence rule lived only here and never reached the spec, and it was measured
+ * turning both of those into a non breaking line. An absent keyword is now its own value:
+ * `untyped` for a type, `any value` for an enum, `unbounded` for a numeric bound.
  *
  * A CHANGE TO A NAMED SCHEMA IS CLASSIFIED ONCE, UNDER ITS NAME, which is the model decision
  * SPEC 5.1.1 makes for exactly this consumer. At a use site, two references to the same name
@@ -38,14 +48,17 @@
  * renaming a template variable produces an empty diff instead of a phantom removed operation
  * with a phantom added required parameter.
  *
- * OUT OF SCOPE, SAID RATHER THAN DISCOVERED: channels (M5), webhooks, response headers, and
- * callback trees are not diffed yet. Webhook and node request and response slots do feed the
- * reachability computation, so their schemas still classify with the right direction.
+ * OUT OF SCOPE, SAID RATHER THAN DISCOVERED: channels (M5), webhooks and callback trees are not
+ * diffed yet. Webhook and node request and response slots do feed the reachability computation,
+ * so their schemas still classify with the right direction. Response headers were on this list
+ * until the pre-M4 review, where three pairs of documents differing only in a header measured as
+ * `No changes.`; they are compared now, and a removed one breaks.
  */
 
 import { canonicalize } from '../../hashing/domain/canonical';
 import type { IRDocument, IRSecurityScheme, IRServer } from '../../ir/domain/document.types';
 import type {
+  IRHeader,
   IRMediaType,
   IROperation,
   IRParameter,
@@ -71,6 +84,10 @@ export type IRDiffChangeKind =
   | 'enum-widened'
   | 'variant-removed'
   | 'variant-added'
+  | 'constraint-narrowed'
+  | 'constraint-widened'
+  | 'response-header-removed'
+  | 'response-header-added'
   | 'required-parameter-added'
   | 'optional-parameter-added'
   | 'parameter-removed'
@@ -127,9 +144,13 @@ const KIND_ORDER: readonly IRDiffChangeKind[] = [
   'enum-widened',
   'variant-removed',
   'variant-added',
+  'constraint-narrowed',
+  'constraint-widened',
   'required-parameter-added',
   'optional-parameter-added',
   'parameter-removed',
+  'response-header-removed',
+  'response-header-added',
   'response-removed',
   'response-added',
   'media-type-removed',
@@ -559,9 +580,13 @@ function diffBodies(
     return;
   }
 
+  // An absent `type` is the type `untyped`, and its arrival or departure is a type change like
+  // any other. Until the pre-M4 review this line also required the keyword on both sides, which
+  // made `{}` to `{type: integer}` a non breaking constraints line, and that is SPEC 17.1's
+  // "changed type of a reachable schema" in as many words. See the header on the presence rule.
   const oldTypes = typeSet(oldBody);
   const newTypes = typeSet(newBody);
-  if (oldTypes.length > 0 && newTypes.length > 0 && typeText(oldTypes) !== typeText(newTypes)) {
+  if (typeText(oldTypes) !== typeText(newTypes)) {
     emit(context, {
       kind: 'type-changed',
       classification: classify(flags.request || flags.response),
@@ -576,7 +601,8 @@ function diffBodies(
   diffProperties(context, oldBody, newBody, path, subject, flags);
   diffItems(context, oldBody, newBody, path, subject, flags);
   diffVariants(context, oldBody, newBody, path, subject, flags);
-  diffResidual(context, oldBody, newBody, path, subject);
+  const consumed = diffConstraints(context, oldBody, newBody, path, subject, flags);
+  diffResidual(context, oldBody, newBody, path, subject, consumed);
 }
 
 /** The enum comparison: values as a set, and only a set present on both sides can break. */
@@ -590,7 +616,22 @@ function diffEnums(
 ): void {
   const oldValues = effectiveEnum(oldBody);
   const newValues = effectiveEnum(newBody);
-  if (oldValues === undefined || newValues === undefined) return;
+  if (oldValues === undefined && newValues === undefined) return;
+
+  // An enum arriving where there was none narrows the accepted set from every value to a listed
+  // one, and one leaving widens it back. Reported as the `enum` constraint rather than as a
+  // membership change, because there is no side to list the values that left or arrived against.
+  if (oldValues === undefined || newValues === undefined) {
+    const arriving = oldValues === undefined;
+    emit(context, {
+      kind: arriving ? 'constraint-narrowed' : 'constraint-widened',
+      classification: arriving ? classify(flags.request) : 'non-breaking',
+      subject: `enum of ${subject(path)}`,
+      oldValue: oldValues === undefined ? ANY_VALUE : renderValues(oldValues),
+      newValue: newValues === undefined ? ANY_VALUE : renderValues(newValues),
+    });
+    return;
+  }
 
   const oldByKey = new Map(oldValues.map((value) => [canonicalize(value), value]));
   const newByKey = new Map(newValues.map((value) => [canonicalize(value), value]));
@@ -742,7 +783,22 @@ function diffVariants(
   for (const keyword of ['oneOf', 'anyOf'] as const) {
     const oldBranches = oldBody[keyword];
     const newBranches = newBody[keyword];
-    if (oldBranches === undefined || newBranches === undefined) continue;
+
+    // The whole keyword arriving narrows the accepted set from any shape to a listed one, and it
+    // leaving widens it back. Same reading as an arriving `enum`, and reported the same way,
+    // because there is no side to list branches against.
+    if (oldBranches === undefined || newBranches === undefined) {
+      if (oldBranches === undefined && newBranches === undefined) continue;
+      const arriving = oldBranches === undefined;
+      emit(context, {
+        kind: arriving ? 'constraint-narrowed' : 'constraint-widened',
+        classification: arriving ? classify(flags.request) : 'non-breaking',
+        subject: `${keyword} of ${subject(path)}`,
+        oldValue: oldBranches === undefined ? ANY_VALUE : renderBranches(oldBranches),
+        newValue: newBranches === undefined ? ANY_VALUE : renderBranches(newBranches),
+      });
+      continue;
+    }
 
     const oldByKey = new Map(oldBranches.map((branch) => [strippedCanonical(branch), branch]));
     const newByKey = new Map(newBranches.map((branch) => [strippedCanonical(branch), branch]));
@@ -775,12 +831,169 @@ function diffVariants(
   }
 }
 
+/** What an absent bound or an absent enum accepts, as the word the report prints. */
+const ANY_VALUE = 'any value';
+
+/** What an absent numeric bound accepts, as the word the report prints. */
+const UNBOUNDED = 'unbounded';
+
+/** A value set as prose for an `old → new` line. */
+function renderValues(values: readonly IRJsonValue[]): string {
+  return values
+    .map((value) => renderValue(value))
+    .sort()
+    .join(', ');
+}
+
+/** A branch set as prose for an `old → new` line. */
+function renderBranches(branches: readonly IRJsonSchema[]): string {
+  return branches
+    .map((branch) => describeBranch(branch))
+    .sort()
+    .join(' | ');
+}
+
+/** A numeric bound: `upper` is a ceiling, so a smaller number accepts less, `lower` is a floor. */
+type BoundKeyword =
+  | 'maxLength'
+  | 'maxItems'
+  | 'maxProperties'
+  | 'maximum'
+  | 'exclusiveMaximum'
+  | 'minLength'
+  | 'minItems'
+  | 'minProperties'
+  | 'minimum'
+  | 'exclusiveMinimum';
+
+/** Which way each bound tightens, per SPEC 17.1. */
+const BOUND_DIRECTION: ReadonlyMap<BoundKeyword, 'upper' | 'lower'> = new Map([
+  ['maxLength', 'upper'],
+  ['maxItems', 'upper'],
+  ['maxProperties', 'upper'],
+  ['maximum', 'upper'],
+  ['exclusiveMaximum', 'upper'],
+  ['minLength', 'lower'],
+  ['minItems', 'lower'],
+  ['minProperties', 'lower'],
+  ['minimum', 'lower'],
+  ['exclusiveMinimum', 'lower'],
+]);
+
+/**
+ * The keywords that either hold or do not, so arriving or changing accepts less.
+ *
+ * `multipleOf` is here rather than with the bounds on purpose: 2 to 4 is narrower, 2 to 3 is
+ * neither, and a rule that had to decide which of those it was looking at would be guessing.
+ */
+const ASSERTION_KEYWORDS: readonly ('pattern' | 'format' | 'multipleOf')[] = [
+  'pattern',
+  'format',
+  'multipleOf',
+];
+
+/**
+ * The constraint keywords, compared one at a time and classified by direction.
+ *
+ * A NARROWING ON A SCHEMA REACHABLE FROM REQUESTS BREAKS, per SPEC 17.1, and the reverse move of
+ * the same keyword does not. Before the pre-M4 review every one of these went into the residual
+ * block: measured on five pairs, `maxLength` 255 to 32, a raised `minimum`, an arriving `pattern`
+ * and `additionalProperties` true to false all printed the same `CHANGED constraints of X` line
+ * as the widening `maxLength` 32 to 255, and none of them failed the gate.
+ *
+ * EVERY KEYWORD HERE IS READ THROUGH ITS OWN TYPE, never through an index signature. The IR types
+ * each bound as a number and `uniqueItems` as a boolean, so a draft-4 `exclusiveMinimum: true`
+ * has already been dropped by the normalizer and cannot arrive; a runtime guard against it would
+ * be a branch no input reaches. `additionalProperties` is the one genuinely polymorphic keyword,
+ * and a schema on either side falls through to the residual rather than being ordered by a rule
+ * written for booleans.
+ *
+ * @returns The keywords this call reported on, which the residual block must then skip
+ */
+function diffConstraints(
+  context: DiffContext,
+  oldBody: IRJsonSchema,
+  newBody: IRJsonSchema,
+  path: string,
+  subject: SubjectOf,
+  flags: ReachFlags,
+): ReadonlySet<string> {
+  const consumed = new Set<string>();
+
+  const report = (keyword: string, narrows: boolean, oldText: string, newText: string): void => {
+    emit(context, {
+      kind: narrows ? 'constraint-narrowed' : 'constraint-widened',
+      classification: narrows ? classify(flags.request) : 'non-breaking',
+      subject: `${keyword} of ${subject(path)}`,
+      oldValue: oldText,
+      newValue: newText,
+    });
+  };
+
+  for (const [keyword, direction] of BOUND_DIRECTION) {
+    const from = oldBody[keyword];
+    const to = newBody[keyword];
+    consumed.add(keyword);
+    if (from === to) continue;
+
+    const narrows =
+      from === undefined
+        ? true
+        : to === undefined
+          ? false
+          : direction === 'upper'
+            ? to < from
+            : to > from;
+
+    report(
+      keyword,
+      narrows,
+      from === undefined ? UNBOUNDED : String(from),
+      to === undefined ? UNBOUNDED : String(to),
+    );
+  }
+
+  for (const keyword of ASSERTION_KEYWORDS) {
+    const from = oldBody[keyword];
+    const to = newBody[keyword];
+    consumed.add(keyword);
+    if (from === to) continue;
+
+    report(
+      keyword,
+      to !== undefined,
+      from === undefined ? ANY_VALUE : String(from),
+      to === undefined ? ANY_VALUE : String(to),
+    );
+  }
+
+  // An absent `uniqueItems` is `false` and an absent `additionalProperties` is `true`, so each
+  // reads as its permissive value and the move to the other one is the tightening.
+  const fromUnique = oldBody.uniqueItems ?? false;
+  const toUnique = newBody.uniqueItems ?? false;
+  consumed.add('uniqueItems');
+  if (fromUnique !== toUnique) {
+    report('uniqueItems', toUnique, String(fromUnique), String(toUnique));
+  }
+
+  const fromOpen = oldBody.additionalProperties ?? true;
+  const toOpen = newBody.additionalProperties ?? true;
+  if (typeof fromOpen === 'boolean' && typeof toOpen === 'boolean') {
+    consumed.add('additionalProperties');
+    if (fromOpen !== toOpen) {
+      report('additionalProperties', !toOpen, String(fromOpen), String(toOpen));
+    }
+  }
+
+  return consumed;
+}
+
 /**
  * Everything contract bearing that no specific kind covers, compared as one block.
  *
- * A difference here is recorded and never breaks the gate. That includes a keyword appearing or
- * disappearing: `type` arriving where there was none, an `enum` being dropped, `if`/`then`
- * conditions moving. See the header for why presence changes are recorded rather than gated.
+ * A difference here is recorded and never breaks the gate: `if`/`then` conditions moving,
+ * `patternProperties`, a `discriminator` edit, an `additionalProperties` schema being reshaped.
+ * The keywords {@link diffConstraints} reported are excluded, so a narrowing is named once.
  */
 function diffResidual(
   context: DiffContext,
@@ -788,9 +1001,11 @@ function diffResidual(
   newBody: IRJsonSchema,
   path: string,
   subject: SubjectOf,
+  consumed: ReadonlySet<string>,
 ): void {
-  if (canonicalize(residualOf(oldBody)) === canonicalize(residualOf(newBody))) return;
-
+  if (canonicalize(residualOf(oldBody, consumed)) === canonicalize(residualOf(newBody, consumed))) {
+    return;
+  }
   emit(context, {
     kind: 'constraints-changed',
     classification: 'non-breaking',
@@ -799,21 +1014,21 @@ function diffResidual(
 }
 
 /** The residual: every stripped contract key the walk does not compare on its own. */
-function residualOf(body: IRJsonSchema): Record<string, unknown> {
+function residualOf(body: IRJsonSchema, consumed: ReadonlySet<string>): Record<string, unknown> {
   const whole = stripBody(body);
   const out: Record<string, unknown> = {};
 
   for (const [key, value] of Object.entries(whole)) {
-    if (WALKED_KEYS.has(key)) continue;
+    if (WALKED_KEYS.has(key) || consumed.has(key)) continue;
     out[key] = value;
   }
 
-  // Presence of the walked keywords is part of the residual, so `type` or `enum` appearing or
-  // disappearing is recorded here even though a change in their content is classified above.
-  for (const key of ['type', 'enum', 'oneOf', 'anyOf'] as const) {
-    out[`has:${key}`] = body[key] !== undefined || (key === 'enum' && body.const !== undefined);
-  }
-
+  // A `has:type` / `has:enum` / `has:oneOf` / `has:anyOf` marker block stood here and recorded the
+  // arrival or departure of those four as one non breaking line. It was the presence rule's second
+  // home: with the rule overturned all four are classified by the walk itself, and leaving the
+  // markers printed a duplicate line beside the classified one. Measured on an arriving `enum`,
+  // which came out as a breaking `NARROWED enum of X` and a non breaking `CHANGED constraints of X`
+  // at once.
   return out;
 }
 
@@ -1190,7 +1405,73 @@ function diffResponses(
     }
 
     diffMediaTypes(context, from.content, to.content, subject, RESPONSE_FLAGS);
+    diffResponseHeaders(context, from, to, subject);
     diffItemSchema(context, from, to, subject);
+  }
+}
+
+/**
+ * Response headers, per SPEC 17.1 as amended before M4.
+ *
+ * A HEADER IS A FIELD OF THE RESPONSE, so a removed one breaks a reader exactly as a removed
+ * response field does, and it is classified the same way. Before this the whole slot was in the
+ * out of scope list, and measured on three pairs, a removed `X-Rate-Limit`, a header whose schema
+ * moved from integer to string, and an added header, all three printed `No changes.` for a
+ * document that had changed.
+ *
+ * Names are compared case insensitively because HTTP field names are, and a document that spells
+ * one header two ways across two versions has not changed its contract. The declared spelling is
+ * carried into the subject from the version being reported on.
+ *
+ * A requiredness move is recorded and does not gate, which is the same ruling SPEC 17.1 already
+ * makes for a removed response code: it is a real change a reader should see, and the most common
+ * documentation repair in a real history.
+ */
+function diffResponseHeaders(
+  context: DiffContext,
+  older: IRResponse,
+  newer: IRResponse,
+  site: string,
+): void {
+  const key = (header: IRHeader): string => header.name.toLowerCase();
+  const oldByName = new Map((older.headers ?? []).map((header) => [key(header), header]));
+  const newByName = new Map((newer.headers ?? []).map((header) => [key(header), header]));
+  const names = [...new Set([...oldByName.keys(), ...newByName.keys()])].sort();
+
+  for (const name of names) {
+    const from = oldByName.get(name);
+    const to = newByName.get(name);
+
+    if (from === undefined) {
+      if (to === undefined) continue;
+      emit(context, {
+        kind: 'response-header-added',
+        classification: 'non-breaking',
+        subject: `header ${to.name} of ${site}`,
+      });
+      continue;
+    }
+    if (to === undefined) {
+      emit(context, {
+        kind: 'response-header-removed',
+        classification: 'breaking',
+        subject: `header ${from.name} of ${site}`,
+      });
+      continue;
+    }
+
+    const subject = `header ${to.name} of ${site}`;
+    if (from.required !== to.required) {
+      emit(context, {
+        kind: 'requiredness-changed',
+        classification: 'non-breaking',
+        subject,
+        oldValue: from.required ? 'required' : 'optional',
+        newValue: to.required ? 'required' : 'optional',
+      });
+    }
+
+    diffSlot(context, from.schema, to.schema, subject, RESPONSE_FLAGS);
   }
 }
 

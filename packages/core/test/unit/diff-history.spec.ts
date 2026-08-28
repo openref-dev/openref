@@ -29,6 +29,17 @@ import {
  *   what commit 9fb97b1 says it does.
  * - phantom breaking findings, the class the done-when is about: zero.
  *
+ * RE-DERIVED 2026-08-28 FOR THE PRE-M4 REVIEW, which put response headers in scope, made a
+ * request side constraint tightening breaking, and overturned the presence rule. Breaking moved
+ * from 15 to 17, non breaking stayed at 73 and the empty count at 19, in the same 23 pairs. Both
+ * new lines are in pair 011 to 012 and were checked by hand against the raw yaml: the `default`
+ * response of `GET /user/login`, which was a duplicate of the `200` down to its two headers, is
+ * rewritten there as an `Error` with no headers at all, so `X-Rate-Limit` and `X-Expires-After`
+ * both leave a declared response. It is the same edit the pair's existing
+ * `type-changed  response default of GET /user/login` line already reports, and the classifier
+ * had been reporting half of it. Phantom breaking findings, which is what the done-when is
+ * about: still zero, and the three classes that changed added none.
+ *
  * RE-DERIVED 2026-08-27 FOR THE T038 REWORK RULING that makes servers changes register as non
  * breaking. The regeneration moved the totals from 72 to 73 non breaking findings; breaking
  * stayed at 15 and the empty count at 19, in the same 23 pairs. The one new line was checked by

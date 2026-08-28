@@ -351,8 +351,15 @@ describe('buildDiffReport', () => {
     ]);
   });
 
-  it('should record an enum or a type appearing where there was none instead of gating on it', () => {
-    // Given documentation tightening: the keyword arrives, the values may always have been so
+  // THIS CASE PINNED THE OPPOSITE RULE UNTIL THE PRE-M4 REVIEW, and it is here in its reversed
+  // form rather than deleted, so the reversal is visible in one place. It asserted that a `type`
+  // or an `enum` arriving where there was none is recorded and never gates, on the argument that
+  // the keyword's arrival is documentation tightening as often as it is a contract change. SPEC
+  // 17.1 names a changed type of a reachable schema and a narrowed enum in a request schema as
+  // breaking, and never carried that exception; it lived in a comment on the implementation. The
+  // spec won, and it moved before this file did.
+  it('should gate on a type or an enum arriving on a schema reachable from requests', () => {
+    // Given a property that accepted anything and now accepts one string
     const older = raw(writesUser(), {
       CreateUser: { type: 'object', properties: { status: {}, name: { type: 'string' } } },
     });
@@ -366,9 +373,358 @@ describe('buildDiffReport', () => {
     // When
     const report = diff(older, newer);
 
+    // Then the type move is reported and the walk stops there, as it does for any type change
+    expect(report.breaking).toEqual([
+      {
+        kind: 'type-changed',
+        classification: 'breaking',
+        subject: 'CreateUser.status',
+        oldValue: 'untyped',
+        newValue: 'string',
+      },
+    ]);
+    expect(report.nonBreaking).toEqual([]);
+  });
+
+  it('should gate on an enum arriving under a type that did not move', () => {
+    // Given the same arrival with the type already declared on both sides
+    const older = raw(writesUser(), {
+      CreateUser: { type: 'object', properties: { status: { type: 'string' } } },
+    });
+    const newer = raw(writesUser(), {
+      CreateUser: { type: 'object', properties: { status: { type: 'string', enum: ['active'] } } },
+    });
+
+    // When
+    const report = diff(older, newer);
+
+    // Then it is the `enum` constraint narrowing, named and with both sides printed
+    expect(report.breaking).toEqual([
+      {
+        kind: 'constraint-narrowed',
+        classification: 'breaking',
+        subject: 'enum of CreateUser.status',
+        oldValue: 'any value',
+        newValue: 'active',
+      },
+    ]);
+    expect(report.nonBreaking).toEqual([]);
+  });
+
+  /**
+   * The constraint direction matrix of SPEC 17.1, added by the pre-M4 review.
+   *
+   * Every row is the same schema position moved one keyword at a time, once in each direction,
+   * on a body reachable from requests. Before this the whole table produced one line,
+   * `CHANGED constraints of CreateUser.field`, on both sides of every row, and none of it gated:
+   * the tightening and its own reverse were the same output. The rows are written as a table
+   * rather than as fourteen cases because the property under test is the direction, and a table
+   * makes a keyword landing on the wrong side visible as one line in a diff.
+   */
+  const CONSTRAINT_ROWS: readonly {
+    readonly keyword: string;
+    readonly loose: Record<string, unknown>;
+    readonly tight: Record<string, unknown>;
+    readonly looseText: string;
+    readonly tightText: string;
+  }[] = [
+    {
+      keyword: 'maxLength',
+      loose: { maxLength: 255 },
+      tight: { maxLength: 32 },
+      looseText: '255',
+      tightText: '32',
+    },
+    {
+      keyword: 'minLength',
+      loose: { minLength: 0 },
+      tight: { minLength: 8 },
+      looseText: '0',
+      tightText: '8',
+    },
+    {
+      keyword: 'maxItems',
+      loose: { maxItems: 100 },
+      tight: { maxItems: 10 },
+      looseText: '100',
+      tightText: '10',
+    },
+    {
+      keyword: 'minItems',
+      loose: { minItems: 0 },
+      tight: { minItems: 1 },
+      looseText: '0',
+      tightText: '1',
+    },
+    {
+      keyword: 'maxProperties',
+      loose: { maxProperties: 9 },
+      tight: { maxProperties: 4 },
+      looseText: '9',
+      tightText: '4',
+    },
+    {
+      keyword: 'minProperties',
+      loose: { minProperties: 0 },
+      tight: { minProperties: 2 },
+      looseText: '0',
+      tightText: '2',
+    },
+    {
+      keyword: 'maximum',
+      loose: { maximum: 100 },
+      tight: { maximum: 10 },
+      looseText: '100',
+      tightText: '10',
+    },
+    {
+      keyword: 'minimum',
+      loose: { minimum: 0 },
+      tight: { minimum: 18 },
+      looseText: '0',
+      tightText: '18',
+    },
+    {
+      keyword: 'exclusiveMaximum',
+      loose: { exclusiveMaximum: 100 },
+      tight: { exclusiveMaximum: 10 },
+      looseText: '100',
+      tightText: '10',
+    },
+    {
+      keyword: 'exclusiveMinimum',
+      loose: { exclusiveMinimum: 0 },
+      tight: { exclusiveMinimum: 18 },
+      looseText: '0',
+      tightText: '18',
+    },
+    {
+      keyword: 'pattern',
+      loose: {},
+      tight: { pattern: '^[a-z]+$' },
+      looseText: 'any value',
+      tightText: '^[a-z]+$',
+    },
+    {
+      keyword: 'format',
+      loose: {},
+      tight: { format: 'email' },
+      looseText: 'any value',
+      tightText: 'email',
+    },
+    {
+      keyword: 'multipleOf',
+      loose: {},
+      tight: { multipleOf: 5 },
+      looseText: 'any value',
+      tightText: '5',
+    },
+    {
+      keyword: 'uniqueItems',
+      loose: { uniqueItems: false },
+      tight: { uniqueItems: true },
+      looseText: 'false',
+      tightText: 'true',
+    },
+  ];
+
+  it.each(CONSTRAINT_ROWS)(
+    'should gate on $keyword tightening in a request schema and not on it loosening',
+    ({ keyword, loose, tight, looseText, tightText }) => {
+      // Given one property carrying the keyword, compared in both directions
+      const at = (constraint: Record<string, unknown>): Record<string, unknown> =>
+        raw(writesUser(), {
+          CreateUser: { type: 'object', properties: { field: { ...constraint } } },
+        });
+
+      // When
+      const tightened = diff(at(loose), at(tight));
+      const loosened = diff(at(tight), at(loose));
+
+      // Then
+      expect(tightened.breaking).toEqual([
+        {
+          kind: 'constraint-narrowed',
+          classification: 'breaking',
+          subject: `${keyword} of CreateUser.field`,
+          oldValue: looseText,
+          newValue: tightText,
+        },
+      ]);
+      expect(tightened.nonBreaking).toEqual([]);
+      expect(loosened.breaking).toEqual([]);
+      expect(loosened.nonBreaking).toEqual([
+        {
+          kind: 'constraint-widened',
+          classification: 'non-breaking',
+          subject: `${keyword} of CreateUser.field`,
+          oldValue: tightText,
+          newValue: looseText,
+        },
+      ]);
+    },
+  );
+
+  it('should gate on additionalProperties closing in a request schema', () => {
+    // Given a body that accepted unknown members and now refuses them
+    const at = (value: boolean): Record<string, unknown> =>
+      raw(writesUser(), {
+        CreateUser: { type: 'object', additionalProperties: value, properties: {} },
+      });
+
+    // When
+    const report = diff(at(true), at(false));
+
     // Then
+    expect(report.breaking).toEqual([
+      {
+        kind: 'constraint-narrowed',
+        classification: 'breaking',
+        subject: 'additionalProperties of CreateUser',
+        oldValue: 'true',
+        newValue: 'false',
+      },
+    ]);
+    expect(report.nonBreaking).toEqual([]);
+  });
+
+  it('should name a tightening on a response only schema and still not gate on it', () => {
+    // Given the direction rule: a shorter maximum on the way out does not break a reader
+    const at = (maxLength: number): Record<string, unknown> =>
+      raw(readsUser(), {
+        User: { type: 'object', properties: { name: { type: 'string', maxLength } } },
+      });
+
+    // When
+    const report = diff(at(255), at(32));
+
+    // Then the move is still called a narrowing, because that is what it is; only the side moves
     expect(report.breaking).toEqual([]);
-    expect(kinds(report.nonBreaking)).toEqual(['constraints-changed CreateUser.status']);
+    expect(kinds(report.nonBreaking)).toEqual(['constraint-narrowed maxLength of User.name']);
+  });
+
+  it('should leave an additionalProperties schema to the residual block', () => {
+    // Given the one constraint keyword that can hold a schema instead of a flag
+    const at = (type: string): Record<string, unknown> =>
+      raw(writesUser(), {
+        CreateUser: { type: 'object', properties: {}, additionalProperties: { type } },
+      });
+
+    // When
+    const report = diff(at('string'), at('integer'));
+
+    // Then it is recorded, once, by the block that does not claim to know the direction
+    expect(report.breaking).toEqual([]);
+    expect(kinds(report.nonBreaking)).toEqual(['constraints-changed CreateUser']);
+  });
+
+  it('should gate on a oneOf arriving in a request schema and not on it leaving', () => {
+    // Given a body that accepted any shape and now accepts one of two
+    const at = (schema: Record<string, unknown>): Record<string, unknown> =>
+      raw(writesUser(), { CreateUser: schema });
+    const open = { type: 'object', properties: { payload: {} } };
+    const closed = {
+      type: 'object',
+      properties: { payload: { oneOf: [{ title: 'Card' }, { title: 'Bank' }] } },
+    };
+
+    // When
+    const narrowed = diff(at(open), at(closed));
+    const widened = diff(at(closed), at(open));
+
+    // Then
+    expect(narrowed.breaking).toEqual([
+      {
+        kind: 'constraint-narrowed',
+        classification: 'breaking',
+        subject: 'oneOf of CreateUser.payload',
+        oldValue: 'any value',
+        newValue: 'Bank | Card',
+      },
+    ]);
+    expect(widened.breaking).toEqual([]);
+    expect(kinds(widened.nonBreaking)).toEqual(['constraint-widened oneOf of CreateUser.payload']);
+  });
+
+  /**
+   * Response headers, out of scope until the pre-M4 review measured what that meant.
+   *
+   * A document whose response lost `X-Rate-Limit` printed `No changes.`, which is the one line
+   * SPEC 17.1 reserves for a run that found nothing. The three cases below are the three that
+   * were measured printing it.
+   */
+  function readsWithHeaders(headers: Record<string, unknown>): Record<string, unknown> {
+    return {
+      '/users': {
+        get: {
+          responses: {
+            '200': {
+              description: 'ok',
+              headers,
+              content: { 'application/json': { schema: { type: 'string' } } },
+            },
+          },
+        },
+      },
+    };
+  }
+
+  it('should gate on a removed response header', () => {
+    // Given a documented rate limit header that goes away
+    const older = raw(
+      readsWithHeaders({
+        'X-Rate-Limit': { required: true, schema: { type: 'integer' } },
+        'X-Trace': { schema: { type: 'string' } },
+      }),
+    );
+    const newer = raw(readsWithHeaders({ 'X-Trace': { schema: { type: 'string' } } }));
+
+    // When
+    const report = diff(older, newer);
+
+    // Then
+    expect(report.breaking).toEqual([
+      {
+        kind: 'response-header-removed',
+        classification: 'breaking',
+        subject: 'header X-Rate-Limit of response 200 of GET /users',
+      },
+    ]);
+    expect(report.nonBreaking).toEqual([]);
+  });
+
+  it('should gate on a response header whose declared type moves', () => {
+    // Given
+    const older = raw(readsWithHeaders({ 'X-Rate-Limit': { schema: { type: 'integer' } } }));
+    const newer = raw(readsWithHeaders({ 'X-Rate-Limit': { schema: { type: 'string' } } }));
+
+    // When
+    const report = diff(older, newer);
+
+    // Then
+    expect(kinds(report.breaking)).toEqual([
+      'type-changed header X-Rate-Limit of response 200 of GET /users',
+    ]);
+  });
+
+  it('should record an added response header and a case only respelling without gating', () => {
+    // Given one header arriving, and one whose name changes case only
+    const older = raw(readsWithHeaders({ 'X-Trace': { schema: { type: 'string' } } }));
+    const newer = raw(
+      readsWithHeaders({
+        'x-trace': { schema: { type: 'string' } },
+        'X-Rate-Limit': { schema: { type: 'integer' } },
+      }),
+    );
+
+    // When
+    const report = diff(older, newer);
+
+    // Then HTTP field names are case insensitive, so the respelling is not a change
+    expect(report.breaking).toEqual([]);
+    expect(kinds(report.nonBreaking)).toEqual([
+      'response-header-added header X-Rate-Limit of response 200 of GET /users',
+    ]);
   });
 
   it('should classify parameter requiredness like the commit that motivated it', () => {
