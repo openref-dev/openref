@@ -10,6 +10,7 @@
  * answers "what do we know is dangerous today", which is a question that ages.
  */
 
+import { DOCUMENT_LINK_SCHEMES } from '@openref/core';
 import DOMPurify from 'isomorphic-dompurify';
 
 /**
@@ -196,6 +197,21 @@ DOMPurify.addHook('afterSanitizeAttributes', stripInterfaceNamespace);
  * It also answers "can this take the page", which it did not before T016. That is a separate
  * question from execution and it has a separate mechanism, per SPEC 19.1.
  *
+ * THE SCHEME LIST IS THIS PROJECT'S RATHER THAN THE SANITIZER'S DEFAULT, since the pre-M4 review.
+ * Setting nothing left the answer to whatever `DOMPurify` ships, which is a list that moves with a
+ * version bump: measured on the version installed then, `ftp:`, `tel:`, `sms:`, `callto:`, `cid:`,
+ * `xmpp:` and `matrix:` survived in an `href` and nobody had decided they should. The dangerous
+ * ones were all refused, so this is not a hole being closed; it is an allowlist that belongs to
+ * whoever wrote the page becoming one, so that what a document may link to changes when this
+ * project changes it and not when a dependency does.
+ *
+ * ONE THING THE SCHEME LIST DELIBERATELY DOES NOT REACH, MEASURED RATHER THAN ASSUMED: a `data:`
+ * url still survives on `img` and the other media tags, because the sanitizer admits those
+ * separately from this list. It is left that way. A browser runs no script in an image it loaded,
+ * so `data:image/svg+xml` carrying an `onload` is inert there, and refusing it would take inline
+ * images away from every document that embeds one. Whether such an image loads at all is the host
+ * policy's `img-src` question, which is the same boundary the paragraph above draws.
+ *
  * @param html - Untrusted HTML, from a specification document or from our own renderer
  * @returns The same fragment with every disallowed element and attribute removed
  */
@@ -203,6 +219,7 @@ export function sanitizeHtml(html: string): string {
   return DOMPurify.sanitize(html, {
     ALLOWED_TAGS: [...ALLOWED_TAGS],
     ALLOWED_ATTR: [...ALLOWED_ATTRIBUTES],
+    ALLOWED_URI_REGEXP: DOCUMENT_LINK_SCHEMES,
     FORBID_TAGS: [...FORBIDDEN_TAGS],
     FORBID_ATTR: [...FORBIDDEN_ATTRIBUTES],
     ALLOW_DATA_ATTR: false,

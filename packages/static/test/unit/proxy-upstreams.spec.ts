@@ -346,12 +346,20 @@ describe('planUpstreams, a server that names infrastructure rather than an API',
  * not evidence: all four spellings pinned correctly and nothing would have said so again.
  */
 describe('planUpstreams, an upstream that is an address rather than a name', () => {
+  // THE TWO IPv4 ROWS CHANGED THEIR ADDRESSES AT THE PRE-M4 REVIEW, and the reason is the finding
+  // rather than the fixture. They read `203.0.113.7` and `198.51.100.5`, which are TEST-NET-3 and
+  // TEST-NET-2, the ranges RFC 5737 reserves for documentation. The hand written denylist this
+  // module used to carry admitted them, so a row titled "a public IPv4 address" was pinning an
+  // address that is not one. `addressRefusal`, which now answers here as it already answered for
+  // the runtime proxy, asks whether an address is global unicast and refuses every special purpose
+  // block, these two among them. The titles are what the rows are for, so the addresses were
+  // corrected to genuinely public ones and the old pair became the case below.
   it.each([
-    ['a public IPv4 address', 'https://203.0.113.7/internal', 'https://203.0.113.7/internal'],
+    ['a public IPv4 address', 'https://93.184.216.34/internal', 'https://93.184.216.34/internal'],
     [
       'an address with a port and a path',
-      'http://198.51.100.5:8443/edge/api',
-      'http://198.51.100.5:8443/edge/api',
+      'http://8.8.8.8:8443/edge/api',
+      'http://8.8.8.8:8443/edge/api',
     ],
     [
       'an IPv6 address with a port',
@@ -372,5 +380,35 @@ describe('planUpstreams, an upstream that is an address rather than a name', () 
     // Then
     expect(plan.upstreams).toEqual([expected]);
     expect(plan.warnings).toEqual([]);
+  });
+
+  /**
+   * The addresses the hand written denylist admitted and the shared policy does not.
+   *
+   * ONE POLICY FOR BOTH PROXIES SINCE THE PRE-M4 REVIEW. Measured before the change: of an
+   * eighteen address corpus the static generator admitted seventeen that the runtime proxy
+   * refused, and one of them was `::ffff:169.254.169.254`, the mapped spelling of the metadata
+   * address that `T043` wrote this function to refuse in the first place. A denylist is correct
+   * exactly as far as somebody remembered, which is the argument `address.ts` opens with.
+   */
+  it.each([
+    ['a private network', 'https://10.0.0.5/v1'],
+    ['a private network', 'https://192.168.1.1/v1'],
+    ['the IPv4 documentation range', 'https://203.0.113.7/internal'],
+    ['a loopback address in its IPv6 mapped spelling', 'https://[::ffff:127.0.0.1]/v1'],
+    ['the metadata address in its IPv6 mapped spelling', 'https://[::ffff:169.254.169.254]/v1'],
+    ['carrier grade NAT', 'https://100.64.0.1/v1'],
+    ['the broadcast address', 'https://255.255.255.255/v1'],
+    ['multicast', 'https://224.0.0.1/v1'],
+  ])('should skip %s rather than pin it', (_reason, url) => {
+    // Given a server whose host is an address outside global unicast
+
+    // When
+    const plan = planUpstreams([{ url }]);
+
+    // Then nothing is pinned and the skip says which server and why
+    expect(plan.upstreams).toEqual([]);
+    expect(plan.warnings).toHaveLength(1);
+    expect(plan.warnings[0]).toContain(url);
   });
 });

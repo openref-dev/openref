@@ -9,6 +9,7 @@
  * skipped with a warning naming the reason, never guessed at, per SPEC 6.
  */
 
+import { addressRefusal, isAddressLiteral, isHttpUrl } from '@openref/core';
 import type { IRServer, IRServerVariable } from '@openref/core';
 
 /**
@@ -245,16 +246,22 @@ export function infrastructureHost(upstream: string): string | null {
 
   const bare = host.startsWith('[') && host.endsWith(']') ? host.slice(1, -1) : host;
 
+  // A NAME RATHER THAN AN ADDRESS IS STILL ANSWERED BY NAME, because a hostname resolves at
+  // deployment time and there is nothing to inspect here. The set is the published metadata
+  // names plus the one this project has already met.
   if (METADATA_HOST.has(host)) return 'a well known cloud metadata host';
-  if (host === 'localhost' || host.startsWith('127.') || bare === '::1') {
-    return 'a loopback address';
+  if (host === 'localhost') return 'a loopback address';
+
+  // AND AN ADDRESS IS ANSWERED BY THE ONE POLICY, NOT BY A SECOND LIST OF RANGES. Until the
+  // pre-M4 review this function was a hand written denylist beside an allowlist of address space
+  // whose own header explains why a denylist is wrong, and the two disagreed on 17 addresses
+  // measured, including the mapped form of the metadata address this function was written to
+  // refuse. `addressRefusal` answers the opposite question, which is the one that stays right as
+  // registries allocate: an address is refused unless it is global unicast.
+  if (isAddressLiteral(bare)) {
+    const refusal = addressRefusal(bare);
+    if (refusal !== null) return refusal;
   }
-  if (host.startsWith('169.254.')) {
-    return 'an IPv4 link local address, where cloud metadata answers';
-  }
-  if (host === '100.100.100.200') return 'a well known cloud metadata address';
-  if (/^fe[89ab][0-9a-f]:/.test(bare)) return 'an IPv6 link local address';
-  if (/^f[cd][0-9a-f]{2}:/.test(bare)) return 'an IPv6 unique local address';
 
   return null;
 }
@@ -296,7 +303,7 @@ function asUpstream(url: string): string | null {
     return null;
   }
 
-  if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') return null;
+  if (!isHttpUrl(parsed)) return null;
 
   const path = parsed.pathname.replace(/\/+$/, '');
   return `${parsed.origin}${path}`;
@@ -349,7 +356,7 @@ export function unsafeUpstreamCharacter(upstream: string): string | null {
 function isAbsoluteNonHttp(url: string): boolean {
   try {
     const parsed = new URL(url);
-    return parsed.protocol !== 'https:' && parsed.protocol !== 'http:';
+    return !isHttpUrl(parsed);
   } catch {
     return false;
   }

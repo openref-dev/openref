@@ -15,6 +15,8 @@
  * the match is on origin and path prefix rather than on a substring of the url.
  */
 
+import { isHttpUrl, refusesPathSuffix } from '@openref/core';
+
 /** One place the proxy may reach, as an origin and the path everything under it hangs off. */
 export interface AllowedTarget {
   /** Scheme, host and port, exactly as `URL.origin` writes it. */
@@ -66,7 +68,7 @@ export function buildAllowlist(servers: readonly string[]): ProxyAllowlist {
       continue;
     }
 
-    if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+    if (!isHttpUrl(url)) {
       ignored.push({ server, reason: `its scheme is ${url.protocol} and the proxy speaks http` });
       continue;
     }
@@ -121,7 +123,7 @@ export function decideTarget(allowlist: ProxyAllowlist, candidate: string): Targ
     return { allowed: false, reason: `'${candidate}' is not a url` };
   }
 
-  if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+  if (!isHttpUrl(url)) {
     return { allowed: false, reason: `the scheme ${url.protocol} is not one the proxy speaks` };
   }
 
@@ -137,6 +139,29 @@ export function decideTarget(allowlist: ProxyAllowlist, candidate: string): Targ
     if (target.basePath !== '') {
       const path = url.pathname;
       if (path !== target.basePath && !path.startsWith(`${target.basePath}/`)) continue;
+    }
+
+    // AND THE PREFIX IS ONLY A BOUNDARY WHILE THE SUFFIX CANNOT CLIMB OUT OF IT. The check above
+    // compares the path as the URL parser left it, which collapses a literal `../` and leaves
+    // every encoded spelling of it standing; `node-outbound` then puts `url.pathname` on the wire
+    // verbatim, so an upstream that decodes before it normalizes resolves a suffix this proxy
+    // admitted into a path nobody pinned. Measured before this call existed: of eight spellings,
+    // seven were admitted and forwarded, and the one refusal came from `new URL` rather than from
+    // any policy here. The guard is the one `@openref/static` emits into the three generated
+    // artefacts, which received it at `T040` while this, the fourth thing that concatenates a
+    // client suffix onto a pinned base, did not.
+    const suffix =
+      target.basePath === ''
+        ? url.pathname.replace(/^\//, '')
+        : url.pathname.slice(target.basePath.length + 1);
+    if (refusesPathSuffix(suffix)) {
+      return {
+        allowed: false,
+        reason:
+          `the path below ${target.origin}${target.basePath} carries a dot segment or an ` +
+          'ambiguous percent encoding, which is refused rather than repaired because resolving ' +
+          'it would decide for an upstream nobody asked',
+      };
     }
 
     return { allowed: true, target, url };

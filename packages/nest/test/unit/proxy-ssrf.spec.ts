@@ -1,6 +1,5 @@
-import { ProxyBlockedError } from '@openref/core';
+import { addressRefusal, isAddressLiteral, parseIpv4, ProxyBlockedError } from '@openref/core';
 import { describe, expect, it } from 'vitest';
-import { addressRefusal, isAddressLiteral, parseIpv4 } from '../../src/proxy/domain/address';
 import { buildAllowlist, decideTarget } from '../../src/proxy/domain/allowlist';
 import { ProxyService } from '../../src/proxy/application/services/proxy.service';
 import type {
@@ -169,6 +168,63 @@ describe('the allowlist', () => {
     // When, Then
     expect(allowlist.targets).toEqual([]);
     expect(allowlist.ignored).toHaveLength(2);
+  });
+});
+
+/**
+ * The prefix is a boundary only while the suffix cannot climb out of it.
+ *
+ * FOUND BY THE PRE-M4 REVIEW, AND IT WAS THE FOURTH THING ASKING THIS QUESTION WITH NO GUARD.
+ * `T040` measured 23 leaks across the three generated artefacts and closed them with one shared
+ * refusal; this route, which concatenates a client contributed suffix onto a pinned base in
+ * exactly the same way, never received it. Measured then: of eight spellings driven through
+ * `decideTarget`, seven were admitted and forwarded to the wire encoded, and the single refusal
+ * came from `new URL` collapsing a literal `../` rather than from any policy here.
+ */
+describe('decideTarget, a suffix that climbs above the pinned base', () => {
+  const allowlist = buildAllowlist(['https://api.example.com/v1']);
+
+  it.each([
+    'https://api.example.com/v1/../secret',
+    'https://api.example.com/v1/..%2fsecret',
+    'https://api.example.com/v1/%2e%2e%2fsecret',
+    'https://api.example.com/v1/%252e%252e/secret',
+    'https://api.example.com/v1/..;/secret',
+    'https://api.example.com/v1/..%5csecret',
+    'https://api.example.com/v1/..%2f..%2fadmin',
+    'https://api.example.com/v1/%zz',
+  ])('should refuse %s', (candidate) => {
+    // Given the allowlist above and a url whose path below the base is a dot segment
+
+    // When
+    const decision = decideTarget(allowlist, candidate);
+
+    // Then it is refused, in whichever spelling it arrived
+    expect(decision.allowed).toBe(false);
+  });
+
+  it.each([
+    'https://api.example.com/v1',
+    'https://api.example.com/v1/orders',
+    'https://api.example.com/v1/orders/42',
+    'https://api.example.com/v1/a%20b/c',
+  ])('should still admit the ordinary request %s', (candidate) => {
+    // Given the same allowlist and a request a reader would really send
+
+    // When
+    const decision = decideTarget(allowlist, candidate);
+
+    // Then it passes, because a proxy that refuses everything is not the fix
+    expect(decision.allowed).toBe(true);
+  });
+
+  it('should apply the same refusal to a server mounted at the root', () => {
+    // Given a server with no base path, where the suffix is the whole path
+    const root = buildAllowlist(['https://api.example.com']);
+
+    // When, Then
+    expect(decideTarget(root, 'https://api.example.com/..%2fsecret').allowed).toBe(false);
+    expect(decideTarget(root, 'https://api.example.com/orders').allowed).toBe(true);
   });
 });
 

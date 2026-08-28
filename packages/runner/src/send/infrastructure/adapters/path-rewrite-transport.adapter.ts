@@ -40,7 +40,7 @@
  * tested hardest.
  */
 
-import { ErrorCode, RunnerError } from '@openref/core';
+import { ErrorCode, isHttpUrl, refusesPathSuffix, RunnerError } from '@openref/core';
 import type { RequestPlan } from '../../../request/domain/request-plan';
 import type {
   IHttpTransport,
@@ -74,17 +74,6 @@ export interface PathRewriteTransportOptions {
    */
   readonly fetch?: FetchLike;
 }
-
-/**
- * The dot segment expression of the generated guard, character for character.
- *
- * The four spellings of ".." the URL standard admits, read across slash, backslash and their
- * encodings as one separator class and through a ";" path parameter.
- */
-const DOT_SEGMENT = /(^|[/\\;]|%2f|%5c|%3b)(\.\.|\.%2e|%2e\.|%2e%2e)([/\\;]|%2f|%5c|%3b|$)/i;
-
-/** The ambiguous encoding expression of the generated guard, character for character. */
-const AMBIGUOUS = /%(2e|2f|5c|3b)/i;
 
 /** Where one request url landed in the pinned list. */
 interface PinnedMatch {
@@ -155,7 +144,7 @@ function absoluteHttp(url: string): URL | null {
     return null;
   }
 
-  return parsed.protocol === 'https:' || parsed.protocol === 'http:' ? parsed : null;
+  return isHttpUrl(parsed) ? parsed : null;
 }
 
 /**
@@ -178,21 +167,7 @@ function serverOf(url: string): string {
  * @returns True when the request must not be formed
  */
 function refusedSuffix(rest: string): boolean {
-  let decoded: string | null;
-  try {
-    decoded = decodeURIComponent(rest);
-  } catch {
-    // A suffix one decode cannot resolve stays ambiguous to whoever decodes next, so it is
-    // refused rather than decoded a second time, which is the generated guard's own reasoning.
-    decoded = null;
-  }
-
-  return (
-    DOT_SEGMENT.test(rest) ||
-    decoded === null ||
-    AMBIGUOUS.test(decoded) ||
-    DOT_SEGMENT.test(decoded)
-  );
+  return refusesPathSuffix(rest);
 }
 
 /** Sends through the generated rewrite rules rather than straight to the API. */

@@ -13,6 +13,7 @@
  * randomness anywhere.
  */
 
+import { PATH_SUFFIX_GUARD_SOURCE } from '@openref/core';
 import { PROXY_SEGMENT } from '@openref/render';
 import type { ProxyConfigTarget } from './proxy-target';
 
@@ -231,40 +232,13 @@ const RESOLVE_LINES = [
 /**
  * The client suffix guard, emitted verbatim into all three executable artefacts.
  *
- * ONE COPY BECAUSE THREE COPIES DRIFT. Every artefact that concatenates a client contributed
- * suffix onto a pinned base needs the same refusal, and the CloudFront viewer-request function
- * is the third: it rewrites a uri that the CDN then joins to the origin path, so a dot segment
- * there climbs above the pinned base inside the pinned origin exactly as it would in the other
- * two. It reads one variable, `rest`, and answers one, `refusedRest`; each artefact defines the
- * first before including these lines and refuses in its own platform's vocabulary after them.
- *
- * WRITTEN IN THE SYNTAX ALL THREE RUNTIMES ACCEPT: no optional catch binding and nothing past
- * the ES6 subset that the `cloudfront-js-2.0` runtime documents, since one of the three targets
- * is not a general JavaScript engine.
+ * ONE HOME IN `core` SINCE THE PRE-M4 REVIEW, because a fourth and a fifth thing ask the same
+ * question about the same kind of input: the same origin proxy of SPEC 14.5, which had no guard at
+ * all, and the rewriting transport in `@openref/runner`, which carried a hand written copy compared
+ * to nothing. The three artefacts here cannot import anything, so what they receive is the source
+ * text of the one implementation rather than a fourth transcription of it.
  */
-const SUFFIX_GUARD_LINES = [
-  '  // A dot segment in the suffix climbs above the pinned base path, inside the pinned origin,',
-  '  // so it is refused rather than repaired: the four spellings of ".." the URL standard admits,',
-  '  // read across slash, backslash and their encodings as one separator class and through a ";"',
-  '  // path parameter, checked on the suffix as received and again after exactly one decode.',
-  '  // A suffix whose one decode still spells an encoded dot, separator or path parameter stays',
-  '  // ambiguous to whoever decodes next, so it is refused rather than decoded a second time, and',
-  '  // a suffix that one decode cannot resolve at all is refused for the same reason.',
-  '  const DOT_SEGMENT = /(^|[/\\\\;]|%2f|%5c|%3b)(\\.\\.|\\.%2e|%2e\\.|%2e%2e)([/\\\\;]|%2f|%5c|%3b|$)/i;',
-  '  const AMBIGUOUS = /%(2e|2f|5c|3b)/i;',
-  '  const decodedRest = (() => {',
-  '    try {',
-  '      return decodeURIComponent(rest);',
-  '    } catch (decodeError) {',
-  '      return null;',
-  '    }',
-  '  })();',
-  '  const refusedRest =',
-  '    DOT_SEGMENT.test(rest) ||',
-  '    decodedRest === null ||',
-  '    AMBIGUOUS.test(decodedRest) ||',
-  '    DOT_SEGMENT.test(decodedRest);',
-];
+const SUFFIX_GUARD_LINES = PATH_SUFFIX_GUARD_SOURCE;
 
 /** The Nitro route of SPEC 16.2's table: `server/routes<base>/_proxy/[...].ts`. */
 function nitroRoute(options: ProxyFileOptions): GeneratedProxyFile {

@@ -9,7 +9,7 @@
  * out.
  */
 
-import { ErrorCode, InvalidOptionsError } from '@openref/core';
+import { ErrorCode, InvalidOptionsError, isHttpUrl } from '@openref/core';
 
 /** The base of one build, in the two shapes it comes in. */
 export interface SiteBase {
@@ -52,7 +52,7 @@ export function resolveSiteBase(base?: string): SiteBase {
     );
   }
 
-  if (url.protocol !== 'https:' && url.protocol !== 'http:') {
+  if (!isHttpUrl(url)) {
     throw new InvalidOptionsError(
       `--base must be an http or https url when it carries an origin, received "${value}"`,
       ErrorCode.CONFIG_INVALID_OPTIONS,

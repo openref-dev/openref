@@ -248,8 +248,8 @@ export type {
 // The same origin proxy of SPEC 14.5, built in T029. The policy is exported because a host that
 // builds its own outbound client still has to answer the same question about an address, and a
 // second implementation of it would be a second answer.
-export { addressRefusal, isAddressLiteral, parseIpv4, parseIpv6 } from './proxy/domain/address';
-export type { AddressRefusal } from './proxy/domain/address';
+export { addressRefusal, isAddressLiteral, parseIpv4, parseIpv6 } from '@openref/core';
+export type { AddressRefusal } from '@openref/core';
 export { buildAllowlist, decideTarget } from './proxy/domain/allowlist';
 export type { AllowedTarget, ProxyAllowlist, TargetDecision } from './proxy/domain/allowlist';
 export {

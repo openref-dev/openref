@@ -19,7 +19,7 @@
 import { request as httpRequest } from 'node:http';
 import { request as httpsRequest } from 'node:https';
 import { ErrorCode, ProxyBlockedError, RunnerError } from '@openref/core';
-import { addressRefusal, parseIpv4 } from '../../domain/address';
+import { addressRefusal, parseIpv4 } from '@openref/core';
 import type {
   IOutboundHttp,
   OutboundRequest,
