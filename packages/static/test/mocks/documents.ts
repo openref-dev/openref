@@ -12,6 +12,8 @@ export interface SpecOptions {
   readonly withThird?: boolean;
   /** Servers the document declares, for the proxy cases. Absent keeps the T004-R1 default. */
   readonly servers?: readonly { readonly url: string }[];
+  /** Servers the second operation overrides with, which OpenAPI allows and SPEC 14.5 admits. */
+  readonly pongServers?: readonly { readonly url: string }[];
 }
 
 /**
@@ -43,6 +45,7 @@ export function miniDocument(options: SpecOptions = {}): IRDocument {
       get: {
         operationId: 'pong',
         summary: options.pongSummary ?? 'Pong',
+        ...(options.pongServers === undefined ? {} : { servers: options.pongServers }),
         responses: { 200: { description: options.pongResponse ?? 'ok' } },
       },
     },

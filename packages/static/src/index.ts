@@ -78,6 +78,7 @@ export {
   ASSET_DIRECTORY,
   MAX_SEGMENT_BYTES,
   navigationFileOf,
+  PAGE_KIND_CARDINALITY,
   planPages,
   SEARCH_INDEX_FILE,
 } from './build/domain/page-plan';

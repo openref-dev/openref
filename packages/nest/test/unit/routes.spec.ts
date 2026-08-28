@@ -6,6 +6,7 @@ import {
   normalizeRoute,
   referenceRoutes,
   SEARCH_INDEX_SEGMENT,
+  type ReferenceRouteId,
 } from '../../src/reference/domain/routes';
 
 describe('normalizeRoute', () => {
@@ -117,6 +118,48 @@ describe('referenceRoutes', () => {
       '/docs/schema/:schemaId',
       '/docs/:nodeId',
     ]);
+  });
+
+  /**
+   * The totality the case above cannot state, added by the pre-M4 review.
+   *
+   * That case pins seventeen patterns and would stay green with an eighteenth route id in the
+   * union and no pattern registered for it. The dispatch in `reference.service.ts` is a switch
+   * with no default, so a new id fails to compile there and the handler half is safe; nothing
+   * held the registration half, which is an array a person writes by hand. An id with no pattern
+   * is a route the service can answer and no router will ever call, which reads as a 404 from a
+   * mounted module: working, wrong, and nothing goes red. The record below is total over
+   * `ReferenceRouteId`, so a new id does not compile until it is listed here and then fails this
+   * case until it is registered.
+   */
+  it('should register a pattern for every route id the union carries', () => {
+    // Given the union, spelled out once
+    const everyId: Record<ReferenceRouteId, true> = {
+      overview: true,
+      'openapi-json': true,
+      'openapi-yaml': true,
+      asset: true,
+      'search-index': true,
+      navigation: true,
+      status: true,
+      health: true,
+      bench: true,
+      shapes: true,
+      states: true,
+      service: true,
+      'oauth-callback': true,
+      proxy: true,
+      schema: true,
+      node: true,
+    };
+
+    // When
+    const registered = new Set(referenceRoutes('/docs').map((route) => route.id));
+
+    // Then
+    expect(Object.keys(everyId).filter((id) => !registered.has(id as ReferenceRouteId))).toEqual(
+      [],
+    );
   });
 
   it('should carry no wildcard, since the three routers spell one differently', () => {

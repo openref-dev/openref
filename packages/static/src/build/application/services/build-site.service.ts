@@ -17,7 +17,7 @@
  * would report zero for the wrong reason.
  */
 
-import { sha256Hex, type IRDocument } from '@openref/core';
+import { proxyServers, sha256Hex, type IRDocument } from '@openref/core';
 import {
   APP_ROOT_ID,
   buildAssetCatalog,
@@ -155,7 +155,10 @@ export async function buildSite(options: BuildSiteOptions): Promise<BuildReport>
   // page bytes and in the manifest's applicability. No target plans to nothing, unchanged.
   const proxy: ProxyPlan = planProxy({
     target: options.proxy?.target ?? 'none',
-    servers: document.servers,
+    // DOCUMENT SERVERS UNIONED WITH NODE SERVERS, per SPEC 14.5 as amended before M4. It was
+    // `document.servers` alone until the pre-M4 review, so a document that overrode `servers` on
+    // an operation built a site whose proxy refused the address the served mode admits.
+    servers: proxyServers(document),
     basePath: base.basePath,
     forwardCookies: options.proxy?.forwardCookies ?? false,
   });

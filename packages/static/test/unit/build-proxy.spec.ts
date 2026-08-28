@@ -58,6 +58,44 @@ describe('buildSite, proxy generation', () => {
     expect(manifest?.files).toContain('_redirects');
   });
 
+  /**
+   * The half of SPEC 14.5's server set this build had never read, found by the pre-M4 review.
+   *
+   * OpenAPI lets an operation override `servers`, `@openref/nest` has unioned document level and
+   * node level servers into its allowlist since T029, and nothing said so anywhere: this build
+   * planned its upstreams from `document.servers` alone. The failure is a built site whose console
+   * refuses the one address the operation declares for itself, on a document the served mode
+   * handles, so the two modes of one product disagree about what the document means. SPEC 14.5
+   * carries the rule now, and `proxyServers` in `@openref/core` is the one place either side asks.
+   */
+  it('should pin an upstream an operation declares for itself, not only the document ones', async () => {
+    // Given a document whose second operation overrides servers, which SPEC 14.5 admits
+    const { report } = await build({
+      document: miniDocument({
+        servers: SERVED,
+        pongServers: [{ url: 'https://events.example.com/stream' }],
+      }),
+      proxy: { target: 'netlify' },
+    });
+
+    // Then both are pinned, document level first, in document order
+    expect(report.proxy?.upstreams).toEqual([
+      'https://api.example.com/v1',
+      'https://events.example.com/stream',
+    ]);
+  });
+
+  it('should pin one upstream for a server two places declare, since it is one address', async () => {
+    // Given the same url at both levels
+    const { report } = await build({
+      document: miniDocument({ servers: SERVED, pongServers: SERVED }),
+      proxy: { target: 'netlify' },
+    });
+
+    // Then
+    expect(report.proxy?.upstreams).toEqual(['https://api.example.com/v1']);
+  });
+
   it('should write nothing and report null when no target was given, as before T040', async () => {
     // Given
     const { store, report } = await build({ document: miniDocument({ servers: SERVED }) });

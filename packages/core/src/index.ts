@@ -292,6 +292,7 @@ export type {
   IRDoctorFinding,
   IRDoctorReport,
 } from './drift/domain/doctor-report';
+export { proxyServers } from './ir/domain/proxy-servers';
 export { buildDiffReport } from './diff/domain/diff-report';
 export type {
   IRDiffChange,

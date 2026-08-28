@@ -23,6 +23,7 @@ import {
   IR_VERSION,
   normalizeOpenApiDocument,
   parseSpecification,
+  proxyServers,
   ProxyBlockedError,
   type IRDocument,
 } from '@openref/core';
@@ -764,10 +765,11 @@ function assertThemePair(theme?: OpenRefThemeOptions): void {
 function buildProxy(document: IRDocument, options?: ProxyOptions): ProxyService | null {
   if (options?.enabled !== true) return null;
 
-  const servers = [
-    ...document.servers.map((server) => server.url),
-    ...[...document.nodes.values()].flatMap((node) => node.servers.map((server) => server.url)),
-  ];
+  // THE UNION OF DOCUMENT AND NODE SERVERS, and since the pre-M4 review it is `proxyServers` in
+  // `@openref/core` rather than this expression, because `@openref/static` was pinning its own
+  // upstreams from `document.servers` alone and refusing what this admitted. SPEC 14.5 carries
+  // the rule now; it was a real guarantee with no line anywhere before.
+  const servers = proxyServers(document).map((server) => server.url);
 
   return new ProxyService({
     allowlist: buildAllowlist(servers),

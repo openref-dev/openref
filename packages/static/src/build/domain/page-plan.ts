@@ -100,6 +100,34 @@ function fileOf(segments: readonly string[]): string {
 }
 
 /**
+ * How many pages each kind produces, as a total record over `PageKind`.
+ *
+ * WRITTEN DOWN BY THE PRE-M4 REVIEW, WHICH FOUND THREE HAND KEPT LISTS AND NO TIE BETWEEN THEM:
+ * sixteen route ids in `@openref/nest`, seven kinds in this union, and seven `add` calls below.
+ * The three agree today and nothing made them. A kind added to `PageKind` compiles here without
+ * a call, and the build then serves a site the renderer can produce a page for and the plan never
+ * writes: every link to it is a 404 in a directory nobody notices is missing, which is the
+ * quietest failure this package has. This record does not compile until a new kind is placed, and
+ * `page-plan.spec.ts` holds the plan to it over a document that carries one of everything.
+ *
+ * `once` is one page per document, `per-node` one per node, `per-operation` one per operation
+ * node, `per-schema` one per named schema. A kind that a build deliberately does not write would
+ * be `never` with its reason beside it; there is none today, and the point of the word existing
+ * is that leaving a kind out has to be a sentence somebody wrote.
+ */
+export const PAGE_KIND_CARDINALITY: Readonly<
+  Record<PageKind, 'once' | 'per-node' | 'per-operation' | 'per-schema' | 'never'>
+> = {
+  overview: 'once',
+  health: 'once',
+  states: 'once',
+  node: 'per-node',
+  bench: 'per-operation',
+  schema: 'per-schema',
+  shapes: 'per-schema',
+};
+
+/**
  * Plans every page of one document.
  *
  * @param document - The normalized document
