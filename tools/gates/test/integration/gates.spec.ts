@@ -813,16 +813,30 @@ describe('the gates that read ai-docs', () => {
     // UNVALIDATED rather than printing the entry as if it had been checked. That branch is
     // unreachable while the list is empty, exactly as it was before 2026-08-11, because the
     // gate reads the committed list rather than an injected one; the next entry written makes
-    // it reachable and this case is where its assertions then return. With the list empty, as
-    // it is since the close of M2, the gate needs no plan and passes, which is why
-    // `budget-exceptions` is permitted this reason and not forced by it.
-    const empty = mkdtempSync(join(tmpdir(), 'openref-nodocs-'));
-    const exceptions = await budgetExceptionsGate.run({ repoRoot: empty });
-    rmSync(empty, { recursive: true, force: true });
+    // it reachable and this case is where its assertions then return.
+    //
+    // WITH THE LIST EMPTY THE GATE NEEDS NO PLAN, WHICH IS WHY IT IS PERMITTED THIS REASON AND
+    // NOT FORCED BY IT, AND SINCE T042 THAT IS NOT THE SAME AS NEEDING NOTHING. This case used to
+    // run the gate over an empty temporary directory and assert it passed, which is the hole T035
+    // filed: the empty list branch returned before anything was weighed, so a run with no build
+    // in it reported that every SPEC 20 budget was inside its limit having weighed none of them.
+    // The two directions are apart now. Over the repository, where the artefacts are, the empty
+    // list still passes with no plan consulted; over a directory with nothing in it, it fails and
+    // says it looked at nothing.
+    const exceptions = await budgetExceptionsGate.run({ repoRoot });
     const printed = exceptions.findings.map((finding) => finding.message).join('\n');
 
     expect(exceptions.status).toBe('pass');
     expect(printed).toContain('no budget is excepted');
+
+    const empty = mkdtempSync(join(tmpdir(), 'openref-nodocs-'));
+    const unweighed = await budgetExceptionsGate.run({ repoRoot: empty });
+    rmSync(empty, { recursive: true, force: true });
+
+    expect(unweighed.status).toBe('fail');
+    expect(unweighed.findings.map((finding) => finding.message).join('\n')).toContain(
+      'looked at nothing rather than finding nothing wrong',
+    );
 
     // And the record of what closed is still printed and still checked, because neither depends
     // on a document outside this package. It was dropped on this branch until 2026-08-11, when

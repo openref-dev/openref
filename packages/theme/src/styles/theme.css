@@ -2132,7 +2132,7 @@ button.oref-schema-row:hover {
   margin-block-end: var(--oref-space-600);
 }
 
-/* The list the three palette notices assume, supplied by the catalogue. */
+/* The list the four palette notices assume, supplied by the catalogue. */
 .oref-states-list {
   list-style: none;
   margin: 0;

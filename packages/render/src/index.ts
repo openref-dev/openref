@@ -129,6 +129,7 @@ export type {
   RuntimeValueModel,
   SchemaPageModel,
   SecurityModel,
+  StaticProxyModel,
 } from '@openref/vue';
 // THE THEME CONTRACT TYPES RIDE THE SAME RE-EXPORT, since T033: `@openref/nest` takes a theme
 // as an option and its one upstream for renderer shapes is this package, not `@openref/vue`.
@@ -185,6 +186,8 @@ export {
   PROXY_SEGMENT,
   SCHEMA_SEGMENT,
   schemaHref,
+  SEARCH_INDEX_SEGMENT,
+  searchIndexHref,
   SHAPES_SEGMENT,
   shapesHref,
   STATES_SEGMENT,

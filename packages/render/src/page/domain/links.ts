@@ -105,6 +105,28 @@ export function navigationHref(documentHash: string, basePath = ''): string {
   return `${basePath}/${NAVIGATION_SEGMENT}/${encodeURIComponent(documentHash)}`;
 }
 
+/** Segment under which the full text index of SPEC 11 is served, per the table of SPEC 13.3. */
+export const SEARCH_INDEX_SEGMENT = '_search-index';
+
+/**
+ * Where the full text index is fetched from.
+ *
+ * NOT ADDRESSED BY DOCUMENT HASH, unlike {@link navigationHref}, and that is a fact about the
+ * two producers rather than a choice made here: the route `@openref/nest` registers and the file
+ * a static build writes are both one address per mount, per SPEC 13.3 and SPEC 16. So the
+ * response cannot be trusted from its url the way a hash addressed one can, and the page checks
+ * the hash the index carries against its own instead. See `readSearchIndex` in `search-source.ts`.
+ *
+ * THE ADDRESS IS RELATIVE AND THE HOST NAME HAS NOWHERE TO ENTER, which is how SPEC 19.4 holds
+ * here: the only input is the mount point the page was served under.
+ *
+ * @param basePath - Where the reference is mounted, without a trailing slash
+ * @returns Absolute path of the search index
+ */
+export function searchIndexHref(basePath = ''): string {
+  return `${basePath}/${SEARCH_INDEX_SEGMENT}`;
+}
+
 /**
  * Segment of the proxy, the dynamic one of SPEC 14.5 and the static rules of SPEC 16.2 alike.
  *

@@ -24,10 +24,16 @@ import { createSSRApp, h } from 'vue';
 import { APP_ROOT_ID, ReferenceApp } from '../components/ReferenceApp';
 import { DEFERRABLE_KEY } from '../components/deferrable';
 import { deferredComponents } from './deferred';
-import { navigationHref } from '../page/domain/links';
+import { navigationHref, searchIndexHref } from '../page/domain/links';
 import { readNavigationPayload, type NavigationLoader } from '../page/domain/nav-source';
 import { STATE_ELEMENT_ID } from '../page/domain/shell';
 import type { PageModel } from '../page/domain/page-model';
+import type {
+  SearchIndexLoader,
+  SearchIndexPort,
+  SearchIndexSource,
+  SearchLoader,
+} from '../page/domain/search-source';
 
 /**
  * The tree hydration works in: a document, or since T033 a shadow root.
@@ -80,6 +86,24 @@ export interface HydrateOptions {
    */
   readonly loadNavigation?: NavigationLoader;
   /**
+   * The full text index of SPEC 11, built only if the palette is opened.
+   *
+   * `loadRunner`'S SHAPE, FOR `loadRunner`'S REASON. STANDARDS 3.5 gives this package no edge to
+   * `@openref/search`, so the index cannot be imported here any more than the runner can, and
+   * whoever composes the entry supplies it: `@openref/nest` for a served reference, through a
+   * dynamic import, so MiniSearch and the loader travel in a chunk no first paint compiles.
+   *
+   * THE FETCH IS THIS PACKAGE'S AND THE PARSE IS THEIRS, which is the one difference from the
+   * runner. The address is the reader's own origin under the mount point, per SPEC 19.4, and
+   * this module is where `basePath` is known, so it is fetched here and the body handed over.
+   * A host that serves the index from somewhere else replaces the whole seam rather than being
+   * told a path.
+   *
+   * Absent leaves the palette matching navigation labels and hints, which is a working palette
+   * and was the only one until T042.
+   */
+  readonly loadSearch?: SearchIndexLoader;
+  /**
    * The theme in force, whose slot overrides this page resolves.
    *
    * IT HAS TO BE THE SAME THEME THE SERVER RENDERED WITH. A position drawn by an override on the
@@ -113,6 +137,33 @@ function fetchNavigation(page: PageModel, basePath: string): NavigationLoader {
 
     return readNavigationPayload(await response.json(), page.documentHash);
   };
+}
+
+/**
+ * The index, from this page's own origin: `fetchNavigation`'s shape and its guarantee.
+ *
+ * SAME ORIGIN BY CONSTRUCTION AGAIN. The only input is the mount point the page was served
+ * under, so there is nowhere for a host name to enter and SPEC 19.4 holds wherever the
+ * reference is mounted. Nothing calls this on load: it runs the first time a reader opens the
+ * palette, which is the boundary SPEC 14.4.1 draws.
+ *
+ * The body is returned as text rather than parsed, because what parses it is the index loader
+ * in the host's chunk, and it checks a version this package must not have an opinion about.
+ *
+ * @param basePath - Where the reference is mounted
+ * @returns The serialized index
+ */
+async function fetchSearchIndex(basePath: string): Promise<string> {
+  const response = await fetch(searchIndexHref(basePath), {
+    headers: { accept: 'application/json' },
+    credentials: 'same-origin',
+  });
+
+  if (!response.ok) {
+    throw new Error(`the search index answered ${String(response.status)}`);
+  }
+
+  return response.text();
 }
 
 /**
@@ -175,12 +226,33 @@ export function hydrateReference(options: HydrateOptions = {}): boolean {
   } catch {
     // Keep the raw fragment: percent signs a reader typed by hand are still a valid path guess.
   }
+  // THE PAGE'S FACTS ARE BOUND HERE AND THE PALETTE IS HANDED A FUNCTION OF NO ARGUMENTS, which
+  // is what `loadRunner` does one paragraph below and for the same reason: this function is what
+  // holds the model and the mount point, and neither the palette nor its store has any business
+  // knowing how an index is addressed.
+  const loadIndex = options.loadSearch;
+  const loadSearch: SearchLoader | undefined =
+    loadIndex === undefined
+      ? undefined
+      : async () =>
+          loadIndex({
+            documentHash: page.documentHash,
+            serialized: await fetchSearchIndex(basePath),
+          });
+
   const app = createSSRApp({
     name: 'OrefClientRoot',
     setup() {
       provideSlots(slots);
 
-      return () => h(ReferenceApp, { page, basePath, loadNavigation, anchor });
+      return () =>
+        h(ReferenceApp, {
+          page,
+          basePath,
+          loadNavigation,
+          anchor,
+          ...(loadSearch === undefined ? {} : { loadSearch }),
+        });
     },
   });
 
@@ -226,6 +298,9 @@ export function hydrateReference(options: HydrateOptions = {}): boolean {
 
 export { APP_ROOT_ID, ReferenceApp, STATE_ELEMENT_ID };
 export type { PageModel };
+// The search seam, for whoever composes an entry: a host supplying `loadSearch` needs the shape
+// it is handed and the shape it must return, and both are declared once, in `search-source.ts`.
+export type { SearchIndexLoader, SearchIndexPort, SearchIndexSource };
 // The theme contract type rides along for whoever composes an entry, per T033: a themed entry
 // hands `hydrateReference` a definition, and this surface is the one it imports from.
 export type { ThemeDefinition };

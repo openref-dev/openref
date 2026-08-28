@@ -27,6 +27,9 @@ import {
 /** SPEC 20: search index, 1000 nodes, gzip. */
 const INDEX_BUDGET_BYTES = 250 * 1024;
 
+/** SPEC 20: the same index in the bytes a client parses, added at T042. */
+const INDEX_RAW_BUDGET_BYTES = 1024 * 1024;
+
 function documentWith(operations: readonly Record<string, unknown>[]): IRDocument {
   const paths: Record<string, unknown> = {};
   for (const operation of operations) {
@@ -175,6 +178,24 @@ describe('buildSearchIndex', () => {
     // operation; the fixture sits at the 1.75 the three largest documents average.
     expect(index.documentCount).toBe(2750);
     expect(compressed).toBeLessThanOrEqual(INDEX_BUDGET_BYTES);
+  }, 120_000);
+
+  it('should stay at or under 1 MB raw for 1000 nodes, which is the cap that binds', () => {
+    // Given the same document, and the second question the row above cannot answer. The gzip cap
+    // bounds what a reader downloads; this bounds what the engine parses, and the two differ by a
+    // factor of 5.34 here. The T039 amendment filed this against whoever first serves the index
+    // into a page, and until T042 nothing did, which is the only reason it was latent.
+    const document = largeDocument(1000);
+
+    // When
+    const index = buildSearchIndex(document);
+    const raw = Buffer.byteLength(index.serialized, 'utf8');
+
+    // Then, measured 946,269 raw bytes at T042 against the 1 MB cap derived from it, which leaves
+    // 102,307 bytes for ordinary work. At the current ratio this is the tighter of the two: an
+    // index sitting on the 250 KB transfer cap would be about 1.37 MB for a client to parse.
+    expect(index.documentCount).toBe(2750);
+    expect(raw).toBeLessThanOrEqual(INDEX_RAW_BUDGET_BYTES);
   }, 120_000);
 });
 

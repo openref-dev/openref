@@ -45,6 +45,7 @@ import {
   type RememberedOperation,
 } from '../page/api/remembered';
 import type { NavigationLoader } from '../page/domain/nav-source';
+import type { SearchLoader } from '../page/domain/search-source';
 import type { PageModel } from '@openref/vue';
 
 /** Element the client mounts on, and the id the shell writes. */
@@ -68,6 +69,14 @@ export const ReferenceApp = defineComponent({
      * `hydrateReference`, and a page with none keeps the navigation it shipped with.
      */
     loadNavigation: { type: Function as PropType<NavigationLoader>, default: undefined },
+    /**
+     * How the full text index is reached, for the palette and for nothing else.
+     *
+     * ABSENT ON THE SERVER for `loadNavigation`'s reason, and passed straight through rather
+     * than used here: the store it builds belongs in the palette's chunk, per SPEC 20, and this
+     * position is in the first paint of every page.
+     */
+    loadSearch: { type: Function as PropType<SearchLoader>, default: undefined },
     /**
      * The reader's fragment, already decoded, for the schema page's field anchors.
      *
@@ -305,6 +314,8 @@ export const ReferenceApp = defineComponent({
               h(deferrable.commandPalette, {
                 entries: page.navigation,
                 basePath: props.basePath,
+                documentHash: page.documentHash,
+                loadSearch: props.loadSearch,
               }),
             ],
             default: () => [content(page, deferrable.healthPanel)],

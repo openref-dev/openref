@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import type { IRDocument } from '@openref/core';
-import { APP_ROOT_ID } from '@openref/render';
-import { buildSite, BUILD_MANIFEST_FILE, readManifest, type BuildReport } from '../../src/index';
+import { APP_ROOT_ID, searchIndexHref, SEARCH_INDEX_SEGMENT } from '@openref/render';
+import {
+  buildSite,
+  BUILD_MANIFEST_FILE,
+  readManifest,
+  SEARCH_INDEX_FILE,
+  type BuildReport,
+} from '../../src/index';
 import { fixtureAssets, MemoryOutputStore, miniDocument } from '../mocks/documents';
 
 /**
@@ -88,7 +94,7 @@ describe('buildSite, determinism', () => {
     expect(JSON.parse(String(payload))).toMatchObject({ documentHash: document.hash });
   });
 
-  it('should write the search index as one file', async () => {
+  it('should write the search index as one file, at the address the page fetches', async () => {
     // Given
     const { store } = await build({ document: miniDocument() });
 
@@ -98,6 +104,13 @@ describe('buildSite, determinism', () => {
     // Then
     expect(typeof index).toBe('string');
     expect(JSON.parse(String(index))).toHaveProperty('version');
+
+    // AND THE NAME IS THE ONE CONSTANT AND NOT A COPY THAT MATCHES TODAY, per T042. The file a
+    // build writes, the route `@openref/nest` registers and the href the palette fetches were
+    // three unconnected literals; a drift in any of them serves a 404 to a palette that fails
+    // open, so the page goes on working with no full text search and nothing goes red.
+    expect(SEARCH_INDEX_FILE).toBe(SEARCH_INDEX_SEGMENT);
+    expect(`/${SEARCH_INDEX_FILE}`).toBe(searchIndexHref());
   });
 
   it('should name every asset by the digest of its bytes', async () => {
@@ -322,7 +335,10 @@ describe('buildSite, the manifest', () => {
       string,
       unknown
     >;
-    expect(manifest.version).toBe(2);
+    // 3 SINCE `T042`, when the manifest gained `staticProxy`. The literal is pinned rather than
+    // read from the constant so that a bump has to be noticed here, which is the whole point of
+    // a version a reader can refuse.
+    expect(manifest.version).toBe(3);
     manifest.version = 99;
 
     // When

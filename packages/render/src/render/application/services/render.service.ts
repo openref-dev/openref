@@ -29,7 +29,7 @@ import {
   PAGE_MODEL_VERSION,
   type PageModel,
 } from '../../../page/domain/page-model';
-import type { NodeModel } from '@openref/vue';
+import type { NodeModel, StaticProxyModel } from '@openref/vue';
 
 /**
  * Version of the markup this package produces.
@@ -119,6 +119,32 @@ export interface RenderPageOptions {
    * the reason `proxyPath` is: a warned page and an unwarned one are two pages.
    */
   readonly directTarget?: string;
+  /**
+   * The generated proxy rules of SPEC 16.2, per `T042`: where they live and what they are
+   * pinned to.
+   *
+   * Written into the page model so the runner factory in the browser can choose the path rewrite
+   * transport. Set by the static build and by nothing else. Part of the cache key for the reason
+   * `proxyPath` is, and with more of a claim to it: two builds of one document under two targets
+   * pin different rules, and a page addressed at the wrong `u<N>` reaches the wrong API.
+   */
+  readonly staticProxy?: StaticProxyModel;
+}
+
+/**
+ * The cache key component of the generated proxy, unambiguous by construction.
+ *
+ * JSON RATHER THAN A JOIN, because an upstream carries colons and the key is colon separated: a
+ * prefix and a list joined in by hand would let two different builds spell one key. Nothing reads
+ * this back, so a shape that cannot be confused is worth more than one that can be read.
+ *
+ * @param staticProxy - The rules this build wrote, or undefined for a build with none
+ * @returns The key component, empty when there are no rules
+ */
+function staticProxyKey(staticProxy: StaticProxyModel | undefined): string {
+  return staticProxy === undefined
+    ? ''
+    : JSON.stringify([staticProxy.prefix, ...staticProxy.upstreams]);
 }
 
 /**
@@ -132,6 +158,7 @@ export interface RenderPageOptions {
  * @param proxyPath - Proxy endpoint the page carries, empty for none
  * @param page - Which page, since `TX-FRAME`: a node and its bench are two pages of one node
  * @param directTarget - Platform name of the direct mode warning, since `T040`, empty for none
+ * @param staticProxy - The generated rules this build wrote, since `T042`, empty for none
  * @returns A key that changes whenever the bytes could
  */
 export function renderCacheKey(
@@ -143,9 +170,10 @@ export function renderCacheKey(
   proxyPath = '',
   page = '',
   directTarget = '',
+  staticProxy = '',
 ): string {
   const versions = `${String(IR_VERSION)}.${String(PAGE_MODEL_VERSION)}.${String(RENDER_VERSION)}`;
-  return `oref:${versions}:${documentHash}:${basePath}:${nodeId ?? ''}:${schemaId ?? ''}:${themeName}:${proxyPath}:${page}:${directTarget}`;
+  return `oref:${versions}:${documentHash}:${basePath}:${nodeId ?? ''}:${schemaId ?? ''}:${themeName}:${proxyPath}:${page}:${directTarget}:${staticProxy}`;
 }
 
 /**
@@ -202,6 +230,11 @@ async function markdownFor(options: RenderPageOptions): Promise<IMarkdownRendere
  * kind keeps the frame, the navigation and the schema payload the islands expand from. Every
  * emptied field is emptied to a type honest value, never to a lie a component would branch on:
  * the client walks `drawn` and never recomputes a condition over a redacted field.
+ *
+ * `staticProxy` IS A FIELD THAT MUST CROSS, since `T042`, and it is named here among the
+ * redactions for that reason. It is not something a server drew: it is the address the console
+ * sends to, read in the browser by the runner factory, so emptying it would leave a page whose
+ * rewrite rules exist and whose console cannot find them, which is the debt the field pays.
  *
  * @param model - The page model
  * @returns JSON in the order the model was built in, with the server drawn parts emptied
@@ -332,6 +365,7 @@ export async function renderPage(
     options.proxyPath ?? '',
     options.page ?? '',
     options.directTarget ?? '',
+    staticProxyKey(options.staticProxy),
   );
 
   const cached = await options.cache?.get(key);
@@ -347,6 +381,7 @@ export async function renderPage(
     basePath,
     ...(options.proxyPath === undefined ? {} : { proxyPath: options.proxyPath }),
     ...(options.directTarget === undefined ? {} : { directTarget: options.directTarget }),
+    ...(options.staticProxy === undefined ? {} : { staticProxy: options.staticProxy }),
   });
   const app = createSSRApp({
     name: 'OrefServerRoot',

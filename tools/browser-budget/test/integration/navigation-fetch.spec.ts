@@ -22,6 +22,7 @@ import {
   TTI_NODE_COUNT,
   TTI_PAGE,
 } from '../../src/index';
+import type { IRDocument } from '@openref/core';
 import type { BootedFixture, LaunchedChrome } from '../../src/index';
 import type { Page, Request } from 'playwright-core';
 
@@ -100,6 +101,69 @@ function external(session: Session): string[] {
   return session.requests.filter((url) => !url.startsWith(fixture.url) && !url.startsWith('data:'));
 }
 
+/** A word the full text index can answer and no navigation row can, with who answers it. */
+interface IndexOnlyWord {
+  readonly word: string;
+  /** Ids of the operations whose description carries it. */
+  readonly ids: readonly string[];
+}
+
+/**
+ * Finds a word that lives only where a full text index can see it.
+ *
+ * WHY IT IS DERIVED AND NOT WRITTEN OUT, which is the finding the case above already records
+ * about `/resource-742`: a literal that stops existing when the fixture changes turns this case
+ * into a query that matches nothing, and a query that matches nothing looks exactly like an
+ * index that never arrived.
+ *
+ * A navigation row carries a label and a `METHOD /path` hint, and `searchNavigation` matches
+ * substrings of those two fields alone. So a word that is a substring of no label, no hint and no
+ * schema name cannot be produced by the palette's fallback search at all, whatever the navigation
+ * holds by the time the reader types.
+ *
+ * THE IDS ARE THE IR'S AND NOT THE DOCUMENT'S, because the address a hit links to is built from
+ * `IRNode.id`, which is derived per SPEC 5.4 and is not the author's `operationId`.
+ *
+ * @param document_ - The fixture document, normalized, which is what the server serves
+ * @param schemaNames - Schema names, which are navigation rows of their own
+ * @returns The word and the ids of the operations whose description carries it
+ */
+function indexOnlyWord(document_: IRDocument, schemaNames: readonly string[]): IndexOnlyWord {
+  const rowText: string[] = schemaNames.map((name) => name.toLowerCase());
+  const described: { readonly id: string; readonly words: readonly string[] }[] = [];
+
+  for (const node of document_.nodes.values()) {
+    if (node.kind !== 'operation') continue;
+
+    rowText.push(
+      `${node.summary ?? ''} ${node.method} ${node.path} ${node.tags.join(' ')}`.toLowerCase(),
+    );
+    described.push({
+      id: node.id,
+      words: (node.description ?? '')
+        .toLowerCase()
+        .split(/[^a-z]+/u)
+        .filter((word) => word.length >= 7),
+    });
+  }
+
+  const rows = rowText.join('\n');
+  const counted = new Map<string, string[]>();
+
+  for (const { id, words } of described) {
+    for (const word of words) {
+      if (rows.includes(word)) continue;
+      counted.set(word, [...(counted.get(word) ?? []), id]);
+    }
+  }
+
+  for (const [word, ids] of counted) {
+    if (ids.length > 0) return { word, ids };
+  }
+
+  throw new Error('the fixture carries no description word outside its navigation rows');
+}
+
 describe('a cold page of the thousand node document', () => {
   it(
     'should open a closed group by asking its own origin, and nobody else',
@@ -164,6 +228,63 @@ describe('a cold page of the thousand node document', () => {
         expect(first).toContain(id);
 
         // And again, nothing left the origin
+        expect(external(session)).toEqual([]);
+      } finally {
+        await session.close();
+        expect(session.violations).toEqual([]);
+      }
+    },
+    TIMEOUT,
+  );
+
+  it(
+    'should fetch the search index on the first open and answer from it, in a real browser',
+    async () => {
+      // Given the second fetch a palette makes, which had no browser proof until this case: the
+      // claim map cited a jsdom suite driving a loader the test wrote, plus this file, which
+      // asserted nothing about the index at all. What runs here is the shipped bundle against the
+      // shipped server, under the strict policy, with the wire watched.
+      const specification = largeSpecification(TTI_NODE_COUNT);
+      const document_ = normalizeOpenApiDocument(specification);
+      const schemaNames = Object.keys(
+        ((specification.components ?? {}) as { schemas?: Record<string, unknown> }).schemas ?? {},
+      );
+      const { word, ids } = indexOnlyWord(document_, schemaNames);
+
+      // THE CONTROL IS THE FIXTURE ITSELF, per SPEC 0: the word is asserted to be outside every
+      // field the fallback search can read before the browser is asked to find it, so a hit
+      // cannot have come from the navigation rows whatever they hold by then.
+      const rows = [...document_.nodes.values()]
+        .map((node) => `${node.summary ?? ''} ${'path' in node ? node.path : ''}`.toLowerCase())
+        .join('\n');
+      expect(rows).not.toContain(word);
+      expect(schemaNames.join(' ').toLowerCase()).not.toContain(word);
+      expect(ids.length).toBeGreaterThan(0);
+
+      const session = await open('/docs');
+
+      try {
+        // Nothing is asked for by a page nobody has touched, which is the SPEC 19.4 boundary
+        expect(session.requests.some((url) => url.includes('_search-index'))).toBe(false);
+
+        // When the reader opens the palette and types the word
+        await session.page.locator('.oref-palette-open').click();
+        await session.page.locator('.oref-palette-input').fill(word);
+
+        // Then the index was fetched, from this origin, under the mount point the page was
+        // served at and nowhere else
+        await expect
+          .poll(() => session.requests.filter((url) => url.includes('_search-index')), {
+            timeout: 30_000,
+          })
+          .toEqual([`${fixture.url}/docs/_search-index`]);
+
+        // And the page answers with an operation only the index could have found
+        await session.page.waitForSelector('.oref-palette-hit', { timeout: 30_000 });
+        const href = await session.page.locator('.oref-palette-link').first().getAttribute('href');
+        expect(ids.some((id) => (href ?? '').includes(encodeURIComponent(id)))).toBe(true);
+
+        // And nothing left the origin to make either of those happen
         expect(external(session)).toEqual([]);
       } finally {
         await session.close();

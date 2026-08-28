@@ -8,6 +8,7 @@ import {
   boundDirectionOfCell,
   checkClaimFigures,
   checkClaimMap,
+  checkClaimQuotes,
   compareBudgetValues,
   parseBudgetRows,
   parseClaimMap,
@@ -58,6 +59,7 @@ const proved = (id: string, proofs: string[] = ['test/a.spec.ts']): ClaimMapRow 
   text: 'bounds',
   proofs,
   status: 'proved',
+  quoted: '',
 });
 
 const scheduled = (id: string, status: string): ClaimMapRow => ({
@@ -65,6 +67,7 @@ const scheduled = (id: string, status: string): ClaimMapRow => ({
   text: 'bounds',
   proofs: [],
   status,
+  quoted: '',
 });
 
 describe('parseSecurityClaims', () => {
@@ -183,7 +186,7 @@ describe('checkClaimMap', () => {
     // Given, because either the file proves it, and then it is proved, or it does not belong
     const map = [
       proved('19.1'),
-      { id: '19.2', text: 'bounds', proofs: ['test/a.spec.ts'], status: 'T029' },
+      { id: '19.2', text: 'bounds', proofs: ['test/a.spec.ts'], status: 'T029', quoted: '' },
       proved('client-js'),
       proved('tti'),
     ];
@@ -379,12 +382,14 @@ describe('checkClaimFigures, planted with the send pair T031 found in the map', 
         text: 'What a press on Send downloads, gzip, 18,700 bytes',
         proofs: ['test/a.spec.ts'],
         status: 'proved',
+        quoted: '',
       },
       {
         id: 'client-js-send-raw',
         text: 'The same chunks, raw, 53,600 bytes',
         proofs: ['test/a.spec.ts'],
         status: 'proved',
+        quoted: '',
       },
     ];
 
@@ -406,6 +411,7 @@ describe('checkClaimFigures, planted with the send pair T031 found in the map', 
         text: 'Default theme CSS, raw, 61 KB since TX-SHAPES, was 56 KB',
         proofs: ['test/a.spec.ts'],
         status: 'proved',
+        quoted: '',
       },
     ];
 
@@ -503,6 +509,98 @@ describe('the direction a SPEC 20 threshold cell states', () => {
     );
 
     // Then nothing is reported
+    expect(issues).toEqual([]);
+  });
+});
+
+describe('checkClaimQuotes, planted with the rewrite T035 measured going through', () => {
+  const claims = [
+    {
+      id: '19.9',
+      text: 'Прокси статики не принимает целевой адрес от клиента ни при каких условиях',
+    },
+  ];
+
+  const row = (overrides: Partial<ClaimMapRow> = {}): ClaimMapRow => ({
+    id: '19.9',
+    text: 'The static proxy never takes a target address from the client',
+    proofs: ['packages/static/test/unit/proxy-runners.spec.ts'],
+    status: 'proved',
+    quoted: 'Прокси статики не принимает целевой адрес от клиента ни при каких условиях',
+    ...overrides,
+  });
+
+  it('should be silent when the row quotes the promise as the specification writes it', () => {
+    // Given
+    const map = [row()];
+
+    // When
+    const issues = checkClaimQuotes(claims, map);
+
+    // Then
+    expect(issues).toEqual([]);
+  });
+
+  it('should fail when the promise is rewritten to say the opposite of what it said', () => {
+    // Given the rewrite T035 measured: the specification now promises the reverse, the id is
+    // unchanged, and before T042 every check in this gate stayed green.
+    const rewritten = [{ id: '19.9', text: 'Прокси статики принимает целевой адрес от клиента' }];
+
+    // When
+    const issues = checkClaimQuotes(rewritten, [row()]);
+
+    // Then
+    expect(issues.map((issue) => issue.rule)).toEqual(['claim-text-drift']);
+    expect(issues[0]?.message).toContain('now reads');
+  });
+
+  it('should fail when the numbered list is reordered under the ids', () => {
+    // Given the second half of the same defect: nothing was rewritten, item nine is now item
+    // three, and every id from there down answers a promise it was never written for.
+    const reordered = [{ id: '19.9', text: 'Ноль телеметрии' }];
+
+    // When
+    const issues = checkClaimQuotes(reordered, [row()]);
+
+    // Then
+    expect(issues.map((issue) => issue.rule)).toEqual(['claim-text-drift']);
+  });
+
+  it('should fail a row that quotes nothing, since an id alone is only an ordinal', () => {
+    // Given
+    const map = [row({ quoted: '' })];
+
+    // When
+    const issues = checkClaimQuotes(claims, map);
+
+    // Then
+    expect(issues.map((issue) => issue.rule)).toEqual(['claim-unquoted']);
+  });
+
+  it('should hold every lettered part of a split claim to the whole promise', () => {
+    // Given a claim split across milestones. Splitting divides the proof, not the promise, so a
+    // promise that moves has to fail every part rather than the first one.
+    const parts = [row({ id: '19.9a' }), row({ id: '19.9b', quoted: 'что-то другое' })];
+
+    // When
+    const issues = checkClaimQuotes(claims, parts);
+
+    // Then
+    expect(issues.map((issue) => issue.rule)).toEqual(['claim-text-drift']);
+    expect(issues[0]?.message).toContain('19.9b');
+  });
+
+  it.skipIf(!HAVE_AI_DOCS)('should find every committed row quoting its own promise', () => {
+    // Given the real documents, which is what the gate runs on
+    const spec = readFileSync(join(repoRoot, SPEC_FILE), 'utf8');
+    const map = readFileSync(join(repoRoot, CLAIM_MAP_FILE), 'utf8');
+
+    // When
+    const rows = parseClaimMap(map);
+    const issues = checkClaimQuotes(parseSecurityClaims(spec), rows);
+
+    // Then the check reached the rows before it found them clean
+    expect(rows.filter((entry) => entry.quoted !== '')).toHaveLength(16);
     expect(issues).toEqual([]);
   });
 });

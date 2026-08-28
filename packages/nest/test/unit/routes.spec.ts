@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { InvalidOptionsError } from '@openref/core';
-import { assetHref, normalizeRoute, referenceRoutes } from '../../src/reference/domain/routes';
+import { searchIndexHref, SEARCH_INDEX_SEGMENT as RENDERER_SEGMENT } from '@openref/render';
+import {
+  assetHref,
+  normalizeRoute,
+  referenceRoutes,
+  SEARCH_INDEX_SEGMENT,
+} from '../../src/reference/domain/routes';
 
 describe('normalizeRoute', () => {
   it('should drop a trailing slash so every path is built the same way', () => {
@@ -133,6 +139,24 @@ describe('referenceRoutes', () => {
 
     // Then
     expect(overview).toEqual(['/', '/']);
+  });
+});
+
+describe('the search index address', () => {
+  it('should be served at the one segment the fetching half builds its href from', () => {
+    // Given the defect this constant was collapsed for at T042: the segment was written out three
+    // times, here, in `page-plan.ts` of `@openref/static` and in `links.ts` of `@openref/render`,
+    // and nothing compared any two of them. A drift is not a crash: the palette fetches a 404 and
+    // falls open to the navigation rows, so the page works and full text search is simply gone.
+    const routes = referenceRoutes('/docs');
+
+    // When
+    const served = routes.filter((route) => route.id === 'search-index').map((r) => r.pattern);
+
+    // Then the route this package registers and the address the page asks for are one string,
+    // and this package's own export is the renderer's binding rather than a copy that matches
+    expect(SEARCH_INDEX_SEGMENT).toBe(RENDERER_SEGMENT);
+    expect(served).toEqual([searchIndexHref('/docs')]);
   });
 });
 

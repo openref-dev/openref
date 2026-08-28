@@ -38,6 +38,23 @@ import { defineConfig } from 'tsup';
  * form, which hydrates nothing on load. Third party packages declare no such condition and
  * resolve exactly as they did.
  */
+/**
+ * What the three browser builds inline rather than leave as a specifier.
+ *
+ * A BROWSER HAS NO IMPORT MAP, so a bare specifier left in one of these files does not resolve,
+ * the module never evaluates, and neither does anything that imports it. `minisearch` joined the
+ * list at T042 with the search wiring: `@openref/search` is inlined by the `@openref/` pattern,
+ * the third party index it stands on was not, and esbuild left `import f from"minisearch"` in the
+ * chunk the command palette loads. A reader pressing Ctrl-K would have got the navigation match
+ * and never the index, with nothing anywhere saying so. That is the defect `sha256Hex` shipped at
+ * T028 arriving a second time from a different package, and the `browser-resolution` gate caught
+ * it rather than a browser, which is what that gate exists for.
+ *
+ * It stays a list of names rather than becoming "inline everything": the reason the server build
+ * keeps third party code external is written above and still holds there.
+ */
+const BROWSER_NO_EXTERNAL = [/^vue$/, /^@vue\//, /^@openref\//, /^minisearch$/];
+
 export default defineConfig([
   {
     entry: ['src/index.ts'],
@@ -68,7 +85,7 @@ export default defineConfig([
     // chunks are served by the asset catalog under digest names like every other file, and the
     // specifiers inside the entry are rewritten to those names before the entry is hashed.
     splitting: true,
-    noExternal: [/^vue$/, /^@vue\//, /^@openref\//],
+    noExternal: BROWSER_NO_EXTERNAL,
     outExtension: () => ({ js: '.js' }),
     esbuildOptions(options) {
       options.conditions = ['source'];
@@ -91,7 +108,7 @@ export default defineConfig([
     minify: true,
     treeshake: true,
     splitting: false,
-    noExternal: [/^vue$/, /^@vue\//, /^@openref\//],
+    noExternal: BROWSER_NO_EXTERNAL,
     outExtension: () => ({ js: '.js' }),
     esbuildOptions(options) {
       options.conditions = ['source'];
@@ -112,7 +129,7 @@ export default defineConfig([
     minify: true,
     treeshake: true,
     splitting: false,
-    noExternal: [/^vue$/, /^@vue\//, /^@openref\//],
+    noExternal: BROWSER_NO_EXTERNAL,
     outExtension: () => ({ js: '.iife.js' }),
     esbuildOptions(options) {
       options.conditions = ['source'];

@@ -24,6 +24,7 @@ import {
   overviewHref,
   pathSegmentOf,
   schemaHref,
+  SEARCH_INDEX_SEGMENT,
   shapesHref,
   statesHref,
   type PageKind,
@@ -56,8 +57,17 @@ export function navigationFileOf(documentHash: string): string {
   return `_navigation/${pathSegmentOf(documentHash)}`;
 }
 
-/** Where the serialized search index is written, matching the served segment. */
-export const SEARCH_INDEX_FILE = '_search-index';
+/**
+ * Where the serialized search index is written.
+ *
+ * THE SERVED SEGMENT ITSELF SINCE `T042`, not a copy of it that matches today. A built site and a
+ * served mount answer the same address, per SPEC 13.3 and SPEC 16, and the page fetching it builds
+ * that address with `searchIndexHref` out of this same constant. Two spellings that agree by
+ * inspection is what this file already refuses for every page address, and the failure here is
+ * quieter than a broken page: a palette that fetches a 404 falls open to the navigation rows, so
+ * the reference still works and the full text search is simply gone.
+ */
+export const SEARCH_INDEX_FILE: string = SEARCH_INDEX_SEGMENT;
 
 /** Directory holding every hashed asset, matching `ASSET_SEGMENT` on the served side. */
 export const ASSET_DIRECTORY = '_assets';

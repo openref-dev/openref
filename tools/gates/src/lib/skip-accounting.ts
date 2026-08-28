@@ -67,7 +67,17 @@ export const SKIP_REASONS: readonly SkipReason[] = [
   {
     id: 'ai-docs-absent',
     description: `${AI_DOCS_DIR}/ is not in this checkout, and no clone restores it`,
-    permitted: ['build-manifest', 'claims', 'theme-motion', 'budget-exceptions'],
+    permitted: [
+      'build-manifest',
+      'claims',
+      'theme-motion',
+      'budget-exceptions',
+      // `static-suites` reads SPEC 21's own row and matches this repository's wiring against it,
+      // which is the half that needs the document. Its other three halves, the named suites, the
+      // named cases and the budget job, run there and fail there, so it skips only when all three
+      // are clean and the row alone went unread.
+      'static-suites',
+    ],
     forced: ['build-manifest', 'claims', 'theme-motion'],
   },
   {

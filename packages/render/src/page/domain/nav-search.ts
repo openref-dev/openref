@@ -10,9 +10,15 @@
  *
  * What it does instead is match what the page is already holding: every navigation row, with
  * its label and its `METHOD /path` hint. That covers what a reader types into a palette on a
- * reference, which is a path, a method or part of a summary. No shipped path supplies a port
- * today: that gap is `full-text-search` in `CAPABILITY_DEBTS`, owned by T039, reachable by M3.
- * When a port is supplied, it replaces this rather than adding to it.
+ * reference, which is a path, a method or part of a summary.
+ *
+ * THIS IS NO LONGER THE ONLY SEARCH, AND IT IS STILL THE ONE THAT ALWAYS WORKS. Since T042 the
+ * shipped entry does supply a port: the palette fetches `<mount>/_search-index` on its first
+ * open and searches the index from then on, which closed `full-text-search` in
+ * `CAPABILITY_DEBTS`. This is what answers until the index arrives, and what answers instead of
+ * it when the fetch fails, the response is about another document, or nobody wired a port at
+ * all. The two are alternatives rather than an addition, per `CommandPalette.ts`: an index that
+ * answers has already read every label and hint a row carries.
  *
  * The ranking is deliberately simple and deliberately stable. A prefix beats a word start
  * beats a substring, a label beats a hint, and equal scores keep document order, so the same

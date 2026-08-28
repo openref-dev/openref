@@ -116,16 +116,17 @@ describe('specifiersIn', () => {
     // When
     const found = specifiersIn(source);
 
-    // Then
+    // Then, in document order, which is the order a parser reads them in
     expect(found.specifiers).toEqual([
-      { specifier: '@noble/hashes/sha2', kind: 'bare', form: 'dynamic' },
       { specifier: './a.js', kind: 'relative', form: 'static' },
       { specifier: './b.js', kind: 'relative', form: 'static' },
+      { specifier: '@noble/hashes/sha2', kind: 'bare', form: 'dynamic' },
     ]);
   });
 
   it('should count a dynamic import once rather than on both sides', () => {
-    // Given, the shape that reads as two: `import("./x")` also matches the bare `import "./x"`
+    // Given, the shape that read as two while this was regular expressions: `import("./x")` also
+    // matches the bare `import "./x"`
     const source = 'import("./lazy.js");';
 
     // When
@@ -146,13 +147,77 @@ describe('specifiersIn', () => {
     const found = specifiersIn(source);
 
     // Then
+    expect(found.unreadable).toEqual([
+      { reason: 'computed-specifier', form: 'dynamic', excerpt: 'import(name)' },
+    ]);
+  });
+
+  it('should report the concatenated dynamic import T035 measured going straight through', () => {
+    // Given the exact form the three regular expressions all declined. The dynamic pattern needs
+    // the whole argument inside one pair of quotes; the static pattern is not looking at a call;
+    // and the unreadable branch's lookahead saw the opening quote of the first operand and
+    // declined. The gate reported zero specifiers for a chunk graph addressed this way.
+    const source = 'var h="AAAA";var load=()=>import("./chunk-"+h+".js");';
+
+    // When
+    const found = specifiersIn(source);
+
+    // Then
+    expect(found.specifiers).toEqual([]);
+    expect(found.unreadable).toEqual([
+      {
+        reason: 'computed-specifier',
+        form: 'dynamic',
+        excerpt: 'import("./chunk-"+h+".js")',
+      },
+    ]);
+  });
+
+  it('should report a template specifier with a substitution and read one without', () => {
+    // Given both halves of the same form. A template with nothing in it resolves exactly as the
+    // quoted spelling does; one with a substitution is the computed case wearing another syntax.
+    const source = 'import(`./a.js`);import(`./chunk-${h}.js`);';
+
+    // When
+    const found = specifiersIn(source);
+
+    // Then
+    expect(found.specifiers).toEqual([{ specifier: './a.js', kind: 'relative', form: 'dynamic' }]);
     expect(found.unreadable).toHaveLength(1);
-    expect(found.unreadable[0]).toContain('import(name)');
+    expect(found.unreadable[0]?.reason).toBe('computed-specifier');
+  });
+
+  it('should read the two forms that address a module with no import statement in front', () => {
+    // Given `import.meta.resolve` and the `new URL(spec, import.meta.url)` a bundler emits for an
+    // asset a chunk fetches by url. Both were unknown forms, so both were silently zero.
+    const source = 'var a=import.meta.resolve("vue");var b=new URL("./worker.js",import.meta.url);';
+
+    // When
+    const found = specifiersIn(source);
+
+    // Then
+    expect(found.specifiers).toEqual([
+      { specifier: 'vue', kind: 'bare', form: 'meta-resolve' },
+      { specifier: './worker.js', kind: 'relative', form: 'module-url' },
+    ]);
+  });
+
+  it('should leave a plain new URL alone, since a base of its own is not a module edge', () => {
+    // Given an address the page builds for itself. Reporting it would be a false alarm about a
+    // string, which is the direction a scan over text is wrong in and a parser need not be.
+    const source = 'var u=new URL("https://api.example.com/v1");var v=new URL(p,document.baseURI);';
+
+    // When
+    const found = specifiersIn(source);
+
+    // Then
+    expect(found.specifiers).toEqual([]);
+    expect(found.unreadable).toEqual([]);
   });
 
   it('should read an export that re-exports from a bare specifier', () => {
     // Given, which is how a re-export reaches a chunk without any `import` keyword in front of it
-    const source = `export{sha256Hex}from"@noble/hashes/sha2";`;
+    const source = `export{sha256Hex}from"@noble/hashes/sha2";export*from"./b.js";`;
 
     // When
     const found = specifiersIn(source);
@@ -160,7 +225,35 @@ describe('specifiersIn', () => {
     // Then
     expect(found.specifiers).toEqual([
       { specifier: '@noble/hashes/sha2', kind: 'bare', form: 'static' },
+      { specifier: './b.js', kind: 'relative', form: 'static' },
     ]);
+  });
+
+  it('should not mistake a string that looks like a specifier for one', () => {
+    // Given the false alarm the text scan accepted as the price of reading text. A parser knows
+    // an argument to a call from an import edge, so a message about a chunk is a message.
+    const source = 'var msg="import(\\"vue\\") is what a browser cannot do";var re=/import\\(/;';
+
+    // When
+    const found = specifiersIn(source);
+
+    // Then
+    expect(found.specifiers).toEqual([]);
+    expect(found.unreadable).toEqual([]);
+  });
+
+  it('should report a chunk it cannot parse rather than reporting nothing in it', () => {
+    // Given a file that is not a module. Returning an empty list here is the exact reading this
+    // whole gate exists to refuse: no specifiers found and no way to know.
+    const source = 'export const a = ;';
+
+    // When
+    const found = specifiersIn(source);
+
+    // Then
+    expect(found.specifiers).toEqual([]);
+    expect(found.unreadable).toHaveLength(1);
+    expect(found.unreadable[0]?.reason).toBe('unparsed');
   });
 });
 
@@ -253,6 +346,34 @@ describe('browserResolutionGate', () => {
     // When, Then
     expect(result.status).toBe('skip');
     expect(result.skipReason).toBe('artifact-absent');
+  });
+
+  it('should fail on a chunk graph addressed by concatenation, which used to read as empty', async () => {
+    // Given the T035 finding as a whole bundle. Before the parser this run reported "0 specifiers
+    // in 2 browser modules resolve with no import map" and passed, which is the same shape as the
+    // defect the gate was written for: every check ran, none of them looked at the edge.
+    const result = await runOver({
+      'packages/nest/dist/browser/openref.js':
+        'var h="AAAA";var f=()=>import("./TryItPanel-"+h+".js");',
+      'packages/nest/dist/browser/TryItPanel-AAAA.js': 'export var a=1;',
+    });
+
+    // When, Then
+    expect(result.status).toBe('fail');
+    expect(errorsOf(result)).toContain('computed rather than written');
+    expect(errorsOf(result)).toContain('openref.js');
+  });
+
+  it('should fail on a bare specifier reached through import.meta.resolve', async () => {
+    // Given a form the patterns had never heard of, with the consequence of a bare name
+    const result = await runOver({
+      'packages/nest/dist/browser/openref.js': 'var u=import.meta.resolve("vue");',
+    });
+
+    // When, Then
+    expect(result.status).toBe('fail');
+    expect(errorsOf(result)).toContain('meta-resolve');
+    expect(errorsOf(result)).toContain('no import map');
   });
 
   it('should fail when the shipped entry is not among the files it scanned', async () => {

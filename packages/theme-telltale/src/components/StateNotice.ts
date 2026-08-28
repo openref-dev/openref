@@ -9,15 +9,21 @@ import type { StateNoticeKind } from '@openref/vue';
  * the field a stylesheet can key on. A theme that matched on the sentence would be matching on
  * English, which is the same defect as telling a runtime row apart by its label.
  *
- * Nine kinds, and the list is closed. The record is total over `StateNoticeKind` rather than
+ * Ten kinds, and the list is closed. The record is total over `StateNoticeKind` rather than
  * defaulted, so a kind added to the contract fails to compile here instead of rendering a
- * mark this theme made up. `health-missing` arrived exactly that way, with `TX-FRAME`.
+ * mark this theme made up. `health-missing` arrived exactly that way, with `TX-FRAME`, and
+ * `search-unavailable` with `T042`.
+ *
+ * THE SENTENCE IS NEVER THIS THEME'S TO SUPPLY, which is why a theme that had not been updated
+ * would still have shown the reader the new state's words: `message` arrives as a prop and only
+ * the mark is looked up here.
  */
 const MARKS: Readonly<Record<StateNoticeKind, string>> = {
   'nav-unavailable': 'NAV',
   'search-empty': 'FIND',
   'search-no-results': 'FIND',
   'search-partial': 'FIND',
+  'search-unavailable': 'FIND',
   'no-server': 'SRV',
   'no-body-fields': 'BODY',
   'schema-missing': 'SCH',

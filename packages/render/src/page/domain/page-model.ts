@@ -47,6 +47,7 @@ import type {
   ParameterModel,
   ResponseModel,
   SchemaPageModel,
+  StaticProxyModel,
 } from '@openref/vue';
 import {
   benchHref,
@@ -65,6 +66,15 @@ import { reasonPhrase } from '../../shared/status';
 
 /**
  * Version of the page model shape, part of the cache key.
+ *
+ * 16 SINCE `T042`: the model carries `staticProxy`, the prefix the SPEC 16.2 rewrite rules live
+ * under and the upstreams they are pinned to in `u<N>` order, set only by a static build whose
+ * target can rewrite routes. It is the fact the runner factory reads to choose the path rewrite
+ * transport, exactly as `proxyPath` is for the envelope proxy: the build knows which rules it
+ * wrote and the browser cannot, so the page carries the pair. A page cached before this hydrates
+ * a console that sends direct on a deployment whose rules are up, which is the T040 generation
+ * side existing and never being offered, and the version is what keeps a proxied page and an
+ * unproxied client from meeting on one screen.
  *
  * 15 SINCE `T040`: the model carries `directTarget`, the name of a deployment platform that
  * cannot rewrite routes, per SPEC 16.2, set only by a static build for such a target and only
@@ -128,7 +138,7 @@ import { reasonPhrase } from '../../shared/status';
  * 6 was T027: `run.bodyMediaTypes`, a list of strings, became `run.body`, a list of media types
  * each carrying the editor its schema asks for and the fields it is made of.
  */
-export const PAGE_MODEL_VERSION = 15;
+export const PAGE_MODEL_VERSION = 16;
 
 /** Media types an example is generated for. */
 const JSON_MEDIA_TYPE = /^application\/(?:[\w.+-]+\+)?json$/i;
@@ -175,6 +185,13 @@ export interface PageModelOptions {
    * the console never learns why it is sending directly.
    */
   readonly directTarget?: string;
+  /**
+   * The generated proxy rules of SPEC 16.2, when the build wrote them, per `T042`.
+   *
+   * Only the static build knows which rules it wrote and which upstream each one is pinned to,
+   * so the pair enters the model here or the console has no rule to address.
+   */
+  readonly staticProxy?: StaticProxyModel;
 }
 
 /**
@@ -1007,6 +1024,7 @@ export function buildPageModel(document: IRDocument, options: PageModelOptions):
     basePath,
     ...(options.proxyPath === undefined ? {} : { proxyPath: options.proxyPath }),
     ...(options.directTarget === undefined ? {} : { directTarget: options.directTarget }),
+    ...(options.staticProxy === undefined ? {} : { staticProxy: options.staticProxy }),
     servers: document.servers.map((server) => server.url),
     navigation: navigation.entries,
     navigationComplete: navigation.complete,
@@ -1031,4 +1049,5 @@ export type {
   ParameterModel,
   ResponseModel,
   SchemaPageModel,
+  StaticProxyModel,
 };

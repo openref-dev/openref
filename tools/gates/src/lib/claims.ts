@@ -38,6 +38,18 @@ export interface ClaimMapRow {
   readonly proofs: readonly string[];
   /** `proved`, or the id of the task that owns the claim. */
   readonly status: string;
+  /**
+   * The promise this row answers, quoted from the specification word for word.
+   *
+   * THE ROW USED TO CARRY ONLY THE ID, AND THE ID IS AN ORDINAL. T035 measured what that costs:
+   * SPEC 19 is a numbered list, so `19.3` means "the third item", and rewriting the third item to
+   * say the opposite of what it says left this gate green, while reordering the list repointed
+   * every id at a different promise with nothing anywhere going red. A row that quotes its promise
+   * is a row that cannot do either: the quote is compared to the specification on every run.
+   *
+   * Empty for a SPEC 20 budget row, whose text is a threshold and is compared as a value.
+   */
+  readonly quoted: string;
 }
 
 /** Something wrong with the map. */
@@ -418,10 +430,83 @@ export function parseClaimMap(map: string): ClaimMapRow[] {
               .map((path) => stripCode(path))
               .filter((path) => path !== ''),
       status: stripCode(cells[3] ?? ''),
+      // KEPT WITH ITS BACKTICKS AND ITS EMPHASIS, because the comparison is with the
+      // specification's own line and the specification writes both. Only the surrounding space is
+      // normalized, since a table cell has to breathe and a line break in the source is not a
+      // change to the promise.
+      quoted: normalizeQuote(cells[4] ?? ''),
     });
   }
 
   return rows;
+}
+
+/**
+ * A promise reduced to what a comparison should be sensitive to.
+ *
+ * Whitespace runs collapse and the ends are trimmed. Nothing else: a word changed, a negation
+ * added, a reference renumbered, all of them survive this and are meant to.
+ *
+ * @param text - The promise as written in either document
+ * @returns The comparable form
+ */
+export function normalizeQuote(text: string): string {
+  return text.replace(/\s+/gu, ' ').trim();
+}
+
+/**
+ * Requires every SPEC 19 row of the claim map to quote the promise it answers, word for word.
+ *
+ * WHAT THIS CATCHES THAT THE ID CANNOT. A promise rewritten to say the opposite of what it said,
+ * and a list reordered so that every id points at a different promise. Both left the gate green
+ * while the map went on reporting full coverage, which T035 filed as the third of four holes: the
+ * text was parsed out of the specification on every run and then never compared with anything.
+ *
+ * A LETTERED PART QUOTES THE WHOLE PROMISE IT IS PART OF. Splitting `19.2` into three rows splits
+ * the proof rather than the promise, so all three carry the same quote, and the promise moving
+ * fails all three at once, which is the correct blast radius.
+ *
+ * @param claims - The SPEC 19 claims, parsed from the specification
+ * @param map - The claim map rows
+ * @returns Issues, empty when every row quotes its promise as the specification writes it
+ */
+export function checkClaimQuotes(
+  claims: readonly SpecClaim[],
+  map: readonly ClaimMapRow[],
+): ClaimIssue[] {
+  const issues: ClaimIssue[] = [];
+
+  for (const claim of claims) {
+    const rows = map.filter(
+      (row) => row.id === claim.id || partIndexOf(row.id, claim.id) !== undefined,
+    );
+    const expected = normalizeQuote(claim.text);
+
+    for (const row of rows) {
+      if (row.quoted === '') {
+        issues.push({
+          rule: 'claim-unquoted',
+          message:
+            `${row.id} answers a SPEC 19 promise and does not quote it. The id is the promise's ` +
+            'ordinal in a numbered list, so a row that carries only the id is answering whatever ' +
+            `is in that position today: "${expected}"`,
+        });
+        continue;
+      }
+
+      if (row.quoted === expected) continue;
+
+      issues.push({
+        rule: 'claim-text-drift',
+        message:
+          `${row.id} quotes "${row.quoted}" and SPEC 19 item ${claim.id.slice('19.'.length)} now ` +
+          `reads "${expected}". Either the promise changed and the proof beside it was not ` +
+          're-read, or the list was reordered and this row now answers a different promise',
+      });
+    }
+  }
+
+  return issues;
 }
 
 /** Backticks are how a path is written in a table cell and are not part of the path. */

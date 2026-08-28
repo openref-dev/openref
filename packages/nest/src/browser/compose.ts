@@ -26,7 +26,19 @@
 import { hydrateReference, type ThemeDefinition } from '@openref/render/browser';
 
 /**
- * Hydrates the served page, with the runner arriving on the Send gesture.
+ * Hydrates the served page, with the runner arriving on the Send gesture and the search index on
+ * the first open of the palette.
+ *
+ * BOTH FACTORIES ARE DYNAMIC IMPORTS AND NEITHER IS A CHOICE ABOUT TIDINESS. `@openref/runner`
+ * and `@openref/search` are each larger than the whole first paint, and each serves one gesture,
+ * so each travels in the chunk that gesture fetches. Writing either call inline here would put
+ * it in the first paint chunk of every page.
+ *
+ * THE SEARCH HALF IS WHAT T042 PAID. The index has been built, budgeted and served at
+ * `<mount>/_search-index` since T007, and until this line no file this module shipped ever asked
+ * for it: `useSearch` answered `available: false` on every page, and the palette matched
+ * navigation labels and hints alone. The renderer performs the fetch, because the address is
+ * relative to a mount point only it knows; this supplies the half the renderer may not import.
  *
  * @param theme - The definition this entry was built with, or nothing for the reference's own
  */
@@ -34,5 +46,6 @@ export function mountReference(theme?: ThemeDefinition): void {
   hydrateReference({
     ...(theme === undefined ? {} : { theme }),
     loadRunner: async (model) => (await import('./runner-factory')).createPageRunner(model),
+    loadSearch: async (model) => (await import('./search-factory')).createPageSearch(model),
   });
 }

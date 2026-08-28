@@ -74,6 +74,49 @@ jobs:
       - name: Gates
         run: pnpm run gates
 
+  static-build-budget:
+    name: static build of 1000 nodes on a declared runner size
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    # A JOB OF ITS OWN BECAUSE THE BUDGET IS ABOUT A MACHINE. SPEC 20 bounds the static build of
+    # 1000 nodes on four cores at sixty seconds. Run wherever a suite happens to land, that
+    # assertion measures hardware nobody declared, and T039 recorded exactly that: on the
+    # maintainer's workstation the build finishes about twenty times inside the ceiling, so the
+    # number was a hang catcher rather than a budget.
+    #
+    # THE RUNNER SIZE IS DECLARED TO THE SUITE RATHER THAN ASSUMED BY IT. The standard
+    # `ubuntu-latest` runner is four vCPU, which is the size SPEC 20 states, and this job says so
+    # in `OPENREF_STATIC_BUDGET_CORES`. The suite asserts the machine really has that many and
+    # refuses to certify otherwise, naming both counts, so the day GitHub changes the runner is a
+    # red job rather than a figure quietly taken from a different machine. `static-suites` in
+    # `pnpm gates` checks this job is here and says what it must, because a deleted job would
+    # otherwise turn certification off with nothing anywhere saying so.
+    env:
+      OPENREF_STATIC_BUDGET_CORES: '4'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm run build
+
+      - name: Static build elapsed budget
+        run: pnpm exec vitest run packages/static/test/integration/build-budget.spec.ts
+
   module-floor:
     name: load on the engines floor
     runs-on: ubuntu-latest

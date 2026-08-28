@@ -21,6 +21,30 @@ export interface ArtifactMeasurement {
 export type BudgetQuantity = 'transfer' | 'parse';
 
 /**
+ * The one directory segment every build in this repository writes into.
+ *
+ * NAMED ONCE BECAUSE TWO GATES ASK THE SAME QUESTION OF IT. `pnpm build` writes each package's
+ * output under `packages/<name>/dist`, which is also what the dependency cruiser excludes and what
+ * the text scan declines to walk, so the convention is already load bearing in three places.
+ */
+export const BUILT_OUTPUT_SEGMENT = 'dist';
+
+/**
+ * Whether a repository relative path is something a build produced.
+ *
+ * FAIL CLOSED ON PURPOSE: a path this cannot recognise counts as committed, so a new artefact root
+ * makes the "did I see a build" question answer no, loudly, rather than answering yes on a tree
+ * with nothing built in it. The reverse default is what let `budget-exceptions` pass over four
+ * committed font budgets with every `dist` removed.
+ *
+ * @param relativePath - Repository relative path, with forward slashes
+ * @returns True when the path lies under a build output directory
+ */
+export function isBuiltOutputPath(relativePath: string): boolean {
+  return relativePath.split('/').includes(BUILT_OUTPUT_SEGMENT);
+}
+
+/**
  * Outcome of comparing measured artifacts against a limit.
  */
 export interface BudgetEvaluation {

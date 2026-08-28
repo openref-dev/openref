@@ -22,6 +22,18 @@
  * The validator is written out rather than delegated to `TextDecoder` for one reason: a decoder in
  * fatal mode reports that a file is invalid and not where, and an offset is the whole difference
  * between a finding a reader can act on and one they have to bisect by hand.
+ *
+ * AND SINCE T042 IT LOOKS FOR THE CHARACTER SPEC 19.1 NAMES, which is the third thing a text tool
+ * cannot be trusted about. T035 measured the hole: this scan rejected a NUL byte and a malformed
+ * sequence and passed every well formed one, U+202E included, while SPEC 19.1 calls a bidirectional
+ * override a live threat that survives escaping and survives the sanitizer. What it does to a
+ * rendered document the renderer answers with `unicode-bidi: isolate`; what it does to a source
+ * file nothing answered at all, and a source file is where a reviewer decides whether code says
+ * what it appears to say. An override in a comment reorders the line it sits on, so the diff a
+ * reviewer approves and the program the compiler reads are two different things with no markup
+ * anywhere. The whole Unicode bidirectional control set is reported rather than the override alone:
+ * an embedding left unterminated reorders exactly as an override does, and the isolates and the
+ * marks are the same class of invisible character in the same position.
  */
 
 import { readdirSync, readFileSync, statSync } from 'node:fs';
@@ -48,13 +60,99 @@ export interface ByteFault {
   readonly offset: number;
 }
 
-/** Directory names never descended into: build output and dependencies are not source. */
+/** One bidirectional control character found in a source file. */
+export interface BidiControl {
+  readonly path: string;
+  /** The code point, so a finding can print `U+202E` rather than a byte triple. */
+  readonly codePoint: number;
+  /** Its Unicode name, because the code point alone tells a reader nothing. */
+  readonly name: string;
+  /** Byte offset of the first byte of its encoding, from zero. */
+  readonly offset: number;
+  readonly line: number;
+  readonly column: number;
+  /** How many controls the file carries in total, of which this is the first. */
+  readonly occurrences: number;
+}
+
+/**
+ * The Unicode bidirectional controls, by code point, with the name a finding prints.
+ *
+ * ALL TWELVE RATHER THAN THE ONE SPEC 19.1 NAMES. The override is the character the finding was
+ * written about, and the embeddings reorder identically while an unterminated isolate does the
+ * same to everything after it. Splitting them would leave eleven spellings of one defect passing
+ * a check written for the twelfth.
+ */
+export const BIDI_CONTROLS: ReadonlyMap<number, string> = new Map([
+  [0x061c, 'ARABIC LETTER MARK'],
+  [0x200e, 'LEFT-TO-RIGHT MARK'],
+  [0x200f, 'RIGHT-TO-LEFT MARK'],
+  [0x202a, 'LEFT-TO-RIGHT EMBEDDING'],
+  [0x202b, 'RIGHT-TO-LEFT EMBEDDING'],
+  [0x202c, 'POP DIRECTIONAL FORMATTING'],
+  [0x202d, 'LEFT-TO-RIGHT OVERRIDE'],
+  [0x202e, 'RIGHT-TO-LEFT OVERRIDE'],
+  [0x2066, 'LEFT-TO-RIGHT ISOLATE'],
+  [0x2067, 'RIGHT-TO-LEFT ISOLATE'],
+  [0x2068, 'FIRST STRONG ISOLATE'],
+  [0x2069, 'POP DIRECTIONAL ISOLATE'],
+]);
+
+/**
+ * Finds every bidirectional control in a file, by its UTF-8 encoding.
+ *
+ * The bytes are searched rather than the decoded text so that the offset is the same byte offset
+ * `positionOfByte` turns into a line and a column, and so that the search needs no decode of a
+ * file this module may already have called unreadable.
+ *
+ * @param bytes - The whole file
+ * @returns Every control with its code point and byte offset, in file order
+ */
+export function bidiControlsIn(
+  bytes: Uint8Array,
+): readonly { readonly codePoint: number; readonly offset: number }[] {
+  const found: { codePoint: number; offset: number }[] = [];
+
+  for (let index = 0; index + 1 < bytes.length; index += 1) {
+    const first = bytes[index] ?? 0;
+
+    // U+061C is the only two byte control in the set: 0xD8 0x9C.
+    if (first === 0xd8 && bytes[index + 1] === 0x9c) {
+      found.push({ codePoint: 0x061c, offset: index });
+      continue;
+    }
+
+    if (first !== 0xe2 || index + 2 >= bytes.length) continue;
+
+    const second = bytes[index + 1] ?? 0;
+    const third = bytes[index + 2] ?? 0;
+    if (second !== 0x80 && second !== 0x81) continue;
+
+    const codePoint = 0x2000 + (second === 0x80 ? 0 : 0x40) + (third - 0x80);
+    if (third < 0x80 || third > 0xbf) continue;
+    if (!BIDI_CONTROLS.has(codePoint)) continue;
+
+    found.push({ codePoint, offset: index });
+  }
+
+  return found;
+}
+
+/**
+ * Directory names never descended into.
+ *
+ * Build output and dependencies are not source. `ai-docs` is not here because it is not source
+ * either: it is absent from a clone, so a scan that counted it would report two different totals
+ * for the same tree depending on who checked it out, and the documents are read by people rather
+ * than swept by tools.
+ */
 const SKIPPED_DIRECTORIES: ReadonlySet<string> = new Set([
   'node_modules',
   'dist',
   'coverage',
   '.git',
   '.turbo',
+  'ai-docs',
 ]);
 
 /**
@@ -194,52 +292,103 @@ export function collectSourceFiles(
   return found.sort();
 }
 
+/** How many files one top level tree of the repository yielded. */
+export interface TreeCount {
+  /** Top level entry name, or `<root file>` for a file sitting directly in the repository root. */
+  readonly tree: string;
+  readonly scanned: number;
+}
+
 /** What one scan looked at and what it refused. */
 export interface TextScan {
   readonly scanned: number;
+  /** One entry per top level tree that yielded a file, sorted, printed on every run. */
+  readonly trees: readonly TreeCount[];
   readonly unreadable: readonly UnreadableFile[];
+  /** Files carrying a bidirectional control, one entry per file. */
+  readonly bidi: readonly BidiControl[];
 }
+
+/** The label a file sitting directly in the repository root is counted under. */
+export const ROOT_FILE_TREE = '<root file>';
 
 /**
- * Scans the source roots and reports every file a text tool would refuse.
+ * Scans the repository and reports every file a text tool would refuse or misread.
  *
- * The count of files scanned is returned beside the faults, because a scan that reached nothing
- * and a repository with nothing wrong in it produce the same empty list, and only one of them is
- * a pass.
+ * THE MATERIAL IS THE WHOLE CHECKOUT AND NOT A LIST OF ROOTS, since T042, and that is the fix
+ * rather than a widening. The list was `packages` and `tools`, so `examples/`, `compat/`,
+ * `.github/`, `.changeset/` and every file in the repository root were scanned by nothing: a
+ * reader can run all of them, and the one thing a reader cannot do is know that half the tree was
+ * never looked at. A list of roots also has a failure mode of its own, which T035 named: a root
+ * dropped from it takes its whole tree out of the scan and the gate goes on passing. Walking from
+ * the root removes the list, so there is nothing left to drop.
+ *
+ * The count of files scanned is returned beside the faults, and the per tree counts beside that,
+ * because a scan that reached nothing and a repository with nothing wrong in it produce the same
+ * empty list, and only one of them is a pass.
  *
  * @param repoRoot - Absolute repository root
- * @param roots - Repository relative directories to walk
  * @param extensions - Lowercase extensions to keep, including the dot
- * @returns How many files were read, and the ones that would not
+ * @returns How many files were read and where, the ones that would not read, and the controls
  */
-export function scanSourceText(
-  repoRoot: string,
-  roots: readonly string[],
-  extensions: readonly string[],
-): TextScan {
+export function scanSourceText(repoRoot: string, extensions: readonly string[]): TextScan {
   const unreadable: UnreadableFile[] = [];
+  const bidi: BidiControl[] = [];
+  const trees = new Map<string, number>();
   let scanned = 0;
 
-  for (const root of roots) {
-    for (const path of collectSourceFiles(join(repoRoot, root), extensions, repoRoot)) {
-      let bytes: Uint8Array;
-      try {
-        bytes = readFileSync(join(repoRoot, path));
-      } catch {
-        continue;
-      }
-
-      scanned += 1;
-      const fault = firstByteFault(bytes);
-      if (fault === undefined) continue;
-
-      const { line, column } = positionOfByte(bytes, fault.offset);
-      unreadable.push({ path, reason: fault.reason, offset: fault.offset, line, column });
+  for (const path of collectSourceFiles(repoRoot, extensions, repoRoot)) {
+    let bytes: Uint8Array;
+    try {
+      bytes = readFileSync(join(repoRoot, path));
+    } catch {
+      continue;
     }
+
+    scanned += 1;
+    const segments = path.split('/');
+    const tree = segments.length > 1 ? (segments[0] ?? ROOT_FILE_TREE) : ROOT_FILE_TREE;
+    trees.set(tree, (trees.get(tree) ?? 0) + 1);
+
+    const controls = bidiControlsIn(bytes);
+    const first = controls[0];
+    if (first !== undefined) {
+      const position = positionOfByte(bytes, first.offset);
+      bidi.push({
+        path,
+        codePoint: first.codePoint,
+        name: BIDI_CONTROLS.get(first.codePoint) ?? 'BIDIRECTIONAL CONTROL',
+        offset: first.offset,
+        line: position.line,
+        column: position.column,
+        occurrences: controls.length,
+      });
+    }
+
+    const fault = firstByteFault(bytes);
+    if (fault === undefined) continue;
+
+    const { line, column } = positionOfByte(bytes, fault.offset);
+    unreadable.push({ path, reason: fault.reason, offset: fault.offset, line, column });
   }
 
-  return { scanned, unreadable: unreadable.sort((a, b) => a.path.localeCompare(b.path)) };
+  return {
+    scanned,
+    trees: [...trees]
+      .map(([tree, count]) => ({ tree, scanned: count }))
+      .sort((a, b) => a.tree.localeCompare(b.tree)),
+    unreadable: unreadable.sort((a, b) => a.path.localeCompare(b.path)),
+    bidi: bidi.sort((a, b) => a.path.localeCompare(b.path)),
+  };
 }
+
+/** What a reader is told to do about a bidirectional control, one sentence and no diff. */
+export const BIDI_REMEDY =
+  'a bidirectional control reorders the line it sits on for every reader and every diff, and it ' +
+  'carries no markup, so nothing else in this repository would ever report it. SPEC 19.1 answers ' +
+  'the same character in a rendered document with unicode-bidi: isolate; a source file has no ' +
+  'such answer, so it does not carry one. Write it as the escape \\u202E in a string literal ' +
+  'where the value is needed, and delete it everywhere else';
 
 /** What a reader is told to do about each reason, one sentence and no diff. */
 export const REASON_REMEDY: Readonly<Record<UnreadableReason, string>> = {

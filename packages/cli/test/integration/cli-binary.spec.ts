@@ -1,6 +1,6 @@
 import { execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -34,14 +34,34 @@ interface CliResult {
   readonly stderr: string;
 }
 
-async function runCliBinary(args: readonly string[]): Promise<CliResult> {
+async function runCliBinary(
+  args: readonly string[],
+  options: { readonly cwd?: string } = {},
+): Promise<CliResult> {
   try {
-    const { stdout, stderr } = await execFileAsync(process.execPath, [BIN_PATH, ...args]);
+    const { stdout, stderr } = await execFileAsync(process.execPath, [BIN_PATH, ...args], options);
     return { code: 0, stdout, stderr };
   } catch (error) {
     const failure = error as { code?: number; stdout?: string; stderr?: string };
     return { code: failure.code ?? 1, stdout: failure.stdout ?? '', stderr: failure.stderr ?? '' };
   }
+}
+
+/** Runs one git command in a directory, failing loudly rather than leaving a half built history. */
+async function git(cwd: string, args: readonly string[]): Promise<void> {
+  await execFileAsync(
+    'git',
+    [
+      '-c',
+      'user.email=t@openref.test',
+      '-c',
+      'user.name=openref test',
+      '-c',
+      'commit.gpgsign=false',
+      ...args,
+    ],
+    { cwd },
+  );
 }
 
 describe('the built openref binary', () => {
@@ -95,6 +115,111 @@ describe('the built openref binary', () => {
     await rm(out, { recursive: true, force: true });
   });
 
+  it(
+    'should deploy the static site out of the example application, which is the M3 definition of done',
+    async () => {
+      // Given the clause of the M3 definition of done that had no runner until T042. SPEC 22 says
+      // the milestone is done when the static build deploys from the example, and every case
+      // beside this one drives the CLI from a specification file: the example was loaded by
+      // `doctor` and by `lint` and never by `build`, so nothing anywhere ran the one sentence the
+      // milestone is judged on. `--from-nest` is the whole difference: the document comes out of a
+      // booted NestJS application with its collectors, not off disk.
+      //
+      // AND IT SAYS SO RATHER THAN SKIPPING, unlike its neighbours, for the reason the built
+      // binary check at the top of this file gives: a milestone's definition of done that skips
+      // itself in silence when the demo is unbuilt is a definition of done nothing enforces.
+      if (!existsSync(DEMO_ENTRY)) {
+        throw new Error(
+          `${DEMO_ENTRY} is not built, so the M3 definition of done was not checked. Run pnpm run build`,
+        );
+      }
+
+      const out = await mkdtemp(join(tmpdir(), 'openref-binary-deploy-'));
+
+      // When
+      const result = await runCliBinary([
+        'build',
+        `--from-nest=${DEMO_ENTRY}`,
+        `--out=${out}`,
+        '--base=https://docs.example.com/reference',
+        '--target=netlify',
+      ]);
+
+      // Then a directory a host can serve as it stands: an entry page, a page per node, the two
+      // payloads a page fetches for itself, and the files an absolute base earns.
+      expect(result.code).toBe(0);
+      expect(result.stdout).toMatch(/Built \d+ pages/);
+
+      const index = await readFile(join(out, 'index.html'), 'utf8');
+      expect(index).toContain('<!DOCTYPE html>');
+      expect(index).toContain('Orders');
+      expect(await readFile(join(out, 'get-orders', 'index.html'), 'utf8')).toContain(
+        '<!DOCTYPE html>',
+      );
+
+      for (const file of ['_search-index', '_navigation', 'sitemap.xml', 'llms.txt', '_assets']) {
+        expect(existsSync(join(out, file))).toBe(true);
+      }
+
+      // AND THE PROXY STEP SAID WHY IT WROTE NOTHING, WHICH IS THE FINDING THIS CASE MADE. The
+      // demo declares a relative server, so there is no absolute upstream to pin and SPEC 16.2
+      // has nothing to generate. That is the correct outcome and the reason is printed rather
+      // than left as an empty directory: a silent `--target netlify` producing no rules is
+      // indistinguishable from a broken one. The rules themselves are proved against documents
+      // that do pin an upstream, in `packages/static/test/unit/build-proxy.spec.ts` and
+      // `packages/static/test/integration/proxy-config-tools.spec.ts`.
+      expect(result.stdout).toContain('netlify: nothing generated');
+      expect(result.stdout).toContain('declares no absolute http(s) server');
+      expect(existsSync(join(out, '_redirects'))).toBe(false);
+
+      await rm(out, { recursive: true, force: true });
+    },
+    SPAWNED_PROCESS_TIMEOUT_MS,
+  );
+
+  it(
+    'should catch a breaking change between two commits of one specification, which is the M3 definition of done',
+    async () => {
+      // Given the clause SPEC 22 judges M3 on, in its own words: `diff` catches breaking changes
+      // on a real specification history. Until T042 every case of this command ran over two files
+      // side by side, which is not a history, and the git ref sides were proved separately against
+      // this repository's own HEAD. This is the whole sentence: one file, two commits, the change
+      // between them, read through the `<ref>:<path>` spelling a caller types.
+      const repo = await mkdtemp(join(tmpdir(), 'openref-history-'));
+      const older = await readFile(resolve(MOCKS, 'diff-old.json'), 'utf8');
+      const newer = await readFile(resolve(MOCKS, 'diff-new.json'), 'utf8');
+
+      await git(repo, ['init', '-b', 'main']);
+      await writeFile(join(repo, 'api.json'), older);
+      await git(repo, ['add', 'api.json']);
+      await git(repo, ['commit', '-m', 'the published contract']);
+      await writeFile(join(repo, 'api.json'), newer);
+      await git(repo, ['commit', '-a', '-m', 'the change under review']);
+
+      // When
+      const result = await runCliBinary(['diff', 'HEAD~1:api.json', 'HEAD:api.json'], {
+        cwd: repo,
+      });
+
+      // Then the breaking changes are named and the process carries the 1 a pipeline reads.
+      // THE ABSENCE IS SHOWN ABLE TO SEE, per SPEC 0: the same two revisions against themselves
+      // exit 0 and print no BREAKING block, so exit 1 is a fact about the change rather than
+      // about a command that fails on every history.
+      expect(result.code).toBe(1);
+      expect(result.stdout).toContain('BREAKING');
+      expect(result.stdout).toContain('DELETE /users/{id}');
+
+      const unchanged = await runCliBinary(['diff', 'HEAD:api.json', 'HEAD:api.json'], {
+        cwd: repo,
+      });
+      expect(unchanged.code).toBe(0);
+      expect(unchanged.stdout).not.toContain('BREAKING');
+
+      await rm(repo, { recursive: true, force: true });
+    },
+    SPAWNED_PROCESS_TIMEOUT_MS,
+  );
+
   it('should carry exit code 1 out of the process for a diff with breaking changes', async () => {
     // Given the pair built to produce the SPEC 17.1 example. The unit suite proves the outcome
     // object; only a spawned process proves the 1 actually reaches a pipeline, and no other
@@ -110,6 +235,32 @@ describe('the built openref binary', () => {
     expect(result.stdout).toContain('BREAKING');
     expect(result.stdout).toContain('DELETE /users/{id}');
   });
+
+  it(
+    'should carry a non zero exit code out of the process for doctor on drift, which is the M3 definition of done',
+    async () => {
+      // Given the third clause SPEC 22 judges M3 on: `doctor` fails the pipeline on drift. The
+      // threshold behaviour is proved on the outcome object in `doctor-command.spec.ts`; what
+      // only a spawned process can prove is that the code leaves the process, and a pipeline
+      // reads nothing else. The fixture is the one that carries an error severity finding.
+      const entry = resolve(FIXTURES, 'error-drift.mjs');
+
+      // THE CONTROL COMES FIRST AND IT IS THE SAME DRIFT. Without `--fail-on` the command finds
+      // the same thing and exits 0, per SPEC 17, so the 1 below is the threshold doing its work
+      // rather than a fixture that fails whatever is asked of it.
+      const quiet = await runCliBinary(['doctor', `--from-nest=${entry}`]);
+
+      // When the pipeline asks to be failed on drift
+      const result = await runCliBinary(['doctor', `--from-nest=${entry}`, '--fail-on=drift']);
+
+      // Then
+      expect(quiet.code).toBe(0);
+      expect(quiet.stdout).toContain('DRIFT');
+      expect(result.code).toBe(1);
+      expect(result.stdout).toContain('DRIFT');
+    },
+    SPAWNED_PROCESS_TIMEOUT_MS,
+  );
 
   it.skipIf(!existsSync(DEMO_ENTRY))(
     'should exit 0 for doctor --from-nest against the real demo application',

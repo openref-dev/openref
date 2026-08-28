@@ -17,9 +17,12 @@ export interface UseSearch {
   /**
    * Whether an index was supplied. A theme hides the search box when this is false.
    *
-   * False on every page the shipped reference serves until M3 wires the served index into the
-   * palette. A host that composes its own state and supplies the port gets a working search
-   * today; the reference this project ships supplies none.
+   * FALSE ON EVERY PAGE THE SHIPPED REFERENCE SERVES, AND SINCE M3, T042, THAT IS A ROUTE AND NOT
+   * A MISSING CAPABILITY. The port is read off `DocState`, and the reference's own page carries a
+   * `PageModel` rather than a `DocState`, so there is nowhere for a host to put one; the palette
+   * fetches `<mount>/_search-index` on its first open and holds the loaded index in a store of its
+   * own. A host that composes its own state and supplies the port here gets a working search from
+   * this composable, which is what it is for.
    */
   readonly available: boolean;
   readonly hits: ComputedRef<readonly SearchHit[]>;

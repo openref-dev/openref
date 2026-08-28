@@ -10,6 +10,7 @@ import type { BudgetException } from './lib/budget-exceptions.js';
 import type { CapabilityDebt } from './lib/capability-debts.js';
 import type { BudgetQuantity } from './lib/budgets.js';
 import type { DeferredGesture } from './lib/module-graph.js';
+import type { BudgetJobExpectation, StaticCoverage } from './lib/static-suites.js';
 import type { FixtureRoot } from './gates/fixture-licenses.gate.js';
 import type { DataOnlyAttestation, LicenseAttestation } from './lib/licenses.js';
 
@@ -425,7 +426,22 @@ export const CLIENT_JS_GESTURES: readonly DeferredGesture[] = [
     id: 'send',
     roots: ['TryItPanel', 'runner-factory'],
   },
-  { id: 'palette', roots: ['CommandPalette'] },
+  {
+    // THE SEARCH FACTORY IS ON THIS SIDE FOR THE REASON `runner-factory` IS ON THE SEND SIDE:
+    // one reader action downloads both chunks. Added at T042, paying the `full-text-search`
+    // capability debt. Opening the palette now loads the index loader as well as the palette, and
+    // nothing else in the page reaches either, so a reader who presses Ctrl-K downloads both and a
+    // reader who never does downloads neither.
+    //
+    // IT IS NOT A GESTURE OF ITS OWN, AND THAT WAS THE ALTERNATIVE. A separate `search` entry
+    // would have read better in the report, 5,773 of palette against 19,081 of index loader, and
+    // it would have been a lie about the mechanism: this list divides the deferred half by the
+    // gesture that pays for it, and there is no reader action that fetches the loader without
+    // opening the palette. The itemisation lives in the budget comment instead, where it says the
+    // same thing without inventing a gesture nobody makes.
+    id: 'palette',
+    roots: ['CommandPalette', 'search-factory'],
+  },
   { id: 'schema', roots: ['SchemaView'] },
   {
     // THE FIFTH GESTURE IS THE VALUE DRIVEN FORM, added at TX-SHAPES: a reader who reaches
@@ -538,7 +554,28 @@ export const SIZE_BUDGETS: readonly SizeBudget[] = [
     // is for.
     id: 'client-js-raw',
     label: 'Client JS the first paint loads, raw bytes',
-    limitBytes: 105 * 1024,
+    // 106 KB SINCE T042, AND THE PROPERTY IS RE-CHECKED RATHER THAN THE MARGIN RESTORED. Measured
+    // 108,139 raw across the same six files against 107,450 at the head of this task: 689 bytes,
+    // and they are the seam of the two capability debts this task paid rather than the features
+    // behind them. The search seam is `loadSearch` on `HydrateOptions`, the closure that binds the
+    // page's hash and mount point to it, the fetch of `<mount>/_search-index`, and the prop
+    // `ReferenceApp` forwards; the index loader and `minisearch` are 19,081 bytes and are behind
+    // the palette gesture, where they belong. The static proxy seam is the `staticProxy` field the
+    // factory reads, and the transport itself is 1,748 bytes behind the Send gesture.
+    //
+    // AND THE HEADROOM THIS COMMENT CLAIMED HAD ALREADY GONE. The paragraph above says 410 bytes
+    // remain for ordinary work, measured at TX-ADOPT against 107,110. The head of T042 measured
+    // 107,450, so 70 bytes remained: T036 through T041 grew the first paint by 340 bytes without
+    // anyone re-deriving, which is the budget absorbing ordinary work exactly as intended and is
+    // also why the next arrival had nowhere to go.
+    //
+    // THE FIGURE IS THE SHIPPED ARTEFACT'S AND IT WAS RE-TAKEN AT THE CLOSE OF T042, for the reason
+    // `TEXT_SOURCE_MIN_FILES` was re-taken in the same task: the first reading this comment carried
+    // said 108,085, and the work that landed after it left the tree 54 bytes heavier, so the
+    // arithmetic beside the cap described a bundle that no longer existed. The cap did not move and
+    // does not need to. 108,544 leaves 405 bytes, and the property still holds: `sign-in-return` is
+    // 1,451 raw, so it returning to the first load reads 109,590 and fails this budget.
+    limitBytes: 106 * 1024,
     roots: CLIENT_JS_ROOTS,
     extensions: ['.js', '.mjs'],
     quantity: 'parse',
@@ -589,7 +626,17 @@ export const SIZE_BUDGETS: readonly SizeBudget[] = [
     // RE-DERIVED AT T030 FROM ITS OWN MEASUREMENT, per SPEC 20: 20,295 measured, plus ten percent,
     // rounded down to a hundred bytes. Streaming is the fourth and last of the M2 tasks that grow
     // this pair by construction, and the sentence a red budget prints is still about one gesture.
-    limitBytes: 22_300,
+    //
+    // RE-DERIVED AGAIN AT T042, 22,300 to 24,900, BY THE SAME RULE ON A NEW ARRIVAL. The comment
+    // above scoped the moves to M2 because SPEC 14.1 put the runner's features there. SPEC 16.2
+    // puts one more in M3: a static build's console had no transport that a platform rewrite rule
+    // can read, which is the `static-proxy-transport` capability debt, and paying it is runner
+    // code that arrives when a reader presses Send. Measured 22,654 gzip after the arrival against
+    // 22,052 before it, so the console downloads 602 bytes more, and the pair moves by the rule
+    // this budget has always been derived by rather than to the figure that would just fit. The
+    // figure is the shipped artefact's, re-taken at the close of T042 against the 22,657 first
+    // written here, three bytes of work that landed after the first reading.
+    limitBytes: 24_900,
     roots: CLIENT_JS_ROOTS,
     extensions: ['.js', '.mjs'],
     quantity: 'transfer',
@@ -611,7 +658,23 @@ export const SIZE_BUDGETS: readonly SizeBudget[] = [
     // the runner built in a module the entry imports dynamically, its chunk merges into that one
     // and one chunk's worth of export and import glue leaves the gesture. The number here is
     // derived on the artefact that exists, not on that one.
-    limitBytes: 65_900,
+    //
+    // RE-DERIVED AT T042, 65,900 to 73,200, AND THE ITEMISATION IS AGAIN THE POINT. Measured 66,595
+    // raw after the arrival against 64,847 before it: 1,748 bytes, all of them one file,
+    // `path-rewrite-transport.adapter.ts`. The figure is the shipped artefact's, re-taken at the
+    // close of T042 against the 66,604 first written here, nine bytes of work that landed after the
+    // first reading. It resolves the target url against the pinned upstream
+    // list the static build wrote into the page, rewrites it onto that upstream's own `u<N>` path
+    // under the reader's origin, and refuses anything the list does not pin, which is what makes a
+    // static console unable to address an arbitrary host at all. About 483 characters of it are
+    // the refusal sentences, which do not minify and are the price of a refused Send being
+    // diagnosable, and about 110 are the two suffix guard expressions copied from the generated
+    // artefacts so the client half cannot form a request the server half would 403.
+    //
+    // WHAT WAS TRIED BEFORE MOVING THE NUMBER, because the headroom was 1,053 raw and the arrival
+    // was 1,748: the surplus `timeoutMs` and `maxResponseBytes` options came off the adapter and
+    // two refusals were folded into one, worth 234 raw and 67 gzip. What is left is the feature.
+    limitBytes: 73_200,
     roots: CLIENT_JS_ROOTS,
     extensions: ['.js', '.mjs'],
     quantity: 'parse',
@@ -631,7 +694,23 @@ export const SIZE_BUDGETS: readonly SizeBudget[] = [
     // first paint paid for: the overlay is the `CommandPalette` slot and the state and the search
     // stayed in the host, so a theme replaces the markup without acquiring the index or the
     // shortcut. The split is 578 raw bytes and it is the whole of the change.
-    limitBytes: 2_200,
+    //
+    // RE-DERIVED AT T042, 2,200 to 9,800, AND THE ITEMISATION IS WHY THE NUMBER IS THAT BIG. This
+    // pays the `full-text-search` capability debt: the index has been built, budgeted and served
+    // at `<mount>/_search-index` since T007 and no file this module shipped had ever asked for
+    // it, so the palette matched navigation labels and hints and nothing of descriptions,
+    // parameters or schema text. Measured 9,069 gzip after against 2,129 before, and the whole of
+    // the 6,940 is two things: 495 is the palette itself learning to prefer index hits and to say
+    // which state it is in, and 6,445 is the new `search-factory` chunk, which is the index loader
+    // and the `minisearch` it stands on. It arrives on Ctrl-K and on no other gesture.
+    //
+    // THE FIGURE IS THE SHIPPED ARTEFACT'S AND IT WAS RE-TAKEN AT THE CLOSE OF T042. The first
+    // reading here said 8,992, of which 418 was the palette's own share, and the work that landed
+    // after it left this gesture 77 bytes heavier: the chunk the index loader is in did not move at
+    // all, still 6,445, so the whole of the drift is the palette component. The cap did not move
+    // and does not need to, and it is tighter than the rule would give: ten percent over 9,069
+    // rounded down to a hundred bytes is 9,900.
+    limitBytes: 9_800,
     roots: CLIENT_JS_ROOTS,
     extensions: ['.js', '.mjs'],
     quantity: 'transfer',
@@ -643,7 +722,20 @@ export const SIZE_BUDGETS: readonly SizeBudget[] = [
     label: 'Client JS opening the command palette downloads, raw bytes',
     // 4,478 measured at `TX-SLOTWIRE`, plus ten percent, rounded down to a hundred bytes. See the
     // gzip cap above for what the 578 bytes are.
-    limitBytes: 4_900,
+    //
+    // RE-DERIVED AT T042, 4,900 to 27,300. Measured 25,152 raw after the search wiring against
+    // 4,711 before it: 1,360 is the palette component and 19,081 is the `search-factory` chunk,
+    // which is where `minisearch` now lives. The figure is the shipped artefact's, re-taken at the
+    // close of T042 against the 24,854 first written here, and as in the gzip cap above the loader
+    // chunk did not move, so all 298 bytes of the drift are the palette component. Ten percent over
+    // 25,152 rounded down to a hundred bytes is 27,600, so the cap stands where it is and is
+    // tighter than the rule would give. IT LIVES THERE BY A CORRECTION RATHER THAN BY
+    // DEFAULT: the first build of this left `import"minisearch"` as a bare specifier in that
+    // chunk, so a browser would never have evaluated it and the palette would have gone on
+    // matching navigation rows with nothing anywhere reporting the loss. `browser-resolution`
+    // failed on it, `packages/nest/tsup.config.ts` now inlines the package, and this figure is
+    // the artefact that ships rather than the one that was measured first.
+    limitBytes: 27_300,
     roots: CLIENT_JS_ROOTS,
     extensions: ['.js', '.mjs'],
     quantity: 'parse',
@@ -1002,6 +1094,18 @@ export const MEASURED_BUDGETS: readonly MeasuredBudget[] = [
     label: 'Search index, 1000 nodes, gzip',
     limit: '250 KB',
     enforcedBy: 'T007',
+  },
+  // THE SECOND CAP OVER THE SAME ARTEFACT, AND IT IS THE ONE THAT BINDS. Filed by the T039
+  // amendment against whoever first serves the index into a page, which is T042: the gzip row is
+  // honest about transfer and says nothing about the parse, the defect `theme-css` had and fixed.
+  // Measured 946,269 raw against 177,080 gzip on the same fixture, a ratio of 5.34, so an index at
+  // the 250 KB transfer cap would be about 1.37 MB of JSON for a client to parse. Derived from the
+  // measurement plus ten percent, rounded up to the megabyte.
+  {
+    id: 'search-index-raw',
+    label: 'Search index, 1000 nodes, the bytes a client parses, raw',
+    limit: '1 MB',
+    enforcedBy: 'T042',
   },
   { id: 'prerender', label: 'Prerender, 1000 nodes', limit: '2 s', enforcedBy: 'T011' },
   // THE TWO TIMES ARE RECORDED AND NEITHER IS GATED, and that is a measurement rather than a
@@ -1451,72 +1555,178 @@ export const BUDGET_EXCEPTION_HISTORY: readonly ClosedBudgetException[] = [
  * milestone that cannot close over it. Both are checked against BUILD.md, so an owner that stops
  * existing and a milestone that closes early are failures rather than notes.
  */
-export const CAPABILITY_DEBTS: readonly CapabilityDebt[] = [
+export const CAPABILITY_DEBTS: readonly CapabilityDebt[] = [];
+
+/**
+ * The Static row of SPEC 21, wired coverage by coverage to the suites that answer it.
+ *
+ * ONE ENTRY PER NAME THE ROW STATES, and the names are the specification's own words rather than a
+ * translation, because the gate compares this list with that row in both directions. A coverage
+ * added to SPEC 21 and not wired here fails; a coverage wired here that the row does not state
+ * fails as well, since it would be a check nobody asked for wearing the authority of the table.
+ *
+ * THE CASE TITLES ARE THE PART THAT SURVIVES A SUITE BEING EMPTIED. A file path proves the file is
+ * there, which is the same limit `ai-docs/CLAIM-MAP.md` states about itself; a title proves the
+ * property still has a case with its name on it. Neither proves the case asserts anything, and the
+ * defence against that is the one used everywhere here, which is that a check is planted and
+ * watched to fail before it is trusted.
+ */
+export const STATIC_SUITE_COVERAGE: readonly StaticCoverage[] = [
   {
-    id: 'full-text-search',
-    capability:
-      'the full text search index of T007 is built, budgeted and served with an etag at ' +
-      '<mount>/_search-index, and no file this module ships ever requests it; the palette ' +
-      'matches navigation labels and hints only',
-    owners: ['T042'],
-    reachableBy: 'M3',
-    recordedAt: '2026-08-13',
-    roots: ['packages/nest/dist/browser'],
-    marker: '_search-index',
-    diagnosis:
-      'T007 built the index in @openref/search and measured it honestly, 176,714 of 256,000 ' +
-      'gzip bytes on the representative fixture SPEC 0 fourth instance exists to require. ' +
-      'reference.service.ts serves it on every reference, cached behind the document etag. ' +
-      'Nothing downstream asks for it: the index reaches a page through ISearchPort, which ' +
-      '@openref/vue defines and whoever wires the application supplies, and the shipped browser ' +
-      'entry supplies none, so useSearch answers available: false on every page this module ' +
-      'serves. What the palette does instead is nav-search.ts, a match over the navigation rows ' +
-      'the page already holds, which covers a path, a method or part of a summary and nothing ' +
-      'of descriptions, parameters or schema text. T012 declined to ship the index into the ' +
-      'page deliberately, 250 KB for a feature one keystroke deep, and the right shape was ' +
-      'always the fetch the palette already performs for the navigation payload: the browser ' +
-      'bundle carries _navigation today and not _search-index, which is what makes the segment ' +
-      'usable as the marker. T039 wrote the index into the static output as one file, ' +
-      '_search-index beside the navigation payload, and stopped at serving it: no page this ' +
-      'module ships requests it, so the capability is unreachable exactly as recorded here. ' +
-      'The wiring moved rather than being paid, which is what the T039 filing in ' +
-      'ai-docs/BUILD-AMENDMENTS.md provides for when the task that first serves the index is ' +
-      'not the one named, the paragraph moves with the work rather than being deleted. T042 ' +
-      'owns it now because it is the gates task of the milestone this entry must be reachable ' +
-      'by, so the debt is answered before M3 closes or it fails there. Whoever pays the ' +
-      'wiring also derives a raw cap beside the gzip one for the search chunk, per the T039 ' +
-      'amendment paragraph that moves with the work, the way theme-css-raw was derived from ' +
-      'its own measurement.',
+    id: 'determinism',
+    spec: 'детерминированность',
+    files: [
+      'packages/static/test/unit/build-site.spec.ts',
+      'packages/static/test/unit/proxy-files.spec.ts',
+      'packages/static/test/unit/site-base.spec.ts',
+    ],
+    cases: [
+      'should write byte identical output for two builds of one document, generated files included',
+      'should name every asset by the digest of its bytes',
+      'should be deterministic: two generations produce identical bytes',
+      'should carry no timestamp, so two builds of one document agree',
+    ],
   },
   {
-    id: 'static-proxy-transport',
-    capability:
-      'the static proxy rules of SPEC 16.2 are generated, validated per platform and proven to ' +
-      'pin their upstreams, and no page this project ships ever sends through them; the ' +
-      'console on a static build sends direct whatever --target generated',
-    owners: ['T042'],
-    reachableBy: 'M3',
-    recordedAt: '2026-08-27',
-    roots: ['packages/nest/dist/browser'],
-    marker: 'staticProxy',
-    diagnosis:
-      'T040 built the generation side whole: one rule per pinned upstream under ' +
-      '<base>/_proxy/u<N>/, seven platform artefacts, determinism, the SPEC 19.9 proof that no ' +
-      'request can name a target, and the direct mode warning for platforms with no rewrite. ' +
-      'What no task has built is the browser half: ProxyHttpTransport speaks the SPEC 14.5 ' +
-      'envelope, a POST of {method, url, headers, body} to one route, and a platform rewrite ' +
-      'rule cannot read an envelope, so the generated routes need a transport that rewrites ' +
-      'the request url onto the u<N> path prefix and sends the request itself. The page model ' +
-      'carries proxyPath for the envelope proxy and nothing for this one, so the runner ' +
-      'factory in packages/nest/src/browser/runner-factory.ts has no fact to choose by, and ' +
-      'the console on every static build sends direct. Paying the debt means a path rewrite ' +
-      'transport in @openref/runner, a page model fact naming the prefix and the pinned ' +
-      'upstream order, the factory branch that reads it, and a browser case proving a Send on ' +
-      "a built page reaches its own origin under the prefix. The marker is that fact's field " +
-      "name, absent from the shipped bundle until the choice exists, per this list's own " +
-      'convention. T042 owns it as the gates task of the milestone SPEC 16.2 ships in.',
+    id: 'incrementality',
+    spec: 'инкрементальность',
+    files: [
+      'packages/static/test/unit/build-site.spec.ts',
+      'packages/static/test/unit/page-key.spec.ts',
+      'packages/static/test/integration/build-output.spec.ts',
+    ],
+    cases: [
+      'should re-render only the pages a changed operation affects',
+      'should produce a carried page byte identical to a rendered one',
+      'should re-render everything when a change reaches the navigation every page draws',
+      'should render everything when the manifest cannot be read',
+      'should write the same bytes for a carried file when one node changes',
+      'should move for the changed node and stand still for its sibling',
+    ],
+  },
+  {
+    id: 'seo-markup',
+    spec: 'SEO-разметка',
+    files: [
+      'packages/static/test/unit/build-site.spec.ts',
+      'packages/static/test/unit/site-base.spec.ts',
+    ],
+    cases: [
+      'should carry a canonical link, og tags and json-ld when the base has an origin',
+      'should omit the two that need an origin, and say so, when the base is a path',
+      'should write one absolute loc per page',
+      'should write nothing at all without an origin, rather than a sitemap of paths',
+      'should name the document and link every operation and schema',
+    ],
+  },
+  {
+    id: 'proxy-configs',
+    spec: 'конфиги прокси',
+    files: [
+      'packages/static/test/unit/build-proxy.spec.ts',
+      'packages/static/test/unit/proxy-files.spec.ts',
+      'packages/static/test/unit/proxy-runners.spec.ts',
+      'packages/static/test/unit/proxy-upstreams.spec.ts',
+      'packages/static/test/unit/proxy-target.spec.ts',
+      'packages/static/test/integration/proxy-config-tools.spec.ts',
+    ],
+    cases: [
+      'should write the netlify rules into the output, tracked as build files',
+      'should write one rule per unique upstream, per SPEC 16.2',
+      'should weave the base path into every rule, and none when the base is the root',
+      'should pin an absolute http(s) server as one upstream, trailing slash normalized',
+      'should refuse every request that tries to name a target, without sending anything',
+      'should parse with no errors, every rule a proxy to a pinned host',
+      'should transform with no error, every destination host pinned',
+    ],
   },
 ];
+
+/** The first cell of the SPEC 21 row the wiring above answers. */
+export const STATIC_SUITE_ROW = 'Static';
+
+/** The milestone whose definition of done the wiring below answers, as SPEC 22 spells it. */
+export const MILESTONE_UNDER_GATE = 'M3';
+
+/**
+ * Each clause of the M3 definition of done, wired to the cases that answer it.
+ *
+ * THE DONE-WHEN OF T042 IS "CI PROVES THE M3 DoD WITHOUT MANUAL STEPS", and until this list existed
+ * that was met for one clause out of three. The static build clause got a named case saying which
+ * sentence it answers; the other two ran in CI through suites that happened to exist, carried no
+ * clause name, and were tied to the milestone by nobody. A rename of either would have left SPEC 22
+ * promising a proof with nothing behind it, which is exactly what `STATIC_SUITE_COVERAGE` above
+ * exists to prevent for a row of SPEC 21, so the same mechanism is pointed at the milestone.
+ *
+ * ONE ENTRY PER CLAUSE, IN THE SPECIFICATION'S OWN WORDS, and reconciled in both directions: a
+ * clause SPEC 22 states and this list does not answer fails, and a clause this list answers that
+ * SPEC 22 does not state fails as well.
+ *
+ * WHAT EACH ENTRY OWES IS THE WHOLE CLAUSE AND NOT ITS EASIER HALF. "on a real specification
+ * history" is a git history and not a pair of files, and "fails the pipeline" is an exit code that
+ * leaves the process and not an outcome object, so each list carries the case that proves the part
+ * a reader would otherwise assume.
+ */
+export const MILESTONE_CLAUSE_COVERAGE: readonly StaticCoverage[] = [
+  {
+    id: 'diff-over-history',
+    spec: '`diff` ловит ломающие изменения на реальной истории спеки',
+    files: [
+      'packages/cli/test/unit/diff-command.spec.ts',
+      'packages/cli/test/unit/git-ref-adapter.spec.ts',
+      'packages/cli/test/integration/cli-binary.spec.ts',
+    ],
+    cases: [
+      // The history half: two commits of one specification file in a real repository, read
+      // through the same git ref sides a caller types, with the breaking change between them.
+      'should catch a breaking change between two commits of one specification, which is the M3 definition of done',
+      // The findings half, at the SPEC 17.1 wording, and the exit code leaving the process.
+      'should print the SPEC 17.1 example verbatim on the pair built to produce it, and exit 1',
+      'should carry exit code 1 out of the process for a diff with breaking changes',
+      'should read a committed file at HEAD',
+    ],
+  },
+  {
+    id: 'static-from-the-example',
+    spec: 'статика разворачивается из примера',
+    files: ['packages/cli/test/integration/cli-binary.spec.ts'],
+    cases: [
+      'should deploy the static site out of the example application, which is the M3 definition of done',
+    ],
+  },
+  {
+    id: 'doctor-fails-the-pipeline',
+    spec: '`doctor` роняет пайплайн при дрейфе',
+    files: [
+      'packages/cli/test/unit/doctor-command.spec.ts',
+      'packages/cli/test/integration/cli-binary.spec.ts',
+    ],
+    cases: [
+      // The pipeline half: a spawned process, whose exit code is the only thing CI reads.
+      'should carry a non zero exit code out of the process for doctor on drift, which is the M3 definition of done',
+      // And the threshold half, both ways round, so "fails on drift" is not "fails on anything".
+      'should fail at --fail-on=drift on a warning severity finding',
+      'should never fail when --fail-on is omitted, whatever it finds',
+    ],
+  },
+];
+
+/**
+ * The CI job that gives the SPEC 20 elapsed budget a machine.
+ *
+ * THE NUMBER MEANS NOTHING WITHOUT ONE, which is what T042 is asked to fix. SPEC 20 bounds the
+ * static build of 1000 nodes on four cores at sixty seconds; a suite run wherever it lands measures
+ * a machine nobody declared, and T039 already recorded that this made the assertion a hang catcher
+ * rather than a budget. The job below pins the runner and tells the suite what size it is; the
+ * suite refuses to certify on a machine of another size and says so rather than passing quietly.
+ */
+export const STATIC_BUDGET_JOB: BudgetJobExpectation = {
+  workflow: '.github/workflows/ci.yml',
+  job: 'static-build-budget',
+  suite: 'packages/static/test/integration/build-budget.spec.ts',
+  coresVariable: 'OPENREF_STATIC_BUDGET_CORES',
+  cores: 4,
+};
 
 /** The claim map, which answers every SPEC 19 and SPEC 20 claim with what would go red. */
 export const CLAIM_MAP_FILE = 'ai-docs/CLAIM-MAP.md';
@@ -1631,14 +1841,27 @@ export const CSP_SCAN_EXTENSIONS: readonly string[] = [
 export const BROWSER_MODULE_EXTENSIONS: readonly string[] = ['.js', '.mjs'];
 
 /**
- * Where source lives, for the check that every file of it reads as text.
+ * The top level trees the text scan must reach, each of which a reader can run or read.
  *
- * `packages` and `tools` rather than the whole repository, because those are the trees a sweep
- * searches when it asks a question about this project's code. `ai-docs` is not among them: it is
- * not in a clone, so a gate over it could only skip, and the documents are read by people rather
- * than swept by tools.
+ * THE SCAN HAS NO ROOT LIST ANY MORE AND THIS IS NOT ONE, which is the difference the T035 finding
+ * turned on. It walked `packages` and `tools`, so `examples/`, `compat/`, `.github/` and every root
+ * level file including `vitest.shared.ts` were scanned by nothing, and a root dropped from the list
+ * would have taken its whole tree out of the scan with the gate still green. The walk now starts at
+ * the repository root, so nothing is outside it and there is no list to drop from.
+ *
+ * What this list is instead: the trees whose disappearance from the scan would be a defect rather
+ * than a deletion. Each must yield at least one file, and a tree that yields none fails by name.
+ * A tree genuinely removed from the repository is removed from here in the same commit, which is
+ * a decision somebody makes rather than a count that quietly drops.
  */
-export const TEXT_SOURCE_ROOTS: readonly string[] = ['packages', 'tools'];
+export const TEXT_SOURCE_EXPECTED_TREES: readonly string[] = [
+  '.changeset',
+  '.github',
+  'compat',
+  'examples',
+  'packages',
+  'tools',
+];
 
 /**
  * Extensions expected to read as text.
@@ -1666,8 +1889,26 @@ export const TEXT_SOURCE_EXTENSIONS: readonly string[] = [
 /**
  * How few files scanned reads as a scan that never ran.
  *
- * The repository holds several hundred source files, so any figure in the low hundreds separates
- * a real walk from a mistyped root. It is a floor and not a count: a count would be a second thing
- * to maintain on every file added, which is how a check comes to be edited to keep it passing.
+ * RE-DERIVED AT T042 FROM ITS OWN MEASUREMENT, 200 to 800, because 200 was a figure the tree had
+ * long outgrown. T035 filed it: the floor stood at 200 against a real 697, so most of the
+ * repository could have stopped being scanned with the gate still green.
+ *
+ * THE MEASUREMENT IS RE-TAKEN AT THE CLOSE OF T042 AND THE FIGURES BELOW ARE THAT READING, because
+ * the first ones this comment carried, 907 with `packages` at 732 and `tools` at 135, were already
+ * fourteen files stale by the end of the task that wrote them, and a derivation whose warrant no
+ * longer describes the tree is a number nobody can check. The second reading, 922 with `tools` at
+ * 139, went stale the same way and inside the same task: the browser case that closes the
+ * `static-proxy-transport` debt is a file under `tools`, and it landed after that reading. Measured
+ * on the whole checkout: 923 files, of which `packages` is 743 and `tools` is 140, with `examples`
+ * 15, `<root file>` 16, `.github` 4, `compat` 3 and `.changeset` 2.
+ *
+ * THE PROPERTY THAT DERIVES THE NUMBER, rather than a fraction: losing either of the two large
+ * trees fails it. Without `packages` the walk yields 180 and without `tools` it yields 783, so any
+ * floor above 783 and below the measured 923 holds the property, and 800 still is, with room for
+ * the ordinary work of one milestone. It is a floor and not a count: a count would be a second
+ * thing to maintain on every file added, which is how a check comes to be edited to keep it
+ * passing, and it is why a figure moving by fourteen is a comment to re-take rather than a
+ * threshold to move. The per tree counts are printed beside it on every run and
+ * `TEXT_SOURCE_EXPECTED_TREES` names the small trees, whose loss no total can see.
  */
-export const TEXT_SOURCE_MIN_FILES = 200;
+export const TEXT_SOURCE_MIN_FILES = 800;

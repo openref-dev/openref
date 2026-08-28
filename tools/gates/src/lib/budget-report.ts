@@ -34,6 +34,7 @@ import {
   evaluateBudget,
   formatBytes,
   gzipSizeOf,
+  isBuiltOutputPath,
   type ArtifactMeasurement,
   type BudgetQuantity,
 } from './budgets.js';
@@ -93,6 +94,23 @@ export interface BudgetReport {
   readonly warnings: readonly string[];
   /** How many budgets were actually measured, as opposed to skipped. */
   readonly measuredCount: number;
+  /**
+   * How many of those were weighed over files a build produced.
+   *
+   * THE ONLY FIGURE THAT ANSWERS "DID I SEE A BUILD", and it is separate from `measuredCount`
+   * because the two diverged in exactly the case the debt gate exists for. With every package's
+   * `dist` removed, four budgets still weighed something: the two font budgets and the
+   * two theme stylesheet budgets, whose roots include the committed `packages/theme/fonts`. A
+   * count of weighed budgets therefore read four on a tree with nothing built in it, and
+   * `budget-exceptions` passed while printing that it had read four budgets "under the built
+   * artefacts of SPEC 20", which was false about every one of them.
+   *
+   * A committed input is still weighed and still gated. What it may not do is stand in for a
+   * build, which is why the two counts are carried apart rather than one being dropped.
+   */
+  readonly builtCount: number;
+  /** How many were weighed over committed inputs alone, such as the shipped font files. */
+  readonly committedCount: number;
 }
 
 /**
@@ -107,6 +125,15 @@ export function collectBudgetOutcomes(repoRoot: string): BudgetReport {
   const notes: string[] = [];
   const warnings: string[] = [];
   let measuredCount = 0;
+  let builtCount = 0;
+  let committedCount = 0;
+
+  /** Counts one weighed budget on the side its files came from. */
+  const countWeighed = (measured: readonly ArtifactMeasurement[]): void => {
+    measuredCount += 1;
+    if (measured.some((measurement) => isBuiltOutputPath(measurement.path))) builtCount += 1;
+    else committedCount += 1;
+  };
 
   // THE GESTURE DIVISION IS COMPUTED ONCE PER ENTRY AND ITS COMPLAINTS ARE REPORTED ONCE. Six
   // budgets share one bundle, so walking it six times would print the same unclaimed chunk six
@@ -229,7 +256,7 @@ export function collectBudgetOutcomes(repoRoot: string): BudgetReport {
       continue;
     }
 
-    measuredCount += 1;
+    countWeighed(measurements);
     const evaluation = evaluateBudget(budget.limitBytes, measurements, budget.quantity);
     // The quantity is printed with the figure. A reader comparing two budgets over the same
     // files has to be able to see that they are two quantities and not a contradiction.
@@ -298,7 +325,10 @@ export function collectBudgetOutcomes(repoRoot: string): BudgetReport {
       continue;
     }
 
-    measuredCount += 1;
+    // A FONT FILE IS COMMITTED AND NOT BUILT, and this is where that shows. `pnpm build` produces
+    // nothing under `packages/*/fonts`: the files are in the tree, so these budgets weigh and gate
+    // exactly as before and answer for no build at all.
+    countWeighed(measurements);
 
     for (const [id, limit, group] of [
       ['fonts-first-paint', FONT_BUDGET_LIMITS.firstPaintBytes, firstPaint],
@@ -333,7 +363,7 @@ export function collectBudgetOutcomes(repoRoot: string): BudgetReport {
       `${BROWSER_BASELINE_FILE}: ${baselineResult.reason ?? 'could not be read'}. The browser budgets of SPEC 20 have no measurement behind them until it is re-recorded by ${BROWSER_STUDY_WORKFLOW}`,
     );
 
-    return { outcomes, errors, notes, warnings, measuredCount };
+    return { outcomes, errors, notes, warnings, measuredCount, builtCount, committedCount };
   }
 
   const baseline = baselineResult.baseline;
@@ -411,7 +441,7 @@ export function collectBudgetOutcomes(repoRoot: string): BudgetReport {
     );
   }
 
-  return { outcomes, errors, notes, warnings, measuredCount };
+  return { outcomes, errors, notes, warnings, measuredCount, builtCount, committedCount };
 }
 
 /**

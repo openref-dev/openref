@@ -137,6 +137,11 @@ export {
 } from './send/infrastructure/adapters/fetch-transport.adapter';
 
 export {
+  PathRewriteHttpTransport,
+  type PathRewriteTransportOptions,
+} from './send/infrastructure/adapters/path-rewrite-transport.adapter';
+
+export {
   ProxyHttpTransport,
   type ProxyTransportOptions,
 } from './send/infrastructure/adapters/proxy-transport.adapter';

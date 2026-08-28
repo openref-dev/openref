@@ -14,6 +14,7 @@ import { planTaskIds } from '../lib/build-manifest.js';
 import {
   checkClaimFigures,
   checkClaimMap,
+  checkClaimQuotes,
   compareBudgetValues,
   parseBudgetRows,
   parseClaimMap,
@@ -155,6 +156,12 @@ export const claimsGate: Gate = {
     issues.push(...compareBudgetValues(budgetRows, thresholds));
     issues.push(...checkClaimFigures(rows, thresholds));
 
+    // AND THE PROMISE AGAINST THE PROMISE, since T042. Until then the text of a SPEC 19 claim was
+    // parsed on every run and compared with nothing: the map answered by id, and the id is the
+    // promise's ordinal in a numbered list, so a rewritten promise and a reordered list both left
+    // this gate green. Each row now carries the promise it answers, word for word.
+    issues.push(...checkClaimQuotes(securityClaims, rows));
+
     for (const issue of issues) {
       findings.push({ level: 'error', message: `[${issue.rule}] ${issue.message}` });
     }
@@ -168,7 +175,8 @@ export const claimsGate: Gate = {
         message:
           `${String(securityClaims.length)} SPEC 19 claim(s) and ${String(SPEC_20_BUDGET_IDS.length)} ` +
           `SPEC 20 budget(s) answered by ${String(rows.length)} row(s): ${String(proved.length)} proved, ` +
-          `${String(scheduled.length)} owned by a task`,
+          `${String(scheduled.length)} owned by a task, and every SPEC 19 row quotes the promise ` +
+          'it answers as the specification writes it',
       });
 
       for (const row of scheduled) {

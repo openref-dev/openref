@@ -26,6 +26,11 @@ const SHAPES: Readonly<Record<StateNoticeKind, readonly [string, string, string 
   'search-empty': ['li', 'oref-palette-empty', null],
   'search-no-results': ['li', 'oref-palette-empty', null],
   'search-partial': ['li', 'oref-palette-empty', null],
+  // A LIST ITEM AND NOT AN ANNOUNCEMENT, unlike `nav-unavailable`, and the difference is where the
+  // reader is looking. The navigation fails behind a reader who has moved on; this one is drawn
+  // inside the results list a reader is watching at the moment they typed, and a `role` inside a
+  // listbox would replace the option role the list is built from.
+  'search-unavailable': ['li', 'oref-palette-empty', null],
   'no-server': ['p', 'oref-tryit-notice', null],
   'no-body-fields': ['p', 'oref-tryit-notice', null],
   'schema-missing': ['p', 'oref-schema-empty', null],

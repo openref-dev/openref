@@ -29,8 +29,15 @@ import type { Gate, GateFinding, GateResult } from '../types.js';
  * FOUR THINGS ARE ERRORS AND EACH IS THE SAME OUTCOME. A bare specifier does not resolve. A remote
  * url resolves and fetches from somebody else's server, which SPEC 19 forbids outright. A relative
  * specifier naming a file that was not built is a 404 with the same consequence as the first. And
- * an `import(` this scan cannot read leaves the question unanswered for that edge, which is
- * reported rather than passed over.
+ * an edge this scan cannot read leaves the question unanswered for that edge, which is reported
+ * rather than passed over.
+ *
+ * WHAT THE SCAN READS CHANGED AT T042 AND THE GATE DID NOT. It used to be regular expressions over
+ * minified text, and T035 measured what went through them: `import("./chunk-"+h)` matched no
+ * pattern and defeated the unreadable branch as well, so a chunk graph addressed that way was
+ * reported as having no specifiers at all. It is a parser now, so an edge is found by being an
+ * edge, a computed specifier is unreadable whatever expression leads it, and a chunk that will not
+ * parse is a finding rather than a clean file.
  */
 
 /** What a kind of specifier costs a reader, in the words the finding uses. */
@@ -94,11 +101,14 @@ export const browserResolutionGate: Gate = {
           });
         }
 
-        for (const excerpt of found.unreadable) {
+        for (const edge of found.unreadable) {
           failed = true;
           findings.push({
             level: 'error',
-            message: `${file} has a dynamic import this scan cannot read, so nothing here says whether it resolves: ${excerpt.trim()}`,
+            message:
+              edge.reason === 'unparsed'
+                ? `${file} is not a module this scan can parse, so none of its specifiers were read and nothing here says whether the chunk loads: ${edge.excerpt}`
+                : `${file} has a ${edge.form ?? 'module'} edge whose specifier is computed rather than written, so nothing here says whether it resolves: ${edge.excerpt}`,
           });
         }
       }

@@ -14,11 +14,19 @@
  */
 
 import { canonicalize, IR_VERSION, type IRDocument } from '@openref/core';
-import { PAGE_MODEL_VERSION, RENDER_VERSION } from '@openref/render';
+import { PAGE_MODEL_VERSION, RENDER_VERSION, type StaticProxyModel } from '@openref/render';
 import { PAGE_KEY_VERSION } from './page-key';
 
 /**
  * Version of the manifest shape.
+ *
+ * 3 SINCE `T042`: the manifest carries `staticProxy`, the prefix and pinned upstreams of the
+ * generated rewrite rules, for the reason `directTarget` is here. It is in the page bytes, so two
+ * builds of one document under two targets are two sets of pages, and a rebuild that changed the
+ * target must not carry the previous target's addresses forward. It is a version rather than an
+ * optional field because a manifest written before it says nothing about the proxy, and reading
+ * that silence as "no rules" is the one wrong answer: the pages on disk may carry rules this
+ * build did not write.
  *
  * 2 SINCE `T040`: the manifest carries `rendererVersion` and `directTarget`, and the reason for
  * the first is a hole T040 was the first to arm. A page key covers the node and the frame,
@@ -28,7 +36,7 @@ import { PAGE_KEY_VERSION } from './page-key';
  * expects the new shape. So the manifest now records the renderer triple the render cache key
  * already uses, and a build under a different one renders everything.
  */
-export const BUILD_MANIFEST_VERSION = 2;
+export const BUILD_MANIFEST_VERSION = 3;
 
 /**
  * The renderer identity a manifest's pages were rendered by.
@@ -66,6 +74,15 @@ export interface BuildManifest {
    * for none render different pages from one document, exactly as two base paths do.
    */
   readonly directTarget: string | null;
+  /**
+   * The generated proxy rules the pages address, per SPEC 16.2, or null when there are none.
+   *
+   * In the manifest for the reason `directTarget` is: it is in the bytes. A page carries the
+   * prefix and the pinned order in its state block, so a rebuild whose document pinned a
+   * different set of upstreams, or whose target stopped writing rules at all, has nothing to
+   * carry forward even where no node moved.
+   */
+  readonly staticProxy: StaticProxyModel | null;
   readonly pages: readonly ManifestPage[];
   /** Every other file the build wrote: assets, the index, the navigation, the site files. */
   readonly files: readonly string[];
@@ -112,6 +129,8 @@ export function readManifest(text: string): BuildManifest | null {
   if (typeof candidate.basePath !== 'string') return null;
   if (candidate.siteUrl !== null && typeof candidate.siteUrl !== 'string') return null;
   if (candidate.directTarget !== null && typeof candidate.directTarget !== 'string') return null;
+  const staticProxy = readStaticProxy(candidate.staticProxy);
+  if (staticProxy === undefined) return null;
   if (!Array.isArray(candidate.pages) || !Array.isArray(candidate.files)) return null;
 
   const pages: ManifestPage[] = [];
@@ -136,9 +155,56 @@ export function readManifest(text: string): BuildManifest | null {
     basePath: candidate.basePath,
     siteUrl: candidate.siteUrl,
     directTarget: candidate.directTarget,
+    staticProxy,
     pages,
     files,
   };
+}
+
+/**
+ * Reads the recorded proxy, distinguishing "none" from "not a manifest".
+ *
+ * THREE ANSWERS RATHER THAN TWO, and the third is why this is a function. `null` is a build that
+ * wrote no rules, a record is a build that did, and `undefined` is a value that is neither, which
+ * has to reject the whole manifest the way every other malformed field does. Returning `null` for
+ * a broken record would read as "no rules" and carry pages that address some.
+ *
+ * @param value - What the file had under `staticProxy`
+ * @returns The record, null for none, or undefined when the manifest cannot be trusted
+ */
+function readStaticProxy(value: unknown): StaticProxyModel | null | undefined {
+  if (value === null) return null;
+  if (typeof value !== 'object') return undefined;
+
+  const record = value as Record<string, unknown>;
+  if (typeof record.prefix !== 'string') return undefined;
+  if (!Array.isArray(record.upstreams)) return undefined;
+
+  const upstreams: string[] = [];
+  for (const entry of record.upstreams) {
+    if (typeof entry !== 'string') return undefined;
+    upstreams.push(entry);
+  }
+
+  return { prefix: record.prefix, upstreams };
+}
+
+/**
+ * Whether two recorded proxies are the same set of rules at the same address.
+ *
+ * ORDER IS PART OF THE COMPARISON, because order is the rule index: the same two upstreams in the
+ * other order are `u0` and `u1` swapped, and every page addresses them by number.
+ *
+ * @param left - One build's rules, or null
+ * @param right - The other build's rules, or null
+ * @returns True when the pages of one may be the pages of the other
+ */
+function sameStaticProxy(left: StaticProxyModel | null, right: StaticProxyModel | null): boolean {
+  if (left === null || right === null) return left === right;
+  if (left.prefix !== right.prefix) return false;
+  if (left.upstreams.length !== right.upstreams.length) return false;
+
+  return left.upstreams.every((upstream, index) => upstream === right.upstreams[index]);
 }
 
 /**
@@ -152,6 +218,7 @@ export function readManifest(text: string): BuildManifest | null {
  * @param basePath - Base path of this build
  * @param siteUrl - Absolute base of this build, or null
  * @param directTarget - The direct mode warning of this build, or null
+ * @param staticProxy - The generated rules of this build, or null
  * @returns True when this build may re-address the previous build's pages
  */
 export function manifestApplies(
@@ -160,15 +227,17 @@ export function manifestApplies(
   basePath: string,
   siteUrl: string | null,
   directTarget: string | null = null,
+  staticProxy: StaticProxyModel | null = null,
 ): previous is BuildManifest {
   if (previous === null) return false;
   if (previous.basePath !== basePath) return false;
   if (previous.siteUrl !== siteUrl) return false;
-  // THE RENDERER AND THE WARNING ARE IN THE BYTES AND NOT IN THE KEYS, since T040: a page key
-  // covers what the document contributes, so the build wide inputs are compared here, exactly
-  // as the base is.
+  // THE RENDERER, THE WARNING AND THE RULES ARE IN THE BYTES AND NOT IN THE KEYS, since T040 and
+  // T042: a page key covers what the document contributes, so the build wide inputs are compared
+  // here, exactly as the base is.
   if (previous.rendererVersion !== RENDERER_VERSION) return false;
   if (previous.directTarget !== directTarget) return false;
+  if (!sameStaticProxy(previous.staticProxy, staticProxy)) return false;
 
   // A DOCUMENT WHOSE HASH DID NOT MOVE STILL GOES THROUGH THE KEYS RATHER THAN SHORT
   // CIRCUITING, because a page's bytes also depend on the renderer, and the caller decides what

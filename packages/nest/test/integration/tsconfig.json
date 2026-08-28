@@ -13,6 +13,7 @@
       "@openref/render": ["packages/render/src/index.ts"],
       "@openref/runner": ["packages/runner/src/index.ts"],
       "@openref/search": ["packages/search/src/index.ts"],
+      "@openref/static": ["packages/static/src/index.ts"],
       "@openref/nest": ["packages/nest/src/index.ts"]
     },
     "allowImportingTsExtensions": true,

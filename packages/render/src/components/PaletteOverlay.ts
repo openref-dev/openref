@@ -34,6 +34,7 @@ export const PaletteOverlay = defineComponent({
     selected: { type: Number, default: 0 },
     hits: { type: Array as PropType<readonly PaletteHitModel[]>, default: () => [] },
     partial: { type: Boolean, default: false },
+    degraded: { type: Boolean, default: false },
     onOpen: { type: Function as PropType<() => void>, required: true },
     onClose: { type: Function as PropType<() => void>, required: true },
     onQuery: { type: Function as PropType<(query: string) => void>, required: true },
@@ -136,12 +137,26 @@ export const PaletteOverlay = defineComponent({
       // `TX-PARITY-UI`: the palette said its own words, `Type to search` against the
       // catalogue's `Type to search this reference.`, and two strings drifting apart silently
       // is what the catalogue exists to prevent.
+      //
+      // THE ORDER OF THE THREE TESTS IS THE ANSWER TO THREE DIFFERENT QUESTIONS, per SPEC 11 as
+      // amended at T042. Nothing typed is not a result at all. Something still coming is a wait.
+      // An index that failed is a page saying which search it was able to perform, and it comes
+      // before `search-no-results` because "no matches" over the navigation rows alone is the
+      // sentence that used to be printed here and is the one that misleads.
       const empty =
         props.query.trim() === ''
           ? { kind: 'search-empty' as const, message: PALETTE_NOTICES['search-empty'] }
           : props.partial
             ? { kind: 'search-partial' as const, message: PALETTE_NOTICES['search-partial'] }
-            : { kind: 'search-no-results' as const, message: PALETTE_NOTICES['search-no-results'] };
+            : props.degraded
+              ? {
+                  kind: 'search-unavailable' as const,
+                  message: PALETTE_NOTICES['search-unavailable'],
+                }
+              : {
+                  kind: 'search-no-results' as const,
+                  message: PALETTE_NOTICES['search-no-results'],
+                };
 
       return h('div', { class: 'oref-palette-scrim', onClick: props.onClose }, [
         h(

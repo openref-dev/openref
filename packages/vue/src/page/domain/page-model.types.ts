@@ -81,10 +81,14 @@ export interface NavEntryModel {
 /**
  * One row of the search overlay.
  *
- * IT IS THE PALETTE'S OWN ROW AND NOT A `SearchHit`. The shipped palette searches the navigation
- * slice and never consults the search port, so the method and the path arrive joined into one
- * `hint` string rather than apart. A prop declared as `SearchHit` would be a prop the position
- * cannot supply.
+ * IT IS THE PALETTE'S OWN ROW AND NOT A `SearchHit`, and the reason changed at T042 while the
+ * shape did not. It used to be that the shipped palette searched the navigation slice and never
+ * consulted an index at all; since T042 it fetches `<mount>/_search-index` on first open and
+ * prefers index hits, falling back to the navigation match when the index has not arrived or did
+ * not load. What has not changed is that both sources reduce to one row: the method and the path
+ * arrive joined into one `hint` string rather than apart, so a position drawing a hit does not
+ * have to know which of the two produced it. A prop declared as `SearchHit` would be a prop the
+ * navigation half cannot supply.
  */
 export interface PaletteHitModel {
   readonly id: string;
@@ -682,6 +686,21 @@ export interface FrameModel {
   readonly stats: FrameStatsModel;
 }
 
+/**
+ * The generated static proxy of SPEC 16.2, as the page carries it.
+ *
+ * TWO FACTS BECAUSE A REWRITE RULE IS TWO FACTS. Where the rules live, and which upstream each
+ * one serves: the build wrote one rule per pinned upstream at `<prefix>/u<N>/`, indexed by
+ * position, so a console that knows only the prefix knows no rule's address. The order is the
+ * contract, not a presentation detail.
+ */
+export interface StaticProxyModel {
+  /** Absolute path on this origin every rule lives under, `<base>/_proxy`. */
+  readonly prefix: string;
+  /** The pinned upstreams, in the `u<N>` order the generated rules index them by. */
+  readonly upstreams: readonly string[];
+}
+
 /** Everything one page renders from. */
 export interface PageModel {
   readonly pageModelVersion: number;
@@ -749,4 +768,15 @@ export interface PageModel {
    * origin is not a degradation.
    */
   readonly directTarget?: string;
+  /**
+   * The generated proxy rules of SPEC 16.2, when the build wrote them for this site.
+   *
+   * Set by the static build when `--target` named a platform that can rewrite routes and the
+   * document pinned at least one absolute upstream, so the console sends to this page's own
+   * origin under the prefix and the platform reaches the API. Absent everywhere else: a served
+   * page carries `proxyPath` for the envelope proxy instead, and a build with no rules has no
+   * rule to address. The two are never both set, because one host mounts a route and the other
+   * generates a rewrite, and no deployment is both.
+   */
+  readonly staticProxy?: StaticProxyModel;
 }

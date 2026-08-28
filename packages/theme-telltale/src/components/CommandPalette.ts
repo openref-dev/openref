@@ -8,9 +8,13 @@ import type { PaletteHitModel } from '@openref/vue';
  * IT DRAWS A BUTTON WHEN IT IS SHUT, WHICH IS NOT THE SAME AS DRAWING NOTHING. The position is
  * resolved on every page, open or not, so the strip always carries the control that opens it.
  *
- * The three empty states are `StateNotice` kinds and this position does not write their sentences:
- * it says which state it is in and the notice says what that means. Two positions writing the same
- * English is how the English comes to differ.
+ * The empty states, four of them since T042, are `StateNotice` kinds and this position does not
+ * write their sentences: it says which state it is in and the notice says what that means. Two
+ * positions writing the same English is how the English comes to differ.
+ *
+ * `degraded` arrived with the fourth kind and this theme does not read it, which is the additive
+ * property being exercised rather than an omission: the reference's own overlay chooses the kind,
+ * and a theme drawing its own overlay opts into the state when it has something to say about it.
  */
 export default function CommandPalette(props: {
   readonly open: boolean;

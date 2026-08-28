@@ -287,6 +287,9 @@ importers:
       '@openref/search':
         specifier: workspace:*
         version: link:../search
+      '@openref/static':
+        specifier: workspace:*
+        version: link:../static
       jsdom:
         specifier: 30.0.1
         version: 30.0.1(@noble/hashes@1.8.0)
@@ -506,6 +509,9 @@ importers:
       '@types/semver':
         specifier: 7.7.1
         version: 7.7.1
+      acorn:
+        specifier: 8.18.0
+        version: 8.18.0
       semver:
         specifier: 7.8.5
         version: 7.8.5
@@ -515,6 +521,9 @@ importers:
       typescript:
         specifier: 5.9.3
         version: 5.9.3
+      yaml:
+        specifier: 2.9.0
+        version: 2.9.0
 
 packages:
 

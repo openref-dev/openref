@@ -150,6 +150,7 @@ describe('slot registry contract', () => {
       selected: number;
       hits: readonly PaletteHitModel[];
       partial: boolean;
+      degraded: boolean;
       onOpen(): void;
       onClose(): void;
       onQuery(query: string): void;
@@ -287,6 +288,9 @@ describe('slot registry contract', () => {
       | 'search-empty'
       | 'search-no-results'
       | 'search-partial'
+      // Added at T042, additive, and recorded in SPEC 11 and PUBLIC-API.md before the code: the
+      // palette whose index could not be loaded used to be shown as `search-no-results`.
+      | 'search-unavailable'
       | 'no-server'
       | 'no-body-fields'
       | 'schema-missing'

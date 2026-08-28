@@ -29,6 +29,7 @@ import {
   type IHighlighter,
   type IMarkdownRenderer,
   type RenderedPage,
+  type StaticProxyModel,
   type ThemeDefinition,
 } from '@openref/render';
 import { buildSearchIndex } from '@openref/search';
@@ -43,6 +44,7 @@ import {
   type ManifestPage,
 } from '../../domain/build-manifest';
 import { planProxy, type ProxyPlan } from '../../../proxy/domain/proxy-plan';
+import { proxyPathPrefix } from '../../../proxy/domain/proxy-files';
 import type { BuildTarget } from '../../../proxy/domain/proxy-target';
 import { headOf } from '../../domain/page-metadata';
 import { PAGE_KEY_VERSION } from '../../domain/page-key';
@@ -158,6 +160,15 @@ export async function buildSite(options: BuildSiteOptions): Promise<BuildReport>
     forwardCookies: options.proxy?.forwardCookies ?? false,
   });
 
+  // THE OTHER HALF OF THE SAME PLAN, AND THE PAGES CARRY IT, per `T042`. Rules were written
+  // exactly when `planProxy` produced files, and a page is told where they are and what they are
+  // pinned to so its console can address one. A direct target writes no files and warns instead,
+  // which is `directTarget` above; a document with no absolute server pins nothing at all.
+  const staticProxy: StaticProxyModel | null =
+    proxy.files.length > 0 && proxy.upstreams.length > 0
+      ? { prefix: proxyPathPrefix(base.basePath), upstreams: proxy.upstreams }
+      : null;
+
   const catalog = buildAssetCatalog(options.assets.sources);
   const assetHrefOf = (name: string): string => {
     const asset = catalog.byName.get(name);
@@ -179,6 +190,7 @@ export async function buildSite(options: BuildSiteOptions): Promise<BuildReport>
     base.basePath,
     base.siteUrl,
     proxy.directTarget,
+    staticProxy,
   )
     ? new Map(previous.pages.map((page) => [page.file, page]))
     : new Map<string, ManifestPage>();
@@ -196,6 +208,7 @@ export async function buildSite(options: BuildSiteOptions): Promise<BuildReport>
       modules,
       previousKey: reusable.get(page.file)?.key,
       directTarget: proxy.directTarget,
+      staticProxy,
     });
 
     (wasCarried ? carried : rendered).push(page.file);
@@ -219,6 +232,7 @@ export async function buildSite(options: BuildSiteOptions): Promise<BuildReport>
     basePath: base.basePath,
     siteUrl: base.siteUrl,
     directTarget: proxy.directTarget,
+    staticProxy,
     pages: pages.map((page) => ({ file: page.file, key: page.key })),
     files,
   };
@@ -258,6 +272,8 @@ interface PageContext {
   readonly previousKey: string | undefined;
   /** The direct mode warning of SPEC 16.2, or null; every page of a build carries the same. */
   readonly directTarget: string | null;
+  /** The generated rules of SPEC 16.2, or null; every page of a build carries the same. */
+  readonly staticProxy: StaticProxyModel | null;
 }
 
 /**
@@ -289,6 +305,7 @@ async function writeOnePage(page: PlannedPage, context: PageContext): Promise<bo
     schemaId: page.schemaId,
     basePath: base.basePath,
     ...(context.directTarget === null ? {} : { directTarget: context.directTarget }),
+    ...(context.staticProxy === null ? {} : { staticProxy: context.staticProxy }),
     ...(options.highlighter === undefined ? {} : { highlighter: options.highlighter }),
     ...(options.markdown === undefined ? {} : { markdown: options.markdown }),
     ...(options.theme === undefined ? {} : { theme: options.theme }),

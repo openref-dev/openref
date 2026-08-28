@@ -14,8 +14,10 @@
  *
  * - `nav-unavailable`: the rest of the navigation could not be fetched, so the sidebar lists
  *   what the page arrived with
- * - `search-empty`, `search-no-results`, `search-partial`: the three states of the command
- *   palette, the third being a page still searching the slice it shipped with
+ * - `search-empty`, `search-no-results`, `search-partial`, `search-unavailable`: the four states of
+ *   the command palette. The third is a page still searching the slice it shipped with, and the
+ *   fourth is a page whose index could not be loaded at all, which is a different thing from
+ *   finding nothing and said so since T042
  * - `no-server`: the document declares no server, so there is nowhere to send a request
  * - `no-body-fields`: a media type is declared with no properties, so the console has no fields
  *   to offer for it
@@ -31,6 +33,14 @@ export type StateNoticeKind =
   | 'search-empty'
   | 'search-no-results'
   | 'search-partial'
+  // The palette whose index could not be fetched or read, since T042 and per SPEC 11. It was
+  // `search-no-results` until then, which was true of the search that ran and silent about what
+  // it ran over: a degraded state presented as an ordinary empty one. A theme that does not know
+  // this kind still prints `message`, which is where the sentence lives, so nothing breaks at
+  // runtime; the addition is nonetheless a break of the theme contract, because a total
+  // `Record<StateNoticeKind, ...>` is a sanctioned spelling and stops compiling when this union
+  // grows. See `ai-docs/design/CONTRACT.md` for the recording and the one line migration.
+  | 'search-unavailable'
   | 'no-server'
   | 'no-body-fields'
   | 'schema-missing'

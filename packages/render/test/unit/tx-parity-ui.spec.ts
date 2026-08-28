@@ -43,6 +43,7 @@ describe('the palette wording against the states catalogue', () => {
         selected: 0,
         hits: [],
         partial: kind === 'search-partial',
+        degraded: kind === 'search-unavailable',
         onOpen: () => undefined,
         onClose: () => undefined,
         onQuery: () => undefined,

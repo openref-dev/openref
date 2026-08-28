@@ -18,7 +18,7 @@ import type { StateNoticeKind } from '@openref/vue';
 /**
  * One specimen per kind, in the order the union declares them.
  *
- * THE THREE SEARCH SPECIMENS ARE DERIVED FROM THE PALETTE'S OWN SENTENCES, per SPEC 11 and
+ * THE FOUR SEARCH SPECIMENS ARE DERIVED FROM THE PALETTE'S OWN SENTENCES, per SPEC 11 and
  * `TX-PARITY-UI`: the catalogue's job is to show what the product says, and the catalogue
  * saying something better is the drift the parity report caught. The suffix marks the
  * specimen; the head is the product's sentence, verbatim, and a unit check holds the two
@@ -39,6 +39,10 @@ const SPECIMENS: readonly (readonly [StateNoticeKind, string])[] = [
     `${PALETTE_NOTICES['search-partial']} Specimen of the palette before the whole index arrives.`,
   ],
   [
+    'search-unavailable',
+    `${PALETTE_NOTICES['search-unavailable']} Specimen of an index that never arrived.`,
+  ],
+  [
     'no-server',
     'This document declares no server to send to. Specimen of a console with nowhere to go.',
   ],
@@ -56,6 +60,7 @@ const LIST_KINDS: ReadonlySet<StateNoticeKind> = new Set([
   'search-empty',
   'search-no-results',
   'search-partial',
+  'search-unavailable',
 ]);
 
 /** Renders the catalogue. */
@@ -81,7 +86,7 @@ export const StatesPanel = defineComponent({
 
           return h('section', { class: 'oref-states-item', key: kind }, [
             h('h2', { class: 'oref-section-title' }, kind),
-            // The three palette notices are list items by contract, and a list item outside a
+            // The four palette notices are list items by contract, and a list item outside a
             // list is invalid markup, so the catalogue supplies the list they assume.
             LIST_KINDS.has(kind) ? h('ul', { class: 'oref-states-list' }, [drawn]) : drawn,
           ]);

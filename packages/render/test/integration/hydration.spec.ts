@@ -278,7 +278,10 @@ describe('readPageState', () => {
     // whose client walk finds no `drawn` and draws nothing under the header. T040 added
     // `directTarget`, the platform name of the SPEC 16.2 direct mode warning, and that is 15:
     // a page cached before it hydrates a console with no warning, which on a served page is
-    // correct and on a static one is the page from before the warning existed.
-    expect(state?.pageModelVersion).toBe(15);
+    // correct and on a static one is the page from before the warning existed. T042 added
+    // `staticProxy`, the prefix and pinned order of the SPEC 16.2 rewrite rules, and that is
+    // 16: a page cached before it hydrates a console that sends direct on a deployment whose
+    // rules are up, which is the generation side existing and never being offered.
+    expect(state?.pageModelVersion).toBe(16);
   });
 });

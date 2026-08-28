@@ -13,6 +13,10 @@ Everything here is frozen from T031. Adding a name is a minor version, removing 
 is a major version, and each of the three contracts below is pinned by a type level test that
 fails to compile rather than failing at runtime:
 
+Widening an exported union is retyping it, so it falls on the major side of that rule even where
+nothing breaks at runtime. `StateNoticeKind` is the case that made the distinction worth stating,
+and the row below says what a theme author does about it.
+
 | Contract | Pinned by |
 | --- | --- |
 | Slot props | `packages/vue/test/unit/slot-contract.spec.ts` |
@@ -142,6 +146,7 @@ would have been 1 612 858 bytes on `twilio-api-v2010.yaml` against a node page's
 | `NodeSectionMark` | type | One entry of `drawn`. No `errors` member: the contracts grid is inside the responses section since `TX-ADOPT` |
 | `NodeHeaderModel` | type | Its header. Promises `tags` and `operationId` since `TX-MARKUP`, for the kicker, and `sse` since `TX-PARITY-UI`, for the badge |
 | `SchemaPageModel` | type | A named schema on its own page. Carries `dialect` since `TX-MARKUP` |
+| `StaticProxyModel` | type | The generated rewrite rules of SPEC 16.2 a static build wrote, as `PageModel.staticProxy` carries them: the prefix they live under and the pinned upstreams in the `u<N>` order the rules index them by. Added at `T042`, optional and additive |
 | `NavEntryModel` | type | One row of the navigation. Carries `driftCount` since `TX-FRAME`, summed over children for a group; zero draws no marker and asserts nothing. Carries `method` since `TX-MARKUP`, for the rail's badge, and `sse` since `TX-PARITY-UI`, for the badge that says SSE |
 | `PaletteHitModel` | type | One row of the command palette |
 | `ParameterModel` | type | One parameter row, with its description already HTML. Carries the scan's columns since `TX-PARITY-UI`: `runtimeNote`, `confidence`, `collector`, `unread` |
@@ -174,13 +179,13 @@ would have been 1 612 858 bytes on `twilio-api-v2010.yaml` against a node page's
 | `SLOT_NAMES` | value | The 21 slots, in registry order |
 | `SlotName` | type | One of them |
 | `SlotProps` | type | The props of one named slot |
-| `SlotPropsMap` | type | Every slot's props, which is the frozen contract |
+| `SlotPropsMap` | type | Every slot's props, which is the frozen contract. `CommandPalette.degraded` added at `T042`, additive: the palette's own host knows the index failed to load and the position draws it, per SPEC 11 |
 | `SLOT_NAMES_ARE_COMPLETE` | type | The compile time proof that the list and the map name the same slots |
 | `SERVER_RESOLVED_SLOTS` | value | The eight positions whose override resolves on the server only, per SPEC 10.4 and `TX-ADOPT`; the browser adopts their markup and never hydrates them |
 | `ServerResolvedSlot` | type | One of them |
 | `SERVER_RESOLVED_ROOTS` | value | The root element each stubbed server resolved position must keep, shared by the renderer's stubs and `@openref/theme-kit`'s refusal |
 | `SchemaPayloadMap` | type | The schemas a page carries, keyed by id, as `SchemaTree` is handed them |
-| `StateNoticeKind` | type | Which sentence a `StateNotice` is drawing. Nine since `TX-FRAME`: `health-missing` is the health page nothing measured |
+| `StateNoticeKind` | type | Which sentence a `StateNotice` is drawing. Ten since `T042`: `search-unavailable` is the palette whose index could not be loaded, which used to be shown as `search-no-results` and so reported a degraded state as an ordinary empty one, per SPEC 11. **A kind added here is a breaking change to the theme contract, not an additive one.** Nothing breaks at runtime, since `message` arrives as a prop and a theme that has never heard of the kind still prints the sentence; but this is an exported union, a total `Record<StateNoticeKind, ...>` is a supported way to write a theme, telltale's `StateNotice` is written that way on purpose, and a total record over a union that gained a member does not compile. The migration is one line and it is the theme author's: add the case. Nine since `TX-FRAME`: `health-missing` is the health page nothing measured. Recorded in `ai-docs/design/CONTRACT.md`, and `T064` carries it into the release notes |
 | `StreamCounts` | type | What a `StreamLog` is handed beside its elements |
 | `createSlotRegistry` | value | Builds a registry from a theme's components |
 | `SlotRegistry` | type | That registry |
@@ -222,7 +227,7 @@ would have been 1 612 858 bytes on `twilio-api-v2010.yaml` against a node page's
 | `UseHealth` | type | What that returns |
 | `useSchemaView` | value | One schema as a tree, expanded a level at a time |
 | `UseSchemaView` | type | What that returns |
-| `useSearch` | value | Search over the document, reporting itself unavailable when no index was supplied, which is every page the shipped reference serves until M3 |
+| `useSearch` | value | Search over the document, reporting itself unavailable when no index was supplied. It reads the port off `DocState`, so it answers for a host that composes its own state; the reference's own page carries a `PageModel` and no `DocState`, and reaches the index by the palette's path instead, per the table below |
 | `UseSearch` | type | What that returns |
 | `DEFAULT_HIT_LIMIT` | value | Hits returned when nothing narrows the request further |
 | `useSocket` | value | The interactive event client of SPEC 16, which arrives in M6 |
@@ -247,12 +252,17 @@ it, because a name in a frozen surface with no milestone is a name nothing will 
 | --- | --- | --- |
 | `useSocket` | Declared. `available` is false and `connect` rejects with a sentence naming the milestone | M6, `T055`, the WebSocket client |
 | `useChannel` | Implemented, and finds nothing until a document carries channels | M5, `T048`, the AsyncAPI normalizer |
-| `useSearch` | Implemented, and `available` is false on every page the shipped reference serves, because no shipped path supplies the index the server already holds | M3, `T039`, which wires the served index into the palette |
+| `useSearch` | Implemented, and `available` is false on every page the shipped reference serves, because that page builds no `DocState` for a port to be supplied on. It is no longer a missing capability: since `T042` the shipped browser entry fetches `<mount>/_search-index` on the first open of the palette and loads it through `createPageSearch`, and the palette searches that index | M3, `T042`, which shipped full text search by the palette's own store rather than through this composable. The wait this row recorded ended there; what stays false on the reference's page is `available`, and that is a route and not a milestone |
 
 Every other composable on this page is implemented against the document and the state a page
 already carries. `useChannel` is listed because the distinction matters to whoever reads its
 empty result: it is a working composable over a document with no channels in it, and not a stub.
 `useSearch` is a third state and not either of those: the function works the moment a host
-supplies the port, and the page this repository ships never does, so what is true of the
-function is false of the page. Counting it implemented with no milestone is how that gap
-stayed unwritten.
+supplies the port on `DocState`, and the reference's own page has no `DocState` to supply it on.
+That was a missing capability until `T042` and is not one now. The shipped page does search the
+whole document, descriptions and parameters and schema names included, by the palette's own
+route: `@openref/nest`'s browser entry fetches the served index on the first open and hands it
+to the store the palette holds. So what is left is a difference of route and not of capability,
+and it is written here because `available` reading false still surprises whoever meets it on a
+page whose palette is plainly searching. Counting it implemented with no milestone is how the
+original gap stayed unwritten, which is why the row remains rather than being deleted.

@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { CAPABILITY_DEBTS } from '../../src/config';
-import { capabilityDebtsGate } from '../../src/gates/capability-debts.gate';
+import { capabilityDebtsGate, runCapabilityDebtsGate } from '../../src/gates/capability-debts.gate';
 import type { GateResult } from '../../src/types';
 import {
   checkCapabilityDebts,
@@ -230,37 +230,74 @@ function errorsOf(result: GateResult): string {
     .join('\n');
 }
 
+/**
+ * Every informational message the gate produced, joined for matching.
+ *
+ * THE INFORMATIONAL HALF IS ASSERTED BECAUSE IT IS WHAT A READER ACTS ON. A gate whose verdict is
+ * right and whose sentence is wrong teaches a reader to trust the sentence.
+ *
+ * @param result - What the gate returned
+ * @returns The info findings as one string
+ */
+function infoOf(result: GateResult): string {
+  return result.findings
+    .filter((finding) => finding.level === 'info')
+    .map((finding) => finding.message)
+    .join('\n');
+}
+
 afterEach(() => {
   if (root !== undefined) rmSync(root, { recursive: true, force: true });
   root = undefined;
 });
 
+/**
+ * The entry the gate cases below are driven with.
+ *
+ * PLANTED RATHER THAN COMMITTED, SINCE T042. These cases used to run the gate against whatever
+ * `CAPABILITY_DEBTS` happened to hold, so the day the list cleared they stopped exercising the
+ * mechanism and four of them went green over nothing. That is the same defect the gate itself was
+ * fixed for one file over, arriving in its own test: a check whose subject can become empty proves
+ * the empty case and reports it as the full one. The entry is written here, the plan below is
+ * written to match it, and the committed list is asked a different question further down.
+ */
+const PLANTED: CapabilityDebt = {
+  id: 'planted-capability',
+  capability: 'the index is served and no shipped file requests it',
+  owners: ['T042'],
+  reachableBy: 'M3',
+  recordedAt: '2026-08-28',
+  diagnosis: 'measured on the built artefact',
+  roots: ['packages/nest/dist/browser'],
+  marker: '_search-index',
+};
+
 describe('capabilityDebtsGate', () => {
-  it('should pass while the milestone is open and the capability is still unreachable', async () => {
+  it('should pass while the milestone is open and the capability is still unreachable', () => {
     // Given
     const repoRoot = plant({ closed: false, bundle: 'const a=1;export{a};' });
 
     // When
-    const result = await capabilityDebtsGate.run({ repoRoot });
+    const result = runCapabilityDebtsGate({ repoRoot }, [PLANTED]);
 
     // Then
     expect(result.status).toBe('pass');
     expect(result.findings.some((finding) => finding.message.startsWith('UNREACHABLE'))).toBe(true);
   });
 
-  it('should fail the moment the last task of the milestone is ticked with the entry still here', async () => {
+  it('should fail the moment the last task of the milestone is ticked with the entry still here', () => {
     // Given
     const repoRoot = plant({ closed: true, bundle: 'const a=1;export{a};' });
 
     // When
-    const result = await capabilityDebtsGate.run({ repoRoot });
+    const result = runCapabilityDebtsGate({ repoRoot }, [PLANTED]);
 
     // Then
     expect(result.status).toBe('fail');
     expect(errorsOf(result)).toContain('milestone-closed');
   });
 
-  it('should fail as stale once the marker appears in the built bundle', async () => {
+  it('should fail as stale once the marker appears in the built bundle', () => {
     // Given
     const repoRoot = plant({
       closed: false,
@@ -268,27 +305,27 @@ describe('capabilityDebtsGate', () => {
     });
 
     // When
-    const result = await capabilityDebtsGate.run({ repoRoot });
+    const result = runCapabilityDebtsGate({ repoRoot }, [PLANTED]);
 
     // Then
     expect(result.status).toBe('fail');
     expect(errorsOf(result)).toContain('stale');
   });
 
-  it('should error rather than skip when nothing is built, because an unread bundle is not a pass', async () => {
+  it('should error rather than skip when nothing is built, because an unread bundle is not a pass', () => {
     // Given
     const repoRoot = plant({ closed: false, bundle: 'const a=1;export{a};' });
     rmSync(join(repoRoot, 'packages'), { recursive: true, force: true });
 
     // When
-    const result = await capabilityDebtsGate.run({ repoRoot });
+    const result = runCapabilityDebtsGate({ repoRoot }, [PLANTED]);
 
     // Then
     expect(result.status).toBe('fail');
     expect(errorsOf(result)).toContain('Run pnpm build');
   });
 
-  it('should still fail on a stale entry where ai-docs is absent, and skip only the plan half', async () => {
+  it('should still fail on a stale entry where ai-docs is absent, and skip only the plan half', () => {
     // Given
     const repoRoot = plant({
       closed: false,
@@ -297,20 +334,20 @@ describe('capabilityDebtsGate', () => {
     rmSync(join(repoRoot, 'ai-docs'), { recursive: true, force: true });
 
     // When
-    const result = await capabilityDebtsGate.run({ repoRoot });
+    const result = runCapabilityDebtsGate({ repoRoot }, [PLANTED]);
 
     // Then
     expect(result.status).toBe('fail');
     expect(errorsOf(result)).toContain('stale');
   });
 
-  it('should skip with a named reason where ai-docs is absent and the entry is still sound', async () => {
+  it('should skip with a named reason where ai-docs is absent and the entry is still sound', () => {
     // Given
     const repoRoot = plant({ closed: false, bundle: 'const a=1;export{a};' });
     rmSync(join(repoRoot, 'ai-docs'), { recursive: true, force: true });
 
     // When
-    const result = await capabilityDebtsGate.run({ repoRoot });
+    const result = runCapabilityDebtsGate({ repoRoot }, [PLANTED]);
 
     // Then
     expect(result.status).toBe('skip');
@@ -318,27 +355,83 @@ describe('capabilityDebtsGate', () => {
   });
 });
 
-describe('the committed list', () => {
-  it('should name a marker that is a fact the page reads rather than the class it would build', () => {
-    // Given
-    const search = CAPABILITY_DEBTS.find((entry) => entry.id === 'full-text-search');
+describe('the empty list, which used to be an unconditional pass', () => {
+  it('should read the bundle and say what it read when nothing is recorded', () => {
+    // Given the good day: every debt paid, the list cleared. Before T042 the walk lived inside the
+    // loop over the entries, so this run opened no file at all.
+    const repoRoot = plant({ closed: false, bundle: 'const a=1;export{a};' });
 
     // When
-    const marker = search?.marker ?? '';
+    const result = runCapabilityDebtsGate({ repoRoot }, []);
 
     // Then
-    // ISearchPort and buildSearchIndex are in shipped artefacts today and prove nothing,
-    // because a declaration ships whether or not anything selects it. The entry has to name
-    // something that is absent until the choice exists, which is the URL segment the page
-    // constructs when the palette first requests the index.
-    expect(marker).not.toBe('ISearchPort');
-    expect(marker).not.toBe('buildSearchIndex');
-    expect(marker.length).toBeGreaterThan(0);
+    expect(result.status).toBe('pass');
+    expect(
+      result.findings.some((finding) =>
+        /^read \d+ built browser module\(s\) under /.test(finding.message),
+      ),
+    ).toBe(true);
   });
 
-  it('should describe every entry with its owner and the milestone it must be reachable by', () => {
-    // Given
-    const entries = CAPABILITY_DEBTS;
+  it('should fail with an empty list and no build, rather than passing on a walk of nothing', () => {
+    // Given the state the gate's own header calls an error and never a skip, on the one day the
+    // per entry rule cannot see it: nothing recorded and nothing built. The absence rule of SPEC 0
+    // is the whole point, so the two are shown apart. First the control, with a bundle present.
+    const built = plant({ closed: false, bundle: 'const a=1;export{a};' });
+    const control = runCapabilityDebtsGate({ repoRoot: built }, []);
+
+    // When the bundle goes away and the list is still empty
+    const repoRoot = plant({ closed: false, bundle: 'const a=1;export{a};' });
+    rmSync(join(repoRoot, 'packages'), { recursive: true, force: true });
+    const result = runCapabilityDebtsGate({ repoRoot }, []);
+
+    // Then
+    expect(control.status).toBe('pass');
+    expect(result.status).toBe('fail');
+    expect(errorsOf(result)).toContain('looked at nothing rather than finding nothing wrong');
+    expect(errorsOf(result)).toContain('Run pnpm build');
+  });
+
+  it('should say the bundle was read only when it was, and say the opposite when it was not', () => {
+    // Given the same two trees as the case above, because the sentence is the subject here rather
+    // than the verdict. Until the last round of T042 the empty list printed "the bundle that would
+    // carry a marker was read anyway" in both of them, which is false in exactly the state this
+    // gate exists to catch: no build, nothing read, and the run saying it had read the bundle.
+    const built = plant({ closed: false, bundle: 'const a=1;export{a};' });
+    const unread = plant({ closed: false, bundle: 'const a=1;export{a};' });
+    rmSync(join(unread, 'packages'), { recursive: true, force: true });
+
+    // When
+    const withBundle = infoOf(runCapabilityDebtsGate({ repoRoot: built }, []));
+    const withNothing = infoOf(runCapabilityDebtsGate({ repoRoot: unread }, []));
+
+    // Then the run that read something says so with its count, and the run that read nothing says
+    // it read nothing rather than borrowing the other sentence
+    expect(withBundle).toContain('built browser module(s) that would carry a marker were read');
+    expect(withBundle).toContain('read 1 built browser module(s) under');
+    expect(withNothing).toContain('no built browser module was read to check that against');
+    expect(withNothing).not.toContain('read anyway');
+  });
+});
+
+describe('the committed list', () => {
+  it('should be empty, with both entries paid rather than dropped', () => {
+    // Given the state T042 left. `static-proxy-transport` was paid by a path rewrite transport in
+    // `@openref/runner`, the `staticProxy` fact on the page model, the factory branch that reads
+    // it and a browser case; `full-text-search` was paid by the palette fetching
+    // `<mount>/_search-index` on first open. Both markers are in the shipped bundle, which is
+    // what the gate expires an entry on, so the entries are removed rather than left as coverage.
+    // When, Then
+    expect(CAPABILITY_DEBTS).toEqual([]);
+  });
+
+  it('should keep its mechanism proved by planted entries, since an empty list proves nothing', () => {
+    // Given the rule this file exists to hold, applied to itself: a check whose subject can become
+    // empty proves the empty case and reads as the full one. Every case above is driven with
+    // `PLANTED` rather than with the committed list for exactly that reason, so the day the list
+    // cleared they went on failing on a closed milestone, on a stale marker and on an unread
+    // bundle. This case is what says so out loud.
+    const entries = [PLANTED];
 
     // When
     const lines = entries.map(describeCapabilityDebt);
@@ -349,5 +442,41 @@ describe('the committed list', () => {
       expect(line).toContain(entry?.id ?? '');
       expect(line).toContain(`must be reachable by ${entry?.reachableBy ?? ''}`);
     }
+  });
+
+  it('should be the list the exported gate actually reads', async () => {
+    // Given a tree with a bundle in it and no marker anywhere. The cases above drive the gate's
+    // function with a planted list, which proves the mechanism and says nothing about the wiring:
+    // a gate reading some other list would pass all of them. This runs the exported gate, so what
+    // is proved here is that `CAPABILITY_DEBTS` is what it consults.
+    const repoRoot = plant({ closed: false, bundle: 'const a=1;export{a};' });
+
+    // When
+    const result = await capabilityDebtsGate.run({ repoRoot });
+
+    // Then, an empty list, an artefact read anyway, and no entry printed
+    expect(result.status).toBe('pass');
+    expect(result.findings.some((finding) => finding.message.startsWith('UNREACHABLE'))).toBe(
+      false,
+    );
+    expect(
+      result.findings.some((finding) =>
+        /^read \d+ built browser module\(s\) under /.test(finding.message),
+      ),
+    ).toBe(true);
+  });
+
+  it('should refuse a marker that a declaration alone would satisfy', () => {
+    // Given the rule the list's own type states: the marker is a fact the page reads, not a name
+    // the bundle defines. `ISearchPort` and `buildSearchIndex` are in shipped artefacts today and
+    // prove nothing, because a declaration ships whether or not anything selects it. Both entries
+    // T042 paid named a fact of that kind, `_search-index` and `staticProxy`, and both appeared in
+    // the bundle on the day the choice was written.
+    const marker = PLANTED.marker;
+
+    // When, Then
+    expect(marker).not.toBe('ISearchPort');
+    expect(marker).not.toBe('buildSearchIndex');
+    expect(marker.length).toBeGreaterThan(0);
   });
 });

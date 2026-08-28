@@ -1,4 +1,9 @@
+import { cpSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { dirname, join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
+import { runBudgetExceptionsGate } from '../../src/gates/budget-exceptions.gate';
 import { BUDGET_EXCEPTIONS, BUDGET_EXCEPTION_HISTORY, SPEC_20_BUDGET_IDS } from '../../src/config';
 import {
   checkBudgetExceptions,
@@ -369,5 +374,123 @@ describe('the committed exception list', () => {
     // Then
     expect(line).toContain('T011-R');
     expect(line).toContain('must clear by M0');
+  });
+});
+
+describe('the empty list, which used to be an unconditional pass', () => {
+  it('should weigh the artefacts and say what it weighed when nothing is excepted', () => {
+    // Given the good day, and today: the live list is empty. Before T042 this branch returned
+    // before `collectBudgetOutcomes` ever ran, so nothing was weighed and the gate passed.
+    const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..');
+
+    // When
+    const result = runBudgetExceptionsGate({ repoRoot }, [], BUDGET_EXCEPTION_HISTORY);
+
+    // Then
+    expect(
+      result.findings.some((finding) =>
+        /^read \d+ SPEC 20 budget weighed over built output\(s\) under the dist directories the size budgets name$/.test(
+          finding.message,
+        ),
+      ),
+    ).toBe(true);
+    expect(
+      result.findings.some((finding) =>
+        finding.message.startsWith('read 0 SPEC 20 budget weighed over built output'),
+      ),
+    ).toBe(false);
+  });
+
+  it('should refuse to count the committed fonts as a build, which is how it passed on an empty dist', () => {
+    // Given the tree the review measured this gate passing on: every `packages/*/dist` gone and
+    // the committed fonts still there. Four budgets weigh files in that state, the two font caps
+    // and the two theme stylesheet caps whose roots include `packages/theme/fonts`, so the first
+    // form of the empty artefact rule read four and passed while printing that it had read four
+    // budgets under the built artefacts of SPEC 20. Not one of the four came from a build.
+    const repo = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..');
+    const bare = mkdtempSync(join(tmpdir(), 'openref-exceptions-fonts-'));
+    for (const theme of ['theme', 'theme-telltale']) {
+      cpSync(join(repo, 'packages', theme, 'fonts'), join(bare, 'packages', theme, 'fonts'), {
+        recursive: true,
+      });
+    }
+
+    // THE CONTROL IS THE SAME TREE WITH ONE BUILT FILE IN IT, per SPEC 0, so what separates the
+    // two runs is the build and not the fonts: a stylesheet under `packages/theme/dist` is what
+    // `theme-css` weighs when a build has happened.
+    const built = mkdtempSync(join(tmpdir(), 'openref-exceptions-built-'));
+    cpSync(join(bare, 'packages'), join(built, 'packages'), { recursive: true });
+    mkdirSync(join(built, 'packages', 'theme', 'dist'), { recursive: true });
+    writeFileSync(join(built, 'packages', 'theme', 'dist', 'theme.css'), ':root{--oref-a:1}\n');
+
+    // When
+    const control = runBudgetExceptionsGate({ repoRoot: built }, [], BUDGET_EXCEPTION_HISTORY);
+    const result = runBudgetExceptionsGate({ repoRoot: bare }, [], BUDGET_EXCEPTION_HISTORY);
+    rmSync(bare, { recursive: true, force: true });
+    rmSync(built, { recursive: true, force: true });
+
+    const errorsOf = (gate: typeof control): string =>
+      gate.findings
+        .filter((finding) => finding.level === 'error')
+        .map((finding) => finding.message)
+        .join('\n');
+
+    // Then the fonts are weighed on both runs and said so on both runs
+    for (const gate of [control, result]) {
+      expect(
+        gate.findings.some((finding) =>
+          /^\d+ further SPEC 20 budget\(s\) were weighed over committed inputs/.test(
+            finding.message,
+          ),
+        ),
+      ).toBe(true);
+    }
+
+    // And only the one with a built file in it counts as having seen a build
+    expect(
+      control.findings.some((finding) =>
+        /^read [1-9]\d* SPEC 20 budget weighed over built output/.test(finding.message),
+      ),
+    ).toBe(true);
+    expect(errorsOf(control)).not.toContain('looked at nothing rather than finding nothing wrong');
+    expect(
+      result.findings.some((finding) =>
+        finding.message.startsWith('read 0 SPEC 20 budget weighed over built output'),
+      ),
+    ).toBe(true);
+    expect(result.status).toBe('fail');
+    expect(errorsOf(result)).toContain('looked at nothing rather than finding nothing wrong');
+    expect(errorsOf(result)).toContain('Run pnpm build before pnpm gates');
+  });
+
+  it('should fail with an empty list and nothing built, rather than passing on a walk of nothing', () => {
+    // Given the two runs the absence rule of SPEC 0 requires apart: the same empty list over a
+    // tree that has artefacts, and over one that has none. The control is the reading rather than
+    // the verdict, deliberately: whether a budget happens to be over today is a fact about this
+    // commit, and what is under test is that the gate weighed anything at all.
+    const built = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..');
+    const bare = mkdtempSync(join(tmpdir(), 'openref-exceptions-'));
+
+    // When
+    const control = runBudgetExceptionsGate({ repoRoot: built }, [], BUDGET_EXCEPTION_HISTORY);
+    const result = runBudgetExceptionsGate({ repoRoot: bare }, [], BUDGET_EXCEPTION_HISTORY);
+    rmSync(bare, { recursive: true, force: true });
+
+    const emptyReading = 'looked at nothing rather than finding nothing wrong';
+    const errorsOf = (gate: typeof control): string =>
+      gate.findings
+        .filter((finding) => finding.level === 'error')
+        .map((finding) => finding.message)
+        .join('\n');
+
+    // Then
+    expect(
+      control.findings.some((finding) =>
+        /^read [1-9]\d* SPEC 20 budget weighed over built output/.test(finding.message),
+      ),
+    ).toBe(true);
+    expect(errorsOf(control)).not.toContain(emptyReading);
+    expect(result.status).toBe('fail');
+    expect(errorsOf(result)).toContain(emptyReading);
   });
 });

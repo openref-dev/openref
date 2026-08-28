@@ -19,13 +19,24 @@
  */
 
 import { ErrorCode, InvalidOptionsError } from '@openref/core';
-import { PROXY_SEGMENT } from '@openref/render';
+import { PROXY_SEGMENT, SEARCH_INDEX_SEGMENT } from '@openref/render';
 
 /** Segment under which hashed static assets are served. */
 export const ASSET_SEGMENT = '_assets';
 
-/** Segment serving the serialized search index. */
-export const SEARCH_INDEX_SEGMENT = '_search-index';
+/**
+ * Segment serving the serialized search index.
+ *
+ * DEFINED IN `links.ts` OF `@openref/render` SINCE `T042`, on the `PROXY_SEGMENT` precedent and for
+ * a defect that had already happened three times over. The address was spelled out here, in
+ * `page-plan.ts` of `@openref/static` as the file a build writes, and in `links.ts` as the href the
+ * palette fetches, and nothing compared any two of them: three unconnected literals for one url,
+ * where a drift in any one of them is a palette that fetches a 404 and silently falls back to the
+ * navigation rows, which is a working page and therefore a defect nothing goes red on.
+ * `@openref/render` is the floor all three surfaces may reach, per STANDARDS 3.5, and it is where
+ * the fetching half already lives. Re-exported so this package's public surface is unchanged.
+ */
+export { SEARCH_INDEX_SEGMENT } from '@openref/render';
 
 /**
  * Segment serving the whole navigation, addressed by document hash.

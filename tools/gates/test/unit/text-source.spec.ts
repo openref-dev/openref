@@ -3,10 +3,16 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { TEXT_SOURCE_EXTENSIONS, TEXT_SOURCE_MIN_FILES, TEXT_SOURCE_ROOTS } from '../../src/config';
+import {
+  TEXT_SOURCE_EXPECTED_TREES,
+  TEXT_SOURCE_EXTENSIONS,
+  TEXT_SOURCE_MIN_FILES,
+} from '../../src/config';
 import { textSourceGate } from '../../src/gates/text-source.gate';
 import { formatGate } from '../../src/gates/format.gate';
 import {
+  BIDI_CONTROLS,
+  bidiControlsIn,
   collectSourceFiles,
   firstByteFault,
   positionOfByte,
@@ -151,8 +157,55 @@ describe('collectSourceFiles', () => {
   });
 });
 
+/**
+ * The character under test, built rather than written.
+ *
+ * WRITING IT AS A LITERAL HERE WOULD PLANT THE DEFECT IN THE REPOSITORY, and the gate caught
+ * exactly that on its first run over this file: two overrides in the test that proves overrides
+ * are refused. The escape is the same value and leaves the file readable in the order it is
+ * written, which is the remedy the finding itself prints.
+ */
+const OVERRIDE = String.fromCodePoint(0x202e);
+
+describe('bidiControlsIn', () => {
+  it('should find the override SPEC 19.1 names, at the byte its encoding starts on', () => {
+    // Given a comment that reads one way to a person and another to the compiler
+    const bytes = Buffer.from(`const rate = 1; // ${OVERRIDE}tnuocsid on\n`, 'utf8');
+
+    // When
+    const found = bidiControlsIn(bytes);
+
+    // Then
+    expect(found).toEqual([{ codePoint: 0x202e, offset: 19 }]);
+  });
+
+  it('should find every control of the set, not the override alone', () => {
+    // Given. An unterminated embedding reorders exactly as an override does, and an isolate does
+    // the same to everything after it, so a check that knew one spelling would pass eleven.
+    const points = [...BIDI_CONTROLS.keys()];
+
+    // When
+    const found = points.map((point) => bidiControlsIn(Buffer.from(String.fromCodePoint(point))));
+
+    // Then
+    expect(found.map((hits) => hits[0]?.codePoint)).toEqual(points);
+  });
+
+  it('should leave ordinary non ASCII text alone, Cyrillic and emoji included', () => {
+    // Given the text this repository actually holds. A check that refused every multi byte
+    // sequence would refuse CLAUDE.md, which is the cure costing more than the disease.
+    const bytes = Buffer.from('Перед началом работы ├── src/ 型 \u{1F600}\n', 'utf8');
+
+    // When
+    const found = bidiControlsIn(bytes);
+
+    // Then
+    expect(found).toEqual([]);
+  });
+});
+
 describe('textSourceGate', () => {
-  it('should pass on the committed tree, having read several hundred files', async () => {
+  it('should pass on the committed tree, having read the whole checkout', async () => {
     // Given, the state this session put the repository into: the one NUL byte is now the escape
     // \u0000 and nothing else under packages or tools refuses a text tool.
     const context = { repoRoot };
@@ -163,7 +216,69 @@ describe('textSourceGate', () => {
     // Then
     expect(result.findings.filter((finding) => finding.level === 'error')).toEqual([]);
     expect(result.status).toBe('pass');
-    expect(result.findings[0]?.message).toMatch(/^\d+ source file\(s\)/);
+    expect(result.findings.some((finding) => /^read \d+ file\(s\):/.test(finding.message))).toBe(
+      true,
+    );
+  });
+
+  it('should fail on a planted bidirectional override, which every other check reads as clean', async () => {
+    // Given a source file that is valid UTF-8, compiles, passes its tests, and shows a reviewer a
+    // line that is not the line the compiler reads. Before T042 this scan passed it.
+    const source = `const refund = true; // ${OVERRIDE}eurt = kcatta tsuj\n`;
+    const root = plant('packages/core/src/refund.ts', source);
+
+    // When
+    const result = await textSourceGate.run({ repoRoot: root });
+    rmSync(root, { recursive: true, force: true });
+    const errors = result.findings.filter((finding) => finding.level === 'error');
+
+    // Then
+    expect(result.status).toBe('fail');
+    expect(errors[0]?.message).toContain('packages/core/src/refund.ts');
+    expect(errors[0]?.message).toContain('U+202E RIGHT-TO-LEFT OVERRIDE');
+    expect(errors[0]?.message).toContain('line 1 column 25');
+  });
+
+  it('should count the trees the old root list never reached', () => {
+    // Given the hole T035 filed: the scan walked packages and tools, so examples, compat, .github
+    // and every root level file including vitest.shared.ts were checked by nothing.
+    const scan = scanSourceText(repoRoot, TEXT_SOURCE_EXTENSIONS);
+
+    // When
+    const trees = new Map(scan.trees.map((tree) => [tree.tree, tree.scanned]));
+
+    // Then
+    for (const tree of ['examples', 'compat', '.github', '<root file>']) {
+      expect(trees.get(tree) ?? 0).toBeGreaterThan(0);
+    }
+    expect(scan.scanned).toBeGreaterThan((trees.get('packages') ?? 0) + (trees.get('tools') ?? 0));
+  });
+
+  it('should fail by name when a tree a reader can run yields nothing', async () => {
+    // Given a checkout holding enough files to clear the floor and missing every small tree. A
+    // total cannot see one of those leaving the scan, which is the half of the T035 finding no
+    // floor could ever answer.
+    const root = plant('packages/core/src/a0.ts', 'export const a0 = 0;\n');
+    for (let index = 1; index <= TEXT_SOURCE_MIN_FILES; index += 1) {
+      writeFileSync(
+        join(root, 'packages', 'core', 'src', `a${String(index)}.ts`),
+        `export const a${String(index)} = ${String(index)};\n`,
+      );
+    }
+    mkdirSync(join(root, 'tools'), { recursive: true });
+    writeFileSync(join(root, 'tools', 'x.ts'), 'export const x = 1;\n');
+
+    // When
+    const result = await textSourceGate.run({ repoRoot: root });
+    rmSync(root, { recursive: true, force: true });
+    const errors = result.findings.filter((finding) => finding.level === 'error');
+
+    // Then, the floor is clear and the gate still fails, naming each tree that vanished
+    expect(result.status).toBe('fail');
+    expect(errors.map((finding) => finding.message).join('\n')).toContain(
+      'examples yielded no file this scan reads',
+    );
+    expect(errors.every((finding) => !finding.message.includes('below the floor'))).toBe(true);
   });
 
   it('should fail on a planted NUL byte, naming the file and the line it is on', async () => {
@@ -194,23 +309,28 @@ describe('textSourceGate', () => {
     rmSync(root, { recursive: true, force: true });
 
     // Then
+    const errors = result.findings.filter((finding) => finding.level === 'error');
     expect(result.status).toBe('fail');
-    expect(result.findings[0]?.message).toContain('only 0 file(s) were read');
-    expect(result.findings[0]?.message).toContain('checked nothing');
+    expect(errors.map((finding) => finding.message).join('\n')).toContain(
+      'only 0 file(s) were read',
+    );
+    expect(errors.map((finding) => finding.message).join('\n')).toContain('checked nothing');
   });
 
-  it('should walk both source roots, so neither is checked by nothing', () => {
-    // Given, the gate's own package lives under tools and the product under packages. A scan of
-    // one root would leave the other in exactly the state this gate exists to end.
-    const scan = scanSourceText(repoRoot, TEXT_SOURCE_ROOTS, TEXT_SOURCE_EXTENSIONS);
+  it('should read every tree the plan expects, so none of them is checked by nothing', () => {
+    // Given, the gate's own package lives under tools, the product under packages, and a reader
+    // can run what is under examples and compat. A scan of a subset leaves the rest in exactly
+    // the state this gate exists to end.
+    const scan = scanSourceText(repoRoot, TEXT_SOURCE_EXTENSIONS);
 
     // When
-    const roots = new Set(scan.unreadable.map((file) => file.path.split('/')[0]));
+    const reached = new Set(scan.trees.map((tree) => tree.tree));
 
     // Then
-    expect(TEXT_SOURCE_ROOTS).toEqual(['packages', 'tools']);
+    for (const tree of TEXT_SOURCE_EXPECTED_TREES) expect(reached.has(tree)).toBe(true);
     expect(scan.scanned).toBeGreaterThan(TEXT_SOURCE_MIN_FILES);
-    expect([...roots]).toEqual([]);
+    expect(scan.unreadable).toEqual([]);
+    expect(scan.bidi).toEqual([]);
   });
 
   it('should run beside the format gate, before anything that reads an artifact', () => {

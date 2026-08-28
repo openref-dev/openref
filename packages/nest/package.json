@@ -66,6 +66,7 @@
     "@openref/render": "workspace:*",
     "@openref/runner": "workspace:*",
     "@openref/search": "workspace:*",
+    "@openref/static": "workspace:*",
     "jsdom": "30.0.1",
     "reflect-metadata": "0.2.2",
     "rxjs": "7.8.2",

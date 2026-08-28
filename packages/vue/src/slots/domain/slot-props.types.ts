@@ -167,6 +167,15 @@ export interface SlotPropsMap {
     hits: readonly PaletteHitModel[];
     /** True while the page is searching the slice it shipped with rather than the whole index. */
     partial: boolean;
+    /**
+     * True when the full text index could not be loaded, so nothing further is coming.
+     *
+     * ADDED AT T042, ADDITIVE, and it is not the negation of `partial`. `partial` says more is on
+     * the way; this says it is not, and the two are distinguishable because what a reader is owed
+     * differs: one is a wait, the other is a page saying which search it is currently able to
+     * perform. A position that ignores it draws exactly what it drew before.
+     */
+    degraded: boolean;
     onOpen(): void;
     onClose(): void;
     onQuery(query: string): void;

@@ -217,6 +217,107 @@ describe('buildSite, the direct mode warning of SPEC 16.2', () => {
   });
 });
 
+describe('buildSite, the generated proxy fact of SPEC 16.2', () => {
+  it('should put the prefix and the pinned order into every page the rules serve', async () => {
+    // Given a target that can rewrite routes and a document that pins one upstream
+    const { store } = await build({
+      document: miniDocument({ servers: SERVED }),
+      base: '/docs',
+      proxy: { target: 'netlify' },
+    });
+
+    // Then the page carries the address the rules live at and the order they are indexed by, so
+    // the console can build `<prefix>/u0/...` without knowing anything the build knew.
+    const bench = String(store.files.get('bench/get-ping/index.html'));
+    expect(bench).toContain('"staticProxy":{"prefix":"/docs/_proxy"');
+    expect(bench).toContain('"upstreams":["https://api.example.com/v1"]');
+  });
+
+  it('should record the same fact in the manifest, so a rebuild can compare it', async () => {
+    // Given
+    const { store } = await build({
+      document: miniDocument({ servers: SERVED }),
+      proxy: { target: 'netlify' },
+    });
+
+    // When
+    const manifest = readManifest(String(store.files.get(BUILD_MANIFEST_FILE)));
+
+    // Then
+    expect(manifest?.staticProxy).toEqual({
+      prefix: '/_proxy',
+      upstreams: ['https://api.example.com/v1'],
+    });
+  });
+
+  it('should carry no fact for a target that cannot rewrite, proven against a build that has one', async () => {
+    // Given a netlify build of the same document, so the absence below is the absence of a thing
+    // this case has just seen present rather than of a string nothing ever writes.
+    const rewritten = await build({
+      document: miniDocument({ servers: SERVED }),
+      proxy: { target: 'netlify' },
+    });
+    expect(String(rewritten.store.files.get('bench/get-ping/index.html'))).toContain('staticProxy');
+
+    // When the same document is built for a platform with no rewrite
+    const { store, report } = await build({
+      document: miniDocument({ servers: SERVED }),
+      proxy: { target: 'github-pages' },
+    });
+
+    // Then the page warns instead, and there is no rule for it to address
+    const bench = String(store.files.get('bench/get-ping/index.html'));
+    expect(bench).not.toContain('staticProxy');
+    expect(bench).toContain('"directTarget":"GitHub Pages"');
+    expect(readManifest(String(store.files.get(BUILD_MANIFEST_FILE)))?.staticProxy).toBeNull();
+    expect(report.proxy?.files).toEqual([]);
+  });
+
+  it('should carry no fact when the document pins nothing, because no rule was written', async () => {
+    // Given the T004-R1 default document, whose one server is `/`
+    const { store } = await build({ document: miniDocument(), proxy: { target: 'netlify' } });
+
+    // Then
+    expect(String(store.files.get('bench/get-ping/index.html'))).not.toContain('staticProxy');
+  });
+
+  it('should render everything anew when the pinned upstreams change', async () => {
+    // Given a build whose rules pin one host, rebuilt over the same store from a document that
+    // pins another. Every page holds the old upstream in its state block.
+    const first = await build({
+      document: miniDocument({ servers: SERVED }),
+      proxy: { target: 'netlify' },
+    });
+
+    // When
+    const second = await build({
+      document: miniDocument({ servers: [{ url: 'https://other.example.com' }] }),
+      store: first.store,
+      proxy: { target: 'netlify' },
+    });
+
+    // Then nothing is carried and no page still names the upstream that is gone
+    expect(second.report.carried).toEqual([]);
+    expect(String(second.store.files.get('bench/get-ping/index.html'))).not.toContain(
+      'api.example.com',
+    );
+  });
+
+  it('should carry pages again when the rules are unchanged between builds', async () => {
+    // Given
+    const document = miniDocument({ servers: SERVED });
+    const proxy = { target: 'netlify' } as const;
+    const first = await build({ document, proxy });
+
+    // When
+    const second = await build({ document, store: first.store, proxy });
+
+    // Then the incremental path survives the fact it was extended for
+    expect(second.report.rendered).toEqual([]);
+    expect(second.report.carried.length).toBeGreaterThan(0);
+  });
+});
+
 describe('buildSite, the manifest across a renderer upgrade', () => {
   it('should refuse to carry pages written by another renderer version', async () => {
     // Given: a finished build whose manifest is then doctored to an older renderer, which is

@@ -122,6 +122,7 @@ export type {
   RuntimeValueModel,
   SchemaPageModel,
   SecurityModel,
+  StaticProxyModel,
 } from './page/domain/page-model.types';
 
 export {

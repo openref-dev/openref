@@ -12,6 +12,7 @@ import { enginesFloorGate } from './gates/engines-floor.gate.js';
 import { fixtureLicensesGate } from './gates/fixture-licenses.gate.js';
 import { formatGate } from './gates/format.gate.js';
 import { licensesGate } from './gates/licenses.gate.js';
+import { staticSuitesGate } from './gates/static-suites.gate.js';
 import { themeFontsGate } from './gates/theme-fonts.gate.js';
 import { themeMotionGate } from './gates/theme-motion.gate.js';
 import { textSourceGate } from './gates/text-source.gate.js';
@@ -72,6 +73,12 @@ import type { Gate, GateResult } from './types.js';
  * at all because the rule it carries was red at HEAD for two sessions while every gate was
  * green. CI ran `format:check`; nothing the per task protocol runs did.
  *
+ * The static suites gate sits after the claims one and before coverage, and the pair is a question
+ * asked of two tables. Claims asks whether every SPEC 19 promise and SPEC 20 number is answered by
+ * something that can go red; this asks the same of one row of SPEC 21, the row whose four
+ * coverages M3 is the milestone for. It runs its suites rather than reading them, so it goes late,
+ * after everything that needs no child process has already reported.
+ *
  * The text source gate sits beside the format one, third, and the pair is the same question asked
  * twice: whether the repository is in the state its own rules describe, before anything is built.
  * One asks whether a file is formatted the way the project says; the other asks whether a text
@@ -96,6 +103,7 @@ export const GATES: readonly Gate[] = [
   themeMotionGate,
   themeFontsGate,
   claimsGate,
+  staticSuitesGate,
   coverageGate,
 ];
 
