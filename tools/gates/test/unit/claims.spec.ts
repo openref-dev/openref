@@ -1,7 +1,13 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { BUILD_FILE, CLAIM_MAP_FILE, SPEC_20_BUDGET_IDS, SPEC_FILE } from '../../src/config';
+import {
+  BUDGET_SPEC_ROWS,
+  BUILD_FILE,
+  CLAIM_MAP_FILE,
+  SPEC_20_BUDGET_IDS,
+  SPEC_FILE,
+} from '../../src/config';
 import { aiDocsPresent } from '../../src/lib/ai-docs';
 import { planTaskIds } from '../../src/lib/build-manifest';
 import {
@@ -346,16 +352,25 @@ describe('compareBudgetValues, planted with the drift T031 found', () => {
     { label: 'Схема, сырые байты', threshold: '≤ 4 200 байт' },
   ];
 
-  it('should name all four table numbers that drifted, stale and missing both ways', () => {
-    // When the checker of today reads the table of that day
-    const issues = compareBudgetValues(STALE_TABLE, CONFIG_OF_THAT_DAY);
+  /** Which row each budget of that day answered, the tie the pre-M4 review added. */
+  const ROWS_OF_THAT_DAY: Record<string, string> = {
+    'client-js-raw': 'Клиентский JS, сырые байты',
+    'client-js-palette': 'Палитра, gzip',
+    'client-js-palette-raw': 'Палитра, сырые байты',
+    'client-js-schema-raw': 'Схема, сырые байты',
+  };
 
-    // Then every stale value is named as stale and every enforced value as unstated:
-    // eight findings over four rows, the two directions of one drift
+  it('should name all four table numbers that drifted, with both values in one line', () => {
+    // When the checker of today reads the table of that day
+    const issues = compareBudgetValues(STALE_TABLE, CONFIG_OF_THAT_DAY, ROWS_OF_THAT_DAY);
+
+    // Then one finding per drifted row rather than two, and each names the row, the value the
+    // table states and the value the gates enforce. Before the row tie it was eight findings for
+    // four drifts, one from each side of a multiset that could not say which row was which
     expect(issues.filter((issue) => issue.rule === 'budget-value-stale')).toHaveLength(4);
-    expect(issues.filter((issue) => issue.rule === 'budget-value-missing')).toHaveLength(4);
     expect(issues.map((issue) => issue.message).join('\n')).toContain('98 KB');
     expect(issues.map((issue) => issue.message).join('\n')).toContain('1,900 bytes');
+    expect(issues.map((issue) => issue.message).join('\n')).toContain('103 KB');
   });
 
   it('should be silent when both files state the same values, whatever the order', () => {
@@ -368,7 +383,52 @@ describe('compareBudgetValues, planted with the drift T031 found', () => {
     ];
 
     // When, Then: a commit that moves a cap in both files together is green
-    expect(compareBudgetValues(table, CONFIG_OF_THAT_DAY)).toEqual([]);
+    expect(compareBudgetValues(table, CONFIG_OF_THAT_DAY, ROWS_OF_THAT_DAY)).toEqual([]);
+  });
+
+  /**
+   * The ambiguity the multiset could not see, added by the pre-M4 review.
+   *
+   * Two budgets sharing a value had no tie to their rows, so the rows could swap subjects and the
+   * bags of numbers still matched. Measured on the live configuration this happens twice, and one
+   * of the two pairs is the zero external requests and zero CSP violations of SPEC 19.
+   */
+  it('should catch two rows of equal value swapping the budgets they are about', () => {
+    // Given two budgets whose caps differ, and a table that states each cap under the other's row
+    const config: ConfigThreshold[] = [
+      { id: 'external-requests', threshold: { kind: 'count', value: 0 } },
+      { id: 'long-tasks', threshold: { kind: 'count', value: 2 } },
+    ];
+    const rows: Record<string, string> = {
+      'external-requests': 'Внешние сетевые запросы',
+      'long-tasks': 'Длинные задачи',
+    };
+    const swapped: BudgetRow[] = [
+      { label: 'Внешние сетевые запросы', threshold: '≤ 2' },
+      { label: 'Длинные задачи', threshold: '0' },
+    ];
+
+    // When
+    const issues = compareBudgetValues(swapped, config, rows);
+
+    // Then both rows are named, and the multiset of {0, 2} against {0, 2} would have been silent
+    expect(issues.filter((issue) => issue.rule === 'budget-value-stale')).toHaveLength(2);
+    expect(issues.map((issue) => issue.message).join('\n')).toContain('Внешние сетевые запросы');
+  });
+
+  it('should report a row no budget answers and a budget naming no row', () => {
+    // Given a table row nothing enforces and a budget with no row named for it
+    const issues = compareBudgetValues(
+      [{ label: 'Строка, которую никто не держит', threshold: '≤ 5 байт' }],
+      [{ id: 'orphan-budget', threshold: { kind: 'bytes', value: 5 } }],
+      {},
+    );
+
+    // Then
+    expect(issues.map((issue) => issue.rule).sort()).toEqual([
+      'budget-row-unclaimed',
+      'budget-row-unnamed',
+    ]);
   });
 });
 
@@ -434,7 +494,7 @@ describe('the committed threshold agreement', () => {
       const thresholds = configThresholds();
 
       // When
-      const tableIssues = compareBudgetValues(parseBudgetRows(spec), thresholds);
+      const tableIssues = compareBudgetValues(parseBudgetRows(spec), thresholds, BUDGET_SPEC_ROWS);
       const mapIssues = checkClaimFigures(parseClaimMap(map), thresholds);
 
       // Then
@@ -497,6 +557,7 @@ describe('the direction a SPEC 20 threshold cell states', () => {
     const issues = compareBudgetValues(
       [{ label: 'Client JS, gzip', threshold: '>= 100 KB' }],
       [{ id: 'client-js', threshold: { kind: 'bytes', value: 100 * 1024 } }],
+      { 'client-js': 'Client JS, gzip' },
     );
 
     // Then the value matches and the direction does not, and the direction is reported. A
@@ -509,6 +570,7 @@ describe('the direction a SPEC 20 threshold cell states', () => {
     const issues = compareBudgetValues(
       [{ label: 'Client JS, gzip', threshold: '<= 100 KB' }],
       [{ id: 'client-js', threshold: { kind: 'bytes', value: 100 * 1024 } }],
+      { 'client-js': 'Client JS, gzip' },
     );
 
     // Then nothing is reported

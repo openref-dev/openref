@@ -219,46 +219,74 @@ export interface ConfigThreshold {
 }
 
 /**
- * Compares the SPEC 20 table's thresholds to the configuration's, value against value.
+ * Compares the SPEC 20 table's thresholds to the configuration's, row by row.
  *
- * AS MULTISETS AND NOT BY POSITION, because the table has no ids and its order is its own:
- * matching by position would force the table to mirror an array in a TypeScript file, and a
- * reordering would read as six moved caps. What the comparison then means: every value the
- * configuration enforces is stated by some row, and every value some row states is enforced.
- * A commit that moves a cap moves both files and stays green; a commit that moves one alone
- * is red at once, which is the answer to the amendment's midway question.
+ * BY LABEL AND NOT BY POSITION, because the table's order is its own: matching by position would
+ * force the table to mirror an array in a TypeScript file, and a reordering would read as six
+ * moved caps. Each budget names the row it answers, in the table's own words, and the two are
+ * reconciled in both directions.
+ *
+ * IT WAS A MULTISET OF VALUES UNTIL THE PRE-M4 REVIEW, on the argument that the table has no ids,
+ * and that argument was true about the table and wrong about the check. Measured: of thirty three
+ * budgets, two pairs share a value, `tti` with `main-thread-work` and `external-requests` with
+ * `csp-violations`. Inside a colliding pair nothing tied a row to a subject, so the two rows could
+ * swap subjects, or one be relaxed while the other tightened by the same amount, and the bags of
+ * numbers would still match. The second pair is the zero external requests and zero CSP violations
+ * this project's security claims rest on.
  *
  * @param rows - The table, parsed
  * @param config - What the configuration enforces
- * @returns Issues, empty when the two agree value for value
+ * @param specRows - The row label each budget id answers
+ * @returns Issues, empty when the two agree row for row
  */
 export function compareBudgetValues(
   rows: readonly BudgetRow[],
   config: readonly ConfigThreshold[],
+  specRows: Readonly<Record<string, string>>,
 ): ClaimIssue[] {
   const issues: ClaimIssue[] = [];
 
   const keyOf = (threshold: Threshold): string =>
     threshold.kind === 'report' ? 'report' : `${threshold.kind}:${String(threshold.value)}`;
 
-  const enforced = new Map<string, { count: number; ids: string[] }>();
-  for (const entry of config) {
-    const key = keyOf(entry.threshold);
-    const bucket = enforced.get(key) ?? { count: 0, ids: [] };
-    bucket.count += 1;
-    bucket.ids.push(entry.id);
-    enforced.set(key, bucket);
-  }
+  const rowByLabel = new Map(rows.map((row) => [row.label, row]));
+  const claimed = new Set<string>();
 
   for (const row of rows) {
-    if (boundDirectionOfCell(row.threshold) === 'at-least') {
+    if (boundDirectionOfCell(row.threshold) !== 'at-least') continue;
+
+    issues.push({
+      rule: 'budget-bound-inverted',
+      message:
+        `the SPEC 20 row "${row.label}" states a lower bound, "${row.threshold}", and every ` +
+        'budget the gates enforce is a ceiling. The table promises the opposite of what runs',
+    });
+  }
+
+  for (const entry of config) {
+    const label = specRows[entry.id];
+    if (label === undefined) {
       issues.push({
-        rule: 'budget-bound-inverted',
+        rule: 'budget-row-unnamed',
         message:
-          `the SPEC 20 row "${row.label}" states a lower bound, "${row.threshold}", and every ` +
-          'budget the gates enforce is a ceiling. The table promises the opposite of what runs',
+          `the configuration enforces ${thresholdWords(entry.threshold)} for ${entry.id} and ` +
+          'names no SPEC 20 row for it, so nothing says which promise it keeps',
       });
+      continue;
     }
+
+    const row = rowByLabel.get(label);
+    if (row === undefined) {
+      issues.push({
+        rule: 'budget-row-unknown',
+        message:
+          `${entry.id} names the SPEC 20 row "${label}", which the table does not have. A row ` +
+          'renamed in the specification leaves the budget answering nothing',
+      });
+      continue;
+    }
+
+    claimed.add(label);
 
     const threshold = thresholdOfCell(row.threshold);
     if (threshold === null) {
@@ -269,32 +297,26 @@ export function compareBudgetValues(
       continue;
     }
 
-    const bucket = enforced.get(keyOf(threshold));
-    if (bucket === undefined || bucket.count === 0) {
-      issues.push({
-        rule: 'budget-value-stale',
-        message:
-          `the SPEC 20 row "${row.label}" states ${thresholdWords(threshold)}, which the gate ` +
-          `configuration does not enforce for any budget. One of the two moved without the other`,
-      });
-      continue;
-    }
+    if (keyOf(threshold) === keyOf(entry.threshold)) continue;
 
-    bucket.count -= 1;
+    issues.push({
+      rule: 'budget-value-stale',
+      message:
+        `the SPEC 20 row "${row.label}" states ${thresholdWords(threshold)} and the gate ` +
+        `configuration enforces ${thresholdWords(entry.threshold)} for ${entry.id}. One of the ` +
+        'two moved without the other',
+    });
   }
 
-  for (const bucket of enforced.values()) {
-    if (bucket.count === 0) continue;
+  for (const row of rows) {
+    if (claimed.has(row.label)) continue;
 
-    for (const id of bucket.ids.slice(bucket.ids.length - bucket.count)) {
-      const entry = config.find((candidate) => candidate.id === id);
-      issues.push({
-        rule: 'budget-value-missing',
-        message:
-          `the configuration enforces ${thresholdWords(entry?.threshold ?? { kind: 'report' })} ` +
-          `for ${id} and no SPEC 20 row states that value. One of the two moved without the other`,
-      });
-    }
+    issues.push({
+      rule: 'budget-row-unclaimed',
+      message:
+        `the SPEC 20 row "${row.label}" states ${row.threshold} and no budget answers it. A row ` +
+        'nothing enforces is a number the specification promises and the gates do not keep',
+    });
   }
 
   return issues;

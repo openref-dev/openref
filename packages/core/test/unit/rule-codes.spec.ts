@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
@@ -18,6 +18,18 @@ import {
  */
 
 const SPEC = join(import.meta.dirname, '..', '..', '..', '..', 'ai-docs', 'SPEC.md');
+
+/**
+ * Whether the maintainer's private documents are in this checkout.
+ *
+ * `ai-docs/` IS GIT EXCLUDED, SO CI NEVER HAS IT, and until the pre-M4 review this file read
+ * SPEC.md unconditionally. Measured by moving the directory aside and running the suite: this case
+ * threw `ENOENT` and took the whole run red, which means `pnpm test` and the coverage gate behind
+ * it were red on every checkout but one. A case that cannot see its subject skips and says so; it
+ * does not fail, and it does not quietly pass either, which is what the `it.skipIf` idiom this
+ * repository already uses for the demo application is for.
+ */
+const HAVE_SPEC = existsSync(SPEC);
 
 /** The `| `CODE` | `rule` |` rows of the SPEC 7.1 table, as a record. */
 function specTable(): Record<string, string> {
@@ -45,7 +57,7 @@ function operation(overrides: Partial<IROperation> = {}): IROperation {
 }
 
 describe('DRIFT_RULE_CODES', () => {
-  it('should be exactly the table SPEC 7.1 carries, in both directions', () => {
+  it.skipIf(!HAVE_SPEC)('should be exactly the table SPEC 7.1 carries, in both directions', () => {
     // Given
     const documented = specTable();
 

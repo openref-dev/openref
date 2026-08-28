@@ -11,6 +11,7 @@ import {
 import { aiDocsAbsentMessage, aiDocsPresent } from '../lib/ai-docs.js';
 import { runCommand } from '../lib/exec.js';
 import {
+  assertionlessCaseTitlesIn,
   caseTitlesIn,
   checkBudgetJob,
   checkMilestoneClauses,
@@ -64,6 +65,13 @@ export function runStaticSuitesGate(context: GateContext): GateResult {
     casesIn: (path: string): readonly string[] => {
       try {
         return caseTitlesIn(readFileSync(join(context.repoRoot, path), 'utf8'));
+      } catch {
+        return [];
+      }
+    },
+    assertionlessIn: (path: string): readonly string[] => {
+      try {
+        return assertionlessCaseTitlesIn(readFileSync(join(context.repoRoot, path), 'utf8'));
       } catch {
         return [];
       }

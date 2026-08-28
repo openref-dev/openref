@@ -32,14 +32,26 @@ export interface PackageCoverage {
   readonly statementsPct: number;
 }
 
-/** A package whose coverage is below its floor. */
+/** A package whose coverage is below its floor, or whose coverage was never measured. */
 export interface CoverageFinding {
   readonly packageDir: string;
-  readonly metric: 'lines' | 'statements';
+  readonly metric: 'lines' | 'statements' | 'files';
   readonly actualPct: number;
   readonly floorPct: number;
 }
 
+/**
+ * A ratio as a percentage, with nothing measured reading as everything covered.
+ *
+ * THE ZERO OVER ZERO ANSWER IS 100 AND THAT IS ONLY SAFE BECAUSE OF `files` BELOW. It is the
+ * arithmetic a rolled up empty set has to produce for a package with no executable lines, and it
+ * is also exactly the answer that let a package with no measured files at all clear a 90 percent
+ * floor. The pre-M4 review named that as SPEC 0's class of a proof of absence passing because the
+ * subject was absent: rename a source directory, break the path marker below, or lose a package's
+ * suite entirely, and this returned 100 for it. The number stays; what changed is that a package
+ * with a floor and no files is now a finding of its own, so nothing reaches this function's empty
+ * case and passes.
+ */
 function percentage(covered: number, total: number): number {
   if (total === 0) return 100;
   return (covered / total) * 100;
@@ -102,6 +114,15 @@ export function checkCoverageFloors(
   for (const entry of coverage) {
     const floorPct = floors[entry.packageDir];
     if (floorPct === undefined) continue;
+
+    // A FLOOR OVER NOTHING IS NOT A FLOOR MET. A package named in the floors and contributing no
+    // measured file rolls up to zero over zero, which reads as 100 percent, so the strictest floor
+    // in the project was cleared by the run that measured none of it. Reported before the two
+    // percentages so the sentence a reader sees names the cause rather than the symptom.
+    if (entry.fileCount === 0) {
+      findings.push({ packageDir: entry.packageDir, metric: 'files', actualPct: 0, floorPct });
+      continue;
+    }
 
     if (entry.linesPct < floorPct) {
       findings.push({

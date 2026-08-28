@@ -72,7 +72,10 @@ export const coverageGate: Gate = {
     for (const violation of violations) {
       findings.push({
         level: 'error',
-        message: `${violation.packageDir}: ${violation.metric} ${violation.actualPct.toFixed(2)}% is below the floor of ${String(violation.floorPct)}%`,
+        message:
+          violation.metric === 'files'
+            ? `${violation.packageDir}: no file was measured at all, so its floor of ${String(violation.floorPct)}% was met by measuring none of it`
+            : `${violation.packageDir}: ${violation.metric} ${violation.actualPct.toFixed(2)}% is below the floor of ${String(violation.floorPct)}%`,
       });
     }
 

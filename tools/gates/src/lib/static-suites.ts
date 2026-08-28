@@ -132,16 +132,49 @@ export function milestoneClausesOf(spec: string, milestone: string): string[] | 
   return null;
 }
 
+/**
+ * The two spellings a suite here uses, `it('...')` and `it.skipIf(...)('...')`, and the multiline
+ * form where the title is on its own line after the opening parenthesis.
+ */
+const CASE_TITLE = /\bit(?:\.\w+\([^)]*\))?\(\s*\n?\s*(['"])((?:[^\\]|\\.)*?)\1/g;
+
 /** Every `it(...)` title one suite file declares. */
 export function caseTitlesIn(source: string): string[] {
   const titles: string[] = [];
 
-  // The two spellings a suite uses here, `it('...')` and `it.skipIf(...)('...')`, and the
-  // multiline form where the title is on its own line after the opening parenthesis.
-  for (const match of source.matchAll(
-    /\bit(?:\.\w+\([^)]*\))?\(\s*\n?\s*(['"])((?:[^\\]|\\.)*?)\1/g,
-  )) {
-    titles.push(match[2] ?? '');
+  for (const match of source.matchAll(CASE_TITLE)) titles.push(match[2] ?? '');
+
+  return titles;
+}
+
+/**
+ * Titles of the cases in one file that assert nothing.
+ *
+ * A TITLE IS NOT A PROOF, AND UNTIL THE PRE-M4 REVIEW THIS FILE'S CHECK STOPPED AT THE TITLE. Its
+ * own words are that "the file being there is not the property being covered", and the same
+ * sentence applies one level down: a case emptied to `it('should hold the property', () => {});`
+ * keeps its name, keeps the coverage green, and holds nothing. That is a smaller edit than
+ * renaming a suite and a likelier one, because a case can be gutted while somebody is debugging it
+ * and put back wrong.
+ *
+ * THE BODY IS TAKEN AS THE TEXT UP TO THE NEXT CASE, which over-reads by whatever closing braces
+ * and comments sit between them and cannot under-read: the next case's assertions come after the
+ * next case's title, so they are never counted for this one. `expect(` is the assertion of this
+ * project, and a case asserting through a helper that hides it would be reported here, which is
+ * the safe direction for a gate. Measured over the thirty cases the coverage lists name across
+ * fourteen files: none of them.
+ *
+ * @param source - Contents of one suite file
+ * @returns Titles whose body carries no `expect(`, in the order they appear
+ */
+export function assertionlessCaseTitlesIn(source: string): string[] {
+  const matches = [...source.matchAll(CASE_TITLE)];
+  const titles: string[] = [];
+
+  for (const [index, match] of matches.entries()) {
+    const start = match.index + match[0].length;
+    const end = matches[index + 1]?.index ?? source.length;
+    if (!source.slice(start, end).includes('expect(')) titles.push(match[2] ?? '');
   }
 
   return titles;
@@ -155,6 +188,8 @@ export interface StaticSuiteContext {
   readonly exists: (path: string) => boolean;
   /** Case titles of one suite file, empty when it could not be read. */
   readonly casesIn: (path: string) => readonly string[];
+  /** Case titles of one suite file whose body asserts nothing, so a named case cannot be empty. */
+  readonly assertionlessIn: (path: string) => readonly string[];
   /**
    * Whether the specification was available to compare against at all.
    *
@@ -247,6 +282,7 @@ export function checkSuiteFiles(
     }
 
     const titles = new Set<string>();
+    const gutted = new Set<string>();
 
     for (const file of coverage.files) {
       if (!context.exists(file)) {
@@ -258,15 +294,26 @@ export function checkSuiteFiles(
       }
 
       for (const title of context.casesIn(file)) titles.add(title);
+      for (const title of context.assertionlessIn(file)) gutted.add(title);
     }
 
     for (const expected of coverage.cases) {
-      if (titles.has(expected)) continue;
+      if (!titles.has(expected)) {
+        issues.push({
+          rule: 'case-missing',
+          message: `${coverage.id}: no case titled "${expected}" is in ${coverage.files.join(', ')}. The file being there is not the property being covered`,
+        });
+        continue;
+      }
 
-      issues.push({
-        rule: 'case-missing',
-        message: `${coverage.id}: no case titled "${expected}" is in ${coverage.files.join(', ')}. The file being there is not the property being covered`,
-      });
+      // THE CASE BEING THERE IS NOT THE PROPERTY BEING PROVED EITHER, which is the same sentence
+      // one level down and the hole the pre-M4 review found here.
+      if (gutted.has(expected)) {
+        issues.push({
+          rule: 'case-gutted',
+          message: `${coverage.id}: the case titled "${expected}" asserts nothing, so it passes whatever the code does. A named case with an empty body is the coverage claiming a property it does not check`,
+        });
+      }
     }
   }
 

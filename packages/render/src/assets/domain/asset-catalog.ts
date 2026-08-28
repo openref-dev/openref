@@ -210,8 +210,19 @@ function isScript(name: string): boolean {
  * arrives with every bundler release. What every form has in common is a quoted sibling path
  * ending in `.js`, and a quoted string of that shape that is not a specifier is a file this
  * catalog does not serve, which fails below rather than being rewritten to something wrong.
+ *
+ * THE PRE-M4 REVIEW COUNTED THE FORMS AND THIS SAW THREE OF EIGHT. The sentence above was true
+ * about the syntax around the string and not about the string: a backtick quoted specifier and a
+ * `.mjs` extension are both quoted sibling paths this could not see, and the failure they produce
+ * is the quietest one this package has, a chunk served under a name nobody asks for and a feature
+ * that dies on the click. Backticks and `.mjs` are matched now. The forms deliberately still
+ * outside are a specifier assembled from parts, `"./chunk-"+h`, which is not a literal and cannot
+ * be rewritten by anything reading text, and a parent or absolute path, which is not a sibling and
+ * so not this catalog's to serve. What covers the rest is the counter check in
+ * `client-bundle.spec.ts`: every built chunk but the entry has to be named by another built file,
+ * so a form this misses shows up as a chunk nobody references rather than as a 404 on a click.
  */
-const JS_SPECIFIER = /(['"])\.\/([A-Za-z0-9_.-]+\.js)\1/g;
+const JS_SPECIFIER = /(['"`])\.\/([A-Za-z0-9_.-]+\.m?js)\1/g;
 
 /**
  * Names of the chunks a module points at.

@@ -68,6 +68,62 @@ describe('findForeignOrigins', () => {
     expect(findings).toHaveLength(1);
   });
 
+  /**
+   * The three spellings the pre-M4 review measured this blind to.
+   *
+   * The module's own argument is that a bundle calling home has to carry somewhere to call, and
+   * the pattern looked for two schemes with a `//` after them. A protocol relative address is the
+   * spelling that omits the scheme entirely and a browser fetches it on the page's own, and a
+   * socket is the transport a page would use to keep talking rather than to call once.
+   */
+  it('should find a protocol relative address, which a browser fetches on the page scheme', () => {
+    // Given
+    const bundle = 'function t(e){navigator.sendBeacon("//metrics.example.com/collect",e)}';
+
+    // When
+    const findings = findForeignOrigins(bundle);
+
+    // Then the host is the fact, and the excerpt is the literal as written
+    expect(findings).toHaveLength(1);
+    expect(findings[0]?.origin).toBe('https://metrics.example.com');
+    expect(findings[0]?.excerpt).toBe('//metrics.example.com/collect');
+  });
+
+  it.each([
+    [
+      'a websocket',
+      'const s=new WebSocket("wss://live.example.com/feed");',
+      'wss://live.example.com',
+    ],
+    [
+      'an insecure websocket',
+      'const s=new WebSocket("ws://live.example.com/feed");',
+      'ws://live.example.com',
+    ],
+  ])('should find %s', (_case, bundle, origin) => {
+    // Given / When
+    const findings = findForeignOrigins(bundle);
+
+    // Then
+    expect(findings.map((finding) => finding.origin)).toEqual([origin]);
+  });
+
+  it.each([
+    ['the tail of an absolute url it already counted', '"https://a.example.com/x"'],
+    ['a doubled slash inside a path', 'const p="docs//to.html";'],
+    ['a comment marker before a sentence', 'const c=1;// see notes.md for why'],
+    ['a root relative path with no host', 'fetch("//")'],
+    ['a selector that looks like one', 'q("//div[@id]")'],
+  ])('should say nothing about %s', (_case, bundle) => {
+    // Given the pattern's boundaries, each one measured against a real shape rather than assumed
+    // When
+    const findings = findForeignOrigins(bundle);
+
+    // Then
+    const relative = findings.filter((finding) => finding.excerpt.startsWith('//'));
+    expect(relative).toEqual([]);
+  });
+
   it('should carry a reason and a mechanism for every entry it allows', () => {
     // Given the allowlist is the whole of the exemption, so an entry with no reason is an
     // exemption nobody has to justify

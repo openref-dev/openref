@@ -77,6 +77,18 @@ export const SKIP_REASONS: readonly SkipReason[] = [
       // named cases and the budget job, run there and fail there, so it skips only when all three
       // are clean and the row alone went unread.
       'static-suites',
+      // `capability-debts` reads the task ids and milestones out of `BUILD.md` to tell a live debt
+      // from a stale one, and without them it can still answer the half that needs no document:
+      // whether the marker a debt names is still in the source. It skips when that half is clean.
+      //
+      // ADDED BY THE PRE-M4 REVIEW, WHICH FOUND THE GATE SKIPPING FOR A REASON IT WAS NOT ON THIS
+      // LIST FOR. Measured by moving `ai-docs/` aside and running the gates: the accounting printed
+      // "capability-debts skipped for ai-docs-absent, which is declared for ... and not for it" and
+      // the whole run went red on it. That is every checkout but the maintainer's, so the run this
+      // list exists to make possible was the run it refused. The finding was correct and the answer
+      // to it is this entry rather than a quieter accounting: the gate's skip is legitimate, and
+      // nothing had said so.
+      'capability-debts',
     ],
     forced: ['build-manifest', 'claims', 'theme-motion'],
   },

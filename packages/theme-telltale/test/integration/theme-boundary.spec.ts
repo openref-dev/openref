@@ -1,4 +1,4 @@
-import { readdirSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import telltale from '../../src/theme';
@@ -176,7 +176,7 @@ describe('the markup a complete L2 theme does not own', () => {
     const surviving = await survivingCoreClasses();
     const count = String(surviving.length);
 
-    const documents = [
+    const documents: { name: string; text: string; anchor: string; quote: string }[] = [
       {
         name: 'THEME-BOUNDARY.md',
         text: readFileSync(join(packageRoot, 'THEME-BOUNDARY.md'), 'utf8'),
@@ -189,16 +189,26 @@ describe('the markup a complete L2 theme does not own', () => {
         anchor: 'class names the reference leaves in the markup are not frozen',
         quote: `${count} of them as of`,
       },
-      {
-        // SPEC 10.4 is the section that governs this boundary and it is written in Russian, so
-        // the anchor is quoted in the language the sentence is in. The gates already read this
-        // file the same way.
+    ];
+
+    // SPEC 10.4 IS THE THIRD DOCUMENT AND IT IS NOT IN EVERY CHECKOUT. `ai-docs/` is git excluded,
+    // so CI never has it, and until the pre-M4 review this case read it unconditionally: measured
+    // by moving the directory aside, the read threw `ENOENT` and took the whole run red, which is
+    // `pnpm test` red on every checkout but the maintainer's. The two committed documents are
+    // checked wherever this runs, and the specification is added when it is there, so a clone
+    // covers two thirds rather than none and the maintainer's tree covers all three. The section
+    // is written in Russian, so its anchor is quoted in the language the sentence is in.
+    const specPath = join(packageRoot, '..', '..', 'ai-docs', 'SPEC.md');
+    if (existsSync(specPath)) {
+      documents.push({
         name: 'ai-docs/SPEC.md, section 10.4',
-        text: readFileSync(join(packageRoot, '..', '..', 'ai-docs', 'SPEC.md'), 'utf8'),
+        text: readFileSync(specPath, 'utf8'),
         anchor: 'имён классов из пространства имён ядра',
         quote: `стилизует ${count} имён классов из пространства имён ядра`,
-      },
-    ];
+      });
+    }
+
+    expect(documents.length).toBeGreaterThanOrEqual(2);
 
     // When, Then. The sentence is located before the number is read out of it, so a document
     // that stopped stating the boundary at all fails here on the sentence rather than passing

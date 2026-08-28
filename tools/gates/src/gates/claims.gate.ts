@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
+  BUDGET_SPEC_ROWS,
   BUILD_FILE,
   CLAIM_MAP_FILE,
   FONT_BUDGET_LIMITS,
@@ -153,7 +154,7 @@ export const claimsGate: Gate = {
     // VALUE AGAINST VALUE, per the T034 amendment: the count check above says the two lists
     // are the same length, and these two say they promise the same numbers. The table is
     // compared as a multiset because it has no ids; the map is compared by id because it does.
-    issues.push(...compareBudgetValues(budgetRows, thresholds));
+    issues.push(...compareBudgetValues(budgetRows, thresholds, BUDGET_SPEC_ROWS));
     issues.push(...checkClaimFigures(rows, thresholds));
 
     // AND THE PROMISE AGAINST THE PROMISE, since T042. Until then the text of a SPEC 19 claim was

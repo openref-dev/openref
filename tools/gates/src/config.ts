@@ -470,6 +470,65 @@ export const CLIENT_JS_GESTURES: readonly DeferredGesture[] = [
   },
 ];
 
+/**
+ * The SPEC 20 row each budget answers, by the label the table's first cell writes.
+ *
+ * WITHOUT IT THE COMPARISON WAS A MULTISET OF VALUES, WHICH THE PRE-M4 REVIEW MEASURED AS
+ * AMBIGUOUS TWICE. `compareBudgetValues` matched every threshold the configuration enforces
+ * against every threshold the table states, as bags of numbers with no tie between a row and the
+ * budget it is about, on the stated argument that the table has no ids. Measured over the
+ * thirty three budgets: thirty one distinct values and two collisions, `tti` with
+ * `main-thread-work` on "no threshold" and `external-requests` with `csp-violations` on zero. In
+ * a colliding pair the check cannot tell which row is about which budget, so the two rows can
+ * swap subjects, or one can be relaxed while the other tightens by the same amount, and the bags
+ * still match. That is SPEC 0's class of a check comparing an assertion's shape rather than its
+ * value, on the two rows this project's security claims rest on.
+ *
+ * THE LABEL IS QUOTED IN THE TABLE'S OWN RUSSIAN, exactly as `STATIC_SUITE_COVERAGE` quotes SPEC
+ * 21's cell, and for the same reason: a translation here would be a second thing to keep in step.
+ * The list is hand written and it is reconciled in both directions, so a row the table states and
+ * no budget claims, a budget naming a row the table does not have, and a budget whose row states
+ * another number are three separate findings rather than one silent pass.
+ */
+export const BUDGET_SPEC_ROWS: Readonly<Record<string, string>> = {
+  'client-js': 'Клиентский JS, который грузит первая отрисовка, gzip',
+  'client-js-raw': 'Клиентский JS, который грузит первая отрисовка, сырые байты',
+  'client-js-send': 'Клиентский JS, который скачивает нажатие Send, gzip',
+  'client-js-send-raw': 'Клиентский JS, который скачивает нажатие Send, сырые байты',
+  'client-js-palette': 'Клиентский JS, который скачивает открытие палитры команд, gzip',
+  'client-js-palette-raw': 'Клиентский JS, который скачивает открытие палитры команд, сырые байты',
+  'client-js-sign-in-return':
+    'Клиентский JS, который скачивает возвращение от сервера авторизации, gzip',
+  'client-js-sign-in-return-raw':
+    'Клиентский JS, который скачивает возвращение от сервера авторизации, сырые байты',
+  'client-js-schema': 'Клиентский JS, который скачивает разворачивание схемы, gzip',
+  'client-js-schema-raw': 'Клиентский JS, который скачивает разворачивание схемы, сырые байты',
+  'client-js-shapes': 'Клиентский JS, который скачивает обращение к форме страницы форм, gzip',
+  'client-js-shapes-raw':
+    'Клиентский JS, который скачивает обращение к форме страницы форм, сырые байты',
+  'theme-css': 'CSS дефолтной темы, gzip',
+  'theme-css-raw': 'CSS дефолтной темы, сырые байты',
+  'client-wc': 'Выходы Web Component, оба формата, gzip',
+  'client-wc-raw': 'Выходы Web Component, оба формата, сырые байты',
+  'theme-entry': 'Вход темы telltale, каталог целиком, gzip',
+  'theme-entry-raw': 'Вход темы telltale, каталог целиком, сырые байты',
+  'fonts-first-paint': 'Шрифты первой отрисовки, на тему, gzip',
+  'fonts-latin': 'Шрифты латиницы, на тему, gzip',
+  'fonts-total': 'Шрифты всего, на тему, gzip',
+  'search-index': 'Поисковый индекс на 1000 узлов, gzip',
+  'search-index-raw': 'Поисковый индекс на 1000 узлов, сырые байты',
+  prerender: 'Пререндер, 1000 узлов',
+  tti: 'TTI, 1000 узлов, throttling 4× CPU',
+  'main-thread-work': 'Работа главного потока, 1000 узлов, throttling 4× CPU',
+  'long-tasks': 'Длинные задачи дольше 50 мс, 1000 узлов, throttling 4× CPU',
+  'page-bytes': 'Документ, CSS и JS, отданные главному потоку, 1000 узлов, сырые байты',
+  'client-memory': 'Пиковая память клиента, документ 7 МБ',
+  'external-requests': 'Внешние сетевые запросы',
+  'csp-violations': 'Нарушения строгой CSP',
+  'served-document': 'Отданный документ браузеру, как его собирает хост, 1000 узлов, сырые байты',
+  'static-build': 'Статическая сборка, 1000 узлов, 4 ядра',
+};
+
 export const SIZE_BUDGETS: readonly SizeBudget[] = [
   {
     id: 'client-js',

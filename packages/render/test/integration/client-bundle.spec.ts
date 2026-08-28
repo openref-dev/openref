@@ -1,9 +1,10 @@
 import { gzipSync } from 'node:zlib';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { scanClientBundle } from '../mocks/bundle-scan';
+import { chunkReferences } from '../../src/index';
 
 /**
  * What the browser actually receives.
@@ -13,7 +14,8 @@ import { scanClientBundle } from '../mocks/bundle-scan';
  * 300 KB out of a bundle is worth weighing rather than reading.
  */
 const packageRoot = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
-const bundlePath = join(packageRoot, 'dist', 'browser', 'openref.js');
+const ENTRY_FILE = 'openref.js';
+const bundlePath = join(packageRoot, 'dist', 'browser', ENTRY_FILE);
 
 function readBundle(): string {
   if (!existsSync(bundlePath)) {
@@ -37,6 +39,59 @@ function readBundle(): string {
 
   return bundle;
 }
+
+/**
+ * The counter check to `JS_SPECIFIER`, added by the pre-M4 review.
+ *
+ * The catalog rewrites a sibling specifier to the hashed name its chunk is served under, and it
+ * finds those specifiers with a regular expression over minified text. The review counted eight
+ * spellings a bundler can emit and measured that expression seeing three; backticks and `.mjs`
+ * were then added to it, and the next release of a bundler can invent a ninth. A regular
+ * expression chasing bundler output is not a thing that stays complete, so what is asserted here
+ * is the property instead: a chunk exists to be imported, so a built chunk that no other built
+ * file names is either dead weight or a specifier written in a form the rewriter cannot see, and
+ * the second one ships a 404 on the click that reaches for it.
+ */
+describe('the built chunk graph', () => {
+  it('should have every chunk but the entry named by another built file', () => {
+    // Given every built module, read with the same function the catalog rewrites with
+    const directory = join(packageRoot, 'dist', 'browser');
+    if (!existsSync(directory)) throw new Error(`${directory} is not built; run pnpm build first`);
+
+    const files = readdirSync(directory).filter((name) => /\.m?js$/.test(name));
+    expect(files.length).toBeGreaterThan(1);
+
+    const named = new Set<string>();
+    for (const file of files) {
+      for (const reference of chunkReferences(readFileSync(join(directory, file), 'utf8'))) {
+        named.add(reference);
+      }
+    }
+
+    // When
+    const unreferenced = files.filter((name) => name !== ENTRY_FILE && !named.has(name));
+
+    // Then
+    expect(unreferenced).toEqual([]);
+  });
+
+  it('should name only chunks that exist, so no rewrite can point at nothing', () => {
+    // Given
+    const directory = join(packageRoot, 'dist', 'browser');
+    const files = readdirSync(directory).filter((name) => /\.m?js$/.test(name));
+    const present = new Set(files);
+
+    // When
+    const dangling = files.flatMap((file) =>
+      chunkReferences(readFileSync(join(directory, file), 'utf8')).filter(
+        (reference) => !present.has(reference),
+      ),
+    );
+
+    // Then
+    expect([...new Set(dangling)]).toEqual([]);
+  });
+});
 
 describe('client bundle', () => {
   it('should contain none of the server only libraries', () => {

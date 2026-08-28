@@ -12,7 +12,9 @@ import {
 import { staticSuitesGate } from '../../src/gates/static-suites.gate';
 import { aiDocsPresent } from '../../src/lib/ai-docs';
 import {
+  assertionlessCaseTitlesIn,
   caseTitlesIn,
+  checkSuiteFiles,
   checkBudgetJob,
   checkMilestoneClauses,
   checkStaticCoverage,
@@ -93,6 +95,7 @@ function context(overrides: Partial<StaticSuiteContext> = {}): StaticSuiteContex
     specNames: suiteRowOf(SPEC_21, 'Static'),
     exists: (path) => path in TITLES,
     casesIn: (path) => TITLES[path] ?? [],
+    assertionlessIn: () => [],
     ...overrides,
   };
 }
@@ -137,6 +140,84 @@ describe('suiteRowOf', () => {
     // Then
     expect(suiteRowOf(SPEC_21, 'Federation')).toBeNull();
     expect(suiteRowOf('## 1. Something\n', 'Static')).toBeNull();
+  });
+});
+
+describe('assertionlessCaseTitlesIn', () => {
+  it('should name a case whose body asserts nothing and leave its neighbours alone', () => {
+    // Given a suite where the middle case has been emptied, which is the shape the pre-M4 review
+    // found this file's check blind to: the title stays, the coverage stays green, nothing is
+    // proved
+    const source = [
+      "it('should hold the first property', () => {",
+      '  expect(1).toBe(1);',
+      '});',
+      "it('should hold the gutted property', () => {});",
+      "it('should hold the last property', () => {",
+      '  expect(2).toBe(2);',
+      '});',
+    ].join('\n');
+
+    // When
+    const gutted = assertionlessCaseTitlesIn(source);
+
+    // Then
+    expect(gutted).toEqual(['should hold the gutted property']);
+  });
+
+  it('should not credit a case with the assertions of the case after it', () => {
+    // Given the emptied case last but one, so an over-reading body would swallow the next title
+    const source = [
+      "it('should hold the gutted property', () => {});",
+      "it('should hold the real property', () => {",
+      '  expect(1).toBe(1);',
+      '});',
+    ].join('\n');
+
+    // When
+    const gutted = assertionlessCaseTitlesIn(source);
+
+    // Then
+    expect(gutted).toEqual(['should hold the gutted property']);
+  });
+});
+
+describe('checkSuiteFiles, a gutted case', () => {
+  it('should report a named case that asserts nothing rather than counting it as coverage', () => {
+    // Given a coverage whose file and case are both present, and the case is empty
+    const coverages = [
+      { id: 'determinism', spec: 'x', files: ['a.spec.ts'], cases: ['should carry something'] },
+    ];
+
+    // When
+    const issues = checkSuiteFiles(coverages, {
+      ...context(),
+      exists: () => true,
+      casesIn: () => ['should carry something'],
+      assertionlessIn: () => ['should carry something'],
+    });
+
+    // Then one finding, and it names the cause rather than saying the case is missing
+    expect(issues.map((issue) => issue.rule)).toEqual(['case-gutted']);
+    expect(issues[0]?.message).toContain('asserts nothing');
+  });
+
+  it('should say nothing about a gutted case no coverage names', () => {
+    // Given the emptied case is some other case in the same file
+    const coverages = [
+      { id: 'determinism', spec: 'x', files: ['a.spec.ts'], cases: ['should carry something'] },
+    ];
+
+    // When
+    const issues = checkSuiteFiles(coverages, {
+      ...context(),
+      exists: () => true,
+      casesIn: () => ['should carry something', 'should do something else'],
+      assertionlessIn: () => ['should do something else'],
+    });
+
+    // Then
+    expect(issues).toEqual([]);
   });
 });
 
@@ -294,6 +375,7 @@ function clauseContext(overrides: Partial<MilestoneClauseContext> = {}): Milesto
     specNames: [],
     exists: (path) => path in TITLES,
     casesIn: (path) => TITLES[path] ?? [],
+    assertionlessIn: () => [],
     ...overrides,
   };
 }
@@ -503,6 +585,8 @@ describe('the committed wiring', () => {
         specNames: suiteRowOf(spec, STATIC_SUITE_ROW),
         exists: (path) => existsSync(join(repoRoot, path)),
         casesIn: (path) => caseTitlesIn(readFileSync(join(repoRoot, path), 'utf8')),
+        assertionlessIn: (path) =>
+          assertionlessCaseTitlesIn(readFileSync(join(repoRoot, path), 'utf8')),
       });
 
       // Then
@@ -537,6 +621,8 @@ describe('the committed wiring', () => {
         specNames: [],
         exists: (path) => existsSync(join(repoRoot, path)),
         casesIn: (path) => caseTitlesIn(readFileSync(join(repoRoot, path), 'utf8')),
+        assertionlessIn: (path) =>
+          assertionlessCaseTitlesIn(readFileSync(join(repoRoot, path), 'utf8')),
       });
 
       // Then
