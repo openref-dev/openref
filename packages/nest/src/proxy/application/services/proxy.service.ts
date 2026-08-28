@@ -27,7 +27,7 @@
  */
 
 import { ErrorCode, ProxyBlockedError } from '@openref/core';
-import { addressRefusal, isAddressLiteral } from '@openref/core';
+import { addressRefusal, isAddressLiteral } from '@openref/core/security';
 import { decideTarget, type ProxyAllowlist } from '../../domain/allowlist';
 import {
   forwardableRequestHeaders,

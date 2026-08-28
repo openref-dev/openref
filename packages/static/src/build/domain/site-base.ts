@@ -9,7 +9,8 @@
  * out.
  */
 
-import { ErrorCode, InvalidOptionsError, isHttpUrl } from '@openref/core';
+import { ErrorCode, InvalidOptionsError } from '@openref/core';
+import { isHttpUrl } from '@openref/core/security';
 
 /** The base of one build, in the two shapes it comes in. */
 export interface SiteBase {

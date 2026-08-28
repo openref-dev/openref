@@ -5,8 +5,12 @@
  * suffix a reader can influence onto a base this project pinned: the Nitro route, the Cloudflare
  * Pages Function and the CloudFront viewer-request function that `@openref/static` generates, and
  * the same origin proxy of SPEC 14.5 that `@openref/nest` mounts. The first three are emitted as
- * source text into somebody else's runtime and cannot import anything, so the guard exists here
- * as a function and as the lines that spell it, and a case holds the two to the same answers.
+ * source text into somebody else's runtime and cannot import anything, so what they carry is the
+ * same rule spelled as lines, in `@openref/static` beside the generator that emits them, with a
+ * case there compiling those lines and holding them to this function over every spelling. The text
+ * is not exported from here because this module reaches the browser through the package barrel and
+ * the emitted lines are build time material: measured, carrying them cost the first paint 316 bytes
+ * against a budget with none to give.
  *
  * THE FOURTH WAS THE ONE WITHOUT IT, WHICH IS WHY THIS MOVED. `T040` wrote the guard for the three
  * generated artefacts after measuring 23 leaks across them, and the runtime proxy, which asks the
@@ -64,37 +68,3 @@ export function refusesPathSuffix(rest: string): boolean {
     DOT_SEGMENT.test(decoded)
   );
 }
-
-/**
- * The same guard as source text, for the artefacts that cannot import it.
- *
- * Reads one variable, `rest`, and answers one, `refusedRest`; each generated artefact defines the
- * first before including these lines and refuses in its own platform's vocabulary after them.
- *
- * WRITTEN IN THE SYNTAX ALL THREE RUNTIMES ACCEPT: no optional catch binding and nothing past the
- * ES6 subset the `cloudfront-js-2.0` runtime documents, since one of the three targets is not a
- * general JavaScript engine.
- */
-export const PATH_SUFFIX_GUARD_SOURCE: readonly string[] = [
-  '  // A dot segment in the suffix climbs above the pinned base path, inside the pinned origin,',
-  '  // so it is refused rather than repaired: the four spellings of ".." the URL standard admits,',
-  '  // read across slash, backslash and their encodings as one separator class and through a ";"',
-  '  // path parameter, checked on the suffix as received and again after exactly one decode.',
-  '  // A suffix whose one decode still spells an encoded dot, separator or path parameter stays',
-  '  // ambiguous to whoever decodes next, so it is refused rather than decoded a second time, and',
-  '  // a suffix that one decode cannot resolve at all is refused for the same reason.',
-  '  const DOT_SEGMENT = /(^|[/\\\\;]|%2f|%5c|%3b)(\\.\\.|\\.%2e|%2e\\.|%2e%2e)([/\\\\;]|%2f|%5c|%3b|$)/i;',
-  '  const AMBIGUOUS = /%(2e|2f|5c|3b)/i;',
-  '  const decodedRest = (() => {',
-  '    try {',
-  '      return decodeURIComponent(rest);',
-  '    } catch (decodeError) {',
-  '      return null;',
-  '    }',
-  '  })();',
-  '  const refusedRest =',
-  '    DOT_SEGMENT.test(rest) ||',
-  '    decodedRest === null ||',
-  '    AMBIGUOUS.test(decodedRest) ||',
-  '    DOT_SEGMENT.test(decodedRest);',
-];

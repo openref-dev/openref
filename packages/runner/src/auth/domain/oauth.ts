@@ -14,7 +14,8 @@
  * this tool is most useful.
  */
 
-import { AuthError, ErrorCode, isHttpUrl, isSecureCredentialUrl } from '@openref/core';
+import { AuthError, ErrorCode } from '@openref/core';
+import { isHttpUrl, isSecureCredentialUrl } from '@openref/core/security';
 import { formEncode } from '../../request/domain/body';
 import type {
   OAuthFlowKind,

@@ -40,7 +40,8 @@
  * tested hardest.
  */
 
-import { ErrorCode, isHttpUrl, refusesPathSuffix, RunnerError } from '@openref/core';
+import { ErrorCode, RunnerError } from '@openref/core';
+import { isHttpUrl, refusesPathSuffix } from '@openref/core/security';
 import type { RequestPlan } from '../../../request/domain/request-plan';
 import type {
   IHttpTransport,

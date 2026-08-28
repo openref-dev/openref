@@ -575,7 +575,27 @@ export const SIZE_BUDGETS: readonly SizeBudget[] = [
     // arithmetic beside the cap described a bundle that no longer existed. The cap did not move and
     // does not need to. 108,544 leaves 405 bytes, and the property still holds: `sign-in-return` is
     // 1,451 raw, so it returning to the first load reads 109,590 and fails this budget.
-    limitBytes: 106 * 1024,
+    //
+    // 107 KB SINCE THE PRE-M4 REVIEW, AND THE ARRIVAL IS NAMED BECAUSE IT IS NOT A FEATURE A READER
+    // OF THE FIRST PAINT USES. The path suffix guard and the address policy stopped being three
+    // hand written copies and became one implementation in `@openref/core/security`, called by the
+    // same origin proxy, the static generator, the OAuth flows and the rewriting transport. The
+    // first paint runs none of it. What it pays is the bundler's: the guard is reached by several
+    // deferred chunks, so esbuild places it in the chunk they share, and the entry already loads
+    // that chunk for the error classes. Measured 108,870 raw across the same six files against
+    // 108,544, so 326 over; measured again with the transport's import taken out, 108,643, which
+    // is how the route was identified rather than guessed. A second entry point was built first,
+    // on the `@openref/vue/runner` precedent, and it does not move the grouping, so the cost is
+    // real rather than avoidable from here.
+    //
+    // THE PROPERTY IS RE-CHECKED AND STILL HOLDS, which is what allows the step at all. 107 KB is
+    // 109,568: the artefact fits with 698 bytes, and `sign-in-return` at 1,451 raw returning to the
+    // first load reads 110,321 and fails it. 106 KB does not fit, so 107 is the one whole KB step
+    // available. WHAT WOULD REVERSE THIS rather than the cap: the runner keeping its own copy of
+    // the two predicates with a case holding it byte equal to this one, which is what the three
+    // generated artefacts already do and which would take the 326 bytes back out of the first
+    // paint at the price of a copy.
+    limitBytes: 107 * 1024,
     roots: CLIENT_JS_ROOTS,
     extensions: ['.js', '.mjs'],
     quantity: 'parse',

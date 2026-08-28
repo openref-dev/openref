@@ -86,9 +86,18 @@ export const budgetsGate: Gate = {
     for (const outcome of report.outcomes.filter((item) => item.source === 'recorded'))
       emit(outcome);
 
-    // Nothing measured is nothing built: the budgets weigh files a build produces, so an empty
-    // report is the artifact being absent rather than every budget being inside its limit.
-    const status = failed ? 'fail' : report.measuredCount === 0 ? 'skip' : 'pass';
+    // NOTHING BUILT IS NOT EVERY BUDGET INSIDE ITS LIMIT, and until the pre-M4 review this line
+    // asked the wrong count. `measuredCount` includes budgets weighed over committed inputs, which
+    // on this tree is four of them: the two font budgets and the two theme stylesheet ones, whose
+    // roots reach `packages/theme/fonts`. So it never reaches zero, and a tree with the client
+    // bundle removed, or with every `dist` removed, printed twelve `SKIP` lines and returned
+    // `pass`. Measured on a mirror of this repository with the build taken away, twice.
+    //
+    // `builtCount` is the figure that answers the question the comment above always claimed to
+    // ask, and it was added at `T042` for the debt gate and not wired into the gate that owns the
+    // measurement. A budget weighed over a committed input is still weighed and still gated; what
+    // it may not do is stand in for a build.
+    const status = failed ? 'fail' : report.builtCount === 0 ? 'skip' : 'pass';
 
     return Promise.resolve({
       id: budgetsGate.id,

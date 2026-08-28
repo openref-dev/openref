@@ -10,7 +10,7 @@
  * answers "what do we know is dangerous today", which is a question that ages.
  */
 
-import { DOCUMENT_LINK_SCHEMES } from '@openref/core';
+import { DOCUMENT_LINK_SCHEMES } from '@openref/core/security';
 import DOMPurify from 'isomorphic-dompurify';
 
 /**

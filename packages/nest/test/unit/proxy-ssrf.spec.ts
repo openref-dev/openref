@@ -1,4 +1,5 @@
-import { addressRefusal, isAddressLiteral, parseIpv4, ProxyBlockedError } from '@openref/core';
+import { ProxyBlockedError } from '@openref/core';
+import { addressRefusal, isAddressLiteral, parseIpv4 } from '@openref/core/security';
 import { describe, expect, it } from 'vitest';
 import { buildAllowlist, decideTarget } from '../../src/proxy/domain/allowlist';
 import { ProxyService } from '../../src/proxy/application/services/proxy.service';

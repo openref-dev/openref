@@ -1,15 +1,17 @@
 import { runInNewContext } from 'node:vm';
 import { describe, expect, it } from 'vitest';
-import { PATH_SUFFIX_GUARD_SOURCE, refusesPathSuffix } from '../../src/index';
+import { refusesPathSuffix } from '@openref/core/security';
+import { SUFFIX_GUARD_LINES } from '../../src/proxy/domain/proxy-files';
 
 /**
  * The guard that four things share, and the property that makes sharing it worth anything.
  *
- * IT EXISTS IN TWO FORMS AND ONLY ONE OF THEM CAN BE CALLED. The three artefacts
- * `@openref/static` generates are source text for somebody else's runtime, so they receive the
- * guard as lines rather than as a function. Two forms of one rule is exactly the shape this
- * repository keeps finding drifted, so the first case here compiles the lines and holds them to
- * the function over every spelling, rather than comparing the two texts to each other.
+ * IT EXISTS IN TWO FORMS AND ONLY ONE OF THEM CAN BE CALLED. The three artefacts this package
+ * generates are source text for somebody else's runtime, so they carry the guard as lines rather
+ * than as a function, while the same origin proxy and the rewriting transport call
+ * `refusesPathSuffix` in `@openref/core`. Two forms of one rule is exactly the shape this
+ * repository keeps finding drifted, so the first case compiles the lines and holds them to the
+ * function over every spelling, rather than comparing two texts to each other.
  */
 
 /** The spellings driven through the generated artefacts when the guard was written, plus ours. */
@@ -51,12 +53,9 @@ const ADMITTED = [
  * against implied evaluation meaningful everywhere else.
  */
 function compiledGuard(): (rest: string) => boolean {
-  const body = [
-    '(function (rest) {',
-    ...PATH_SUFFIX_GUARD_SOURCE,
-    '  return refusedRest;',
-    '})',
-  ].join('\n');
+  const body = ['(function (rest) {', ...SUFFIX_GUARD_LINES, '  return refusedRest;', '})'].join(
+    '\n',
+  );
   return runInNewContext(body) as (rest: string) => boolean;
 }
 

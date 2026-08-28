@@ -9,7 +9,7 @@
  * skipped with a warning naming the reason, never guessed at, per SPEC 6.
  */
 
-import { addressRefusal, isAddressLiteral, isHttpUrl } from '@openref/core';
+import { addressRefusal, isAddressLiteral, isHttpUrl } from '@openref/core/security';
 import type { IRServer, IRServerVariable } from '@openref/core';
 
 /**

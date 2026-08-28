@@ -15,7 +15,7 @@
  * the match is on origin and path prefix rather than on a substring of the url.
  */
 
-import { isHttpUrl, refusesPathSuffix } from '@openref/core';
+import { isHttpUrl, refusesPathSuffix } from '@openref/core/security';
 
 /** One place the proxy may reach, as an origin and the path everything under it hangs off. */
 export interface AllowedTarget {

@@ -489,9 +489,35 @@ describe('budgetsGate, the three font budgets', () => {
       .map((finding) => /^OK (fonts-[a-z-]+)/.exec(finding.message)?.[1])
       .filter((id) => id !== undefined);
 
-    // Then
+    // Then the three font budgets are measured over the files this root holds
     expect(ids).toEqual(['fonts-first-paint', 'fonts-latin', 'fonts-total']);
-    expect(result.status).toBe('pass');
+
+    // AND THE GATE SKIPS RATHER THAN PASSES, WHICH THIS CASE ASSERTED THE OTHER WAY UNTIL THE
+    // PRE-M4 REVIEW. The root holds committed fonts and nothing a build produced, and the gate
+    // decided its verdict on how many budgets were weighed at all, a count these fonts keep above
+    // zero. So a tree with the client bundle removed, or with every `dist` removed, printed twelve
+    // SKIP lines and returned `pass`, measured on a mirror of the repository twice. The figure that
+    // answers "did I see a build" existed already, was added at `T042` for the debt gate, and was
+    // never wired into the gate that owns the measurement. The assertion here was the defect
+    // written as a requirement, which is why it moved rather than the code.
+    expect(result.status).toBe('skip');
+    expect(result.skipReason).toBe('artifact-absent');
+  });
+
+  it('should skip rather than pass when nothing a build produces is there to weigh', async () => {
+    // Given a root carrying the committed fonts and no build output at all
+    const budget = FONT_BUDGETS[0];
+    const root = plantFonts(Object.fromEntries((budget?.latin ?? []).map((file) => [file, 1024])));
+
+    // When
+    const result = await budgetsGate.run({ repoRoot: root });
+    rmSync(root, { recursive: true, force: true });
+
+    // Then the size budgets say what they did not read, and the verdict is not a pass
+    expect(result.status).toBe('skip');
+    expect(result.findings.map((finding) => finding.message).join('\n')).toContain(
+      'SKIP client-js-raw: no artifacts under',
+    );
   });
 
   it('should fail when a named latin file is absent rather than measuring it as zero', async () => {

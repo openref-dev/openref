@@ -124,7 +124,7 @@ export { sha256Hex, utf8Encode } from './hashing/domain/sha256';
 export { caseFoldForFilesystem } from './security/domain/case-fold';
 export { addressRefusal, isAddressLiteral, parseIpv4, parseIpv6 } from './security/domain/address';
 export type { AddressRefusal } from './security/domain/address';
-export { PATH_SUFFIX_GUARD_SOURCE, refusesPathSuffix } from './security/domain/path-suffix';
+export { refusesPathSuffix } from './security/domain/path-suffix';
 export {
   DOCUMENT_LINK_SCHEMES,
   HTTP_SCHEMES,
