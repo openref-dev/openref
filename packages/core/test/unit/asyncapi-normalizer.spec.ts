@@ -2246,18 +2246,36 @@ describe('the event types reserved in T002 needed no change to be filled', () =>
     expect(filled.messageCorrelationId).toBeDefined();
   });
 
-  it('should leave relationships empty, because that one is still not this task to fill', () => {
+  it('should fill relationships from the actions the document declares, per SPEC 9.3', () => {
     // Given a document that declares no security scheme at all, so the empty `security` below is
     // the absence of a subject rather than a reading that was refused
     const document = normalizeAsyncApiDocument(createAsyncApi30());
 
     // When
-    const empty = { relationships: document.relationships, security: document.security };
+    const read = { relationships: document.relationships, security: document.security };
 
-    // Then, `relationships` is SPEC 9 and belongs to `T052`. `security` was empty here for the
-    // other reason until `T051`, which grew `IRSecuritySchemeType` to the fourteen names both
-    // specifications need and made the reading whole rather than partial.
-    expect(empty.relationships).toEqual([]);
-    expect(empty.security).toEqual([]);
+    // Then, `relationships` was empty from `T048` until `T052`, and the mock's one `receive`
+    // operation is now the one edge the document declares: the channel into this application, in
+    // the direction the message travels. `security` was empty here for the other reason until
+    // `T051`, which grew `IRSecuritySchemeType` to the fourteen names both specifications need.
+    expect(read.relationships).toEqual([
+      {
+        from: 'channel-shipping-shipmentid-dispatched',
+        fromKind: 'node',
+        to: document.id,
+        toKind: 'service',
+        type: 'subscribes',
+        confidence: 'declared',
+      },
+      {
+        from: document.id,
+        fromKind: 'service',
+        to: 'channel-orders-placed',
+        toKind: 'node',
+        type: 'publishes',
+        confidence: 'declared',
+      },
+    ]);
+    expect(read.security).toEqual([]);
   });
 });

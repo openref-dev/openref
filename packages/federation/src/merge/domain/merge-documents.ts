@@ -20,6 +20,7 @@ import {
   mergeRelationships,
   serviceRecord,
   type HealthSource,
+  type RelationshipSource,
 } from './document-parts';
 import {
   resolveConflictMode,
@@ -49,7 +50,7 @@ import {
 } from './merge-report';
 import { mismatchedKeys, unresolvedReferences, type UnresolvedReference } from './references';
 import { classifySchemas, type SchemaClass, type SchemaEntry } from './schema-identity';
-import { rewriteNode, rewriteSchema, type NodeIdentity, type RewriteMaps } from './rewrite';
+import { rewriteNode, rewriteSchema, type NodeIdentity } from './rewrite';
 
 /**
  * The merge engine of SPEC 15: several normalized documents in, one normalized document out.
@@ -448,7 +449,7 @@ function build(
   const schemas = new Map<string, IRSchema>();
   const services: IRService[] = [];
   const healthSources: HealthSource[] = [];
-  const edgeSources: { edges: IRDocument['relationships']; maps: RewriteMaps }[] = [];
+  const edgeSources: RelationshipSource[] = [];
 
   for (const entry of plan.schemaPlan.resolved) {
     const [first] = entry.subject.members;
@@ -484,7 +485,12 @@ function build(
       healthSources.push({ report: service.document.health, maps });
     }
     if (service.document.relationships.length > 0) {
-      edgeSources.push({ edges: service.document.relationships, maps });
+      edgeSources.push({
+        edges: service.document.relationships,
+        maps,
+        documentId: service.document.id,
+        serviceId: service.id,
+      });
     }
   }
 

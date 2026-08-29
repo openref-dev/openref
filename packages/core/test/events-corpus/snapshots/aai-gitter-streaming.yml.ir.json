@@ -1,5 +1,5 @@
 {
-  "hash": "8ceceb037ade04b8d82a8ada5e6bf04b56302e3f28fd4da0f040da8e8e57e635",
+  "hash": "300afcb890afbc9a226c80f65e1c3cb075331e279d2860c2fb30c8527e56ec12",
   "id": "gitter-streaming-api",
   "info": {
     "title": "Gitter Streaming API",
@@ -263,7 +263,16 @@
       }
     ]
   ],
-  "relationships": [],
+  "relationships": [
+    {
+      "confidence": "declared",
+      "from": "gitter-streaming-api",
+      "fromKind": "service",
+      "to": "channel-rooms-roomid-resource",
+      "toKind": "node",
+      "type": "publishes"
+    }
+  ],
   "schemas": [],
   "security": [
     {

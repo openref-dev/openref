@@ -48,8 +48,15 @@
  * renaming a template variable produces an empty diff instead of a phantom removed operation
  * with a phantom added required parameter.
  *
- * OUT OF SCOPE, SAID RATHER THAN DISCOVERED: channels (M5), webhooks and callback trees are not
- * diffed yet. Webhook and node request and response slots do feed the reachability computation,
+ * OUT OF SCOPE, SAID RATHER THAN DISCOVERED: channels (M5) and webhooks are not diffed yet.
+ * CALLBACKS CAME INTO SCOPE AT `T052` WITHOUT THIS FUNCTION CHANGING, and that is worth saying
+ * because it was not a decision made here: the OpenAPI normalizer now puts every callback
+ * operation in `IRDocument.nodes` as a node of its own, per SPEC 9.3, so a callback added,
+ * removed or altered is diffed as the operation it is. What is still not compared is
+ * `IROperation.callbacks` itself, the map of names to node ids: two documents whose callback
+ * operations are identical and whose callback names differ read as no change, because operations
+ * pair up by method and path shape and the name only ever lived in the node id. That is measured
+ * rather than assumed, in `packages/core/test/unit/topology.spec.ts`. Webhook and node request and response slots do feed the reachability computation,
  * so their schemas still classify with the right direction. Response headers were on this list
  * until the pre-M4 review, where three pairs of documents differing only in a header measured as
  * `No changes.`; they are compared now, and a removed one breaks.

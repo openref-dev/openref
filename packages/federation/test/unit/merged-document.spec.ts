@@ -472,7 +472,14 @@ describe('mergeDocuments, health and topology', () => {
   it('should move the node end of a topology edge and leave the service end alone', () => {
     // Given two services, each declaring an edge out of a node it owns
     const edge = (from: string): IRDocument['relationships'] => [
-      { from, to: 'notification-service', type: 'publishes', confidence: 'declared' },
+      {
+        from,
+        fromKind: 'node',
+        to: 'notification-service',
+        toKind: 'service',
+        type: 'publishes',
+        confidence: 'declared',
+      },
     ];
     const billing = buildDocument({
       id: 'billing-api',
@@ -498,13 +505,17 @@ describe('mergeDocuments, health and topology', () => {
     expect(document.relationships).toEqual([
       {
         from: 'billing_get-total',
+        fromKind: 'node',
         to: 'notification-service',
+        toKind: 'service',
         type: 'publishes',
         confidence: 'declared',
       },
       {
         from: 'orders_get-orders',
+        fromKind: 'node',
         to: 'notification-service',
+        toKind: 'service',
         type: 'publishes',
         confidence: 'declared',
       },
@@ -516,7 +527,9 @@ describe('mergeDocuments, health and topology', () => {
     const edges: IRDocument['relationships'] = [
       {
         from: 'billing-service',
+        fromKind: 'service',
         to: 'notification-service',
+        toKind: 'service',
         type: 'publishes',
         confidence: 'declared',
       },
@@ -535,5 +548,131 @@ describe('mergeDocuments, health and topology', () => {
 
     // Then the topology graph does not weight one edge twice for having been described twice
     expect(document.relationships).toEqual(edges);
+  });
+
+  it('should rewrite a service end that names its own document and leave a foreign one alone', () => {
+    // Given a service whose event document names itself by its document id, which is what both
+    // normalizers write for a `service` end, and a second edge naming a service nobody federated
+    const billing = buildDocument({
+      id: 'billing-api',
+      nodes: [channel({ id: 'paid', address: 'billing.paid' })],
+      relationships: [
+        {
+          from: 'billing-api',
+          fromKind: 'service',
+          to: 'paid',
+          toKind: 'node',
+          type: 'publishes',
+          confidence: 'declared',
+        },
+        {
+          from: 'paid',
+          fromKind: 'node',
+          to: 'ledger-service',
+          toKind: 'service',
+          type: 'subscribes',
+          confidence: 'declared',
+        },
+      ],
+    });
+    const orders = buildDocument({ id: 'orders-api' });
+
+    // When they are merged under service ids that are not the document ids
+    const { document } = mergeDocuments(
+      [
+        { id: 'billing', document: billing },
+        { id: 'orders', document: orders },
+      ],
+      MERGED,
+    );
+
+    // Then the service's own name becomes its federation id, the node end moves with the node,
+    // and the service that was named but not federated stays named
+    expect(document.relationships).toEqual([
+      {
+        from: 'billing',
+        fromKind: 'service',
+        to: 'billing_paid',
+        toKind: 'node',
+        type: 'publishes',
+        confidence: 'declared',
+      },
+      {
+        from: 'billing_paid',
+        fromKind: 'node',
+        to: 'ledger-service',
+        toKind: 'service',
+        type: 'subscribes',
+        confidence: 'declared',
+      },
+    ]);
+  });
+
+  it('should not rewrite a service whose name happens to equal another node id', () => {
+    // Given a service end whose name is spelled exactly like a node id the rewrite map holds,
+    // which is the collision the untyped `from` of SPEC 9 could not tell apart before `T052`
+    const billing = buildDocument({
+      id: 'billing-api',
+      nodes: [operation({ id: 'get-total', path: '/total' })],
+      relationships: [
+        {
+          from: 'billing-api',
+          fromKind: 'service',
+          to: 'get-total',
+          toKind: 'service',
+          type: 'calls',
+          confidence: 'declared',
+        },
+      ],
+    });
+
+    // When it is merged, so that `get-total` is renamed to `billing_get-total` as a node
+    const { document } = mergeDocuments([{ id: 'billing', document: billing }], MERGED);
+
+    // Then the node moved and the service end that shares its spelling did not
+    expect([...document.nodes.keys()]).toEqual(['billing_get-total']);
+    expect(document.relationships).toEqual([
+      {
+        from: 'billing',
+        fromKind: 'service',
+        to: 'get-total',
+        toKind: 'service',
+        type: 'calls',
+        confidence: 'declared',
+      },
+    ]);
+  });
+
+  it('should carry an event end across a merge untouched, because it is in nobody address space', () => {
+    // Given an edge from a handler node to an event name, which is what `@ApiPublishes` declares
+    const orders = buildDocument({
+      id: 'orders-api',
+      nodes: [operation({ id: 'post-orders', path: '/orders', method: 'post' })],
+      relationships: [
+        {
+          from: 'post-orders',
+          fromKind: 'node',
+          to: 'orders.placed',
+          toKind: 'event',
+          type: 'publishes',
+          confidence: 'declared',
+        },
+      ],
+    });
+
+    // When it is merged
+    const { document } = mergeDocuments([{ id: 'orders', document: orders }], MERGED);
+
+    // Then only the node end moved
+    expect(document.relationships).toEqual([
+      {
+        from: 'orders_post-orders',
+        fromKind: 'node',
+        to: 'orders.placed',
+        toKind: 'event',
+        type: 'publishes',
+        confidence: 'declared',
+      },
+    ]);
   });
 });

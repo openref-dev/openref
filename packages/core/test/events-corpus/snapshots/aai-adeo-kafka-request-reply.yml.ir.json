@@ -1,5 +1,5 @@
 {
-  "hash": "3d072c00ea494dd990b80a0ed5cb18a7683c6d5b5b6eb5d1e42af401251817db",
+  "hash": "a9e7ac994ffbdcf300110f00ec4f56f838fef14c62508251d55135d09417121f",
   "id": "adeo-asyncapi-case-study",
   "info": {
     "contact": {
@@ -356,7 +356,24 @@
       }
     ]
   ],
-  "relationships": [],
+  "relationships": [
+    {
+      "confidence": "declared",
+      "from": "channel-adeo-env-case-study-costing-request-version",
+      "fromKind": "node",
+      "to": "channel-costingresponsechannel",
+      "toKind": "node",
+      "type": "calls"
+    },
+    {
+      "confidence": "declared",
+      "from": "channel-adeo-env-case-study-costing-request-version",
+      "fromKind": "node",
+      "to": "adeo-asyncapi-case-study",
+      "toKind": "service",
+      "type": "subscribes"
+    }
+  ],
   "schemas": [
     [
       "BuCode",

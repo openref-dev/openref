@@ -42,6 +42,7 @@ import type {
 } from './module-options';
 import type { DiscoveryProblem } from '../runtime/infrastructure/adapters/controller-discovery.adapter';
 import type { CollectorTarget } from '../runtime/application/services/collector-registry.service';
+import type { ChannelDirectionConfidence } from '../runtime/domain/relationships';
 import type { SynthesizedChannel } from '../events/domain/asyncapi-synthesis';
 import type {
   DiscoveryServiceLike,
@@ -219,7 +220,7 @@ export class MountedReferences {
         const paired =
           synthesis === undefined ? undefined : pairChannels(document, synthesis.channels);
         if (paired !== undefined) pairingProblems = paired.problems;
-        pass = this.collect(document, paired?.targets);
+        pass = this.collect(document, paired?.targets, paired?.directionConfidence);
         return pass.document;
       },
       ...(entry.cache === undefined ? {} : { cache: entry.cache }),
@@ -430,9 +431,14 @@ export class MountedReferences {
    *
    * @param document - The document, before any runtime fact
    * @param channelTargets - Channels paired with their handler, when there are any
+   * @param directionConfidence - How each synthesized channel's direction was read, per SPEC 9.3
    * @returns The pass result, whose document carries the facts and a retaken hash
    */
-  collect(document: IRDocument, channelTargets?: readonly CollectorTarget[]): RuntimePassResult {
+  collect(
+    document: IRDocument,
+    channelTargets?: readonly CollectorTarget[],
+    directionConfidence?: ChannelDirectionConfidence,
+  ): RuntimePassResult {
     const runtime = this.options.runtime;
     const version = nestCoreVersion();
     const template = this.sourceLinkTemplate();
@@ -448,6 +454,9 @@ export class MountedReferences {
         ? {}
         : { guardSecuritySchemes: runtime.guardSecuritySchemes }),
       ...(channelTargets === undefined ? {} : { channelTargets }),
+      ...(directionConfidence === undefined
+        ? {}
+        : { channelDirectionConfidence: directionConfidence }),
     });
   }
 

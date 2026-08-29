@@ -247,9 +247,12 @@ export function serializePageModel(model: PageModel): string {
   return JSON.stringify({
     ...model,
     health: null,
-    // The overview article is adopted, so the two fields only it read stay on the server.
+    // The overview article is adopted, so the three fields only it reads stay on the server. The
+    // graph is the third since `T052`, and it is the one with no ceiling of its own: an estate's
+    // edge list grows with the estate, and the client draws none of it.
     descriptionHtml: '',
     servers: [],
+    topology: null,
     node: clientNodeModel(model.node, model.kind),
     // The service card is adopted, so its report obeys the health page's redaction: the drawn
     // markup crosses, the findings do not, and `healthRendered` beside them is what the client

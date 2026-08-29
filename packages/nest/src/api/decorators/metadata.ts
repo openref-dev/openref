@@ -44,6 +44,15 @@ export const OPENREF_METADATA = {
   channel: 'openref/channel',
   /** `@ApiMessage`, the whole option object. Read beside `channel`, on the same handler. */
   message: 'openref/message',
+  /**
+   * `@ApiPublishes`, the event names as given, per SPEC 9.3.
+   *
+   * A RUNTIME KEY, AND NOT BECAUSE THERE IS NO SPECIFICATION TO EXTEND. There is one for an HTTP
+   * document, and this still does not go into it: what a handler publishes is a fact about the
+   * running application rather than about the endpoint OpenAPI describes, and it reaches the IR
+   * as a topology edge on the document rather than as a member of the operation.
+   */
+  publishes: 'openref/publishes',
 } as const;
 
 /**

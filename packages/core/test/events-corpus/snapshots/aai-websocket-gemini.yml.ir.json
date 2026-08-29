@@ -1,5 +1,5 @@
 {
-  "hash": "3580877e3a0c4650a5f8618ee486aca3b2e551958b1df89d801ae0ee17803b48",
+  "hash": "d77e12284d61fae407569559f44132ddd69c94102a5004882fd376c27f7a9cab",
   "id": "gemini-market-data-websocket-api",
   "info": {
     "contact": {
@@ -252,7 +252,16 @@
       }
     ]
   ],
-  "relationships": [],
+  "relationships": [
+    {
+      "confidence": "declared",
+      "from": "gemini-market-data-websocket-api",
+      "fromKind": "service",
+      "to": "channel-v1-marketdata-symbol",
+      "toKind": "node",
+      "type": "publishes"
+    }
+  ],
   "schemas": [
     [
       "default",

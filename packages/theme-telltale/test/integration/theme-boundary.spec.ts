@@ -21,6 +21,7 @@ import {
   nodeId,
   postNodeId,
   runtimeDocument,
+  topologyDocument,
 } from '../mocks/documents';
 import { createMarkdownRenderer } from '../../../render/src/markdown/domain/markdown';
 import {
@@ -115,7 +116,17 @@ function sweptPages(): Readonly<Record<PageKind, SweptKind>> {
   const events = eventsDocument();
 
   return {
-    overview: [{ document: runtime, where: {} }],
+    // TWO RENDERS, AND THE SECOND IS THE GRAPH. The topology section of `T052` is drawn on this
+    // kind and on no other, so without a document that declares edges every class it emits would
+    // be on no list and styled by no rule, which is the failure this record exists to prevent met
+    // from the direction the union cannot report: the kind was already swept and the markup is
+    // new. `topologyDocument` carries a dead end and an inferred edge on purpose, because those
+    // are the two states the section draws differently and neither is something a normalizer
+    // produces.
+    overview: [
+      { document: runtime, where: {} },
+      { document: topologyDocument(), where: {} },
+    ],
     // THREE RENDERS, AND THE THIRD IS A CHANNEL. A channel is a node, so its page is this kind
     // and the record above cannot see that a whole family of markup arrived with `T050`; the
     // other two renders are both OpenAPI, so without this one every class the channel sections
@@ -332,7 +343,7 @@ describe('the markup a complete L2 theme does not own', () => {
       (total, entry) => total + ('excluded' in entry ? 0 : entry.length),
       0,
     );
-    expect(renders).toBe(12);
+    expect(renders).toBe(13);
   });
 
   it('should be a count the three documents that quote it agree with, since none of them owns it', async () => {

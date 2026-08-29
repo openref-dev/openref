@@ -1,5 +1,5 @@
 {
-  "hash": "0c5f5fd4b6346878ed11a9c9fe9e911a97dcae1a2333c14f54bf52b7a529d573",
+  "hash": "94f242a0d28eebae63c53cb2d70463d30ec04be13887a0cde599471519dc195d",
   "id": "notifications",
   "info": {
     "description": "This contract defines HTTP Push notification for  application authorization revocation topic",
@@ -131,7 +131,16 @@
       }
     ]
   ],
-  "relationships": [],
+  "relationships": [
+    {
+      "confidence": "declared",
+      "from": "notifications",
+      "fromKind": "service",
+      "to": "channel-authorization-revocation",
+      "toKind": "node",
+      "type": "publishes"
+    }
+  ],
   "schemas": [
     [
       "AuthorizationRevocationData",

@@ -137,6 +137,9 @@ function harness(specs: readonly RouteSpec[]): {
       nodes: nodes as unknown as IRDocument['nodes'],
       schemas: new Map(),
       navigation: [],
+      // Required on `IRDocument` since `T002` and supplied here since `T052`, which is the task
+      // that gave the member a reader. The double cast below had been hiding its absence.
+      relationships: [],
       hash: '',
     } as unknown as IRDocument,
   };

@@ -21,6 +21,7 @@ import type {
   IRSchema,
   IRSchemaSlot,
   IRSchemaView,
+  IRTopology,
 } from '@openref/core';
 import type { RunnerOperationView } from '../../runner/application/ports/runner.port';
 
@@ -980,6 +981,28 @@ export interface PageModel {
   readonly health: HealthModel | null;
   /** Whether the server drew a panel, which is the whole of what the client needs to know. */
   readonly healthRendered: boolean;
+  /**
+   * The topology graph of SPEC 9, carried by the overview page and by no other.
+   *
+   * REQUIRED AND NULLABLE, the shape `NodeModel.channel` already has one interface down: null on
+   * every page that is not the overview and on an overview whose document declares no edge, a
+   * value on the one page that draws the graph. Optional would have meant a producer could forget
+   * it and a consumer could not tell "no edges" from "nobody looked", which is the distinction
+   * this whole feature is about.
+   *
+   * IT IS `IRTopology` AND NOT A PAGE MODEL TYPE RESTATING IT, which is the one place this file
+   * departs from its own rule that the IR does not travel. The rule exists because an IR shape is
+   * unbounded: a schema drags its whole subtree and `AppShell` asking for an `IRDocument` was
+   * measured at 1.6 MB on one corpus document. `IRTopology` is not that shape. It is already a
+   * projection, built by `buildTopology` in `@openref/core` for this purpose, plain JSON with no
+   * `Map` and no schema in it, bounded by the number of declared edges; restating it here would
+   * be a second copy of six fields whose only job would be to go stale.
+   *
+   * SERVER DRAWN AND REDACTED IN TRANSIT, per SPEC 12, exactly as `health` above is. The overview
+   * position is server resolved and the browser adopts its markup, so the serializer writes null
+   * here and the client never reads a graph it does not draw.
+   */
+  readonly topology: IRTopology | null;
   /**
    * The same origin proxy endpoint of SPEC 14.5, when the host turned the proxy on.
    *

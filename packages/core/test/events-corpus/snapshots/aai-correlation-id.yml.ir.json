@@ -1,5 +1,5 @@
 {
-  "hash": "c5ff7fe13c19fa78a6a8ebe7e3e01927a820971e0c19f19acd16dcfe345aaa30",
+  "hash": "c98df3828deb86449d8815b130b6bdfcc6229b9c0187a59c50050bb9d06778d4",
   "id": "correlation-id-example",
   "info": {
     "description": "A cut of the Streetlights API to test Correlation ID",
@@ -155,7 +155,24 @@
       }
     ]
   ],
-  "relationships": [],
+  "relationships": [
+    {
+      "confidence": "declared",
+      "from": "channel-smartylighting-streetlights-1-0-event-streetlightid-lighting-measured",
+      "fromKind": "node",
+      "to": "correlation-id-example",
+      "toKind": "service",
+      "type": "subscribes"
+    },
+    {
+      "confidence": "declared",
+      "from": "correlation-id-example",
+      "fromKind": "service",
+      "to": "channel-smartylighting-streetlights-1-0-action-streetlightid-dim",
+      "toKind": "node",
+      "type": "publishes"
+    }
+  ],
   "schemas": [
     [
       "dimLightPayload",

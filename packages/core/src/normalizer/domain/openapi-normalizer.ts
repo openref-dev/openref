@@ -24,7 +24,7 @@ import type {
   IRSecurityRequirement,
   IRServerOverride,
 } from '../../ir/domain/node.types';
-import { ErrorCode, UnsupportedDialectError } from '../../shared/errors/index';
+import { ErrorCode, RefResolutionError, UnsupportedDialectError } from '../../shared/errors/index';
 import {
   collectNamedSchemas,
   documentSlug,
@@ -46,13 +46,18 @@ import {
   isPlainObject,
   isUnknownArray,
 } from './guards';
+import { followStructuralReference } from './json-pointer';
 import { buildNavigation } from './navigation';
 import {
   assignOperationIdentities,
   isStandardHttpMethod,
+  operationNodeId,
+  pathSlug,
   STANDARD_HTTP_METHODS,
 } from './operation-identity';
 import { compareByCodePoint } from '../../hashing/domain/canonical';
+import type { IRRelationship } from '../../ir/domain/relationship.types';
+import { orderRelationships } from '../../topology/domain/relationships';
 
 /**
  * OpenAPI intake for 3.0, 3.1 and 3.2, per SPEC 5.4 and SPEC 23.
@@ -604,6 +609,128 @@ function collectPathItems(raw: unknown): {
   return { operations, unread };
 }
 
+/** What one operation's `callbacks` member turned into. */
+interface ReadCallbacks {
+  /** Callback node ids, keyed by the name the document wrote, for `IROperation.callbacks`. */
+  readonly byName: Record<string, readonly string[]>;
+  /** The callback operations themselves, as nodes of their own. */
+  readonly nodes: readonly IROperation[];
+  /** Path item keys inside a callback that name an operation this does not read. */
+  readonly unread: readonly IRUnreadKey[];
+}
+
+/**
+ * Resolves one callback member to the Callback Object it names, per SPEC 9.3.
+ *
+ * A REFERENCE IS FOLLOWED, ANYTHING ELSE IS LEFT ALONE. Only a member that actually writes `$ref`
+ * goes through the reference machinery, and only such a member can be refused here: a callback
+ * written inline with a member of the wrong shape is skipped by the reader below exactly as it was
+ * before, because narrowing that is a separate question from this one.
+ *
+ * REFUSAL RATHER THAN SILENCE IS THE FAIL CLOSED POLICY, per SPEC 9.4. A reference that resolves
+ * to nothing, leaves the document, stands on itself, or lands on something that is not an object
+ * describes a broken document, and drawing it as a document with no callback would render it as if
+ * nothing were wrong. `core` has no `discoveryProblems` of its own to write into, so the refusal is
+ * the channel, and it names both the callback and the operation it hangs off.
+ *
+ * @param written - The callback member exactly as the document wrote it, untrusted
+ * @param context - The document being normalized
+ * @param name - The callback's name, as the document wrote it
+ * @param parentId - Node id of the operation the callback hangs off
+ * @returns The Callback Object, or the member itself when it was not a reference
+ * @throws {RefResolutionError} When the reference resolves to nothing, leaves the document, or
+ *         resolves to something that is not a Callback Object
+ * @throws {CycleDepthError} When the reference stands on itself
+ */
+function resolveCallback(
+  written: unknown,
+  context: Context,
+  name: string,
+  parentId: string,
+): unknown {
+  const reference = isPlainObject(written) ? asString(written.$ref) : undefined;
+  if (reference === undefined) return written;
+
+  const where = `callback ${name} of operation ${parentId}`;
+  const resolved = followStructuralReference(context.document, written, where, 'a callback');
+  if (isPlainObject(resolved)) return resolved;
+
+  throw new RefResolutionError(
+    `${where} points at ${reference}, which is not a Callback Object`,
+    ErrorCode.NORM_REF_UNRESOLVED,
+    undefined,
+    { reference, where },
+  );
+}
+
+/**
+ * Reads one operation's callbacks, per SPEC 9.3.
+ *
+ * A CALLBACK IS OPERATIONS, SO IT BECOMES NODES. `IROperation.callbacks` was declared in `T002`
+ * and had no producer until `T052`, which meant a document declaring callbacks rendered as a
+ * document with none. The Path Item under a callback name holds operations exactly like any other
+ * Path Item, so the same reader reads them, and the runtime expression the document wrote is
+ * carried as the operation's `path` verbatim: it is what the document said the request goes to.
+ *
+ * A CALLBACK NODE IS NOT IN THE NAVIGATION, and that is a positioning decision rather than an
+ * omission. Navigation is built from tags over the document's own operations, and a callback
+ * hangs off the operation that declares it, not off a tag. It is reachable by id, by search and by
+ * the topology edge that names it.
+ *
+ * A CALLBACK WRITTEN AS A REFERENCE IS THE SAME CALLBACK, per SPEC 9.3. `#/components/callbacks/*`
+ * is the spelling OpenAPI's own examples use, and reading the member without following it walked
+ * the key `$ref` as if it were a runtime expression and its string value as if it were a Path
+ * Item: measured on a built `@openref/core`, the inline spelling gave one edge and two nodes and
+ * the reference spelling gave none of either, with nothing in `unreadKeys` to say so. The name
+ * stays the one the document wrote here rather than the last segment of the pointer, because the
+ * reference says where the definition lives and not what it is called at this position.
+ *
+ * @param entry - The operation whose callbacks are being read, untrusted
+ * @param context - Schema registry, dialect and inherited security
+ * @param parentId - Node id of the operation the callbacks hang off
+ * @param taken - Node ids already assigned, added to as ids are handed out
+ * @returns The ids by name, the nodes, and any unread key found inside a callback
+ * @throws {RefResolutionError} When a callback reference resolves to nothing, leaves the document
+ *         or resolves to something that is not a Callback Object
+ * @throws {CycleDepthError} When a callback reference stands on itself
+ */
+function readCallbacks(
+  entry: RawOperation,
+  context: Context,
+  parentId: string,
+  taken: Set<string>,
+): ReadCallbacks {
+  const raw = entry.source.callbacks;
+  if (!isPlainObject(raw)) return { byName: {}, nodes: [], unread: [] };
+
+  const byName: Record<string, readonly string[]> = {};
+  const nodes: IROperation[] = [];
+  const unread: IRUnreadKey[] = [];
+
+  for (const name of Object.keys(raw).sort(compareByCodePoint)) {
+    const collected = collectPathItems(resolveCallback(raw[name], context, name, parentId));
+    unread.push(...collected.unread);
+
+    const ids: string[] = [];
+    for (const call of collected.operations) {
+      const base = `callback-${parentId}-${pathSlug(name)}-${operationNodeId(call.method, call.path)}`;
+      let id = base;
+      let suffix = 2;
+      while (taken.has(id)) {
+        id = `${base}-${String(suffix)}`;
+        suffix += 1;
+      }
+      taken.add(id);
+      nodes.push(readOperation(call, context, id));
+      ids.push(id);
+    }
+
+    if (ids.length > 0) byName[name] = ids;
+  }
+
+  return { byName, nodes, unread };
+}
+
 function readOperation(entry: RawOperation, context: Context, id: string): IROperation {
   const { method, path, source, pathItem } = entry;
 
@@ -754,9 +881,59 @@ export function normalizeOpenApiDocument(
     readOperation(entry, context, `webhook-${webhookIdentities[index]?.id ?? entry.method}`),
   );
 
+  const documentId = options.documentId ?? documentSlug(info.title);
+
+  // THE CALLBACK PASS RUNS AFTER BOTH IDENTITY PASSES AND NOT INSIDE `readOperation`, because a
+  // callback node id has to avoid every id the document's own operations and webhooks already
+  // took, and those are not all known until both are assigned.
+  const taken = new Set<string>([
+    ...operations.map((operation) => operation.id),
+    ...webhookOperations.map((operation) => operation.id),
+  ]);
+  const callbackNodes: IROperation[] = [];
+  const callbackUnread: IRUnreadKey[] = [];
+  const relationships: IRRelationship[] = [];
+
+  operations.forEach((operation, index) => {
+    const entry = rawOperations[index];
+    if (entry === undefined) return;
+
+    const read = readCallbacks(entry, context, operation.id, taken);
+    callbackNodes.push(...read.nodes);
+    callbackUnread.push(...read.unread);
+    if (Object.keys(read.byName).length === 0) return;
+
+    operation.callbacks = read.byName;
+    for (const ids of Object.values(read.byName))
+      for (const id of ids)
+        relationships.push({
+          from: operation.id,
+          fromKind: 'node',
+          to: id,
+          toKind: 'node',
+          type: 'callback',
+          confidence: 'declared',
+        });
+  });
+
+  // A WEBHOOK EDGE STARTS AT THE SERVICE AND NOT AT AN OPERATION, per SPEC 9.3. `webhooks` is a
+  // document level member: it says this API sends these requests, without saying which of its own
+  // operations causes one, and inventing a source operation would be the guess SPEC 9 forbids.
+  for (const webhook of webhookOperations)
+    relationships.push({
+      from: documentId,
+      fromKind: 'service',
+      to: webhook.id,
+      toKind: 'node',
+      type: 'webhook',
+      confidence: 'declared',
+    });
+
   const schemas = collectNamedSchemas(context);
 
-  const nodes = new Map<string, IRNode>(operations.map((operation) => [operation.id, operation]));
+  const nodes = new Map<string, IRNode>(
+    [...operations, ...callbackNodes].map((operation) => [operation.id, operation]),
+  );
   const webhooks = new Map<string, IRNode>(
     webhookOperations.map((operation) => [operation.id, operation]),
   );
@@ -768,7 +945,7 @@ export function normalizeOpenApiDocument(
   });
 
   const document: { -readonly [Key in keyof IRDocument]: IRDocument[Key] } = {
-    id: options.documentId ?? documentSlug(info.title),
+    id: documentId,
     kind: 'http',
     hash: '',
     info,
@@ -779,13 +956,14 @@ export function normalizeOpenApiDocument(
     security: readSecuritySchemes(
       isPlainObject(input.components) ? input.components.securitySchemes : undefined,
     ),
-    relationships: [],
+    relationships: orderRelationships(relationships),
     webhooks,
   };
 
   const extensions = readExtensions(input);
+  const unread = [...paths.unread, ...callbackUnread];
   if (extensions !== undefined) document.extensions = extensions;
-  if (paths.unread.length > 0) document.unreadKeys = paths.unread;
+  if (unread.length > 0) document.unreadKeys = unread;
 
   return finalizeDocument(document);
 }

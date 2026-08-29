@@ -278,6 +278,11 @@ export const ReferenceApp = defineComponent({
         descriptionHtml: page.descriptionHtml,
         servers: page.servers,
         basePath: props.basePath,
+        // Not a contract prop, the rule the schema page's extras above already follow: the graph
+        // of SPEC 9 is what the default overview draws, and a theme override reads the four it
+        // was promised while Vue passes this one through as an attribute. It arrives null on the
+        // client, where the position is a childless stub that ignores every prop.
+        topology: page.topology,
       });
     }
 

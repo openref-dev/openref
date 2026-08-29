@@ -140,33 +140,55 @@ export function mergeHealth(sources: readonly HealthSource[]): IRHealthReport | 
   };
 }
 
+/** One service's edges, with everything needed to move them into the merged address space. */
+export interface RelationshipSource {
+  readonly edges: readonly IRRelationship[];
+  readonly maps: RewriteMaps;
+  /** `IRDocument.id` of the source document, which is what its own `service` ends name. */
+  readonly documentId: string;
+  /** Service id in the merged document, which is what they name after the move. */
+  readonly serviceId: string;
+}
+
 /**
  * Collects the topology edges of every service onto the merged document.
  *
- * AN EDGE THAT NAMES A NODE MOVES; ONE THAT NAMES A SERVICE DOES NOT. SPEC 9 says `from` and `to`
- * are a node id or a service name, and the rewrite maps answer exactly that question: a value the
- * map knows is a node id and is moved, and one it does not is left alone, which is what a service
- * name has to be. Nothing here has to guess.
+ * EACH END MOVES BY ITS OWN KIND, AND NOTHING HERE GUESSES ANY MORE. Until `T052` this asked the
+ * rewrite map whether it had heard of the value and treated a hit as proof the value was a node
+ * id, which is a coincidence standing in for a fact: a service whose name happened to equal a
+ * dropped node's id would have been rewritten into a node. SPEC 9.1 puts the kind in the type, so
+ * a `node` end goes through the node map, a `service` end that names this service's own document
+ * becomes this service's id, and an `event` end is a name in nobody's address space and is left
+ * exactly as it was.
+ *
+ * A `service` END NAMING SOMETHING ELSE IS LEFT ALONE, and that is the interesting half. A
+ * service that declares an edge to `ledger-service` while `ledger-service` is not part of this
+ * federation has still declared it, and rewriting or dropping it would either invent membership or
+ * hide a dependency. It stays, and the topology view draws it as a dead end.
  *
  * EDGES ARE DEDUPLICATED BY VALUE, because two services describing the same publication of the
  * same event are describing one edge, and a topology graph that drew it twice would weight it
  * twice.
  *
- * @param sources - Each service's relationships with its rewrite maps, in service order
+ * @param sources - Each service's relationships with its identity and rewrite maps, in service order
  * @returns The merged edges, first occurrence order, without repeats
  */
-export function mergeRelationships(
-  sources: readonly { readonly edges: readonly IRRelationship[]; readonly maps: RewriteMaps }[],
-): IRRelationship[] {
+export function mergeRelationships(sources: readonly RelationshipSource[]): IRRelationship[] {
   const seen = new Set<string>();
   const merged: IRRelationship[] = [];
 
   for (const source of sources) {
+    const move = (value: string, kind: IRRelationship['fromKind']): string => {
+      if (kind === 'node') return source.maps.nodeIds.get(value) ?? value;
+      if (kind === 'service') return value === source.documentId ? source.serviceId : value;
+      return value;
+    };
+
     for (const edge of source.edges) {
       const moved: IRRelationship = {
         ...edge,
-        from: source.maps.nodeIds.get(edge.from) ?? edge.from,
-        to: source.maps.nodeIds.get(edge.to) ?? edge.to,
+        from: move(edge.from, edge.fromKind),
+        to: move(edge.to, edge.toKind),
       };
 
       const key = hash(moved);

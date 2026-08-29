@@ -194,6 +194,12 @@ const MODIFIERS_WITHOUT_RULES = new Set([
   'oref-media-example',
   'oref-direction-send',
   'oref-direction-receive',
+  // THE ONE OF T052, THE TOPOLOGY SECTION, a member by the rule above rather than an exemption
+  // from it: the section modifier sits on `.oref-section`, which draws it, exactly as the eight
+  // above do. Every other name the section emits has a rule, and five of the six are selectors
+  // added to families this file already had, because a graph row is the runtime block's row, a
+  // group is a channel operation and an indented list is a reply block.
+  'oref-section-topology',
 ]);
 
 /** The syntax token classes are generated one per shiki colour, so they are checked as a group. */

@@ -1,5 +1,5 @@
 {
-  "hash": "9fd67dd5b4efe70a5be78662dde61982611a9508af887d0be001d7c0972c4fa6",
+  "hash": "88fd273acdb09e62ee4d600f04ea589d8813950c320ea4e3ce15ff335629df79",
   "id": "remittance-service-event-bus-example",
   "info": {
     "description": "Example AsyncAPI 2.6.0 model for a Remittance Service.\nA user makes a cross-border transaction request.\nEvents are published to AWS SNS, which pushes them to an SQS queue.\nDownstream services consume the event from SQS.\n",
@@ -348,7 +348,24 @@
       }
     ]
   ],
-  "relationships": [],
+  "relationships": [
+    {
+      "confidence": "declared",
+      "from": "channel-sns-remittance-transactions-topic",
+      "fromKind": "node",
+      "to": "remittance-service-event-bus-example",
+      "toKind": "service",
+      "type": "subscribes"
+    },
+    {
+      "confidence": "declared",
+      "from": "remittance-service-event-bus-example",
+      "fromKind": "service",
+      "to": "channel-sqs-remittance-transactions-queue",
+      "toKind": "node",
+      "type": "publishes"
+    }
+  ],
   "schemas": [],
   "security": [],
   "servers": [

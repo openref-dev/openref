@@ -136,7 +136,7 @@ would have been 1 612 858 bytes on `twilio-api-v2010.yaml` against a node page's
 
 | Name | Kind | What it is |
 | --- | --- | --- |
-| `PageModel` | type | One page, as it travels. Carries `kind` and `frame` since `TX-FRAME` |
+| `PageModel` | type | One page, as it travels. Carries `kind` and `frame` since `TX-FRAME`. Carries `topology` since `T052`: the graph of SPEC 9, `IRTopology` or null, a value on an overview whose document declares edges and null everywhere else. Required rather than optional, so "no edges" and "nobody looked" cannot be confused, and **the required member is on the major side**, the shape `NodeModel.channel` took at `T050`, recorded in `ai-docs/design/CONTRACT.md`. Server drawn and redacted in transit, so the client is handed null |
 | `PageKind` | type | Which page it is. Eight members since `T046`: the three, then `bench`, `health`, `shapes`, `states`, then `service` when M4 gave the federated card its renderer, per SPEC 13.3. The widening is on the major side per the union rule above, recorded in `ai-docs/design/CONTRACT.md` |
 | `FrameModel` | type | The app bar's data: resolved tabs, breadcrumb, back, rail statistics. Added at `TX-FRAME`, minor |
 | `FrameTabModel` | type | One tab with its target resolved, so no theme spells an address twice |
@@ -216,6 +216,10 @@ here because it is the declared type of something a theme is handed.
 | `IRConfidence` | type | The three levels of SPEC 6.1, as `ProvenanceTag.confidence` carries one |
 | `IRSchema` | type | One schema of the IR, which is the value type of `SchemaPayloadMap` |
 | `IRSchemaView` | type | A schema resolved for one direction, as `SchemaTree.view` is handed it |
+| `IRTopology` | type | The graph of SPEC 9 arranged for reading, as `PageModel.topology` and `DocumentOverview.topology` carry it. Added at `T052`, minor |
+| `IRTopologyGroup` | type | Every edge leaving one endpoint, which is what a walk of `IRTopology.groups` reaches. Added at `T052`, minor |
+| `IRTopologyEdge` | type | One edge with its type, its confidence and whether its target leads nowhere. Added at `T052`, minor |
+| `IRTopologyEndpoint` | type | One end of an edge: what was declared, what it resolved to, and what to show. Added at `T052`, minor |
 | `UnsendableCause` | type | Why a scheme cannot be signed in from a browser, as `RunnerSecuritySchemeView` reports it |
 
 ### What is on a page and is not on this surface

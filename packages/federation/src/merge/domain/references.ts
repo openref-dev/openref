@@ -59,11 +59,17 @@ const VERBATIM_KEYS: ReadonlySet<string> = new Set([
 /**
  * Reports every reference in a document that resolves to nothing.
  *
- * `relationships` ARE NOT CHECKED, AND SPEC 9 IS THE REASON. Its `from` and `to` are documented as
- * a node id **or** a service name, so a value that is not a node id is not evidence of anything:
- * a checker cannot tell a service called `payments` from a node that was dropped. The merge
- * rewrites the ones that are node ids and a case of its own asserts that; inventing a rule here
- * would report every correct topology edge in the project as broken.
+ * `relationships` ARE STILL NOT CHECKED, AND THE REASON CHANGED AT `T052`. It used to be that the
+ * type could not tell the two apart: `from` and `to` were documented as a node id **or** a service
+ * name, so a value that was not a node id was not evidence of anything. SPEC 9.1 put the kind in
+ * the type, so that reason is gone and a `node` end could now be checked exactly.
+ *
+ * IT IS STILL NOT, AND THE NEW REASON IS THE FEATURE RATHER THAN THE TYPE. A topology graph
+ * describes an estate, and an estate is larger than any one federation: a service that declares it
+ * publishes onto a channel documented by a service nobody federated in has declared a true thing,
+ * and the graph draws it as a dead end on purpose, per SPEC 9.5. Reporting it here would turn every
+ * partial federation into an incomplete merge, which is a refusal, so a correct topology edge would
+ * stop a mount from serving.
  *
  * @param document - A finished document, merged or not
  * @returns Every unresolved reference, ordered by where it was found

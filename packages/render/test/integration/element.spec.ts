@@ -63,6 +63,47 @@ async function servedServicePage(): Promise<string> {
   });
 }
 
+/**
+ * The served overview of `T052`, whose document declares a topology graph.
+ *
+ * THE EDGES ARE PLANTED ON THE FIXTURE RATHER THAN NORMALIZED OUT OF IT, and the two states the
+ * section draws differently are both here on purpose: an event nothing consumes, and an `inferred`
+ * edge, which no normalizer produces because SPEC 9.4 gives that level no producer in M5.
+ */
+function graphDocument(): ReturnType<typeof smallDocument> {
+  const base = smallDocument();
+
+  return {
+    ...base,
+    relationships: [
+      {
+        from: 'get-orders',
+        fromKind: 'node' as const,
+        to: 'orders.placed',
+        toKind: 'event' as const,
+        type: 'publishes' as const,
+        confidence: 'declared' as const,
+      },
+      {
+        from: 'get-orders',
+        fromKind: 'node' as const,
+        to: 'orders.guessed',
+        toKind: 'event' as const,
+        type: 'publishes' as const,
+        confidence: 'inferred' as const,
+      },
+    ],
+  };
+}
+
+/** The served overview page, rendered the way `servedPage` renders the node one. */
+async function servedOverviewPage(): Promise<string> {
+  const rendered = await renderPage(graphDocument(), { basePath: '/docs' });
+  return renderHtmlDocument(rendered, {
+    assets: { stylesheets: ['/docs/_assets/theme.css', '/docs/_assets/fonts.css'] },
+  });
+}
+
 /** The served channel page of `T050`, rendered the way `servedPage` renders the node one. */
 async function servedChannelPage(): Promise<string> {
   const rendered = await renderPage(eventsDocument(), {
@@ -108,6 +149,12 @@ beforeEach(() => {
       }
       if (href.endsWith('/docs/channel-orders-tenant-requests')) {
         return new Response(await servedChannelPage(), {
+          status: 200,
+          headers: { 'content-type': 'text/html' },
+        });
+      }
+      if (href.endsWith('/docs/overview')) {
+        return new Response(await servedOverviewPage(), {
           status: 200,
           headers: { 'content-type': 'text/html' },
         });
@@ -317,6 +364,72 @@ describe('the channel page inside the element, both modes, per SPEC 11', () => {
     expect(host.shadowRoot).toBeNull();
     expect(host.hasAttribute('data-oref-embedded')).toBe(true);
     sections(host);
+  });
+});
+
+describe('the topology section inside the element, both modes, per SPEC 9.5', () => {
+  /**
+   * The graph, asserted present before anything about it is read.
+   *
+   * A PROOF ABOUT ADOPTED MARKUP BEGINS WITH THE MARKUP EXISTING. The overview is a server
+   * resolved position filled in the browser by a childless element, so a run where hydration
+   * replaced it instead of adopting it would leave an empty article, and every assertion about
+   * what the graph does not say would pass over nothing at all.
+   */
+  function graph(root: ParentNode): void {
+    expect(root.querySelector('.oref-section-topology')).not.toBeNull();
+
+    // Both rows survived hydration rather than being thrown away with the server's markup, and
+    // the two provenance levels are still told apart
+    expect(root.querySelectorAll('.oref-topology-edge')).toHaveLength(2);
+    expect(root.querySelector('.oref-prov-declared')).not.toBeNull();
+    expect(root.querySelector('.oref-prov-inferred')).not.toBeNull();
+
+    // The dead end is words in the markup and not generated content, so it survives a stylesheet
+    // that never arrives
+    expect(root.querySelector('.oref-topology-dead')?.textContent).toBe('dead end');
+
+    // And the section carries no control, which is what makes adopting it correct: a button here
+    // would be pressable and attached to nothing, the F14 class
+    expect(root.querySelector('.oref-section-topology button')).toBeNull();
+  }
+
+  it('should adopt the topology section inside the shadow root', async () => {
+    // Given
+    sessionStorage.clear();
+    const tag = register();
+    const host = document.createElement(tag);
+    host.setAttribute('href', '/docs/overview');
+    document.body.append(host);
+
+    // When
+    await settled(host);
+
+    // Then the page stands inside the boundary and nowhere else
+    const root = host.shadowRoot;
+    expect(root).not.toBeNull();
+    expect(host.hasAttribute('data-oref-embedded')).toBe(true);
+    expect(host.querySelector('.oref-section-topology')).toBeNull();
+    if (root === null) throw new Error('asserted non null above');
+    graph(root);
+  });
+
+  it('should adopt the topology section in the element subtree in light DOM mode', async () => {
+    // Given
+    sessionStorage.clear();
+    const tag = register();
+    const host = document.createElement(tag);
+    host.setAttribute('href', '/docs/overview');
+    host.setAttribute('shadow', 'false');
+    document.body.append(host);
+
+    // When
+    await settled(host);
+
+    // Then there is no boundary and the section is page markup inside the element
+    expect(host.shadowRoot).toBeNull();
+    expect(host.hasAttribute('data-oref-embedded')).toBe(true);
+    graph(host);
   });
 });
 

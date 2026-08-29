@@ -18,6 +18,7 @@
 import {
   buildHealthReport,
   finalizeDocument,
+  orderRelationships,
   withRuntimeErrorContracts,
   type DriftObservation,
   type IRDocument,
@@ -37,6 +38,11 @@ import {
 import { pairRoutes, type PairingResult } from '../../domain/route-pairing';
 import { readGlobalGuards } from '../../domain/guards';
 import { readGlobalPipes } from '../../domain/pipes';
+import {
+  declaredRelationships,
+  withReadConfidence,
+  type ChannelDirectionConfidence,
+} from '../../domain/relationships';
 import type { DiscoveryServiceLike } from '../../../shared/types/nest-surface';
 
 /** Everything the pass needs, gathered by whoever has access to the container. */
@@ -60,6 +66,15 @@ export interface RuntimePassOptions extends CollectorRegistryOptions {
    * already sets on the collector context one level down.
    */
   readonly channelTargets?: readonly CollectorTarget[];
+  /**
+   * How confidently the direction of each synthesized channel was read, by node id, per SPEC 9.3.
+   *
+   * IT EXISTS TO TAKE A WORD BACK. An events document is synthesized by this package and then
+   * normalized, so every `send` and `receive` edge comes out `declared`, which is true of the
+   * document and false of the reading behind it wherever `@ApiChannel({ direction })` was absent.
+   * Absent here, nothing is lowered, which is the correct answer for a document the host handed in.
+   */
+  readonly channelDirectionConfidence?: ChannelDirectionConfidence;
 }
 
 /**
@@ -176,6 +191,12 @@ export function runRuntimePass(
       );
   }
 
+  // THE TOPOLOGY IS READ OFF THE SAME WALK AND NOT BY A COLLECTOR, per SPEC 9.3. An edge is a
+  // fact about the document rather than about one node, and the collector contract `T017` froze
+  // returns `IRNodeRuntime`, which has nowhere to put one. Reading it here costs no second walk:
+  // every handler is already in hand.
+  const declared = declaredRelationships(collected, options.reflector);
+
   // AN UNNAMEABLE GLOBAL GUARD IS ONE PROBLEM FOR THE APPLICATION AND NOT ONE PER ROUTE, which is
   // why it is recorded here and not by the collector. `{ provide: APP_GUARD, useValue: { ... } }`
   // protects every route with something the reference cannot name, and a reader is owed the fact
@@ -183,6 +204,7 @@ export function runRuntimePass(
   const problems: readonly DiscoveryProblem[] = [
     ...discovered.problems,
     ...ghosts,
+    ...declared.problems,
     ...(global.anonymous === 0
       ? []
       : [
@@ -228,7 +250,28 @@ export function runRuntimePass(
       : { guardSchemes: new Map(Object.entries(options.guardSecuritySchemes)) }),
   };
 
-  const documented: IRDocument = { ...document, nodes, runtime: registry.meta(), hash: '' };
+  // THE EDGES ARE CORRECTED FIRST AND ADDED SECOND, in that order because the two do different
+  // things: `withReadConfidence` takes back a word the normalizer said about edges it produced,
+  // and the decorator's own edges were never laundered and are not its subject.
+  //
+  // `orderRelationships` ORDERS THE TWO LISTS INTO ONE AND FOLDS NOTHING BETWEEN THEM. Each list
+  // arrives folded already, and no edge of one can equal an edge of the other: a decorator edge
+  // ends at an `event`, which `declaredRelationships` is the only writer of anywhere in the
+  // repository, and every edge a normalizer produces ends at a `node` or a `service`. So a
+  // decorator cannot restate a document edge in the first place, and this call is here because two
+  // separately ordered lists concatenated are not one ordered list, which the hash would notice.
+  const relationships = orderRelationships([
+    ...withReadConfidence(document, options.channelDirectionConfidence ?? new Map()),
+    ...declared.edges,
+  ]);
+
+  const documented: IRDocument = {
+    ...document,
+    nodes,
+    relationships,
+    runtime: registry.meta(),
+    hash: '',
+  };
   const withFacts: IRDocument = {
     ...documented,
     // THE REPORT IS BUILT AFTER THE FACTS AND BEFORE THE HASH, in that order and for two separate

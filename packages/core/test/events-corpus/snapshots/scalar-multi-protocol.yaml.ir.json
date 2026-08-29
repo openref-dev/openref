@@ -1,5 +1,5 @@
 {
-  "hash": "b235528f370c0844a42ebfe240d4f1596885fbf8b6564923b6a2c286b39ec4b0",
+  "hash": "015ede8f0c7fcf2d0ac638f3a3deca06bb394e8c9c380a96e6b07cbb89ad2760",
   "id": "asyncapi-sidebar-filters",
   "info": {
     "description": "A compact AsyncAPI document for exercising the API reference sidebar filters.\n\nEach channel is pinned to a different server so selecting a protocol or server\nvisibly narrows the navigation tree.\n",
@@ -250,7 +250,32 @@
       }
     ]
   ],
-  "relationships": [],
+  "relationships": [
+    {
+      "confidence": "declared",
+      "from": "channel-inventory-events",
+      "fromKind": "node",
+      "to": "asyncapi-sidebar-filters",
+      "toKind": "service",
+      "type": "subscribes"
+    },
+    {
+      "confidence": "declared",
+      "from": "channel-users-userid-notifications",
+      "fromKind": "node",
+      "to": "asyncapi-sidebar-filters",
+      "toKind": "service",
+      "type": "subscribes"
+    },
+    {
+      "confidence": "declared",
+      "from": "asyncapi-sidebar-filters",
+      "fromKind": "service",
+      "to": "channel-devices-deviceid-telemetry",
+      "toKind": "node",
+      "type": "publishes"
+    }
+  ],
   "schemas": [
     [
       "DeviceTelemetryPayload",

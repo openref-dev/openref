@@ -36,6 +36,7 @@ import type {
   DriftModel,
   ErrorContractGroupModel,
   HealthModel,
+  IRTopology,
   NodeHeaderModel,
   ParameterModel,
   ResponseMarkModel,
@@ -89,18 +90,38 @@ const ResponsesPosition: Component = (props: {
     contracts: props.contracts,
   });
 
-/** The overview article the theme put in the position, or the reference's. */
+/**
+ * The overview article the theme put in the position, or the reference's.
+ *
+ * EVERY PROP IS FORWARDED BY NAME, AND THAT IS A HAZARD AS WELL AS A CONTRACT. Naming them is what
+ * makes the position's surface exactly the four the contract promises, so a theme override cannot
+ * come to depend on something the reference happens to pass. It also means a prop added upstream
+ * and not added here is dropped in silence: `T052` added `topology` to the page model and to both
+ * overviews, and until this list grew, every one of them drew nothing and every test that did not
+ * render through a theme stayed green.
+ *
+ * TWO SUITES CATCH THE DROP AND THEY ARE BOTH INTEGRATION, WHICH IS MEASURED RATHER THAN ASSUMED.
+ * Deleting `topology` from the forward below leaves every unit test in the repository green,
+ * including `packages/render/test/unit/topology-section.spec.ts`, which mounts `DocumentOverview`
+ * itself and therefore never travels through this position. What turns red is
+ * `packages/render/test/integration/element.spec.ts`, two cases, and the second reference theme's
+ * own topology suite, four; that theme is not named here because no source file outside it may
+ * name it, and the file above carries both paths in full. A prop added here in future is only
+ * guarded once one of those two renders through the position and asserts it.
+ */
 const OverviewPosition: Component = (props: {
   readonly title: string;
   readonly descriptionHtml: string;
   readonly servers: readonly string[];
   readonly basePath: string;
+  readonly topology: IRTopology | null;
 }): VNode =>
   h(useSlot('DocumentOverview', DocumentOverview).value, {
     title: props.title,
     descriptionHtml: props.descriptionHtml,
     servers: props.servers,
     basePath: props.basePath,
+    topology: props.topology,
   });
 
 /** Every deferrable component, resolved at import time. */

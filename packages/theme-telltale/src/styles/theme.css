@@ -1508,3 +1508,50 @@
 .oref-schema-link {
   color: inherit;
 }
+
+/* -- the topology of SPEC 9, drawn as an adjacency list ------------------------------------- */
+
+/* Rules and words, no shapes. The type and the dead end mark are set in the small caps this theme
+ * marks every secondary fact with, so a reader tells `publishes` from `subscribes` and a dead end
+ * from a live one by reading rather than by colour. The families are shared with the strips above
+ * wherever the declarations already matched, which is this theme's own rule about its stylesheet
+ * rather than a saving: two rules that say the same thing drift apart. */
+
+.tt-topology-list,
+.tt-topology-edges {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tt-topology-node {
+  padding: var(--oref-space-200) 0;
+  border-top: var(--oref-border-hair) solid var(--oref-color-line);
+}
+
+.tt-topology-edges {
+  margin-top: var(--oref-space-100);
+  padding-left: var(--oref-space-400);
+  border-left: var(--oref-border-hair) solid var(--oref-color-line);
+}
+
+.tt-topology-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--oref-space-200);
+  align-items: baseline;
+  padding: var(--oref-space-100) 0;
+}
+
+.tt-topology-name {
+  color: inherit;
+  min-width: 0;
+}
+
+.tt-topology-type,
+.tt-topology-dead {
+  color: var(--oref-color-fg-secondary);
+  font-size: var(--oref-font-size-100);
+  letter-spacing: var(--oref-font-tracking-wide);
+  text-transform: uppercase;
+}

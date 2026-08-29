@@ -1,5 +1,5 @@
 {
-  "hash": "eff96d37db85c7cec0227911b08f2d768aff06092d264b1bf92dabdac2f4d398",
+  "hash": "7fa78a70b3cae2300ece30faa4593f839a7b174611db7d3870e75af1e5a39e12",
   "id": "webhook-example",
   "info": {
     "title": "Webhook Example",
@@ -23,7 +23,16 @@
     }
   ],
   "nodes": [],
-  "relationships": [],
+  "relationships": [
+    {
+      "confidence": "declared",
+      "from": "webhook-example",
+      "fromKind": "service",
+      "to": "webhook-post-newpet",
+      "toKind": "node",
+      "type": "webhook"
+    }
+  ],
   "schemas": [
     [
       "Pet",

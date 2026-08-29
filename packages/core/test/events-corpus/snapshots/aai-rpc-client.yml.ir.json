@@ -1,5 +1,5 @@
 {
-  "hash": "841e08ce48a7c127d6a14b4e45ee308097e4a98a0967825c7b546b066df64667",
+  "hash": "21c55fe36a61f1227a5b4fee8c9e9cc9abb6820ec645a29a99fe50a7377bb929",
   "id": "rpc-client-example",
   "info": {
     "description": "This example demonstrates how to define an RPC client.",
@@ -167,7 +167,24 @@
       }
     ]
   ],
-  "relationships": [],
+  "relationships": [
+    {
+      "confidence": "declared",
+      "from": "channel-queue",
+      "fromKind": "node",
+      "to": "rpc-client-example",
+      "toKind": "service",
+      "type": "subscribes"
+    },
+    {
+      "confidence": "declared",
+      "from": "rpc-client-example",
+      "fromKind": "service",
+      "to": "channel-rpc-queue",
+      "toKind": "node",
+      "type": "publishes"
+    }
+  ],
   "schemas": [],
   "security": [],
   "servers": [

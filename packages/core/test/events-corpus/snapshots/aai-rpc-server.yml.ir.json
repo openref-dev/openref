@@ -1,5 +1,5 @@
 {
-  "hash": "bdeb0c1be5d87faacd884e542cb032f509c06fee9a80e7e26eca2e65ad19f440",
+  "hash": "8e6c172607e70ca005261697b2ec2be14b07737b081ccccea7ee31c797a82395",
   "id": "rpc-server-example",
   "info": {
     "description": "This example demonstrates how to define an RPC server.",
@@ -162,7 +162,24 @@
       }
     ]
   ],
-  "relationships": [],
+  "relationships": [
+    {
+      "confidence": "declared",
+      "from": "channel-rpc-queue",
+      "fromKind": "node",
+      "to": "rpc-server-example",
+      "toKind": "service",
+      "type": "subscribes"
+    },
+    {
+      "confidence": "declared",
+      "from": "rpc-server-example",
+      "fromKind": "service",
+      "to": "channel-queue",
+      "toKind": "node",
+      "type": "publishes"
+    }
+  ],
   "schemas": [],
   "security": [],
   "servers": [

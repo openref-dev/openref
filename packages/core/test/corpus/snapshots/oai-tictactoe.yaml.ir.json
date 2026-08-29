@@ -1,5 +1,5 @@
 {
-  "hash": "c9ca230ea563f121f2cb4f56ad7194c9151e62de8511ab1c7e3bb07938012a12",
+  "hash": "fc05e69495da083a373699a66716fc356fe7b5bed784edc57c7ac1cf8fb4e049",
   "id": "tic-tac-toe",
   "info": {
     "description": "This API allows writing down marks on a Tic Tac Toe board\nand requesting the state of the board or of individual squares.\n",
@@ -87,6 +87,41 @@
     }
   ],
   "nodes": [
+    [
+      "callback-put-board-row-column-statuscallback-post-request-header-progressurl",
+      {
+        "deprecated": false,
+        "description": "Provides the status of the mark operation",
+        "id": "callback-put-board-row-column-statuscallback-post-request-header-progressurl",
+        "kind": "operation",
+        "method": "post",
+        "parameters": [],
+        "path": "{$request.header.progressUrl}",
+        "requestBody": {
+          "content": [
+            {
+              "mediaType": "application/json",
+              "schema": {
+                "kind": "named",
+                "schemaId": "status"
+              }
+            }
+          ],
+          "required": false
+        },
+        "responses": [
+          {
+            "content": [],
+            "description": "Mark operation status received",
+            "statusCode": "200"
+          }
+        ],
+        "security": [],
+        "servers": [],
+        "summary": "Status of mark operation",
+        "tags": []
+      }
+    ],
     [
       "get-board",
       {
@@ -196,6 +231,11 @@
     [
       "put-board-row-column",
       {
+        "callbacks": {
+          "statusCallback": [
+            "callback-put-board-row-column-statuscallback-post-request-header-progressurl"
+          ]
+        },
         "deprecated": false,
         "description": "Places a mark on the board and retrieves the whole board and the winner (if any).",
         "id": "put-board-row-column",
@@ -317,7 +357,24 @@
       }
     ]
   ],
-  "relationships": [],
+  "relationships": [
+    {
+      "confidence": "declared",
+      "from": "put-board-row-column",
+      "fromKind": "node",
+      "to": "callback-put-board-row-column-statuscallback-post-request-header-progressurl",
+      "toKind": "node",
+      "type": "callback"
+    },
+    {
+      "confidence": "declared",
+      "from": "tic-tac-toe",
+      "fromKind": "service",
+      "to": "webhook-post-markstatus",
+      "toKind": "node",
+      "type": "webhook"
+    }
+  ],
   "schemas": [
     [
       "board",

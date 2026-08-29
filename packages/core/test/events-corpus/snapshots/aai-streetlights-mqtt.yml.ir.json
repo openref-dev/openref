@@ -1,5 +1,5 @@
 {
-  "hash": "6862f6e5f690db2d0fdb0e24ae79e61f21b5c5086a08dca909d6ae1e34f40a5c",
+  "hash": "0e5953fa0b85a5d44c015d800b0dc8f7fb97fc1c6d7a5b2347250ad401086939",
   "id": "streetlights-mqtt-api",
   "info": {
     "description": "The Smartylighting Streetlights API allows you to remotely manage the city lights.\n\n### Check out its awesome features:\n\n* Turn a specific streetlight on/off 🌃\n* Dim a specific streetlight 😎\n* Receive real-time information about environmental lighting conditions 📈\n",
@@ -351,7 +351,40 @@
       }
     ]
   ],
-  "relationships": [],
+  "relationships": [
+    {
+      "confidence": "declared",
+      "from": "channel-smartylighting-streetlights-1-0-event-streetlightid-lighting-measured",
+      "fromKind": "node",
+      "to": "streetlights-mqtt-api",
+      "toKind": "service",
+      "type": "subscribes"
+    },
+    {
+      "confidence": "declared",
+      "from": "streetlights-mqtt-api",
+      "fromKind": "service",
+      "to": "channel-smartylighting-streetlights-1-0-action-streetlightid-dim",
+      "toKind": "node",
+      "type": "publishes"
+    },
+    {
+      "confidence": "declared",
+      "from": "streetlights-mqtt-api",
+      "fromKind": "service",
+      "to": "channel-smartylighting-streetlights-1-0-action-streetlightid-turn-off",
+      "toKind": "node",
+      "type": "publishes"
+    },
+    {
+      "confidence": "declared",
+      "from": "streetlights-mqtt-api",
+      "fromKind": "service",
+      "to": "channel-smartylighting-streetlights-1-0-action-streetlightid-turn-on",
+      "toKind": "node",
+      "type": "publishes"
+    }
+  ],
   "schemas": [
     [
       "dimLightPayload",

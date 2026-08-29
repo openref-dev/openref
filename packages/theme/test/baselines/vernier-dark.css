@@ -176,7 +176,8 @@
   display: block;
 }
 
-.oref-runtime-item {
+.oref-runtime-item,
+.oref-topology-edge {
   align-items: baseline;
   display: flex;
   flex-wrap: wrap;
@@ -998,7 +999,8 @@ button.oref-schema-row:hover {
 
 .oref-drift-subject,
 .oref-schema-link,
-.oref-source-link {
+.oref-source-link,
+a.oref-topology-name {
   color: #8fbcff;
   text-decoration: underline;
 }
@@ -2088,31 +2090,38 @@ button.oref-schema-row:hover {
   display: contents;
 }
 
-.oref-fact-label {
+.oref-fact-label,
+.oref-topology-type,
+.oref-topology-dead {
   color: #79899a;
   font-size: 13px;
 }
 
-.oref-fact-value {
+.oref-fact-value,
+.oref-topology-name {
   font-size: 13px;
   min-width: 0;
 }
 
 .oref-channel-ops,
-.oref-messages {
+.oref-messages,
+.oref-topology,
+.oref-topology-edges {
   list-style: none;
   margin: 0;
   padding: 0;
 }
 
 .oref-channel-op,
-.oref-message {
+.oref-message,
+.oref-topology-node {
   border-top: 1px solid #161f28;
   margin-top: 14px;
   padding-top: 10px;
 }
 
-.oref-channel-reply {
+.oref-channel-reply,
+.oref-topology-edges {
   border-left: 1px solid #161f28;
   margin-top: 10px;
   padding-left: 14px;

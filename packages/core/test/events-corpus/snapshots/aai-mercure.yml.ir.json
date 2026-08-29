@@ -1,5 +1,5 @@
 {
-  "hash": "eb3befb4338a7a89fbef66c9c4d3cc533580e9638b4babff2d15e59c13475308",
+  "hash": "cee30b20eac1015dd0cf37119f4a205d191cebf64acb96950eccb8839373348f",
   "id": "mercure-hub-example",
   "info": {
     "description": "This example demonstrates how to define a Mercure hub.",
@@ -99,7 +99,24 @@
       }
     ]
   ],
-  "relationships": [],
+  "relationships": [
+    {
+      "confidence": "declared",
+      "from": "channel-https-example-com-books-id",
+      "fromKind": "node",
+      "to": "mercure-hub-example",
+      "toKind": "service",
+      "type": "subscribes"
+    },
+    {
+      "confidence": "declared",
+      "from": "mercure-hub-example",
+      "fromKind": "service",
+      "to": "channel-https-example-com-books-id",
+      "toKind": "node",
+      "type": "publishes"
+    }
+  ],
   "schemas": [],
   "security": [],
   "servers": [

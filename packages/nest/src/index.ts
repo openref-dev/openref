@@ -197,6 +197,11 @@ export type {
 } from './runtime/infrastructure/collectors/http-code.collector';
 export { readGlobalPipes, readParameterPipes, readRoutePipes } from './runtime/domain/pipes';
 export type { PipeReading } from './runtime/domain/pipes';
+export { declaredRelationships, withReadConfidence } from './runtime/domain/relationships';
+export type {
+  ChannelDirectionConfidence,
+  DeclaredRelationships,
+} from './runtime/domain/relationships';
 
 // The decorators of SPEC 13.4 and the two collectors that read them, built in T020. These are the
 // `declared` level of SPEC 6.1: what a person wrote down in order to document the endpoint.
@@ -206,6 +211,7 @@ export {
   ApiErrors,
   ApiExample,
   ApiMessage,
+  ApiPublishes,
   ApiSample,
   ApiScopes,
   ApiStream,

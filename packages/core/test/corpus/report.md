@@ -20,14 +20,14 @@ site, which is what SPEC 5.1.1 replaced.
 | oai-3.2-query-example.yaml | 2969 | 2375 | 0.80 | 1 | 0 |
 | oai-3.2-tags-example.yaml | 1617 | 2096 | 1.30 | 4 | 0 |
 | oai-api-with-examples.yaml | 6444 | 3744 | 0.58 | 2 | 0 |
-| oai-callback-example.yaml | 2158 | 1543 | 0.72 | 1 | 0 |
+| oai-callback-example.yaml | 2158 | 2823 | 1.31 | 2 | 0 |
 | oai-link-example.yaml | 5280 | 8908 | 1.69 | 6 | 3 |
 | oai-non-oauth-scopes.yaml | 379 | 798 | 2.11 | 1 | 0 |
 | oai-petstore-expanded.yaml | 5479 | 7155 | 1.31 | 4 | 3 |
 | oai-petstore.yaml | 2772 | 4099 | 1.48 | 3 | 3 |
-| oai-tictactoe.yaml | 6753 | 6965 | 1.03 | 3 | 6 |
+| oai-tictactoe.yaml | 6753 | 8027 | 1.19 | 4 | 6 |
 | oai-uspto.yaml | 7743 | 8619 | 1.11 | 3 | 1 |
-| oai-webhook-example.yaml | 947 | 1081 | 1.14 | 0 | 1 |
+| oai-webhook-example.yaml | 947 | 1212 | 1.28 | 0 | 1 |
 | stripe.yaml | 6364174 | 5546832 | 0.87 | 589 | 1440 |
 | twilio-api-v2010.yaml | 1496453 | 1612794 | 1.08 | 197 | 148 |
 
@@ -39,7 +39,7 @@ rather than a gap to fill with a document written for the purpose. What it is no
 keyword nothing here drives is proved only by documents this repository wrote for itself, and this
 section is where a reader learns which ones those are.
 
-Counted over every named and inline schema of every document above, 7751 of them,
+Counted over every named and inline schema of every document above, 7752 of them,
 by walking the positions an `IRJsonSchema` holds another one rather than by scanning the
 serialized IR. The difference is not pedantry: `kubernetes-apiextensions-v1.json` models JSON
 Schema itself, so its `properties` carry members called `patternProperties`, `allOf` and

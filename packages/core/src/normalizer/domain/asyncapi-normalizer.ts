@@ -20,6 +20,7 @@ import type {
   IRSecurityRequirement,
   IRServerOverride,
 } from '../../ir/domain/node.types';
+import type { IRRelationship } from '../../ir/domain/relationship.types';
 import type { IRJsonValue, IRSchema } from '../../ir/domain/schema.types';
 import {
   CycleDepthError,
@@ -44,8 +45,12 @@ import {
 } from './document-parts';
 import { asJsonValue, asString, isPlainObject, isUnknownArray } from './guards';
 import { buildNavigation } from './navigation';
-import { parseReference, resolveJsonPointer } from './json-pointer';
+import {
+  structuralReferenceChain,
+  type StructuralReferenceChain as ReferenceChain,
+} from './json-pointer';
 import { pathSlug } from './operation-identity';
+import { orderRelationships } from '../../topology/domain/relationships';
 import { normalizeSchema } from './schema-normalizer';
 import { createSchemaRegistry } from './schema-registry';
 
@@ -126,7 +131,13 @@ interface Context extends SchemaContext {
 }
 
 /**
- * Every object a structural reference stands on, and the value it finally names.
+ * What this document calls the thing a structural reference names, for the message an external
+ * reference is refused with.
+ */
+const REFERENCE_SUBJECT = 'a channel, message or server';
+
+/**
+ * Walks a chain of `$ref` members to the value a structural reference names.
  *
  * THE CHAIN IS THE PART THAT MATTERS, AND KEEPING ONLY ITS LAST LINK IS A BUG THE EVENT CORPUS
  * FOUND. Two channels may reference one Message Object in `components`, which the AsyncAPI
@@ -134,25 +145,10 @@ interface Context extends SchemaContext {
  * same object for both channels. Identity of the target therefore does not identify a position,
  * while identity of the link written at the position does, because a `$ref` wrapper is written
  * once per position. See {@link positionOf}.
- */
-interface ReferenceChain {
-  /** The objects walked, nearest first: the member as written, then each `$ref` it stands on. */
-  readonly chain: readonly object[];
-  /** What the last link names, which is not always an object. */
-  readonly value: unknown;
-}
-
-/**
- * Walks a chain of `$ref` members to the value a structural reference names.
  *
- * IT TERMINATES BY CONSTRUCTION rather than by a depth counter: each hop records the object it
- * came from, and a document holds finitely many objects, so the walk either reaches something
- * that is not a reference or meets an object it has already stood on. The second is a cycle and
- * is refused, because a channel that is its own definition describes nothing.
- *
- * A STRUCTURAL REFERENCE STAYS INSIDE ITS DOCUMENT, which is not the rule for schemas. SPEC 5.1.1
- * gives an external schema target an id space and a registry; a channel, a message or a server in
- * another file has neither, so pointing at one is refused rather than resolved to nothing.
+ * THE WALK ITSELF LIVES IN `json-pointer.ts` and is shared with the OpenAPI reader, which reached
+ * `T052` without one. This is the document-typed wrapper over it, so every call site here keeps
+ * naming the context it already had.
  *
  * @param context - The document being normalized
  * @param value - The member as written, which may or may not be a reference
@@ -162,41 +158,7 @@ interface ReferenceChain {
  * @throws {CycleDepthError} When the chain of references returns to where it has been
  */
 function referenceChain(context: Context, value: unknown, where: string): ReferenceChain {
-  const chain: object[] = [];
-  const visited = new Set<object>();
-  let current = value;
-
-  while (isPlainObject(current)) {
-    chain.push(current);
-
-    const reference = asString(current.$ref);
-    if (reference === undefined) return { chain, value: current };
-
-    if (visited.has(current)) {
-      throw new CycleDepthError(
-        `${where} follows a chain of references that returns to ${reference}`,
-        ErrorCode.NORM_CYCLE_DEPTH_EXCEEDED,
-        undefined,
-        { reference, where },
-      );
-    }
-    visited.add(current);
-
-    const parsed = parseReference(reference);
-    if (parsed.external) {
-      throw new RefResolutionError(
-        `${where} points at ${reference}, and a channel, message or server is resolved inside ` +
-          'the document that writes it rather than in another file',
-        ErrorCode.NORM_REF_UNRESOLVED,
-        undefined,
-        { reference, where },
-      );
-    }
-
-    current = resolveJsonPointer(context.document, parsed.pointer);
-  }
-
-  return { chain, value: current };
+  return structuralReferenceChain(context.document, value, where, REFERENCE_SUBJECT);
 }
 
 /**
@@ -1363,6 +1325,69 @@ function readOperationMessageIds(
 }
 
 /**
+ * Builds the topology edges an event document declares, per SPEC 9.3.
+ *
+ * WHAT THE DOCUMENT SAYS AND WHAT IT DOES NOT. An AsyncAPI document describes one application.
+ * `action: send` says that application writes to the channel and `action: receive` says it reads
+ * from it, so each operation is one edge between the application and the channel, drawn in the
+ * direction the message travels per SPEC 9.2. Who else reads the channel is not in this document,
+ * and no edge is invented for it: a subscriber appears when its own document is federated in.
+ *
+ * THE APPLICATION IS NAMED BY THE DOCUMENT ID HERE AND BY THE SERVICE ID AFTER A MERGE. The merge
+ * in `@openref/federation` rewrites a `service` end that matches the source document's id, which
+ * is the one place that knows both names.
+ *
+ * `reply` GIVES ONE EDGE AND NOT TWO. The Operation Reply Object says where the reply travels, so
+ * the request channel calling the reply channel is written down. What is deliberately not written
+ * down is "the application also listens on the reply channel": AsyncAPI states a reply on the
+ * Operation Object rather than as a second operation with its own `action`, so deriving a second
+ * direction from it would be a reading of the application rather than of the document.
+ *
+ * @param channels - Every channel node of the document
+ * @param serviceName - What names this application, per SPEC 9.1
+ * @returns The edges, folded and ordered
+ */
+function eventRelationships(channels: readonly IRChannel[], serviceName: string): IRRelationship[] {
+  const edges: IRRelationship[] = [];
+
+  for (const channel of channels)
+    for (const operation of channel.operations) {
+      edges.push(
+        operation.direction === 'send'
+          ? {
+              from: serviceName,
+              fromKind: 'service',
+              to: channel.id,
+              toKind: 'node',
+              type: 'publishes',
+              confidence: 'declared',
+            }
+          : {
+              from: channel.id,
+              fromKind: 'node',
+              to: serviceName,
+              toKind: 'service',
+              type: 'subscribes',
+              confidence: 'declared',
+            },
+      );
+
+      const replyChannel = operation.reply?.channelId;
+      if (replyChannel !== undefined)
+        edges.push({
+          from: channel.id,
+          fromKind: 'node',
+          to: replyChannel,
+          toKind: 'node',
+          type: 'calls',
+          confidence: 'declared',
+        });
+    }
+
+  return orderRelationships(edges);
+}
+
+/**
  * Builds one channel node.
  *
  * @param context - The document being normalized
@@ -1495,9 +1520,11 @@ function readVersion(document: Record<string, unknown>): string {
 /**
  * Normalizes an AsyncAPI 3.0 or 3.1 document into the intermediate representation.
  *
- * WHAT THIS DOCUMENT DOES NOT CARRY, SAID HERE RATHER THAN LEFT TO BE NOTICED. `relationships` is
- * empty, and it is not an oversight: it is SPEC 9 and is built by `T052` with the topology graph,
- * from declarations rather than from the shape of a channel list.
+ * `relationships` IS NO LONGER EMPTY, SINCE `T052`. It was, from `T048` until 2026-08-29, because
+ * SPEC 9 belonged to that task. What is read is what the document declares and nothing else, per
+ * SPEC 9.3: `send` and `receive` give the application's own edge with the channel, `reply.channel`
+ * gives the request channel calling the reply channel, and who else consumes a channel is not in
+ * this document and gets no edge.
  *
  * `security` IS NO LONGER EMPTY, SINCE `T051`. It was, from `T048` until 2026-08-29, because
  * AsyncAPI declares thirteen kinds of security scheme where {@link IRSecuritySchemeType} had the
@@ -1592,9 +1619,10 @@ export function normalizeAsyncApiDocument(
   const schemas = [...byId.values()].sort((left, right) => compareByCodePoint(left.id, right.id));
 
   const nodes = new Map<string, IRNode>(channels.map((channel) => [channel.id, channel]));
+  const documentId = options.documentId ?? documentSlug(info.title);
 
   const document: Draft<IRDocument> = {
-    id: options.documentId ?? documentSlug(info.title),
+    id: documentId,
     kind: 'events',
     hash: '',
     info,
@@ -1616,7 +1644,7 @@ export function normalizeAsyncApiDocument(
     security: [...context.securitySchemes.values()].sort((left, right) =>
       compareByCodePoint(left.id, right.id),
     ),
-    relationships: [],
+    relationships: eventRelationships(channels, documentId),
     webhooks: new Map<string, IRNode>(),
   };
 

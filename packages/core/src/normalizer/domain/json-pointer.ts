@@ -1,5 +1,5 @@
-import { ErrorCode, RefResolutionError } from '../../shared/errors/index';
-import { isPlainObject, isUnknownArray } from './guards';
+import { CycleDepthError, ErrorCode, RefResolutionError } from '../../shared/errors/index';
+import { asString, isPlainObject, isUnknownArray } from './guards';
 
 /**
  * JSON Pointer, RFC 6901, and the `uri#pointer` form a `$ref` is written in.
@@ -121,6 +121,115 @@ export function resolveJsonPointer(document: unknown, pointer: string): unknown 
   }
 
   return current;
+}
+
+/** Every object a chain of `$ref` members stood on, and what the last of them names. */
+export interface StructuralReferenceChain {
+  /** The objects walked, nearest first: the member as written, then each `$ref` it stands on. */
+  readonly chain: readonly object[];
+  /** What the last link names, which is not always an object. */
+  readonly value: unknown;
+}
+
+/**
+ * Walks a chain of `$ref` members to the value a structural reference names.
+ *
+ * IT TERMINATES BY CONSTRUCTION rather than by a depth counter: each hop records the object it
+ * came from, and a document holds finitely many objects, so the walk either reaches something
+ * that is not a reference or meets an object it has already stood on. The second is a cycle and
+ * is refused, because a definition that is its own definition describes nothing.
+ *
+ * A STRUCTURAL REFERENCE STAYS INSIDE ITS DOCUMENT, which is not the rule for schemas. SPEC 5.1.1
+ * gives an external schema target an id space and a registry; a channel, a message, a server or a
+ * callback in another file has neither, so pointing at one is refused rather than resolved to
+ * nothing.
+ *
+ * IT IS SHARED BY BOTH NORMALIZERS, per SPEC 9.3. The AsyncAPI reader has walked references this
+ * way since `T048`; the OpenAPI reader reached `T052` without it, which is why a callback written
+ * at the canonical `#/components/callbacks/*` spelling was walked as if the key `$ref` were a
+ * runtime expression and left the document with no callback at all.
+ *
+ * @param document - The document references are resolved against
+ * @param value - The member as written, which may or may not be a reference
+ * @param where - What is being resolved, for the message a reader gets
+ * @param subject - What kind of thing this is, for the message an external reference gets
+ * @returns Every object stood on, and the value the last link names
+ * @throws {RefResolutionError} When the reference leaves the document or resolves to nothing
+ * @throws {CycleDepthError} When the chain of references returns to where it has been
+ */
+export function structuralReferenceChain(
+  document: Record<string, unknown>,
+  value: unknown,
+  where: string,
+  subject: string,
+): StructuralReferenceChain {
+  const chain: object[] = [];
+  const visited = new Set<object>();
+  let current = value;
+
+  while (isPlainObject(current)) {
+    chain.push(current);
+
+    const reference = asString(current.$ref);
+    if (reference === undefined) return { chain, value: current };
+
+    if (visited.has(current)) {
+      throw new CycleDepthError(
+        `${where} follows a chain of references that returns to ${reference}`,
+        ErrorCode.NORM_CYCLE_DEPTH_EXCEEDED,
+        undefined,
+        { reference, where },
+      );
+    }
+    visited.add(current);
+
+    const parsed = parseReference(reference);
+    if (parsed.external) {
+      throw new RefResolutionError(
+        `${where} points at ${reference}, and ${subject} is resolved inside ` +
+          'the document that writes it rather than in another file',
+        ErrorCode.NORM_REF_UNRESOLVED,
+        undefined,
+        { reference, where },
+      );
+    }
+
+    // THE POSITION IS PUT BACK ON, because `resolveJsonPointer` knows the pointer and not who
+    // wrote it, and SPEC 9.4 asks a refusal here to name both what did not resolve and where it
+    // was written. The pointer's own account of which segment failed is kept as the cause.
+    try {
+      current = resolveJsonPointer(document, parsed.pointer);
+    } catch (cause) {
+      throw new RefResolutionError(
+        `${where} points at ${reference}, which this document does not have`,
+        ErrorCode.NORM_REF_UNRESOLVED,
+        cause instanceof Error ? cause : undefined,
+        { reference, where },
+      );
+    }
+  }
+
+  return { chain, value: current };
+}
+
+/**
+ * Follows a chain of `$ref` members to the object a structural reference names.
+ *
+ * @param document - The document references are resolved against
+ * @param value - The member as written, which may or may not be a reference
+ * @param where - What is being resolved, for the message a reader gets
+ * @param subject - What kind of thing this is, for the message an external reference gets
+ * @returns The object the reference names, or the value itself when it is not one
+ * @throws {RefResolutionError} When the reference leaves the document or resolves to nothing
+ * @throws {CycleDepthError} When the chain of references returns to where it has been
+ */
+export function followStructuralReference(
+  document: Record<string, unknown>,
+  value: unknown,
+  where: string,
+  subject: string,
+): unknown {
+  return structuralReferenceChain(document, value, where, subject).value;
 }
 
 /**

@@ -46,7 +46,14 @@ function federation(): FederationService[] {
         ],
         webhooks: [operation({ id: 'webhook-post-paid', path: '/paid', method: 'post' })],
         relationships: [
-          { from: 'get-status', to: 'orders', type: 'calls', confidence: 'declared' },
+          {
+            from: 'get-status',
+            fromKind: 'node',
+            to: 'orders',
+            toKind: 'service',
+            type: 'calls',
+            confidence: 'declared',
+          },
         ],
       }),
     },

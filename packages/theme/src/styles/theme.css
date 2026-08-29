@@ -257,8 +257,10 @@
  * them, and the block that carries the product's whole argument read as a log line. A separator
  * written into the server's strings would be design living where a theme cannot reach it, and
  * this is the design's own gap. It wraps because a detail is a sentence and a mark is three
- * letters, and they do not belong on one line at every width. */
-.oref-runtime-item {
+ * letters, and they do not belong on one line at every width. A topology edge is the same row:
+ * a type, a name and a mark, wrapping for the same reason. */
+.oref-runtime-item,
+.oref-topology-edge {
   align-items: baseline;
   display: flex;
   flex-wrap: wrap;
@@ -1207,7 +1209,8 @@ button.oref-schema-row:hover {
 
 .oref-drift-subject,
 .oref-schema-link,
-.oref-source-link {
+.oref-source-link,
+a.oref-topology-name {
   color: var(--oref-color-accent-link);
   text-decoration: underline;
 }
@@ -2488,31 +2491,38 @@ button.oref-schema-row:hover {
   display: contents;
 }
 
-.oref-fact-label {
+.oref-fact-label,
+.oref-topology-type,
+.oref-topology-dead {
   color: var(--oref-color-fg-muted);
   font-size: var(--oref-font-size-300);
 }
 
-.oref-fact-value {
+.oref-fact-value,
+.oref-topology-name {
   font-size: var(--oref-font-size-300);
   min-width: 0;
 }
 
 .oref-channel-ops,
-.oref-messages {
+.oref-messages,
+.oref-topology,
+.oref-topology-edges {
   list-style: none;
   margin: 0;
   padding: 0;
 }
 
 .oref-channel-op,
-.oref-message {
+.oref-message,
+.oref-topology-node {
   border-top: var(--oref-border-hair) solid var(--oref-color-line);
   margin-top: var(--oref-space-500);
   padding-top: var(--oref-space-400);
 }
 
-.oref-channel-reply {
+.oref-channel-reply,
+.oref-topology-edges {
   border-left: var(--oref-border-hair) solid var(--oref-color-line);
   margin-top: var(--oref-space-400);
   padding-left: var(--oref-space-500);

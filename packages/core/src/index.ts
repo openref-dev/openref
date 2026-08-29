@@ -94,7 +94,20 @@ export type {
 
 export type { IRHealthCheck, IRHealthReport } from './ir/domain/health.types';
 
-export type { IRRelationship, IRRelationshipType } from './ir/domain/relationship.types';
+export type {
+  IRRelationship,
+  IRRelationshipEndpointKind,
+  IRRelationshipType,
+} from './ir/domain/relationship.types';
+
+export type {
+  IRTopology,
+  IRTopologyEdge,
+  IRTopologyEndpoint,
+  IRTopologyGroup,
+} from './topology/domain/topology';
+export { buildTopology } from './topology/domain/topology';
+export { orderRelationships } from './topology/domain/relationships';
 
 export type {
   IRContact,

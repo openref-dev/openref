@@ -202,7 +202,9 @@ export function createDocumentFixture(): IRDocument {
     relationships: [
       {
         from: 'get-orders',
+        fromKind: 'node',
         to: 'channel-order-created',
+        toKind: 'node',
         type: 'publishes',
         confidence: 'declared',
       },

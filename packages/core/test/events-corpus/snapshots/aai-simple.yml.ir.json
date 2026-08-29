@@ -1,5 +1,5 @@
 {
-  "hash": "ec28bb674a64a9633952c8d5f61d3f7897fb7ee1e7d272ee1eb9e8ee24be054f",
+  "hash": "f2d564333b9ab9e8548acd47bfe4c5b195a555305a3d76c01e6b24dad22990ea",
   "id": "account-service",
   "info": {
     "description": "This service is in charge of processing user signups",
@@ -71,7 +71,16 @@
       }
     ]
   ],
-  "relationships": [],
+  "relationships": [
+    {
+      "confidence": "declared",
+      "from": "account-service",
+      "fromKind": "service",
+      "to": "channel-user-signedup",
+      "toKind": "node",
+      "type": "publishes"
+    }
+  ],
   "schemas": [],
   "security": [],
   "servers": [],

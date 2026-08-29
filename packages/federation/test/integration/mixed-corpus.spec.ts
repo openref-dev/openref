@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import type { IRDocument } from '@openref/core';
 import {
+  buildTopology,
   normalizeAsyncApiDocument,
   normalizeOpenApiDocument,
   parseSpecification,
@@ -111,5 +112,90 @@ describe('a federation of one HTTP corpus document and one event corpus document
     expect(services.map((service) => service.id)).toEqual(['petstore', 'streetlights']);
     expect(forwards.hash).toBe(backwards.hash);
     expect(forwards.kind).toBe('mixed');
+  });
+
+  it('should carry both services edges into one graph, per SPEC 9', () => {
+    // Given the two documents, whose own edges are asserted first so that the merged list below
+    // is a union of two non empty ones rather than a coincidence
+    const petstore = http();
+    const streetlights = events();
+    expect(petstore.relationships).toEqual([]);
+    expect(streetlights.relationships.length).toBeGreaterThan(0);
+
+    // When
+    const { document } = mergeDocuments(
+      [
+        { id: 'petstore', document: petstore },
+        { id: 'streetlights', document: streetlights },
+      ],
+      MERGED,
+    );
+
+    // Then every edge the event service declared is in the merged graph, with its own name for
+    // itself replaced by its federation id and its channels moved into the merged address space
+    expect(document.relationships).toHaveLength(streetlights.relationships.length);
+    const services = new Set(
+      document.relationships.flatMap((edge) => [
+        ...(edge.fromKind === 'service' ? [edge.from] : []),
+        ...(edge.toKind === 'service' ? [edge.to] : []),
+      ]),
+    );
+    expect([...services]).toEqual(['streetlights']);
+    for (const edge of document.relationships) {
+      if (edge.fromKind === 'node') expect(document.nodes.has(edge.from)).toBe(true);
+      if (edge.toKind === 'node') expect(document.nodes.has(edge.to)).toBe(true);
+    }
+  });
+
+  it('should link an HTTP handler to another service channel by address, once merged', () => {
+    // Given the HTTP service carrying the edge `@ApiPublishes` produces: a node end at one of its
+    // own operations and an `event` end naming an address that is documented by the other service
+    const streetlights = events();
+    const consumed = streetlights.relationships.find(
+      (relationship) => relationship.type === 'subscribes' && relationship.fromKind === 'node',
+    );
+    const consumedNode = streetlights.nodes.get(consumed?.from ?? '');
+    const address = consumedNode?.kind === 'channel' ? consumedNode.address : undefined;
+    expect(address).toBeDefined();
+
+    const petstore = http();
+    const publisher: IRDocument = {
+      ...petstore,
+      relationships: [
+        {
+          from: 'get-pets',
+          fromKind: 'node',
+          to: address ?? '',
+          toKind: 'event',
+          type: 'publishes',
+          confidence: 'declared',
+        },
+      ],
+    };
+    expect(publisher.nodes.has('get-pets')).toBe(true);
+
+    // When the two are merged and the graph is built over the merged document
+    const { document } = mergeDocuments(
+      [
+        { id: 'petstore', document: publisher },
+        { id: 'streetlights', document: streetlights },
+      ],
+      MERGED,
+    );
+    const topology = buildTopology(document);
+
+    // Then the event name is still what was declared, and it resolves to the other service's
+    // channel node, which is the cross service half of SPEC 9 that no single document can reach.
+    // The address chosen is one the event service consumes, so the chain the graph now holds is
+    // the whole of SPEC 9's diagram: an HTTP operation, an event, and the service that reads it
+    const declared = topology.groups.find((group) => group.from.name === 'petstore_get-pets');
+    const target = declared?.edges.find((edge) => edge.to.kind === 'event');
+    expect(target?.to.name).toBe(address);
+    expect(target?.to.nodeId).toBe(
+      [...document.nodes.entries()].find(
+        ([, node]) => node.kind === 'channel' && node.address === address,
+      )?.[0],
+    );
+    expect(target?.deadEnd).toBe(false);
   });
 });

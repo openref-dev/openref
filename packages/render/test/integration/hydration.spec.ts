@@ -340,8 +340,10 @@ describe('readPageState', () => {
     // mark for the live status to land on. T050 added `channel` and three marks to `drawn`,
     // the channel page of SPEC 11, and that is 18: a page cached before it hydrates a channel
     // article whose client walk finds marks it cannot draw, or draws nothing under the header
-    // where the server drew the address variables, the operations and the messages.
-    expect(state?.pageModelVersion).toBe(18);
+    // where the server drew the address variables, the operations and the messages. T052 added
+    // `topology`, the graph of SPEC 9 the overview draws, and that is 19: a page cached before
+    // it hydrates an overview whose client walk finds no graph where the server drew one.
+    expect(state?.pageModelVersion).toBe(19);
   });
 });
 

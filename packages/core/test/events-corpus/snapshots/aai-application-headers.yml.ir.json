@@ -1,5 +1,5 @@
 {
-  "hash": "469e41981f140b16feb3189e51fb51df36614b80243888a4a47bbb8bc30ff156",
+  "hash": "057586ff4be303e0536ad8627a6de9fce8abf1653ca72a04b57cbbdd7d4778c3",
   "id": "application-headers-example",
   "info": {
     "description": "A cut of the Streetlights API to test application header changes supporting",
@@ -129,7 +129,16 @@
       }
     ]
   ],
-  "relationships": [],
+  "relationships": [
+    {
+      "confidence": "declared",
+      "from": "channel-smartylighting-streetlights-1-0-event-streetlightid-lighting-measured",
+      "fromKind": "node",
+      "to": "application-headers-example",
+      "toKind": "service",
+      "type": "subscribes"
+    }
+  ],
   "schemas": [
     [
       "applicationInstanceId",

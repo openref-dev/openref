@@ -1,6 +1,7 @@
-import type { IRDocument } from '@openref/core';
+import type { IRConfidence, IRDocument } from '@openref/core';
 import type { CollectorTarget } from '../../runtime/application/services/collector-registry.service';
 import type { DiscoveryProblem } from '../../runtime/infrastructure/adapters/controller-discovery.adapter';
+import type { ChannelDirectionConfidence } from '../../runtime/domain/relationships';
 import type { SynthesizedChannel } from './asyncapi-synthesis';
 
 /**
@@ -28,6 +29,39 @@ export interface ChannelPairingResult {
   readonly targets: readonly CollectorTarget[];
   /** Channels no fact could be attributed to, with the reason. */
   readonly problems: readonly DiscoveryProblem[];
+  /**
+   * How confidently each channel's direction was read, by node id, per SPEC 9.3.
+   *
+   * IT COVERS EVERY CHANNEL AND NOT ONLY THE PAIRED ONES, which is the difference between this and
+   * `targets`. A channel several handlers serve gets no runtime facts, by the ambiguity rule above,
+   * but the normalizer still drew its topology edges, and those edges still need the word they
+   * carry to be true. Leaving it out of this map would leave exactly the ambiguous case laundered.
+   */
+  readonly directionConfidence: ChannelDirectionConfidence;
+}
+
+/**
+ * How the direction of one channel was read.
+ *
+ * `declared` ONLY WHEN A PERSON WROTE IT. `@ApiChannel({ direction })` is somebody documenting the
+ * channel; anything else is `directionOf` in the synthesis defaulting to `receive` from the shape
+ * of the framework decorator, which is SPEC 6.1's `derived`: metadata under a key we know.
+ *
+ * THE WEAKER READING WINS WHERE HANDLERS DISAGREE. See {@link ChannelDirectionConfidence}: the
+ * result is one word for the channel, and of the two ways to be wrong, understating a declared
+ * direction is the one that does not put the word `declared` on a default.
+ *
+ * @param channel - The synthesized channel and every handler that contributed to it
+ * @returns The level to mark that channel's edges with
+ */
+function directionConfidenceOf(channel: SynthesizedChannel): IRConfidence {
+  // A channel with no handlers cannot have been declared by one, and `every` over an empty list
+  // says otherwise, which is the one way this predicate could hand out the stronger word for free.
+  if (channel.handlers.length === 0) return 'derived';
+
+  return channel.handlers.every((handler) => handler.declared?.value.direction !== undefined)
+    ? 'declared'
+    : 'derived';
 }
 
 /**
@@ -43,6 +77,7 @@ export function pairChannels(
 ): ChannelPairingResult {
   const targets: CollectorTarget[] = [];
   const problems: DiscoveryProblem[] = [];
+  const directionConfidence = new Map<string, IRConfidence>();
 
   // The address is what a channel is, and the synthesis groups by it, so it identifies one node.
   // The node id is derived from the address per SPEC 8.2 and is not recomputed here: two spellings
@@ -65,6 +100,11 @@ export function pairChannels(
       });
       continue;
     }
+
+    // RECORDED BEFORE THE TWO REFUSALS BELOW AND NOT AFTER THEM. The refusals are about attaching
+    // runtime facts, and the edges exist either way, so a channel that gets no facts still needs
+    // the word on its edges to be true.
+    directionConfidence.set(node.id, directionConfidenceOf(channel));
 
     const [handler, ...rest] = channel.handlers;
     if (handler === undefined) continue;
@@ -92,5 +132,5 @@ export function pairChannels(
     });
   }
 
-  return { targets, problems };
+  return { targets, problems, directionConfidence };
 }

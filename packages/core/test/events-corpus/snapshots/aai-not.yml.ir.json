@@ -1,5 +1,5 @@
 {
-  "hash": "6e5ab50a8402cc495589db8c7d89fa574c634d33742c6c35ff44d86095c42ee7",
+  "hash": "bb6a1477c9ec4b3dd28e2165997aed33d9820496adae74daaf779295301c6ad2",
   "id": "not-example",
   "info": {
     "title": "Not example",
@@ -67,7 +67,16 @@
       }
     ]
   ],
-  "relationships": [],
+  "relationships": [
+    {
+      "confidence": "declared",
+      "from": "channel-test",
+      "fromKind": "node",
+      "to": "not-example",
+      "toKind": "service",
+      "type": "subscribes"
+    }
+  ],
   "schemas": [
     [
       "testSchema",

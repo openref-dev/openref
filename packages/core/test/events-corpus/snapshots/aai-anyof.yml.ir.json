@@ -1,5 +1,5 @@
 {
-  "hash": "4d9dc84074dde0e92b4ccfc8c85bbd49fc17bb40619ed683fdf6535152cea117",
+  "hash": "c3fff25c16bf2a7600cf3561f34968d33a52d0c7bc2b8cb944fac8a1f3715832",
   "id": "anyof-example",
   "info": {
     "title": "AnyOf example",
@@ -101,7 +101,16 @@
       }
     ]
   ],
-  "relationships": [],
+  "relationships": [
+    {
+      "confidence": "declared",
+      "from": "channel-test",
+      "fromKind": "node",
+      "to": "anyof-example",
+      "toKind": "service",
+      "type": "subscribes"
+    }
+  ],
   "schemas": [
     [
       "objectWithKey",

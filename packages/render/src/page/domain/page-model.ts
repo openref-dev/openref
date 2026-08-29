@@ -11,6 +11,7 @@
  */
 
 import {
+  buildTopology,
   compareByCodePoint,
   generateExample,
   type IRChannel,
@@ -81,6 +82,12 @@ import { reasonPhrase } from '../../shared/status';
 
 /**
  * Version of the page model shape, part of the cache key.
+ *
+ * 19 SINCE `T052`: the model carries `topology`, the graph of SPEC 9, a value on an overview
+ * whose document declares edges and null on every other page. A page cached before this hydrates
+ * an overview article whose client walk finds no graph where the server drew one, which is the
+ * page from before the topology had a renderer rather than a broken one, and the version is what
+ * keeps a document that declares edges and a client that never heard of them apart.
  *
  * 18 SINCE `T050`: a node carries `channel`, null on every operation and a value on every
  * channel, and `drawn` may hold three marks that did not exist, `channel`, `channel-operations`
@@ -167,7 +174,7 @@ import { reasonPhrase } from '../../shared/status';
  * 6 was T027: `run.bodyMediaTypes`, a list of strings, became `run.body`, a list of media types
  * each carrying the editor its schema asks for and the fields it is made of.
  */
-export const PAGE_MODEL_VERSION = 18;
+export const PAGE_MODEL_VERSION = 19;
 
 /** Media types an example is generated for. */
 const JSON_MEDIA_TYPE = /^application\/(?:[\w.+-]+\+)?json$/i;
@@ -1326,6 +1333,13 @@ export function buildPageModel(document: IRDocument, options: PageModelOptions):
   // largest thing on a page it is not about; the overview lost it to the page the tab names.
   const health = kind === 'health' ? buildHealthModel(document, basePath) : null;
 
+  // THE GRAPH TRAVELS WITH THE OVERVIEW AND WITH NOTHING ELSE, per SPEC 9.5. It is a statement
+  // about the whole document, so it belongs on the page about the whole document; and it is null
+  // rather than an empty graph when the document declares no edge, so the overview of a plain
+  // OpenAPI file draws no heading for a section with nothing under it.
+  const topology =
+    kind === 'overview' && document.relationships.length > 0 ? buildTopology(document) : null;
+
   const payload = buildSchemaPayload(document, slots, options.schemaPayloadLimit);
 
   // RESPONSE SCHEMAS ARE LINK TARGETS AND NOT PAYLOAD, per `TX-PARITY-UI`: their ids join
@@ -1375,6 +1389,7 @@ export function buildPageModel(document: IRDocument, options: PageModelOptions):
     truncatedSchemas: truncated,
     health,
     healthRendered: health !== null,
+    topology,
   };
 }
 

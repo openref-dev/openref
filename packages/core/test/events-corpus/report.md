@@ -43,29 +43,29 @@ lists only what it kept is a corpus whose selection cannot be checked:
 
 | document | edition | protocols | source bytes | IR bytes | channels | operations | schemas |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| aai-adeo-kafka-request-reply.yml | 3.1.0 | kafka | 10315 | 11725 | 2 | 1 | 10 |
-| aai-anyof.yml | 3.1.0 | (none) | 751 | 1575 | 1 | 1 | 2 |
-| aai-application-headers.yml | 3.1.0 | mqtt | 2504 | 3492 | 1 | 1 | 3 |
-| aai-correlation-id.yml | 3.1.0 | mqtt | 6351 | 6745 | 2 | 2 | 3 |
-| aai-gitter-streaming.yml | 3.1.0 | https | 5336 | 4111 | 1 | 1 | 0 |
-| aai-kraken-websocket-reply-channels.yml | 3.1.0 | (none) | 12597 | 15661 | 7 | 5 | 20 |
-| aai-kraken-websocket-reply-filter.yml | 3.1.0 | (none) | 13060 | 14339 | 1 | 5 | 20 |
-| aai-mercure.yml | 3.1.0 | mercure | 1472 | 1713 | 1 | 2 | 0 |
-| aai-not.yml | 3.1.0 | (none) | 560 | 977 | 1 | 1 | 1 |
-| aai-oneof.yml | 3.1.0 | (none) | 1314 | 2034 | 2 | 2 | 2 |
-| aai-operation-security.yml | 3.1.0 | (none) | 3471 | 4139 | 1 | 1 | 3 |
-| aai-rpc-client.yml | 3.1.0 | amqp | 1562 | 2048 | 2 | 2 | 0 |
-| aai-rpc-server.yml | 3.1.0 | amqp | 1487 | 1974 | 2 | 2 | 0 |
-| aai-simple.yml | 3.1.0 | (none) | 744 | 1039 | 1 | 1 | 0 |
-| aai-slack-rtm.yml | 3.1.0 | https | 25194 | 19932 | 1 | 2 | 1 |
-| aai-streetlights-kafka.yml | 3.1.0 | kafka-secure | 6354 | 9134 | 4 | 4 | 4 |
-| aai-streetlights-mqtt.yml | 3.1.0 | mqtt | 8748 | 10637 | 4 | 4 | 4 |
-| aai-streetlights-operation-security.yml | 3.1.0 | kafka-secure | 7682 | 10372 | 4 | 4 | 4 |
-| aai-websocket-gemini.yml | 3.1.0 | wss | 8907 | 8670 | 1 | 1 | 5 |
-| everest-system-api.yaml | 3.0.0 | mqtt | 34377 | 45080 | 19 | 19 | 28 |
-| network-survey-messaging.yaml | 3.0.0 | (none) | 132931 | 128433 | 17 | 17 | 142 |
-| scalar-multi-protocol.yaml | 3.0.0 | kafka mqtt wss | 5084 | 5817 | 3 | 3 | 3 |
-| transfergo-remittance.yaml | 3.0.0 | https | 4717 | 6636 | 2 | 2 | 0 |
+| aai-adeo-kafka-request-reply.yml | 3.1.0 | kafka | 10315 | 12074 | 2 | 1 | 10 |
+| aai-anyof.yml | 3.1.0 | (none) | 751 | 1700 | 1 | 1 | 2 |
+| aai-application-headers.yml | 3.1.0 | mqtt | 2504 | 3696 | 1 | 1 | 3 |
+| aai-correlation-id.yml | 3.1.0 | mqtt | 6351 | 7130 | 2 | 2 | 3 |
+| aai-gitter-streaming.yml | 3.1.0 | https | 5336 | 4259 | 1 | 1 | 0 |
+| aai-kraken-websocket-reply-channels.yml | 3.1.0 | (none) | 12597 | 16697 | 7 | 5 | 20 |
+| aai-kraken-websocket-reply-filter.yml | 3.1.0 | (none) | 13060 | 14722 | 1 | 5 | 20 |
+| aai-mercure.yml | 3.1.0 | mercure | 1472 | 2019 | 1 | 2 | 0 |
+| aai-not.yml | 3.1.0 | (none) | 560 | 1100 | 1 | 1 | 1 |
+| aai-oneof.yml | 3.1.0 | (none) | 1314 | 2285 | 2 | 2 | 2 |
+| aai-operation-security.yml | 3.1.0 | (none) | 3471 | 4283 | 1 | 1 | 3 |
+| aai-rpc-client.yml | 3.1.0 | amqp | 1562 | 2314 | 2 | 2 | 0 |
+| aai-rpc-server.yml | 3.1.0 | amqp | 1487 | 2240 | 2 | 2 | 0 |
+| aai-simple.yml | 3.1.0 | (none) | 744 | 1174 | 1 | 1 | 0 |
+| aai-slack-rtm.yml | 3.1.0 | https | 25194 | 20214 | 1 | 2 | 1 |
+| aai-streetlights-kafka.yml | 3.1.0 | kafka-secure | 6354 | 9900 | 4 | 4 | 4 |
+| aai-streetlights-mqtt.yml | 3.1.0 | mqtt | 8748 | 11399 | 4 | 4 | 4 |
+| aai-streetlights-operation-security.yml | 3.1.0 | kafka-secure | 7682 | 11138 | 4 | 4 | 4 |
+| aai-websocket-gemini.yml | 3.1.0 | wss | 8907 | 8829 | 1 | 1 | 5 |
+| everest-system-api.yaml | 3.0.0 | mqtt | 34377 | 49310 | 19 | 19 | 28 |
+| network-survey-messaging.yaml | 3.0.0 | (none) | 132931 | 131075 | 17 | 17 | 142 |
+| scalar-multi-protocol.yaml | 3.0.0 | kafka mqtt wss | 5084 | 6282 | 3 | 3 | 3 |
+| transfergo-remittance.yaml | 3.0.0 | https | 4717 | 6990 | 2 | 2 | 0 |
 
 ## The six members that had no IR carrier at the close of `T048`
 

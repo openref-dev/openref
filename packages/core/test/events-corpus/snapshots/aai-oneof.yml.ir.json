@@ -1,5 +1,5 @@
 {
-  "hash": "ff96c01d9d2431538511451012749852d697e0377a116a0936392c7b1d674a0c",
+  "hash": "3d213e46331c21b3b281f7b4707cb4578fff93cd21d612961415d29909029e82",
   "id": "oneof-example",
   "info": {
     "title": "OneOf example",
@@ -145,7 +145,24 @@
       }
     ]
   ],
-  "relationships": [],
+  "relationships": [
+    {
+      "confidence": "declared",
+      "from": "channel-test",
+      "fromKind": "node",
+      "to": "oneof-example",
+      "toKind": "service",
+      "type": "subscribes"
+    },
+    {
+      "confidence": "declared",
+      "from": "oneof-example",
+      "fromKind": "service",
+      "to": "channel-test2",
+      "toKind": "node",
+      "type": "publishes"
+    }
+  ],
   "schemas": [
     [
       "objectWithKey",

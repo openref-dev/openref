@@ -299,3 +299,48 @@ export function channelNodeIds(): readonly [string, string] {
   }
   return [templated, replies];
 }
+
+/**
+ * The events document with the two topology cases its own channels cannot produce.
+ *
+ * WHY A SECOND DOCUMENT RATHER THAN A SECOND CHANNEL. `eventsDocument` declares three edges, and
+ * all three of them are live: every target it names is also a source, so nothing in it is a dead
+ * end, and every edge a normalizer writes is `declared`, so no normalizer can produce an
+ * `inferred` one at all, per SPEC 9.4. Those are the two states the section draws differently, so
+ * a sweep over the normalized document alone would leave `oref-topology-dead` and the inferred
+ * mark on no list and styled by no rule, which is exactly the fixture bound blind spot this
+ * repository has now recorded three times.
+ *
+ * THE TWO EXTRA EDGES ARE PLANTED RATHER THAN NORMALIZED, and that is the honest way round. An
+ * `inferred` edge has no producer in M5 by policy, and an event nobody consumes is a fact about an
+ * estate rather than about a document, so neither is something a single AsyncAPI file can be
+ * written to yield.
+ *
+ * @returns The events document with a dead end and an inferred edge added
+ */
+export function topologyDocument(): IRDocument {
+  const events = eventsDocument();
+
+  return {
+    ...events,
+    relationships: [
+      ...events.relationships,
+      {
+        from: events.id,
+        fromKind: 'service',
+        to: 'orders.archived',
+        toKind: 'event',
+        type: 'publishes',
+        confidence: 'declared',
+      },
+      {
+        from: events.id,
+        fromKind: 'service',
+        to: 'orders.rebuilt',
+        toKind: 'event',
+        type: 'publishes',
+        confidence: 'inferred',
+      },
+    ],
+  };
+}

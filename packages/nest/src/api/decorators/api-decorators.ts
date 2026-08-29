@@ -239,3 +239,32 @@ export function ApiChannel(channel: ApiChannelOptions): OpenRefDecorator {
 export function ApiMessage(message: ApiMessageOptions): OpenRefDecorator {
   return setOpenRefMetadata(OPENREF_METADATA.message, message);
 }
+
+/**
+ * Declares the events a handler publishes, at `declared` confidence, per SPEC 9.
+ *
+ * THIS IS THE WHOLE OF THE TOPOLOGY POLICY IN ONE DECORATOR. SPEC 9 says relationships are
+ * declared explicitly and that static analysis of what a handler publishes is unreliable and must
+ * never be presented as fact. So there is no inference behind this: what a person writes here is
+ * what the graph draws, and an application that writes nothing has a graph with nothing in it
+ * rather than a graph of guesses.
+ *
+ * THE NAME IS AN EVENT AND NOT A NODE, per SPEC 9.1. `payment.created` is usually a channel some
+ * other service documents, so the edge carries the name as an `event` end; matching it to a
+ * channel by address happens once, in `@openref/core`, when the graph is built. An estate where
+ * nobody documents the channel still gets the edge, drawn as a dead end, which is a fact worth
+ * seeing rather than a link worth hiding.
+ *
+ * WRITING IT WITH NO NAME DECLARES NOTHING and produces a `doctor` problem rather than an edge,
+ * per SPEC 9.4.
+ *
+ * @param events - Event names, as the estate spells them
+ * @returns The decorator
+ *
+ * @example
+ * @ApiPublishes('payment.created')
+ * create() {}
+ */
+export function ApiPublishes(...events: readonly string[]): OpenRefDecorator {
+  return setOpenRefMetadata(OPENREF_METADATA.publishes, events);
+}
