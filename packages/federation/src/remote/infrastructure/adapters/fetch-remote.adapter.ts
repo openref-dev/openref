@@ -9,6 +9,7 @@ import type {
   RemoteDocumentSource,
   RemoteFetchRequest,
 } from '../../application/ports/remote-fetcher.port';
+import { abortedPromise, abortReason } from '../../domain/abort';
 
 /**
  * The real fetcher: the runtime's own `fetch`, bounded in size, cancelled by the caller.
@@ -132,7 +133,7 @@ export class FetchRemoteAdapter implements IRemoteFetcher {
       return { status: response.status, body: '' };
     }
 
-    const body = await this.readBody(response, request.url);
+    const body = await this.readBody(response, request.url, request.signal);
     return { status: response.status, body };
   }
 
@@ -142,8 +143,20 @@ export class FetchRemoteAdapter implements IRemoteFetcher {
    * A declared `Content-Length` is refused before a byte is read; a stream is stopped at the
    * ceiling; the `text()` fallback exists for an implementation with no stream and can only
    * refuse after the fact, which is why it is the fallback.
+   *
+   * THE SIGNAL IS READ HERE AND NOT ONLY BEFORE THE REQUEST, and T047 measured why. The lifecycle
+   * aborts the signal at its timeout and moves on, so a body already streaming was left reading
+   * with nothing watching: after the abort the reader took 26 more chunks in 30 ms and was never
+   * cancelled. Against a remote that trickles bytes, every timed out attempt leaves one connection
+   * accumulating up to the whole ceiling while the next poll opens another, which is the slow
+   * loris turned into unbounded work inside this process. The read now ends at the abort, with the
+   * reason the aborter gave, and the reader is cancelled on the way out.
    */
-  private async readBody(response: RemoteResponseLike, url: string): Promise<string> {
+  private async readBody(
+    response: RemoteResponseLike,
+    url: string,
+    signal: AbortSignal,
+  ): Promise<string> {
     const declared = response.headers.get('content-length');
     if (declared !== null) {
       const length = Number(declared);
@@ -168,9 +181,21 @@ export class FetchRemoteAdapter implements IRemoteFetcher {
     let read = 0;
     let text = '';
 
+    // Built once rather than per chunk, which is what keeps a large body from registering one
+    // listener per chunk on the signal.
+    const aborted = abortedPromise(signal);
+    // Nothing else observes this promise until the race does, and an abort that happens while the
+    // loop is not racing would otherwise be an unhandled rejection.
+    aborted.catch(() => undefined);
+
     try {
       for (;;) {
-        const chunk = await reader.read();
+        if (signal.aborted) throw abortReason(signal);
+
+        // The race is what ends a read that never settles. Waiting on `reader.read()` alone would
+        // hold this loop open for as long as the remote holds the connection, whatever the signal
+        // says, which is the shape the timeout exists to end.
+        const chunk = await Promise.race([reader.read(), aborted]);
         if (chunk.done) break;
         const bytes = chunk.value;
         if (bytes === undefined) continue;

@@ -134,8 +134,12 @@ describe('resolveNames', () => {
 
 describe('allocateUnique', () => {
   it('should move a name that prefixing made collide with another', () => {
-    // Given the concatenation that is not injective: service `a` with node `b_c`, service `a_b`
-    // with node `c`
+    // Given the concatenation that is not injective, in a spelling a configuration can really
+    // reach: a service id carries no underscore, so the two claimants are a service `a` whose node
+    // is called `b_c` and a service `a-b` whose node is called `c` inside a navigation id, which is
+    // the space where two prefixing schemes meet over a character the id alphabet does have. The
+    // pair `a` and `a_b` the first version of this case named is unreachable: `a_b` fails
+    // `isFederationServiceId`, so it would be refused before a merge began.
     const claims = [claim('a_b_c', 'a'), claim('a_b_c', 'a-b')];
 
     // When the node id space allocates them

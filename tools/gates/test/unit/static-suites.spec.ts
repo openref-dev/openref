@@ -652,6 +652,10 @@ describe('the committed wiring', () => {
 
     // Then
     expect(order[position - 1]).toBe('claims');
-    expect(order[position + 1]).toBe('coverage');
+    // The federation row gate joined at T047, between this one and coverage, and it is named here
+    // rather than the assertion loosened to "somewhere before coverage": what this case is about is
+    // the arrangement, so a gate arriving between the two is a decision to write down.
+    expect(order[position + 1]).toBe('federation-suites');
+    expect(order.indexOf('coverage')).toBe(position + 2);
   });
 });

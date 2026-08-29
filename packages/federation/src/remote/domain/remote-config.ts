@@ -44,6 +44,18 @@ export const DEFAULT_FETCH_TIMEOUT_MS = 10_000;
  */
 export const MAX_BACKOFF_MULTIPLIER = 8;
 
+/**
+ * Longest delay a platform timer holds, which is a 32 bit signed millisecond count.
+ *
+ * A LONGER DELAY DOES NOT WAIT LONGER, IT FIRES AT ONCE, and T047 measured both halves of what
+ * that costs. A `refreshMs` of 2 147 484 648 produced 44 fetches in 60 ms instead of one every
+ * 24.9 days, so the configuration that asks for the rarest possible poll produces the busiest
+ * one; a `timeoutMs` of the same size cut off an answer that arrived in 20 ms and recorded that
+ * the remote "did not answer inside 2147484648 ms", which is a page telling an operator something
+ * untrue about their service. Recorded in SPEC 15.2 with the measurement.
+ */
+export const MAX_TIMER_DELAY_MS = 2 ** 31 - 1;
+
 /** One remote in the federation configuration: identity, address and mount. */
 export interface FederationRemoteConfig {
   /** Identity of the service, under the same grammar as a merge service id. */
@@ -99,16 +111,29 @@ export function resolveFailureMode(mode: FederationFailureMode | undefined): Fed
 /**
  * Resolves one of the millisecond options, refusing a value that is not a duration.
  *
+ * THE UPPER BOUND IS PART OF BEING A DURATION HERE, because the value becomes a timer delay and a
+ * delay a timer cannot hold does not wait longer, it fires at once. See {@link MAX_TIMER_DELAY_MS}
+ * for the two measurements. The caller passes the largest multiple of this value that will be
+ * scheduled, which is the backoff ceiling for `refreshMs` and one for `timeoutMs`, so the refusal
+ * is about the delay that will really be asked for rather than about the option in isolation.
+ *
+ * ROUNDING DOWN WAS REFUSED. An operator who asks for one poll a week and silently gets one a day
+ * has been answered by something that never says so, which is the class of quiet substitution this
+ * project refuses everywhere else.
+ *
  * @param value - Whatever the caller configured, or nothing
  * @param name - Option name, so a message says which one
  * @param fallback - Default when nothing was configured
- * @returns Milliseconds, a positive integer
- * @throws {InvalidOptionsError} When the value is not a positive integer
+ * @param scheduledMultiple - Largest multiple of the value that reaches a timer. Defaults to one
+ * @returns Milliseconds, a positive integer a timer can hold at that multiple
+ * @throws {InvalidOptionsError} When the value is not a positive integer, or when the multiple of
+ *         it that will be scheduled is past what a timer holds
  */
 export function resolveIntervalMs(
   value: number | undefined,
   name: string,
   fallback: number,
+  scheduledMultiple = 1,
 ): number {
   if (value === undefined) return fallback;
 
@@ -118,6 +143,22 @@ export function resolveIntervalMs(
       ErrorCode.CONFIG_INVALID_OPTIONS,
       undefined,
       { [name]: value },
+    );
+  }
+
+  const ceiling = Math.floor(MAX_TIMER_DELAY_MS / scheduledMultiple);
+  if (value > ceiling) {
+    throw new InvalidOptionsError(
+      `${name} is ${String(value)} ms and the limit is ${String(ceiling)} ms, because ` +
+        (scheduledMultiple === 1
+          ? 'a timer holds a delay of at most ' + String(MAX_TIMER_DELAY_MS) + ' ms'
+          : `the backoff schedules up to ${String(scheduledMultiple)} of these intervals and a ` +
+            `timer holds a delay of at most ${String(MAX_TIMER_DELAY_MS)} ms`) +
+        '; a longer delay does not wait longer, it fires at once, which turns a rare poll into a ' +
+        'hot loop and a long timeout into an immediate one',
+      ErrorCode.CONFIG_INVALID_OPTIONS,
+      undefined,
+      { [name]: value, limitMs: ceiling },
     );
   }
 

@@ -9,6 +9,7 @@ import { coverageGate } from './gates/coverage.gate.js';
 import { cspGate } from './gates/csp.gate.js';
 import { dependencyGraphGate } from './gates/dependency-graph.gate.js';
 import { enginesFloorGate } from './gates/engines-floor.gate.js';
+import { federationSuitesGate } from './gates/federation-suites.gate.js';
 import { fixtureLicensesGate } from './gates/fixture-licenses.gate.js';
 import { formatGate } from './gates/format.gate.js';
 import { licensesGate } from './gates/licenses.gate.js';
@@ -79,6 +80,12 @@ import type { Gate, GateResult } from './types.js';
  * coverages M3 is the milestone for. It runs its suites rather than reading them, so it goes late,
  * after everything that needs no child process has already reported.
  *
+ * The federation suites gate sits beside it and is the same mechanism pointed at the row M4 closes.
+ * Two gates rather than one because the two rows belong to two milestones: a red row has to name
+ * its own subject in the summary, and a gate titled about static builds reporting a federation
+ * failure is the kind of misdirection these gates exist to remove. It runs its own suites for the
+ * reason the Static one does, and leaves the milestone clause to `pnpm test:integration`.
+ *
  * The text source gate sits beside the format one, third, and the pair is the same question asked
  * twice: whether the repository is in the state its own rules describe, before anything is built.
  * One asks whether a file is formatted the way the project says; the other asks whether a text
@@ -104,6 +111,7 @@ export const GATES: readonly Gate[] = [
   themeFontsGate,
   claimsGate,
   staticSuitesGate,
+  federationSuitesGate,
   coverageGate,
 ];
 

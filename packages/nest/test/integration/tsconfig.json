@@ -10,6 +10,7 @@
     "baseUrl": "../../../..",
     "paths": {
       "@openref/core": ["packages/core/src/index.ts"],
+      "@openref/federation": ["packages/federation/src/index.ts"],
       "@openref/render": ["packages/render/src/index.ts"],
       "@openref/runner": ["packages/runner/src/index.ts"],
       "@openref/search": ["packages/search/src/index.ts"],

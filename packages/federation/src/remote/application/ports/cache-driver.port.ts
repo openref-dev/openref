@@ -78,8 +78,38 @@ export function readCacheRecord(value: unknown): FederationCacheRecord {
   if (typeof url !== 'string') throw invalidRecord('has no "url" string');
   if (typeof fetchedAt !== 'string') throw invalidRecord('has no "fetchedAt" string');
   if (typeof body !== 'string') throw invalidRecord('has no "body" string');
+  if (!isInstant(fetchedAt)) {
+    throw invalidRecord(
+      `carries ${JSON.stringify(fetchedAt.slice(0, 40))} as "fetchedAt", which is not a moment in time`,
+    );
+  }
 
   return { url, fetchedAt, body };
+}
+
+/**
+ * Whether a string is the ISO 8601 instant this record declares `fetchedAt` to be.
+ *
+ * THE FIELD WAS TYPED AND NOT CHECKED, AND T047 MEASURED WHERE THAT REACHES. Anything a planted
+ * record put here travelled unaltered into the remote's state and out of `<mount>/_federation`,
+ * measured with `<img src=x onerror=alert(1)>` arriving whole at the snapshot. Escaping on the way
+ * out is the last line rather than the first one: a field declared as a time and holding something
+ * else is a record that cannot be trusted to be a fetched document, which is what this reader is
+ * for. Refusing it is also the only place the two halves can disagree, since the writer's own
+ * value comes from `toISOString`.
+ *
+ * NOTHING HERE COMPARES IT WITH NOW, and that is the design rather than an omission. A record has
+ * no expiry: what makes it usable is the URL it was fetched from and the fact that its text still
+ * normalizes, so two services whose clocks disagree cannot make one another's records unusable.
+ *
+ * @param value - The revived field
+ * @returns True when it parses as an instant and spells one
+ */
+function isInstant(value: string): boolean {
+  // The round trip is what makes this a format check rather than a permissive parse: `Date` will
+  // read many things, and only a real ISO 8601 instant comes back as itself.
+  const parsed = new Date(value);
+  return !Number.isNaN(parsed.getTime()) && parsed.toISOString() === value;
 }
 
 function invalidRecord(reason: string): FederationError {

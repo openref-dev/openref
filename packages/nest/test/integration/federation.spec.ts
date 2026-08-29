@@ -1,3 +1,5 @@
+import { ErrorCode } from '@openref/core';
+import { RemoteLifecycleService } from '@openref/federation';
 import { createRunner } from '@openref/runner';
 import type { RunnerOperationView } from '@openref/vue';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -133,6 +135,57 @@ describe('the three service demo', () => {
     expect(reply.status).toBe(404);
     const body = (await reply.json()) as { services: string[] };
     expect(body.services.sort()).toEqual(['billing', 'orders', 'payments']);
+  }, 30_000);
+
+  it('should refuse to feed one federation to another, so a cycle of two mounts cannot form', async () => {
+    // Given a second federation configured to fetch this running one, which is the A federates B
+    // federates A shape of `T047`: the only address a mount publishes a document at is the one
+    // refused above, so the cycle has to close through it or not at all.
+    await settledOverview();
+    const lifecycle = new RemoteLifecycleService({
+      remotes: [{ id: 'upstream', url: `${demo.url}/docs/openapi.json` }],
+      document: { id: 'outer', info: { title: 'Outer', version: '1' } },
+      timeoutMs: 5_000,
+    });
+
+    // When its first round runs, over real HTTP, with the real fetcher
+    await lifecycle.start();
+    const snapshot = lifecycle.snapshot();
+    lifecycle.stop();
+
+    // Then the outer federation has nothing to serve and says why, rather than merging a merged
+    // document or recursing into one
+    expect(snapshot.availability).toBe('unavailable');
+    expect(snapshot.httpStatus).toBe(503);
+    const [state] = snapshot.remotes;
+    expect(state?.status).toBe('failed');
+    expect(state?.version).toBeUndefined();
+    expect(state?.lastError?.code).toBe(ErrorCode.FED_REMOTE_UNAVAILABLE);
+    expect(state?.lastError?.message).toContain('404');
+  }, 30_000);
+
+  it('should serve the three services as one document, which is the M4 definition of done', async () => {
+    // Given the demo, booted from its own single command in `beforeAll`
+    const html = await settledOverview();
+
+    // When the page and the machine addresses of that one mount are read
+    const snapshot = (await (await fetch(`${demo.url}/docs/_federation`)).json()) as {
+      readonly documentHash: string;
+      readonly remotes: readonly { readonly id: string }[];
+    };
+    const index = await (await fetch(`${demo.url}/docs/_search-index`)).text();
+
+    // Then it is one page rather than three: one navigation carrying all three service groups,
+    // one state block, one document hash, and one index over every service
+    expect(html.split('data-oref-service=').length - 1).toBeGreaterThanOrEqual(3);
+    expect(html.split('id="oref-state"').length - 1).toBe(1);
+    expect(snapshot.documentHash).toMatch(/^[0-9a-f]{64}$/u);
+    for (const prefix of ['billing_', 'orders_', 'payments_']) expect(index).toContain(prefix);
+
+    // And the local service and the two remotes are all in it, which is what makes the page the
+    // whole federation rather than the reachable part of it
+    expect(snapshot.remotes.map((remote) => remote.id).sort()).toEqual(['orders', 'payments']);
+    expect(html).toContain('href="/docs/service/billing"');
   }, 30_000);
 
   it('should execute a request from the page own material against the guarded service', async () => {

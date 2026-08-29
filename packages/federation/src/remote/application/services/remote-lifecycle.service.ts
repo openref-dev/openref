@@ -19,12 +19,14 @@ import type {
 import {
   DEFAULT_FETCH_TIMEOUT_MS,
   DEFAULT_REFRESH_MS,
+  MAX_BACKOFF_MULTIPLIER,
   refreshDelayMs,
   resolveFailureMode,
   resolveIntervalMs,
   validateRemotes,
 } from '../../domain/remote-config';
 import type { FederationFailureMode, FederationRemoteConfig } from '../../domain/remote-config';
+import { abortedPromise } from '../../domain/abort';
 import { remoteStatusOf, toStateError } from '../../domain/remote-state';
 import type {
   FederationRemoteState,
@@ -152,7 +154,14 @@ export class RemoteLifecycleService {
     if (options.remotes.length > 0) validateRemotes(options.remotes);
     this.locals = [...locals].sort((left, right) => compareText(left.id, right.id));
     this.failureMode = resolveFailureMode(options.failureMode);
-    this.refreshMs = resolveIntervalMs(options.refreshMs, 'refreshMs', DEFAULT_REFRESH_MS);
+    // THE BACKOFF CEILING IS PART OF WHAT `refreshMs` MAY BE, because `refreshDelayMs` schedules up
+    // to that many intervals and a timer cannot hold more than `MAX_TIMER_DELAY_MS`.
+    this.refreshMs = resolveIntervalMs(
+      options.refreshMs,
+      'refreshMs',
+      DEFAULT_REFRESH_MS,
+      MAX_BACKOFF_MULTIPLIER,
+    );
     this.timeoutMs = resolveIntervalMs(options.timeoutMs, 'timeoutMs', DEFAULT_FETCH_TIMEOUT_MS);
     this.documentOptions = options.document;
     this.fetcher = options.fetcher ?? new FetchRemoteAdapter();
@@ -593,28 +602,4 @@ export class RemoteLifecycleService {
   private now(): string {
     return new Date().toISOString();
   }
-}
-
-/**
- * A promise that rejects with the signal's reason when it aborts, and never resolves.
- *
- * The race exists for the fetcher that ignores its signal: the contract says the timeout is the
- * lifecycle's to enforce, so the attempt must fail at the deadline even when the fetcher's own
- * promise stays pending forever.
- */
-function abortedPromise(signal: AbortSignal): Promise<never> {
-  return new Promise((_resolve, reject) => {
-    if (signal.aborted) {
-      reject(abortReason(signal));
-      return;
-    }
-    signal.addEventListener('abort', () => {
-      reject(abortReason(signal));
-    });
-  });
-}
-
-function abortReason(signal: AbortSignal): Error {
-  const reason: unknown = signal.reason;
-  return reason instanceof Error ? reason : new Error(String(reason));
 }

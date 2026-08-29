@@ -30,3 +30,21 @@ site, which is what SPEC 5.1.1 replaced.
 | oai-webhook-example.yaml | 947 | 1081 | 1.14 | 0 | 1 |
 | stripe.yaml | 6364174 | 5546832 | 0.87 | 589 | 1440 |
 | twilio-api-v2010.yaml | 1496453 | 1612794 | 1.08 | 197 | 148 |
+
+## What the corpus does not exercise
+
+The strongest evidence in this project states its own limit here, per the `T047` amendment. The
+corpus is what the world publishes, so a keyword no document carries is a fact about the world
+rather than a gap to fill with a document written for the purpose. What it is not is proof: a
+keyword nothing here drives is proved only by documents this repository wrote for itself, and this
+section is where a reader learns which ones those are.
+
+Counted over every named and inline schema of every document above, 7751 of them,
+by walking the positions an `IRJsonSchema` holds another one rather than by scanning the
+serialized IR. The difference is not pedantry: `kubernetes-apiextensions-v1.json` models JSON
+Schema itself, so its `properties` carry members called `patternProperties`, `allOf` and
+`not`, and a text scan reads a model's property name as the keyword being exercised.
+
+- `IRJsonSchema` declares 46 fields
+- 29 of them are carried by at least one corpus document
+- 17 are carried by none: `$id`, `$cycle`, `const`, `view`, `patternProperties`, `propertyNames`, `minProperties`, `maxProperties`, `if`, `then`, `else`, `dependentRequired`, `prefixItems`, `exclusiveMinimum`, `exclusiveMaximum`, `allOf`, `not`

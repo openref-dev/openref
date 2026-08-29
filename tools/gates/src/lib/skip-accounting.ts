@@ -89,6 +89,13 @@ export const SKIP_REASONS: readonly SkipReason[] = [
       // to it is this entry rather than a quieter accounting: the gate's skip is legitimate, and
       // nothing had said so.
       'capability-debts',
+      // `federation-suites` is the Static gate's mechanism over the SPEC 21 Federation row and the
+      // M4 definition of done, so it skips for the same reason and only under the same condition:
+      // the halves that need no document, the named suites, the named cases and the run itself,
+      // all happen on a checkout with no `ai-docs/` and fail there. Added by T047 with the gate,
+      // rather than discovered by the first CI run that went red on the accounting, which is how
+      // `capability-debts` came to be on this list.
+      'federation-suites',
     ],
     forced: ['build-manifest', 'claims', 'theme-motion'],
   },

@@ -4,6 +4,12 @@ import { describe, expect, it } from 'vitest';
 import type { IRDocument } from '../../src/index';
 import { canonicalize, hash, normalizeOpenApiDocument, parseSpecification } from '../../src/index';
 import { documentShape, renderShape } from './corpus-shape';
+import {
+  everySchemaOf,
+  fieldsOfInterface,
+  IR_DOMAIN,
+  presentSchemaKeywords,
+} from './declared-fields';
 
 /**
  * The corpus snapshot harness, per SPEC 21, BUILD T006 and amendment T006-R1.
@@ -32,6 +38,7 @@ import { documentShape, renderShape } from './corpus-shape';
 
 const CORPUS = join(import.meta.dirname, '..', 'corpus');
 const SNAPSHOTS = join(CORPUS, 'snapshots');
+const REPO_ROOT = join(import.meta.dirname, '..', '..', '..', '..');
 
 /** Below this, the whole IR is written out, because the diff is reviewable. */
 const READABLE_DOCUMENT_BYTES = 16 * 1024;
@@ -149,10 +156,17 @@ describe('corpus snapshots', () => {
     // Given, the columns are all deterministic. Wall clock is deliberately absent: a
     // committed timing churns on every machine and would train a reader to accept the diff.
     // Time is bounded instead, machine independently, in normalization-cost.spec.ts.
+    const exercised = new Set<string>();
+    let schemaCount = 0;
+
     const rows = entries.map((entry) => {
       const inputBytes = Buffer.byteLength(sourceOf(entry.file), 'utf8');
       const document = normalize(entry.file);
       const outputBytes = canonicalize({ ...document, hash: '' }).length;
+
+      const schemas = everySchemaOf(document);
+      schemaCount += schemas.length;
+      for (const keyword of presentSchemaKeywords(schemas)) exercised.add(keyword);
 
       return [
         entry.file,
@@ -163,6 +177,18 @@ describe('corpus snapshots', () => {
         String(document.schemas.size),
       ];
     });
+
+    const declared = fieldsOfInterface(
+      REPO_ROOT,
+      join(IR_DOMAIN, 'schema.types.ts'),
+      'IRJsonSchema',
+    );
+    const unexercised = declared.filter((field) => !exercised.has(field));
+
+    // The walk has to be able to find something before its silence about anything means
+    // anything, which is what this asserts before the list of absences is written out.
+    expect(exercised.has('properties')).toBe(true);
+    expect(schemaCount).toBeGreaterThan(1000);
 
     // When
     const header = ['document', 'source bytes', 'IR bytes', 'ratio', 'nodes', 'schemas'];
@@ -184,6 +210,24 @@ The ratio is the number to watch. It was the symptom of expanding every referenc
 site, which is what SPEC 5.1.1 replaced.
 
 ${table}
+
+## What the corpus does not exercise
+
+The strongest evidence in this project states its own limit here, per the \`T047\` amendment. The
+corpus is what the world publishes, so a keyword no document carries is a fact about the world
+rather than a gap to fill with a document written for the purpose. What it is not is proof: a
+keyword nothing here drives is proved only by documents this repository wrote for itself, and this
+section is where a reader learns which ones those are.
+
+Counted over every named and inline schema of every document above, ${String(schemaCount)} of them,
+by walking the positions an \`IRJsonSchema\` holds another one rather than by scanning the
+serialized IR. The difference is not pedantry: \`kubernetes-apiextensions-v1.json\` models JSON
+Schema itself, so its \`properties\` carry members called \`patternProperties\`, \`allOf\` and
+\`not\`, and a text scan reads a model's property name as the keyword being exercised.
+
+- \`IRJsonSchema\` declares ${String(declared.length)} fields
+- ${String(declared.length - unexercised.length)} of them are carried by at least one corpus document
+- ${String(unexercised.length)} are carried by none: ${unexercised.map((field) => `\`${field}\``).join(', ')}
 `;
 
     // Then

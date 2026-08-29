@@ -151,9 +151,9 @@ export function resolveNames<T>(
  *
  * THE NODE ID SPACE IS THIS ONE. SPEC 15 prefixes every node id with its service whether or not
  * anything clashed, so by the time a name reaches here the policy has already had its say and two
- * claims meeting is arithmetic rather than disagreement: service `a` with a node `b_c` and service
- * `a_b` with a node `c` both ask for `a_b_c`. Answering that with `onConflict` would refuse a merge
- * under `fail` for something no configuration caused and no configuration can fix.
+ * claims meeting is arithmetic rather than disagreement. Answering that with `onConflict` would
+ * refuse a merge under `fail` for something no configuration caused and no configuration can fix.
+ * See `allocate` for the spelling of a collision that a configuration can really produce.
  *
  * @param claims - The claims, in an order the caller derived deterministically
  * @param rules - How this space keys and escapes; its `namespace` is never called
@@ -176,10 +176,14 @@ interface PreferredName {
 /**
  * Hands out the resolved names, moving any that is still taken.
  *
- * A NAME CAN STILL BE TAKEN AFTER THE POLICY HAS RUN, and the case is not exotic. Service `a`
- * with a node `b_c` and service `a_b` with a node `c` both produce the merged node id `a_b_c`,
- * because prefixing is concatenation and concatenation is not injective. So is a namespaced name
- * that happens to equal a plain name another service already had.
+ * A NAME CAN STILL BE TAKEN AFTER THE POLICY HAS RUN, and the case is not exotic. Prefixing is
+ * concatenation, and concatenation is not injective, so two claimants meet wherever the separator
+ * is a character the id alphabet has. In the node id space the separator is `_` and a service id
+ * carries none, so nothing meets there; in the navigation id space it is `-`, which a service id
+ * may carry, and `T047` measured the collision: a service `a` whose node is `group-b` claims the
+ * navigation id `nav-a_group-b`, and so does a service `nav-a` whose tag group is `group-b`. The
+ * second is escaped and the report says so. A namespaced name that happens to equal a plain name
+ * another service already had is the other way it happens.
  */
 function allocate<T>(
   claims: readonly NameClaim<T>[],

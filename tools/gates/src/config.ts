@@ -1746,6 +1746,139 @@ export const STATIC_SUITE_COVERAGE: readonly StaticCoverage[] = [
 /** The first cell of the SPEC 21 row the wiring above answers. */
 export const STATIC_SUITE_ROW = 'Static';
 
+/** The first cell of the SPEC 21 row the federation wiring answers. */
+export const FEDERATION_SUITE_ROW = 'Federation';
+
+/**
+ * The Federation row of SPEC 21, wired coverage by coverage, by the mechanism above.
+ *
+ * THE ROW IS RUN RATHER THAN READ, FOR THE REASON THE `Static` ROW IS, and this is the second row
+ * to get a runner because M4 is the milestone that closes it. `T047` asks for the federation
+ * suites to be wired into `pnpm gates`, and wiring them by file path alone would prove the files
+ * are there; what the row states is three coverages, so what has to be checked is that each of
+ * those three has a case with its name on it and that the three are the three the table states.
+ *
+ * ALL THREE ARE ANSWERABLE AT M4 AND NONE OF THEM IS OWED FORWARD, which was worth checking before
+ * this list was written. `смешанный HTTP+events` reads as M5 work, since the AsyncAPI normalizer is
+ * `T048`; the merge takes normalized IR rather than a specification, and an event document is IR
+ * the fixtures build today, so the mixed case is a merge case and it exists. What M5 adds is a
+ * normalizer that produces such a document from a file, and `T053` merges mixed documents from
+ * real sources, at which point this list gains files rather than its first ones.
+ */
+export const FEDERATION_SUITE_COVERAGE: readonly StaticCoverage[] = [
+  {
+    id: 'conflicts',
+    spec: 'конфликты',
+    files: [
+      'packages/federation/test/unit/merge-documents.spec.ts',
+      'packages/federation/test/unit/name-allocation.spec.ts',
+      'packages/federation/test/unit/adversarial-m4.spec.ts',
+    ],
+    cases: [
+      // The three modes of SPEC 15 on one contested address, which is the conflict the section is
+      // written about, plus the losslessness that makes two of them differ from dropping a service.
+      'should keep both operations and move both addresses under namespace',
+      'should let the first service keep the address and move the rest under first-wins',
+      'should refuse the merge under fail, naming the address and both services',
+      'should lose nothing but the address and the id, under every mode',
+      // And the conflict that is arithmetic rather than policy: two names that meet after the
+      // policy has run, which is the space where an escape is reachable.
+      'should move the second claimant of a navigation id and report the move',
+      'should carry the merge conflict code and not only the sentence',
+    ],
+  },
+  {
+    id: 'unavailable-remote',
+    spec: 'недоступный remote',
+    files: [
+      'packages/federation/test/unit/remote-lifecycle.spec.ts',
+      'packages/federation/test/integration/remote-lifecycle.spec.ts',
+      'packages/federation/test/unit/adversarial-m4.spec.ts',
+    ],
+    cases: [
+      // The done-when sentence of the lifecycle: one bad service does not take the others down.
+      'should not let a remote that never answered take down the documentation of the others',
+      'should degrade a remote that dies mid session, visibly, without breaking the page',
+      'should serve the fast remotes without waiting for a hung one',
+      // Over a real socket, with a process that is really killed and really comes back.
+      'should degrade a killed remote, keep its page content, and recover when it returns',
+      // And the two ways a remote is unavailable while answering, which `T047` attacked.
+      'should hold a bounded amount of a 400 MB answer and degrade like a remote that is down',
+      'should stop reading a trickling body when the lifecycle gives up on it',
+    ],
+  },
+  {
+    id: 'mixed-http-events',
+    spec: 'смешанный HTTP+events',
+    files: ['packages/federation/test/unit/merged-document.spec.ts'],
+    cases: [
+      // An HTTP service and an event service in one merge: ids, kind, and the address rule that
+      // makes a topic stay a topic rather than become a path no broker has.
+      'should prefix every node id with the id of its service',
+      'should report the kind as mixed when the services do not agree',
+      'should join a channel address that is not a path with a separator',
+    ],
+  },
+];
+
+/** The milestone whose definition of done the federation wiring below answers. */
+export const FEDERATION_MILESTONE = 'M4';
+
+/**
+ * The M4 definition of done, wired to the case that answers it.
+ *
+ * ONE CLAUSE, AND WHAT IT OWES IS THE WHOLE OF IT. "The three service demo works as one page" is
+ * three claims: the demo of three services boots, it is one page rather than three, and it is the
+ * whole federation rather than the part that answered first. The case named here reads one mount's
+ * page, its live snapshot and its search index off the running demo, so a mount that started
+ * serving three documents, or one that dropped the local service, fails it.
+ *
+ * IT IS NOT RUN BY THIS GATE, for the reason `checkMilestoneClauses` gives about the M3 clauses:
+ * it is a `packages/nest` integration suite that `pnpm test:integration` already runs, and running
+ * it here would boot the demo a second time to report the same red twice.
+ */
+export const FEDERATION_MILESTONE_CLAUSES: readonly StaticCoverage[] = [
+  {
+    id: 'three-service-demo',
+    spec: 'демо из трёх сервисов работает как одна страница',
+    files: ['packages/nest/test/integration/federation.spec.ts'],
+    cases: ['should serve the three services as one document, which is the M4 definition of done'],
+  },
+];
+
+/**
+ * The suite T047 adds beyond the two documents, wired so its removal goes red.
+ *
+ * THE SPEC 20 BUDGETS RE-CHECKED ON A MERGED DOCUMENT THREE TIMES THE SIZE ARE THE HALF OF `T047`
+ * THAT NO SPECIFICATION SENTENCE NAMES: SPEC 21's Federation row states three coverages and the
+ * M4 done-when states one clause, and the tripled budget suite answers neither, so neither list
+ * above can carry it without failing its own reconciliation. Named by no list at all, it sat in
+ * the defect class this gate exists on: the post-close review of `T047` found that deleting the
+ * file would have left `pnpm gates` green with nothing saying so.
+ *
+ * SO IT IS WIRED BY THE REPOSITORY HALF ALONE, `checkSuiteFiles`, the same check the two lists
+ * above share: the named file must be there, every named case must be present, and a named case
+ * must assert something. There is no specification half because no specification sentence names
+ * this suite; the `spec` field carries the suite's own describe title rather than a SPEC cell,
+ * and it is compared with nothing.
+ *
+ * CHECKED AND NOT RUN, for the reason the milestone clause is: it is a `packages/nest`
+ * integration suite that `pnpm test:integration` already runs, and a gate run of a three
+ * thousand node merge would spend that time to report the same red twice.
+ */
+export const FEDERATION_BUDGET_SUITE: readonly StaticCoverage[] = [
+  {
+    id: 'tripled-budgets',
+    spec: 'the SPEC 20 budgets on a merged document three times the size',
+    files: ['packages/nest/test/integration/federation-budget.spec.ts'],
+    cases: [
+      'should merge three thousand node services into one document of three thousand nodes',
+      'should keep the search index of the merged document inside three times its row',
+      'should prerender a page of the merged document inside three times its row',
+    ],
+  },
+];
+
 /** The milestone whose definition of done the wiring below answers, as SPEC 22 spells it. */
 export const MILESTONE_UNDER_GATE = 'M3';
 

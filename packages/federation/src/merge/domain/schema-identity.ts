@@ -42,6 +42,31 @@ export interface SchemaClass {
 const UNKNOWN_TARGET = '?';
 
 /**
+ * Longest run of refinement rounds before the merge stops splitting and stops deduplicating.
+ *
+ * THE ROUNDS WERE BOUNDED ONLY BY THE NUMBER OF SCHEMAS, AND T047 MEASURED WHAT THAT COSTS. Each
+ * round re-hashes the body of every entry, and the partition can split by one class per round, so
+ * two services whose schema names agree and whose reference chains differ deep down pay one hash
+ * per schema per level: 50 schemas a service took 43 ms, 100 took 131, 200 took 507, 400 took
+ * 2016 and 800 took 8257, which is four times the work for twice the input. The merge runs
+ * synchronously inside the process that serves pages, so a document well inside the parser's
+ * ceiling stops that process for minutes.
+ *
+ * WHAT HAPPENS AT THE BOUND IS THE CONSERVATIVE DIRECTION AND NOT THE CHEAP ONE. A partition still
+ * refining at the last round is coarser than the true one, so any class that still holds more than
+ * one member is one this pass could not tell apart, and those members are split into classes of
+ * their own rather than left merged. That loses deduplication and never merges two schemas that
+ * are not one, which is the same trade `signatureOf` already makes for a schema whose `raw` cannot
+ * be hashed: deduplication is a saving rather than a fact.
+ *
+ * THIRTY TWO IS A DEPTH RATHER THAN A COUNT. A round distinguishes schemas one reference further
+ * apart than the last, so the bound is on how deep two same named models may differ before this
+ * stops separating them by content, and thirty two levels of reference chain is past anything a
+ * hand written document reaches. Recorded in SPEC 15.1 with the measurement.
+ */
+export const SCHEMA_REFINEMENT_MAX_ROUNDS = 32;
+
+/**
  * Groups schemas from several services into one class per distinct component.
  *
  * @param entries - Every named schema of every service, in a deterministic order
@@ -53,8 +78,11 @@ export function classifySchemas(entries: readonly SchemaEntry[]): SchemaClass[] 
   const index = indexEntries(entries);
   let signatures = entries.map((entry) => signatureOf(entry, () => UNKNOWN_TARGET));
   let distinct = new Set(signatures).size;
+  let rounds = 0;
+  let refining = distinct < entries.length;
 
-  while (distinct < entries.length) {
+  while (refining && rounds < SCHEMA_REFINEMENT_MAX_ROUNDS) {
+    rounds += 1;
     const previous = signatures;
     const next = entries.map((entry) =>
       signatureOf(entry, (target) => {
@@ -69,11 +97,28 @@ export function classifySchemas(entries: readonly SchemaEntry[]): SchemaClass[] 
 
     const nextDistinct = new Set(next).size;
     signatures = next;
-    if (nextDistinct === distinct) break;
+    if (nextDistinct === distinct) {
+      refining = false;
+      break;
+    }
     distinct = nextDistinct;
+    refining = distinct < entries.length;
   }
 
-  return groupBySignature(entries, signatures);
+  const classes = groupBySignature(entries, signatures);
+
+  // THE PARTITION WAS STILL SPLITTING WHEN THE ROUNDS RAN OUT, so what is left merged is what this
+  // pass could not tell apart rather than what it decided is one component. Splitting those classes
+  // is the direction that can only lose a saving, per SCHEMA_REFINEMENT_MAX_ROUNDS. The classes
+  // that already held one member are untouched, so the order the classes come back in is the one
+  // an unbounded run would have produced.
+  if (refining) {
+    return classes.flatMap((schemaClass) =>
+      schemaClass.members.map((member) => ({ members: [member] })),
+    );
+  }
+
+  return classes;
 }
 
 /**
