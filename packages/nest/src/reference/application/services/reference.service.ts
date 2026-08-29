@@ -65,6 +65,7 @@ import {
   NO_STORE,
   REVALIDATE,
   notFoundReply,
+  textReply,
   type ErrorReporter,
 } from '../../../http/domain/reply';
 import type {
@@ -283,14 +284,16 @@ export class ReferenceService {
       case 'states':
         return this.page(request, 'states', null, null);
       // THE FEDERATED SERVICE CARD, per SPEC 15.3, and the reserved answer where there is no
-      // federation: on a document with no `services` every id names nothing, and the words
-      // differ from the node 404 so the address is tellable from an unregistered one.
+      // federation: on a document with no `services` every id names nothing, and the 404 says
+      // which of two facts it is, per SPEC 13.3, in `serviceNotFound` below.
       case 'service':
         return this.page(request, 'service', null, null, request.params[SERVICE_PARAM] ?? null);
-      // The live snapshot is the federated host's to answer, per SPEC 15.3; a mount of one
-      // document has no lifecycle and says so, so "not a federation" is a learnable fact.
+      // The live snapshot is the federated host's to answer, per SPEC 15.3. A mount of one
+      // document has no lifecycle, and the 404 says that rather than answering about a name:
+      // this route takes no parameter, so "no federation of that name" named nothing in the
+      // request, which is the defect SPEC 13.3 records for the service route one address over.
       case 'federation':
-        return Promise.resolve(notFoundReply('federation'));
+        return Promise.resolve(notAFederation('there is no federation snapshot here'));
       case 'openapi-json':
         return Promise.resolve(this.specification(request, 'json'));
       case 'openapi-yaml':
@@ -342,7 +345,7 @@ export class ReferenceService {
 
     if (nodeSegment !== null && nodeId === null) return notFoundReply('operation');
     if (schemaSegment !== null && schemaId === null) return notFoundReply('schema');
-    if (kind === 'service' && serviceId === null) return notFoundReply('service');
+    if (kind === 'service' && serviceId === null) return this.serviceNotFound();
 
     // A CHANNEL HAS NO BENCH. Nothing links here for one, per SPEC 11's dead link rule, so a
     // reader arrives only by hand and the honest answer is that the address holds nothing.
@@ -388,6 +391,35 @@ export class ReferenceService {
       },
       body: html,
     };
+  }
+
+  /**
+   * The service route's 404, per SPEC 13.3: two facts, two sentences.
+   *
+   * ONE PHRASE USED TO COVER BOTH AND A READER ACTS ON THEM DIFFERENTLY. "This mount is not a
+   * federation" means the setup is not what the reader thought; "no service by that name" means
+   * the name was typed wrong, and the right names are the actionable part, so the second
+   * sentence lists them, the `openapi.json` refusal's own move. The shape stays what SPEC 13.3
+   * gives the route: a 404 with words, `no-store`, nothing machine readable beyond the status.
+   * The first fact is `notAFederation` below, because `_federation` states the same one.
+   *
+   * NEITHER SENTENCE REPEATS THE NAME THAT WAS ASKED FOR. What is interpolated is this
+   * document's own service ids and nothing from the request, so a name carrying markup cannot
+   * reach the body to be escaped or missed; the response to any wrong name is the same bytes.
+   *
+   * @returns The 404 naming which of the two facts holds
+   */
+  private serviceNotFound(): ReferenceReply {
+    const services = this.document.services ?? [];
+
+    if (services.length === 0) return notAFederation('there are no service pages here');
+
+    return textReply(
+      404,
+      'No service of that name is in this federation. The services it documents are: ' +
+        `${services.map((service) => service.id).join(', ')}.`,
+      NO_STORE,
+    );
   }
 
   /**
@@ -924,6 +956,32 @@ function proxyRefusal(reason: string): ReferenceReply {
     headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': NO_STORE },
     body: JSON.stringify({ error: reason }),
   };
+}
+
+/**
+ * What a route only a federation can serve answers on a mount that is not one, per SPEC 13.3.
+ *
+ * TWO ROUTES SAY THIS AND THEY SAY IT ONCE. `service/{serviceId}` and `_federation` are both
+ * registered on every mount, by the `_proxy` precedent, so that "not a federation" is a fact a
+ * request can learn rather than a missing address; the fact is the same one and only the thing
+ * this mount therefore lacks differs. Written twice, the two would drift, and the drift would
+ * be invisible: each sentence reads fine alone, and only a reader who hit both would find that
+ * one mount described itself two ways.
+ *
+ * IT NAMES THE SETUP AND NOT A NAME. Neither answer repeats anything from the request. The
+ * `_federation` route takes no parameter at all, so the phrase it carried before, "no
+ * federation of that name", named something the request never contained.
+ *
+ * @param absent - What this mount therefore does not have, as a clause following "so"
+ * @returns A 404 with words, `no-store`, the shape SPEC 13.3 gives both routes
+ */
+function notAFederation(absent: string): ReferenceReply {
+  return textReply(
+    404,
+    `This mount is not a federation. It serves a single service, so ${absent}; if you expected ` +
+      'a federation, this reference is not mounted as one.',
+    NO_STORE,
+  );
 }
 
 /**

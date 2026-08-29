@@ -80,8 +80,9 @@ export const STATES_SEGMENT = 'states';
  * IT WAS RESERVED FROM M2 AND ANSWERED WITH WORDS UNTIL M4, by the `_proxy` precedent: a route
  * that exists only when federation is mounted makes "no services" and "no such address" the
  * same 404 from outside. Since `T046` it answers the card on a document that carries
- * `services`, and the prior 404 with words on a single service document, so "not a federation"
- * and "no such service" stay two different facts a request can learn.
+ * `services`, and a 404 with words otherwise; since the pre-M5 cleanup the 404 itself says
+ * which fact holds, "not a federation" or "no such service", per SPEC 13.3, because a reader
+ * acts on the two differently.
  *
  * DEFINED IN `links.ts` OF `@openref/render` SINCE `T046`, by the `PROXY_SEGMENT` precedent:
  * the navigation's service groups link the address, and two spellings of one path is the

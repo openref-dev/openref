@@ -287,16 +287,43 @@ describe('ReferenceService, search index and health', () => {
     expect(reply.headers['content-type']).toContain('text/html');
   });
 
-  it('should answer the reserved service address with its own words, not the node 404', async () => {
-    // Given
+  it('should say the mount is not a federation at the reserved service address', async () => {
+    // Given a mount over a single document, whose IR carries no `services`
     const reference = service();
 
     // When
     const reply = await reference.handle('service', request({ serviceId: 'billing' }));
 
-    // Then, tellable from an unregistered address, per the `_proxy` precedent.
+    // Then the 404 names the first of SPEC 13.3's two facts, the setup and not the name: a
+    // reader who expected a federation learns their mount is not one, which is tellable from
+    // the node 404 and from the wrong name sentence a merged mount answers with.
     expect(reply.status).toBe(404);
-    expect(String(reply.body)).toContain('service');
+    expect(reply.headers['cache-control']).toBe('no-store');
+    expect(reply.headers['content-type']).toBe('text/plain; charset=utf-8');
+    expect(String(reply.body)).toBe(
+      'This mount is not a federation. It serves a single service, so there are no service ' +
+        'pages here; if you expected a federation, this reference is not mounted as one.',
+    );
+  });
+
+  it('should say the mount is not a federation at the live snapshot address too', async () => {
+    // Given the same single document mount, where `_federation` is registered by the `_proxy`
+    // precedent so that "not a federation" is tellable from "no such route"
+    const reference = service();
+
+    // When, on a route that takes no parameter at all
+    const reply = await reference.handle('federation', request());
+
+    // Then it states the fact the mount has, and not one about a name the request never
+    // carried: the generic 404 said "no federation of that name" here, which named nothing.
+    expect(reply.status).toBe(404);
+    expect(reply.headers['cache-control']).toBe('no-store');
+    expect(reply.headers['content-type']).toBe('text/plain; charset=utf-8');
+    expect(String(reply.body)).toBe(
+      'This mount is not a federation. It serves a single service, so there is no federation ' +
+        'snapshot here; if you expected a federation, this reference is not mounted as one.',
+    );
+    expect(String(reply.body)).not.toContain('of that name');
   });
 });
 

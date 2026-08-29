@@ -213,10 +213,12 @@ here because it is the declared type of something a theme is handed.
 
 **The class names the reference leaves in the markup are not frozen, and a theme styles them.**
 An L2 theme replaces every position and still receives markup drawn outside all of them, under the
-reference's own `oref-` names. 37 of them as of 2026-08-28, measured on the five kinds of page a
+reference's own `oref-` names. 48 of them as of 2026-08-28, measured on the six kinds of page a
 reader can open, up from 25 when the second theme was written. A theme that does not style them
 ships unstyled regions, and nothing on the theme's own side goes red when a new one arrives: it
-compiles, it renders, and the page has a gap in it.
+compiles, it renders, and the page has a gap in it. The service card of `T046` did exactly that:
+it shipped outside the measuring sweep, its eleven names were on no list, and the second theme
+served the page unstyled until the pre-M5 cleanup put the sixth page kind into the sweep.
 
 The list is pinned in one place, `packages/theme-telltale/test/integration/theme-boundary.spec.ts`,
 which fails when a name arrives or leaves, so the fact is read rather than absorbed. It is not

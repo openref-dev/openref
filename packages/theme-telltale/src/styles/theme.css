@@ -974,9 +974,12 @@
 
 /* TX-FRAME widened the boundary: the bench and health pages are articles the reference draws
  * outside every position, with a header block of its own two classes. Named here for the same
- * reason as everything in this region: unstyled they read as a theme nobody finished. */
+ * reason as everything in this region: unstyled they read as a theme nobody finished. The
+ * service card of T046 is the third such article, named by the pre-M5 cleanup; its own block
+ * is at the end of this region, keyed on the shell's page class. */
 .oref-bench-page,
-.oref-health-page {
+.oref-health-page,
+.oref-service-page {
   display: block;
 }
 
@@ -1174,4 +1177,103 @@
 .oref-field-note {
   color: var(--oref-color-fg-muted);
   font-size: var(--oref-font-size-100);
+}
+
+/* THE FEDERATED SERVICE CARD, per SPEC 15.3, named by the pre-M5 cleanup, 2026-08-28: the card
+ * shipped with T046 outside the measuring sweep, so this theme styled none of its eleven names
+ * and the page rendered on the generic section rules, which looked deliberate and was not.
+ * Every rule is keyed on `tt-page-service`, the class the shell already writes for the page,
+ * so the treatment is this theme's decision about that page and reaches no other markup; the
+ * page article itself joined the TX-FRAME rule above. The card is a fact sheet, so it sits on
+ * the grid: one row per fact, a hairline under each, the label column the width the try-it
+ * labels already use. The status mark is the one live element, a flat square in this theme
+ * rather than a dot, coloured and worded only by the attribute the federation snapshot fetch
+ * writes: no attribute, no claim. */
+
+.tt-page-service .oref-service-kicker {
+  color: var(--oref-color-fg-muted);
+}
+
+.tt-page-service .oref-service-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--oref-space-400);
+  color: var(--oref-color-fg-secondary);
+  font-size: var(--oref-font-size-200);
+}
+
+.tt-page-service .oref-service-id {
+  color: var(--oref-color-fg);
+  font-weight: var(--oref-font-weight-bold);
+}
+
+.tt-page-service .oref-service-status {
+  display: inline-block;
+  flex: 0 0 auto;
+  inline-size: var(--oref-space-400);
+  block-size: var(--oref-space-400);
+  background: var(--oref-color-fg-muted);
+}
+
+.tt-page-service .oref-service-status[data-oref-remote-status='fresh'] {
+  background: var(--oref-state-ok-fg);
+}
+
+.tt-page-service .oref-service-status[data-oref-remote-status='stale'],
+.tt-page-service .oref-service-status[data-oref-remote-status='pending'] {
+  background: var(--oref-drift-note-fg);
+}
+
+.tt-page-service .oref-service-status[data-oref-remote-status='degraded'] {
+  background: var(--oref-state-warn-fg);
+}
+
+.tt-page-service .oref-service-status[data-oref-remote-status='failed'] {
+  background: var(--oref-state-crit-fg);
+}
+
+.tt-page-service .oref-service-status[data-oref-remote-status]::after {
+  margin-inline-start: var(--oref-space-500);
+  color: var(--oref-color-fg-muted);
+  font-size: var(--oref-font-size-100);
+  letter-spacing: var(--oref-font-tracking-wide);
+  text-transform: uppercase;
+  content: attr(data-oref-remote-status);
+}
+
+.tt-page-service .oref-section-service {
+  border-top: var(--oref-border-hair) solid var(--oref-color-line);
+  padding-top: var(--oref-space-300);
+}
+
+.tt-page-service .oref-service-fact {
+  display: flex;
+  align-items: baseline;
+  gap: var(--oref-space-300);
+  min-height: var(--oref-layout-row);
+  border-bottom: var(--oref-border-hair) solid var(--oref-color-line);
+}
+
+.tt-page-service .oref-service-fact-label {
+  flex: 0 0 auto;
+  width: calc(var(--oref-space-1000) + var(--oref-space-900));
+  color: var(--oref-color-fg-muted);
+  font-size: var(--oref-font-size-100);
+  text-transform: uppercase;
+}
+
+.tt-page-service .oref-service-fact-value {
+  min-width: 0;
+  font-size: var(--oref-font-size-200);
+}
+
+.tt-page-service .oref-service-servers {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tt-page-service .oref-server {
+  font-size: var(--oref-font-size-200);
 }

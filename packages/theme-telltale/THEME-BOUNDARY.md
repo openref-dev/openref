@@ -19,15 +19,15 @@ way: the boundary is wider than when this file was written, not narrower. One of
 finding 4. The other five stay open, each now naming who would close it and what closing it costs,
 and two of them gained the check they were missing.
 
-## 1. 37 class names the theme did not write, and cannot replace
+## 1. 48 class names the theme did not write, and cannot replace
 
-Measured on the five kinds of page a reader can open, seven renders in all, with all 21 positions
+Measured on the six kinds of page a reader can open, eight renders in all, with all 21 positions
 overridden. **The list is not repeated here.** It lives in exactly one place, the pinned assertion
 in `test/integration/theme-boundary.spec.ts`, and a case in the same file fails when this document,
 `packages/vue/PUBLIC-API.md` or SPEC 10.4 states a different count, because a figure written in
 three places drifts in two, which is what happened: all three said 25 while the list said 37.
 
-Where the twelve came from, each with the task that drew them:
+Where the arrivals came from, each with the task that drew them:
 
 | Task | Names | Why |
 | --- | --- | --- |
@@ -35,12 +35,13 @@ Where the twelve came from, each with the task that drew them:
 | `TX-GUTTER` | minus 3 | The page level columns left the reference; the parity markup lives inside `RuntimePanel`, which this theme overrides |
 | `TX-FRAME` | plus 4 | Two new pages are articles the reference draws outside every position, and the bench head is its own two classes |
 | `TX-PARITY-UI` | plus 11 | Page furniture: the bench head's kicker, badge and path, the actions row, the description section |
+| pre-M5 cleanup | plus 11 | The service card of `T046`, an article outside every position, had shipped outside the sweep: its whole vocabulary was on no list and this theme styled none of it, so the page rendered on generic section styles and looked deliberate without being it |
 
 SPEC 10.1 says an L2 theme is "a package with its own layout; the core contributes no styles". The
 core contributes no *stylesheet*. It contributes *markup*, under its own class names, and a theme
 that does not style them ships a page with unstyled regions on every operation. So the last block
 of `src/styles/theme.css` styles class names from somebody else's namespace, which is the opposite
-of what a frozen contract is for. 36 of the 37 are styled here; the one that is not,
+of what a frozen contract is for. 47 of the 48 are styled here; the one that is not,
 `oref-section-health`, is finding 5 below.
 
 **What it costs a theme author, said plainly.** This list is not part of the frozen contract. A

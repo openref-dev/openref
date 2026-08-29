@@ -10,7 +10,14 @@ import {
   type PickedFile as ThemePickedFile,
   type ValueEvent as ThemeValueEvent,
 } from '../../src/dom';
-import { apiDocument, nodeId, postNodeId, runtimeDocument } from '../mocks/documents';
+import {
+  SERVICE_ID,
+  apiDocument,
+  federatedDocument,
+  nodeId,
+  postNodeId,
+  runtimeDocument,
+} from '../mocks/documents';
 import { createMarkdownRenderer } from '../../../render/src/markdown/domain/markdown';
 import {
   nodeHref as referenceNodeHref,
@@ -63,12 +70,14 @@ async function survivingCoreClasses(): Promise<readonly string[]> {
 
   // The health page is rendered from the document with an application behind it, because the
   // panel is drawn only when there is a report, and a sweep that missed it would report a
-  // smaller boundary than the one that exists. Seven renders over the five kinds of page a
+  // smaller boundary than the one that exists. Eight renders over the six kinds of page a
   // reader can open: the bench carries the console the node page lost, and health carries the
   // panel the overview lost, and node and bench are each rendered twice because the two mock
   // documents put different sections on them. The two showcase addresses stay out: they are a
   // theme author's pages, not a reader's. The count is corrected here by `T031-R1`; it read
-  // "six pages" while this list held seven entries.
+  // "six pages" while this list held seven entries. The service card of SPEC 15.3 is the
+  // eighth render and the sixth kind, added by the pre-M5 cleanup: it had shipped outside
+  // this sweep, so its names were on no list and telltale served the page unstyled.
   const pages = [
     { document: runtimeDocument(), where: { nodeId: nodeId() } },
     { document, where: { nodeId: postNodeId() } },
@@ -77,6 +86,7 @@ async function survivingCoreClasses(): Promise<readonly string[]> {
     { document, where: { page: 'bench' as const, nodeId: postNodeId() } },
     { document: runtimeDocument(), where: { page: 'bench' as const, nodeId: nodeId() } },
     { document: runtimeDocument(), where: { page: 'health' as const } },
+    { document: federatedDocument(), where: { page: 'service' as const, serviceId: SERVICE_ID } },
   ];
 
   for (const page of pages) {
@@ -97,7 +107,7 @@ async function survivingCoreClasses(): Promise<readonly string[]> {
 }
 
 describe('the markup a complete L2 theme does not own', () => {
-  it('should be exactly these class names, on the five kinds of page a reader can open', async () => {
+  it('should be exactly these class names, on the six kinds of page a reader can open', async () => {
     // Given a theme that fills all 21 positions of the frozen registry and writes its own
     // stylesheet, which is what SPEC 10.1 calls a level 2 theme: "a package with its own layout;
     // the core contributes no styles".
@@ -123,6 +133,12 @@ describe('the markup a complete L2 theme does not own', () => {
     // (`oref-section-description`, `oref-section-count`), which `NodePanel` draws the way it
     // always drew the bare description. Whether the bench head becomes a position belongs to
     // the telltale adoption task, with the two page heads TX-FRAME already put there.
+    // ELEVEN ARRIVED WITH THE PRE-M5 CLEANUP, 2026-08-28, and they had been on the page since
+    // `T046`: the service card of SPEC 15.3 is an article the reference draws outside every
+    // position, and it shipped outside this sweep, so the card's whole vocabulary, the page,
+    // the kicker, the meta line with its id and live status mark, the facts section with its
+    // label and value cells, and the server list, was on no list and telltale styled none of
+    // it. The page looked deliberate and was not, which is the sweep's whole reason to exist.
     expect(surviving).toEqual([
       'oref-badge',
       'oref-bench-actions',
@@ -153,11 +169,22 @@ describe('the markup a complete L2 theme does not own', () => {
       'oref-section-health',
       'oref-section-request',
       'oref-section-security',
+      'oref-section-service',
       'oref-section-title',
       'oref-section-tryit',
       'oref-security-item',
       'oref-security-list',
       'oref-security-type',
+      'oref-server',
+      'oref-service-fact',
+      'oref-service-fact-label',
+      'oref-service-fact-value',
+      'oref-service-id',
+      'oref-service-kicker',
+      'oref-service-meta',
+      'oref-service-page',
+      'oref-service-servers',
+      'oref-service-status',
       'oref-title',
       'oref-tryit-form',
       'oref-tryit-reset',

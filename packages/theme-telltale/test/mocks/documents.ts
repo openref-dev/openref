@@ -4,6 +4,7 @@ import {
   type IRDocument,
   type IRNode,
   type IRNodeRuntime,
+  type IRService,
 } from '@openref/core';
 
 /**
@@ -105,6 +106,31 @@ export function postNodeId(document: IRDocument = apiDocument()): string {
   const id = [...document.nodes.keys()].find((key) => key.startsWith('post'));
   if (id === undefined) throw new Error('the fixture lost its operation');
   return id;
+}
+
+/** The id the federated fixture registers its one service under. */
+export const SERVICE_ID = 'orders';
+
+/**
+ * The same document as one service of a federation, per SPEC 15.3.
+ *
+ * Augmented the way `runtimeDocument` augments, from core types alone: a theme author cannot
+ * run the federation merge, but `IRDocument.services` is public IR, and the service page is
+ * drawn from it. The service quotes the document's own header, so every fact on the card is a
+ * fact the fixture really carries.
+ */
+export function federatedDocument(): IRDocument {
+  const document = apiDocument();
+  const service: IRService = {
+    id: SERVICE_ID,
+    documentId: document.id,
+    documentHash: document.hash,
+    kind: document.kind,
+    info: document.info,
+    servers: document.servers,
+    prefix: '/orders',
+  };
+  return { ...document, services: [service] };
 }
 
 /**

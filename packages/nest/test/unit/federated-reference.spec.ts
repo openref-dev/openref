@@ -123,6 +123,59 @@ describe('FederatedReferenceService, ready', () => {
     expect(String(reply.body)).toContain('https://billing.internal');
   });
 
+  it('should name the services it does have when the name asked for is not one of them', async () => {
+    // Given a merged mount that resolves a real name to a card, so the miss below is about the
+    // name asked for rather than about the address or the mount
+    const host = await readyHost();
+    const present = await host.handle('service', request({ serviceId: 'billing' }));
+    expect(present.status).toBe(200);
+
+    // When
+    const reply = await host.handle('service', request({ serviceId: 'shipping' }));
+
+    // Then the 404 names the second of SPEC 13.3's two facts, the name and not the setup, and
+    // the actionable part is the right names, the `openapi.json` refusal's own move.
+    expect(reply.status).toBe(404);
+    expect(reply.headers['cache-control']).toBe('no-store');
+    expect(reply.headers['content-type']).toBe('text/plain; charset=utf-8');
+    expect(String(reply.body)).toBe(
+      'No service of that name is in this federation. The services it documents are: ' +
+        'billing, orders.',
+    );
+  });
+
+  it('should answer a wrong name without repeating it, whatever the name carries', async () => {
+    // Given a merged mount and two wrong names, one of them a markup payload rather than an id
+    const host = await readyHost();
+    const hostile = '<img src=x onerror=alert(1)>';
+    const marker = `absent-${'x'.repeat(200)}`;
+
+    // When each is asked for at the service address
+    const plain = await host.handle('service', request({ serviceId: 'shipping' }));
+    const attack = await host.handle('service', request({ serviceId: hostile }));
+    const long = await host.handle('service', request({ serviceId: marker }));
+    const body = String(attack.body);
+
+    // Then the body does interpolate, and what it interpolates is this federation's own ids:
+    // the absence below is measured against a sentence that demonstrably carries values.
+    expect(attack.status).toBe(404);
+    expect(attack.headers['content-type']).toBe('text/plain; charset=utf-8');
+    expect(body).toContain('billing');
+    expect(body).toContain('orders');
+
+    // And nothing from the request reaches it. Escaping is the last line rather than the first:
+    // the name asked for is never a value here, so there is nothing to escape or to miss.
+    expect(body).not.toContain(hostile);
+    expect(body).not.toContain('<img');
+    expect(body).not.toContain('onerror');
+    expect(String(long.body)).not.toContain(marker);
+
+    // And the proof that it cannot reflect is that the answer does not vary with the name at
+    // all: three unrelated wrong names, one set of bytes, so length alone tells nothing either.
+    expect(body).toBe(String(plain.body));
+    expect(String(long.body)).toBe(String(plain.body));
+  });
+
   it('should answer the live snapshot without the document, no-store', async () => {
     // Given
     const host = await readyHost();
