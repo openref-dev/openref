@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import type { IRDiffChange, IRDiffReport, IRDocument } from '../../src/index';
-import { buildDiffReport, normalizeOpenApiDocument } from '../../src/index';
+import {
+  buildDiffReport,
+  normalizeAsyncApiDocument,
+  normalizeOpenApiDocument,
+} from '../../src/index';
 import { createRandom, shuffleKeys } from '../mocks/document.mock';
 
 /**
@@ -1382,6 +1386,111 @@ describe('buildDiffReport and document order', () => {
 
     // When
     const report = buildDiffReport(normalize(older), normalize(newer));
+
+    // Then
+    expect(report.breaking).toEqual([]);
+    expect(report.nonBreaking).toEqual([]);
+  });
+});
+
+/**
+ * The differ over an events document, which is the first thing to run one over channels.
+ *
+ * `IRServer.protocol` and `IRServer.protocolVersion` have been part of the facing record since
+ * T038, and the comparison of them is what had no runner. Both have had a producer since T004:
+ * `normalizeOpenApiDocument` reads either member off a server entry, and
+ * `openapi-normalizer-details.spec.ts` asserts both. What no case exercised was the differ over a
+ * move of either, so the two members sat in `serverFacing` with nothing proving they were read
+ * there. These are their runner, and an events document is where a protocol moves in practice.
+ */
+describe('buildDiffReport over an events document', () => {
+  /** An AsyncAPI document around the given brokers, with one channel so it is not an empty one. */
+  function events(servers: Record<string, unknown>): IRDocument {
+    return normalizeAsyncApiDocument({
+      asyncapi: '3.0.0',
+      info: { title: 'Orders Events', version: '1.0.0' },
+      servers,
+      channels: { orderPlaced: { address: 'orders.placed' } },
+    });
+  }
+
+  it('should report a broker protocol version change as one non breaking server change', () => {
+    // Given one broker at one address, upgraded. Both sides carry the same url, so the pair is
+    // matched by url and `protocolVersion` is the only member of the facing record that moves.
+    const older = events({
+      broker: { host: 'kafka.example.com:9092', protocol: 'kafka', protocolVersion: '3.5' },
+    });
+    const newer = events({
+      broker: { host: 'kafka.example.com:9092', protocol: 'kafka', protocolVersion: '3.7' },
+    });
+    expect(older.servers).toEqual([
+      { url: 'kafka://kafka.example.com:9092', protocol: 'kafka', protocolVersion: '3.5' },
+    ]);
+    expect(newer.servers.map((server) => server.url)).toEqual(
+      older.servers.map((server) => server.url),
+    );
+
+    // When
+    const report = buildDiffReport(older, newer);
+
+    // Then
+    expect(report.breaking).toEqual([]);
+    expect(report.nonBreaking).toEqual([
+      {
+        kind: 'server-changed',
+        classification: 'non-breaking',
+        subject: 'server kafka://kafka.example.com:9092',
+      },
+    ]);
+  });
+
+  it('should report a broker protocol change, which per SPEC 8.2 moves the url with it', () => {
+    // Given the same host reached over a different protocol. AsyncAPI 3 writes no url, so the
+    // normalizer builds one as `<protocol>://<host><pathname>` and a protocol edit is never the
+    // sole difference: the two brokers meet as the leftover of one removal and one addition
+    // rather than under a shared url, and the change names both addresses.
+    const older = events({
+      broker: { host: 'broker.example.com', protocol: 'mqtt', protocolVersion: '3.1.1' },
+    });
+    const newer = events({
+      broker: { host: 'broker.example.com', protocol: 'amqp', protocolVersion: '3.1.1' },
+    });
+    expect(older.servers.map((server) => server.protocol)).toEqual(['mqtt']);
+    expect(newer.servers.map((server) => server.protocol)).toEqual(['amqp']);
+
+    // When
+    const report = buildDiffReport(older, newer);
+
+    // Then
+    expect(report.breaking).toEqual([]);
+    expect(report.nonBreaking).toEqual([
+      {
+        kind: 'server-changed',
+        classification: 'non-breaking',
+        subject: 'server',
+        oldValue: 'mqtt://broker.example.com',
+        newValue: 'amqp://broker.example.com',
+      },
+    ]);
+  });
+
+  it('should register nothing when two brokers agree, presence proved by the pair above', () => {
+    // Given two documents whose brokers carry the same protocol and the same protocol version,
+    // and one description edit, which SPEC 17.1 keeps as an annotation. The two cases above are
+    // the presence half: this differ does read a broker's protocol pair and does report it, so
+    // the silence here is agreement rather than the servers never being compared at all.
+    const broker = {
+      host: 'kafka.example.com:9092',
+      protocol: 'kafka',
+      protocolVersion: '3.5',
+    };
+    const older = events({ broker: { ...broker, description: 'staging broker' } });
+    const newer = events({ broker: { ...broker, description: 'production broker' } });
+    expect(older.servers[0]?.protocolVersion).toBe(newer.servers[0]?.protocolVersion);
+    expect(older.servers[0]?.description).not.toBe(newer.servers[0]?.description);
+
+    // When
+    const report = buildDiffReport(older, newer);
 
     // Then
     expect(report.breaking).toEqual([]);

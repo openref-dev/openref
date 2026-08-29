@@ -230,6 +230,8 @@ export {
   normalizeOpenApiDocument,
 } from './normalizer/domain/openapi-normalizer';
 export type { NormalizeOpenApiOptions } from './normalizer/domain/openapi-normalizer';
+export { normalizeAsyncApiDocument } from './normalizer/domain/asyncapi-normalizer';
+export type { NormalizeAsyncApiOptions } from './normalizer/domain/asyncapi-normalizer';
 export {
   buildSchema,
   dialectFromSchemaFormat,

@@ -1,16 +1,12 @@
 import { finalizeDocument } from '../../hashing/domain/hash';
 import type {
-  IRContact,
   IRDocument,
   IRUnreadKey,
-  IRInfo,
-  IRLicense,
   IROAuthFlow,
   IROAuthFlows,
   IRSecurityScheme,
   IRSecuritySchemeType,
   IRServer,
-  IRServerVariable,
 } from '../../ir/domain/document.types';
 import type {
   IRCodeSample,
@@ -28,15 +24,20 @@ import type {
   IRSecurityRequirement,
   IRServerOverride,
 } from '../../ir/domain/node.types';
-import type {
-  IRJsonValue,
-  IRSchema,
-  IRSchemaDialect,
-  IRSchemaSlot,
-} from '../../ir/domain/schema.types';
-import { ErrorCode, NormalizeError, UnsupportedDialectError } from '../../shared/errors/index';
-import { buildSchema } from './dialect';
-import { createSchemaRegistry, type SchemaRegistry } from './schema-registry';
+import { ErrorCode, UnsupportedDialectError } from '../../shared/errors/index';
+import {
+  collectNamedSchemas,
+  documentSlug,
+  invalidDocument,
+  produceDeclaredSchemas,
+  readExtensions,
+  readInfo,
+  readServerVariables,
+  readTags,
+  schemaSlot,
+  type SchemaContext,
+} from './document-parts';
+import { createSchemaRegistry } from './schema-registry';
 import {
   asBoolean,
   asJsonValue,
@@ -45,15 +46,13 @@ import {
   isPlainObject,
   isUnknownArray,
 } from './guards';
-import { schemaNameFromReference } from './json-pointer';
-import { buildNavigation, type NavigationTag } from './navigation';
+import { buildNavigation } from './navigation';
 import {
   assignOperationIdentities,
   isStandardHttpMethod,
   STANDARD_HTTP_METHODS,
 } from './operation-identity';
 import { compareByCodePoint } from '../../hashing/domain/canonical';
-import { normalizeSchema } from './schema-normalizer';
 
 /**
  * OpenAPI intake for 3.0, 3.1 and 3.2, per SPEC 5.4 and SPEC 23.
@@ -104,74 +103,9 @@ const PARAMETER_STYLES = [
   'deepObject',
 ] as const satisfies readonly IRParameterStyle[];
 
-interface Context {
-  readonly document: Record<string, unknown>;
-  readonly dialect: IRSchemaDialect;
-  readonly namedSchemas: ReadonlySet<string>;
-  /** Where every named schema reached anywhere in the document is collected, per SPEC 5.1.1. */
-  readonly registry: SchemaRegistry;
-  readonly externalDocuments: Readonly<Record<string, unknown>>;
-  readonly cycleDepth: number | undefined;
+interface Context extends SchemaContext {
   /** Requirement declared on the document, inherited by an operation that declares none. */
   readonly documentSecurity: readonly IRSecurityRequirement[];
-}
-
-function invalid(message: string, context?: Record<string, unknown>): NormalizeError {
-  return new NormalizeError(message, ErrorCode.NORM_DOCUMENT_INVALID, undefined, context);
-}
-
-function slug(text: string): string {
-  const cleaned = text
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '');
-  return cleaned === '' ? 'document' : cleaned;
-}
-
-function schemaOptions(context: Context): Parameters<typeof normalizeSchema>[1] {
-  const options: {
-    rootDocument: unknown;
-    externalDocuments?: Readonly<Record<string, unknown>>;
-    cycleDepth?: number;
-    registry: SchemaRegistry;
-  } = { rootDocument: context.document, registry: context.registry };
-
-  if (Object.keys(context.externalDocuments).length > 0) {
-    options.externalDocuments = context.externalDocuments;
-  }
-  if (context.cycleDepth !== undefined) options.cycleDepth = context.cycleDepth;
-
-  return options;
-}
-
-/**
- * Resolves a schema at a use site to a slot.
- *
- * A reference into `components/schemas` becomes a named slot, so the schema is stored once and
- * referred to everywhere. Anything else is normalized in place under a deterministic id.
- */
-function schemaSlot(raw: unknown, context: Context, id: string): IRSchemaSlot | undefined {
-  if (raw === undefined) return undefined;
-
-  if (isPlainObject(raw)) {
-    const reference = asString(raw.$ref);
-    if (reference !== undefined && Object.keys(raw).length === 1) {
-      const name = schemaNameFromReference(reference);
-      if (reference.startsWith('#/components/schemas/') && context.namedSchemas.has(name)) {
-        return { kind: 'named', schemaId: name };
-      }
-    }
-  }
-
-  return {
-    kind: 'inline',
-    schema: buildSchema({
-      id,
-      payload: raw,
-      defaultDialect: context.dialect,
-      normalizeOptions: schemaOptions(context),
-    }),
-  };
 }
 
 function readExamples(raw: unknown): Readonly<Record<string, IRExample>> | undefined {
@@ -230,62 +164,6 @@ function readCodeSamples(source: Record<string, unknown>): IRCodeSample[] | unde
   return samples.length > 0 ? samples : undefined;
 }
 
-function readExtensions(source: Record<string, unknown>): Record<string, IRJsonValue> | undefined {
-  const extensions: Record<string, IRJsonValue> = {};
-
-  for (const key of Object.keys(source).sort(compareByCodePoint)) {
-    if (!key.startsWith('x-')) continue;
-    const value = asJsonValue(source[key]);
-    if (value !== undefined) extensions[key] = value;
-  }
-
-  return Object.keys(extensions).length > 0 ? extensions : undefined;
-}
-
-function readInfo(raw: unknown): IRInfo {
-  if (!isPlainObject(raw)) throw invalid('the document has no info object');
-
-  const title = asString(raw.title);
-  const version = asString(raw.version);
-  if (title === undefined || version === undefined) {
-    throw invalid('info requires both a title and a version');
-  }
-
-  const info: { -readonly [Key in keyof IRInfo]: IRInfo[Key] } = { title, version };
-
-  const summary = asString(raw.summary);
-  const description = asString(raw.description);
-  const terms = asString(raw.termsOfService);
-  if (summary !== undefined) info.summary = summary;
-  if (description !== undefined) info.description = description;
-  if (terms !== undefined) info.termsOfService = terms;
-
-  if (isPlainObject(raw.contact)) {
-    const contact: { -readonly [Key in keyof IRContact]: IRContact[Key] } = {};
-    const name = asString(raw.contact.name);
-    const url = asString(raw.contact.url);
-    const email = asString(raw.contact.email);
-    if (name !== undefined) contact.name = name;
-    if (url !== undefined) contact.url = url;
-    if (email !== undefined) contact.email = email;
-    if (Object.keys(contact).length > 0) info.contact = contact;
-  }
-
-  if (isPlainObject(raw.license)) {
-    const name = asString(raw.license.name);
-    if (name !== undefined) {
-      const license: { -readonly [Key in keyof IRLicense]: IRLicense[Key] } = { name };
-      const identifier = asString(raw.license.identifier);
-      const url = asString(raw.license.url);
-      if (identifier !== undefined) license.identifier = identifier;
-      if (url !== undefined) license.url = url;
-      info.license = license;
-    }
-  }
-
-  return info;
-}
-
 function readServers(raw: unknown): IRServer[] {
   if (!isUnknownArray(raw)) return [];
 
@@ -303,25 +181,8 @@ function readServers(raw: unknown): IRServer[] {
     if (protocol !== undefined) server.protocol = protocol;
     if (protocolVersion !== undefined) server.protocolVersion = protocolVersion;
 
-    if (isPlainObject(entry.variables)) {
-      const variables: Record<string, IRServerVariable> = {};
-      for (const name of Object.keys(entry.variables).sort(compareByCodePoint)) {
-        const source = entry.variables[name];
-        if (!isPlainObject(source)) continue;
-        const fallback = asString(source.default);
-        if (fallback === undefined) continue;
-
-        const variable: { -readonly [Key in keyof IRServerVariable]: IRServerVariable[Key] } = {
-          default: fallback,
-        };
-        const allowed = asStringArray(source.enum);
-        const description2 = asString(source.description);
-        if (allowed !== undefined && allowed.length > 0) variable.enum = allowed;
-        if (description2 !== undefined) variable.description = description2;
-        variables[name] = variable;
-      }
-      if (Object.keys(variables).length > 0) server.variables = variables;
-    }
+    const variables = readServerVariables(entry.variables);
+    if (variables !== undefined) server.variables = variables;
 
     servers.push(server);
   }
@@ -788,58 +649,6 @@ function readOperation(entry: RawOperation, context: Context, id: string): IROpe
   return operation;
 }
 
-function readTags(raw: unknown): NavigationTag[] {
-  if (!isUnknownArray(raw)) return [];
-
-  const tags: NavigationTag[] = [];
-  for (const entry of raw) {
-    if (!isPlainObject(entry)) continue;
-    const name = asString(entry.name);
-    if (name === undefined) continue;
-
-    const tag: { -readonly [Key in keyof NavigationTag]: NavigationTag[Key] } = { name };
-    const summary = asString(entry.summary);
-    const parent = asString(entry.parent);
-    if (summary !== undefined) tag.summary = summary;
-    if (parent !== undefined) tag.parent = parent;
-
-    tags.push(tag);
-  }
-
-  return tags;
-}
-
-/**
- * Normalizes every schema the document declares, in canonical name order.
- *
- * Order is deliberate rather than incidental. A named schema is produced once and referred to
- * afterwards, so whichever schema is reached first is the one that gets expanded; sorting the
- * declared names makes that choice the same on every run and for every input ordering.
- */
-function produceDeclaredSchemas(context: Context): void {
-  for (const name of [...context.namedSchemas].sort(compareByCodePoint)) {
-    normalizeSchema({ $ref: `#/components/schemas/${name}` }, schemaOptions(context));
-  }
-}
-
-/**
- * Reads the registry into the document's schema map.
- *
- * Runs last, because an external reference anywhere in the document registers a named schema
- * too, and those are only known once everything has been walked.
- */
-function collectNamedSchemas(context: Context): IRSchema[] {
-  return [...context.registry.entries()].map(([id, normalized]) => {
-    const schema: { -readonly [Key in keyof IRSchema]: IRSchema[Key] } = {
-      id,
-      dialect: context.dialect,
-      normalized,
-    };
-    if (context.namedSchemas.has(id)) schema.name = id;
-    return schema;
-  });
-}
-
 function readVersion(document: Record<string, unknown>): string {
   const version = asString(document.openapi);
   if (version === undefined) {
@@ -851,7 +660,7 @@ function readVersion(document: Record<string, unknown>): string {
         { swagger: asString(document.swagger) },
       );
     }
-    throw invalid('the document has no openapi version field');
+    throw invalidDocument('the document has no openapi version field');
   }
 
   const majorMinor = version.split('.').slice(0, 2).join('.');
@@ -888,7 +697,7 @@ export function normalizeOpenApiDocument(
   input: unknown,
   options: NormalizeOpenApiOptions = {},
 ): IRDocument {
-  if (!isPlainObject(input)) throw invalid('the document is not an object');
+  if (!isPlainObject(input)) throw invalidDocument('the document is not an object');
 
   readVersion(input);
   const context: Context = {
@@ -909,7 +718,7 @@ export function normalizeOpenApiDocument(
   };
 
   const info = readInfo(input.info);
-  produceDeclaredSchemas(context);
+  produceDeclaredSchemas(context, context.namedSchemas);
 
   const paths = collectPathItems(input.paths);
   const rawOperations = paths.operations;
@@ -959,7 +768,7 @@ export function normalizeOpenApiDocument(
   });
 
   const document: { -readonly [Key in keyof IRDocument]: IRDocument[Key] } = {
-    id: options.documentId ?? slug(info.title),
+    id: options.documentId ?? documentSlug(info.title),
     kind: 'http',
     hash: '',
     info,
