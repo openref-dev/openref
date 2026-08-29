@@ -1042,6 +1042,78 @@ describe('buildDiffReport', () => {
     expect(silence.nonBreaking).toEqual([]);
   });
 
+  it('should record a moved server protocol as one non breaking change, on an OpenAPI document', () => {
+    // Given one server whose url never moves and whose protocol does. OpenAPI's Server Object
+    // declares no `protocol`, and SPEC 5.4 records that this IR reads one when a document writes
+    // one; the reading is asserted on the normalized document below, so a green case here cannot
+    // mean the key was dropped on the way in and the two sides compared as equal
+    const paths = { '/ping': { get: { responses: { '200': { description: 'ok' } } } } };
+    const before = { url: '/v3', protocol: 'https' };
+    const after = { url: '/v3', protocol: 'wss' };
+
+    // When
+    const moved = diff({ ...raw(paths), servers: [before] }, { ...raw(paths), servers: [after] });
+    const movedBack = diff(
+      { ...raw(paths), servers: [after] },
+      { ...raw(paths), servers: [before] },
+    );
+
+    // Then the fact really is in the IR of an HTTP document, and moving it registers once per
+    // direction as non breaking, exactly as a moved base url does
+    expect(normalize({ ...raw(paths), servers: [before] }).servers[0]?.protocol).toBe('https');
+    expect(moved.breaking).toEqual([]);
+    expect(moved.nonBreaking).toEqual([
+      { kind: 'server-changed', classification: 'non-breaking', subject: 'server /v3' },
+    ]);
+    expect(movedBack.breaking).toEqual([]);
+    expect(movedBack.nonBreaking).toEqual([
+      { kind: 'server-changed', classification: 'non-breaking', subject: 'server /v3' },
+    ]);
+  });
+
+  it('should record a moved server protocolVersion as one non breaking change, on an OpenAPI document', () => {
+    // Given the sibling of the case above, on the member that carried no documentation at all
+    // until the reading was recorded. The url and the protocol are held still, so the only thing
+    // the two documents disagree about is the version
+    const paths = { '/ping': { get: { responses: { '200': { description: 'ok' } } } } };
+    const before = { url: '/v3', protocol: 'https', protocolVersion: '1.1' };
+    const after = { url: '/v3', protocol: 'https', protocolVersion: '2' };
+
+    // When
+    const moved = diff({ ...raw(paths), servers: [before] }, { ...raw(paths), servers: [after] });
+    const movedBack = diff(
+      { ...raw(paths), servers: [after] },
+      { ...raw(paths), servers: [before] },
+    );
+
+    // Then
+    expect(normalize({ ...raw(paths), servers: [before] }).servers[0]?.protocolVersion).toBe('1.1');
+    expect(moved.breaking).toEqual([]);
+    expect(moved.nonBreaking).toEqual([
+      { kind: 'server-changed', classification: 'non-breaking', subject: 'server /v3' },
+    ]);
+    expect(movedBack.breaking).toEqual([]);
+    expect(movedBack.nonBreaking).toEqual([
+      { kind: 'server-changed', classification: 'non-breaking', subject: 'server /v3' },
+    ]);
+  });
+
+  it('should register nothing when two OpenAPI servers agree on the protocol pair', () => {
+    // Given the falsification pair for the two cases above: the same server, both members
+    // present and equal, so the silence is the comparison finding them equal rather than the
+    // matcher never reaching a same url pair, which the two cases above already showed it does
+    const paths = { '/ping': { get: { responses: { '200': { description: 'ok' } } } } };
+    const server = { url: '/v3', protocol: 'https', protocolVersion: '1.1' };
+
+    // When
+    const report = diff({ ...raw(paths), servers: [server] }, { ...raw(paths), servers: [server] });
+
+    // Then
+    expect(normalize({ ...raw(paths), servers: [server] }).servers[0]?.protocol).toBe('https');
+    expect(report.breaking).toEqual([]);
+    expect(report.nonBreaking).toEqual([]);
+  });
+
   it('should register nothing for a reordered servers array, presence proved first', () => {
     // Given two servers, and first a real url edit on one of them, so the silence below is the
     // matcher declining a reorder rather than never looking at servers at all

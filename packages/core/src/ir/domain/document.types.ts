@@ -52,8 +52,30 @@ export interface IRServerVariable {
 export interface IRServer {
   readonly url: string;
   readonly description?: string;
-  /** Protocol, for AsyncAPI servers. */
+  /**
+   * The protocol a connection to this server speaks, per SPEC 8.2 and SPEC 5.4.
+   *
+   * REQUIRED ON AN ASYNCAPI SERVER AND READ ANYWAY ON AN OPENAPI ONE, WHICH IS A DELIBERATE
+   * READING BEYOND THE OPENAPI SPECIFICATION. AsyncAPI 3 writes `protocol` as a member and
+   * `IRServer.url` is assembled out of it, so on an events document it is always there. OpenAPI's
+   * Server Object declares `url`, `description` and `variables` and no such member, and this IR
+   * reads it off the entry regardless when a document writes one: a reader whose author named the
+   * protocol should see it, and deriving one from the url scheme would be a guess. The rule is one
+   * way only, so a document that writes nothing leaves this absent, and nothing here invents a
+   * value. Recorded in `ai-docs/design/CONTRACT.md` beside the other project readings.
+   *
+   * The JSDoc said "for AsyncAPI servers" until 2026-08-29 while `normalizeOpenApiDocument` had
+   * been reading it since `T004`, so the documentation described a narrower thing than the code.
+   */
   readonly protocol?: string;
+  /**
+   * The version of {@link protocol}, on the same terms, per SPEC 8.2 and SPEC 5.4.
+   *
+   * READ FROM BOTH FAMILIES AND DECLARED BY ONE, exactly as its sibling above: AsyncAPI writes it
+   * on a Server Object, OpenAPI does not have it, and an OpenAPI document that writes one anyway
+   * is read rather than ignored. It carried no documentation at all until 2026-08-29, which is how
+   * an undeclared reading came to have no record on either member.
+   */
   readonly protocolVersion?: string;
   readonly variables?: Readonly<Record<string, IRServerVariable>>;
   /**
