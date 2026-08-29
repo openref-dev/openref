@@ -1,5 +1,5 @@
 import type { IRHealthReport } from './health.types';
-import type { IRNode } from './node.types';
+import type { IRNode, IRSecurityRequirement } from './node.types';
 import type { IRRelationship } from './relationship.types';
 import type { IRRuntimeMeta } from './runtime.types';
 import type { IRJsonValue, IRSchema } from './schema.types';
@@ -64,6 +64,21 @@ export interface IRServer {
    * that absence is the absence of a subject rather than something lost on the way in.
    */
   readonly bindings?: Readonly<Record<string, IRJsonValue>>;
+  /**
+   * What a connection to this server has to satisfy, per SPEC 8.2. Absent when nothing was said.
+   *
+   * ADDITIVE AND OPTIONAL, added 2026-08-29 at `T051`; the breaking half of the same change is
+   * the growth of {@link IRSecuritySchemeType}. AsyncAPI writes a Server Object's `security` as a
+   * list of Security Scheme Objects rather than as a list of requirements naming a table, and this
+   * carries requirements anyway: the schemes go once into `IRDocument.security`, and a position
+   * names one, so one scheme used by three servers is one entry and not three copies a reader
+   * cannot tell from three schemes that happen to match.
+   *
+   * PRESENT AND EMPTY IS NOT THE SAME AS ABSENT. A document that wrote `security: []` said there
+   * are none; a document that wrote nothing said nothing. OpenAPI's Server Object has no such
+   * member, so an HTTP document leaves this absent always.
+   */
+  readonly security?: readonly IRSecurityRequirement[];
 }
 
 /** What a navigation entry points at. */
@@ -91,8 +106,50 @@ export interface IRNavNode {
   readonly children: readonly IRNavNode[];
 }
 
-/** Kind of a security scheme. */
-export type IRSecuritySchemeType = 'apiKey' | 'http' | 'oauth2' | 'openIdConnect' | 'mutualTLS';
+/**
+ * Kind of a security scheme, over both specifications this IR reads.
+ *
+ * FOURTEEN NAMES, GROWN FROM FIVE ON 2026-08-29 AT `T051`, and the growth is breaking rather than
+ * additive: a consumer holding a total `Record<IRSecuritySchemeType, ...>` or switching over this
+ * union exhaustively does not compile against it. Recorded in `ai-docs/design/CONTRACT.md` before
+ * the code, beside `IRDiffChangeKind` and `PageKind`, which are the same event.
+ *
+ * FIVE FROM OPENAPI AND THIRTEEN FROM ASYNCAPI, OVERLAPPING IN FOUR. `apiKey`, `http`, `oauth2`
+ * and `openIdConnect` are written by both; `mutualTLS` is OpenAPI's alone and the other nine are
+ * AsyncAPI's alone. SPEC 8.2 carries the whole thirteen type mapping with each type's disposition.
+ *
+ * `apiKey` MEANS TWO DIFFERENT THINGS AND {@link IRSecurityScheme.in} IS WHAT TELLS THEM APART.
+ * OpenAPI's is a key in a header, a query parameter or a cookie and requires a `name`; AsyncAPI's
+ * is a key substituted into the connection's user or password field and has no `name` at all. Two
+ * names in this union would rename what both specifications call one word, and a reader would meet
+ * a type that appears in neither source document.
+ */
+export type IRSecuritySchemeType =
+  /** OpenAPI: a key in a header, query parameter or cookie. AsyncAPI: a key as user or password. */
+  | 'apiKey'
+  | 'http'
+  | 'oauth2'
+  | 'openIdConnect'
+  /** OpenAPI's alone. AsyncAPI writes `X509` for the certificate half of the same idea. */
+  | 'mutualTLS'
+  /** AsyncAPI: user and password over the transport's own mechanism. */
+  | 'userPassword'
+  /** AsyncAPI: a client certificate. */
+  | 'X509'
+  /** AsyncAPI: end to end encryption with a shared key. */
+  | 'symmetricEncryption'
+  /** AsyncAPI: end to end encryption with a key pair. */
+  | 'asymmetricEncryption'
+  /** AsyncAPI: a key in a header, query parameter or cookie, which is OpenAPI's `apiKey`. */
+  | 'httpApiKey'
+  /** AsyncAPI: SASL PLAIN, per RFC 4422. */
+  | 'plain'
+  /** AsyncAPI: SASL SCRAM with SHA-256. */
+  | 'scramSha256'
+  /** AsyncAPI: SASL SCRAM with SHA-512. */
+  | 'scramSha512'
+  /** AsyncAPI: SASL GSSAPI. */
+  | 'gssapi';
 
 /**
  * One OAuth2 flow with its scopes.
@@ -128,9 +185,20 @@ export interface IRSecurityScheme {
   readonly id: string;
   readonly type: IRSecuritySchemeType;
   readonly description?: string;
-  /** Name of the header, query parameter or cookie, for `apiKey`. */
+  /** Name of the header, query parameter or cookie, for `apiKey` and for `httpApiKey`. */
   readonly name?: string;
-  readonly in?: 'query' | 'header' | 'cookie';
+  /**
+   * Where the key travels.
+   *
+   * FIVE VALUES SINCE `T051`, GROWN FROM THREE, AND THE GROWTH IS BREAKING. `user` and `password`
+   * are AsyncAPI's, and its `apiKey` requires one of the two: the key is substituted into the
+   * connection's user or password field rather than into anything HTTP has. Carrying the type and
+   * dropping the location would put a scheme in the IR that says `apiKey` and says nothing about
+   * where the key goes, which is the partial picture the empty `security` of `T048` refused.
+   * `query`, `header` and `cookie` are the three that were already here, and they are what
+   * OpenAPI's `apiKey` and AsyncAPI's `httpApiKey` both use.
+   */
+  readonly in?: 'query' | 'header' | 'cookie' | 'user' | 'password';
   /** HTTP authentication scheme, for `http`. */
   readonly scheme?: string;
   readonly bearerFormat?: string;

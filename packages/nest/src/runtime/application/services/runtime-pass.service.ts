@@ -24,7 +24,11 @@ import {
   type IRNode,
   type IRNodeRuntime,
 } from '@openref/core';
-import { CollectorRegistry, type CollectorRegistryOptions } from './collector-registry.service';
+import {
+  CollectorRegistry,
+  type CollectorRegistryOptions,
+  type CollectorTarget,
+} from './collector-registry.service';
 import type { CollectorRegistration } from '../ports/collector.port';
 import {
   discoverRoutes,
@@ -43,6 +47,19 @@ export interface RuntimePassOptions extends CollectorRegistryOptions {
   readonly discovery: DiscoveryServiceLike;
   /** Guard class name to security scheme id, per SPEC 13.2, for `security-drift`. */
   readonly guardSecuritySchemes?: Readonly<Record<string, string>>;
+  /**
+   * Channel nodes already paired with the handler that serves them, per SPEC 8.3.
+   *
+   * THEY ARRIVE PAIRED BECAUSE THE PAIRING IS NOT THE SAME QUESTION. An HTTP route has to be
+   * matched to a node somebody else wrote, which is what `pairRoutes` does with three ordered
+   * rules; a channel node exists because the event discovery produced it, so the pairing is a
+   * lookup done by `events/domain/channel-pairing.ts` before this runs. Passing the result in
+   * keeps this service the one place collectors are driven, rather than adding a second driver.
+   *
+   * EMPTY MEANS THERE ARE NONE, AND THERE IS NO THIRD STATE, which is the rule `globalGuards`
+   * already sets on the collector context one level down.
+   */
+  readonly channelTargets?: readonly CollectorTarget[];
 }
 
 /**
@@ -145,7 +162,12 @@ export function runRuntimePass(
   // will see, and it is a pure function of `core` rather than anything this pass knows.
   const runtimeByNode = new Map<string, IRNodeRuntime>();
   const ghosts: DiscoveryProblem[] = [];
-  for (const target of pairing.targets) {
+  // THE CHANNEL TARGETS RUN THROUGH THE SAME REGISTRY AND THE SAME COLLECTORS, per SPEC 8.3. A
+  // channel is an `IRNode` under the discriminant SPEC 5.1 reserved, so the collector contract
+  // `T017` froze already admits one, and every fact a channel carries is produced by a collector
+  // that carries its own name and confidence rather than by a second mechanism.
+  const collected = [...pairing.targets, ...(options.channelTargets ?? [])];
+  for (const target of collected) {
     const runtime = registry.collect(target);
     if (runtime !== undefined)
       runtimeByNode.set(
@@ -200,7 +222,7 @@ export function runRuntimePass(
   // document does not describe, which is what `include` produces on purpose, and `DriftObservation`
   // has nowhere to put it.
   const observation: DriftObservation = {
-    handledNodeIds: new Set(pairing.targets.map((target) => target.node.id)),
+    handledNodeIds: new Set(collected.map((target) => target.node.id)),
     ...(options.guardSecuritySchemes === undefined
       ? {}
       : { guardSchemes: new Map(Object.entries(options.guardSecuritySchemes)) }),

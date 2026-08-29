@@ -17,6 +17,7 @@ import type {
   IRSchema,
   IRSchemaSlot,
   IRSecurityRequirement,
+  IRServer,
 } from '@openref/core';
 
 /**
@@ -223,13 +224,51 @@ function rewriteChannel(channel: IRChannel, identity: NodeIdentity, maps: Rewrit
  *
  * `messageIds` ARE NOT REWRITTEN, and the IR says why: they refer into the channel's own message
  * list, which travels with the channel, so they are local names rather than document ones.
+ *
+ * `security` IS REWRITTEN, SINCE `T051`, AND IT NAMES THE DOCUMENT RATHER THAN THE CHANNEL. Each
+ * requirement carries a scheme id out of `IRDocument.security`, which the merge renames whenever
+ * two services claim one name, so leaving it alone would point a channel page at a scheme the
+ * merged document does not hold. The reference walk of `references.ts` reads `schemeId` and would
+ * refuse the merge, which is that walk doing its job rather than a reason to skip this.
  */
 function rewriteChannelOperation(
   operation: IRChannelOperation,
   maps: RewriteMaps,
 ): IRChannelOperation {
-  if (operation.runtime === undefined) return operation;
-  return { ...operation, runtime: rewriteRuntime(operation.runtime, maps) };
+  const draft: Draft<IRChannelOperation> = { ...operation };
+
+  if (operation.runtime !== undefined) draft.runtime = rewriteRuntime(operation.runtime, maps);
+  if (operation.security !== undefined) {
+    draft.security = operation.security.map((requirement) => rewriteRequirement(requirement, maps));
+  }
+
+  return draft;
+}
+
+/**
+ * Rewrites the security a server declares, per SPEC 8.2, onto the merged scheme ids.
+ *
+ * A SERVER TRAVELS WHOLE ONTO `IRService.servers` AND ITS SCHEME IDS DO NOT. The merged document's
+ * own `servers` come from the caller and carry no security, so this is only ever about the per
+ * service record, which is exactly where a stale scheme id would sit unnoticed: nothing draws it
+ * yet, and the reference walk is the only thing that reads it today.
+ *
+ * @param servers - The servers a source document declared
+ * @param maps - How this service's names map onto the merged ones
+ * @returns The same servers, addressing the merged scheme table
+ */
+export function rewriteServers(
+  servers: readonly IRServer[],
+  maps: RewriteMaps,
+): readonly IRServer[] {
+  return servers.map((server) =>
+    server.security === undefined
+      ? server
+      : {
+          ...server,
+          security: server.security.map((requirement) => rewriteRequirement(requirement, maps)),
+        },
+  );
 }
 
 /** Rewrites a message payload and headers. */

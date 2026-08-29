@@ -275,6 +275,19 @@ export interface IRChannelOperation {
   readonly reply?: IRChannelReply;
   /** Tag names, in the order the document wrote them. See {@link IRMessage.tags}. */
   readonly tags?: readonly string[];
+  /**
+   * What performing this operation has to satisfy, per SPEC 8.2. Absent when nothing was said.
+   *
+   * ADDITIVE AND OPTIONAL, added 2026-08-29 at `T051`, and the reading is the one `IRServer`'s
+   * own `security` records: AsyncAPI writes a list of Security Scheme Objects here and the IR
+   * carries requirements naming the document's own table, so a scheme is written once.
+   * AsyncAPI's own sentence is that server security applies too where there is any, so this is
+   * what the operation adds rather than what it replaces.
+   *
+   * IT IS ON THE CHANNEL OPERATION AND NOT ON THE CHANNEL, because AsyncAPI puts it there and
+   * nowhere else: a channel has no `security` member in either edition.
+   */
+  readonly security?: readonly IRSecurityRequirement[];
   readonly runtime?: IRNodeRuntime;
 }
 

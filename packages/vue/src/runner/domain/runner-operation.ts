@@ -297,6 +297,24 @@ function flowViews(flows: IROAuthFlows | undefined): readonly RunnerOAuthFlowVie
   });
 }
 
+/**
+ * The three places the console can put a key, which are fewer than the five the IR carries.
+ *
+ * NARROWED HERE RATHER THAN WIDENED THERE, AND THAT IS THE POINT. `IRSecurityScheme.in` grew to
+ * five values at `T051` because AsyncAPI's `apiKey` is substituted into the connection's user or
+ * password field, and a console that builds an HTTP request has nowhere to put either. Widening
+ * this view would carry a location into the projection that nothing downstream could act on, so
+ * the narrow set stays and a value outside it is left off the view instead.
+ *
+ * NOTHING PRODUCES ONE TODAY AND THE TYPE IS WHAT SAYS SO. The projection takes an `IROperation`,
+ * which only the OpenAPI normalizer produces, and `user` and `password` reach the IR only from an
+ * AsyncAPI document, whose nodes are channels. The narrowing is here so that the day the two meet
+ * the console omits a field rather than asking a reader to fill in a location it cannot send.
+ */
+const CONSOLE_KEY_LOCATIONS = ['query', 'header', 'cookie'] as const satisfies readonly NonNullable<
+  RunnerSecuritySchemeView['in']
+>[];
+
 function securityViews(
   operation: IROperation,
   document: IRDocument,
@@ -316,11 +334,12 @@ function securityViews(
     if (scheme === undefined) continue;
 
     const unsendable = unsendableSchemeCause(scheme);
+    const location = CONSOLE_KEY_LOCATIONS.find((candidate) => candidate === scheme.in);
 
     views.push({
       id: scheme.id,
       type: scheme.type,
-      ...(scheme.in === undefined ? {} : { in: scheme.in }),
+      ...(location === undefined ? {} : { in: location }),
       ...(scheme.name === undefined ? {} : { name: scheme.name }),
       ...(scheme.scheme === undefined ? {} : { scheme: scheme.scheme }),
       flows: flowViews(scheme.flows),

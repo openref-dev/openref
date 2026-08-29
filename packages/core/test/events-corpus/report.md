@@ -43,24 +43,24 @@ lists only what it kept is a corpus whose selection cannot be checked:
 
 | document | edition | protocols | source bytes | IR bytes | channels | operations | schemas |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| aai-adeo-kafka-request-reply.yml | 3.1.0 | kafka | 10315 | 11357 | 2 | 1 | 10 |
+| aai-adeo-kafka-request-reply.yml | 3.1.0 | kafka | 10315 | 11725 | 2 | 1 | 10 |
 | aai-anyof.yml | 3.1.0 | (none) | 751 | 1575 | 1 | 1 | 2 |
 | aai-application-headers.yml | 3.1.0 | mqtt | 2504 | 3492 | 1 | 1 | 3 |
-| aai-correlation-id.yml | 3.1.0 | mqtt | 6351 | 4133 | 2 | 2 | 3 |
-| aai-gitter-streaming.yml | 3.1.0 | https | 5336 | 3999 | 1 | 1 | 0 |
+| aai-correlation-id.yml | 3.1.0 | mqtt | 6351 | 6745 | 2 | 2 | 3 |
+| aai-gitter-streaming.yml | 3.1.0 | https | 5336 | 4111 | 1 | 1 | 0 |
 | aai-kraken-websocket-reply-channels.yml | 3.1.0 | (none) | 12597 | 15661 | 7 | 5 | 20 |
 | aai-kraken-websocket-reply-filter.yml | 3.1.0 | (none) | 13060 | 14339 | 1 | 5 | 20 |
 | aai-mercure.yml | 3.1.0 | mercure | 1472 | 1713 | 1 | 2 | 0 |
 | aai-not.yml | 3.1.0 | (none) | 560 | 977 | 1 | 1 | 1 |
 | aai-oneof.yml | 3.1.0 | (none) | 1314 | 2034 | 2 | 2 | 2 |
-| aai-operation-security.yml | 3.1.0 | (none) | 3471 | 3512 | 1 | 1 | 3 |
+| aai-operation-security.yml | 3.1.0 | (none) | 3471 | 4139 | 1 | 1 | 3 |
 | aai-rpc-client.yml | 3.1.0 | amqp | 1562 | 2048 | 2 | 2 | 0 |
 | aai-rpc-server.yml | 3.1.0 | amqp | 1487 | 1974 | 2 | 2 | 0 |
 | aai-simple.yml | 3.1.0 | (none) | 744 | 1039 | 1 | 1 | 0 |
-| aai-slack-rtm.yml | 3.1.0 | https | 25194 | 19824 | 1 | 2 | 1 |
-| aai-streetlights-kafka.yml | 3.1.0 | kafka-secure | 6354 | 8820 | 4 | 4 | 4 |
-| aai-streetlights-mqtt.yml | 3.1.0 | mqtt | 8748 | 8025 | 4 | 4 | 4 |
-| aai-streetlights-operation-security.yml | 3.1.0 | kafka-secure | 7682 | 8299 | 4 | 4 | 4 |
+| aai-slack-rtm.yml | 3.1.0 | https | 25194 | 19932 | 1 | 2 | 1 |
+| aai-streetlights-kafka.yml | 3.1.0 | kafka-secure | 6354 | 9134 | 4 | 4 | 4 |
+| aai-streetlights-mqtt.yml | 3.1.0 | mqtt | 8748 | 10637 | 4 | 4 | 4 |
+| aai-streetlights-operation-security.yml | 3.1.0 | kafka-secure | 7682 | 10372 | 4 | 4 | 4 |
 | aai-websocket-gemini.yml | 3.1.0 | wss | 8907 | 8670 | 1 | 1 | 5 |
 | everest-system-api.yaml | 3.0.0 | mqtt | 34377 | 45080 | 19 | 19 | 28 |
 | network-survey-messaging.yaml | 3.0.0 | (none) | 132931 | 128433 | 17 | 17 | 142 |
@@ -77,20 +77,44 @@ because no page can reach it.
 
 | member | documents writing it | positions | outcome |
 | --- | --- | --- | --- |
-| `servers[].bindings` | 1 | 3 | carried |
-| `servers[].security` | 7 | 11 | still unheld, `T051` |
-| `operations[].reply` | 4 | 13 | carried |
-| `operations[].security` | 2 | 4 | still unheld, `T051` |
-| `operations[].tags` | 2 | 4 | carried |
-| `messages[].tags` | 1 | 2 | carried |
+| `servers[].bindings` | 1 | 3 | carried, `T049` |
+| `servers[].security` | 7 | 11 | carried, `T051` |
+| `operations[].reply` | 4 | 13 | carried, `T049` |
+| `operations[].security` | 2 | 4 | carried, `T051` |
+| `operations[].tags` | 2 | 4 | carried, `T049` |
+| `messages[].tags` | 1 | 2 | carried, `T049` |
 
-The four marked carried were added at `T049` on these counts, per the maintainer's ruling of
-2026-08-29 and SPEC 8.2. The two marked unheld are written more often than three of the four that
-were added, and are still not carried: in AsyncAPI 3 both are lists of Security Scheme Objects
-rather than lists of requirements naming a scheme table, so a carrier for either is a reading of
-the thirteen scheme types, which is `IRSecuritySchemeType` growing from five names, which is the
-breaking half of `ai-docs/design/CONTRACT.md`. That growth is `T051`'s by the same maintainer's
-ruling, and a `BUILD-AMENDMENTS` section addressed to `T051` carries these counts into it.
+All six are carried, and the two dates are the two halves of one ruling. The four marked `T049`
+were added on these counts as the minor half, an optional member on an interface obliging nobody.
+The two marked `T051` are the breaking half: in AsyncAPI 3 both are lists of Security Scheme
+Objects rather than lists of requirements naming a scheme table, so a carrier for either is a
+reading of the thirteen scheme types, which is `IRSecuritySchemeType` growing from five names to
+fourteen, recorded in `ai-docs/design/CONTRACT.md` beside `IRDiffChangeKind` and `PageKind`.
+The counts above were re-measured on 2026-08-29 before that growth and had not moved.
+
+## The thirteen security scheme types, and which of them this corpus reaches
+
+| type | documents declaring one | schemes |
+| --- | --- | --- |
+| `userPassword` | 0 | 0 |
+| `apiKey` | 2 | 2 |
+| `X509` | 1 | 1 |
+| `symmetricEncryption` | 0 | 0 |
+| `asymmetricEncryption` | 0 | 0 |
+| `httpApiKey` | 1 | 1 |
+| `http` | 1 | 1 |
+| `oauth2` | 4 | 11 |
+| `openIdConnect` | 2 | 2 |
+| `plain` | 1 | 1 |
+| `scramSha256` | 2 | 2 |
+| `scramSha512` | 0 | 0 |
+| `gssapi` | 0 | 0 |
+
+Eight of the thirteen are written here and five are not. All thirteen are read anyway, because the
+union is taken from the specification's own table whole: a partially read one is exactly the half
+picture SPEC 8.2 spent `T048` and `T049` refusing. The five with no document behind them are
+proved by `asyncapi-normalizer.spec.ts`, which declares one scheme of every type, and the corpus
+states its own silence here rather than leaving it to be inferred from a shorter list.
 
 ## What this corpus does not exercise
 

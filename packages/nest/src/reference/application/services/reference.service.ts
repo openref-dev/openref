@@ -21,6 +21,7 @@ import {
   ErrorCode,
   InvalidOptionsError,
   IR_VERSION,
+  normalizeAsyncApiDocument,
   normalizeOpenApiDocument,
   parseSpecification,
   proxyServers,
@@ -230,12 +231,25 @@ export class ReferenceService {
       this.source = null;
       this.document = options.ir;
     } else {
+      // WHICH SPECIFICATION THIS IS COMES FROM THE DOCUMENT AND NOT FROM AN OPTION, per SPEC 8.1
+      // and SPEC 13.3. Both formats declare their own version in a member named after themselves,
+      // `openapi` and `asyncapi`, so the document says which reader it needs and a host cannot
+      // hand over an AsyncAPI file under a flag that says OpenAPI. Neither member present is an
+      // OpenAPI document as far as this goes, which keeps the failure the one it always was:
+      // `normalizeOpenApiDocument` refuses it by name rather than this line inventing a message.
+      const parsed = sourceObject(options.document);
+      const events = isAsyncApiSource(parsed);
       // THE SYNTHETIC SCHEMAS OF SPEC 13.5 GO IN HERE, ONCE, BEFORE ANYTHING READS THE DOCUMENT.
       // Both readers are downstream of this line: the normalizer below, and the `openapi.json`
       // route, which serves this object rather than the host's. A merge on only one of the two
       // paths would mean the page and the file a generator downloads described different documents.
-      this.source = mergeSyntheticSchemas(sourceObject(options.document));
-      const normalized = normalizeOpenApiDocument(this.source);
+      // An events document takes none: `@ApiOkResponse(paginated(CatDto))` is an HTTP response
+      // wrapper, and merging its schemas into a document no operation of which reads them would
+      // put a schema in the reference that nothing refers to.
+      this.source = events ? parsed : mergeSyntheticSchemas(parsed);
+      const normalized = events
+        ? normalizeAsyncApiDocument(this.source)
+        : normalizeOpenApiDocument(this.source);
       this.document = options.augment === undefined ? normalized : options.augment(normalized);
     }
     this.catalog = buildAssetCatalog(options.assets.sources);
@@ -295,9 +309,13 @@ export class ReferenceService {
       case 'federation':
         return Promise.resolve(notAFederation('there is no federation snapshot here'));
       case 'openapi-json':
-        return Promise.resolve(this.specification(request, 'json'));
+        return Promise.resolve(this.specification(request, 'json', 'http'));
       case 'openapi-yaml':
-        return Promise.resolve(this.specification(request, 'yaml'));
+        return Promise.resolve(this.specification(request, 'yaml', 'http'));
+      case 'asyncapi-json':
+        return Promise.resolve(this.specification(request, 'json', 'events'));
+      case 'asyncapi-yaml':
+        return Promise.resolve(this.specification(request, 'yaml', 'events'));
       case 'search-index':
         return Promise.resolve(this.searchIndex(request));
       case 'navigation':
@@ -440,7 +458,28 @@ export class ReferenceService {
    * @param format - `json` or `yaml`
    * @returns The specification, or a 304
    */
-  private specification(request: ReferenceRequest, format: 'json' | 'yaml'): ReferenceReply {
+  private specification(
+    request: ReferenceRequest,
+    format: 'json' | 'yaml',
+    family: 'http' | 'events',
+  ): ReferenceReply {
+    // ONE ADDRESS NEVER ANSWERS FOR THE OTHER FAMILY, per SPEC 13.3. An events document served
+    // under `openapi.json` is a file whose name says one specification and whose bytes say the
+    // other, which every generator downstream would read as a broken OpenAPI document. Both
+    // addresses exist on every mount, by the `_proxy` precedent, so a request learns which of
+    // the two this reference is rather than meeting a route that is not there.
+    if (this.source !== null && this.document.kind !== family) {
+      const served = this.document.kind === 'events' ? 'asyncapi' : 'openapi';
+      return {
+        status: 404,
+        headers: { 'content-type': 'text/plain; charset=utf-8', 'cache-control': NO_STORE },
+        body:
+          `this reference describes ${this.document.kind === 'events' ? 'events' : 'HTTP'}, so ` +
+          `there is no ${family === 'http' ? 'OpenAPI' : 'AsyncAPI'} document here. Its source ` +
+          `is served at ${served}.json and ${served}.yaml\n`,
+      };
+    }
+
     // A MERGED DOCUMENT HAS NO SINGLE SOURCE, per SPEC 15.3: the source of each service stays
     // on its own address, and a stitched file would describe no service. The refusal names the
     // services and their count, so a generator goes to a source rather than to a void.
@@ -458,7 +497,7 @@ export class ReferenceService {
       };
     }
 
-    const tag = this.etag(`openapi:${format}`);
+    const tag = this.etag(`${family}:${format}`);
     const cached = notModified(request, tag);
     if (cached !== null) return cached;
 
@@ -802,6 +841,25 @@ function notModified(request: ReferenceRequest, tag: string): ReferenceReply | n
  */
 function sourceObject(input: unknown): unknown {
   return typeof input === 'string' ? parseSpecification(input, { source: 'document' }) : input;
+}
+
+/**
+ * Whether a source document is an AsyncAPI one, asked of the document itself.
+ *
+ * THE MEMBER IS THE ANSWER AND AN OPTION WOULD NOT BE. Both specifications require a root member
+ * named after themselves carrying their version, so the document states which reader it needs.
+ * A `kind: 'events'` option beside a document would be a second statement of the same fact, and
+ * the two would disagree the first time a host copied an entry and changed only one of them.
+ *
+ * @param input - The parsed document
+ * @returns True when it declares an `asyncapi` version
+ */
+function isAsyncApiSource(input: unknown): boolean {
+  return (
+    typeof input === 'object' &&
+    input !== null &&
+    typeof (input as { asyncapi?: unknown }).asyncapi === 'string'
+  );
 }
 
 /**

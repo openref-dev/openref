@@ -1,5 +1,5 @@
 {
-  "hash": "2a15f0ba09afc8678fb6c97d21ea2e5b847e0baad7e9d4bfa4f9165601e1da9b",
+  "hash": "3d072c00ea494dd990b80a0ed5cb18a7683c6d5b5b6eb5d1e42af401251817db",
   "id": "adeo-asyncapi-case-study",
   "info": {
     "contact": {
@@ -512,7 +512,13 @@
       }
     ]
   ],
-  "security": [],
+  "security": [
+    {
+      "description": "Use [SASL authentication with SSL encryption](https://docs.confluent.io/platform/current/security/security_tutorial.html#configure-clients) to connect to the ADEO Broker.\n",
+      "id": "sasl-ssl",
+      "type": "plain"
+    }
+  ],
   "servers": [
     {
       "bindings": {
@@ -522,6 +528,12 @@
       },
       "description": "Kafka DEV cluster for `dev` and `sit` environments",
       "protocol": "kafka",
+      "security": [
+        {
+          "schemeId": "sasl-ssl",
+          "scopes": []
+        }
+      ],
       "url": "kafka://dev.url:9092"
     },
     {
@@ -532,6 +544,12 @@
       },
       "description": "Kafka PRODUCTION cluster",
       "protocol": "kafka",
+      "security": [
+        {
+          "schemeId": "sasl-ssl",
+          "scopes": []
+        }
+      ],
       "url": "kafka://prod.url:9092"
     },
     {
@@ -542,6 +560,12 @@
       },
       "description": "Kafka STAGING cluster for `uat` and `preprod` environments",
       "protocol": "kafka",
+      "security": [
+        {
+          "schemeId": "sasl-ssl",
+          "scopes": []
+        }
+      ],
       "url": "kafka://staging.url:9092"
     }
   ],

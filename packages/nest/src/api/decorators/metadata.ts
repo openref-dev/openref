@@ -34,6 +34,16 @@ export const OPENREF_METADATA = {
   errors: 'openref/errors',
   /** `@ApiStream`, the whole option object. */
   stream: 'openref/stream',
+  /**
+   * `@ApiChannel`, the whole option object, per SPEC 8.3 and SPEC 13.4.
+   *
+   * A RUNTIME KEY AND NOT AN EXTENSION, which is the split this file opens with. There is no
+   * specification for it to be an extension of: an events document is synthesized from the
+   * application at boot, and this decorator is one of the things it is synthesized from.
+   */
+  channel: 'openref/channel',
+  /** `@ApiMessage`, the whole option object. Read beside `channel`, on the same handler. */
+  message: 'openref/message',
 } as const;
 
 /**

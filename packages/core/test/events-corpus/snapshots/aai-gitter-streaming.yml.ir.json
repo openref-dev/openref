@@ -1,5 +1,5 @@
 {
-  "hash": "92dfb7339e0169af3d648d8b253e167baea8b73469e678f187629957aa263319",
+  "hash": "8ceceb037ade04b8d82a8ada5e6bf04b56302e3f28fd4da0f040da8e8e57e635",
   "id": "gitter-streaming-api",
   "info": {
     "title": "Gitter Streaming API",
@@ -265,11 +265,23 @@
   ],
   "relationships": [],
   "schemas": [],
-  "security": [],
+  "security": [
+    {
+      "id": "httpBearerToken",
+      "scheme": "bearer",
+      "type": "http"
+    }
+  ],
   "servers": [
     {
       "protocol": "https",
       "protocolVersion": "1.1",
+      "security": [
+        {
+          "schemeId": "httpBearerToken",
+          "scopes": []
+        }
+      ],
       "url": "https://stream.gitter.im/v1"
     }
   ],

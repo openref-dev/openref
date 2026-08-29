@@ -40,6 +40,7 @@ import type {
   IFederationCacheDriver,
 } from '@openref/federation';
 import { assertVisibility } from '../visibility/application/services/admission.service';
+import type { EventServerOptions } from '../events/domain/asyncapi-synthesis';
 import type { CollectorRegistration } from '../runtime/application/ports/collector.port';
 import type { OpenRefThemeOptions } from '../reference/application/services/reference.service';
 import type { OpenRefSetupOptions } from './reference-options';
@@ -54,13 +55,8 @@ import type { OpenRefSetupOptions } from './reference-options';
  */
 export type { OpenRefVisibility } from '../visibility/domain/visibility';
 
-/**
- * One mounted document.
- *
- * `visibility` AND `guard` ARE INHERITED RATHER THAN DECLARED HERE, from `OpenRefSetupOptions`, so
- * the two forms of SPEC 13 cannot drift apart on a security option.
- */
-export interface OpenRefDocumentOptions extends OpenRefSetupOptions {
+/** What every mounted document carries, whoever produced the document itself. */
+interface OpenRefMountOptions {
   /**
    * Stable identifier for this document, which federation and the CLI address it by.
    *
@@ -70,6 +66,74 @@ export interface OpenRefDocumentOptions extends OpenRefSetupOptions {
   readonly id: string;
   /** Where to mount it, such as `/docs`. */
   readonly route: string;
+}
+
+/**
+ * One mounted document the host hands over.
+ *
+ * `visibility` AND `guard` ARE INHERITED RATHER THAN DECLARED HERE, from `OpenRefSetupOptions`, so
+ * the two forms of SPEC 13 cannot drift apart on a security option.
+ */
+export interface OpenRefHandedDocumentOptions extends OpenRefSetupOptions, OpenRefMountOptions {}
+
+/**
+ * One events document, synthesized from the running application, per SPEC 8.3 and SPEC 13.2.
+ *
+ * IT CARRIES NO `document`, AND THAT IS THE WHOLE DIFFERENCE. SPEC 13.2 prints this entry as
+ * `{ id: 'events', route: '/docs/events', kind: 'events' }`, with no document beside it, because
+ * there is no file: the channels are read out of the container at boot from `@MessagePattern`,
+ * `@EventPattern`, `@WebSocketGateway` and this package's own `@ApiChannel`. A `document` member
+ * on this shape would be a second source for one reference, and the type is what keeps the two
+ * apart rather than a check inside the mount.
+ *
+ * IT IS `forRoot` ONLY, AND NOT `setup`, FOR THE REASON `forRoot` EXISTS AT ALL. Discovering the
+ * channels needs `DiscoveryService`, the container is the only place it comes from, and `setup`
+ * is not a module. A host whose events live in a file passes it as an ordinary `document`, which
+ * this package reads with the AsyncAPI reader because the file says `asyncapi` at its root.
+ */
+export interface OpenRefEventsDocumentOptions
+  extends Omit<OpenRefSetupOptions, 'document'>, OpenRefMountOptions {
+  /** Says the document is the application's events rather than a document handed over. */
+  readonly kind: 'events';
+  /** Title of the synthesized document. Defaults to the entry's id. */
+  readonly title?: string;
+  /** Version of the synthesized document. Defaults to `runtime`, which says what it is. */
+  readonly version?: string;
+  readonly description?: string;
+  /**
+   * The brokers the application's microservices are reachable at, per SPEC 8.3.
+   *
+   * ONE ENTRY PER PROTOCOL, AND WITHOUT IT A PROTOCOL HAS NO ADDRESS. The application knows which
+   * transport each handler answers on and cannot know the host a reader would reach it at, so a
+   * protocol nothing is configured for still appears, with an empty host, and `doctor` names it.
+   */
+  readonly servers?: readonly EventServerOptions[];
+  /**
+   * Schemas a `@ApiMessage` payload class may name, as a `components.schemas` object.
+   *
+   * Usually the `components.schemas` of the document the HTTP side already builds, so one set of
+   * DTO descriptions serves both halves of the reference.
+   */
+  readonly schemas?: Readonly<Record<string, unknown>>;
+}
+
+/** One entry of `documents`: a document handed over, or the application's own events. */
+export type OpenRefDocumentOptions = OpenRefHandedDocumentOptions | OpenRefEventsDocumentOptions;
+
+/**
+ * Whether one entry is the events form.
+ *
+ * @param entry - One entry of `documents`
+ * @returns True when the entry asks for a synthesized events document
+ */
+export function isEventsDocument(
+  entry: OpenRefDocumentOptions,
+): entry is OpenRefEventsDocumentOptions {
+  // READ AS `unknown` BECAUSE THE HOST IS NOT THE COMPILER. Narrowing on the presence of the key
+  // alone would say yes to `{ kind: 'http', document }`, which a host can write in JavaScript and
+  // which would then be mounted as a synthesized events document with no document at all.
+  const kind: unknown = (entry as { readonly kind?: unknown }).kind;
+  return kind === 'events';
 }
 
 /**

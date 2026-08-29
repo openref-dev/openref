@@ -39,9 +39,11 @@ export type { OpenRefSetupOptions } from './api/openref.module';
 export { OPENREF_REFERENCES } from './shared/constants/tokens';
 export { MountedReferences } from './api/mounted-references';
 export type { MountedReference } from './api/mounted-references';
-export { assertRootOptions, readSourceLink } from './api/module-options';
+export { assertRootOptions, isEventsDocument, readSourceLink } from './api/module-options';
 export type {
   OpenRefDocumentOptions,
+  OpenRefEventsDocumentOptions,
+  OpenRefHandedDocumentOptions,
   OpenRefFederationLocalOptions,
   OpenRefFederationOptions,
   OpenRefFederationRemoteOptions,
@@ -68,6 +70,47 @@ export type {
 } from './runtime/infrastructure/adapters/controller-discovery.adapter';
 export { pairRoutes } from './runtime/domain/route-pairing';
 export type { PairingProblem, PairingResult } from './runtime/domain/route-pairing';
+
+// The event collectors of SPEC 8.3, built in T051. A channel is discovered from the container,
+// synthesized into an AsyncAPI 3.1 document, and read by the same normalizer a hand written file
+// goes through, so nothing downstream learns which of the two produced it.
+export { discoverChannels } from './events/infrastructure/adapters/channel-discovery.adapter';
+export type {
+  ChannelDiscoveryResult,
+  DiscoveredChannel,
+  DiscoveredChannelSource,
+} from './events/infrastructure/adapters/channel-discovery.adapter';
+export { synthesizeEventsDocument } from './events/domain/asyncapi-synthesis';
+export type {
+  EventServerOptions,
+  SynthesizeEventsOptions,
+  SynthesizedChannel,
+  SynthesizedEvents,
+} from './events/domain/asyncapi-synthesis';
+export { pairChannels } from './events/domain/channel-pairing';
+export type { ChannelPairingResult } from './events/domain/channel-pairing';
+export {
+  bySeniority,
+  declaredValue,
+  derived,
+  gatewayAddress,
+  patternAddress,
+  readGateway,
+  readMicroserviceHandler,
+  readSubscribeMessage,
+  DEFAULT_SOCKET_PATH,
+  GATEWAY_PROTOCOL,
+} from './events/domain/event-metadata';
+export type {
+  DeclaredValue,
+  DerivedValue,
+  EventValue,
+  GatewayReading,
+  MicroserviceReading,
+  PatternHandlerKind,
+  PatternReading,
+  TransportReading,
+} from './events/domain/event-metadata';
 
 // The source link of SPEC 6.3, built in T018. The pure half, expanding a template into a URL,
 // lives in `@openref/core` so that `render` can reach it too.
@@ -159,14 +202,19 @@ export type { PipeReading } from './runtime/domain/pipes';
 // `declared` level of SPEC 6.1: what a person wrote down in order to document the endpoint.
 export {
   ApiAudience,
+  ApiChannel,
   ApiErrors,
   ApiExample,
+  ApiMessage,
   ApiSample,
   ApiScopes,
   ApiStream,
 } from './api/decorators/api-decorators';
 export type {
+  ApiChannelDirection,
+  ApiChannelOptions,
   ApiExampleOptions,
+  ApiMessageOptions,
   ApiSampleOptions,
   ApiStreamKind,
   ApiStreamOptions,

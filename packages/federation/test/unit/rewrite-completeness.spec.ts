@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { federatedSchemaId } from '@openref/core';
+import { federatedSchemaId, normalizeAsyncApiDocument } from '@openref/core';
 import type { IRDocument } from '@openref/core';
 import { mergeDocuments } from '../../src/index';
 import { buildDocument, namedSchema, referenceHeavyOperation } from '../mocks/documents';
@@ -185,5 +185,131 @@ describe('rewriting, every position a reference can be in', () => {
     expect(node?.id).toBe('rich');
     expect(node?.serviceId).toBeUndefined();
     expect(billing.schemas.get('Target')?.id).toBe('Target');
+  });
+});
+
+/**
+ * Two event services whose security schemes share one name, normalized from real AsyncAPI input.
+ *
+ * THE SCHEME POSITIONS OF AN EVENT DOCUMENT ARE NOT THE SAME POSITIONS AS AN HTTP ONE'S, which is
+ * why this fixture is here rather than folded into the operation above. `T051` gave `IRServer` and
+ * `IRChannelOperation` a `security` member, and neither is reachable from an `IROperation`: the
+ * first travels on `IRService.servers` and the second on a channel. A merge that renamed the
+ * schemes and left either position alone would carry an id no merged document holds, and the
+ * reference walk of `references.ts` would refuse the merge by name.
+ *
+ * @param serviceId - The federation id to build the document for, which becomes the namespace
+ * @returns A one channel, one server events document declaring a scheme called `sasl`
+ */
+function eventService(serviceId: string): IRDocument {
+  return normalizeAsyncApiDocument({
+    asyncapi: '3.1.0',
+    info: { title: `${serviceId} events`, version: '1.0.0' },
+    servers: {
+      broker: {
+        host: `${serviceId}.example.com`,
+        protocol: 'kafka',
+        security: [{ $ref: '#/components/securitySchemes/sasl' }],
+      },
+    },
+    channels: { orders: { address: `${serviceId}/orders`, messages: { placed: {} } } },
+    operations: {
+      publish: {
+        action: 'send',
+        channel: { $ref: '#/channels/orders' },
+        security: [{ $ref: '#/components/securitySchemes/sasl' }],
+      },
+    },
+    // The description differs per service on purpose. Two byte identical schemes claiming one
+    // name are one scheme to the merge, which deduplicates them and renames nothing, and a
+    // rewrite that never ran cannot be proved by a name that never moved.
+    components: {
+      securitySchemes: { sasl: { type: 'scramSha256', description: `${serviceId} credentials` } },
+    },
+  });
+}
+
+describe('rewriting the two security positions an events document brings', () => {
+  it('should move a channel operation requirement onto the scheme its own service declared', () => {
+    // Given two services that both call their scheme `sasl`, so the merge has to rename both.
+    // The requirement below means nothing unless the source really carried one, so it is read off
+    // the source first: a normalizer that stopped carrying it would otherwise make the merged
+    // answer trivially correct by having nothing to move.
+    const billing = eventService('billing');
+    const orders = eventService('orders');
+    const sourceChannel = billing.nodes.get('channel-billing-orders');
+    expect(sourceChannel?.kind).toBe('channel');
+    expect(
+      sourceChannel?.kind === 'channel' ? sourceChannel.operations[0]?.security : undefined,
+    ).toEqual([{ schemeId: 'sasl', scopes: [] }]);
+
+    // When
+    const { document } = mergeDocuments(
+      [
+        { id: 'billing', document: billing },
+        { id: 'orders', document: orders },
+      ],
+      { id: 'platform', info: { title: 'Platform', version: '1' } },
+    );
+    const merged = document.nodes.get('billing_channel-billing-orders');
+
+    // Then it names the renamed scheme, and that scheme is one the merged document holds
+    const schemeId =
+      merged?.kind === 'channel' ? merged.operations[0]?.security?.[0]?.schemeId : undefined;
+    expect(schemeId).toBe(federatedSchemaId('billing', 'sasl'));
+    expect(document.security.map((scheme) => scheme.id)).toContain(schemeId);
+  });
+
+  it('should move a server requirement carried on the per service record', () => {
+    // Given the same two services, whose servers each name their own `sasl`
+    const billing = eventService('billing');
+    expect(billing.servers[0]?.security).toEqual([{ schemeId: 'sasl', scopes: [] }]);
+
+    // When
+    const { document } = mergeDocuments(
+      [
+        { id: 'billing', document: billing },
+        { id: 'orders', document: eventService('orders') },
+      ],
+      { id: 'platform', info: { title: 'Platform', version: '1' } },
+    );
+    const service = (document.services ?? []).find((entry) => entry.id === 'billing');
+
+    // Then the record's own server names the renamed scheme. The merged document's `servers` come
+    // from the caller and carry none, per SPEC 15.1, so this record is the only place it lives.
+    expect(service?.servers[0]?.security).toEqual([
+      { schemeId: federatedSchemaId('billing', 'sasl'), scopes: [] },
+    ]);
+    expect(document.servers).toEqual([]);
+  });
+
+  it('should leave no reference in the merged document that resolves to nothing', () => {
+    // Given the merge of two event services, which is where an unrewritten `schemeId` would sit
+    const { document, report } = mergeDocuments(
+      [
+        { id: 'billing', document: eventService('billing') },
+        { id: 'orders', document: eventService('orders') },
+      ],
+      { id: 'platform', info: { title: 'Platform', version: '1' } },
+    );
+
+    // When the schemes the document holds are compared with the ones its positions name
+    const declared = new Set(document.security.map((scheme) => scheme.id));
+    const named = [
+      ...(document.services ?? []).flatMap((service) =>
+        service.servers.flatMap((server) => server.security ?? []),
+      ),
+      ...[...document.nodes.values()].flatMap((node) =>
+        node.kind === 'channel'
+          ? node.operations.flatMap((operation) => operation.security ?? [])
+          : node.security,
+      ),
+    ];
+
+    // Then, and the merge returning at all is half the proof: it refuses a document whose
+    // references resolve to nothing, so this assertion and that refusal check each other.
+    expect(named.length).toBe(4);
+    expect(named.filter((requirement) => !declared.has(requirement.schemeId))).toEqual([]);
+    expect(report.renames.filter((rename) => rename.kind === 'security-scheme')).toHaveLength(2);
   });
 });

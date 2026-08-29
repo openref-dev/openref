@@ -1,5 +1,5 @@
 {
-  "hash": "7e11c1b986d4d24fc03ec0efef1acc5cc6797bf74544bc7c5dbe016027f8e2e9",
+  "hash": "cbc650250de8089bf41fd7a60bf838ee6c129f07faec8d292f8c4f14e6a17060",
   "id": "streetlights-kafka-api",
   "info": {
     "description": "The Smartylighting Streetlights API allows you to remotely manage the city lights.\n\n### Check out its awesome features:\n\n* Turn a specific streetlight on/off 🌃\n* Dim a specific streetlight 😎\n* Receive real-time information about environmental lighting conditions 📈\n",
@@ -470,16 +470,39 @@
       }
     ]
   ],
-  "security": [],
+  "security": [
+    {
+      "description": "Download the certificate files from service provider",
+      "id": "certs",
+      "type": "X509"
+    },
+    {
+      "description": "Provide your username and password for SASL/SCRAM authentication",
+      "id": "saslScram",
+      "type": "scramSha256"
+    }
+  ],
   "servers": [
     {
       "description": "Test broker secured with X509",
       "protocol": "kafka-secure",
+      "security": [
+        {
+          "schemeId": "certs",
+          "scopes": []
+        }
+      ],
       "url": "kafka-secure://test.mykafkacluster.org:28092"
     },
     {
       "description": "Test broker secured with scramSha256",
       "protocol": "kafka-secure",
+      "security": [
+        {
+          "schemeId": "saslScram",
+          "scopes": []
+        }
+      ],
       "url": "kafka-secure://test.mykafkacluster.org:18092"
     }
   ],

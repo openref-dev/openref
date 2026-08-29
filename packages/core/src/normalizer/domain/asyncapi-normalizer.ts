@@ -1,6 +1,13 @@
 import { compareByCodePoint } from '../../hashing/domain/canonical';
 import { finalizeDocument } from '../../hashing/domain/hash';
-import type { IRDocument, IRServer } from '../../ir/domain/document.types';
+import type {
+  IRDocument,
+  IROAuthFlow,
+  IROAuthFlows,
+  IRSecurityScheme,
+  IRSecuritySchemeType,
+  IRServer,
+} from '../../ir/domain/document.types';
 import type {
   IRChannel,
   IRChannelDirection,
@@ -10,6 +17,7 @@ import type {
   IRExample,
   IRMessage,
   IRNode,
+  IRSecurityRequirement,
   IRServerOverride,
 } from '../../ir/domain/node.types';
 import type { IRJsonValue, IRSchema } from '../../ir/domain/schema.types';
@@ -105,6 +113,16 @@ interface Context extends SchemaContext {
   readonly serverNames: ReadonlyMap<object, string>;
   /** Document level `defaultContentType`, which a message with none of its own inherits. */
   readonly defaultContentType: string | undefined;
+  /** The security schemes of the document, filled in place, keyed by the id each ended up with. */
+  readonly securitySchemes: Map<string, IRSecurityScheme>;
+  /**
+   * The declared name of a security scheme, keyed by every object that names its position.
+   *
+   * Read with {@link positionOf} for the reason channels, messages and servers are: a `$ref`
+   * wrapper belongs to one position and the object it points at may be shared by many, so two
+   * servers referring to one scheme name the same entry rather than making a second.
+   */
+  readonly securitySchemeNames: Map<object, string>;
 }
 
 /**
@@ -358,10 +376,303 @@ function readAsyncApiServers(context: Context, raw: unknown): Map<string, IRServ
     const bindings = readBindings(source.bindings);
     if (bindings !== undefined) server.bindings = bindings;
 
+    const security = readSecurityDeclarations(context, source.security, name, 'servers');
+    if (security !== undefined) server.security = security;
+
     servers.set(name, server);
   }
 
   return servers;
+}
+
+/**
+ * The thirteen security scheme types AsyncAPI 3 declares, in the order its own table names them.
+ *
+ * QUOTED FROM THE SPECIFICATION RATHER THAN COLLECTED FROM THE CORPUS. `spec/asyncapi.md` of
+ * `asyncapi/spec` at `v3.0.0` and `v3.1.0`, Security Scheme Object, `type`: "Valid values are
+ * `userPassword`, `apiKey`, `X509`, `symmetricEncryption`, `asymmetricEncryption`, `httpApiKey`,
+ * `http`, `oauth2`, `openIdConnect`, `plain`, `scramSha256`, `scramSha512`, and `gssapi`". Both
+ * editions carry that sentence word for word. Five of the thirteen appear in no document of the
+ * event corpus, and they are here anyway: the union is read from the specification's table whole
+ * or not at all, and a partially read one is the half picture SPEC 8.2 spent two tasks refusing.
+ *
+ * A TYPE OUTSIDE THE TABLE IS A REFUSAL AND NOT A SKIP, per SPEC 8.2, and it was a skip until the
+ * review of `T051` measured what a skip prints. A server writing `security: [{ type: 'bearerToken' }]`
+ * normalized to `security: []` at that position, and an empty list is this reader's own spelling of
+ * "the document said there are none" while the document said there is one. That is a false sentence
+ * where an absent one belongs, which is the defect the holding position existed to refuse, one level
+ * down. `type` is REQUIRED by the Security Scheme Object, and this normalizer is fail closed where a
+ * member is required.
+ */
+const ASYNCAPI_SECURITY_SCHEME_TYPES = [
+  'userPassword',
+  'apiKey',
+  'X509',
+  'symmetricEncryption',
+  'asymmetricEncryption',
+  'httpApiKey',
+  'http',
+  'oauth2',
+  'openIdConnect',
+  'plain',
+  'scramSha256',
+  'scramSha512',
+  'gssapi',
+] as const satisfies readonly IRSecuritySchemeType[];
+
+/**
+ * Where AsyncAPI puts an API key, by the type that carries the member.
+ *
+ * TWO VOCABULARIES UNDER ONE MEMBER NAME, WHICH IS THE SPECIFICATION'S OWN ARRANGEMENT. The
+ * Security Scheme Object's `in` is REQUIRED for `apiKey` with the values `user` and `password`,
+ * and REQUIRED for `httpApiKey` with `query`, `header` and `cookie`. Both sets are checked here
+ * rather than one, because a value outside the pair its own type declares is not a location this
+ * reader can pass on to anybody.
+ */
+const ASYNCAPI_KEY_LOCATIONS: Readonly<
+  Record<string, readonly NonNullable<IRSecurityScheme['in']>[]>
+> = {
+  apiKey: ['user', 'password'],
+  httpApiKey: ['query', 'header', 'cookie'],
+};
+
+/** The four OAuth flows AsyncAPI's OAuth Flows Object declares, which are OpenAPI's four. */
+const ASYNCAPI_OAUTH_FLOWS = [
+  'implicit',
+  'password',
+  'clientCredentials',
+  'authorizationCode',
+] as const satisfies readonly (keyof IROAuthFlows)[];
+
+/**
+ * Reads one AsyncAPI OAuth Flow Object.
+ *
+ * `availableScopes` AND NOT `scopes`, AND THE TWO ARE DIFFERENT FACTS. AsyncAPI's OAuth Flow
+ * Object names its scope dictionary `availableScopes`, where OpenAPI names the same dictionary
+ * `scopes`, so both land in `IROAuthFlow.scopes`. The `scopes` AsyncAPI writes on the Security
+ * Scheme Object itself is the other fact, the list of scopes needed at the position, and it goes
+ * to the requirement rather than here.
+ *
+ * @param raw - The flow object, untrusted
+ * @returns The flow, or nothing when there is no object here
+ */
+function readAsyncApiOAuthFlow(raw: unknown): IROAuthFlow | undefined {
+  if (!isPlainObject(raw)) return undefined;
+
+  const scopes: Record<string, string> = {};
+  if (isPlainObject(raw.availableScopes)) {
+    for (const name of Object.keys(raw.availableScopes).sort(compareByCodePoint)) {
+      scopes[name] = asString(raw.availableScopes[name]) ?? '';
+    }
+  }
+
+  const flow: Draft<IROAuthFlow> = { scopes };
+  const authorizationUrl = asString(raw.authorizationUrl);
+  const tokenUrl = asString(raw.tokenUrl);
+  const refreshUrl = asString(raw.refreshUrl);
+  if (authorizationUrl !== undefined) flow.authorizationUrl = authorizationUrl;
+  if (tokenUrl !== undefined) flow.tokenUrl = tokenUrl;
+  if (refreshUrl !== undefined) flow.refreshUrl = refreshUrl;
+
+  return flow;
+}
+
+/**
+ * Reads one Security Scheme Object into the IR, under the id it is to be filed as.
+ *
+ * ONLY THE MEMBERS THE TYPE DECLARES ARE READ, per the "Applies To" column of the specification's
+ * own table, so a `plain` scheme carrying a stray `scheme` member does not acquire an HTTP
+ * authentication scheme it does not have. SPEC 8.2 carries the whole mapping.
+ *
+ * THE REFUSAL NAMES THE POSITION AND NOT ONLY THE TYPE, because the reader who acts on it edits the
+ * document rather than this file, and "somewhere in this document there is a scheme of an unknown
+ * type" is not an address.
+ *
+ * @param id - The id this scheme is filed under, declared or derived
+ * @param source - The Security Scheme Object, resolved and untrusted
+ * @param where - Where the document wrote it, in the document's own coordinates
+ * @returns The scheme
+ * @throws {NormalizeError} When the type is not one of the thirteen, or was not written at all
+ */
+function readAsyncApiSecurityScheme(
+  id: string,
+  source: Record<string, unknown>,
+  where: string,
+): IRSecurityScheme {
+  const type = ASYNCAPI_SECURITY_SCHEME_TYPES.find((candidate) => candidate === source.type);
+  if (type === undefined) {
+    throw invalidDocument(
+      `${where} declares the security scheme type ${JSON.stringify(source.type)}, and AsyncAPI 3 ` +
+        `declares thirteen: ${ASYNCAPI_SECURITY_SCHEME_TYPES.join(', ')}`,
+      { position: where, type: source.type },
+    );
+  }
+
+  const scheme: Draft<IRSecurityScheme> = { id, type };
+
+  const description = asString(source.description);
+  if (description !== undefined) scheme.description = description;
+
+  if (type === 'httpApiKey') {
+    const name = asString(source.name);
+    if (name !== undefined) scheme.name = name;
+  }
+
+  const locations = ASYNCAPI_KEY_LOCATIONS[type];
+  if (locations !== undefined) {
+    const location = locations.find((candidate) => candidate === source.in);
+    if (location !== undefined) scheme.in = location;
+  }
+
+  if (type === 'http') {
+    const httpScheme = asString(source.scheme);
+    const bearerFormat = asString(source.bearerFormat);
+    if (httpScheme !== undefined) scheme.scheme = httpScheme;
+    if (bearerFormat !== undefined) scheme.bearerFormat = bearerFormat;
+  }
+
+  if (type === 'openIdConnect') {
+    const url = asString(source.openIdConnectUrl);
+    if (url !== undefined) scheme.openIdConnectUrl = url;
+  }
+
+  if (type === 'oauth2' && isPlainObject(source.flows)) {
+    const flows: Draft<IROAuthFlows> = {};
+    for (const name of ASYNCAPI_OAUTH_FLOWS) {
+      const flow = readAsyncApiOAuthFlow(source.flows[name]);
+      if (flow !== undefined) flows[name] = flow;
+    }
+    if (Object.keys(flows).length > 0) scheme.flows = flows;
+  }
+
+  return scheme;
+}
+
+/**
+ * Reads `components.securitySchemes` into the document's own scheme table.
+ *
+ * IT IS READ WHOLE, INCLUDING SCHEMES NOTHING REFERS TO, which is what the OpenAPI side does with
+ * the same block and for the same reason: the table is what the document declares it can be
+ * called with, and a scheme nobody references yet is still declared.
+ *
+ * IT IS ALSO WHERE A `$ref` TO AN UNKNOWN TYPE IS REFUSED, because this block is read before the
+ * servers and before the operations. The position a reader is sent to is therefore the declaration
+ * rather than the reference, which is the position they would have to edit either way.
+ *
+ * @param context - The document being normalized, whose scheme table is filled in place
+ * @param raw - The `securitySchemes` member of `components`, untrusted
+ * @throws {NormalizeError} When a declared scheme's type is not one of the thirteen
+ */
+function readDeclaredSecuritySchemes(context: Context, raw: unknown): void {
+  if (!isPlainObject(raw)) return;
+
+  for (const name of Object.keys(raw).sort(compareByCodePoint)) {
+    const written = raw[name];
+    const chain = referenceChain(context, written, `security scheme ${name}`);
+    if (!isPlainObject(chain.value)) continue;
+
+    const scheme = readAsyncApiSecurityScheme(
+      name,
+      chain.value,
+      `components.securitySchemes.${name}`,
+    );
+
+    context.securitySchemes.set(name, scheme);
+    context.securitySchemeNames.set(chain.value, name);
+    // Second, so a `$ref` wrapper beats the definition it points at when two names share one,
+    // which is the rule `positionOf` states and the servers block already applies.
+    if (isPlainObject(written)) context.securitySchemeNames.set(written, name);
+  }
+}
+
+/**
+ * Files an inline Security Scheme Object under an id derived from where it was written.
+ *
+ * AN INLINE SCHEME HAS NO NAME, SO THE POSITION IS THE NAME. `<position>-security-<index>`, where
+ * the index is the entry's place in the list exactly as the document wrote it, and a clash with a
+ * declared name or with another derived id takes a numeric suffix in canonical order, which is the
+ * resolution SPEC 8.2 already uses for two channels whose ids collide.
+ *
+ * @param context - The document being normalized, whose scheme table is filled in place
+ * @param position - The server's name or the operation's key
+ * @param index - The entry's place in the `security` list as written
+ * @param source - The Security Scheme Object, resolved
+ * @param where - The position in the document's own coordinates, for a refusal
+ * @returns The id it was filed under
+ * @throws {NormalizeError} When the type is not one of the thirteen
+ */
+function fileInlineSecurityScheme(
+  context: Context,
+  position: string,
+  index: number,
+  source: Record<string, unknown>,
+  where: string,
+): string {
+  const derived = `${position}-security-${String(index)}`;
+  let id = derived;
+  let suffix = 2;
+  while (context.securitySchemes.has(id)) {
+    id = `${derived}-${String(suffix)}`;
+    suffix += 1;
+  }
+
+  context.securitySchemes.set(id, readAsyncApiSecurityScheme(id, source, where));
+  return id;
+}
+
+/**
+ * Reads a `security` list of Server or Operation into requirements naming the document's table.
+ *
+ * REQUIREMENTS AND NOT COPIES OF THE SCHEMES, and SPEC 8.2 records why. AsyncAPI writes the whole
+ * Security Scheme Object at each position, but the IR already has one place for a scheme and one
+ * shape for "this position needs that scheme with these scopes"; copying the object into every
+ * position would write one scheme into the document N+1 times and leave a reader unable to tell
+ * one scheme used twice from two schemes that happen to match.
+ *
+ * `scopes` COMES FROM THE SCHEME OBJECT AT THE POSITION, because that is where AsyncAPI puts it:
+ * "List of the needed scope names", on the Security Scheme Object, for `oauth2` and
+ * `openIdConnect`. It is the same fact OpenAPI writes as the value of a Security Requirement.
+ *
+ * A WRITTEN EMPTY LIST IS CARRIED AS AN EMPTY LIST. Neither the Server Object nor the Operation
+ * Object says what an empty `security` means, unlike the Channel Object's `servers`, so "said
+ * there are none" is kept as what it is rather than merged into "said nothing".
+ *
+ * @param context - The document being normalized
+ * @param raw - The `security` member, untrusted
+ * @param position - The server's name or the operation's key, for the derived ids
+ * @param block - The block this list is in, `servers` or `operations`, for a refusal
+ * @returns The requirements, or nothing when the member was not written as a list
+ * @throws {NormalizeError} When an inline scheme's type is not one of the thirteen
+ */
+function readSecurityDeclarations(
+  context: Context,
+  raw: unknown,
+  position: string,
+  block: 'servers' | 'operations',
+): IRSecurityRequirement[] | undefined {
+  if (!isUnknownArray(raw)) return undefined;
+
+  const requirements: IRSecurityRequirement[] = [];
+
+  for (const [index, entry] of raw.entries()) {
+    const resolved = referenceChain(context, entry, `security ${String(index)} of ${position}`);
+    if (!isPlainObject(resolved.value)) continue;
+
+    const declared = positionOf(context.securitySchemeNames, resolved.chain);
+    const schemeId =
+      declared ??
+      fileInlineSecurityScheme(
+        context,
+        position,
+        index,
+        resolved.value,
+        `${block}.${position}.security[${String(index)}]`,
+      );
+
+    requirements.push({ schemeId, scopes: readStringList(resolved.value.scopes) ?? [] });
+  }
+
+  return requirements;
 }
 
 /** A channel as the document wrote it, with the identity this normalizer gave it. */
@@ -874,11 +1185,13 @@ function collectChannelOperations(
     const bindings = readBindings(source.bindings);
     const reply = readOperationReply(context, source.reply, key, channels, positions);
     const tags = readTagNames(source.tags);
+    const security = readSecurityDeclarations(context, source.security, key, 'operations');
     if (summary !== undefined) operation.summary = summary;
     if (description !== undefined) operation.description = description;
     if (bindings !== undefined) operation.bindings = bindings;
     if (reply !== undefined) operation.reply = reply;
     if (tags.length > 0) operation.tags = tags;
+    if (security !== undefined) operation.security = security;
 
     byChannel.get(channelKey)?.push(operation);
   }
@@ -1182,12 +1495,16 @@ function readVersion(document: Record<string, unknown>): string {
 /**
  * Normalizes an AsyncAPI 3.0 or 3.1 document into the intermediate representation.
  *
- * WHAT THIS DOCUMENT DOES NOT CARRY, SAID HERE RATHER THAN LEFT TO BE NOTICED. `security` is
- * empty and `relationships` is empty, and neither is an oversight. AsyncAPI declares thirteen
- * kinds of security scheme where {@link IRSecuritySchemeType} has the five OpenAPI names, so
- * reading the overlap would put a partial security picture on a page where partial is worse than
- * absent. `relationships` is SPEC 9 and is built by `T052` with the topology graph, from
- * declarations rather than from the shape of a channel list.
+ * WHAT THIS DOCUMENT DOES NOT CARRY, SAID HERE RATHER THAN LEFT TO BE NOTICED. `relationships` is
+ * empty, and it is not an oversight: it is SPEC 9 and is built by `T052` with the topology graph,
+ * from declarations rather than from the shape of a channel list.
+ *
+ * `security` IS NO LONGER EMPTY, SINCE `T051`. It was, from `T048` until 2026-08-29, because
+ * AsyncAPI declares thirteen kinds of security scheme where {@link IRSecuritySchemeType} had the
+ * five OpenAPI names, and reading the overlap would have put a partial security picture on a page
+ * where partial is worse than absent. The maintainer's ruling grew the union instead, so the
+ * thirteen are read whole: the document's own `components.securitySchemes` become the table, and
+ * a server's or an operation's `security` becomes requirements naming it.
  *
  * @param input - Parsed document, untrusted
  * @param options - Document id, external documents and nesting depth
@@ -1227,12 +1544,19 @@ export function normalizeAsyncApiDocument(
     servers,
     serverNames,
     defaultContentType: asString(input.defaultContentType),
+    securitySchemes: new Map<string, IRSecurityScheme>(),
+    securitySchemeNames: new Map<object, string>(),
   };
 
   const info = readInfo(input.info);
 
   const declared = readDeclaredSchemas(context);
   produceDeclaredSchemas(context, declared.plain);
+
+  // BEFORE THE SERVERS, BECAUSE A SERVER'S `security` NAMES THIS TABLE. A `$ref` at a server
+  // position is matched against the objects filled in here, so reading the declarations later
+  // would file every referenced scheme a second time under a derived id.
+  readDeclaredSecuritySchemes(context, components?.securitySchemes);
 
   // The server map is filled in place, because a channel resolves a reference to a server and
   // has to find the entry this walk produced, and both are members of one context.
@@ -1286,7 +1610,12 @@ export function normalizeAsyncApiDocument(
     }),
     nodes,
     schemas: new Map(schemas.map((schema) => [schema.id, schema])),
-    security: [],
+    // SORTED BY ID RATHER THAN BY INSERTION, per SPEC 5.3. The declared names arrive in code point
+    // order and the derived ids arrive in the order the servers and operations were walked, and
+    // one list built from two walks has no meaningful order until it is given one.
+    security: [...context.securitySchemes.values()].sort((left, right) =>
+      compareByCodePoint(left.id, right.id),
+    ),
     relationships: [],
     webhooks: new Map<string, IRNode>(),
   };

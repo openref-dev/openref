@@ -464,6 +464,106 @@ export function isEnhancerToken(token: unknown, enhancer: string): boolean {
 export const NEST_SSE_METADATA = '__sse__';
 
 /**
+ * The keys `@nestjs/microservices` writes, per SPEC 8.3.
+ *
+ * STRING LITERALS FOR THE REASON THE TABLES ABOVE GIVE, AND THE PACKAGE IS NOT A PEER. A host that
+ * has no microservices has no `@MessagePattern` anywhere, so requiring the package to read three
+ * strings would put a dependency on every consumer for a feature most of them do not use. The
+ * three are the framework's on-disk format, and `nest-value-surface.spec.ts` applies the real
+ * decorators and asserts each still holds what this table says, which is the same check the http
+ * keys already get.
+ *
+ * `microservices:transport` IS THE SECOND ARGUMENT OF THE DECORATOR AND NOT THE APPLICATION'S
+ * CONFIGURATION. `@MessagePattern('x', Transport.KAFKA)` writes it; `app.connectMicroservice(...)`
+ * does not and is not reachable from the container at all. SPEC 8.3 says what a handler that names
+ * no transport is read as, which is the one the host declared rather than a guess.
+ */
+export const NEST_MICROSERVICE_METADATA = {
+  /** The pattern, exactly as written: a string, or an object such as `{ cmd: 'sum' }`. */
+  pattern: 'microservices:pattern',
+  /** `PatternHandler`, which says whether the handler answers a message or an event. */
+  handlerType: 'microservices:handler_type',
+  /** `Transport`, when the decorator was given one. */
+  transport: 'microservices:transport',
+} as const;
+
+/**
+ * `PatternHandler` as the enum spells it, which is what tells `@MessagePattern` from `@EventPattern`.
+ *
+ * MEASURED RATHER THAN READ OUT OF THE DOCUMENTATION, like {@link NEST_REQUEST_METHODS}. The enum
+ * is numeric and starts at one, so a handler carrying `0` under this key is not a message handler
+ * and a table starting at zero would have called every event handler a message handler.
+ */
+export const NEST_PATTERN_HANDLERS = { message: 1, event: 2 } as const;
+
+/**
+ * `Transport` as the enum spells it, and the protocol name each transport speaks.
+ *
+ * THE PROTOCOL NAMES ARE ASYNCAPI'S WHERE ASYNCAPI HAS ONE, AND THE TRANSPORT'S OWN WHERE IT DOES
+ * NOT. AsyncAPI's Server Object says its protocol list is not closed, so `tcp` and `grpc` are the
+ * honest names for two transports it does not enumerate; `amqp` rather than `rmq` and `kafka`
+ * rather than `KAFKA` are the names AsyncAPI does enumerate, and using the enum's spelling there
+ * would put a protocol in the document that no AsyncAPI reader knows.
+ *
+ * A NUMBER OUTSIDE THE TABLE IS REPORTED RATHER THAN GUESSED AT, per SPEC 0 and the request method
+ * table above. A custom transport strategy carries whatever number its author chose, and inventing
+ * a protocol for it would describe a broker nobody named.
+ */
+export const NEST_TRANSPORT_PROTOCOLS: Readonly<Record<number, string>> = {
+  0: 'tcp',
+  1: 'redis',
+  2: 'nats',
+  3: 'mqtt',
+  4: 'grpc',
+  5: 'amqp',
+  6: 'kafka',
+};
+
+/** The same seven by the name the enum gives them, which is what a reader of the code recognises. */
+export const NEST_TRANSPORT_NAMES: Readonly<Record<number, string>> = {
+  0: 'TCP',
+  1: 'REDIS',
+  2: 'NATS',
+  3: 'MQTT',
+  4: 'GRPC',
+  5: 'RMQ',
+  6: 'KAFKA',
+};
+
+/**
+ * The keys `@nestjs/websockets` writes, per SPEC 8.3.
+ *
+ * STRING LITERALS AND NOT A PEER DEPENDENCY, for the reason {@link NEST_MICROSERVICE_METADATA}
+ * gives.
+ *
+ * BOTH HALVES OF THE ADDRESS COME OFF THE OPTIONS OBJECT AND NOT OFF A KEY OF THEIR OWN, and that
+ * is measured rather than assumed. The package exports a `NAMESPACE_METADATA` constant spelled
+ * `namespace`, and applying the real `@WebSocketGateway(8080, { namespace: 'chat', path: '/ws' })`
+ * on NestJS 11 leaves that key unset: everything the decorator was given is under
+ * `websockets:gateway_options`. Reading the exported constant would have produced a gateway with
+ * no namespace on every application that has one, silently.
+ */
+export const NEST_WEBSOCKET_METADATA = {
+  /** True on a class decorated with `@WebSocketGateway`. */
+  gateway: 'websockets:is_gateway',
+  /** The options object the decorator was given, which carries `namespace` and `path`. */
+  options: 'websockets:gateway_options',
+  /** True on a method decorated with `@SubscribeMessage`. */
+  messageMapping: 'websockets:message_mapping',
+  /** The event name `@SubscribeMessage` was given. */
+  message: 'message',
+} as const;
+
+/**
+ * The protocol a WebSocket gateway speaks, per SPEC 8.3 and the AsyncAPI protocol list.
+ *
+ * `ws` AND NOT `wss`, because the decorator says nothing about TLS. Which of the two a deployment
+ * serves is a property of the server in front of the gateway, and naming `wss` here would be this
+ * package asserting a certificate it has never seen.
+ */
+export const NEST_WEBSOCKET_PROTOCOL = 'ws';
+
+/**
  * The key `@nestjs/swagger` keeps operation extensions under.
  *
  * WRITTEN DIRECTLY, AND THAT IS WHY `@nestjs/swagger` IS NOT A PEER OF THIS PACKAGE. `ApiExtension`

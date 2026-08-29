@@ -7,7 +7,7 @@ import type {
   IRService,
 } from '@openref/core';
 import type { FederationService } from './federation-options';
-import { rewriteDriftIssue, type RewriteMaps } from './rewrite';
+import { rewriteDriftIssue, rewriteServers, type RewriteMaps } from './rewrite';
 
 /**
  * The parts of a merged document that are neither a node nor a name: kind, health, topology, and
@@ -73,7 +73,10 @@ export function serviceRecord(
     documentHash: document.hash,
     kind: document.kind,
     info: document.info,
-    servers: document.servers,
+    // THE SERVERS ARE THE SERVICE'S OWN AND THEIR SCHEME IDS ARE NOT. A server of an AsyncAPI
+    // document may declare `security`, whose requirements name entries of that service's own
+    // `IRDocument.security`, and the merge renames those whenever two services claim one name.
+    servers: rewriteServers(document.servers, maps),
   };
 
   if (prefix !== undefined) record.prefix = prefix;

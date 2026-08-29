@@ -137,6 +137,8 @@ export type ReferenceRouteId =
   | 'overview'
   | 'openapi-json'
   | 'openapi-yaml'
+  | 'asyncapi-json'
+  | 'asyncapi-yaml'
   | 'asset'
   | 'search-index'
   | 'navigation'
@@ -222,6 +224,12 @@ export function referenceRoutes(basePath: string): readonly ReferenceRoute[] {
     { id: 'overview', pattern: at('/'), method: 'get' },
     { id: 'openapi-json', pattern: at('/openapi.json'), method: 'get' },
     { id: 'openapi-yaml', pattern: at('/openapi.yaml'), method: 'get' },
+    // THE EVENT DOCUMENT'S OWN ADDRESSES, per SPEC 13.3, registered on every mount by the
+    // `_proxy` precedent: on an HTTP mount they answer 404 with words, so "this reference
+    // describes no events" is a fact a request can learn rather than a missing address, and an
+    // events document is never served under a name that says OpenAPI.
+    { id: 'asyncapi-json', pattern: at('/asyncapi.json'), method: 'get' },
+    { id: 'asyncapi-yaml', pattern: at('/asyncapi.yaml'), method: 'get' },
     { id: 'asset', pattern: at(`/${ASSET_SEGMENT}/:${ASSET_PARAM}`), method: 'get' },
     { id: 'search-index', pattern: at(`/${SEARCH_INDEX_SEGMENT}`), method: 'get' },
     { id: 'navigation', pattern: at(`/${NAVIGATION_SEGMENT}/:${NAVIGATION_PARAM}`), method: 'get' },

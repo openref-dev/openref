@@ -1,5 +1,5 @@
 {
-  "hash": "215d8f8497ed104d66a7be556e7723cf17a587a230bf7e357545f6594cf1a1fe",
+  "hash": "a2dab5592c58259944e5530c264c6bb19c845b661ee1f83856c8b3212f3a30c3",
   "id": "streetlights-kafka-api",
   "info": {
     "description": "The Smartylighting Streetlights API allows you to remotely manage the city lights.\n\n### Check out its awesome features:\n\n* Turn a specific streetlight on/off 🌃\n* Dim a specific streetlight 😎\n* Receive real-time information about environmental lighting conditions 📈\n",
@@ -137,6 +137,14 @@
             "id": "dimLight",
             "messageIds": [
               "dimLight"
+            ],
+            "security": [
+              {
+                "schemeId": "dimLight-security-0",
+                "scopes": [
+                  "streetlights:read"
+                ]
+              }
             ]
           }
         ],
@@ -208,6 +216,14 @@
             "id": "turnOff",
             "messageIds": [
               "turnOff"
+            ],
+            "security": [
+              {
+                "schemeId": "turnOff-security-0",
+                "scopes": [
+                  "streetlights:read"
+                ]
+              }
             ]
           }
         ],
@@ -279,6 +295,14 @@
             "id": "turnOn",
             "messageIds": [
               "turnOn"
+            ],
+            "security": [
+              {
+                "schemeId": "turnOn-security-0",
+                "scopes": [
+                  "streetlights:read"
+                ]
+              }
             ]
           }
         ],
@@ -454,16 +478,107 @@
       }
     ]
   ],
-  "security": [],
+  "security": [
+    {
+      "description": "The oauth security descriptions",
+      "flows": {
+        "clientCredentials": {
+          "scopes": {
+            "streetlights:read": "Scope required for subscribing to channel",
+            "streetlights:write": "Scope required for publishing to channel"
+          },
+          "tokenUrl": "https://example.com/api/oauth/dialog"
+        }
+      },
+      "id": "dimLight-security-0",
+      "type": "oauth2"
+    },
+    {
+      "description": "Provide your username and password for SASL/SCRAM authentication",
+      "id": "saslScram",
+      "type": "scramSha256"
+    },
+    {
+      "description": "The oauth security descriptions",
+      "flows": {
+        "clientCredentials": {
+          "scopes": {
+            "streetlights:read": "Scope required for subscribing to channel",
+            "streetlights:write": "Scope required for publishing to channel"
+          },
+          "tokenUrl": "https://example.com/api/oauth/dialog"
+        }
+      },
+      "id": "streetlights_auth",
+      "type": "oauth2"
+    },
+    {
+      "description": "The oauth security descriptions",
+      "flows": {
+        "clientCredentials": {
+          "scopes": {
+            "streetlights:read": "Scope required for subscribing to channel",
+            "streetlights:write": "Scope required for publishing to channel"
+          },
+          "tokenUrl": "https://example.com/api/oauth/dialog"
+        }
+      },
+      "id": "test_oauth-security-0",
+      "type": "oauth2"
+    },
+    {
+      "description": "The oauth security descriptions",
+      "flows": {
+        "clientCredentials": {
+          "scopes": {
+            "streetlights:read": "Scope required for subscribing to channel",
+            "streetlights:write": "Scope required for publishing to channel"
+          },
+          "tokenUrl": "https://example.com/api/oauth/dialog"
+        }
+      },
+      "id": "turnOff-security-0",
+      "type": "oauth2"
+    },
+    {
+      "description": "The oauth security descriptions",
+      "flows": {
+        "clientCredentials": {
+          "scopes": {
+            "streetlights:read": "Scope required for subscribing to channel",
+            "streetlights:write": "Scope required for publishing to channel"
+          },
+          "tokenUrl": "https://example.com/api/oauth/dialog"
+        }
+      },
+      "id": "turnOn-security-0",
+      "type": "oauth2"
+    }
+  ],
   "servers": [
     {
       "description": "Test broker",
       "protocol": "kafka-secure",
+      "security": [
+        {
+          "schemeId": "saslScram",
+          "scopes": []
+        }
+      ],
       "url": "kafka-secure://test.mykafkacluster.org:8092"
     },
     {
       "description": "Test port for oauth",
       "protocol": "kafka-secure",
+      "security": [
+        {
+          "schemeId": "test_oauth-security-0",
+          "scopes": [
+            "streetlights:write",
+            "streetlights:read"
+          ]
+        }
+      ],
       "url": "kafka-secure://test.mykafkacluster.org:8093"
     }
   ],

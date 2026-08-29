@@ -162,3 +162,80 @@ export function ApiExample(example: ApiExampleOptions): OpenRefDecorator {
     example,
   ]);
 }
+
+/** Direction of a channel as SPEC 8.2 spells it: what the application does with the message. */
+export type ApiChannelDirection = 'send' | 'receive';
+
+/**
+ * What `@ApiChannel` accepts, per SPEC 8.3 and SPEC 13.4.
+ *
+ * EVERY MEMBER IS OPTIONAL BECAUSE THE DECORATOR OVERRIDES RATHER THAN REPLACES. A handler that
+ * already carries `@MessagePattern('orders.created')` and wants only to say the protocol writes
+ * `@ApiChannel({ protocol: 'amqp' })`, and the address stays the one the framework metadata gave.
+ * A handler carrying no framework metadata at all declares the whole channel here, and then the
+ * address is the one member it cannot do without: a channel with no address and no pattern is a
+ * channel nothing can be said about.
+ */
+export interface ApiChannelOptions {
+  /** Channel address: a topic, a queue name or a WebSocket path. */
+  readonly address?: string;
+  /** Protocol, as AsyncAPI spells it: `kafka`, `amqp`, `mqtt`, `ws`. */
+  readonly protocol?: string;
+  /** Which way the message travels. Defaults to `receive`, which is what a handler does. */
+  readonly direction?: ApiChannelDirection;
+  readonly title?: string;
+  readonly summary?: string;
+  readonly description?: string;
+  /** Tag names, which group the channel in the navigation the way an operation's tags do. */
+  readonly tags?: readonly string[];
+}
+
+/**
+ * What `@ApiMessage` accepts, per SPEC 8.3 and SPEC 13.4.
+ *
+ * A CLASS OR A SCHEMA, AND A CLASS CONTRIBUTES ITS NAME AND NOTHING ELSE. This is the rule SPEC
+ * 13.6 states for `@ApiStream({ itemType })` and it holds here for the same reason: reflection
+ * cannot produce the shape of `OrderCreatedDto` from a class reference, so what reaches the
+ * document is a reference to a schema of that name, and a name the document has no schema for
+ * reaches `doctor` rather than being invented. A plain object is taken as the schema itself.
+ */
+export interface ApiMessageOptions {
+  /** What the message carries. A class contributes its name; an object is the schema. */
+  readonly payload?: (new (...args: never[]) => unknown) | Readonly<Record<string, unknown>>;
+  /** The message headers, read the same way as `payload`. */
+  readonly headers?: (new (...args: never[]) => unknown) | Readonly<Record<string, unknown>>;
+  /** Name of the message, which is what the reference calls it. Defaults to the payload's. */
+  readonly name?: string;
+  readonly title?: string;
+  readonly summary?: string;
+  readonly description?: string;
+  /** Content type, such as `application/json`. */
+  readonly contentType?: string;
+  /** A runtime expression saying where the correlation id is found, per SPEC 8.2. */
+  readonly correlationId?: string;
+}
+
+/**
+ * Declares the channel a handler serves, at `declared` confidence, per SPEC 8.3.
+ *
+ * IT OUTRANKS WHAT THE FRAMEWORK METADATA SAYS, per SPEC 6.1: a person writing this is
+ * documenting the endpoint, and `@MessagePattern`'s own arguments are a routing instruction that
+ * happens to be readable. Where both are present, each member this decorator names wins and the
+ * rest stay as they were read.
+ *
+ * @param channel - Address, protocol, direction and the prose around them
+ * @returns The decorator
+ */
+export function ApiChannel(channel: ApiChannelOptions): OpenRefDecorator {
+  return setOpenRefMetadata(OPENREF_METADATA.channel, channel);
+}
+
+/**
+ * Declares the message a channel carries, at `declared` confidence, per SPEC 8.3.
+ *
+ * @param message - Payload, headers and the prose around them
+ * @returns The decorator
+ */
+export function ApiMessage(message: ApiMessageOptions): OpenRefDecorator {
+  return setOpenRefMetadata(OPENREF_METADATA.message, message);
+}

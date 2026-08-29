@@ -1,5 +1,5 @@
 {
-  "hash": "af527cb947dad5b8a5e713269221fe45cd9922ec42ab0016a4a32ec13b96420f",
+  "hash": "6862f6e5f690db2d0fdb0e24ae79e61f21b5c5086a08dca909d6ae1e34f40a5c",
   "id": "streetlights-mqtt-api",
   "info": {
     "description": "The Smartylighting Streetlights API allows you to remotely manage the city lights.\n\n### Check out its awesome features:\n\n* Turn a specific streetlight on/off 🌃\n* Dim a specific streetlight 😎\n* Receive real-time information about environmental lighting conditions 📈\n",
@@ -434,11 +434,123 @@
       }
     ]
   ],
-  "security": [],
+  "security": [
+    {
+      "description": "Provide your API key as the user and leave the password empty.",
+      "id": "apiKey",
+      "in": "user",
+      "type": "apiKey"
+    },
+    {
+      "id": "openIdConnectWellKnown",
+      "openIdConnectUrl": "https://authserver.example/.well-known",
+      "type": "openIdConnect"
+    },
+    {
+      "description": "Flows to support OAuth 2.0",
+      "flows": {
+        "authorizationCode": {
+          "authorizationUrl": "https://authserver.example/auth",
+          "refreshUrl": "https://authserver.example/refresh",
+          "scopes": {
+            "streetlights:dim": "Ability to dim the lights",
+            "streetlights:off": "Ability to switch lights off",
+            "streetlights:on": "Ability to switch lights on"
+          },
+          "tokenUrl": "https://authserver.example/token"
+        },
+        "clientCredentials": {
+          "scopes": {
+            "streetlights:dim": "Ability to dim the lights",
+            "streetlights:off": "Ability to switch lights off",
+            "streetlights:on": "Ability to switch lights on"
+          },
+          "tokenUrl": "https://authserver.example/token"
+        },
+        "implicit": {
+          "authorizationUrl": "https://authserver.example/auth",
+          "scopes": {
+            "streetlights:dim": "Ability to dim the lights",
+            "streetlights:off": "Ability to switch lights off",
+            "streetlights:on": "Ability to switch lights on"
+          }
+        },
+        "password": {
+          "scopes": {
+            "streetlights:dim": "Ability to dim the lights",
+            "streetlights:off": "Ability to switch lights off",
+            "streetlights:on": "Ability to switch lights on"
+          },
+          "tokenUrl": "https://authserver.example/token"
+        }
+      },
+      "id": "production-security-1",
+      "type": "oauth2"
+    },
+    {
+      "description": "Flows to support OAuth 2.0",
+      "flows": {
+        "authorizationCode": {
+          "authorizationUrl": "https://authserver.example/auth",
+          "refreshUrl": "https://authserver.example/refresh",
+          "scopes": {
+            "streetlights:dim": "Ability to dim the lights",
+            "streetlights:off": "Ability to switch lights off",
+            "streetlights:on": "Ability to switch lights on"
+          },
+          "tokenUrl": "https://authserver.example/token"
+        },
+        "clientCredentials": {
+          "scopes": {
+            "streetlights:dim": "Ability to dim the lights",
+            "streetlights:off": "Ability to switch lights off",
+            "streetlights:on": "Ability to switch lights on"
+          },
+          "tokenUrl": "https://authserver.example/token"
+        },
+        "implicit": {
+          "authorizationUrl": "https://authserver.example/auth",
+          "scopes": {
+            "streetlights:dim": "Ability to dim the lights",
+            "streetlights:off": "Ability to switch lights off",
+            "streetlights:on": "Ability to switch lights on"
+          }
+        },
+        "password": {
+          "scopes": {
+            "streetlights:dim": "Ability to dim the lights",
+            "streetlights:off": "Ability to switch lights off",
+            "streetlights:on": "Ability to switch lights on"
+          },
+          "tokenUrl": "https://authserver.example/token"
+        }
+      },
+      "id": "supportedOauthFlows",
+      "type": "oauth2"
+    }
+  ],
   "servers": [
     {
       "description": "Test broker",
       "protocol": "mqtt",
+      "security": [
+        {
+          "schemeId": "apiKey",
+          "scopes": []
+        },
+        {
+          "schemeId": "production-security-1",
+          "scopes": [
+            "streetlights:on",
+            "streetlights:off",
+            "streetlights:dim"
+          ]
+        },
+        {
+          "schemeId": "openIdConnectWellKnown",
+          "scopes": []
+        }
+      ],
       "url": "mqtt://test.mosquitto.org:{port}",
       "variables": {
         "port": {

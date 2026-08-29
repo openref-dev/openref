@@ -31,8 +31,18 @@ import {
   resolveGitRef,
 } from '../runtime/infrastructure/adapters/repository.adapter';
 import { ErrorCode, InvalidOptionsError, type IRDocument } from '@openref/core';
-import { readSourceLink } from './module-options';
-import type { OpenRefDocumentOptions, OpenRefRootOptions } from './module-options';
+import { discoverChannels } from '../events/infrastructure/adapters/channel-discovery.adapter';
+import { pairChannels } from '../events/domain/channel-pairing';
+import { synthesizeEventsDocument } from '../events/domain/asyncapi-synthesis';
+import { isEventsDocument, readSourceLink } from './module-options';
+import type {
+  OpenRefDocumentOptions,
+  OpenRefEventsDocumentOptions,
+  OpenRefRootOptions,
+} from './module-options';
+import type { DiscoveryProblem } from '../runtime/infrastructure/adapters/controller-discovery.adapter';
+import type { CollectorTarget } from '../runtime/application/services/collector-registry.service';
+import type { SynthesizedChannel } from '../events/domain/asyncapi-synthesis';
 import type {
   DiscoveryServiceLike,
   HttpAdapterHostLike,
@@ -55,6 +65,28 @@ export interface MountedReference {
   readonly service: ReferenceService;
   /** Undefined only when the pass produced nothing, which cannot happen once it has run. */
   readonly pass: RuntimePassResult;
+  /**
+   * What the event discovery of SPEC 8.3 could not state, for a synthesized events document.
+   *
+   * KEPT BESIDE THE PASS AND NOT FOLDED INTO IT, because they are found at two different moments
+   * and about two different things. `pass.discoveryProblems` is what the runtime walk could not
+   * read about routes that already exist; these are what the synthesis could not say about the
+   * document it was building, and a reader of `doctor` needs both. Absent on every other entry.
+   *
+   * ALL SIX CASES OF SPEC 8.3 LAND HERE, IN THREE GROUPS, AND THE THIRD WAS MISSING UNTIL THE
+   * REVIEW OF `T051`. The discovery contributes the unreadable pattern, the transport outside the
+   * table and the gateway with no `@SubscribeMessage`; the synthesis contributes the protocol
+   * whose host nobody configured and the payload class no schema answers to; the pairing
+   * contributes the channel several handlers serve, and its list was built and thrown away.
+   *
+   * NOTHING PRINTS THIS YET, AND THAT IS STATED RATHER THAN IMPLIED. SPEC 8.3 calls each of the
+   * six a `doctor` finding, and `doctor` prints `IRDriftIssue`s keyed by `IRDriftRule`, which no
+   * problem list of this shape can enter without that public union growing. `pass.discoveryProblems`
+   * has had the same shape and the same absence of a printer since `T019`. The obligation is
+   * `BUILD-AMENDMENTS`'s section for `T054`, with the six cases named, so it is enforced by a gate
+   * rather than remembered.
+   */
+  readonly eventProblems?: readonly DiscoveryProblem[];
 }
 
 /** Holds every document `forRoot` mounted, addressable by the id the host gave it. */
@@ -149,6 +181,17 @@ export class MountedReferences {
   ): void {
     const basePath = normalizeRoute(entry.route);
     let pass: RuntimePassResult | undefined;
+    // WHAT THE PAIRING COULD NOT ATTRIBUTE IS COLLECTED HERE AND NOT DISCARDED, which it was until
+    // the review of `T051`. `pairChannels` builds a problem for every channel several handlers
+    // serve, which is SPEC 8.3's ambiguity rule and the one case of the six whose explanation a
+    // reader most needs, and the pass that ran it threw the list away.
+    let pairingProblems: readonly DiscoveryProblem[] = [];
+
+    // THE EVENTS DOCUMENT IS BUILT BEFORE THE SERVICE, because the service normalizes whatever it
+    // is given in its own constructor and the synthesis is what produces the thing to give it.
+    // Everything after this line is the ordinary mount: one reference service, one route table,
+    // one runtime pass, and the events half differs only in where the document came from.
+    const synthesis = isEventsDocument(entry) ? this.synthesize(entry) : undefined;
 
     // The entry's own theme wins over the root default, per SPEC 13.2, and the theme's
     // `assets.css` and `bundle` are the defaults the narrower options override.
@@ -157,7 +200,9 @@ export class MountedReferences {
     const clientBundle = entry.clientBundle ?? theme?.bundle;
 
     const service = new ReferenceService({
-      document: entry.document,
+      // `isEventsDocument` narrowed the entry above, and the synthesis is the one produced from
+      // it, so the two branches are the two arms of that narrowing rather than a runtime guess.
+      document: isEventsDocument(entry) ? synthesis?.document : entry.document,
       basePath,
       assets:
         entry.assetPlan ??
@@ -167,7 +212,14 @@ export class MountedReferences {
         }),
       ...(theme === undefined ? {} : { theme }),
       augment: (document: IRDocument): IRDocument => {
-        pass = this.collect(document);
+        // THE CHANNEL PAIRING HAPPENS AGAINST THE NORMALIZED DOCUMENT AND NOT AGAINST THE
+        // SYNTHESIS, because the node id a fact is attached to is the normalizer's, per SPEC 8.2.
+        // Pairing on the synthesis's own keys would need this package to re-derive that id, which
+        // is the second spelling of one rule that `channel-pairing.ts` opens by refusing.
+        const paired =
+          synthesis === undefined ? undefined : pairChannels(document, synthesis.channels);
+        if (paired !== undefined) pairingProblems = paired.problems;
+        pass = this.collect(document, paired?.targets);
         return pass.document;
       },
       ...(entry.cache === undefined ? {} : { cache: entry.cache }),
@@ -211,7 +263,45 @@ export class MountedReferences {
       );
     }
 
-    this.mounted.set(entry.id, { id: entry.id, basePath, service, pass });
+    this.mounted.set(entry.id, {
+      id: entry.id,
+      basePath,
+      service,
+      pass,
+      ...(synthesis === undefined
+        ? {}
+        : { eventProblems: [...synthesis.problems, ...pairingProblems] }),
+    });
+  }
+
+  /**
+   * Builds the AsyncAPI document one events entry stands for, per SPEC 8.3.
+   *
+   * @param entry - The events entry
+   * @returns The document to normalize and the channels the runtime pairing needs
+   */
+  private synthesize(entry: OpenRefEventsDocumentOptions): {
+    readonly document: Record<string, unknown>;
+    readonly channels: readonly SynthesizedChannel[];
+    readonly problems: readonly DiscoveryProblem[];
+  } {
+    const discovered = discoverChannels(this.dependencies.discovery);
+    const synthesized = synthesizeEventsDocument(discovered.channels, {
+      title: entry.title ?? entry.id,
+      // `runtime` rather than a number, for the reason the federated header uses `federated`:
+      // the document has no version of its own, it is whatever the application is right now,
+      // and a made up `1.0.0` would be a claim about compatibility nobody made.
+      version: entry.version ?? 'runtime',
+      ...(entry.description === undefined ? {} : { description: entry.description }),
+      ...(entry.servers === undefined ? {} : { servers: entry.servers }),
+      ...(entry.schemas === undefined ? {} : { schemas: entry.schemas }),
+    });
+
+    return {
+      document: synthesized.document,
+      channels: synthesized.channels,
+      problems: [...discovered.problems, ...synthesized.problems],
+    };
   }
 
   /**
@@ -332,10 +422,17 @@ export class MountedReferences {
    * container and calls this directly. One implementation, two entry points, which is the point
    * of it living here.
    *
+   * THE PAIRING IS THE CALLER'S AND NOT THIS METHOD'S, since the review of `T051`. It used to run
+   * here, and its second half, the channels no fact could be attributed to, had nowhere to go: this
+   * method returns one pass result and the problems are not part of one. The caller runs
+   * `pairChannels` and keeps both halves, which is what put SPEC 8.3's ambiguity explanation into
+   * `MountedReference.eventProblems` instead of dropping it on the floor.
+   *
    * @param document - The document, before any runtime fact
+   * @param channelTargets - Channels paired with their handler, when there are any
    * @returns The pass result, whose document carries the facts and a retaken hash
    */
-  collect(document: IRDocument): RuntimePassResult {
+  collect(document: IRDocument, channelTargets?: readonly CollectorTarget[]): RuntimePassResult {
     const runtime = this.options.runtime;
     const version = nestCoreVersion();
     const template = this.sourceLinkTemplate();
@@ -350,6 +447,7 @@ export class MountedReferences {
       ...(runtime?.guardSecuritySchemes === undefined
         ? {}
         : { guardSecuritySchemes: runtime.guardSecuritySchemes }),
+      ...(channelTargets === undefined ? {} : { channelTargets }),
     });
   }
 

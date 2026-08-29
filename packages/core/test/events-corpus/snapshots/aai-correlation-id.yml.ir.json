@@ -1,5 +1,5 @@
 {
-  "hash": "85ffed23e20c6fd2d478e781f6eb91845816c4480933d500c165bfb93378fe86",
+  "hash": "c5ff7fe13c19fa78a6a8ebe7e3e01927a820971e0c19f19acd16dcfe345aaa30",
   "id": "correlation-id-example",
   "info": {
     "description": "A cut of the Streetlights API to test Correlation ID",
@@ -214,11 +214,123 @@
       }
     ]
   ],
-  "security": [],
+  "security": [
+    {
+      "description": "Provide your API key as the user and leave the password empty.",
+      "id": "apiKey",
+      "in": "user",
+      "type": "apiKey"
+    },
+    {
+      "id": "openIdConnectWellKnown",
+      "openIdConnectUrl": "https://authserver.example/.well-known",
+      "type": "openIdConnect"
+    },
+    {
+      "description": "Flows to support OAuth 2.0",
+      "flows": {
+        "authorizationCode": {
+          "authorizationUrl": "https://authserver.example/auth",
+          "refreshUrl": "https://authserver.example/refresh",
+          "scopes": {
+            "streetlights:dim": "Ability to dim the lights",
+            "streetlights:off": "Ability to switch lights off",
+            "streetlights:on": "Ability to switch lights on"
+          },
+          "tokenUrl": "https://authserver.example/token"
+        },
+        "clientCredentials": {
+          "scopes": {
+            "streetlights:dim": "Ability to dim the lights",
+            "streetlights:off": "Ability to switch lights off",
+            "streetlights:on": "Ability to switch lights on"
+          },
+          "tokenUrl": "https://authserver.example/token"
+        },
+        "implicit": {
+          "authorizationUrl": "https://authserver.example/auth",
+          "scopes": {
+            "streetlights:dim": "Ability to dim the lights",
+            "streetlights:off": "Ability to switch lights off",
+            "streetlights:on": "Ability to switch lights on"
+          }
+        },
+        "password": {
+          "scopes": {
+            "streetlights:dim": "Ability to dim the lights",
+            "streetlights:off": "Ability to switch lights off",
+            "streetlights:on": "Ability to switch lights on"
+          },
+          "tokenUrl": "https://authserver.example/token"
+        }
+      },
+      "id": "production-security-1",
+      "type": "oauth2"
+    },
+    {
+      "description": "Flows to support OAuth 2.0",
+      "flows": {
+        "authorizationCode": {
+          "authorizationUrl": "https://authserver.example/auth",
+          "refreshUrl": "https://authserver.example/refresh",
+          "scopes": {
+            "streetlights:dim": "Ability to dim the lights",
+            "streetlights:off": "Ability to switch lights off",
+            "streetlights:on": "Ability to switch lights on"
+          },
+          "tokenUrl": "https://authserver.example/token"
+        },
+        "clientCredentials": {
+          "scopes": {
+            "streetlights:dim": "Ability to dim the lights",
+            "streetlights:off": "Ability to switch lights off",
+            "streetlights:on": "Ability to switch lights on"
+          },
+          "tokenUrl": "https://authserver.example/token"
+        },
+        "implicit": {
+          "authorizationUrl": "https://authserver.example/auth",
+          "scopes": {
+            "streetlights:dim": "Ability to dim the lights",
+            "streetlights:off": "Ability to switch lights off",
+            "streetlights:on": "Ability to switch lights on"
+          }
+        },
+        "password": {
+          "scopes": {
+            "streetlights:dim": "Ability to dim the lights",
+            "streetlights:off": "Ability to switch lights off",
+            "streetlights:on": "Ability to switch lights on"
+          },
+          "tokenUrl": "https://authserver.example/token"
+        }
+      },
+      "id": "supportedOauthFlows",
+      "type": "oauth2"
+    }
+  ],
   "servers": [
     {
       "description": "Test broker",
       "protocol": "mqtt",
+      "security": [
+        {
+          "schemeId": "apiKey",
+          "scopes": []
+        },
+        {
+          "schemeId": "production-security-1",
+          "scopes": [
+            "streetlights:on",
+            "streetlights:off",
+            "streetlights:dim"
+          ]
+        },
+        {
+          "schemeId": "openIdConnectWellKnown",
+          "scopes": []
+        }
+      ],
       "url": "mqtt://test.mosquitto.org:{port}",
       "variables": {
         "port": {

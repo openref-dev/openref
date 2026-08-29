@@ -74,14 +74,14 @@ function minimalDocument(overrides: Record<string, unknown> = {}): Record<string
  * member off the fixture itself: `bindings` and `security` on the server, `reply`, `security` and
  * `tags` on the operation, and `tags` on the message.
  *
- * FOUR OF THE SIX ARE NO LONGER UNHELD, AND THE FIXTURE KEEPS WRITING ALL SIX FOR THAT REASON.
- * `T049` measured the six on the event corpus and gave a carrier to the four the corpus writes and
- * the maintainer's ruling authorised: `operations[].reply`, `operations[].tags`, `messages[].tags`
- * and `servers[].bindings`. The two `security` members stay unheld until `T051`, which is where
- * the growth of `IRSecuritySchemeType` was ruled to belong, and they are the ones the pins below
- * prove absent. Everything else this fixture writes is now proved present by the same pins, so a
- * normalizer that stopped carrying a member breaks a case here instead of silently taking the
- * document back to two held fields and six lost ones.
+ * NONE OF THE SIX IS UNHELD ANY MORE, AND THE FIXTURE KEEPS WRITING ALL SIX FOR THAT REASON.
+ * `T049` measured the six on the event corpus and gave a carrier to the four the maintainer's
+ * ruling authorised as the minor half: `operations[].reply`, `operations[].tags`, `messages[].tags`
+ * and `servers[].bindings`. `T051` took the breaking half and gave a carrier to the other two, the
+ * `security` of a server and of an operation, by growing `IRSecuritySchemeType` from five names to
+ * fourteen. So every member this fixture writes is now proved present by the pins below, and a
+ * normalizer that stopped carrying one breaks a case here instead of silently taking the document
+ * back to two held fields and six lost ones.
  *
  * THE CHANNEL WRITES `parameters` FOR THE SAME REASON, since 2026-08-29.
  */
@@ -1605,18 +1605,501 @@ describe('normalizeAsyncApiDocument tags on operations and messages', () => {
   });
 });
 
-describe('normalizeAsyncApiDocument fields the IR has nowhere to hold', () => {
+/**
+ * The thirteen security scheme types AsyncAPI declares, quoted from its own table.
+ *
+ * WRITTEN OUT HERE RATHER THAN IMPORTED FROM THE NORMALIZER, so the case compares two independent
+ * spellings of one list. Importing the constant under test would make this a test of whether a
+ * loop iterates its own input.
+ */
+const THIRTEEN_TYPES = [
+  'userPassword',
+  'apiKey',
+  'X509',
+  'symmetricEncryption',
+  'asymmetricEncryption',
+  'httpApiKey',
+  'http',
+  'oauth2',
+  'openIdConnect',
+  'plain',
+  'scramSha256',
+  'scramSha512',
+  'gssapi',
+] as const;
+
+/** A document declaring one scheme of each of the thirteen types, referenced from one server. */
+function thirteenSchemeDocument(): Record<string, unknown> {
+  const schemes: Record<string, unknown> = {};
+  for (const type of THIRTEEN_TYPES) {
+    const extra: Record<string, unknown> =
+      type === 'apiKey'
+        ? { in: 'user' }
+        : type === 'httpApiKey'
+          ? { name: 'token', in: 'query' }
+          : type === 'http'
+            ? { scheme: 'bearer', bearerFormat: 'JWT' }
+            : type === 'oauth2'
+              ? {
+                  flows: {
+                    clientCredentials: {
+                      tokenUrl: 'https://auth.example.com/token',
+                      availableScopes: { 'orders:read': 'read orders' },
+                    },
+                  },
+                }
+              : type === 'openIdConnect'
+                ? { openIdConnectUrl: 'https://auth.example.com/.well-known' }
+                : {};
+
+    schemes[type] = { type, description: `${type} scheme`, ...extra };
+  }
+
+  return {
+    asyncapi: '3.1.0',
+    info: { title: 'Thirteen', version: '1.0.0' },
+    servers: {
+      broker: {
+        host: 'broker.example.com',
+        protocol: 'kafka',
+        security: THIRTEEN_TYPES.map((type) => ({
+          $ref: `#/components/securitySchemes/${type}`,
+        })),
+      },
+    },
+    channels: { orders: { address: 'orders', messages: { placed: {} } } },
+    operations: { publish: { action: 'send', channel: { $ref: '#/channels/orders' } } },
+    components: { securitySchemes: schemes },
+  };
+}
+
+describe('normalizeAsyncApiDocument security, per SPEC 8.2', () => {
+  it('should read all thirteen AsyncAPI scheme types into the document table', () => {
+    // Given a document declaring one scheme of every type the specification's table names, and
+    // a server naming all thirteen, so nothing here is measured against an empty haystack
+    const source = thirteenSchemeDocument();
+    expect(THIRTEEN_TYPES).toHaveLength(13);
+
+    // When
+    const document = normalizeAsyncApiDocument(source);
+
+    // Then every one of the thirteen survived, under its declared name, in code point order of
+    // that name. A type this reader does not know is refused by the case below, so a name this
+    // list gains and the reader does not stops the document rather than shortening this list.
+    expect(document.security.map((scheme) => scheme.type)).toEqual([...THIRTEEN_TYPES].sort());
+    expect(document.security.map((scheme) => scheme.id)).toEqual([...THIRTEEN_TYPES].sort());
+  });
+
+  it('should read only the members the type declares, per the specification Applies To column', () => {
+    // Given
+    const document = normalizeAsyncApiDocument(thirteenSchemeDocument());
+    const byId = new Map(document.security.map((scheme) => [scheme.id, scheme]));
+
+    // When
+    const apiKey = byId.get('apiKey');
+    const httpApiKey = byId.get('httpApiKey');
+    const http = byId.get('http');
+    const oauth2 = byId.get('oauth2');
+    const openIdConnect = byId.get('openIdConnect');
+    const plain = byId.get('plain');
+
+    // Then, and the two `apiKey` vocabularies stay apart: `user` for AsyncAPI's `apiKey`, which
+    // has no `name` at all, and `query` for `httpApiKey`, which is OpenAPI's `apiKey` by another
+    // name and does have one.
+    expect(apiKey).toEqual({
+      id: 'apiKey',
+      type: 'apiKey',
+      description: 'apiKey scheme',
+      in: 'user',
+    });
+    expect(httpApiKey).toEqual({
+      id: 'httpApiKey',
+      type: 'httpApiKey',
+      description: 'httpApiKey scheme',
+      name: 'token',
+      in: 'query',
+    });
+    expect(http).toEqual({
+      id: 'http',
+      type: 'http',
+      description: 'http scheme',
+      scheme: 'bearer',
+      bearerFormat: 'JWT',
+    });
+    // `availableScopes` is AsyncAPI's name for the dictionary OpenAPI calls `scopes`, and it
+    // lands in the same IR field, so a reader of `IROAuthFlow` sees one shape from both.
+    expect(oauth2?.flows).toEqual({
+      clientCredentials: {
+        tokenUrl: 'https://auth.example.com/token',
+        scopes: { 'orders:read': 'read orders' },
+      },
+    });
+    expect(openIdConnect?.openIdConnectUrl).toEqual('https://auth.example.com/.well-known');
+    // A SASL type declares nothing but a description, so nothing but a description is produced.
+    expect(plain).toEqual({ id: 'plain', type: 'plain', description: 'plain scheme' });
+  });
+
+  it('should refuse a declared type outside the thirteen, naming the type and the position', () => {
+    // Given a document declaring one type the specification's table does not name, beside one it
+    // does, so the refusal below is about the unknown type rather than about the block
+    const source = {
+      asyncapi: '3.1.0',
+      info: { title: 'Unknown scheme', version: '1.0.0' },
+      channels: { orders: { address: 'orders' } },
+      operations: {},
+      components: {
+        securitySchemes: {
+          real: { type: 'plain' },
+          invented: { type: 'mutualTLS' },
+        },
+      },
+    };
+    expect(
+      normalizeAsyncApiDocument({
+        ...source,
+        components: { securitySchemes: { real: { type: 'plain' } } },
+      }).security,
+    ).toHaveLength(1);
+
+    // When
+    const refusal = (): unknown => normalizeAsyncApiDocument(source);
+
+    // Then, and `mutualTLS` is the pointed case: it is a member of `IRSecuritySchemeType`, so
+    // nothing about the type would have stopped it, and AsyncAPI simply does not declare it. The
+    // message names the type and the position, because the reader who acts on it edits the
+    // document. Before `T051`'s review this skipped, and the position kept an empty list.
+    expect(refusal).toThrow(NormalizeError);
+    expect(refusal).toThrow('components.securitySchemes.invented');
+    expect(refusal).toThrow('"mutualTLS"');
+  });
+
+  it('should refuse an inline server scheme of an unknown type rather than emptying the list', () => {
+    // Given the probe of `T051`'s review: a server declaring one scheme, of a type nothing
+    // declares. The same document with a known type normalizes to one requirement, so the
+    // refusal below is about the type and not about the shape of the position.
+    const documentWith = (type: string): Record<string, unknown> => ({
+      asyncapi: '3.1.0',
+      info: { title: 'Inline server scheme', version: '1.0.0' },
+      servers: {
+        broker: { host: 'b.example.com', protocol: 'kafka', security: [{ type }] },
+      },
+      channels: { orders: { address: 'orders' } },
+      operations: {},
+    });
+    expect(normalizeAsyncApiDocument(documentWith('plain')).servers[0]?.security).toEqual([
+      { schemeId: 'broker-security-0', scopes: [] },
+    ]);
+
+    // When
+    const refusal = (): unknown => normalizeAsyncApiDocument(documentWith('bearerToken'));
+
+    // Then. An empty list at this position is this reader's own spelling of "the document said
+    // there are none", and the document said there is one, so a skip printed a false sentence.
+    expect(refusal).toThrow(NormalizeError);
+    expect(refusal).toThrow('servers.broker.security[0]');
+    expect(refusal).toThrow('"bearerToken"');
+  });
+
+  it('should refuse an inline operation scheme of an unknown type at the operation position', () => {
+    // Given the same probe one position over, so both positions are measured rather than one
+    const documentWith = (type: string): Record<string, unknown> => ({
+      asyncapi: '3.1.0',
+      info: { title: 'Inline operation scheme', version: '1.0.0' },
+      channels: { orders: { address: 'orders' } },
+      operations: {
+        publish: { action: 'send', channel: { $ref: '#/channels/orders' }, security: [{ type }] },
+      },
+    });
+    const channel = channelById(
+      normalizeAsyncApiDocument(documentWith('gssapi')),
+      'channel-orders',
+    );
+    expect(operationOf(channel, 'publish').security).toEqual([
+      { schemeId: 'publish-security-0', scopes: [] },
+    ]);
+
+    // When
+    const refusal = (): unknown => normalizeAsyncApiDocument(documentWith('bearerToken'));
+
+    // Then
+    expect(refusal).toThrow(NormalizeError);
+    expect(refusal).toThrow('operations.publish.security[0]');
+  });
+
+  it('should refuse a scheme that writes no type at all, which the specification requires', () => {
+    // Given a declared scheme carrying everything but the one member AsyncAPI marks REQUIRED
+    const source = {
+      asyncapi: '3.1.0',
+      info: { title: 'Typeless scheme', version: '1.0.0' },
+      channels: { orders: { address: 'orders' } },
+      operations: {},
+      components: { securitySchemes: { anonymous: { description: 'no type here' } } },
+    };
+
+    // When
+    const refusal = (): unknown => normalizeAsyncApiDocument(source);
+
+    // Then, the same refusal: a missing required member and a member outside its declared values
+    // are one class here, and `undefined` is named in the message rather than left blank.
+    expect(refusal).toThrow(NormalizeError);
+    expect(refusal).toThrow('components.securitySchemes.anonymous');
+  });
+
+  it('should refuse a reference to an unknown type at the declaration and not at the reference', () => {
+    // Given a server referring to a declared scheme whose type is outside the thirteen
+    const source = {
+      asyncapi: '3.1.0',
+      info: { title: 'Referred unknown', version: '1.0.0' },
+      servers: {
+        broker: {
+          host: 'b.example.com',
+          protocol: 'kafka',
+          security: [{ $ref: '#/components/securitySchemes/odd' }],
+        },
+      },
+      channels: { orders: { address: 'orders' } },
+      operations: {},
+      components: { securitySchemes: { odd: { type: 'bearerToken' } } },
+    };
+
+    // When
+    const refusal = (): unknown => normalizeAsyncApiDocument(source);
+
+    // Then the position named is the declaration, because the table is read before the servers
+    // and the declaration is the position a reader would have to edit either way.
+    expect(refusal).toThrow('components.securitySchemes.odd');
+  });
+
+  it('should read the security of a server and of an operation as requirements naming the table', () => {
+    // Given, both positions naming the same declared scheme
+    const document = normalizeAsyncApiDocument({
+      asyncapi: '3.1.0',
+      info: { title: 'Both positions', version: '1.0.0' },
+      servers: {
+        broker: {
+          host: 'broker.example.com',
+          protocol: 'kafka',
+          security: [{ $ref: '#/components/securitySchemes/sasl' }],
+        },
+      },
+      channels: { orders: { address: 'orders', messages: { placed: {} } } },
+      operations: {
+        publish: {
+          action: 'send',
+          channel: { $ref: '#/channels/orders' },
+          security: [
+            {
+              $ref: '#/components/securitySchemes/oauth',
+            },
+          ],
+        },
+      },
+      components: {
+        securitySchemes: {
+          sasl: { type: 'scramSha256' },
+          oauth: { type: 'oauth2', flows: {}, scopes: ['orders:write'] },
+        },
+      },
+    });
+
+    // When
+    const [server] = document.servers;
+    const channel = channelById(document, 'channel-orders');
+
+    // Then, one entry per scheme in the document table and a requirement at each position. The
+    // scopes come off the scheme object at the position, which is where AsyncAPI writes "the
+    // needed scope names", and they are the requirement's rather than the scheme's.
+    expect(document.security.map((scheme) => scheme.id)).toEqual(['oauth', 'sasl']);
+    expect(server?.security).toEqual([{ schemeId: 'sasl', scopes: [] }]);
+    expect(operationOf(channel, 'publish').security).toEqual([
+      { schemeId: 'oauth', scopes: ['orders:write'] },
+    ]);
+  });
+
+  it('should give a scheme written inline an id derived from the position that wrote it', () => {
+    // Given a server whose second entry is a whole Security Scheme Object rather than a reference
+    const document = normalizeAsyncApiDocument({
+      asyncapi: '3.1.0',
+      info: { title: 'Inline', version: '1.0.0' },
+      servers: {
+        broker: {
+          host: 'broker.example.com',
+          protocol: 'mqtt',
+          security: [
+            { $ref: '#/components/securitySchemes/apiKey' },
+            { type: 'userPassword', description: 'the broker credentials' },
+          ],
+        },
+      },
+      channels: { orders: { address: 'orders' } },
+      operations: {},
+      components: { securitySchemes: { apiKey: { type: 'apiKey', in: 'password' } } },
+    });
+
+    // When
+    const [server] = document.servers;
+
+    // Then the declared one keeps its name and the inline one is named after where it stands,
+    // with the index it was written at, so two inline schemes on one server stay apart.
+    expect(server?.security).toEqual([
+      { schemeId: 'apiKey', scopes: [] },
+      { schemeId: 'broker-security-1', scopes: [] },
+    ]);
+    expect(document.security).toEqual([
+      { id: 'apiKey', type: 'apiKey', in: 'password' },
+      {
+        id: 'broker-security-1',
+        type: 'userPassword',
+        description: 'the broker credentials',
+      },
+    ]);
+  });
+
+  it('should resolve a derived id that collides with a declared name by a numeric suffix', () => {
+    // Given a document that declares a scheme under the very name the position would derive
+    const document = normalizeAsyncApiDocument({
+      asyncapi: '3.1.0',
+      info: { title: 'Collision', version: '1.0.0' },
+      servers: {
+        broker: {
+          host: 'broker.example.com',
+          protocol: 'kafka',
+          security: [{ type: 'plain' }],
+        },
+      },
+      channels: { orders: { address: 'orders' } },
+      operations: {},
+      components: { securitySchemes: { 'broker-security-0': { type: 'gssapi' } } },
+    });
+
+    // When
+    const [server] = document.servers;
+
+    // Then both schemes exist and neither took the other's id, which is the resolution SPEC 8.2
+    // already applies to two channels whose derived ids collide.
+    expect(document.security.map((scheme) => `${scheme.id} ${scheme.type}`)).toEqual([
+      'broker-security-0 gssapi',
+      'broker-security-0-2 plain',
+    ]);
+    expect(server?.security).toEqual([{ schemeId: 'broker-security-0-2', scopes: [] }]);
+  });
+
+  it('should name one entry from two positions that reference one scheme', () => {
+    // Given two servers referring to one declared scheme, which is the shape the ADEO corpus
+    // document writes three times over
+    const document = normalizeAsyncApiDocument({
+      asyncapi: '3.1.0',
+      info: { title: 'Shared', version: '1.0.0' },
+      servers: {
+        production: {
+          host: 'prod.example.com',
+          protocol: 'kafka',
+          security: [{ $ref: '#/components/securitySchemes/sasl' }],
+        },
+        staging: {
+          host: 'staging.example.com',
+          protocol: 'kafka',
+          security: [{ $ref: '#/components/securitySchemes/sasl' }],
+        },
+      },
+      channels: { orders: { address: 'orders' } },
+      operations: {},
+      components: { securitySchemes: { sasl: { type: 'plain' } } },
+    });
+
+    // When
+    const schemeIds = document.servers.flatMap((server) =>
+      (server.security ?? []).map((requirement) => requirement.schemeId),
+    );
+
+    // Then, and the document table holds it once: the position identifies the reference, and a
+    // shared target does not become a second entry.
+    expect(document.servers).toHaveLength(2);
+    expect(schemeIds).toEqual(['sasl', 'sasl']);
+    expect(document.security).toHaveLength(1);
+  });
+
+  it('should keep a written empty list apart from a member that was never written', () => {
+    // Given one server that says there are none and one that says nothing
+    const document = normalizeAsyncApiDocument({
+      asyncapi: '3.1.0',
+      info: { title: 'Empty and absent', version: '1.0.0' },
+      servers: {
+        declared: { host: 'a.example.com', protocol: 'kafka', security: [] },
+        silent: { host: 'b.example.com', protocol: 'kafka' },
+      },
+      channels: { orders: { address: 'orders' } },
+      operations: {},
+    });
+
+    // When
+    const [declared, silent] = document.servers;
+
+    // Then, because AsyncAPI writes no sentence about an empty `security` at either position, so
+    // "said there are none" is kept as what it is rather than folded into "said nothing".
+    expect(declared?.security).toEqual([]);
+    expect(silent?.security).toBeUndefined();
+  });
+
+  it('should read the security an operation trait declares, by the trait rule of SPEC 8.2', () => {
+    // Given an operation whose only security comes from a trait
+    const document = normalizeAsyncApiDocument({
+      asyncapi: '3.1.0',
+      info: { title: 'Trait security', version: '1.0.0' },
+      channels: { orders: { address: 'orders' } },
+      operations: {
+        publish: {
+          action: 'send',
+          channel: { $ref: '#/channels/orders' },
+          traits: [{ $ref: '#/components/operationTraits/secured' }],
+        },
+      },
+      components: {
+        operationTraits: { secured: { security: [{ $ref: '#/components/securitySchemes/sasl' }] } },
+        securitySchemes: { sasl: { type: 'scramSha512' } },
+      },
+    });
+
+    // When
+    const channel = channelById(document, 'channel-orders');
+
+    // Then, which is the same reading `events-corpus-fields.ts` performs on the input side: a
+    // trait fills a member the target left out, so an operation whose security lives in a trait
+    // is an operation with security.
+    expect(operationOf(channel, 'publish').security).toEqual([{ schemeId: 'sasl', scopes: [] }]);
+  });
+
+  it('should leave both members absent on an HTTP document, where there is no such subject', () => {
+    // Given, the OpenAPI side, whose Server Object declares no `security` member at all
+    const document = normalizeAsyncApiDocument({
+      asyncapi: '3.1.0',
+      info: { title: 'No security', version: '1.0.0' },
+      servers: { broker: { host: 'broker.example.com', protocol: 'kafka' } },
+      channels: { orders: { address: 'orders' } },
+      operations: { publish: { action: 'send', channel: { $ref: '#/channels/orders' } } },
+    });
+
+    // When
+    const channel = channelById(document, 'channel-orders');
+
+    // Then
+    expect(document.servers[0]?.security).toBeUndefined();
+    expect(operationOf(channel, 'publish').security).toBeUndefined();
+    expect(document.security).toEqual([]);
+  });
+});
+
+describe('normalizeAsyncApiDocument the six members T048 had nowhere to hold', () => {
   it('should produce exactly these members for a channel, its operation and its message', () => {
-    // Given, a document writing all six members `T048` named as unheld. The absence proved below
-    // is worth nothing unless each of them was written, so each is read off the fixture first: a
-    // fixture that quietly stopped carrying one would otherwise prove that member gone from the
-    // IR by never having put it there.
+    // Given, a document writing all six members `T048` named as unheld. Each is read off the
+    // fixture first, because a pin over a produced node proves nothing about a member the fixture
+    // stopped writing: it would report the member carried, or absent, by never having offered it.
     //
-    // FOUR OF THE SIX ARE ASSERTED HERE FOR THE OPPOSITE REASON, since `T049`, and so is
-    // `channel.parameters` since the ruling before it. `reply`, `operation.tags`, `message.tags`
-    // and `server.bindings` gained carriers on the corpus's showing, so their presence in the
-    // fixture is the presence half of a survival rather than of an absence, and the pins below
-    // read each one back off the produced node. Two remain absences: both `security` members.
+    // ALL SIX ARE NOW ASSERTED AS SURVIVALS RATHER THAN ABSENCES, and so is `channel.parameters`
+    // since the ruling before `T049`. Four gained carriers at `T049` on the corpus's showing;
+    // `server.security` and `operation.security` gained theirs at `T051`, which is where the
+    // growth of `IRSecuritySchemeType` was ruled to belong. The pins below read every one of them
+    // back off the produced node.
     const parts = droppedFieldsParts();
     const written = [
       ...Object.keys(parts.server).map((key) => `server.${key}`),
@@ -1667,6 +2150,7 @@ describe('normalizeAsyncApiDocument fields the IR has nowhere to hold', () => {
       messageIds: ['placed'],
       reply: { channelId: 'channel-orders-tenant' },
       tags: ['internal'],
+      security: [{ schemeId: 'sasl', scopes: [] }],
     });
     expect(message).toEqual({
       id: 'placed',
@@ -1679,8 +2163,13 @@ describe('normalizeAsyncApiDocument fields the IR has nowhere to hold', () => {
         url: 'kafka://kafka.example.com:9092',
         protocol: 'kafka',
         bindings: { kafka: { schemaRegistryUrl: 'https://registry.example.com' } },
+        security: [{ schemeId: 'sasl', scopes: [] }],
       },
     ]);
+    // The scheme itself is written once, in the document's own table, and both positions name it.
+    // `scramSha512` is one of the five types no corpus document writes, so this is also the one
+    // place in the repository where that member of the grown union is produced from a document.
+    expect(document.security).toEqual([{ id: 'sasl', type: 'scramSha512' }]);
   });
 
   it('should leave unreadKeys alone, because that field means an unread path item key', () => {
@@ -1757,16 +2246,17 @@ describe('the event types reserved in T002 needed no change to be filled', () =>
     expect(filled.messageCorrelationId).toBeDefined();
   });
 
-  it('should leave relationships and security empty, because neither is this task to fill', () => {
-    // Given
+  it('should leave relationships empty, because that one is still not this task to fill', () => {
+    // Given a document that declares no security scheme at all, so the empty `security` below is
+    // the absence of a subject rather than a reading that was refused
     const document = normalizeAsyncApiDocument(createAsyncApi30());
 
     // When
     const empty = { relationships: document.relationships, security: document.security };
 
-    // Then, `relationships` is SPEC 9 and belongs to `T052`, and the AsyncAPI security scheme
-    // types are a wider set than `IRSecuritySchemeType` declares, so a partial reading of them
-    // would be a security picture that is wrong rather than missing.
+    // Then, `relationships` is SPEC 9 and belongs to `T052`. `security` was empty here for the
+    // other reason until `T051`, which grew `IRSecuritySchemeType` to the fourteen names both
+    // specifications need and made the reading whole rather than partial.
     expect(empty.relationships).toEqual([]);
     expect(empty.security).toEqual([]);
   });

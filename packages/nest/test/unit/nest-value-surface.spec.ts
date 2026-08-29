@@ -26,6 +26,8 @@ import {
   DiscoveryService,
   NestFactory,
 } from '@nestjs/core';
+import { EventPattern, MessagePattern, Transport } from '@nestjs/microservices';
+import { SubscribeMessage, WebSocketGateway } from '@nestjs/websockets';
 import type { Observable } from 'rxjs';
 import {
   NEST_CORE_VALUE_NAMES,
@@ -34,6 +36,8 @@ import {
   NEST_ENHANCER_TOKENS,
   NEST_GUARD_METADATA,
   NEST_HTTP_CODE_METADATA,
+  NEST_MICROSERVICE_METADATA,
+  NEST_PATTERN_HANDLERS,
   NEST_PIPES_METADATA,
   NEST_REQUEST_METHODS,
   NEST_ROUTE_ARGS_METADATA,
@@ -41,6 +45,9 @@ import {
   NEST_ROUTE_PARAMTYPES,
   NEST_SCOPE_OPTIONS_METADATA,
   NEST_SSE_METADATA,
+  NEST_TRANSPORT_NAMES,
+  NEST_TRANSPORT_PROTOCOLS,
+  NEST_WEBSOCKET_METADATA,
 } from '../../src/shared/types/nest-surface';
 import { readGlobalGuards } from '../../src/runtime/domain/guards';
 import {
@@ -314,6 +321,94 @@ describe('the metadata keys the discovery pass reads', () => {
     expect(Reflect.getMetadata(NEST_SSE_METADATA, handler)).toBe(true);
     expect(Reflect.getMetadata(NEST_ROUTE_METADATA.path, handler)).toBe('events');
     expect(Reflect.getMetadata(NEST_ROUTE_METADATA.method, handler)).toBe(RequestMethod.GET);
+  });
+});
+
+describe('the metadata keys the event discovery of SPEC 8.3 reads', () => {
+  it('should be where @MessagePattern and @EventPattern write, on the real decorators', () => {
+    // Given the three keys `T051` reads, measured on the real decorators rather than assumed.
+    // Neither package is a dependency of this one: the keys are the framework's on-disk format
+    // and a host without microservices has no handler carrying them.
+    @Controller()
+    class OrdersController {
+      @MessagePattern('orders.get')
+      get(): string {
+        return 'one order';
+      }
+
+      @EventPattern('orders.created', Transport.KAFKA)
+      created(): void {
+        // nothing
+      }
+    }
+
+    // When
+    const message = Object.getOwnPropertyDescriptor(OrdersController.prototype, 'get')
+      ?.value as object;
+    const event = Object.getOwnPropertyDescriptor(OrdersController.prototype, 'created')
+      ?.value as object;
+
+    // Then, and the two handler types are told apart by the number the enum gives them, which is
+    // one and two rather than zero and one
+    expect(Reflect.getMetadata(NEST_MICROSERVICE_METADATA.pattern, message)).toEqual([
+      'orders.get',
+    ]);
+    expect(Reflect.getMetadata(NEST_MICROSERVICE_METADATA.handlerType, message)).toBe(
+      NEST_PATTERN_HANDLERS.message,
+    );
+    expect(Reflect.getMetadata(NEST_MICROSERVICE_METADATA.handlerType, event)).toBe(
+      NEST_PATTERN_HANDLERS.event,
+    );
+    expect(Reflect.getMetadata(NEST_MICROSERVICE_METADATA.transport, event)).toBe(Transport.KAFKA);
+    expect(Reflect.getMetadata(NEST_MICROSERVICE_METADATA.transport, message)).toBeUndefined();
+  });
+
+  it('should name every transport it claims, with the value the framework gives it', () => {
+    // Given the seven transports this package maps to a protocol, and the enum they came from
+    const named = Object.entries(NEST_TRANSPORT_NAMES);
+
+    // When
+    // The enum's own reverse mapping answers with a number, and the table's keys are strings
+    // because an object's are. Comparing their string forms is what makes the two comparable
+    // without either side being cast into the other's type.
+    const disagreeing = named.filter(
+      ([value, name]) => String(Transport[name as keyof typeof Transport]) !== value,
+    );
+
+    // Then, and the protocol table covers exactly the same seven, so a transport that gained a
+    // name here without a protocol would not silently produce a server with no protocol
+    expect(disagreeing).toEqual([]);
+    expect(Object.keys(NEST_TRANSPORT_PROTOCOLS).sort()).toEqual(
+      Object.keys(NEST_TRANSPORT_NAMES).sort(),
+    );
+  });
+
+  it('should be where @WebSocketGateway and @SubscribeMessage write, on the real decorators', () => {
+    // Given a gateway with both halves of an address, which is the case `T051` has to resolve
+    @WebSocketGateway(8080, { namespace: 'chat', path: '/ws' })
+    class ChatGateway {
+      @SubscribeMessage('events')
+      handle(): void {
+        // nothing
+      }
+    }
+
+    // When
+    const handler = Object.getOwnPropertyDescriptor(ChatGateway.prototype, 'handle')
+      ?.value as object;
+    const options: unknown = Reflect.getMetadata(NEST_WEBSOCKET_METADATA.options, ChatGateway);
+
+    // Then, and the gateway marker is on the class while the event name is on the method, which
+    // is what makes a gateway with no `@SubscribeMessage` a class that declares no channel
+    expect(Reflect.getMetadata(NEST_WEBSOCKET_METADATA.gateway, ChatGateway)).toBe(true);
+    expect(options).toEqual({ namespace: 'chat', path: '/ws' });
+    // MEASURED, AND IT IS WHY THE TABLE HAS NO `namespace` KEY. The package exports a
+    // `NAMESPACE_METADATA` constant spelled `namespace`, and the real decorator leaves it unset:
+    // both halves of the address are under the options object. A reader of the exported constant
+    // would have found no namespace on every gateway that declares one.
+    expect(Reflect.getMetadata('namespace', ChatGateway)).toBeUndefined();
+    expect(Reflect.getMetadata(NEST_WEBSOCKET_METADATA.messageMapping, handler)).toBe(true);
+    expect(Reflect.getMetadata(NEST_WEBSOCKET_METADATA.message, handler)).toBe('events');
   });
 });
 
