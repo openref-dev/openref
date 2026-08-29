@@ -42,6 +42,7 @@ export type {
   IRChannel,
   IRChannelDirection,
   IRChannelOperation,
+  IRChannelParameter,
   IRCodeSample,
   IREncoding,
   IRExample,

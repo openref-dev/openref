@@ -173,6 +173,31 @@ export interface IRServerOverride {
 /** Direction of a channel operation, per SPEC 8.2. */
 export type IRChannelDirection = 'send' | 'receive';
 
+/**
+ * One variable of a templated channel address, per SPEC 8.2.
+ *
+ * THE FIVE MEMBERS ARE THE ASYNCAPI PARAMETER OBJECT'S OWN, taken from `spec/asyncapi.md` of
+ * `asyncapi/spec` at both `v3.0.0` and `v3.1.0`, which declare the same set: `enum`, `default`,
+ * `description`, `examples` and `location`. Nothing is invented here and nothing is folded into a
+ * neighbouring field that means something else.
+ *
+ * ALL FIVE ARE OPTIONAL BECAUSE THE PARAMETER OBJECT REQUIRES NONE OF THEM, which is where this
+ * parts company with {@link IRServerVariable}: OpenAPI's Server Variable Object requires `default`
+ * and the IR carries that requirement, while AsyncAPI's Parameter Object requires nothing, so a
+ * declared parameter that says only that the variable exists is a reading of the document rather
+ * than an incomplete one.
+ */
+export interface IRChannelParameter {
+  /** The values the substitution may take, when the document limits them to a set. */
+  readonly enum?: readonly string[];
+  /** What is substituted, and sent, when no alternate value is supplied. */
+  readonly default?: string;
+  readonly description?: string;
+  readonly examples?: readonly string[];
+  /** A runtime expression saying where in the message the value is found. */
+  readonly location?: string;
+}
+
 /** A message that can travel over a channel. */
 export interface IRMessage {
   readonly id: string;
@@ -214,6 +239,16 @@ export interface IRChannel {
   readonly deprecated: boolean;
   /** Protocol, for example `kafka`, `amqp` or `ws`. */
   readonly protocol?: string;
+  /**
+   * Variables of a templated address, keyed by the name written between the braces.
+   *
+   * ADDITIVE AND OPTIONAL, added 2026-08-29 by the maintainer's ruling ahead of `T049` and
+   * recorded in SPEC 8.2 and `ai-docs/design/CONTRACT.md`. An address like `orders/{tenant}`
+   * stops being readable without them: the braces name a variable and say nothing about what
+   * goes in it, so dropping the block loses the half of the address that explains the other.
+   * Absent on a channel whose address is not templated, and on one whose document wrote none.
+   */
+  readonly parameters?: Readonly<Record<string, IRChannelParameter>>;
   readonly servers: readonly IRServerOverride[];
   readonly operations: readonly IRChannelOperation[];
   readonly messages: readonly IRMessage[];

@@ -68,11 +68,17 @@ function minimalDocument(overrides: Record<string, unknown> = {}): Record<string
 }
 
 /**
- * The four objects of a document writing all seven members SPEC 8.2 records as unheld.
+ * The four objects of a document writing all six members SPEC 8.2 records as unheld.
  *
  * They are named rather than inlined so the presence half of the proof can read each written
- * member off the fixture itself: `bindings` and `security` on the server, `parameters` on the
- * channel, `reply`, `security` and `tags` on the operation, and `tags` on the message.
+ * member off the fixture itself: `bindings` and `security` on the server, `reply`, `security` and
+ * `tags` on the operation, and `tags` on the message.
+ *
+ * THE CHANNEL STILL WRITES `parameters`, WHICH IS NO LONGER ONE OF THEM. It was the seventh until
+ * 2026-08-29, when the maintainer's ruling ahead of `T049` gave it `IRChannel.parameters`, and it
+ * stays in this fixture on purpose: the pin below is exact equality on the whole channel, so a
+ * normalizer that stopped carrying the block breaks a case here instead of quietly returning the
+ * document to six held fields and seven lost ones.
  */
 function droppedFieldsParts() {
   const server = {
@@ -1162,12 +1168,129 @@ describe('normalizeAsyncApiDocument reference safety', () => {
   });
 });
 
+describe('normalizeAsyncApiDocument channel parameters', () => {
+  /** A document whose one channel has a templated address and the given `parameters` block. */
+  function templated(parameters: unknown, components?: unknown): IRChannel {
+    const document = normalizeAsyncApiDocument({
+      asyncapi: '3.0.0',
+      info: { title: 'Templated', version: '1.0.0' },
+      channels: { orders: { address: 'orders/{tenant}/{region}', parameters } },
+      ...(components === undefined ? {} : { components }),
+    });
+
+    return channelById(document, 'channel-orders-tenant-region');
+  }
+
+  it('should carry the description of every variable of a templated address into the IR', () => {
+    // Given a channel whose address names two variables, each described in words. The address
+    // alone says only that something is substituted; the descriptions are what say what.
+    const channel = templated({
+      tenant: { description: 'the tenant the order belongs to', enum: ['eu', 'us'] },
+      region: { description: 'the data region', default: 'eu' },
+    });
+
+    // When
+    const parameters = channel.parameters;
+
+    // Then, the descriptions are on the parameters and the address still names both variables,
+    // so the pair a reader needs is whole rather than half of it surviving.
+    expect(channel.address).toBe('orders/{tenant}/{region}');
+    expect(parameters?.tenant?.description).toBe('the tenant the order belongs to');
+    expect(parameters?.region?.description).toBe('the data region');
+    expect(parameters?.tenant?.enum).toEqual(['eu', 'us']);
+    expect(parameters?.region?.default).toBe('eu');
+  });
+
+  it('should carry all five members the AsyncAPI Parameter Object declares and no more', () => {
+    // Given one parameter writing every member of the Parameter Object, plus a member the object
+    // does not declare, so the exact equality below reads as a boundary rather than as a copy.
+    const channel = templated({
+      tenant: {
+        enum: ['eu', 'us'],
+        default: 'eu',
+        description: 'the tenant',
+        examples: ['eu', 'us'],
+        location: '$message.payload#/tenant',
+        // Not a member of the Parameter Object at any version this reads.
+        schema: { type: 'string' },
+      },
+      region: {},
+    });
+
+    // When
+    const parameters = channel.parameters;
+
+    // Then, exact equality on the whole parameter, the way the dropped fields pin works: a member
+    // this normalizer stops carrying, and a member it starts inventing, both break here.
+    expect(parameters?.tenant).toEqual({
+      enum: ['eu', 'us'],
+      default: 'eu',
+      description: 'the tenant',
+      examples: ['eu', 'us'],
+      location: '$message.payload#/tenant',
+    });
+
+    // And a parameter that writes nothing is still a declared parameter. The Parameter Object
+    // requires no member, so an empty record is what the document said rather than a loss.
+    expect(parameters?.region).toEqual({});
+    expect(Object.keys(parameters ?? {})).toEqual(['region', 'tenant']);
+  });
+
+  it('should resolve a parameter written under components, which the field pattern allows', () => {
+    // Given the same two variables, one of them reached through a Reference Object, which is what
+    // the Parameters Object's field pattern permits beside a Parameter Object.
+    const channel = templated(
+      {
+        tenant: { $ref: '#/components/parameters/tenant' },
+        region: { description: 'the data region' },
+      },
+      { parameters: { tenant: { description: 'the tenant', enum: ['eu', 'us'] } } },
+    );
+
+    // When
+    const parameters = channel.parameters;
+
+    // Then the referred parameter arrives whole, under the name the channel filed it under rather
+    // than the name components filed it under, because the address names the former.
+    expect(parameters?.tenant).toEqual({ enum: ['eu', 'us'], description: 'the tenant' });
+    expect(parameters?.region?.description).toBe('the data region');
+  });
+
+  it('should leave the block absent on a channel whose document writes none', () => {
+    // Given, When, a channel with no `parameters` member, and one whose member is not an object
+    const absent = templated(undefined);
+    const wrongShape = templated('orders/{tenant}');
+    const empty = templated({});
+
+    // Then, absent rather than an empty record, so `parameters` on the node means the document
+    // wrote a block. A member of the wrong shape is read as one that was not written, which is
+    // how every other member of this normalizer treats a shape it cannot use.
+    expect(absent.parameters).toBeUndefined();
+    expect(wrongShape.parameters).toBeUndefined();
+    expect(empty.parameters).toBeUndefined();
+  });
+
+  it('should refuse a parameter reference that leaves the document', () => {
+    // Given, a structural reference into another file, which SPEC 8.2 refuses for a channel, a
+    // message and a server, and refuses here for the same reason: no id space, no registry.
+    const act = (): IRChannel => templated({ tenant: { $ref: 'other.yaml#/x' } });
+
+    // When, Then
+    expect(act).toThrow(RefResolutionError);
+  });
+});
+
 describe('normalizeAsyncApiDocument fields the IR has nowhere to hold', () => {
   it('should produce exactly these members for a channel, its operation and its message', () => {
-    // Given, a document writing all seven members SPEC 8.2 names as unheld. The absence proved
+    // Given, a document writing all six members SPEC 8.2 names as unheld. The absence proved
     // below is worth nothing unless each of them was written, so each is read off the fixture
     // first: a fixture that quietly stopped carrying one would otherwise prove that member gone
     // from the IR by never having put it there.
+    //
+    // `channel.parameters` IS ASSERTED HERE FOR THE OPPOSITE REASON, since 2026-08-29. It is the
+    // one member of the original seven that gained a carrier, so its presence in the fixture is
+    // the presence half of a survival rather than of an absence, and the pin below reads it back
+    // off the produced channel.
     const parts = droppedFieldsParts();
     const written = [
       ...Object.keys(parts.server).map((key) => `server.${key}`),
@@ -1179,13 +1302,13 @@ describe('normalizeAsyncApiDocument fields the IR has nowhere to hold', () => {
       expect.arrayContaining([
         'server.bindings',
         'server.security',
-        'channel.parameters',
         'operation.reply',
         'operation.security',
         'operation.tags',
         'message.tags',
       ]),
     );
+    expect(written).toContain('channel.parameters');
 
     // When
     const document = normalizeAsyncApiDocument(droppedFieldsDocument());
@@ -1193,12 +1316,13 @@ describe('normalizeAsyncApiDocument fields the IR has nowhere to hold', () => {
     const operation = operationOf(channel, 'publishOrderPlaced');
     const message = messageOf(channel, 'placed');
 
-    // Then, exact equality on the whole of each produced node, which is what keeps the seven
+    // Then, exact equality on the whole of each produced node, which is what keeps the six
     // recorded: a future IR field, or a member this normalizer stops carrying, breaks a pin here
     // instead of passing in silence. `IRServer` is pinned the same way beside the broker fixture.
     // The channel writes no `servers` block and the document declares one broker, so per SPEC 8.2
     // it is on that broker: this pin held `servers: []` until 2026-08-29, which said the opposite
-    // to anyone reading the field on its own.
+    // to anyone reading the field on its own. `parameters` joined the pin the same day, when the
+    // maintainer's ruling gave the block a carrier ahead of `T049`.
     expect(channel).toEqual({
       kind: 'channel',
       id: 'channel-orders-tenant',
@@ -1206,6 +1330,7 @@ describe('normalizeAsyncApiDocument fields the IR has nowhere to hold', () => {
       tags: ['orders'],
       deprecated: false,
       protocol: 'kafka',
+      parameters: { tenant: { enum: ['eu', 'us'], description: 'the tenant' } },
       servers: [{ url: 'kafka://kafka.example.com:9092' }],
       operations: [operation],
       messages: [message],
@@ -1226,7 +1351,7 @@ describe('normalizeAsyncApiDocument fields the IR has nowhere to hold', () => {
   });
 
   it('should leave unreadKeys alone, because that field means an unread path item key', () => {
-    // Given, the same document, whose seven unheld members are the loudest candidate this side
+    // Given, the same document, whose six unheld members are the loudest candidate this side
     // has for the record SPEC 7.1 keeps on the OpenAPI side
     const document = normalizeAsyncApiDocument(droppedFieldsDocument());
 

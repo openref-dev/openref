@@ -5,6 +5,7 @@ import type {
   IRChannel,
   IRChannelDirection,
   IRChannelOperation,
+  IRChannelParameter,
   IRExample,
   IRMessage,
   IRNode,
@@ -534,6 +535,79 @@ function readChannelServers(
 }
 
 /**
+ * Reads the `parameters` block of a channel, which is what makes a templated address readable.
+ *
+ * THE FIVE MEMBERS ARE THE PARAMETER OBJECT'S OWN and none of them is required. `spec/asyncapi.md`
+ * of `asyncapi/spec`, at both `v3.0.0` and `v3.1.0`, declares `enum`, `default`, `description`,
+ * `examples` and `location` and marks no member required, so a parameter that writes nothing still
+ * says the variable exists and is carried as the empty record rather than dropped.
+ *
+ * THE VALUE MAY BE A REFERENCE OBJECT, which the specification's own field pattern says, so each
+ * entry goes through {@link followReference} the way every other structural member here does, and
+ * stays inside its document for the reason that function gives.
+ *
+ * @param context - The document being normalized
+ * @param raw - The `parameters` member, untrusted
+ * @param key - The channel's key, for the message a reader gets
+ * @returns The parameters by declared name, in code point order, or nothing when there are none
+ * @throws {RefResolutionError} When a reference leaves the document or resolves to nothing
+ */
+function readChannelParameters(
+  context: Context,
+  raw: unknown,
+  key: string,
+): Record<string, IRChannelParameter> | undefined {
+  if (!isPlainObject(raw)) return undefined;
+
+  const parameters: Record<string, IRChannelParameter> = {};
+  for (const name of Object.keys(raw).sort(compareByCodePoint)) {
+    const source = followReference(context, raw[name], `parameter ${name} of channel ${key}`);
+    if (!isPlainObject(source)) continue;
+
+    const parameter: Draft<IRChannelParameter> = {};
+    const values = readStringList(source.enum);
+    const fallback = asString(source.default);
+    const description = asString(source.description);
+    const examples = readStringList(source.examples);
+    const location = asString(source.location);
+
+    if (values !== undefined) parameter.enum = values;
+    if (fallback !== undefined) parameter.default = fallback;
+    if (description !== undefined) parameter.description = description;
+    if (examples !== undefined) parameter.examples = examples;
+    if (location !== undefined) parameter.location = location;
+
+    parameters[name] = parameter;
+  }
+
+  return Object.keys(parameters).length > 0 ? parameters : undefined;
+}
+
+/**
+ * The strings of a `[string]` member, in the order the document wrote them.
+ *
+ * ORDER IS THE DOCUMENT'S HERE AND NOT CANONICAL, unlike the keys of every map this reads. `enum`
+ * and `examples` are sequences a document authored, and sorting them would be presenting a
+ * different document; the ordering rule of SPEC 5.3 is about spellings a parser hands back in an
+ * order nobody chose, which an array is not. An entry that is not a string is skipped, the way
+ * every member of the wrong shape is skipped here.
+ *
+ * @param raw - The member, untrusted
+ * @returns The strings, or nothing when there are none
+ */
+function readStringList(raw: unknown): string[] | undefined {
+  if (!isUnknownArray(raw)) return undefined;
+
+  const values: string[] = [];
+  for (const entry of raw) {
+    const value = asString(entry);
+    if (value !== undefined) values.push(value);
+  }
+
+  return values.length > 0 ? values : undefined;
+}
+
+/**
  * The one protocol a channel speaks, when the document leaves no doubt about which it is.
  *
  * AsyncAPI puts the protocol on the server rather than on the channel, and a channel is bound to
@@ -762,6 +836,7 @@ function readChannel(
   const summary = asString(source.summary);
   const description = asString(source.description);
   const protocol = channelProtocol(bound);
+  const parameters = readChannelParameters(context, source.parameters, key);
   const bindings = readBindings(source.bindings);
   const extensions = readExtensions(source);
 
@@ -770,6 +845,7 @@ function readChannel(
   if (summary !== undefined) node.summary = summary;
   if (description !== undefined) node.description = description;
   if (protocol !== undefined) node.protocol = protocol;
+  if (parameters !== undefined) node.parameters = parameters;
   if (bindings !== undefined) node.bindings = bindings;
   if (extensions !== undefined) node.extensions = extensions;
 
