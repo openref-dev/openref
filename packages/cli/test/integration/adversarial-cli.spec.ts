@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { carriesControlCharacters } from '@openref/core';
+import { SPAWNED_PROCESS_TIMEOUT_MS } from '../../../../vitest.spawn-timeout.ts';
 
 /**
  * `T043`'s driven cases against the built binary, through a real pipe and a real process.
@@ -111,90 +112,114 @@ describe('the built openref binary, driven by T043', () => {
       ['lint', (): readonly string[] => ['lint', hostileSpec]],
       ['build', (): readonly string[] => ['build', '--spec', hostileSpec, '--out', workspace]],
       ['diff', (): readonly string[] => ['diff', cleanSpec, hostileSpec]],
-    ])('should write neither a control character nor an override from %s', async (_name, args) => {
-      // Given the hostile specification written above
-      // Then, before the run: the file really does carry them.
-      expect(carriesControlCharacters(PAYLOAD)).toBe(true);
+    ])(
+      'should write neither a control character nor an override from %s',
+      async (_name, args) => {
+        // Given the hostile specification written above
+        // Then, before the run: the file really does carry them.
+        expect(carriesControlCharacters(PAYLOAD)).toBe(true);
 
-      // When
-      const result = await run(args());
+        // When
+        const result = await run(args());
 
-      // Then: it ran, it said something about the document, and it said it in text.
-      expect(result.timedOut).toBe(false);
-      expect(`${result.stdout}${result.stderr}`.length).toBeGreaterThan(0);
-      expect(carriesControlCharacters(result.stdout)).toBe(false);
-      expect(carriesControlCharacters(result.stderr)).toBe(false);
-    });
+        // Then: it ran, it said something about the document, and it said it in text.
+        expect(result.timedOut).toBe(false);
+        expect(`${result.stdout}${result.stderr}`.length).toBeGreaterThan(0);
+        expect(carriesControlCharacters(result.stdout)).toBe(false);
+        expect(carriesControlCharacters(result.stderr)).toBe(false);
+      },
+      SPAWNED_PROCESS_TIMEOUT_MS,
+    );
 
-    it('should still print the words around the payload, so the filter is not a mute', async () => {
-      // Given
+    it(
+      'should still print the words around the payload, so the filter is not a mute',
+      async () => {
+        // Given
 
-      // When
-      const result = await run(['preview', '--spec', hostileSpec]);
+        // When
+        const result = await run(['preview', '--spec', hostileSpec]);
 
-      // Then
-      expect(result.stdout).toContain('Refund');
-      expect(result.stdout).toContain('Service');
-    });
+        // Then
+        expect(result.stdout).toContain('Refund');
+        expect(result.stdout).toContain('Service');
+      },
+      SPAWNED_PROCESS_TIMEOUT_MS,
+    );
   });
 
   describe('the three boot shapes the task names, each committed as a fixture', () => {
     it.each([
       ['a scheduler', 'leaves-a-timer', 'Timeout'],
       ['a connection it never gave back', 'opens-a-connection', 'TCPSERVERWRAP'],
-    ])('should end the run rather than wait, for %s', async (_reason, name, handle) => {
-      // Given the committed fixture, booted through the real `--from-nest` path
+    ])(
+      'should end the run rather than wait, for %s',
+      async (_reason, name, handle) => {
+        // Given the committed fixture, booted through the real `--from-nest` path
 
-      // When
-      const result = await run(['doctor', '--from-nest', fixture(name)]);
+        // When
+        const result = await run(['doctor', '--from-nest', fixture(name)]);
 
-      // Then: it left, it said so, and it named what it found.
-      expect(result.timedOut).toBe(false);
-      expect(result.code).toBe(0);
-      expect(result.stderr.toUpperCase()).toContain(handle.toUpperCase());
-    });
+        // Then: it left, it said so, and it named what it found.
+        expect(result.timedOut).toBe(false);
+        expect(result.code).toBe(0);
+        expect(result.stderr.toUpperCase()).toContain(handle.toUpperCase());
+      },
+      SPAWNED_PROCESS_TIMEOUT_MS,
+    );
 
-    it('should say nothing and leave on its own for a boot that only wrote to disk', async () => {
-      // Given: the control of the three. A side effect at boot is not by itself a reason to force
-      // anything, and without this case the other two would only show that the CLI can force an
-      // exit, never that it declines to.
+    it(
+      'should say nothing and leave on its own for a boot that only wrote to disk',
+      async () => {
+        // Given: the control of the three. A side effect at boot is not by itself a reason to force
+        // anything, and without this case the other two would only show that the CLI can force an
+        // exit, never that it declines to.
 
-      // When
-      const result = await run(['doctor', '--from-nest', fixture('writes-to-disk')]);
+        // When
+        const result = await run(['doctor', '--from-nest', fixture('writes-to-disk')]);
 
-      // Then
-      expect(result.timedOut).toBe(false);
-      expect(result.code).toBe(0);
-      expect(result.stderr).toBe('');
-      expect(result.stdout).toContain('WritesToDisk');
-    });
+        // Then
+        expect(result.timedOut).toBe(false);
+        expect(result.code).toBe(0);
+        expect(result.stderr).toBe('');
+        expect(result.stdout).toContain('WritesToDisk');
+      },
+      SPAWNED_PROCESS_TIMEOUT_MS,
+    );
   });
 
   describe('an application that starts a scheduler and does not stop it', () => {
-    it('should exit rather than wait for a handle it cannot reach, and name what it found', async () => {
-      // Given the committed fixture, booted through the real `--from-nest` path
+    it(
+      'should exit rather than wait for a handle it cannot reach, and name what it found',
+      async () => {
+        // Given the committed fixture, booted through the real `--from-nest` path
 
-      // When
-      const result = await run(['doctor', '--from-nest', TIMER_FIXTURE]);
+        // When
+        const result = await run(['doctor', '--from-nest', TIMER_FIXTURE]);
 
-      // Then
-      expect(result.timedOut).toBe(false);
-      expect(result.code).toBe(0);
-      expect(result.stderr).toContain('Timeout');
-      expect(result.stderr).toContain('left');
-    });
+        // Then
+        expect(result.timedOut).toBe(false);
+        expect(result.code).toBe(0);
+        expect(result.stderr).toContain('Timeout');
+        expect(result.stderr).toContain('left');
+      },
+      SPAWNED_PROCESS_TIMEOUT_MS,
+    );
 
-    it('should deliver everything it wrote before ending the process, past any pipe buffer', async () => {
-      // Given a report far larger than a pipe holds unread: without the flush before
-      // `process.exit`, this arrives cut at exactly the buffer size and does not parse.
+    it(
+      'should deliver everything it wrote before ending the process, past any pipe buffer',
+      async () => {
+        // Given a report far larger than a pipe holds unread: without the flush before
+        // `process.exit`, this arrives cut at exactly the buffer size and does not parse.
 
-      // When
-      const result = await run(['doctor', '--from-nest', TIMER_FIXTURE, '--json']);
+        // When
+        const result = await run(['doctor', '--from-nest', TIMER_FIXTURE, '--json']);
 
-      // Then
-      expect(result.timedOut).toBe(false);
-      expect(result.stdout.length).toBeGreaterThan(200_000);
-      expect(() => JSON.parse(result.stdout) as unknown).not.toThrow();
-    });
+        // Then
+        expect(result.timedOut).toBe(false);
+        expect(result.stdout.length).toBeGreaterThan(200_000);
+        expect(() => JSON.parse(result.stdout) as unknown).not.toThrow();
+      },
+      SPAWNED_PROCESS_TIMEOUT_MS,
+    );
   });
 });
