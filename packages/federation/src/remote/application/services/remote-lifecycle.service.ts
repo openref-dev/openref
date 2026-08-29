@@ -4,7 +4,7 @@ import {
   InvalidOptionsError,
   OpenRefError,
   RemoteUnavailableError,
-  normalizeOpenApiDocument,
+  normalizeSpecification,
   parseSpecification,
 } from '@openref/core';
 import type { IRDocument } from '@openref/core';
@@ -563,10 +563,19 @@ export class RemoteLifecycleService {
     return services.sort((left, right) => compareText(left.id, right.id));
   }
 
-  /** Parses and normalizes one fetched body. Fail-closed: garbage throws, nothing guesses. */
+  /**
+   * Parses and normalizes one fetched body. Fail-closed: garbage throws, nothing guesses.
+   *
+   * WHICH READER RUNS IS THE DOCUMENT'S ANSWER, per SPEC 15.2 and SPEC 8.3. Until `T053` this
+   * line called the OpenAPI reader unconditionally, so a remote serving AsyncAPI was refused with
+   * "the document has no openapi version field", its cache record never revived for the same
+   * reason, and federation was HTTP-only on the wire while the merge had held mixed documents
+   * since `T044`. The configuration gained no `kind` for it: SPEC 15's own example carried one
+   * that nothing read, and it was removed rather than given a reader.
+   */
   private readDocument(config: FederationRemoteConfig, body: string): IRDocument {
     const parsed = parseSpecification(body, { source: config.url });
-    return normalizeOpenApiDocument(parsed, { documentId: config.id });
+    return normalizeSpecification(parsed, { documentId: config.id });
   }
 
   /** One remote's state as the page sees it. */

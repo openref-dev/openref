@@ -32,6 +32,19 @@ function endpoint(end: IRTopologyEndpoint, basePath: string): VNode {
     : h('a', { class: 'tt-topology-name', href: nodeHref(end.nodeId, basePath) }, end.label);
 }
 
+/**
+ * The mark for an end that leads out of what this document knows, per SPEC 9.5.
+ *
+ * A DIFFERENT FACT FROM A MISSING LINK. `nodeId` is unset for four different reasons and only two
+ * of them mean the target is not here: a service nobody federated in and a name no node or channel
+ * of this document answers. `outside` is the one that says which, and drawing the two alike would
+ * leave a reader unable to tell the boundary of the federation from the shape of the estate.
+ * Words rather than a colour, the rule this theme applies to every mark it draws.
+ */
+function outsideMark(end: IRTopologyEndpoint): VNode | null {
+  return end.outside ? h('span', { class: 'tt-topology-outside' }, 'OUTSIDE') : null;
+}
+
 function topologyStrip(topology: IRTopology, basePath: string): VNode {
   return h('section', { class: 'tt-strip-block' }, [
     h('h2', { class: 'tt-strip-head' }, 'TOPOLOGY'),
@@ -41,6 +54,7 @@ function topologyStrip(topology: IRTopology, basePath: string): VNode {
       topology.groups.map((group) =>
         h('li', { class: 'tt-topology-node', key: `${group.from.kind} ${group.from.name}` }, [
           endpoint(group.from, basePath),
+          outsideMark(group.from),
           h(
             'ul',
             { class: 'tt-topology-edges' },
@@ -59,6 +73,7 @@ function topologyStrip(topology: IRTopology, basePath: string): VNode {
                 [
                   h('span', { class: 'tt-topology-type' }, edge.type),
                   endpoint(edge.to, basePath),
+                  outsideMark(edge.to),
                   // A dead end is words rather than a colour, the rule this theme applies to every
                   // mark it draws: an event nobody consumes has to read as one on a monochrome
                   // print and with no stylesheet at all.

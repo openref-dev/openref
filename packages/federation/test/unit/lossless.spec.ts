@@ -43,6 +43,11 @@ function federation(): FederationService[] {
           operation({ id: 'get-status', path: '/status' }),
           referenceHeavyOperation('rich', 'Target'),
           channel({ id: 'paid', address: 'billing.paid' }),
+          // The one address exactly one channel of this federation answers, which is what makes
+          // it move under billing's prefix and makes the `event-name` case below reachable. The
+          // `paid` channel above cannot serve that role: orders answers the same address, so the
+          // merge refuses to move a name two services could claim.
+          channel({ id: 'settled', address: 'billing.settled' }),
         ],
         webhooks: [operation({ id: 'webhook-post-paid', path: '/paid', method: 'post' })],
         relationships: [
@@ -79,6 +84,19 @@ function federation(): FederationService[] {
           }),
           channel({ id: 'paid', address: 'billing.paid' }),
         ],
+        // An `event` end, per SPEC 9.1: a name orders documents no channel for, answered by a
+        // channel of billing. It is the one name in this federation that belongs to another
+        // service's address space, so it is the one the report has to invert with its own kind.
+        relationships: [
+          {
+            from: 'get-status',
+            fromKind: 'node',
+            to: 'billing.settled',
+            toKind: 'event',
+            type: 'publishes',
+            confidence: 'declared',
+          },
+        ],
         health: {
           score: 80,
           operationCount: 1,
@@ -113,6 +131,27 @@ function inverseMaps(report: MergeReport, serviceId: string): RewriteMaps {
   }
 
   return { nodeIds, schemaIds, schemeIds };
+}
+
+/**
+ * Merged edge end back to the name one service's own document wrote, for every end kind.
+ *
+ * A `node` END AND AN `event` END COME FROM TWO RENAME KINDS AND ONE SERVICE. The node id moved
+ * because this service's node moved; the event name moved because another service's channel did,
+ * and the merge records it against the service that declared the edge precisely so that this
+ * inversion can be built from one service's renames alone.
+ */
+function inverseEdgeNames(report: MergeReport, serviceId: string): Map<string, string> {
+  const names = new Map<string, string>();
+
+  for (const rename of report.renames) {
+    if (rename.serviceId !== serviceId) continue;
+    if (rename.kind === 'node' || rename.kind === 'webhook' || rename.kind === 'event-name') {
+      names.set(rename.to, rename.from);
+    }
+  }
+
+  return names;
 }
 
 /** Merged address back to the address the service's own document wrote. */
@@ -182,7 +221,7 @@ describe('mergeDocuments, losslessness proved by undoing it', () => {
 
     // Then every node of every service came back byte for byte
     expect(restored).toEqual([
-      { id: 'billing', count: 4, matches: 4 },
+      { id: 'billing', count: 5, matches: 5 },
       { id: 'orders', count: 2, matches: 2 },
       { id: 'shipping', count: 1, matches: 1 },
     ]);
@@ -224,6 +263,64 @@ describe('mergeDocuments, losslessness proved by undoing it', () => {
       { id: 'billing', missing: [] },
       { id: 'orders', missing: [] },
       { id: 'shipping', missing: [] },
+    ]);
+  });
+
+  it('should give every source relationship back, the event name a channel move rewrote included', () => {
+    // Given the same three services, where orders publishes to an address only billing documents
+    // a channel for, and billing is mounted under a prefix, so that address moves in the merge
+    const services = federation();
+
+    // When they are merged
+    const { document, report } = mergeDocuments(services, {
+      id: 'platform',
+      info: { title: 'Platform', version: '1' },
+    });
+
+    // Then the merge really did rewrite an event name, and really did rewrite it in the edge, so
+    // the restoration below undoes something rather than comparing two spellings that were never
+    // different. Recorded against the service that DECLARED the edge, while the `channel-address`
+    // rename beside it is recorded against the service that owns the channel.
+    expect(report.renames.filter((rename) => rename.kind === 'event-name')).toEqual([
+      {
+        kind: 'event-name',
+        serviceId: 'orders',
+        from: 'billing.settled',
+        to: 'billing/billing.settled',
+        reason: 'target-moved',
+        contestedBy: [],
+      },
+    ]);
+    const ends = document.relationships.map((edge) => edge.to);
+    expect(ends).toContain('billing/billing.settled');
+    expect(ends).not.toContain('billing.settled');
+
+    // And every edge every service declared comes back from the merged document and the report
+    // alone, with the count each service declared asserted beside it so that a service whose
+    // edges vanished from the source fixture cannot read as a service that lost nothing
+    const restored = services.map((service) => {
+      const inverse = inverseEdgeNames(report, service.id);
+      const back = new Set(
+        document.relationships.map((edge) =>
+          hash({
+            ...edge,
+            from: inverse.get(edge.from) ?? edge.from,
+            to: inverse.get(edge.to) ?? edge.to,
+          }),
+        ),
+      );
+
+      return {
+        id: service.id,
+        declared: service.document.relationships.length,
+        missing: service.document.relationships.filter((edge) => !back.has(hash(edge))).length,
+      };
+    });
+
+    expect(restored).toEqual([
+      { id: 'billing', declared: 1, missing: 0 },
+      { id: 'orders', declared: 1, missing: 0 },
+      { id: 'shipping', declared: 0, missing: 0 },
     ]);
   });
 

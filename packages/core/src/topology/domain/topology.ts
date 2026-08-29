@@ -41,6 +41,23 @@ export interface IRTopologyEndpoint {
   readonly nodeId?: string;
   /** What to show: an address, a method and path, or the name itself when nothing was found. */
   readonly label: string;
+  /**
+   * Whether this document holds nothing at all under the end's name, per SPEC 9.5.
+   *
+   * NOT THE SAME QUESTION AS `nodeId`, and that is the whole reason the member exists. An unset
+   * `nodeId` meant four things at once: a `service` end, which never resolves to a node however
+   * well known the service is; a `node` end from a service nobody federated in; an `event`
+   * address no channel answers; and an `event` address two channels answer. Only the middle two
+   * lead outside the known set, and a page that drew all four alike could not tell a reader
+   * whether the target was missing or merely unlinkable.
+   *
+   * The known set is `nodes` and `webhooks` for a `node` end, `IRService.id` of a merged document
+   * or `IRDocument.id` of an unmerged one for a `service` end, and the channel addresses of the
+   * document for an `event` end. AMBIGUITY IS INSIDE: an address two channels answer is held by
+   * this document, so it stays unresolved and not marked, because marking it would print a false
+   * statement about a document that describes those channels.
+   */
+  readonly outside: boolean;
 }
 
 /** One outgoing edge of a group. */
@@ -113,6 +130,14 @@ function nodeLabel(node: IRNode): string {
     : `${node.method.toUpperCase()} ${node.path}`;
 }
 
+/** What the document's channels answer to: what resolves, and what it holds at all. */
+interface ChannelAddresses {
+  /** Address to node id, holding only the addresses with exactly one channel. */
+  readonly resolved: ReadonlyMap<string, string>;
+  /** Every address any channel answers, ambiguous ones included, per SPEC 9.5. */
+  readonly held: ReadonlySet<string>;
+}
+
 /**
  * Indexes every channel address that exactly one channel in the document answers.
  *
@@ -120,10 +145,14 @@ function nodeLabel(node: IRNode): string {
  * address is an ambiguity, and picking either would be the guess this project's confidence policy
  * exists to refuse, so the name stays unresolved and the view says so by drawing it unlinked.
  *
+ * THE TWO ANSWERS ARE KEPT APART BECAUSE THEY ARE DIFFERENT FACTS. An ambiguous address is held
+ * by this document and cannot be linked; an unknown one is not here at all. `held` is what says
+ * which, and it is why `outside` can be false for a name that resolved to nothing.
+ *
  * @param document - The document the graph belongs to
- * @returns Address to node id, holding only the addresses with exactly one channel
+ * @returns What resolves, and every address a channel of this document answers
  */
-function channelsByAddress(document: IRDocument): ReadonlyMap<string, string> {
+function channelsByAddress(document: IRDocument): ChannelAddresses {
   const counts = new Map<string, string | null>();
 
   for (const [id, node] of document.nodes) {
@@ -133,7 +162,26 @@ function channelsByAddress(document: IRDocument): ReadonlyMap<string, string> {
 
   const resolved = new Map<string, string>();
   for (const [address, id] of counts) if (id !== null) resolved.set(address, id);
-  return resolved;
+  return { resolved, held: new Set(counts.keys()) };
+}
+
+/**
+ * The service names this document knows, per SPEC 9.1.
+ *
+ * A merged document names its members in `IRDocument.services`; an unmerged one is a single
+ * service and the only name it can vouch for is its own id, which is what the merge rewrites into
+ * a `serviceId` when it federates that document. A name outside this set is a service somebody
+ * declared an edge to and nobody federated in, which is a true statement about the estate and is
+ * exactly what the mark exists to show.
+ *
+ * @param document - The document the graph belongs to
+ * @returns Every service name this document holds
+ */
+function knownServices(document: IRDocument): ReadonlySet<string> {
+  const services = document.services ?? [];
+  return services.length === 0
+    ? new Set([document.id])
+    : new Set(services.map((service) => service.id));
 }
 
 /**
@@ -142,21 +190,33 @@ function channelsByAddress(document: IRDocument): ReadonlyMap<string, string> {
  * @param kind - What the edge said the end is
  * @param name - The value the edge carried
  * @param nodes - Every node of the document, its own and its webhooks
- * @param addresses - Channel addresses that exactly one channel answers
- * @returns The endpoint, with `nodeId` set only where something was actually found
+ * @param addresses - What this document's channels answer to
+ * @param services - Service names this document knows
+ * @returns The endpoint, with `nodeId` set only where something was found, and `outside` set only
+ *          where nothing under the name is here at all
  */
 function endpointOf(
   kind: IRRelationshipEndpointKind,
   name: string,
   nodes: ReadonlyMap<string, IRNode>,
-  addresses: ReadonlyMap<string, string>,
+  addresses: ChannelAddresses,
+  services: ReadonlySet<string>,
 ): IRTopologyEndpoint {
-  const id = kind === 'node' ? name : kind === 'event' ? addresses.get(name) : undefined;
+  const id = kind === 'node' ? name : kind === 'event' ? addresses.resolved.get(name) : undefined;
   const node = id === undefined ? undefined : nodes.get(id);
 
-  return node === undefined || id === undefined
-    ? { name, kind, label: name }
-    : { name, kind, nodeId: id, label: nodeLabel(node) };
+  if (node !== undefined && id !== undefined) {
+    return { name, kind, nodeId: id, label: nodeLabel(node), outside: false };
+  }
+
+  const outside =
+    kind === 'service'
+      ? !services.has(name)
+      : kind === 'event'
+        ? !addresses.held.has(name)
+        : !nodes.has(name);
+
+  return { name, kind, label: name, outside };
 }
 
 /**
@@ -178,13 +238,14 @@ function endpointOf(
 export function buildTopology(document: IRDocument): IRTopology {
   const nodes = new Map<string, IRNode>([...document.nodes, ...document.webhooks]);
   const addresses = channelsByAddress(document);
+  const services = knownServices(document);
 
   const kept = orderRelationships(document.relationships);
 
   const resolved = kept.map((edge) => ({
     edge,
-    from: endpointOf(edge.fromKind, edge.from, nodes, addresses),
-    to: endpointOf(edge.toKind, edge.to, nodes, addresses),
+    from: endpointOf(edge.fromKind, edge.from, nodes, addresses, services),
+    to: endpointOf(edge.toKind, edge.to, nodes, addresses, services),
   }));
 
   // AN ENDPOINT LEADS SOMEWHERE WHEN IT IS THE SOURCE OF AN EDGE, and that is the only reading of

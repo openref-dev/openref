@@ -164,6 +164,7 @@ describe('buildTopology', () => {
       kind: 'node',
       nodeId: 'channel-placed',
       label: 'orders.placed',
+      outside: false,
     });
     expect(topology.edgeCount).toBe(2);
   });
@@ -204,6 +205,7 @@ describe('buildTopology', () => {
       kind: 'event',
       nodeId: 'channel-orders-placed',
       label: 'orders.placed',
+      outside: false,
     });
   });
 
@@ -351,6 +353,17 @@ describe('buildTopology', () => {
   });
 
   it('should change nothing on a real document, which is what the re-fold is insurance against', () => {
+    // THE TIMEOUT BELOW IS A HANG CATCHER AND NOT A BUDGET, per F25, and it is declared because
+    // this case is the class F25 names rather than the class vitest's default was chosen for.
+    // MEASURED: reading and normalizing both corpora whole costs 3396 ms here on its own under V8
+    // coverage instrumentation, against 4 ms for the next heaviest case in this file, and 5084 ms
+    // in the full instrumented battery, which is 84 ms past vitest's 5000 ms default. That is why
+    // the coverage gate went red on code nobody touched, and why which run it went red on moved:
+    // the case sits on the line. The cost is the corpus's size, not a property of `buildTopology`:
+    // the same case runs uninstrumented well inside the default and the suite is green there. And
+    // nothing should be tuned against the number, which is why it is generous: an ordinary case
+    // timing out still means exactly what it used to mean.
+    //
     // Given every corpus document that declares an edge, HTTP and events both. `duplicateCount`
     // used to carry this and nothing read it; the property it stood for is asserted here instead
     const documents = [
@@ -376,6 +389,173 @@ describe('buildTopology', () => {
     // not an empty loop
     expect(withEdges).toBeGreaterThan(20);
     expect(refolded).toBe(0);
+  }, 60_000);
+});
+
+describe('buildTopology, the end that leads out of the known set', () => {
+  /** The same document `documentWith` builds, plus the service list a merged document carries. */
+  function federated(
+    nodes: readonly IRNode[],
+    relationships: readonly IRRelationship[],
+    serviceIds: readonly string[],
+  ): IRDocument {
+    return {
+      ...documentWith(nodes, relationships),
+      services: serviceIds.map((id) => ({
+        id,
+        documentId: `${id}-api`,
+        documentHash: '',
+        kind: 'http' as const,
+        info: { title: id, version: '1.0.0' },
+        servers: [],
+      })),
+    };
+  }
+
+  it('should mark a service nobody federated in and leave a federated one unmarked', () => {
+    // Given a merged document of two services, one of which declares an edge to a third that is
+    // not in the federation, which is the estate being larger than the composition
+    const document = federated(
+      [],
+      [
+        edge('orders', 'service', 'billing', 'service', 'calls'),
+        edge('orders', 'service', 'ledger-service', 'service', 'calls'),
+      ],
+      ['billing', 'orders'],
+    );
+
+    // When
+    const topology = buildTopology(document);
+    const targets = topology.groups[0]?.edges.map((entry) => entry.to) ?? [];
+
+    // Then, with the federation membership asserted first so the negative below is a reading of
+    // the service list rather than of an empty one. Both edges are drawn, which is the half that
+    // says nothing was dropped, and only the stranger is marked
+    expect((document.services ?? []).map((service) => service.id)).toEqual(['billing', 'orders']);
+    expect(targets.map((end) => end.name)).toEqual(['billing', 'ledger-service']);
+    expect(targets.map((end) => end.outside)).toEqual([false, true]);
+    expect(targets.every((end) => end.nodeId === undefined)).toBe(true);
+  });
+
+  it('should read an unmerged document own id as the one service it knows, per SPEC 9.1', () => {
+    // Given a document that was never merged, so its only service name is its own id
+    const document = documentWith(
+      [],
+      [
+        edge('estate', 'service', 'orders.placed', 'event'),
+        edge('stranger', 'service', 'orders.placed', 'event'),
+      ],
+    );
+
+    // When
+    const topology = buildTopology(document);
+
+    // Then, and the document really carries no service list, which is what makes the id the rule
+    expect(document.services).toBeUndefined();
+    expect(document.id).toBe('estate');
+    expect(topology.groups.map((group) => [group.from.name, group.from.outside])).toEqual([
+      ['estate', false],
+      ['stranger', true],
+    ]);
+  });
+
+  it('should mark a node end whose node is not in this document and not one that is', () => {
+    // Given one edge into a node the document holds and one into a node it does not, which is
+    // what a service dropped from a composition leaves behind
+    const document = documentWith(
+      [operation('post-orders', 'post', '/orders')],
+      [
+        edge('estate', 'service', 'post-orders', 'node'),
+        edge('estate', 'service', 'billing_get-invoices', 'node'),
+      ],
+    );
+
+    // When
+    const topology = buildTopology(document);
+    const targets = topology.groups[0]?.edges.map((entry) => entry.to) ?? [];
+
+    // Then, with the present node asserted present first, so `false` below is a resolution
+    expect(document.nodes.has('post-orders')).toBe(true);
+    expect(document.nodes.has('billing_get-invoices')).toBe(false);
+    expect(targets.map((end) => [end.name, end.outside, end.nodeId])).toEqual([
+      ['billing_get-invoices', true, undefined],
+      ['post-orders', false, 'post-orders'],
+    ]);
+  });
+
+  it('should mark an event address no channel answers and leave an answered one unmarked', () => {
+    // Given a channel and an event name nothing here documents
+    const document = documentWith(
+      [channel('channel-placed', 'orders.placed')],
+      [
+        edge('post-orders', 'node', 'orders.placed', 'event'),
+        edge('post-orders', 'node', 'invoices.raised', 'event'),
+      ],
+    );
+
+    // When
+    const targets = buildTopology(document).groups[0]?.edges.map((entry) => entry.to) ?? [];
+
+    // Then
+    expect(targets.map((end) => [end.name, end.outside])).toEqual([
+      ['invoices.raised', true],
+      ['orders.placed', false],
+    ]);
+  });
+
+  it('should keep an ambiguous event address inside, because the document holds it twice', () => {
+    // Given two channels answering one address, which SPEC 9.5 leaves unresolved on purpose, and
+    // an address no channel answers beside it as the control
+    const document = documentWith(
+      [channel('billing-placed', 'orders.placed'), channel('orders-placed', 'orders.placed')],
+      [
+        edge('post-orders', 'node', 'orders.placed', 'event'),
+        edge('post-orders', 'node', 'orders.archived', 'event'),
+      ],
+    );
+
+    // When
+    const targets = buildTopology(document).groups[0]?.edges.map((entry) => entry.to) ?? [];
+    const ambiguous = targets.find((end) => end.name === 'orders.placed');
+    const unknown = targets.find((end) => end.name === 'orders.archived');
+
+    // Then the ambiguous end resolves to nothing and is NOT marked as leading outside: the
+    // document holds that address twice, and saying it leads out of the known set would print a
+    // false statement about the very document that describes both channels. The control beside
+    // it shows the mark is reachable on this same document, so `false` is a decision rather than
+    // a mark that never fires
+    expect(
+      [...document.nodes.values()].filter(
+        (node) => node.kind === 'channel' && node.address === 'orders.placed',
+      ),
+    ).toHaveLength(2);
+    expect(ambiguous?.nodeId).toBeUndefined();
+    expect(ambiguous?.outside).toBe(false);
+    expect(unknown?.outside).toBe(true);
+  });
+
+  it('should tell a dead end and an outside end apart, since they are different facts', () => {
+    // Given a channel this document holds that nothing consumes, and a service it does not hold
+    const document = federated(
+      [channel('channel-archived', 'orders.archived')],
+      [
+        edge('orders', 'service', 'channel-archived', 'node'),
+        edge('orders', 'service', 'ledger-service', 'service', 'calls'),
+      ],
+      ['orders'],
+    );
+
+    // When
+    const edges = buildTopology(document).groups[0]?.edges ?? [];
+    const held = edges.find((entry) => entry.to.name === 'channel-archived');
+    const stranger = edges.find((entry) => entry.to.name === 'ledger-service');
+
+    // Then the channel is a dead end that is not outside, and the service is outside and also a
+    // dead end, so neither member stands in for the other
+    expect(held?.deadEnd).toBe(true);
+    expect(held?.to.outside).toBe(false);
+    expect(stranger?.deadEnd).toBe(true);
+    expect(stranger?.to.outside).toBe(true);
   });
 });
 

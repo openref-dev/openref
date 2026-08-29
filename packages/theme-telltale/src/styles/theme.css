@@ -1549,7 +1549,8 @@
 }
 
 .tt-topology-type,
-.tt-topology-dead {
+.tt-topology-dead,
+.tt-topology-outside {
   color: var(--oref-color-fg-secondary);
   font-size: var(--oref-font-size-100);
   letter-spacing: var(--oref-font-tracking-wide);

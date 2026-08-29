@@ -2493,7 +2493,8 @@ a.oref-topology-name {
 
 .oref-fact-label,
 .oref-topology-type,
-.oref-topology-dead {
+.oref-topology-dead,
+.oref-topology-outside {
   color: var(--oref-color-fg-muted);
   font-size: var(--oref-font-size-300);
 }

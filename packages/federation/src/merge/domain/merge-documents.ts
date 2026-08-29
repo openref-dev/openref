@@ -145,11 +145,13 @@ export function mergeDocuments(
   planNodes(ordered, maps, renames);
   const addresses = planAddresses(ordered, mode, renames);
   const schemePlan = planSchemes(ordered, mode, maps, renames);
+  const eventNames = planEventNames(ordered, addresses);
 
   const document = build(ordered, options, {
     maps,
     schemaPlan,
     addresses,
+    eventNames,
     schemes: schemePlan,
     renames,
   });
@@ -348,6 +350,46 @@ function planAddresses(
   return addresses;
 }
 
+/**
+ * Decides which event names a topology edge carries have to move, and where to.
+ *
+ * ONLY AN ADDRESS EXACTLY ONE CHANNEL OF THE FEDERATION ANSWERS IS A MOVE, per SPEC 15.1, which is
+ * the rule SPEC 9.5 applies inside one document lifted to the whole federation and for the same
+ * reason: two services answering one address is an ambiguity, and moving the name onto either of
+ * them would be a guess. After the merge those two channels carry different addresses anyway, so
+ * the unmoved name resolves to neither, which is the honest answer.
+ *
+ * A NAME THAT DID NOT MOVE IS NOT IN THIS MAP AT ALL, so nothing is reported for a federation with
+ * no prefixes and no address conflicts, where every address is already what it was.
+ *
+ * @param ordered - Services, sorted by id
+ * @param addresses - Merged address by service id and then by source node id
+ * @returns Source channel address to merged address, holding only the addresses that moved
+ */
+function planEventNames(
+  ordered: readonly FederationService[],
+  addresses: ReadonlyMap<string, ReadonlyMap<string, string>>,
+): ReadonlyMap<string, string> {
+  const claimed = new Map<string, string | null>();
+
+  for (const service of ordered) {
+    const perService = addresses.get(service.id);
+
+    for (const [sourceId, node] of service.document.nodes) {
+      if (node.kind !== 'channel' || node.address === undefined) continue;
+      const merged = perService?.get(sourceId) ?? node.address;
+      claimed.set(node.address, claimed.has(node.address) ? null : merged);
+    }
+  }
+
+  const moves = new Map<string, string>();
+  for (const [source, merged] of claimed) {
+    if (merged !== null && merged !== source) moves.set(source, merged);
+  }
+
+  return moves;
+}
+
 /** What planning the security scheme space produced: one merged scheme per resolved claim. */
 type SchemePlan = readonly ResolvedName<SchemeSubject>[];
 
@@ -427,6 +469,8 @@ interface BuildPlan {
   readonly maps: ReadonlyMap<string, MutableMaps>;
   readonly schemaPlan: SchemaPlan;
   readonly addresses: ReadonlyMap<string, ReadonlyMap<string, string>>;
+  /** Source channel address to merged address, federation wide, holding only what moved. */
+  readonly eventNames: ReadonlyMap<string, string>;
   readonly schemes: SchemePlan;
   readonly renames: MergeRename[];
 }
@@ -508,7 +552,7 @@ function build(
     nodes,
     schemas,
     security,
-    relationships: mergeRelationships(edgeSources),
+    relationships: mergeRelationships(edgeSources, plan.eventNames, plan.renames),
     webhooks,
     services,
   };

@@ -1,9 +1,11 @@
 import { createServer } from 'node:http';
 import type { Server } from 'node:http';
+import { readFileSync } from 'node:fs';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import type { IRNode } from '@openref/core';
 import { FileCacheAdapter, RemoteLifecycleService } from '../../src/index';
 import type { FederationReadySnapshot, FederationSnapshot } from '../../src/index';
 import { getOperation, hasPath, openApiBody } from '../mocks/remotes';
@@ -20,6 +22,20 @@ import { getOperation, hasPath, openApiBody } from '../mocks/remotes';
 const BODY_A = openApiBody('Alpha', { '/a-orders': getOperation('listAlphaOrders') });
 const BODY_B = openApiBody('Beta', { '/b-status': getOperation('getBetaStatus') });
 
+/** The published corpus, read as the bytes a real publisher serves rather than as a fixture. */
+const CORPUS = join(import.meta.dirname, '..', '..', '..', 'core', 'test');
+const HTTP_CORPUS_BODY = readFileSync(
+  join(CORPUS, 'corpus', 'documents', 'oai-petstore.yaml'),
+  'utf8',
+);
+const EVENTS_CORPUS_BODY = readFileSync(
+  join(CORPUS, 'events-corpus', 'documents', 'aai-streetlights-kafka.yml'),
+  'utf8',
+);
+
+/** One address the AsyncAPI corpus document above documents a channel for. */
+const MEASURED = 'smartylighting.streetlights.1.0.event.{streetlightId}.lighting.measured';
+
 interface TestServer {
   readonly url: string;
   readonly port: number;
@@ -27,17 +43,23 @@ interface TestServer {
   kill(): Promise<void>;
 }
 
-/** Starts a loopback server answering every request with the current body as JSON. */
-function startServer(body: string, port = 0): Promise<TestServer> {
+/** What a started server serves, when it is not the JSON `openapi.json` most of this suite wants. */
+interface Served {
+  readonly contentType?: string;
+  readonly resource?: string;
+}
+
+/** Starts a loopback server answering every request with the current body. */
+function startServer(body: string, port = 0, served: Served = {}): Promise<TestServer> {
   let current = body;
 
   const server = createServer((_request, response) => {
-    response.writeHead(200, { 'content-type': 'application/json' });
+    response.writeHead(200, { 'content-type': served.contentType ?? 'application/json' });
     response.end(current);
   });
 
   return listen(server, port).then((boundPort) => ({
-    url: `http://127.0.0.1:${String(boundPort)}/openapi.json`,
+    url: `http://127.0.0.1:${String(boundPort)}/${served.resource ?? 'openapi.json'}`,
     port: boundPort,
     setBody: (next: string) => {
       current = next;
@@ -103,6 +125,13 @@ function expectReady(snapshot: FederationSnapshot): FederationReadySnapshot {
     throw new Error(`expected a ready snapshot, got: ${snapshot.reason}`);
   }
   return snapshot;
+}
+
+/** Every address the document's channels answer, so a channel can be looked for by its own name. */
+function addresses(nodes: ReadonlyMap<string, IRNode>): string[] {
+  return [...nodes.values()].flatMap((node) =>
+    node.kind === 'channel' && node.address !== undefined ? [node.address] : [],
+  );
 }
 
 function statusOf(snapshot: FederationSnapshot, id: string): string {
@@ -226,6 +255,68 @@ describe('remote lifecycle over real sockets', () => {
     expect(statusOf(snapshot, 'alpha')).toBe('degraded');
     const alphaState = snapshot.remotes.find((remote) => remote.id === 'alpha');
     expect(alphaState?.version?.fromCache).toBe(true);
+  });
+
+  it('should read an AsyncAPI remote off the wire, merge it as mixed, and revive it from disk', async () => {
+    // Given two remotes serving published corpus documents as the bytes their publishers wrote,
+    // one OpenAPI and one AsyncAPI, over real sockets through the real `fetch` adapter. The two
+    // families are what makes the merged kind reachable at all: no specification format writes
+    // `paths` and `channels` together, so `mixed` on the wire needs two remotes of two kinds.
+    const catalog = await startServer(HTTP_CORPUS_BODY, 0, {
+      contentType: 'application/yaml',
+      resource: 'openapi.yaml',
+    });
+    const streetlights = await startServer(EVENTS_CORPUS_BODY, 0, {
+      contentType: 'application/yaml',
+      resource: 'asyncapi.yaml',
+    });
+    servers.push(catalog, streetlights);
+
+    const first = makeLifecycle([
+      { id: 'catalog', url: catalog.url },
+      { id: 'streetlights', url: streetlights.url },
+    ]);
+
+    // When the lifecycle fetches and normalizes both
+    await first.start();
+
+    // Then each body was read by the reader its own version field chose, rather than by the
+    // OpenAPI reader unconditionally, which is what refused an events remote before T053
+    const live = expectReady(first.snapshot());
+    expect(statusOf(live, 'catalog')).toBe('fresh');
+    expect(statusOf(live, 'streetlights')).toBe('fresh');
+    expect((live.document.services ?? []).map((entry) => [entry.id, entry.kind])).toEqual([
+      ['catalog', 'http'],
+      ['streetlights', 'events'],
+    ]);
+    expect(live.document.kind).toBe('mixed');
+    expect(hasPath(live.document.nodes, '/pets')).toBe(true);
+    expect(addresses(live.document.nodes)).toContain(MEASURED);
+    const liveHash = live.document.hash;
+    first.stop();
+
+    // When both processes die and a new lifecycle starts over the same cache directory, which is
+    // a restart with the whole estate down
+    await catalog.kill();
+    await streetlights.kill();
+    const second = makeLifecycle([
+      { id: 'catalog', url: catalog.url },
+      { id: 'streetlights', url: streetlights.url },
+    ]);
+    await second.start();
+
+    // Then the AsyncAPI record revived through the same dispatch that read it off the wire: the
+    // channel is still there and the composition is still mixed, marked degraded rather than
+    // passed off as fresh. A reader that only knew OpenAPI would have refused the record here
+    // for the second time, leaving a cache written on Tuesday unreadable on Wednesday.
+    const revived = expectReady(second.snapshot());
+    expect(revived.document.hash).toBe(liveHash);
+    expect(revived.document.kind).toBe('mixed');
+    expect(addresses(revived.document.nodes)).toContain(MEASURED);
+    expect(revived.degraded).toBe(true);
+    expect(statusOf(revived, 'streetlights')).toBe('degraded');
+    const state = revived.remotes.find((remote) => remote.id === 'streetlights');
+    expect(state?.version?.fromCache).toBe(true);
   });
 
   it('should bound a remote that accepts and never answers, and serve the others meanwhile', async () => {

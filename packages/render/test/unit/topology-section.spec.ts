@@ -186,6 +186,63 @@ describe('the topology section', () => {
     expect(markup).toContain('<span class="oref-topology-name">ledger</span>');
   });
 
+  it('should say in words that an end leads out of what the document knows', async () => {
+    // Given three ends of one document: an operation it holds, a service it does not, and an
+    // event address no channel of it answers. The first is the control that keeps the mark from
+    // being one that fires on everything.
+    const markup = await overviewHtml([
+      edge('get-orders', 'node', 'ledger-service', 'service', 'calls'),
+      edge('get-orders', 'node', 'orders.placed', 'event'),
+    ]);
+
+    // Then, with the node asserted present in the document first, every edge is drawn and only
+    // the two ends that lead outside carry the words. A reader with no stylesheet reads them.
+    expect(smallDocument().nodes.has('get-orders')).toBe(true);
+    expect(countOf(markup, 'oref-topology-edge')).toBe(2);
+    expect(countOf(markup, 'oref-topology-outside')).toBe(2);
+    expect(markup).toContain('<span class="oref-topology-outside">outside</span>');
+    expect(markup).toContain('ledger-service');
+    expect(markup).toContain('orders.placed');
+  });
+
+  it('should draw no outside mark on a graph whose every end the document holds', async () => {
+    // Given the falsification pair for the case above: the same section, every end resolved
+    const markup = await overviewHtml([edge('get-orders', 'node', 'get-orders', 'node', 'calls')]);
+
+    // Then the section is there and the mark is not, so the mark reports a fact rather than
+    // decorating every row
+    expect(countOf(markup, 'oref-topology-edge')).toBe(1);
+    expect(markup).toContain('oref-section-topology');
+    expect(markup).not.toContain('oref-topology-outside');
+  });
+
+  it('should tell an outside end and a dead end apart, since they are different facts', async () => {
+    // Given a service this unmerged document does know, its own id, leading to an operation it
+    // holds that leads nowhere, beside a service it does not know
+    const document = smallDocument();
+    const markup = await renderToString(
+      createSSRApp(DocumentOverview as never, {
+        title: 'Orders API',
+        descriptionHtml: '',
+        servers: [],
+        basePath: '/docs',
+        topology: buildTopology({
+          ...document,
+          relationships: [
+            edge(document.id, 'service', 'get-orders', 'node'),
+            edge(document.id, 'service', 'ledger-service', 'service', 'calls'),
+          ],
+        }),
+      }),
+    );
+
+    // Then both edges are dead ends, and only one of them is outside: an end the document holds
+    // and nothing leaves is a fact about the estate, and an end the document does not hold is a
+    // fact about the boundary of this composition
+    expect(countOf(markup, 'oref-topology-dead')).toBe(2);
+    expect(countOf(markup, 'oref-topology-outside')).toBe(1);
+  });
+
   it('should draw no section at all for a document that declares no edge', async () => {
     // Given the same document with and without a graph, which is the falsification pair
     const without = buildPageModel(smallDocument(), { markdown });

@@ -7,6 +7,7 @@ import type {
   IRService,
 } from '@openref/core';
 import type { FederationService } from './federation-options';
+import type { MergeRename } from './merge-report';
 import { rewriteDriftIssue, rewriteServers, type RewriteMaps } from './rewrite';
 
 /**
@@ -158,30 +159,72 @@ export interface RelationshipSource {
  * id, which is a coincidence standing in for a fact: a service whose name happened to equal a
  * dropped node's id would have been rewritten into a node. SPEC 9.1 puts the kind in the type, so
  * a `node` end goes through the node map, a `service` end that names this service's own document
- * becomes this service's id, and an `event` end is a name in nobody's address space and is left
- * exactly as it was.
+ * becomes this service's id, and an `event` end goes through the federation wide address map
+ * described below.
+ *
+ * AN `event` END IS THE CROSS SERVICE CASE AND IT IS WHY `T053` EXISTS. The publisher and the
+ * consumer of one event live in different remotes: an HTTP service writes `@ApiPublishes` naming
+ * an address it documents no channel for, and the channel is in the event document next door. It
+ * cannot be resolved before the merge, because the other document is not here, and it cannot be
+ * resolved after the merge either once that channel's address has moved under its service's
+ * prefix, because the event name did not move with it. So the merge moves it, by the map
+ * `eventNames`, which holds only the source addresses exactly one channel of the whole federation
+ * answers, per SPEC 15.1 and by the rule SPEC 9.5 already applies one level down.
  *
  * A `service` END NAMING SOMETHING ELSE IS LEFT ALONE, and that is the interesting half. A
  * service that declares an edge to `ledger-service` while `ledger-service` is not part of this
  * federation has still declared it, and rewriting or dropping it would either invent membership or
- * hide a dependency. It stays, and the topology view draws it as a dead end.
+ * hide a dependency. It stays, and the topology view draws it as leading outside the known set.
  *
  * EDGES ARE DEDUPLICATED BY VALUE, because two services describing the same publication of the
  * same event are describing one edge, and a topology graph that drew it twice would weight it
  * twice.
  *
+ * THE LAST TWO PARAMETERS ARE REQUIRED, AND THEY CARRIED DEFAULTS FOR EXACTLY ONE REVIEW. An empty
+ * map and a discarded array are the pre-`T053` behaviour of this function, so a caller that forgot
+ * them got a merge with every event end left where it was written and a report that no longer
+ * inverts the merge, silently and with nothing red. That is the shape of defect this repository
+ * keeps finding, and a compile error is the cheapest place to put it. The package is internal and
+ * unpublished per SPEC 4, so nothing outside this repository is obliged by the change.
+ *
  * @param sources - Each service's relationships with its identity and rewrite maps, in service order
+ * @param eventNames - Source channel address to merged address, federation wide, moves only
+ * @param renames - Report entries, appended to, so the report still inverts the merge
  * @returns The merged edges, first occurrence order, without repeats
  */
-export function mergeRelationships(sources: readonly RelationshipSource[]): IRRelationship[] {
+export function mergeRelationships(
+  sources: readonly RelationshipSource[],
+  eventNames: ReadonlyMap<string, string>,
+  renames: MergeRename[],
+): IRRelationship[] {
   const seen = new Set<string>();
   const merged: IRRelationship[] = [];
+  const reported = new Set<string>();
 
   for (const source of sources) {
     const move = (value: string, kind: IRRelationship['fromKind']): string => {
       if (kind === 'node') return source.maps.nodeIds.get(value) ?? value;
       if (kind === 'service') return value === source.documentId ? source.serviceId : value;
-      return value;
+
+      const moved = eventNames.get(value);
+      if (moved === undefined) return value;
+
+      // One rename per service and source name, which is the invariant `sortRenames` states. An
+      // edge repeated inside one service, or two edges naming one address, is one move.
+      const key = `${source.serviceId} ${value}`;
+      if (!reported.has(key)) {
+        reported.add(key);
+        renames.push({
+          kind: 'event-name',
+          serviceId: source.serviceId,
+          from: value,
+          to: moved,
+          reason: 'target-moved',
+          contestedBy: [],
+        });
+      }
+
+      return moved;
     };
 
     for (const edge of source.edges) {

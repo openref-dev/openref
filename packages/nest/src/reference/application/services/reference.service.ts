@@ -21,8 +21,8 @@ import {
   ErrorCode,
   InvalidOptionsError,
   IR_VERSION,
-  normalizeAsyncApiDocument,
-  normalizeOpenApiDocument,
+  isAsyncApiSource,
+  normalizeSpecification,
   parseSpecification,
   proxyServers,
   ProxyBlockedError,
@@ -237,6 +237,10 @@ export class ReferenceService {
       // hand over an AsyncAPI file under a flag that says OpenAPI. Neither member present is an
       // OpenAPI document as far as this goes, which keeps the failure the one it always was:
       // `normalizeOpenApiDocument` refuses it by name rather than this line inventing a message.
+      //
+      // THE PREDICATE AND THE DISPATCH MOVED TO `@openref/core` AT `T053`, and the reason is that
+      // the federated remote of SPEC 15.2 asks the same question of a fetched body and had no
+      // answer at all. One home for a sentence two surfaces speak.
       const parsed = sourceObject(options.document);
       const events = isAsyncApiSource(parsed);
       // THE SYNTHETIC SCHEMAS OF SPEC 13.5 GO IN HERE, ONCE, BEFORE ANYTHING READS THE DOCUMENT.
@@ -247,9 +251,7 @@ export class ReferenceService {
       // wrapper, and merging its schemas into a document no operation of which reads them would
       // put a schema in the reference that nothing refers to.
       this.source = events ? parsed : mergeSyntheticSchemas(parsed);
-      const normalized = events
-        ? normalizeAsyncApiDocument(this.source)
-        : normalizeOpenApiDocument(this.source);
+      const normalized = normalizeSpecification(this.source);
       this.document = options.augment === undefined ? normalized : options.augment(normalized);
     }
     this.catalog = buildAssetCatalog(options.assets.sources);
@@ -841,25 +843,6 @@ function notModified(request: ReferenceRequest, tag: string): ReferenceReply | n
  */
 function sourceObject(input: unknown): unknown {
   return typeof input === 'string' ? parseSpecification(input, { source: 'document' }) : input;
-}
-
-/**
- * Whether a source document is an AsyncAPI one, asked of the document itself.
- *
- * THE MEMBER IS THE ANSWER AND AN OPTION WOULD NOT BE. Both specifications require a root member
- * named after themselves carrying their version, so the document states which reader it needs.
- * A `kind: 'events'` option beside a document would be a second statement of the same fact, and
- * the two would disagree the first time a host copied an entry and changed only one of them.
- *
- * @param input - The parsed document
- * @returns True when it declares an `asyncapi` version
- */
-function isAsyncApiSource(input: unknown): boolean {
-  return (
-    typeof input === 'object' &&
-    input !== null &&
-    typeof (input as { asyncapi?: unknown }).asyncapi === 'string'
-  );
 }
 
 /**

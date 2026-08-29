@@ -57,6 +57,24 @@ function endpointNode(endpoint: IRTopologyEndpoint, basePath: string): VNode {
 }
 
 /**
+ * The words that say an end leads out of what this document knows, or nothing when it does not.
+ *
+ * A DIFFERENT FACT FROM `deadEnd` AND FROM A MISSING LINK, per SPEC 9.5. A dead end is a target
+ * this document holds and nothing leaves; this is a target the document does not hold at all, a
+ * service nobody federated in, a node from a document not in this composition, an event address no
+ * channel here answers. Both are drawn, because the one thing the section must never do is drop an
+ * edge, and a reader who cannot tell the two apart cannot tell the estate's shape from the
+ * federation's boundary. In words rather than in a colour, for the reason `deadEnd` is: a fact
+ * that vanishes with the stylesheet is not one a reader can rely on.
+ *
+ * @param endpoint - The end, as `buildTopology` resolved it
+ * @returns The mark, or null for an end this document knows
+ */
+function outsideMark(endpoint: IRTopologyEndpoint): VNode | null {
+  return endpoint.outside ? h('span', { class: 'oref-topology-outside' }, 'outside') : null;
+}
+
+/**
  * The graph of SPEC 9, drawn as an adjacency list.
  *
  * IT IS AN ADJACENCY LIST AND NOT A DRAWN GRAPH, which answers three of this task's four test
@@ -85,6 +103,7 @@ function topologySection(topology: IRTopology, basePath: string): VNode {
       topology.groups.map((group) =>
         h('li', { class: 'oref-topology-node', key: `${group.from.kind} ${group.from.name}` }, [
           endpointNode(group.from, basePath),
+          outsideMark(group.from),
           h(
             'ul',
             { class: 'oref-topology-edges' },
@@ -102,6 +121,7 @@ function topologySection(topology: IRTopology, basePath: string): VNode {
                 [
                   h('span', { class: 'oref-topology-type' }, edge.type),
                   endpointNode(edge.to, basePath),
+                  outsideMark(edge.to),
                   edge.deadEnd ? h('span', { class: 'oref-topology-dead' }, 'dead end') : null,
                   h(ProvenanceTag, {
                     confidence: edge.confidence,

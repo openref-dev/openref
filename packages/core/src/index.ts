@@ -247,6 +247,8 @@ export {
 export type { NormalizeOpenApiOptions } from './normalizer/domain/openapi-normalizer';
 export { normalizeAsyncApiDocument } from './normalizer/domain/asyncapi-normalizer';
 export type { NormalizeAsyncApiOptions } from './normalizer/domain/asyncapi-normalizer';
+export { isAsyncApiSource, normalizeSpecification } from './normalizer/domain/reader';
+export type { NormalizeSpecificationOptions } from './normalizer/domain/reader';
 export {
   buildSchema,
   dialectFromSchemaFormat,

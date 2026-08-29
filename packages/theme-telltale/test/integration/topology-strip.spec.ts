@@ -69,6 +69,45 @@ describe('the telltale overview and the topology graph', () => {
     expect(markup).toContain('title="inferred, topology"');
   });
 
+  it('should say in words which ends lead out of what the document knows', async () => {
+    // Given the fixture, whose two planted edges name event addresses no channel of it answers,
+    // beside the AsyncAPI edges whose ends are all channels it holds and its own service name
+    const document = topologyDocument();
+    const markup = await overview(document);
+
+    // When
+    const outside = markup.split('tt-topology-outside').length - 1;
+    const rows = markup.split('tt-topology-row').length - 1;
+
+    // Then the mark is on the two ends the document has nothing under, and on no other row. The
+    // count is read against the fixture's own edges rather than written down, so an edge added to
+    // the fixture is read here rather than absorbed.
+    const unknown = document.relationships.filter(
+      (edge) =>
+        edge.toKind === 'event' &&
+        ![...document.nodes.values()].some(
+          (node) => node.kind === 'channel' && node.address === edge.to,
+        ),
+    );
+
+    expect(unknown.length).toBeGreaterThan(0);
+    expect(rows).toBe(document.relationships.length);
+    expect(outside).toBe(unknown.length);
+    expect(markup).toContain('OUTSIDE');
+  });
+
+  it('should draw no outside mark on a document whose every end it holds', async () => {
+    // Given the falsification pair: the same theme, the same section, and a graph with nothing
+    // outside it, so the mark reports a fact rather than decorating every row
+    const events = eventsDocument();
+    const markup = await overview(events);
+
+    // Then, with the section asserted present first
+    expect(events.relationships.length).toBeGreaterThan(0);
+    expect(markup).toContain('tt-topology-list');
+    expect(markup).not.toContain('tt-topology-outside');
+  });
+
   it('should link an end that resolved to a node and leave an unresolved one as text', async () => {
     // Given the events fixture, whose edges name two channels this document holds and one service
     // it does not, so both branches are on one page

@@ -11,9 +11,26 @@ import type { FederationConflictMode } from './federation-options';
  * finding their endpoint and a reader concluding it was dropped.
  */
 
-/** What sort of name was renamed. */
+/**
+ * What sort of name was renamed.
+ *
+ * `event-name` IS THE ONE THAT IS NOT A NAME THE SERVICE OWNS. It is the value an `event` end of a
+ * topology edge carried, per SPEC 9.1: an event name is not a node id and not an address of the
+ * service that declared it, it is the address of a channel some other service documents. It moves
+ * when that channel's address moves, so the rename is recorded against the service that declared
+ * the edge while the `channel-address` rename beside it is recorded against the service that owns
+ * the channel. Two kinds rather than one, because inverting the merge means asking "what did this
+ * service call this" and the two answers come from two services.
+ */
 export type MergeRenameKind =
-  'node' | 'schema' | 'security-scheme' | 'path' | 'channel-address' | 'navigation' | 'webhook';
+  | 'node'
+  | 'schema'
+  | 'security-scheme'
+  | 'path'
+  | 'channel-address'
+  | 'event-name'
+  | 'navigation'
+  | 'webhook';
 
 /** Why a name moved. */
 export type MergeRenameReason =
@@ -33,6 +50,16 @@ export type MergeRenameReason =
    * Nothing was lost: the entry the id now names is the same component the old id named.
    */
   | 'deduplicated'
+  /**
+   * The thing the name points at moved, so the name that points at it moved with it.
+   *
+   * ONLY EVER AN `event-name`, and it is the one reason on this list that is about another
+   * service's decision. The address a topology edge names belongs to a channel of some other
+   * service, and that channel moved under its own prefix or out of its own conflict; leaving the
+   * edge spelled as it was would leave a cross service relationship resolving to nothing, which is
+   * the whole of what SPEC 15.1 records here.
+   */
+  | 'target-moved'
   /** The name the rules above produced was already taken by something else. */
   | 'uniqueness';
 
@@ -96,6 +123,7 @@ const RENAME_KIND_ORDER: readonly MergeRenameKind[] = [
   'security-scheme',
   'path',
   'channel-address',
+  'event-name',
   'navigation',
 ];
 

@@ -1809,6 +1809,11 @@ export const FEDERATION_SUITE_COVERAGE: readonly StaticCoverage[] = [
       'packages/federation/test/unit/remote-lifecycle.spec.ts',
       'packages/federation/test/integration/remote-lifecycle.spec.ts',
       'packages/federation/test/unit/adversarial-m4.spec.ts',
+      // ADDED BY `T053`. A remote with no version is absent from the composition, and the half
+      // nothing held until now is what that absence does to a page: an edge naming something that
+      // remote documents has to be drawn as leading outside the known set rather than dropped, and
+      // it has to resolve again when the remote comes back.
+      'packages/nest/test/integration/mixed-federation.spec.ts',
     ],
     cases: [
       // The done-when sentence of the lifecycle: one bad service does not take the others down.
@@ -1820,6 +1825,9 @@ export const FEDERATION_SUITE_COVERAGE: readonly StaticCoverage[] = [
       // And the two ways a remote is unavailable while answering, which `T047` attacked.
       'should hold a bounded amount of a 400 MB answer and degrade like a remote that is down',
       'should stop reading a trickling body when the lifecycle gives up on it',
+      // And what an unavailable remote does to the graph, which is `T053`'s clause.
+      'should draw an edge into an unavailable remote as unknown rather than dropping it',
+      'should resolve that same edge once the remote comes back, which is the control',
     ],
   },
   {
@@ -1834,6 +1842,21 @@ export const FEDERATION_SUITE_COVERAGE: readonly StaticCoverage[] = [
       // no specification format writes HTTP operations and channels together, so both normalizers
       // answer with one kind each by construction and this merge is the sole producer of the third.
       'packages/federation/test/integration/mixed-corpus.spec.ts',
+      // ADDED BY `T053`, WHICH IS THE TASK THIS ROW WAS WAITING FOR. The two files above merge two
+      // services of two kinds; this one merges three of three, a mixed service among them, and it
+      // holds the half that no fixture pair can reach: a relationship whose two ends live in two
+      // services, which is the cross service resolution SPEC 15.1 records.
+      'packages/federation/test/unit/cross-service-edges.spec.ts',
+      // AND THE SAME THING AT THE LIFECYCLE, which is where `mixed` stops being a merge property
+      // and becomes a page. It is a `packages/nest` suite because the renderer may not see the
+      // merge and the merge may not see the renderer; it boots no process, so running it here
+      // costs a second rather than a demo.
+      'packages/nest/test/integration/mixed-federation.spec.ts',
+      // AND THE WIRE. Every file above reaches `mixed` through a fetcher this repository wrote,
+      // so none of them proves an AsyncAPI body survives a real socket, a real `fetch` adapter and
+      // a real cache file. This one does, and the file is listed here as well as under
+      // `unavailable-remote` because the two rows want two different cases out of it.
+      'packages/federation/test/integration/remote-lifecycle.spec.ts',
     ],
     cases: [
       // An HTTP service and an event service in one merge: ids, kind, and the address rule that
@@ -1845,6 +1868,22 @@ export const FEDERATION_SUITE_COVERAGE: readonly StaticCoverage[] = [
       'should report the merged kind as mixed, with both node kinds in one map',
       'should keep the channel a channel, address, parameters, servers and all',
       'should give one hash whichever order the two services are configured in',
+      // `T053`: three kinds at once, and the edge that spans two of them. The determinism case is
+      // named here too, because a merge of mixed kinds that reads the configured order is the one
+      // failure this row's own sentence cannot survive.
+      'should merge one of each kind into one document that holds every node',
+      'should give one hash and one report whichever order the three are configured in',
+      'should move the event name onto the address the target channel now answers',
+      'should leave an event name alone when two services answer the same address',
+      'should record the move so the report still inverts the merge',
+      'should span services in the topology, which is the reason the feature exists',
+      // And at the lifecycle, where an events remote is fetched at all and the page is one page.
+      'should fetch an events remote at all, which the OpenAPI only reader refused',
+      'should merge the four into one document of every kind, and render it as one page',
+      // And over a real socket, which is the only place the fetch, the parse, the reader dispatch
+      // and the cache file are all the real ones. Named here because listing the file alone left
+      // this case deletable with the gate still green.
+      'should read an AsyncAPI remote off the wire, merge it as mixed, and revive it from disk',
     ],
   },
 ];

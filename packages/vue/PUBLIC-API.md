@@ -219,7 +219,7 @@ here because it is the declared type of something a theme is handed.
 | `IRTopology` | type | The graph of SPEC 9 arranged for reading, as `PageModel.topology` and `DocumentOverview.topology` carry it. Added at `T052`, minor |
 | `IRTopologyGroup` | type | Every edge leaving one endpoint, which is what a walk of `IRTopology.groups` reaches. Added at `T052`, minor |
 | `IRTopologyEdge` | type | One edge with its type, its confidence and whether its target leads nowhere. Added at `T052`, minor |
-| `IRTopologyEndpoint` | type | One end of an edge: what was declared, what it resolved to, and what to show. Added at `T052`, minor |
+| `IRTopologyEndpoint` | type | One end of an edge: what was declared, what it resolved to, what to show, and since `T053` whether this document holds nothing at all under the name. Added at `T052`, minor. `outside` arrived at `T053` **required rather than optional, so the member is on the major side**, the shape `PageModel.topology` and `NodeModel.channel` took: a value the page reads on every end cannot be one a producer may forget, and `outside === undefined` would read as `false`, which is the answer that means "inside". Reading is unaffected and the producer set is one function, `buildTopology` in `@openref/core`; a theme that renders an end and never builds one compiles unchanged. Recorded in `ai-docs/design/CONTRACT.md` |
 | `UnsendableCause` | type | Why a scheme cannot be signed in from a browser, as `RunnerSecuritySchemeView` reports it |
 
 ### What is on a page and is not on this surface
