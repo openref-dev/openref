@@ -3,15 +3,16 @@
  *
  * The allowed graph, from STANDARDS 3.5:
  *
- *   core   ->  nothing
- *   vue    ->  core
- *   render ->  core, vue
- *   runner ->  core
- *   search ->  core
- *   theme  ->  nothing
- *   nest   ->  core, render, runner, search
- *   cli    ->  core, render, runner, search, static
- *   action ->  nothing
+ *   core       ->  nothing
+ *   vue        ->  core
+ *   render     ->  core, vue
+ *   runner     ->  core
+ *   search     ->  core
+ *   theme      ->  nothing
+ *   federation ->  core
+ *   nest       ->  core, render, runner, search
+ *   cli        ->  core, render, runner, search, static
+ *   action     ->  nothing
  *
  * A violation fails the build. Never relax a rule to make a build pass.
  *
@@ -78,6 +79,15 @@ const BOUNDARIES = {
   // Nest side, the browser bundle, arrives as a file path a caller resolved, not as an import,
   // for the reason `package-assets.adapter.ts` gives about resolving a theme as files.
   static: ['core', 'render', 'search'],
+
+  // THE MERGE ENGINE OF SPEC 15 REACHES THE IR AND NOTHING ELSE. It takes documents that are
+  // already normalized and returns one, so `core` is the whole of what it needs: the IR types,
+  // the canonical hash the schema deduplication is defined in terms of, and the fold that says
+  // whether two ids are one file. It deliberately cannot see `runner`, because fetching a remote
+  // is T045's lifecycle rather than the merge, and it cannot see `render` or `vue`, because a
+  // merged document is data and drawing it is T046.
+  federation: ['core'],
+
   cli: ['core', 'render', 'runner', 'search', 'static'],
 
   // THE GITHUB ACTION REACHES NOTHING, AND THAT IS THE WHOLE SHAPE OF IT. `action.yml` is a

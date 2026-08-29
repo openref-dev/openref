@@ -146,12 +146,63 @@ export interface IRDocument {
   readonly health?: IRHealthReport;
   readonly extensions?: Readonly<Record<string, IRJsonValue>>;
   /**
+   * The services this document was merged from, per SPEC 15. Absent when it is one service's own.
+   *
+   * ADDITIVE AND OPTIONAL, so a document built before `T044` is still a document, and a document
+   * that was never merged carries nothing here rather than a list of one. Present, it is sorted
+   * by `IRService.id` and it holds everything document level that a source document said, because
+   * merging is lossless: what a service declared about itself has nowhere else to go once its
+   * nodes have moved into a shared map.
+   */
+  readonly services?: readonly IRService[];
+  /**
    * Path item keys the normalizer would not read, per SPEC 7.1's `operation-key-unread`.
    *
    * ADDITIVE AND OPTIONAL, so a document built before `T043` is still a document. It exists
    * because a fact that cannot be obtained has to reach the doctor rather than be dropped: an
    * operation written under `GET` instead of `get` used to vanish with nothing anywhere saying
    * so, and `diff` then reported a deletion nobody made.
+   */
+  readonly unreadKeys?: readonly IRUnreadKey[];
+}
+
+/**
+ * One service inside a federated document, per SPEC 15.
+ *
+ * WHAT IT IS, AND WHY IT IS NOT A TAG. Merging moves a service's nodes, schemas and security
+ * schemes into one shared document, and every one of them can be renamed on the way. What is
+ * left over is the document header the service wrote about itself: its title, its version, its
+ * servers, the collectors that ran on it and the health it reported. None of that survives being
+ * folded into the merged header, so it is kept here per service rather than dropped, which is
+ * the whole of what `lossless` means for the document level.
+ *
+ * A NODE POINTS BACK RATHER THAN BEING LISTED HERE. `IROperation.serviceId` and
+ * `IRChannel.serviceId` name the service, so membership is stated once at the place a consumer
+ * already has in its hand. A list of ids here would be the same fact written twice, and the
+ * second copy is the one that goes stale.
+ */
+export interface IRService {
+  /** Service identity, as the federation configuration names it. Unique within the document. */
+  readonly id: string;
+  /** `IRDocument.id` of the source document, which is not always the service id. */
+  readonly documentId: string;
+  /** `IRDocument.hash` of the source document, so a refreshed remote is detectable. */
+  readonly documentHash: string;
+  readonly kind: IRDocumentKind;
+  readonly info: IRInfo;
+  readonly servers: readonly IRServer[];
+  /** Path prefix every address of this service was moved under, when one applied. */
+  readonly prefix?: string;
+  readonly runtime?: IRRuntimeMeta;
+  readonly health?: IRHealthReport;
+  readonly extensions?: Readonly<Record<string, IRJsonValue>>;
+  /**
+   * The service's own unread path item keys, with the paths exactly as its document wrote them.
+   *
+   * THEY STAY HERE AND ARE NOT UNIONED UPWARDS, because {@link IRUnreadKey.path} promises the
+   * path the document wrote and a merged address is a path no document wrote. Rewriting it to
+   * the merged form would break that promise to make one list; keeping the source form in a
+   * merged list would name an address the merged document does not answer.
    */
   readonly unreadKeys?: readonly IRUnreadKey[];
 }

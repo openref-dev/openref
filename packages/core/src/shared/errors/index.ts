@@ -62,6 +62,15 @@ export enum ErrorCode {
   FED_REMOTE_UNAVAILABLE = 'FED_REMOTE_UNAVAILABLE',
   /** Two remotes contributed conflicting definitions. */
   FED_MERGE_CONFLICT = 'FED_MERGE_CONFLICT',
+  /**
+   * A merge produced a document whose own references do not resolve.
+   *
+   * NOT A CONFLICT, WHICH IS WHY IT IS NOT ONE OF THOSE. A conflict is something the inputs did
+   * and the modes of SPEC 15 answer; this is the merge engine having failed to carry a reference
+   * across, which no configuration causes and no configuration fixes. It is separate so that a
+   * caller catching `FED_MERGE_CONFLICT` to re-run under another mode cannot silently swallow it.
+   */
+  FED_MERGE_INCOMPLETE = 'FED_MERGE_INCOMPLETE',
 
   /** A theme does not satisfy the theme contract. */
   THEME_CONTRACT_VIOLATED = 'THEME_CONTRACT_VIOLATED',

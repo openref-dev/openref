@@ -154,6 +154,14 @@ export interface IROperation {
   readonly codeSamples?: readonly IRCodeSample[];
   readonly runtime?: IRNodeRuntime;
   readonly extensions?: Readonly<Record<string, IRJsonValue>>;
+  /**
+   * Service this node came from, per SPEC 15. Absent in a document that was never merged.
+   *
+   * ADDITIVE AND OPTIONAL, per `T044`. It is on the node rather than on a list hanging off
+   * {@link IRService} because every consumer that asks the question already holds the node: a
+   * page badge, a search facet, the runner picking the server to call.
+   */
+  readonly serviceId?: string;
 }
 
 /** A server url declared at operation level. */
@@ -212,6 +220,8 @@ export interface IRChannel {
   readonly bindings?: Readonly<Record<string, IRJsonValue>>;
   readonly runtime?: IRNodeRuntime;
   readonly extensions?: Readonly<Record<string, IRJsonValue>>;
+  /** Service this channel came from, per SPEC 15. Absent in a document that was never merged. */
+  readonly serviceId?: string;
 }
 
 /**

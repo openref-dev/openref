@@ -109,6 +109,7 @@ export type {
   IRSecuritySchemeType,
   IRServer,
   IRServerVariable,
+  IRService,
 } from './ir/domain/document.types';
 
 export {
