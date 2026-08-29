@@ -4,7 +4,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { hydrateReference, readPageState } from '../../src/browser/index';
 import { renderHtmlDocument } from '../../src/page/domain/shell';
 import { renderPage } from '../../src/render/application/services/render.service';
-import { runtimeDocument, runtimeNodeId, smallDocument } from '../mocks/documents';
+import { eventsDocument, runtimeDocument, runtimeNodeId, smallDocument } from '../mocks/documents';
+
+/** The templated channel of the events fixture, whose page is three adopted sections. */
+const CHANNEL = 'channel-orders-tenant-requests';
 
 /**
  * Server markup and client markup have to agree.
@@ -182,6 +185,56 @@ describe('hydrateReference', () => {
     expect(messages.filter((message) => message.includes('Hydration'))).toEqual([]);
   });
 
+  /**
+   * The adopted channel page of `T050`: the same mechanism again, on a page made of nothing else.
+   *
+   * A NODE PAGE HAS ONE LIVE POSITION AND A CHANNEL PAGE HAS NONE. Its three sections are adopted
+   * positions and the state block leaves the whole `ChannelModel` behind, so the client walks
+   * `drawn` and fills each of the three with a childless element. `element.spec.ts` proves the
+   * content survives in both DOM modes, which discriminates because the stub has no children; what
+   * no case asserted until this one is the warning, and the warning is how this suite proves every
+   * other adopted section. Vue patches a mismatch in silence, so a torn channel page looks right
+   * and is built from markup the server never wrote.
+   */
+  it('should keep the three channel sections after hydrating from a channel-less block', async () => {
+    // Given a served channel page, drawn by the server from a model the client is not given
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const page = await renderPage(eventsDocument(), { nodeId: CHANNEL });
+    document.documentElement.innerHTML = renderHtmlDocument(page, {
+      nonce: 'r4nd0mNONCEvalue',
+      assets: { stylesheets: ['/assets/theme.css'], modules: ['/assets/openref.js'] },
+    });
+
+    const factsBefore = document.querySelectorAll('.oref-fact').length;
+    const operationsBefore = document.querySelectorAll('.oref-channel-op').length;
+    const messagesBefore = document.querySelectorAll('.oref-message').length;
+    const rowsBefore = document.querySelectorAll('.oref-shape-row').length;
+    expect(factsBefore).toBeGreaterThan(0);
+    expect(operationsBefore).toBeGreaterThan(0);
+    expect(messagesBefore).toBeGreaterThan(0);
+    expect(rowsBefore).toBeGreaterThan(0);
+
+    // And the state block carries the walk and none of the channel the server drew from
+    const state = readPageState(document);
+    expect(state?.node?.drawn).toContain('channel');
+    expect(state?.node?.drawn).toContain('channel-operations');
+    expect(state?.node?.drawn).toContain('messages');
+    expect(state?.node?.channel).toBeNull();
+
+    // When
+    const hydrated = hydrateReference();
+
+    // Then the markup the server wrote is still the markup on the page, and untorn
+    expect(hydrated).toBe(true);
+    expect(document.querySelectorAll('.oref-fact')).toHaveLength(factsBefore);
+    expect(document.querySelectorAll('.oref-channel-op')).toHaveLength(operationsBefore);
+    expect(document.querySelectorAll('.oref-message')).toHaveLength(messagesBefore);
+    expect(document.querySelectorAll('.oref-shape-row')).toHaveLength(rowsBefore);
+    const messages = [...warn.mock.calls, ...error.mock.calls].map((call) => String(call[0]));
+    expect(messages.filter((message) => message.includes('Hydration'))).toEqual([]);
+  });
+
   it('should execute nothing that a hostile description smuggled into the state', async () => {
     // Given
     document.documentElement.innerHTML = await serveDocument();
@@ -284,8 +337,11 @@ describe('readPageState', () => {
     // rules are up, which is the generation side existing and never being offered. T046 added
     // `service` and the rail's `serviceId`, the federated card of SPEC 15.3, and that is 17:
     // a page cached before it hydrates a rail whose service groups have no card link and no
-    // mark for the live status to land on.
-    expect(state?.pageModelVersion).toBe(17);
+    // mark for the live status to land on. T050 added `channel` and three marks to `drawn`,
+    // the channel page of SPEC 11, and that is 18: a page cached before it hydrates a channel
+    // article whose client walk finds marks it cannot draw, or draws nothing under the header
+    // where the server drew the address variables, the operations and the messages.
+    expect(state?.pageModelVersion).toBe(18);
   });
 });
 

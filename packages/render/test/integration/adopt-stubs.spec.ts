@@ -5,6 +5,10 @@ import { describe, expect, it } from 'vitest';
 import { h } from 'vue';
 import { renderToString } from 'vue/server-renderer';
 import { deferredComponents } from '../../src/browser/deferred';
+import { EAGER_COMPONENTS } from '../../src/components/eager';
+import { buildPageModel } from '../../src/page/domain/page-model';
+import { createMarkdownRenderer } from '../../src/markdown/domain/markdown';
+import { eventsDocument } from '../mocks/documents';
 
 /**
  * The browser stub set of `TX-ADOPT`, pinned against the one home of the contract.
@@ -59,5 +63,42 @@ describe('the browser stubs, pinned against the server resolved list', () => {
         'HealthScore',
       ].sort(),
     );
+  });
+
+  it('should fill each channel position with a stub whose root matches the one the server drew', async () => {
+    // Given the channel page's model, and the two registries that fill its three positions
+    const markdown = await createMarkdownRenderer();
+    const page = buildPageModel(eventsDocument(), {
+      nodeId: 'channel-orders-tenant-requests',
+      markdown,
+    });
+    const channel = page.node?.channel ?? null;
+    const browser = deferredComponents({ document, provideRunner: () => undefined });
+
+    // The three positions of `T050`. They are positions and not slots, so `SERVER_RESOLVED_ROOTS`
+    // does not name them; the property is the same one it exists for, and it is checked against
+    // the markup the server really draws rather than against a second list.
+    const positions = [
+      ['channelFacts', { channel }],
+      ['channelOperations', { channel }],
+      ['messageList', { channel, schemas: page.schemas, basePath: page.basePath }],
+    ] as const;
+
+    for (const [name, props] of positions) {
+      // When the server's component and the browser's stub both render
+      const served = await renderToString(h(EAGER_COMPONENTS[name], props));
+      const stub = await renderToString(h(browser[name]));
+
+      // Then the server drew something, which is what makes the comparison below mean anything
+      expect(served.length, name).toBeGreaterThan(stub.length);
+
+      // And the stub is one childless element whose tag and class are the served root's, so
+      // hydration adopts the markup instead of replacing it
+      const root = /^<(\w+) class="([^"]*)"/.exec(served);
+      expect(root, name).not.toBeNull();
+      expect(stub, name).toBe(
+        `<${root?.[1] ?? ''} class="${root?.[2] ?? ''}"></${root?.[1] ?? ''}>`,
+      );
+    }
   });
 });

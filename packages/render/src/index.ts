@@ -105,6 +105,12 @@ export {
 // that a consumer of the renderer still finds them where they were. They moved because the slot
 // contract is declared in terms of them and the headless layer may not import this package.
 export type {
+  BindingModel,
+  ChannelModel,
+  ChannelOperationModel,
+  ChannelParameterModel,
+  ChannelReplyModel,
+  ChannelServerModel,
   CodeSampleModel,
   DriftModel,
   FrameModel,
@@ -115,9 +121,13 @@ export type {
   HealthModel,
   HealthRuleModel,
   MediaTypeModel,
+  MessageBodyModel,
+  MessageExampleModel,
+  MessageModel,
   NavEntryModel,
   NodeHeaderModel,
   NodeModel,
+  NodeSectionMark,
   PageKind,
   PageModel,
   PaletteHitModel,

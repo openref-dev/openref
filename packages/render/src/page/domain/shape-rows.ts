@@ -426,13 +426,38 @@ export function shapeRowsOf(
   const root = schemas[schemaId]?.normalized;
   if (root === undefined) return [];
 
+  return shapeRowsOfBody(root, schemas, basePath, [schemaId]);
+}
+
+/**
+ * The same rows, for a schema that has no name and therefore no page, per SPEC 11 and `T050`.
+ *
+ * WHY A SECOND ENTRY POINT AND NOT A SECOND WALKER. A message payload is an inline schema: it
+ * carries a body and an id nothing else refers to, so it is in no page's schema payload and
+ * `shapeRowsOf` cannot be handed an id that finds it. What the walk needs is the body, and every
+ * rule below it, the depth limit, the reference cycle guard and the schema page links, is the
+ * same rule. A second walker would be a second place for the conditional requiredness sentences
+ * to be got wrong.
+ *
+ * @param body - The normalized schema to read
+ * @param schemas - The page's bounded schema payload, for the references inside it
+ * @param basePath - Mount point, for schema page links
+ * @param refPath - Named schemas already on the descent, empty for a body that has no name
+ * @returns The rows, empty when the body declares no fields
+ */
+export function shapeRowsOfBody(
+  body: IRJsonSchema,
+  schemas: Readonly<Record<string, IRSchema>>,
+  basePath: string,
+  refPath: readonly string[] = [],
+): readonly ShapeRow[] {
   const context: WalkContext = {
     schemas,
     basePath,
-    refPath: [schemaId],
+    refPath: [...refPath],
     rows: [],
   };
 
-  walkObject(root, '', 0, context);
+  walkObject(body, '', 0, context);
   return context.rows;
 }

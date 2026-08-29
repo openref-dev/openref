@@ -329,6 +329,12 @@ const adoptNodeSecurity: Component = () =>
   h('section', { class: 'oref-section oref-section-security' });
 const adoptParamTable: Component = () =>
   h('section', { class: 'oref-section oref-section-parameters' });
+const adoptChannelFacts: Component = () =>
+  h('section', { class: 'oref-section oref-section-channel' });
+const adoptChannelOperations: Component = () =>
+  h('section', { class: 'oref-section oref-section-channel-operations' });
+const adoptMessageList: Component = () =>
+  h('section', { class: 'oref-section oref-section-messages' });
 const adoptResponseList: Component = () =>
   h('section', { class: 'oref-section oref-section-responses' });
 const adoptOverviewPage: Component = () => h('article', { class: 'oref-overview' });
@@ -455,6 +461,9 @@ export function deferredComponents(options: DeferredOptions): DeferrableComponen
     nodeDescription: adoptNodeDescription,
     nodeSecurity: adoptNodeSecurity,
     paramTable: adoptParamTable,
+    channelFacts: adoptChannelFacts,
+    channelOperations: adoptChannelOperations,
+    messageList: adoptMessageList,
     responseList: adoptResponseList,
     overviewPage: adoptOverviewPage,
     statesPage: adoptStatesPage,

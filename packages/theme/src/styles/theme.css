@@ -2468,3 +2468,52 @@ button.oref-schema-row:hover {
   border-color: var(--oref-color-fg-muted);
   color: var(--oref-color-fg);
 }
+
+/* T050: the channel page. One fact family serves all three of its sections, laid out as the
+ * service card's two column grid so labels share the width of the longest and no length literal
+ * enters the stylesheet; an operation and a message are rules on a plain list. Every other name
+ * the page emits is borrowed from a family this file already draws. */
+
+.oref-facts {
+  column-gap: var(--oref-space-600);
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  list-style: none;
+  margin: var(--oref-space-400) 0 0;
+  padding: 0;
+  row-gap: var(--oref-space-300);
+}
+
+.oref-fact {
+  display: contents;
+}
+
+.oref-fact-label {
+  color: var(--oref-color-fg-muted);
+  font-size: var(--oref-font-size-300);
+}
+
+.oref-fact-value {
+  font-size: var(--oref-font-size-300);
+  min-width: 0;
+}
+
+.oref-channel-ops,
+.oref-messages {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.oref-channel-op,
+.oref-message {
+  border-top: var(--oref-border-hair) solid var(--oref-color-line);
+  margin-top: var(--oref-space-500);
+  padding-top: var(--oref-space-400);
+}
+
+.oref-channel-reply {
+  border-left: var(--oref-border-hair) solid var(--oref-color-line);
+  margin-top: var(--oref-space-400);
+  padding-left: var(--oref-space-500);
+}

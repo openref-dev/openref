@@ -78,6 +78,18 @@ export interface DeferrableComponents {
   readonly nodeSecurity: Component;
   /** The parameters table. */
   readonly paramTable: Component;
+  /**
+   * The channel's own facts: address variables, protocol, servers, bindings, per SPEC 11.
+   *
+   * THE THREE CHANNEL POSITIONS ARE POSITIONS AND NOT SLOTS, the `NodeDescription` decision: the
+   * registry is a fixed set by SPEC 10.4, and a theme that wants other channel markup owns the
+   * page composition through `AppShell`. What is fixed here is where the markup is drawn.
+   */
+  readonly channelFacts: Component;
+  /** The channel's `send` and `receive` operations, replies included. */
+  readonly channelOperations: Component;
+  /** The channel's messages: payloads read as rows, headers, correlation ids and examples. */
+  readonly messageList: Component;
   /** The responses section, error contracts grid inside it, single root per SPEC 10.4. */
   readonly responseList: Component;
   /** The document overview article, which is the page a reader lands on. */

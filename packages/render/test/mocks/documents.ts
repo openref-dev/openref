@@ -1,6 +1,7 @@
 import {
   buildHealthReport,
   hashDocument,
+  normalizeAsyncApiDocument,
   normalizeOpenApiDocument,
   type IRDocument,
   type IRNode,
@@ -714,6 +715,135 @@ export function authDocument(): IRDocument {
         },
         mtls: { type: 'mutualTLS' },
         cookieKey: { type: 'apiKey', in: 'cookie', name: 'sid' },
+      },
+    },
+  });
+}
+
+/**
+ * An AsyncAPI 3.1 document, for the channel page of `T050`.
+ *
+ * IT GOES THROUGH THE REAL ASYNCAPI NORMALIZER for the reason at the top of this file, and it is
+ * written here rather than taken from the event corpus so that one document carries every subject
+ * the channel page draws: a templated address with its variables, a protocol resolved from the
+ * servers, channel and operation and message bindings, a `send` and a `receive`, a reply naming a
+ * second channel, tags on both an operation and a message, a correlation expression, a declared
+ * example, a JSON Schema payload that reads as rows and an Avro payload that reads as source.
+ *
+ * @returns The document
+ */
+export function eventsDocument(): IRDocument {
+  return normalizeAsyncApiDocument({
+    asyncapi: '3.1.0',
+    info: { title: 'Orders events', version: '4.2.0', description: 'What orders emit.' },
+    defaultContentType: 'application/json',
+    servers: {
+      broker: {
+        host: 'kafka.example.com:9092',
+        protocol: 'kafka',
+        protocolVersion: '3.7',
+        description: 'The production cluster',
+        bindings: { kafka: { schemaRegistryUrl: 'https://registry.example.com' } },
+      },
+    },
+    channels: {
+      requests: {
+        address: 'orders.{tenant}.requests',
+        title: 'Costing requests',
+        description: 'Where a costing request is placed.',
+        tags: [{ name: 'orders' }],
+        parameters: {
+          tenant: {
+            description: 'Which tenant the topic belongs to.',
+            enum: ['acme', 'globex'],
+            default: 'acme',
+            examples: ['acme'],
+            location: '$message.header#/TENANT',
+          },
+        },
+        bindings: { kafka: { partitions: 3, replicas: 3 } },
+        messages: {
+          CostingRequest: {
+            name: 'CostingRequestV1',
+            title: 'Costing request',
+            summary: 'One costing request.',
+            description: 'Sent by a store, answered on the replies channel.',
+            correlationId: { location: '$message.header#/REQUEST_ID' },
+            tags: [{ name: 'costing' }],
+            bindings: { kafka: { key: { type: 'string' } } },
+            headers: {
+              type: 'object',
+              required: ['REQUEST_ID'],
+              properties: {
+                REQUEST_ID: { $ref: '#/components/schemas/RequestId' },
+                REPLY_TOPIC: { type: 'string', description: 'Where the answer goes' },
+              },
+            },
+            payload: {
+              type: 'object',
+              required: ['sku'],
+              properties: {
+                sku: { type: 'string', description: 'What is being priced' },
+                quantity: { type: 'integer' },
+              },
+            },
+            examples: [
+              {
+                name: 'one line',
+                summary: 'A single item request',
+                headers: { REQUEST_ID: 'r-1' },
+                payload: { sku: 'AB-1', quantity: 2 },
+              },
+            ],
+          },
+        },
+      },
+      replies: {
+        address: 'orders.replies',
+        title: 'Costing replies',
+        messages: {
+          CostingResponse: {
+            title: 'Costing response',
+            contentType: 'avro/binary',
+            payload: {
+              schemaFormat: 'application/vnd.apache.avro;version=1.9.0',
+              schema: {
+                type: 'record',
+                name: 'CostingResponse',
+                fields: [
+                  { name: 'total', type: ['null', 'long'], default: null },
+                  { name: 'currency', type: 'string', default: 'EUR' },
+                ],
+              },
+            },
+          },
+        },
+      },
+    },
+    operations: {
+      placeCostingRequest: {
+        action: 'send',
+        channel: { $ref: '#/channels/requests' },
+        summary: 'Place a costing request',
+        description: 'Answered on the replies channel.',
+        tags: [{ name: 'costing' }],
+        bindings: { kafka: { groupId: { type: 'string' } } },
+        messages: [{ $ref: '#/channels/requests/messages/CostingRequest' }],
+        reply: {
+          channel: { $ref: '#/channels/replies' },
+          messages: [{ $ref: '#/channels/replies/messages/CostingResponse' }],
+          address: { location: '$message.header#/REPLY_TOPIC' },
+        },
+      },
+      readCostingReply: {
+        action: 'receive',
+        channel: { $ref: '#/channels/replies' },
+        summary: 'Read a costing reply',
+      },
+    },
+    components: {
+      schemas: {
+        RequestId: { type: 'string', description: 'Identifier of one request' },
       },
     },
   });

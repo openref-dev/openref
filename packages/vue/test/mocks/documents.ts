@@ -2,6 +2,7 @@ import type { IRDocument, IRNode, IRNodeRuntime } from '@openref/core';
 import {
   buildHealthReport,
   hashDocument,
+  normalizeAsyncApiDocument,
   normalizeOpenApiDocument,
   parseSpecification,
 } from '@openref/core';
@@ -358,4 +359,46 @@ paths:
         '201':
           description: created
 `);
+}
+
+/**
+ * An AsyncAPI 3.1 document with one channel, for `useChannel`.
+ *
+ * IT EXISTS BECAUSE THE COMPOSABLE WAS DECLARED AT `T008` AND COULD NOT BE PROVEN THEN. Until
+ * `T048` the IR carried no channel any normalizer produced, so the only case that could be
+ * written was the narrowing one: an HTTP node yields nothing. This is the other half.
+ *
+ * @returns The document
+ */
+export function eventsDocument(): IRDocument {
+  return normalizeAsyncApiDocument(
+    parseSpecification(`
+asyncapi: 3.1.0
+info:
+  title: Orders events
+  version: '1.0.0'
+servers:
+  broker:
+    host: kafka.example.com:9092
+    protocol: kafka
+channels:
+  created:
+    address: orders.created
+    title: Orders created
+    messages:
+      OrderCreated:
+        title: Order created
+        payload:
+          type: object
+          properties:
+            id:
+              type: string
+operations:
+  publishOrderCreated:
+    action: send
+    channel:
+      $ref: '#/channels/created'
+    summary: Publish an order created event
+`),
+  );
 }

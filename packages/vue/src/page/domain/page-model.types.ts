@@ -163,6 +163,158 @@ export interface MediaTypeModel {
 }
 
 /**
+ * One protocol binding block, kept verbatim and printed as source, per SPEC 8.2.
+ *
+ * A BINDING HAS NO ANALOGUE AND THEREFORE NO SHAPE THIS PROJECT MAY INVENT. `bindings.kafka` is
+ * whatever the Kafka binding specification says it is, `bindings.amqp` whatever the AMQP one
+ * says, and a model that named the members of either would be a reading of two specifications
+ * this normalizer does not read. So the block travels as the source it was, already highlighted
+ * on the server for the reason every other block of code on a page is, per SPEC 12.
+ */
+export interface BindingModel {
+  /** Protocol name, which is the key the document wrote the block under. */
+  readonly protocol: string;
+  /** The block as source, already highlighted. */
+  readonly sourceHtml: string;
+}
+
+/**
+ * One variable of a templated channel address, per SPEC 8.2.
+ *
+ * IT IS NOT A {@link ParameterModel} AND THE DIFFERENCE IS A TYPE RATHER THAN A LAYOUT.
+ * `ParameterModel.location` is `path`, `query`, `header` or `cookie`, which is OpenAPI's set, and
+ * a channel variable is in none of the four; printing one in that table would tell a reader a
+ * location it does not have. Every member is present and empty rather than absent, the
+ * {@link RuntimeValueModel} rule: a theme tests one field instead of narrowing a union.
+ */
+export interface ChannelParameterModel {
+  /** The name between the braces of the address. */
+  readonly name: string;
+  readonly descriptionHtml: string;
+  /** The values the substitution may take, empty when the document limits it to none. */
+  readonly values: readonly string[];
+  /** What is substituted when nothing else is. Empty when the document wrote none. */
+  readonly fallback: string;
+  readonly examples: readonly string[];
+  /** A runtime expression saying where in the message the value is found. Empty when none. */
+  readonly location: string;
+}
+
+/** One server a channel is available on, per SPEC 8.2's absent-or-empty rule. */
+export interface ChannelServerModel {
+  readonly url: string;
+  /** Protocol of the server, `kafka` or `ws`. Empty when the document wrote none. */
+  readonly protocol: string;
+  readonly protocolVersion: string;
+  readonly description: string;
+}
+
+/**
+ * The reply half of a request-reply operation, per SPEC 8.2.
+ *
+ * THE THREE MEMBERS STAY THREE. A reply naming a channel, a reply naming messages and a reply
+ * naming an address are three different statements, and an operation carrying an empty `reply` is
+ * a fourth: it says the operation is one half of a request-reply pair and nothing more, which is
+ * a fact an operation with no `reply` does not carry.
+ */
+export interface ChannelReplyModel {
+  /** Node id of the reply channel. Empty when the document named none. */
+  readonly channelId: string;
+  /** The reply channel's own page. Empty exactly when `channelId` is. */
+  readonly channelHref: string;
+  /** What the reply channel is called: its address, or its title, or its id. */
+  readonly channelLabel: string;
+  /** Ids of the reply messages, local to the reply channel. Empty when the document named none. */
+  readonly messages: readonly string[];
+  /** A runtime expression saying where the reply is sent. Empty when none. */
+  readonly address: string;
+}
+
+/** One `send` or `receive` operation of a channel, per SPEC 8.2. */
+export interface ChannelOperationModel {
+  readonly id: string;
+  /** `send` or `receive`, which is the whole of what AsyncAPI says about direction. */
+  readonly direction: string;
+  readonly summary: string;
+  readonly descriptionHtml: string;
+  /** Ids of the messages this operation carries, into {@link ChannelModel.messages}. */
+  readonly messages: readonly string[];
+  readonly bindings: readonly BindingModel[];
+  /** The reply, or null on a one way operation. */
+  readonly reply: ChannelReplyModel | null;
+  readonly tags: readonly string[];
+}
+
+/**
+ * A payload or a headers block of a message, per SPEC 8.2 and SPEC 11.
+ *
+ * IT CARRIES THE SLOT AND NOT THE ROWS, the {@link MediaTypeModel} rule: the reading rows are
+ * computed from the page's bounded schema payload where the tree would have been, so a body that
+ * points at a named schema this page did not ship draws the link the viewer already draws.
+ *
+ * `sourceHtml` IS THE OTHER HALF AND IT IS A PRODUCT CLAIM. An Avro or Protobuf payload keeps its
+ * source and a named dialect rather than being translated into JSON Schema, because translating
+ * would lose union with null, default values and field order, which is what those formats are
+ * taken for. It is never a failed schema view.
+ */
+export interface MessageBodyModel {
+  /** The dialect in the reader's words, `Avro`. Empty when the dialect has no readable name. */
+  readonly dialect: string;
+  /** Where the reading rows start, null when the body is not JSON Schema compatible. */
+  readonly schema: IRSchemaSlot | null;
+  /** The source, already highlighted, for a body no JSON Schema reader can read. Empty otherwise. */
+  readonly sourceHtml: string;
+}
+
+/** One declared example of a message, which is the message and not only its payload. */
+export interface MessageExampleModel {
+  /** The name the document wrote the example under. */
+  readonly name: string;
+  readonly summary: string;
+  /** The example as source, already highlighted. */
+  readonly sourceHtml: string;
+}
+
+/** One message that can travel over a channel, per SPEC 8.2. */
+export interface MessageModel {
+  readonly id: string;
+  /** What the message is called: its title, or its name, or its id. */
+  readonly title: string;
+  /** The machine name the document wrote, when it wrote one and it differs from the title. */
+  readonly name: string;
+  readonly summary: string;
+  readonly descriptionHtml: string;
+  /** Media type of the payload, the document's own or the one it inherited. Empty when neither. */
+  readonly contentType: string;
+  /** The `location` runtime expression of SPEC 8.2, never the prose beside it. Empty when none. */
+  readonly correlationId: string;
+  readonly tags: readonly string[];
+  readonly payload: MessageBodyModel | null;
+  readonly headers: MessageBodyModel | null;
+  readonly bindings: readonly BindingModel[];
+  readonly examples: readonly MessageExampleModel[];
+}
+
+/**
+ * What a channel page is about, null on every operation page, per SPEC 11.
+ *
+ * ONE MEMBER RATHER THAN SEVEN ON {@link NodeModel}, because a channel either is one or is not:
+ * an operation carrying seven empty channel fields would be seven ways to ask one question, and a
+ * theme would have to know which of them decides.
+ */
+export interface ChannelModel {
+  /** Protocol, when every server the channel binds to agrees on one. Empty otherwise. */
+  readonly protocol: string;
+  /** Variables of a templated address, in code point order of their names. */
+  readonly parameters: readonly ChannelParameterModel[];
+  /** Servers the channel is available on, which is all of the document's when it names none. */
+  readonly servers: readonly ChannelServerModel[];
+  readonly bindings: readonly BindingModel[];
+  readonly operations: readonly ChannelOperationModel[];
+  readonly messages: readonly MessageModel[];
+}
+
+/**
  * One federated service on its card, per SPEC 15.3.
  *
  * WHAT IT CARRIES IS WHAT THE SERVICE SAID ABOUT ITSELF, which is the half of `IRService` that
@@ -320,6 +472,16 @@ export interface NodeHeaderModel {
  * `errors` is not here and its absence is the single-root decision of SPEC 10.4: the error
  * contracts grid is a section inside the responses section since `TX-ADOPT`, so `responses`
  * covers both and a fragment never has to be adopted.
+ *
+ * THREE MARKS ARRIVED AT `T050` FOR THE CHANNEL PAGE, AND THE UNION GROWING IS A BREAKING CHANGE
+ * rather than an additive one, by the rule `ai-docs/design/CONTRACT.md` states for
+ * `StateNoticeKind` and applies here: the sanctioned total spelling over this union is an
+ * exhaustive `switch` with no `default`, the renderer's own composition is written that way on
+ * purpose, and a composition spelled that way does not compile until each new mark is drawn. The
+ * three are the sections a channel has and an operation does not: `channel` for the address, its
+ * variables, the protocol, the servers and the bindings; `channel-operations` for the `send` and
+ * `receive` operations with their replies; `messages` for the payloads, headers, correlation
+ * expressions and examples. Recorded there and in `packages/vue/PUBLIC-API.md` before the code.
  */
 export type NodeSectionMark =
   | 'header'
@@ -329,7 +491,10 @@ export type NodeSectionMark =
   | 'params'
   | 'request'
   | 'responses'
-  | 'samples';
+  | 'samples'
+  | 'channel'
+  | 'channel-operations'
+  | 'messages';
 
 /** The node a page is about. */
 export interface NodeModel extends NodeHeaderModel {
@@ -359,6 +524,19 @@ export interface NodeModel extends NodeHeaderModel {
    * it.
    */
   readonly run: RunnerOperationView | null;
+  /**
+   * What a channel page is about, or null when the node is an HTTP operation, per SPEC 11.
+   *
+   * REQUIRED AND NULLABLE, the shape `run` and `runtime` already have on this interface. A
+   * channel is a node under the `channel` discriminant, so its page is the node page and not a
+   * ninth `PageKind`; what it needs that an operation does not is here, in one member, so a
+   * theme asks one question rather than seven.
+   *
+   * SERVER DRAWN AND REDACTED IN TRANSIT, per SPEC 12: the three sections it feeds are adopted
+   * positions, so the serializer writes null here and `drawn` beside it is what the client
+   * walks. The highlighted source of an Avro payload never crosses.
+   */
+  readonly channel: ChannelModel | null;
   /**
    * What the running application knows about this operation, or null when nothing does.
    *

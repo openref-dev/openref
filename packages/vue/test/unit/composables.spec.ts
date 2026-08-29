@@ -18,7 +18,12 @@ import {
   useSocket,
   useTheme,
 } from '../../src/index';
-import { mutuallyRecursiveDocument, runtimeDocument, simpleDocument } from '../mocks/documents';
+import {
+  eventsDocument,
+  mutuallyRecursiveDocument,
+  runtimeDocument,
+  simpleDocument,
+} from '../mocks/documents';
 import { withDocState } from '../mocks/render';
 
 function fakeIndex(hits: readonly SearchHit[]): ISearchPort {
@@ -223,6 +228,37 @@ describe('useChannel', () => {
     expect(channel.channel.value).toBeUndefined();
     expect(channel.operations.value).toEqual([]);
     expect(channel.messages.value).toEqual([]);
+  });
+
+  it('should materialize a channel, its operations and its messages from an events document', async () => {
+    // Given an events document, which is what `T048` made it possible to hand this composable
+    const document = eventsDocument();
+    const state = createDocState({ document });
+    const [id] = [...document.nodes.keys()];
+
+    // When the channel is asked for by id
+    const channel = await withDocState(state, () => useChannel(id));
+
+    // Then the view is the channel's, and its two lists are the channel's own
+    expect(channel.id.value).toBe(id);
+    expect(channel.channel.value?.kind).toBe('channel');
+    expect(channel.channel.value?.node.address).toBe('orders.created');
+    expect(channel.operations.value.map((operation) => operation.direction)).toEqual(['send']);
+    expect(channel.messages.value.map((message) => message.title)).toEqual(['Order created']);
+  });
+
+  it('should follow the current selection when it is given no id', async () => {
+    // Given an events document with the channel selected
+    const document = eventsDocument();
+    const id = [...document.nodes.keys()][0] ?? '';
+    const state = createDocState({ document, activeNodeId: id });
+
+    // When the channel is asked for with no id at all
+    const channel = await withDocState(state, () => useChannel());
+
+    // Then it is the selected one, which is the narrowing `useNode` does in the other direction
+    expect(channel.id.value).toBe(id);
+    expect(channel.channel.value?.kind).toBe('channel');
   });
 });
 

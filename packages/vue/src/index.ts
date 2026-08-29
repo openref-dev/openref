@@ -88,6 +88,12 @@ export { provideRunner, RUNNER_KEY, useRunnerPort } from './runner/api/context';
 export { runnerOperationOf } from './runner/domain/runner-operation';
 
 export type {
+  BindingModel,
+  ChannelModel,
+  ChannelOperationModel,
+  ChannelParameterModel,
+  ChannelReplyModel,
+  ChannelServerModel,
   CodeSampleModel,
   DriftModel,
   ErrorContractGroupModel,
@@ -101,6 +107,9 @@ export type {
   HealthModel,
   HealthRuleModel,
   MediaTypeModel,
+  MessageBodyModel,
+  MessageExampleModel,
+  MessageModel,
   NavEntryModel,
   NodeHeaderModel,
   NodeModel,

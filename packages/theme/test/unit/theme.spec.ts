@@ -177,6 +177,23 @@ const MODIFIERS_WITHOUT_RULES = new Set([
   // `.oref-section-title`, which draws it. The facts section is not here, because the facts
   // grid is its own rule.
   'oref-service-kicker',
+  // THE EIGHT OF T050, THE CHANNEL PAGE, and every one is a member by the rule above rather than
+  // an exemption from it. The three section modifiers sit on `.oref-section`, which draws them,
+  // exactly as the five above do. The three media modifiers say which of a binding, a message
+  // body and a declared example a block is, and each sits on `.oref-media`, which draws it: the
+  // three share one family because each of them is a head naming a thing with a block of source
+  // under it, which is what that family already is. The two direction modifiers sit on
+  // `.oref-badge`, whose base rule paints them, and the direction is a word before it is a
+  // colour, per SPEC 11's three signals rule read for a badge with one job: `send` and `receive`
+  // are printed, so the distinction survives monochrome print and a theme with no rule here.
+  'oref-section-channel',
+  'oref-section-channel-operations',
+  'oref-section-messages',
+  'oref-media-binding',
+  'oref-media-body',
+  'oref-media-example',
+  'oref-direction-send',
+  'oref-direction-receive',
 ]);
 
 /** The syntax token classes are generated one per shiki colour, so they are checked as a group. */

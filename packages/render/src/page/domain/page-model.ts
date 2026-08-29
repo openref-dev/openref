@@ -13,12 +13,17 @@
 import {
   compareByCodePoint,
   generateExample,
+  type IRChannel,
+  type IRChannelParameter,
+  type IRChannelReply,
   type IRConfidence,
   type IRDocument,
   type IRDriftIssue,
+  type IRExample,
   type IRJsonSchema,
   type IRJsonValue,
   type IRMediaType,
+  type IRMessage,
   type IRNavNode,
   type IRNodeRuntime,
   type IROperation,
@@ -35,11 +40,20 @@ import {
   schemaDisplayName,
 } from '@openref/vue';
 import type {
+  BindingModel,
+  ChannelModel,
+  ChannelOperationModel,
+  ChannelParameterModel,
+  ChannelReplyModel,
+  ChannelServerModel,
   CodeSampleModel,
   FrameModel,
   FrameStatsModel,
   FrameTabModel,
   MediaTypeModel,
+  MessageBodyModel,
+  MessageExampleModel,
+  MessageModel,
   NavEntryModel,
   NodeModel,
   PageKind,
@@ -67,6 +81,13 @@ import { reasonPhrase } from '../../shared/status';
 
 /**
  * Version of the page model shape, part of the cache key.
+ *
+ * 18 SINCE `T050`: a node carries `channel`, null on every operation and a value on every
+ * channel, and `drawn` may hold three marks that did not exist, `channel`, `channel-operations`
+ * and `messages`. A page cached before this hydrates a channel article whose client walk finds
+ * marks it cannot draw, or draws nothing under the header where the server drew three sections,
+ * which is the page from before channels had a renderer rather than a broken one, and the
+ * version is what keeps the two from meeting on one screen.
  *
  * 17 SINCE `T046`: the model carries `service`, the federated service card of SPEC 15.3, null on
  * every other page, and every navigation entry carries `serviceId`, null outside the group a
@@ -146,7 +167,7 @@ import { reasonPhrase } from '../../shared/status';
  * 6 was T027: `run.bodyMediaTypes`, a list of strings, became `run.body`, a list of media types
  * each carrying the editor its schema asks for and the fields it is made of.
  */
-export const PAGE_MODEL_VERSION = 17;
+export const PAGE_MODEL_VERSION = 18;
 
 /** Media types an example is generated for. */
 const JSON_MEDIA_TYPE = /^application\/(?:[\w.+-]+\+)?json$/i;
@@ -561,6 +582,16 @@ function slotsOf(node: NodeModel): IRSchemaSlot[] {
     if (parameter.schema !== null) slots.push(parameter.schema);
   for (const media of node.requestBody) if (media.schema !== null) slots.push(media.schema);
 
+  // A CHANNEL SEEDS FROM ITS MESSAGES, per `T050`: the reading rows of a payload resolve their
+  // references against the page's bounded payload, exactly as the tree does, so a named schema a
+  // message points at either ships or lands in `truncated` and draws the link.
+  for (const message of node.channel?.messages ?? []) {
+    const payload = message.payload?.schema ?? null;
+    const headers = message.headers?.schema ?? null;
+    if (payload !== null) slots.push(payload);
+    if (headers !== null) slots.push(headers);
+  }
+
   return slots;
 }
 
@@ -578,6 +609,221 @@ const DIALECT_LABELS: Readonly<Record<IRSchemaDialect, string>> = {
   protobuf: 'Protobuf',
   unknown: '',
 };
+
+/**
+ * The blocks of one `bindings` map, in code point order of protocol name, per SPEC 8.2.
+ *
+ * KEPT VERBATIM AND PRINTED AS SOURCE, because a binding has no analogue and therefore no shape
+ * this project may invent: `bindings.kafka` is whatever the Kafka binding specification says, and
+ * a model naming its members would be a reading of a specification this normalizer does not read.
+ * Highlighted here for the reason every other block of code on a page is, per SPEC 12.
+ */
+function bindingModels(
+  bindings: Readonly<Record<string, IRJsonValue>> | undefined,
+  context: ModelContext,
+): BindingModel[] {
+  if (bindings === undefined) return [];
+
+  return Object.keys(bindings)
+    .sort(compareByCodePoint)
+    .map((protocol) => ({
+      protocol,
+      sourceHtml: context.markdown.renderCode(
+        `${JSON.stringify(bindings[protocol], null, 2)}\n`,
+        'json',
+      ),
+    }));
+}
+
+/**
+ * The variables of a templated channel address, per SPEC 8.2 and the maintainer's ruling.
+ *
+ * THEY ARE NOT PARAMETER ROWS, and the reason is a type rather than a layout: a
+ * `ParameterModel.location` is one of OpenAPI's four, and a channel variable is in none of them.
+ * An address like `orders/{tenant}` whose variable descriptions were dropped has lost the half
+ * that explains the other half, which is why the carrier exists at all.
+ */
+function channelParameterModels(
+  parameters: Readonly<Record<string, IRChannelParameter>> | undefined,
+  context: ModelContext,
+): ChannelParameterModel[] {
+  if (parameters === undefined) return [];
+
+  return Object.keys(parameters)
+    .sort(compareByCodePoint)
+    .map((name) => {
+      const parameter = parameters[name];
+
+      return {
+        name,
+        descriptionHtml: context.markdown.render(parameter?.description),
+        values: parameter?.enum ?? [],
+        fallback: parameter?.default ?? '',
+        examples: parameter?.examples ?? [],
+        location: parameter?.location ?? '',
+      };
+    });
+}
+
+/**
+ * The servers a channel is available on, with the protocol each one declares.
+ *
+ * THE OVERRIDE CARRIES A URL AND THE DOCUMENT CARRIES THE PROTOCOL, so the two are joined here
+ * rather than left to a theme: `IRChannel.servers` is a list of `IRServerOverride`, which is a
+ * url and a description, and the protocol, the protocol version and the bindings live on the
+ * document's own entry for the same url. A url the document does not declare keeps an empty
+ * protocol rather than borrowing one, which is the absence rule of SPEC 6.3 applied here.
+ */
+function channelServerModels(channel: IRChannel, document: IRDocument): ChannelServerModel[] {
+  const declared = new Map(document.servers.map((server) => [server.url, server]));
+
+  return channel.servers.map((override) => {
+    const server = declared.get(override.url);
+
+    return {
+      url: override.url,
+      protocol: server?.protocol ?? '',
+      protocolVersion: server?.protocolVersion ?? '',
+      description: override.description ?? server?.description ?? '',
+    };
+  });
+}
+
+/** What a reply channel is called, which is what its own page's heading says. */
+function channelLabelOf(document: IRDocument, channelId: string): string {
+  const node = document.nodes.get(channelId);
+  if (node?.kind !== 'channel') return channelId;
+
+  return node.address ?? node.title ?? node.id;
+}
+
+/**
+ * The reply of a request-reply operation, per SPEC 8.2, or null on a one way operation.
+ *
+ * AN EMPTY `reply` IS NOT NOTHING. The normalizer carries `reply: {}` as an empty record because
+ * it says the operation is one half of a request-reply pair, which is a fact an operation with no
+ * `reply` does not carry, and a model that dropped it here would lose exactly that fact.
+ */
+function channelReplyModel(
+  reply: IRChannelReply | undefined,
+  context: ModelContext,
+): ChannelReplyModel | null {
+  if (reply === undefined) return null;
+
+  const channelId = reply.channelId ?? '';
+
+  return {
+    channelId,
+    channelHref: channelId === '' ? '' : nodeHref(channelId, context.basePath),
+    channelLabel: channelId === '' ? '' : channelLabelOf(context.document, channelId),
+    messages: reply.messageIds ?? [],
+    address: reply.address ?? '',
+  };
+}
+
+/**
+ * A payload or a headers block of a message, per SPEC 11.
+ *
+ * TWO OUTCOMES AND NEVER A THIRD. A JSON Schema compatible body keeps its slot, and the reading
+ * rows are built from it where a tree would have been; a body in a dialect no JSON Schema reader
+ * can read keeps its source and its dialect's name, which is the product claim of SPEC 11 rather
+ * than an implementation shortcut. A failed schema view is not one of the two.
+ */
+function messageBodyModel(
+  slot: IRSchemaSlot | undefined,
+  context: ModelContext,
+): MessageBodyModel | null {
+  if (slot === undefined) return null;
+
+  const schema = slot.kind === 'inline' ? slot.schema : context.document.schemas.get(slot.schemaId);
+  if (schema === undefined) return null;
+
+  const dialect = DIALECT_LABELS[schema.dialect];
+
+  if (schema.normalized !== undefined) return { dialect, schema: slot, sourceHtml: '' };
+
+  return {
+    dialect,
+    schema: null,
+    sourceHtml:
+      schema.raw === undefined
+        ? ''
+        : context.markdown.renderCode(`${JSON.stringify(schema.raw, null, 2)}\n`, 'json'),
+  };
+}
+
+/**
+ * The declared examples of one message, which are messages and not payloads.
+ *
+ * PER SPEC 8.2, AN EXAMPLE OF A MESSAGE IS THE MESSAGE. AsyncAPI writes `headers` and `payload`
+ * in one example, and `IRExample.value` is one value, so the normalizer stores the object with
+ * whichever of the two keys the document wrote. Printing only the payload here would lose the
+ * headers of every example that has them, twice over.
+ */
+function messageExampleModels(
+  examples: Readonly<Record<string, IRExample>> | undefined,
+  context: ModelContext,
+): MessageExampleModel[] {
+  if (examples === undefined) return [];
+
+  return Object.keys(examples)
+    .sort(compareByCodePoint)
+    .map((name) => {
+      const example = examples[name];
+
+      return {
+        name,
+        summary: example?.summary ?? '',
+        sourceHtml:
+          example?.value === undefined
+            ? ''
+            : context.markdown.renderCode(`${JSON.stringify(example.value, null, 2)}\n`, 'json'),
+      };
+    });
+}
+
+/** One message of a channel, with its two bodies resolved and its examples highlighted. */
+function messageModel(message: IRMessage, context: ModelContext): MessageModel {
+  const title = message.title ?? message.name ?? message.id;
+
+  return {
+    id: message.id,
+    title,
+    // The machine name only where it says something the title does not, the F15 rule the
+    // operation header already applies to its own subtitle.
+    name: message.name === undefined || message.name === title ? '' : message.name,
+    summary: message.summary ?? '',
+    descriptionHtml: context.markdown.render(message.description),
+    contentType: message.contentType ?? '',
+    correlationId: message.correlationId ?? '',
+    tags: message.tags ?? [],
+    payload: messageBodyModel(message.payload, context),
+    headers: messageBodyModel(message.headers, context),
+    bindings: bindingModels(message.bindings, context),
+    examples: messageExampleModels(message.examples, context),
+  };
+}
+
+/** What a channel page is about, per SPEC 11. */
+function channelModel(channel: IRChannel, context: ModelContext): ChannelModel {
+  return {
+    protocol: channel.protocol ?? '',
+    parameters: channelParameterModels(channel.parameters, context),
+    servers: channelServerModels(channel, context.document),
+    bindings: bindingModels(channel.bindings, context),
+    operations: channel.operations.map((operation) => ({
+      id: operation.id,
+      direction: operation.direction,
+      summary: operation.summary ?? '',
+      descriptionHtml: context.markdown.render(operation.description),
+      messages: operation.messageIds,
+      bindings: bindingModels(operation.bindings, context),
+      reply: channelReplyModel(operation.reply, context),
+      tags: operation.tags ?? [],
+    })),
+    messages: channel.messages.map((message) => messageModel(message, context)),
+  };
+}
 
 /**
  * The card of one federated service, per SPEC 15.3, or null when the id names none.
@@ -674,7 +920,27 @@ function drawnOf(node: Omit<NodeModel, 'drawn'>): NodeModel['drawn'] {
       ? ['responses' as const]
       : []),
     ...(node.codeSamples.length > 0 ? ['samples' as const] : []),
+    // THE THREE CHANNEL SECTIONS OF `T050`, drawn from the same list for the same reason: the
+    // client walks `drawn` and never recomputes a condition over a `channel` that arrives null.
+    // The facts section draws when the channel says anything about itself beyond its address,
+    // which the header already carries; a channel that says nothing more gets no empty block,
+    // per SPEC 6.3's absence rule read for the document side.
+    ...(channelFactsDrawn(node.channel) ? ['channel' as const] : []),
+    ...((node.channel?.operations.length ?? 0) > 0 ? ['channel-operations' as const] : []),
+    ...((node.channel?.messages.length ?? 0) > 0 ? ['messages' as const] : []),
   ];
+}
+
+/** Whether the channel facts section has anything the header does not already say. */
+function channelFactsDrawn(channel: ChannelModel | null): boolean {
+  if (channel === null) return false;
+
+  return (
+    channel.protocol !== '' ||
+    channel.parameters.length > 0 ||
+    channel.servers.length > 0 ||
+    channel.bindings.length > 0
+  );
 }
 
 function nodeModel(context: ModelContext, nodeId: string): NodeModel | null {
@@ -712,6 +978,7 @@ function nodeModel(context: ModelContext, nodeId: string): NodeModel | null {
       security: [],
       codeSamples: [],
       run: null,
+      channel: channelModel(view.node, context),
       runtime,
     };
 
@@ -754,6 +1021,7 @@ function nodeModel(context: ModelContext, nodeId: string): NodeModel | null {
     })),
     codeSamples: codeSampleModels(view.node, context),
     run: runnerOperationOf(view.node, document),
+    channel: null,
     runtime,
   };
 
@@ -1111,8 +1379,17 @@ export function buildPageModel(document: IRDocument, options: PageModelOptions):
 }
 
 export type {
+  BindingModel,
+  ChannelModel,
+  ChannelOperationModel,
+  ChannelParameterModel,
+  ChannelReplyModel,
+  ChannelServerModel,
   CodeSampleModel,
   MediaTypeModel,
+  MessageBodyModel,
+  MessageExampleModel,
+  MessageModel,
   NavEntryModel,
   NodeModel,
   PageModel,

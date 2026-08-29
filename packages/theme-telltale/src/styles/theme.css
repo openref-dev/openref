@@ -1422,3 +1422,89 @@
   padding: 0;
   list-style: none;
 }
+
+/* T050 WIDENED THE BOUNDARY AGAIN, and by the widest step yet: a channel is a node, so a channel
+ * page is a node page, and the three sections the reference draws for one arrive inside
+ * `oref-operation` with no position of their own. Twenty names, seventeen of them class names the
+ * tree did not have before this task, and three, `oref-media-schema`, `oref-schema-link` and
+ * `oref-subtitle`, names the reference already drew that this theme had never met, because the
+ * positions that emit them are positions it overrides. The vocabulary is small on purpose: most
+ * of what the channel sections draw borrows a family this file already styles, and what is left
+ * is a fact list, a channel operation, a reply block and a message. */
+
+.oref-section-channel,
+.oref-section-channel-operations,
+.oref-section-messages {
+  display: block;
+}
+
+.oref-facts {
+  margin: var(--oref-space-300) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.oref-fact {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--oref-space-300);
+  padding: var(--oref-space-200) 0;
+}
+
+.oref-fact-label {
+  color: var(--oref-color-fg-secondary);
+  font-size: var(--oref-font-size-100);
+  text-transform: uppercase;
+}
+
+.oref-fact-value {
+  min-width: 0;
+}
+
+.oref-channel-ops,
+.oref-messages {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.oref-channel-op,
+.oref-message {
+  margin-bottom: var(--oref-space-500);
+  border-top: var(--oref-border-hair) solid var(--oref-color-line);
+  padding-top: var(--oref-space-300);
+}
+
+.oref-channel-reply {
+  margin-top: var(--oref-space-300);
+  border-left: var(--oref-border-hair) solid var(--oref-color-line);
+  padding-left: var(--oref-space-400);
+}
+
+.oref-media-binding,
+.oref-media-body,
+.oref-media-example {
+  margin-top: var(--oref-space-300);
+}
+
+.oref-media-schema {
+  color: var(--oref-color-fg-secondary);
+  font-size: var(--oref-font-size-100);
+}
+
+/* The direction is a word before it is anything else, per SPEC 11: these two say `send` and
+ * `receive` in the badge, so the rule sets the case and lets the base badge paint them. */
+
+.oref-direction-send,
+.oref-direction-receive {
+  text-transform: uppercase;
+}
+
+.oref-subtitle {
+  margin: 0 0 var(--oref-space-300);
+  color: var(--oref-color-fg-secondary);
+}
+
+.oref-schema-link {
+  color: inherit;
+}

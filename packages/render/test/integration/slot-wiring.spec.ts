@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { h, type Component, type VNode } from 'vue';
 import { createMarkdownRenderer } from '../../src/markdown/domain/markdown';
 import { renderPage } from '../../src/render/application/services/render.service';
-import { runtimeDocument, runtimeNodeId, smallDocument } from '../mocks/documents';
+import { eventsDocument, runtimeDocument, runtimeNodeId, smallDocument } from '../mocks/documents';
 
 /**
  * Every slot of the frozen registry, driven through the renderer a reader loads.
@@ -384,6 +384,70 @@ describe('every slot of the registry, on the page a reader opens', () => {
     }
     expect(rendered.appHtml).not.toContain('oref-sidebar');
     expect(rendered.appHtml).not.toContain('oref-operation-title');
+  });
+
+  /**
+   * The measurement the `T050` amendment reports, given a runner.
+   *
+   * THE AMENDMENT'S HEADLINE FIGURE WAS PROSE. "A channel page resolves four of the 21 slots
+   * against an operation page's six" was written from a run nothing repeated, so a change to the
+   * page composition that stopped resolving `OperationHeader` on a channel, or started resolving
+   * `ParamTable` there, would leave the sentence saying what it says. This is that run, kept.
+   *
+   * IT MEASURES BOTH PAGES IN ONE CASE and that is the point of it. A channel page's four are only
+   * meaningful beside a number from the same probe on the same day: the operation page is the
+   * control, and it is what tells "a channel resolves four" apart from "this theme resolved four
+   * of everything". `AppShell` arrives through `layout`, which is where a theme writes it, so the
+   * probe is one stub per remaining name plus a layout that renders its three regions.
+   */
+  it('should resolve four positions on a channel page against an operation page six', async () => {
+    // Given a theme that fills every position there is, so what the page does not resolve is the
+    // page's own doing rather than the theme's
+    const components = Object.fromEntries(
+      SLOT_NAMES.filter((slot) => slot !== 'AppShell').map((slot) => [slot, probe(slot)]),
+    ) as Record<string, Component>;
+    const theme = defineTheme({
+      name: 'census',
+      layout: () =>
+        Promise.resolve(
+          (
+            _props: unknown,
+            context: { slots: Record<string, undefined | (() => VNode[])> },
+          ): VNode[] => [
+            h('div', { class: 'probe-AppShell' }, 'theme drew AppShell'),
+            ...(context.slots.nav?.() ?? []),
+            ...(context.slots.palette?.() ?? []),
+            ...(context.slots.default?.() ?? []),
+          ],
+        ),
+      components,
+    });
+
+    const census = async (document: IRDocument, nodeId: string): Promise<readonly SlotName[]> => {
+      const rendered = await renderPage(document, { nodeId, markdown, theme });
+
+      return SLOT_NAMES.filter((slot) => rendered.appHtml.includes(`theme drew ${slot}`));
+    };
+
+    // When both pages are rendered through it
+    const channel = await census(eventsDocument(), 'channel-orders-tenant-requests');
+    const operation = await census(smallDocument(), 'get-orders');
+
+    // Then the channel resolves exactly the four the amendment names, and no more: the frame's
+    // three, plus the head, which is keyed by `nodeId` and not by an operation view
+    expect(channel).toEqual(['AppShell', 'NavTree', 'CommandPalette', 'OperationHeader']);
+
+    // And the control is the operation page, which resolves those four and two more. Without it
+    // the four above would also be what a probe that resolved nothing anywhere reports.
+    expect(operation).toEqual([
+      'AppShell',
+      'NavTree',
+      'CommandPalette',
+      'OperationHeader',
+      'ParamTable',
+      'ResponseList',
+    ]);
+    expect(operation.length - channel.length).toBe(2);
   });
 
   it('should have a case for every name in the registry, so the freeze rests on evidence', () => {

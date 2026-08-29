@@ -1,5 +1,6 @@
 import {
   buildHealthReport,
+  normalizeAsyncApiDocument,
   normalizeOpenApiDocument,
   type IRDocument,
   type IRNode,
@@ -163,4 +164,138 @@ export function runtimeDocument(): IRDocument {
 
   const withNodes: IRDocument = { ...document, nodes };
   return { ...withNodes, health: buildHealthReport(withNodes) };
+}
+
+/**
+ * An AsyncAPI 3.1 document with one channel, for the channel page of `T050`.
+ *
+ * IT IS IN THE SWEEP BECAUSE THE CHANNEL PAGE WOULD OTHERWISE SHIP OUTSIDE IT. A channel is a
+ * node, so its page is the `node` kind and the total record over `PageKind` cannot see that a
+ * whole family of markup arrived; the two documents already swept as `node` pages are both
+ * OpenAPI, so every class name the channel sections emit would have been on no list and styled by
+ * no rule. That is the third instance of the failure the record was bound to the union to prevent,
+ * and the answer to it is a render rather than a wider record.
+ *
+ * It writes one of everything the three sections draw: a templated address with its variables, a
+ * protocol and a server, bindings, both directions, a reply, a correlation expression, tags, a
+ * JSON Schema payload that reads as rows, an Avro payload that reads as source, and a declared
+ * example.
+ *
+ * @returns The document
+ */
+export function eventsDocument(): IRDocument {
+  return normalizeAsyncApiDocument({
+    asyncapi: '3.1.0',
+    info: { title: 'Orders events', version: '4.2.0', description: 'What orders emit.' },
+    defaultContentType: 'application/json',
+    servers: {
+      broker: {
+        host: 'kafka.example.com:9092',
+        protocol: 'kafka',
+        protocolVersion: '3.7',
+        description: 'The production cluster',
+      },
+    },
+    channels: {
+      requests: {
+        address: 'orders.{tenant}.requests',
+        title: 'Costing requests',
+        description: 'Where a costing request is placed.',
+        tags: [{ name: 'orders' }],
+        parameters: {
+          tenant: {
+            description: 'Which tenant the topic belongs to.',
+            enum: ['acme', 'globex'],
+            default: 'acme',
+            examples: ['acme'],
+            location: '$message.header#/TENANT',
+          },
+        },
+        bindings: { kafka: { partitions: 3 } },
+        messages: {
+          CostingRequest: {
+            name: 'CostingRequestV1',
+            title: 'Costing request',
+            summary: 'One costing request.',
+            description: 'Sent by a store, answered on the replies channel.',
+            correlationId: { location: '$message.header#/REQUEST_ID' },
+            tags: [{ name: 'costing' }],
+            headers: {
+              type: 'object',
+              required: ['REQUEST_ID'],
+              properties: { REQUEST_ID: { type: 'string' } },
+            },
+            payload: {
+              type: 'object',
+              required: ['sku'],
+              properties: { sku: { type: 'string' }, quantity: { type: 'integer' } },
+            },
+            examples: [
+              {
+                name: 'one line',
+                summary: 'A single item request',
+                payload: { sku: 'AB-1', quantity: 2 },
+              },
+            ],
+          },
+        },
+      },
+      replies: {
+        address: 'orders.replies',
+        title: 'Costing replies',
+        messages: {
+          CostingResponse: {
+            title: 'Costing response',
+            contentType: 'avro/binary',
+            payload: {
+              schemaFormat: 'application/vnd.apache.avro;version=1.9.0',
+              schema: {
+                type: 'record',
+                name: 'CostingResponse',
+                fields: [{ name: 'total', type: ['null', 'long'], default: null }],
+              },
+            },
+          },
+        },
+      },
+    },
+    operations: {
+      placeCostingRequest: {
+        action: 'send',
+        channel: { $ref: '#/channels/requests' },
+        summary: 'Place a costing request',
+        tags: [{ name: 'costing' }],
+        bindings: { kafka: { groupId: { type: 'string' } } },
+        reply: {
+          channel: { $ref: '#/channels/replies' },
+          address: { location: '$message.header#/REPLY_TOPIC' },
+        },
+      },
+      readCostingReply: {
+        action: 'receive',
+        channel: { $ref: '#/channels/replies' },
+        summary: 'Read a costing reply',
+      },
+    },
+  });
+}
+
+/**
+ * Node ids of the two channels, in the order the sweep draws them.
+ *
+ * BOTH ARE SWEPT BECAUSE THEY DRAW DIFFERENT MARKUP. The templated one carries the address
+ * variables, the `send` direction, the reply and a payload that reads as rows; the other carries
+ * the `receive` direction and a payload that reads as Avro source. One of the two would leave half
+ * the family on no list, which is the shape of the failure this sweep exists to catch.
+ *
+ * @returns The templated channel first, then the reply channel
+ */
+export function channelNodeIds(): readonly [string, string] {
+  const ids = [...eventsDocument().nodes.keys()];
+  const templated = ids.find((id) => id.includes('tenant'));
+  const replies = ids.find((id) => id !== templated);
+  if (templated === undefined || replies === undefined) {
+    throw new Error('the events fixture must carry two channels');
+  }
+  return [templated, replies];
 }

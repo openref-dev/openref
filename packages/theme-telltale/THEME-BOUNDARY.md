@@ -19,9 +19,9 @@ way: the boundary is wider than when this file was written, not narrower. One of
 finding 4. The other five stay open, each now naming who would close it and what closing it costs,
 and two of them gained the check they were missing.
 
-## 1. 66 class names the theme did not write, and cannot replace
+## 1. 86 class names the theme did not write, and cannot replace
 
-Measured on the eight kinds of page a reader can open, the reader page family of SPEC 13.3, ten
+Measured on the eight kinds of page a reader can open, the reader page family of SPEC 13.3, twelve
 renders in all, with all 21 positions overridden. **The list is not repeated here.** It lives in
 exactly one place, the pinned assertion in `test/integration/theme-boundary.spec.ts`, and a case in
 the same file fails when this document, `packages/vue/PUBLIC-API.md` or SPEC 10.4 states a different
@@ -38,12 +38,13 @@ Where the arrivals came from, each with the task that drew them:
 | `TX-PARITY-UI` | plus 11 | Page furniture: the bench head's kicker, badge and path, the actions row, the description section |
 | pre-M5 cleanup | plus 11 | The service card of `T046`, an article outside every position, had shipped outside the sweep: its whole vocabulary was on no list and this theme styled none of it, so the page rendered on generic section styles and looked deliberate without being it |
 | pre-`T049` slice | plus 18 | The shapes page, 14 names, and the states page, 4. Both are reader pages in SPEC 13.3 and both had been held out of the sweep by a comment calling them a theme author's addresses, so this theme styled neither. Same finding as the row above, twice over, which is why the sweep's page list is now a total record over `PageKind` instead of a hand written array |
+| `T050` | plus 20 | The channel page. Seventeen are class names the tree did not have before this task, and three, `oref-media-schema`, `oref-schema-link` and `oref-subtitle`, are names the reference already drew and this theme had never met, because the positions that emit them are positions it overrides. **This is the third instance of the row above and the first the `PageKind` binding could not have caught**: a channel is a node, so a channel page is the `node` kind, and both `node` renders were OpenAPI documents. The sweep answers with two more renders of an AsyncAPI document rather than a wider record, because the record was never the thing that was short |
 
 SPEC 10.1 says an L2 theme is "a package with its own layout; the core contributes no styles". The
 core contributes no *stylesheet*. It contributes *markup*, under its own class names, and a theme
 that does not style them ships a page with unstyled regions on every operation. So the last block
 of `src/styles/theme.css` styles class names from somebody else's namespace, which is the opposite
-of what a frozen contract is for. 65 of the 66 are styled here; the one that is not,
+of what a frozen contract is for. 85 of the 86 are styled here; the one that is not,
 `oref-section-health`, is finding 5 below.
 
 **What it costs a theme author, said plainly.** This list is not part of the frozen contract. A

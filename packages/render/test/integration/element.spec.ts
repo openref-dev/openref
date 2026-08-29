@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { defineReferenceElement } from '../../src/browser/element';
 import { renderHtmlDocument } from '../../src/page/domain/shell';
 import { renderPage } from '../../src/render/application/services/render.service';
-import { smallDocument } from '../mocks/documents';
+import { eventsDocument, smallDocument } from '../mocks/documents';
 
 /**
  * The Web Component over a served page, in both DOM modes, per SPEC 10.3.
@@ -63,6 +63,17 @@ async function servedServicePage(): Promise<string> {
   });
 }
 
+/** The served channel page of `T050`, rendered the way `servedPage` renders the node one. */
+async function servedChannelPage(): Promise<string> {
+  const rendered = await renderPage(eventsDocument(), {
+    basePath: '/docs',
+    nodeId: 'channel-orders-tenant-requests',
+  });
+  return renderHtmlDocument(rendered, {
+    assets: { stylesheets: ['/docs/_assets/theme.css', '/docs/_assets/fonts.css'] },
+  });
+}
+
 /** Registers a fresh element class under a unique tag, since a registry entry cannot leave. */
 let counter = 0;
 function register(): string {
@@ -91,6 +102,12 @@ beforeEach(() => {
       const href = String(input);
       if (href.endsWith('/docs/get-orders-id')) {
         return new Response(await servedPage(), {
+          status: 200,
+          headers: { 'content-type': 'text/html' },
+        });
+      }
+      if (href.endsWith('/docs/channel-orders-tenant-requests')) {
+        return new Response(await servedChannelPage(), {
           status: 200,
           headers: { 'content-type': 'text/html' },
         });
@@ -235,6 +252,71 @@ describe('the federated service page inside the element, both modes, per SPEC 15
 
     // And the snapshot fetch reached the marks through the light root's querySelectorAll
     await marked(host);
+  });
+});
+
+describe('the channel page inside the element, both modes, per SPEC 11', () => {
+  /**
+   * The three sections of `T050`, asserted present before anything about them is read.
+   *
+   * A PROOF ABOUT ADOPTED MARKUP BEGINS WITH THE MARKUP EXISTING. Every one of these positions is
+   * filled in the browser by a childless element, so a run where hydration replaced them instead
+   * of adopting them would leave three empty sections; asserting the sections and then their
+   * contents is what tells the two apart.
+   */
+  function sections(root: ParentNode): void {
+    for (const name of ['channel', 'channel-operations', 'messages']) {
+      expect(root.querySelector(`.oref-section-${name}`), name).not.toBeNull();
+    }
+
+    // The address variables, the reply and both payload readings survived hydration rather than
+    // being thrown away with the server's markup
+    expect(root.querySelector('.oref-section-channel')?.textContent).toContain('{tenant}');
+    expect(root.querySelector('.oref-channel-reply')?.textContent).toContain('orders.replies');
+    expect(root.querySelector('.oref-section-messages .oref-shape-rows')).not.toBeNull();
+
+    // And the sections carry no control, which is what makes adopting them correct: a button
+    // here would be pressable and attached to nothing, the F14 class
+    expect(root.querySelector('.oref-section-messages button')).toBeNull();
+    expect(root.querySelector('.oref-section-channel button')).toBeNull();
+  }
+
+  it('should adopt the channel sections inside the shadow root', async () => {
+    // Given
+    sessionStorage.clear();
+    const tag = register();
+    const host = document.createElement(tag);
+    host.setAttribute('href', '/docs/channel-orders-tenant-requests');
+    document.body.append(host);
+
+    // When
+    await settled(host);
+
+    // Then the page stands inside the boundary and nowhere else
+    const root = host.shadowRoot;
+    expect(root).not.toBeNull();
+    expect(host.hasAttribute('data-oref-embedded')).toBe(true);
+    expect(host.querySelector('.oref-section-messages')).toBeNull();
+    if (root === null) throw new Error('asserted non null above');
+    sections(root);
+  });
+
+  it('should adopt the channel sections in the element subtree in light DOM mode', async () => {
+    // Given
+    sessionStorage.clear();
+    const tag = register();
+    const host = document.createElement(tag);
+    host.setAttribute('href', '/docs/channel-orders-tenant-requests');
+    host.setAttribute('shadow', 'false');
+    document.body.append(host);
+
+    // When
+    await settled(host);
+
+    // Then there is no boundary and the sections are page markup inside the element
+    expect(host.shadowRoot).toBeNull();
+    expect(host.hasAttribute('data-oref-embedded')).toBe(true);
+    sections(host);
   });
 });
 

@@ -143,7 +143,16 @@ would have been 1 612 858 bytes on `twilio-api-v2010.yaml` against a node page's
 | `FrameTabKind` | type | Which tab it is. Six since `TX-PARITY-UI`: the showcase pages entered the bar by the maintainer's reversal, and the bar is constant by remembering, per SPEC 11 |
 | `FrameStatsModel` | type | The rail's stats row; `drift` is null on a document nothing measured, which is not zero |
 | `NodeModel` | type | A node page. Carries `drawn` since `TX-ADOPT`: the sections the server drew, in draw order, which is what both sides of hydration walk |
-| `NodeSectionMark` | type | One entry of `drawn`. No `errors` member: the contracts grid is inside the responses section since `TX-ADOPT` |
+| `NodeSectionMark` | type | One entry of `drawn`. No `errors` member: the contracts grid is inside the responses section since `TX-ADOPT`. Eleven since `T050`: `channel`, `channel-operations` and `messages` are the sections a channel page draws and an operation page does not. **The widening is on the major side per the union rule above**, because a total spelling over this union is a sanctioned way to write a composition, an exhaustive `switch` with no `default` is exactly how the reference's own node article is written, and such a composition does not compile until each new mark is drawn. Recorded in `ai-docs/design/CONTRACT.md` |
+| `ChannelModel` | type | What a channel page is about, per SPEC 11: the protocol, the address variables, the servers, the bindings, the operations and the messages. `NodeModel.channel` carries it, null on every operation page. Added at `T050`; the required member and the `NodeSectionMark` growth beside it are the breaking halves |
+| `ChannelParameterModel` | type | One variable of a templated channel address, with the five members the AsyncAPI Parameter Object gives it. Not a `ParameterModel`: a `location` of `path`, `query`, `header` or `cookie` is OpenAPI's set and a channel variable is in none of it |
+| `ChannelServerModel` | type | One server a channel is available on, with the protocol resolved off the document's own entry for that url |
+| `ChannelOperationModel` | type | One `send` or `receive` operation of a channel, with its bindings, its tags and its reply |
+| `ChannelReplyModel` | type | The reply half of a request-reply operation: the reply channel with its page address, the reply messages, and the address expression, kept as three facts because they are three statements |
+| `MessageModel` | type | One message of a channel: what it is called, its content type, its correlation expression, its tags, its two bodies, its bindings and its declared examples |
+| `MessageBodyModel` | type | A payload or a headers block. Either a schema slot the reading rows are built from, or highlighted source under a named dialect for a body no JSON Schema reader can read, which is the Avro and Protobuf claim of SPEC 11 |
+| `MessageExampleModel` | type | One declared example, which per SPEC 8.2 is the message and not the payload alone |
+| `BindingModel` | type | One protocol binding block, kept verbatim and already highlighted. There is no OpenAPI analogue and no shape this project may invent for it |
 | `NodeHeaderModel` | type | Its header. Promises `tags` and `operationId` since `TX-MARKUP`, for the kicker, and `sse` since `TX-PARITY-UI`, for the badge |
 | `SchemaPageModel` | type | A named schema on its own page. Carries `dialect` since `TX-MARKUP` |
 | `ServicePageModel` | type | One federated service on its card, per SPEC 15.3: what the service said about itself, its health report and its runtime meta. Added at `T046`, minor; the `PageKind` member beside it is the major half |
@@ -213,7 +222,7 @@ here because it is the declared type of something a theme is handed.
 
 **The class names the reference leaves in the markup are not frozen, and a theme styles them.**
 An L2 theme replaces every position and still receives markup drawn outside all of them, under the
-reference's own `oref-` names. 66 of them as of 2026-08-29, measured on the eight kinds of page a
+reference's own `oref-` names. 86 of them as of 2026-08-29, measured on the eight kinds of page a
 reader can open, which is the reader page family of SPEC 13.3, up from 25 when the second theme was
 written. A theme that does not style them ships unstyled regions, and nothing on the theme's own
 side goes red when a new one arrives: it compiles, it renders, and the page has a gap in it. The
@@ -222,7 +231,11 @@ were on no list, and the second theme served the page unstyled until the pre-M5 
 sixth page kind into the sweep. The shapes and states pages had been doing it for longer, eighteen
 names between them, until the pre-`T049` slice put the seventh and eighth kinds in and bound the
 sweep's page list to `PageKind`, so that a kind added to the union fails to compile until somebody
-places it rather than shipping outside the measurement.
+places it rather than shipping outside the measurement. `T050` was the third instance and the first
+that binding could not have caught: a channel is a node, so a channel page is the `node` kind, and
+both of that kind's renders were OpenAPI documents, so twenty names of channel markup were outside
+the measurement with the record compiling. The sweep gained two AsyncAPI renders rather than a
+wider record.
 
 The list is pinned in one place, `packages/theme-telltale/test/integration/theme-boundary.spec.ts`,
 which fails when a name arrives or leaves, so the fact is read rather than absorbed. It is not

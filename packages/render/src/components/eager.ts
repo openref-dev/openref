@@ -16,6 +16,7 @@
 
 import { useSlot } from '@openref/vue';
 import { h, type Component, type VNode } from 'vue';
+import { ChannelFacts, ChannelOperations, MessageList } from './ChannelSections';
 import { CommandPalette } from './CommandPalette';
 import { DocumentOverview } from './DocumentOverview';
 import { HealthPanel } from './HealthPanel';
@@ -115,6 +116,9 @@ export const EAGER_COMPONENTS: DeferrableComponents = {
   nodeDescription: NodeDescription as Component,
   nodeSecurity: NodeSecurity as Component,
   paramTable: ParamsPosition,
+  channelFacts: ChannelFacts as Component,
+  channelOperations: ChannelOperations as Component,
+  messageList: MessageList as Component,
   responseList: ResponsesPosition,
   overviewPage: OverviewPosition,
   statesPage: StatesPanel,

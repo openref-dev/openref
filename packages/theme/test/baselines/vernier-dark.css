@@ -2073,3 +2073,47 @@ button.oref-schema-row:hover {
   border-color: #79899a;
   color: #e8eef4;
 }
+
+.oref-facts {
+  column-gap: 20px;
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  row-gap: 6px;
+}
+
+.oref-fact {
+  display: contents;
+}
+
+.oref-fact-label {
+  color: #79899a;
+  font-size: 13px;
+}
+
+.oref-fact-value {
+  font-size: 13px;
+  min-width: 0;
+}
+
+.oref-channel-ops,
+.oref-messages {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.oref-channel-op,
+.oref-message {
+  border-top: 1px solid #161f28;
+  margin-top: 14px;
+  padding-top: 10px;
+}
+
+.oref-channel-reply {
+  border-left: 1px solid #161f28;
+  margin-top: 10px;
+  padding-left: 14px;
+}

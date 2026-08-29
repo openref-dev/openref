@@ -110,6 +110,19 @@ export const NodePanel = defineComponent({
                 activeLang.value = lang;
               },
             });
+          // THE THREE CHANNEL SECTIONS OF `T050`, adopted for the same reason the rest are, and
+          // for one more: a schema tree inside an adopted position would be a row of buttons
+          // nothing hydrates, so the payload is read rather than expanded. See `ChannelSections`.
+          case 'channel':
+            return h(deferrable.channelFacts, { channel: node.channel });
+          case 'channel-operations':
+            return h(deferrable.channelOperations, { channel: node.channel });
+          case 'messages':
+            return h(deferrable.messageList, {
+              channel: node.channel,
+              schemas: props.schemas,
+              basePath: props.basePath,
+            });
         }
       });
 

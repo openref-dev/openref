@@ -282,6 +282,7 @@ function clientNodeModel(node: NodeModel | null, kind: PageModel['kind']): NodeM
       security: [],
       codeSamples: [],
       requestBody: [],
+      channel: null,
       runtime: null,
       drawn: [],
       parameters: node.parameters.map((parameter) => ({
@@ -322,6 +323,10 @@ function clientNodeModel(node: NodeModel | null, kind: PageModel['kind']): NodeM
     responses: [],
     security: [],
     run: null,
+    // THE CHANNEL LEAVES ENTIRELY, per `T050` and the rule above: its three sections are adopted
+    // positions, so the reading rows, the bindings and the highlighted source of an Avro payload
+    // are markup the reader is already looking at. `drawn` beside it is what the client walks.
+    channel: null,
     runtime: null,
     requestBody: node.requestBody.map((media) => ({ ...media, exampleHtml: '' })),
   };

@@ -15,6 +15,8 @@ import {
 import {
   SERVICE_ID,
   apiDocument,
+  channelNodeIds,
+  eventsDocument,
   federatedDocument,
   nodeId,
   postNodeId,
@@ -110,12 +112,20 @@ type SweptKind = readonly SweepRender[] | { readonly excluded: string };
 function sweptPages(): Readonly<Record<PageKind, SweptKind>> {
   const api = apiDocument();
   const runtime = runtimeDocument();
+  const events = eventsDocument();
 
   return {
     overview: [{ document: runtime, where: {} }],
+    // THREE RENDERS, AND THE THIRD IS A CHANNEL. A channel is a node, so its page is this kind
+    // and the record above cannot see that a whole family of markup arrived with `T050`; the
+    // other two renders are both OpenAPI, so without this one every class the channel sections
+    // emit would be on no list and styled by no rule, which is the failure this record exists to
+    // prevent, met from a direction the union cannot report.
     node: [
       { document: runtime, where: { nodeId: nodeId() } },
       { document: api, where: { nodeId: postNodeId() } },
+      { document: events, where: { nodeId: channelNodeIds()[0] } },
+      { document: events, where: { nodeId: channelNodeIds()[1] } },
     ],
     schema: [{ document: api, where: { schemaId: 'Order' } }],
     bench: [
@@ -194,15 +204,39 @@ describe('the markup a complete L2 theme does not own', () => {
     // family, so the comment was wrong and the sweep was six kinds wide over an eight kind
     // union. The list of pages is bound to `PageKind` in the same change, which is what stops
     // the next kind arriving the way these two and the service card did.
+    // TWENTY ARRIVED WITH `T050`, 2026-08-29, AND SEVENTEEN OF THEM ARE CLASS NAMES THE TREE DID
+    // NOT HAVE BEFORE IT. A channel is a node, so its page is the `node` kind of the record above
+    // and the binding to `PageKind` could not see a whole family of markup arriving: both `node`
+    // renders were OpenAPI documents, so every class the three channel sections emit would have
+    // been on no list and styled by no rule, which is the service card's failure met from a
+    // direction the union cannot report. The sweep answers with two more renders rather than a
+    // wider record. The three that are not new are the other half of the same finding:
+    // `oref-media-schema`, `oref-schema-link` and `oref-subtitle` existed before this task and had
+    // never survived a sweep, because the positions that emit them are positions this theme
+    // overrides. `oref-media-body` was counted with those three when this comment was first
+    // written and is not one of them: it is new, and it is a modifier, which are different
+    // questions. On the second question all twenty carry a rule here, and eight of them are
+    // modifiers on families the reference already had, the three `oref-section` ones, the three
+    // `oref-media` ones and the two directions on `oref-badge`, which are the same eight the
+    // default theme records as modifiers without rules of their own.
     expect(surviving).toEqual([
       'oref-badge',
       'oref-bench-actions',
       'oref-bench-kicker',
       'oref-bench-page',
+      'oref-channel-op',
+      'oref-channel-ops',
+      'oref-channel-reply',
       'oref-code',
       'oref-description',
+      'oref-direction-receive',
+      'oref-direction-send',
       'oref-endpoint',
       'oref-example',
+      'oref-fact',
+      'oref-fact-label',
+      'oref-fact-value',
+      'oref-facts',
       'oref-field',
       'oref-field-control',
       'oref-field-label',
@@ -210,18 +244,28 @@ describe('the markup a complete L2 theme does not own', () => {
       'oref-health-page',
       'oref-kbd',
       'oref-media',
+      'oref-media-binding',
+      'oref-media-body',
+      'oref-media-example',
       'oref-media-head',
+      'oref-media-schema',
       'oref-media-type',
+      'oref-message',
+      'oref-messages',
       'oref-method-get',
       'oref-method-post',
       'oref-operation',
       'oref-operation-header',
       'oref-path',
       'oref-root',
+      'oref-schema-link',
       'oref-section',
+      'oref-section-channel',
+      'oref-section-channel-operations',
       'oref-section-count',
       'oref-section-description',
       'oref-section-health',
+      'oref-section-messages',
       'oref-section-request',
       'oref-section-security',
       'oref-section-service',
@@ -258,6 +302,7 @@ describe('the markup a complete L2 theme does not own', () => {
       'oref-states-lead',
       'oref-states-list',
       'oref-states-page',
+      'oref-subtitle',
       'oref-title',
       'oref-tryit-form',
       'oref-tryit-reset',
@@ -287,7 +332,7 @@ describe('the markup a complete L2 theme does not own', () => {
       (total, entry) => total + ('excluded' in entry ? 0 : entry.length),
       0,
     );
-    expect(renders).toBe(10);
+    expect(renders).toBe(12);
   });
 
   it('should be a count the three documents that quote it agree with, since none of them owns it', async () => {
