@@ -566,6 +566,7 @@ export const BUDGET_SPEC_ROWS: Readonly<Record<string, string>> = {
   'external-requests': 'Внешние сетевые запросы',
   'csp-violations': 'Нарушения строгой CSP',
   'served-document': 'Отданный документ браузеру, как его собирает хост, 1000 узлов, сырые байты',
+  'overview-document': 'Обзорная страница, федерация событийного корпуса, сырые байты',
   'static-build': 'Статическая сборка, 1000 узлов, 4 ядра',
 };
 
@@ -1347,6 +1348,48 @@ export const MEASURED_BUDGETS: readonly MeasuredBudget[] = [
     label: 'Served document as a host assembles it, 1000 nodes, raw bytes, in the browser',
     limit: '72 KB',
     enforcedBy: 'T015',
+  },
+  // THE OVERVIEW PAGE HAD NO BUDGET AT ALL UNTIL 2026-08-29, WHICH IS WHY THIS ROW EXISTS. SPEC
+  // 9.5.1 measured the topology section at 346.1 bytes per edge and said in the same paragraph that
+  // no recorded threshold has that page as its subject: the browser study loads an operation page,
+  // and the `served-document` pair is stated for the 1000 node fixture and promises nothing about
+  // any other document. A page nothing measures grows until somebody notices.
+  //
+  // THE INPUT IS THE EVENT CORPUS RATHER THAN A NUMBER SOMEBODY PICKED. One document cannot be the
+  // input, because the section exists for a composition of services: the largest event document in
+  // the corpus, `everest-system-api.yaml`, carries 25 edges and its overview page is 14,556 bytes.
+  // The upper shape the EVENT corpus gives is every one of its twenty three documents federated
+  // into one estate: 23 services, 80 nodes, 221 schemas, 91 edges over 64 groups.
+  //
+  // IT IS NOT THE UPPER SHAPE OF THE WHOLE CORPUS, and the difference is measured rather than
+  // estimated. All 40 corpus documents, the 17 HTTP ones included, federate to 95 edges over 68
+  // groups, 1,310 nodes, 2,582 schemas and an overview page of 77,328 bytes, which is 6,672 over
+  // this cap. Almost none of that is the graph: four more edges took the section from 45,792 to
+  // 48,046, and the page with no edges at all went from 18,159 to 29,282. The open question that
+  // leaves is whether the overview page renders in full on any estate or has a bounded view with
+  // the rest on its own address, and it belongs to the maintainer: SPEC 9.5.1 carries the record
+  // and forbids choosing it under budget pressure. The cap stays derived from the input its SPEC
+  // 20 row names, and that row names the event corpus.
+  //
+  // MEASURED 63,951 BYTES on the same serving path SPEC 9.5.1 measured the section on, which is the
+  // shell the renderer produces with one stylesheet and one module and a markdown renderer built
+  // with the highlighter. Plus ten percent, up to the whole KB, is 69 KB, which is 70,656, and the
+  // headroom is 6,705. THE PROPERTY, checked rather than the ten percent taken on trust: this page
+  // costs 503.2 bytes an edge, so thirteen more rows read 70,493 and fit while fourteen read 70,996
+  // and do not, and a service the size of the corpus's largest, 25 edges, reads 76,531 and fails.
+  // An estate that grew by a whole service is re-derived with a figure attached rather than passing
+  // in silence.
+  //
+  // IT MEASURES THE RENDERER'S SHELL AND NOT THE DOCUMENT A HOST ASSEMBLES, the same quantity as
+  // the 41 KB jsdom half of `served-document` and with the same known direction of error: it always
+  // understates, because every term of the difference is something a host adds and the harness does
+  // not. The browser study was deliberately not extended to this page, since that is a fixture, an
+  // app and a Chrome navigation, none of which the threshold needs.
+  {
+    id: 'overview-document',
+    label: 'Overview page of the federated event corpus, raw bytes, as the renderer produces it',
+    limit: '69 KB',
+    enforcedBy: 'packages/nest/test/integration/overview-budget.spec.ts',
   },
   {
     id: 'static-build',
