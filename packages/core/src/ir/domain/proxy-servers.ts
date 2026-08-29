@@ -19,14 +19,22 @@
 import type { IRDocument, IRServer } from './document.types';
 
 /**
- * Every server a proxy of this project may be pinned to, document level and node level.
+ * Every server a proxy of this project may be pinned to, document level, service level and node
+ * level.
  *
  * Duplicates collapse on the first occurrence, compared by url alone: two declarations of one
  * address are one upstream however their descriptions differ, and the description is annotation
  * that no proxy reads. A node override carries no variables, so it contributes a bare url.
  *
+ * SERVICE SERVERS JOIN THE UNION SINCE `T046`, per SPEC 14.5 as amended with SPEC 15.3. A merged
+ * document is served with the caller's `servers`, empty by default per SPEC 15.1, and each
+ * service keeps its own on its `IRService` entry, which is exactly where the federated console
+ * reads them from. An allowlist that did not know them would refuse the request the same page's
+ * console offers to send. On an unmerged document `services` is absent and nothing changes.
+ *
  * @param document - The normalized document
- * @returns The servers, in document order, document level first, without repeats
+ * @returns The servers, in document order, document level first, then per service in the sorted
+ *          service order, then node overrides, without repeats
  *
  * @example
  * proxyServers(document).map((server) => server.url);
@@ -36,6 +44,12 @@ export function proxyServers(document: IRDocument): readonly IRServer[] {
 
   for (const server of document.servers) {
     if (!byUrl.has(server.url)) byUrl.set(server.url, server);
+  }
+
+  for (const service of document.services ?? []) {
+    for (const server of service.servers) {
+      if (!byUrl.has(server.url)) byUrl.set(server.url, server);
+    }
   }
 
   for (const node of document.nodes.values()) {

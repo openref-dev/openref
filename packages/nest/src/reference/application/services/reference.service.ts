@@ -56,6 +56,7 @@ import {
   NODE_PARAM,
   PROXY_SEGMENT,
   SCHEMA_PARAM,
+  SERVICE_PARAM,
   type ReferenceRouteId,
 } from '../../domain/routes';
 
@@ -82,8 +83,15 @@ import { NodeOutboundHttp } from '../../../proxy/infrastructure/adapters/node-ou
 
 /** How the service is built. */
 export interface ReferenceServiceOptions {
-  /** The OpenAPI document, as an object or as JSON or YAML text. */
-  readonly document: unknown;
+  /** The OpenAPI document, as an object or as JSON or YAML text. Exclusive with `ir`. */
+  readonly document?: unknown;
+  /**
+   * An already normalized document, for the one producer whose document has no source file:
+   * the federated merge of SPEC 15. Exclusive with `document` and with `augment`, because a
+   * merged document arrives complete; the `openapi.json` route then answers 404 with words,
+   * per SPEC 15.3, naming the services whose sources are the real files.
+   */
+  readonly ir?: IRDocument;
   /** Mount point, already normalized, without a trailing slash. */
   readonly basePath: string;
   /** Files to serve and which of them the shell links. */
@@ -172,7 +180,12 @@ export class ReferenceService {
   /** The normalized document. Everything served is derived from this. */
   readonly document: IRDocument;
 
-  /** The source document, parsed and with the synthetic schemas of SPEC 13.5 merged in. */
+  /**
+   * The source document, parsed and with the synthetic schemas of SPEC 13.5 merged in.
+   *
+   * Null exactly when the service was built from an already normalized `ir`, per SPEC 15.3:
+   * a merged document has no single source, and the `openapi.json` route says so.
+   */
   private readonly source: unknown;
 
   private readonly basePath: string;
@@ -195,6 +208,7 @@ export class ReferenceService {
    */
   private readonly nodeIdBySegment: ReadonlyMap<string, string>;
   private readonly schemaIdBySegment: ReadonlyMap<string, string>;
+  private readonly serviceIdBySegment: ReadonlyMap<string, string>;
 
   private highlighter: Promise<IHighlighter> | null = null;
   private specificationJson: string | null = null;
@@ -205,15 +219,24 @@ export class ReferenceService {
   /** @param options - Document, mount point, assets and rendering choices */
   constructor(options: ReferenceServiceOptions) {
     assertThemePair(options.theme);
+    assertOneDocumentForm(options);
     this.options = options;
     this.basePath = options.basePath;
-    // THE SYNTHETIC SCHEMAS OF SPEC 13.5 GO IN HERE, ONCE, BEFORE ANYTHING READS THE DOCUMENT.
-    // Both readers are downstream of this line: the normalizer below, and the `openapi.json`
-    // route, which serves this object rather than the host's. A merge on only one of the two
-    // paths would mean the page and the file a generator downloads described different documents.
-    this.source = mergeSyntheticSchemas(sourceObject(options.document));
-    const normalized = normalizeOpenApiDocument(this.source);
-    this.document = options.augment === undefined ? normalized : options.augment(normalized);
+
+    if (options.ir !== undefined) {
+      // The federated path of SPEC 15.3: the document arrives complete, there is no source
+      // file, and the runtime pass already ran per service inside its own process.
+      this.source = null;
+      this.document = options.ir;
+    } else {
+      // THE SYNTHETIC SCHEMAS OF SPEC 13.5 GO IN HERE, ONCE, BEFORE ANYTHING READS THE DOCUMENT.
+      // Both readers are downstream of this line: the normalizer below, and the `openapi.json`
+      // route, which serves this object rather than the host's. A merge on only one of the two
+      // paths would mean the page and the file a generator downloads described different documents.
+      this.source = mergeSyntheticSchemas(sourceObject(options.document));
+      const normalized = normalizeOpenApiDocument(this.source);
+      this.document = options.augment === undefined ? normalized : options.augment(normalized);
+    }
     this.catalog = buildAssetCatalog(options.assets.sources);
     this.cache = options.cache ?? createMemoryRenderCache();
 
@@ -231,6 +254,9 @@ export class ReferenceService {
     this.proxyService = buildProxy(this.document, options.proxy);
     this.nodeIdBySegment = segmentIndex(this.document.nodes.keys());
     this.schemaIdBySegment = segmentIndex(this.document.schemas.keys());
+    this.serviceIdBySegment = segmentIndex(
+      (this.document.services ?? []).map((service) => service.id),
+    );
   }
 
   /**
@@ -256,11 +282,15 @@ export class ReferenceService {
         return this.page(request, 'shapes', null, request.params[SCHEMA_PARAM] ?? null);
       case 'states':
         return this.page(request, 'states', null, null);
-      // RESERVED UNTIL M4, per SPEC 13.3: no federated services are mounted before the merge
-      // engine exists, so every id names nothing, and the words differ from the node 404 so
-      // the address is tellable from an unregistered one.
+      // THE FEDERATED SERVICE CARD, per SPEC 15.3, and the reserved answer where there is no
+      // federation: on a document with no `services` every id names nothing, and the words
+      // differ from the node 404 so the address is tellable from an unregistered one.
       case 'service':
-        return Promise.resolve(notFoundReply('service'));
+        return this.page(request, 'service', null, null, request.params[SERVICE_PARAM] ?? null);
+      // The live snapshot is the federated host's to answer, per SPEC 15.3; a mount of one
+      // document has no lifecycle and says so, so "not a federation" is a learnable fact.
+      case 'federation':
+        return Promise.resolve(notFoundReply('federation'));
       case 'openapi-json':
         return Promise.resolve(this.specification(request, 'json'));
       case 'openapi-yaml':
@@ -299,6 +329,7 @@ export class ReferenceService {
     kind: PageKind,
     nodeSegment: string | null,
     schemaSegment: string | null,
+    serviceSegment: string | null = null,
   ): Promise<ReferenceReply> {
     // THE PARAMETER IS THE PATH SEGMENT, NOT THE ID, since T039: what a page links is
     // `pathSegmentOf(id)`, so the segment index is what a request resolves through. For every
@@ -306,9 +337,12 @@ export class ReferenceService {
     const nodeId = nodeSegment === null ? null : (this.nodeIdBySegment.get(nodeSegment) ?? null);
     const schemaId =
       schemaSegment === null ? null : (this.schemaIdBySegment.get(schemaSegment) ?? null);
+    const serviceId =
+      serviceSegment === null ? null : (this.serviceIdBySegment.get(serviceSegment) ?? null);
 
     if (nodeSegment !== null && nodeId === null) return notFoundReply('operation');
     if (schemaSegment !== null && schemaId === null) return notFoundReply('schema');
+    if (kind === 'service' && serviceId === null) return notFoundReply('service');
 
     // A CHANNEL HAS NO BENCH. Nothing links here for one, per SPEC 11's dead link rule, so a
     // reader arrives only by hand and the honest answer is that the address holds nothing.
@@ -316,7 +350,7 @@ export class ReferenceService {
       return notFoundReply('bench');
     }
 
-    const tag = this.etag(`page:${kind}:${nodeId ?? ''}:${schemaId ?? ''}`);
+    const tag = this.etag(`page:${kind}:${nodeId ?? ''}:${schemaId ?? ''}:${serviceId ?? ''}`);
     const cached = notModified(request, tag);
     if (cached !== null) return cached;
 
@@ -324,6 +358,7 @@ export class ReferenceService {
       page: kind,
       nodeId,
       schemaId,
+      serviceId,
       basePath: this.basePath,
       cache: this.cache,
       highlighter: await this.highlighterFor(),
@@ -374,6 +409,23 @@ export class ReferenceService {
    * @returns The specification, or a 304
    */
   private specification(request: ReferenceRequest, format: 'json' | 'yaml'): ReferenceReply {
+    // A MERGED DOCUMENT HAS NO SINGLE SOURCE, per SPEC 15.3: the source of each service stays
+    // on its own address, and a stitched file would describe no service. The refusal names the
+    // services and their count, so a generator goes to a source rather than to a void.
+    if (this.source === null) {
+      const services = this.document.services ?? [];
+      return {
+        status: 404,
+        headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': NO_STORE },
+        body: JSON.stringify({
+          error:
+            `this reference is merged from ${String(services.length)} services and has no ` +
+            'single source document; each service serves its own',
+          services: services.map((service) => service.id),
+        }),
+      };
+    }
+
     const tag = this.etag(`openapi:${format}`);
     const cached = notModified(request, tag);
     if (cached !== null) return cached;
@@ -743,6 +795,44 @@ function sourceObject(input: unknown): unknown {
  * @param theme - What the host passed, or nothing
  * @throws InvalidOptionsError when overrides are declared and no bundle carries them
  */
+/**
+ * Refuses an option set that carries both document forms, or neither, or an `augment` beside
+ * `ir`.
+ *
+ * REFUSED RATHER THAN PICKED FROM, because each pair has a silent reading: two documents means
+ * one is ignored, none means nothing can be served, and an `augment` on an already complete
+ * document is a hook that never runs while looking configured, which is the accepted-and-ignored
+ * class `assertRootOptions` names.
+ *
+ * @param options - What the caller passed
+ * @throws {InvalidOptionsError} When the forms do not resolve to exactly one document
+ */
+function assertOneDocumentForm(options: ReferenceServiceOptions): void {
+  if (options.ir === undefined && options.document === undefined) {
+    throw new InvalidOptionsError(
+      'the reference needs a document: pass the OpenAPI source as document, or an already ' +
+        'normalized one as ir',
+      ErrorCode.CONFIG_INVALID_OPTIONS,
+    );
+  }
+
+  if (options.ir !== undefined && options.document !== undefined) {
+    throw new InvalidOptionsError(
+      'both document and ir were passed, and serving one of two documents would silently drop ' +
+        'the other. Pass exactly one',
+      ErrorCode.CONFIG_INVALID_OPTIONS,
+    );
+  }
+
+  if (options.ir !== undefined && options.augment !== undefined) {
+    throw new InvalidOptionsError(
+      'augment was passed beside ir, and an already normalized document is never re-augmented, ' +
+        'so the hook would be configured and never run',
+      ErrorCode.CONFIG_INVALID_OPTIONS,
+    );
+  }
+}
+
 function assertThemePair(theme?: OpenRefThemeOptions): void {
   if (theme === undefined || theme.bundle !== undefined) return;
 

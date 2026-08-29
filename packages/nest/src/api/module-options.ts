@@ -33,6 +33,12 @@
  */
 
 import { ErrorCode, InvalidOptionsError } from '@openref/core';
+import type { IRServer } from '@openref/core';
+import type {
+  FederationConflictMode,
+  FederationFailureMode,
+  IFederationCacheDriver,
+} from '@openref/federation';
 import { assertVisibility } from '../visibility/application/services/admission.service';
 import type { CollectorRegistration } from '../runtime/application/ports/collector.port';
 import type { OpenRefThemeOptions } from '../reference/application/services/reference.service';
@@ -144,6 +150,60 @@ export function readSourceLink(
     : { template: sourceLink.template, ref: sourceLink.ref };
 }
 
+/** One federated remote, as SPEC 15 configures it. */
+export interface OpenRefFederationRemoteOptions {
+  /** Identity of the service, under the merge service id grammar. */
+  readonly id: string;
+  /** Where the remote's specification is fetched from. `http` or `https` only. */
+  readonly url: string;
+  /** Path prefix the service is mounted under, such as `/billing`. */
+  readonly prefix?: string;
+}
+
+/** One local service of the federation: a `documents` entry of this same `forRoot`, by id. */
+export interface OpenRefFederationLocalOptions {
+  /** The `documents` entry id whose augmented document joins the merge, per SPEC 15.3. */
+  readonly id: string;
+  /** Path prefix the service is mounted under, such as `/billing`. */
+  readonly prefix?: string;
+}
+
+/**
+ * The federation of SPEC 15, mounted as one more reference.
+ *
+ * IT SERVES EVERYTHING BUT `document`, which is what the lifecycle produces: the remotes are
+ * fetched and polled per SPEC 15.2, the locals are this `forRoot`'s own mounted documents with
+ * their runtime facts and health per SPEC 15.3, and the route answers the snapshot's own
+ * decision, 200 or 503.
+ */
+export interface OpenRefFederationOptions extends Omit<OpenRefSetupOptions, 'document'> {
+  /** Where the federated reference is mounted, such as `/docs`. */
+  readonly route: string;
+  /** `IRDocument.id` of the merged document, which the CLI addresses it by. */
+  readonly id: string;
+  /** Title of the merged header. Defaults to the id: no service's title is the whole. */
+  readonly title?: string;
+  /** Version of the merged header. Defaults to `federated`, which says what it is. */
+  readonly version?: string;
+  readonly description?: string;
+  /** Servers of the merged document, the gateway's own. Defaults to none, per SPEC 15.1. */
+  readonly servers?: readonly IRServer[];
+  /** The remotes to fetch and poll. May be empty only when `services` is not. */
+  readonly remotes?: readonly OpenRefFederationRemoteOptions[];
+  /** Ids of this `forRoot`'s own `documents` entries that join the merge, per SPEC 15.3. */
+  readonly services?: readonly OpenRefFederationLocalOptions[];
+  /** Resolution policy for a name two services claim. Defaults to `namespace`. */
+  readonly onConflict?: FederationConflictMode;
+  /** Poll interval while healthy. Defaults to SPEC 15's 60 000. */
+  readonly refreshMs?: number;
+  /** Ceiling on one fetch, per SPEC 15.2. Defaults to 10 000. */
+  readonly timeoutMs?: number;
+  /** What the route serves when a remote is not fresh. Defaults to `degrade`. */
+  readonly failureMode?: FederationFailureMode;
+  /** Where last successful remote versions are kept. Defaults to this process's memory. */
+  readonly store?: IFederationCacheDriver;
+}
+
 /** Everything `forRoot` accepts. */
 export interface OpenRefRootOptions {
   /**
@@ -162,6 +222,8 @@ export interface OpenRefRootOptions {
    * which is the same relation every other shared option has to its per document form.
    */
   readonly theme?: OpenRefThemeOptions;
+  /** The federation of SPEC 15, mounted beside the documents. Built since T046. */
+  readonly federation?: OpenRefFederationOptions;
 }
 
 /** The async form SPEC 13.2 calls mandatory. */
@@ -186,7 +248,6 @@ const NOT_YET_BUILT: Readonly<Record<string, string>> = {
   runner:
     'T034 reconciles this aggregate with SPEC 13.2: the console shipped across M2, proxy ' +
     'tuning is the proxy option, and the socket and bridge halves are M6',
-  federation: 'M4',
   agent: 'M6, T058',
   cache: 'M0, and it is per document rather than global: pass it in a documents entry',
   devWatch: 'M3',
@@ -244,6 +305,64 @@ export function assertRootOptions(options: OpenRefRootOptions): void {
   // than a document that renders with no links and no explanation.
   readSourceLink(options.runtime?.sourceLink);
   assertGuardSecuritySchemes(options.runtime?.guardSecuritySchemes);
+  assertFederationOptions(options.federation, ids, routes);
+}
+
+/**
+ * Refuses a federation whose mount cannot work, before any lifecycle exists.
+ *
+ * WHAT IS CHECKED HERE IS THE WIRING AND NOT THE GRAMMAR: ids, prefixes and urls go through the
+ * federation package's own validators when the lifecycle is constructed, because two rules about
+ * one grammar is the defect class this repository keeps finding. What only this layer can know
+ * is whether the route clashes with a document's and whether a named local service is a
+ * `documents` entry of this same `forRoot`: `setup` mounts after `onModuleInit`, so a document
+ * mounted that way cannot join a merge that has already been built.
+ *
+ * @param federation - The federation options, or nothing
+ * @param documentIds - Ids of the `documents` entries
+ * @param routes - Routes the `documents` entries claim
+ * @throws {InvalidOptionsError} When the federation entry is unusable
+ */
+function assertFederationOptions(
+  federation: OpenRefFederationOptions | undefined,
+  documentIds: ReadonlySet<string>,
+  routes: ReadonlySet<string>,
+): void {
+  if (federation === undefined) return;
+
+  if (typeof federation.route !== 'string' || federation.route === '') {
+    throw invalid('the federation needs a route to be mounted on');
+  }
+  if (routes.has(federation.route)) {
+    throw invalid(
+      `the federation and a document are both mounted on "${federation.route}", and the second ` +
+        'would never be reached',
+    );
+  }
+  if (typeof federation.id !== 'string' || federation.id === '') {
+    throw invalid('the federation needs a non empty id for its merged document');
+  }
+
+  const remotes = federation.remotes ?? [];
+  const locals = federation.services ?? [];
+  if (remotes.length === 0 && locals.length === 0) {
+    throw invalid(
+      'the federation names no remotes and no local services, so there is nothing to merge. ' +
+        'Name at least one of the two',
+    );
+  }
+
+  for (const local of locals) {
+    if (!documentIds.has(local.id)) {
+      throw invalid(
+        `the federation names the local service "${local.id}", and no documents entry carries ` +
+          'that id. A local service is a documents entry of this same forRoot, per SPEC 15.3: ' +
+          'a document mounted later through setup cannot join a merge that already exists',
+      );
+    }
+  }
+
+  assertVisibility('the federated reference', federation);
 }
 
 /**

@@ -574,6 +574,9 @@ function buildNavigation(ordered: readonly FederationService[], plan: BuildPlan)
       id: groupIds.get(service.id) ?? `group-service-${service.id}`,
       label: service.document.info.title,
       kind: 'group' as const,
+      // The group names its service in data, per SPEC 15.3: the navigation is where a service's
+      // health is surfaced, and parsing the group id back would break on an escaped clash.
+      serviceId: service.id,
       children: service.document.navigation.map((entry) => rewriteNavEntry(entry, assigned, maps)),
     };
   });

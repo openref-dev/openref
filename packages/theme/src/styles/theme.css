@@ -1869,9 +1869,107 @@ button.oref-schema-row:hover {
 
 .oref-bench-page,
 .oref-health-page,
+.oref-service-page,
 .oref-shapes-page,
 .oref-states-page {
   display: block;
+}
+
+/* THE FEDERATED SERVICE, per SPEC 15.3. The rail's service group carries the card link as the
+ * status dot beside the toggle; the dot is neutral as served and takes its colour from the
+ * data-oref-remote-status attribute the federation snapshot fetch writes, so a degraded remote
+ * is visible from anywhere the rail is without a byte of it being baked into a cached page. A
+ * service with no remote entry is local and keeps the neutral mark. */
+
+.oref-nav-entry-service {
+  align-items: center;
+  display: flex;
+  gap: var(--oref-space-200);
+}
+
+.oref-nav-entry-service .oref-nav-toggle {
+  flex: 1 1 auto;
+}
+
+.oref-nav-service,
+.oref-service-status {
+  background: var(--oref-color-fg-muted);
+  block-size: var(--oref-space-400);
+  border-radius: 50%;
+  display: inline-block;
+  flex: 0 0 auto;
+  inline-size: var(--oref-space-400);
+}
+
+[data-oref-remote-status='fresh'] {
+  background: var(--oref-state-ok-fg);
+}
+
+[data-oref-remote-status='stale'],
+[data-oref-remote-status='pending'] {
+  background: var(--oref-drift-note-fg);
+}
+
+[data-oref-remote-status='degraded'] {
+  background: var(--oref-state-warn-fg);
+}
+
+[data-oref-remote-status='failed'] {
+  background: var(--oref-state-crit-fg);
+}
+
+/* The card's own status mark says the word beside the dot, from the same attribute, so the
+ * page never claims a status nothing confirmed: no attribute, no word. */
+.oref-service-status[data-oref-remote-status]::after {
+  color: var(--oref-color-fg-muted);
+  content: attr(data-oref-remote-status);
+  font-size: var(--oref-font-size-200);
+  margin-inline-start: var(--oref-space-500);
+}
+
+.oref-service-meta {
+  align-items: center;
+  color: var(--oref-color-fg-muted);
+  display: flex;
+  font-size: var(--oref-font-size-300);
+  gap: var(--oref-space-400);
+}
+
+.oref-service-id {
+  font-family: var(--oref-font-family-mono);
+}
+
+/* The facts as one two column grid rather than per row widths: labels share the width of the
+ * longest one, and no length literal enters the stylesheet for it. */
+.oref-section-service {
+  column-gap: var(--oref-space-600);
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  row-gap: var(--oref-space-300);
+}
+
+.oref-section-service > .oref-section-title {
+  grid-column: 1 / -1;
+}
+
+.oref-service-fact {
+  display: contents;
+}
+
+.oref-service-fact-label {
+  color: var(--oref-color-fg-muted);
+  font-size: var(--oref-font-size-300);
+}
+
+.oref-service-fact-value {
+  font-size: var(--oref-font-size-300);
+  min-width: 0;
+}
+
+.oref-service-servers {
+  list-style: none;
+  margin: 0;
+  padding: 0;
 }
 
 /* The health page for a document nothing measured: words, per SPEC 7.3, not a zero. */

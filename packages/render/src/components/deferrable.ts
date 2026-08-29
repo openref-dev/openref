@@ -84,6 +84,13 @@ export interface DeferrableComponents {
   readonly overviewPage: Component;
   /** The states showcase article, which only its own address draws. */
   readonly statesPage: Component;
+  /**
+   * The federated service card of SPEC 15.3: the Health panel's shape, adopted in the browser.
+   *
+   * The one live fact on it, the remote's status, is not the card's to draw: it lands on the
+   * `data-oref-service` elements from the federation snapshot fetch, outside any chunk.
+   */
+  readonly servicePage: Component;
 }
 
 /** How a component tree reaches the three. */

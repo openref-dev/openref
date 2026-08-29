@@ -349,7 +349,22 @@ export function runnerOperationOf(
   document: IRDocument,
 ): RunnerOperationView {
   const overrides = operation.servers.map((server) => server.url);
-  const servers = overrides.length > 0 ? overrides : document.servers.map((server) => server.url);
+  // THE SERVICE'S SERVERS STAND BETWEEN THE OVERRIDE AND THE DOCUMENT'S, per SPEC 15.3. A merged
+  // document is served with the caller's servers, empty by default per SPEC 15.1, and each
+  // service keeps its own on its `IRService` entry; a node names its service, so the console
+  // offers the servers this operation is really behind rather than another service's, and on an
+  // unmerged document `serviceId` is absent and nothing changes.
+  const service =
+    operation.serviceId === undefined
+      ? undefined
+      : document.services?.find((entry) => entry.id === operation.serviceId);
+  const owned = (service?.servers ?? []).map((server) => server.url);
+  const servers =
+    overrides.length > 0
+      ? overrides
+      : owned.length > 0
+        ? owned
+        : document.servers.map((server) => server.url);
   const stream = streamView(operation, document);
 
   return {

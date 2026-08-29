@@ -19,7 +19,12 @@
  */
 
 import { ErrorCode, InvalidOptionsError } from '@openref/core';
-import { PROXY_SEGMENT, SEARCH_INDEX_SEGMENT } from '@openref/render';
+import {
+  FEDERATION_SEGMENT,
+  PROXY_SEGMENT,
+  SEARCH_INDEX_SEGMENT,
+  SERVICE_SEGMENT,
+} from '@openref/render';
 
 /** Segment under which hashed static assets are served. */
 export const ASSET_SEGMENT = '_assets';
@@ -70,14 +75,19 @@ export const SHAPES_SEGMENT = 'shapes';
 export const STATES_SEGMENT = 'states';
 
 /**
- * Segment reserved for the federated service card, per SPEC 13.3.
+ * Segment of the federated service card, per SPEC 13.3 and 15.3.
  *
- * REGISTERED NOW AND ANSWERED WITH WORDS UNTIL M4, by the `_proxy` precedent: a route that
- * exists only when federation is mounted makes "no services" and "no such address" the same
- * 404 from outside. This one answers its own 404, naming the state, so the difference is a
- * fact a request can learn.
+ * IT WAS RESERVED FROM M2 AND ANSWERED WITH WORDS UNTIL M4, by the `_proxy` precedent: a route
+ * that exists only when federation is mounted makes "no services" and "no such address" the
+ * same 404 from outside. Since `T046` it answers the card on a document that carries
+ * `services`, and the prior 404 with words on a single service document, so "not a federation"
+ * and "no such service" stay two different facts a request can learn.
+ *
+ * DEFINED IN `links.ts` OF `@openref/render` SINCE `T046`, by the `PROXY_SEGMENT` precedent:
+ * the navigation's service groups link the address, and two spellings of one path is the
+ * broken link `links.ts` exists to prevent. Re-exported so this package's surface is unchanged.
  */
-export const SERVICE_SEGMENT = 'service';
+export { SERVICE_SEGMENT, FEDERATION_SEGMENT } from '@openref/render';
 
 /**
  * Segments an authorization server returns a reader to, per SPEC 13.3 and 14.4.
@@ -118,7 +128,7 @@ export const SCHEMA_PARAM = 'schemaId';
 /** Name of the parameter carrying the document hash a navigation payload is asked for by. */
 export const NAVIGATION_PARAM = 'documentHash';
 
-/** Name of the parameter carrying a federated service id, reserved until M4. */
+/** Name of the parameter carrying a federated service id, per SPEC 15.3. */
 export const SERVICE_PARAM = 'serviceId';
 
 /** What a route answers with. */
@@ -130,6 +140,7 @@ export type ReferenceRouteId =
   | 'search-index'
   | 'navigation'
   | 'status'
+  | 'federation'
   | 'health'
   | 'bench'
   | 'shapes'
@@ -214,6 +225,10 @@ export function referenceRoutes(basePath: string): readonly ReferenceRoute[] {
     { id: 'search-index', pattern: at(`/${SEARCH_INDEX_SEGMENT}`), method: 'get' },
     { id: 'navigation', pattern: at(`/${NAVIGATION_SEGMENT}/:${NAVIGATION_PARAM}`), method: 'get' },
     { id: 'status', pattern: at(`/${STATUS_SEGMENT}`), method: 'get' },
+    // The live federation snapshot of SPEC 15.3, registered on every mount by the `_proxy`
+    // precedent: on a single service mount it answers 404 with words, so "not a federation"
+    // is a fact a request can learn rather than a missing address.
+    { id: 'federation', pattern: at(`/${FEDERATION_SEGMENT}`), method: 'get' },
     { id: 'health', pattern: at(`/${HEALTH_PAGE_SEGMENT}`), method: 'get' },
     { id: 'bench', pattern: at(`/${BENCH_SEGMENT}/:${NODE_PARAM}`), method: 'get' },
     { id: 'shapes', pattern: at(`/${SHAPES_SEGMENT}/:${SCHEMA_PARAM}`), method: 'get' },

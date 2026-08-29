@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import type { IRDocument } from '@openref/core';
 import type { PageKind } from '@openref/render';
 import { PAGE_KIND_CARDINALITY, planPages } from '../../src/index';
 import { miniDocument } from '../mocks/documents';
@@ -14,13 +15,41 @@ import { miniDocument } from '../mocks/documents';
  *
  * `PAGE_KIND_CARDINALITY` is the tie. It is total over `PageKind`, so a new kind fails to compile
  * until somebody says how many pages it produces, and the cases here fail until the plan produces
- * them. The document is the shared fixture: two operation nodes and one named schema, which is
- * one of everything the four cardinalities count.
+ * them. The document is the shared fixture with one federated service attached: two operation
+ * nodes, one named schema and one service, which is one of everything the five cardinalities
+ * count.
  */
+
+/**
+ * The mini document as a one service federation, per `T046`.
+ *
+ * ATTACHED RATHER THAN MERGED, deliberately: what these cases hold is the plan's reading of
+ * `IRDocument.services`, and the merge engine's own construction of it is the federation
+ * package's suite. The hash is the fixture's own and stays untouched, because a plan key is
+ * derived from it either way.
+ */
+function federatedMini(): IRDocument {
+  const document = miniDocument();
+
+  return {
+    ...document,
+    services: [
+      {
+        id: 'mini',
+        documentId: document.id,
+        documentHash: document.hash,
+        kind: document.kind,
+        info: document.info,
+        servers: [],
+      },
+    ],
+  };
+}
+
 describe('planPages', () => {
   it('should produce every kind the cardinality record accounts for', () => {
-    // Given a document carrying at least one node, one operation and one schema
-    const document = miniDocument();
+    // Given a document carrying at least one node, one operation, one schema and one service
+    const document = federatedMini();
 
     // When
     const planned = new Set(planPages(document, '').map((page) => page.kind));
@@ -35,7 +64,7 @@ describe('planPages', () => {
 
   it('should produce no kind the cardinality record does not account for', () => {
     // Given
-    const document = miniDocument();
+    const document = federatedMini();
 
     // When
     const planned = planPages(document, '');
@@ -49,7 +78,7 @@ describe('planPages', () => {
 
   it('should produce the count each cardinality promises', () => {
     // Given the fixture's own shape, counted from the document rather than assumed
-    const document = miniDocument();
+    const document = federatedMini();
     const nodes = document.nodes.size;
     const operations = [...document.nodes.values()].filter(
       (node) => node.kind === 'operation',
@@ -60,6 +89,7 @@ describe('planPages', () => {
       'per-node': nodes,
       'per-operation': operations,
       'per-schema': schemas,
+      'per-service': document.services?.length ?? 0,
       never: 0,
     };
 

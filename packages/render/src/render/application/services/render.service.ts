@@ -87,6 +87,8 @@ export interface RenderPageOptions {
   readonly nodeId?: string | null;
   /** Named schema to render, for a schema page. Ignored when `nodeId` is set. */
   readonly schemaId?: string | null;
+  /** Federated service to render, for a service card, per SPEC 15.3. Read only by `service`. */
+  readonly serviceId?: string | null;
   /** Where the reference is mounted, without a trailing slash. */
   readonly basePath?: string;
   /** Cache to read from and write to. Rendering is uncached when absent. */
@@ -159,6 +161,7 @@ function staticProxyKey(staticProxy: StaticProxyModel | undefined): string {
  * @param page - Which page, since `TX-FRAME`: a node and its bench are two pages of one node
  * @param directTarget - Platform name of the direct mode warning, since `T040`, empty for none
  * @param staticProxy - The generated rules this build wrote, since `T042`, empty for none
+ * @param serviceId - Federated service the page shows, since `T046`, empty for none
  * @returns A key that changes whenever the bytes could
  */
 export function renderCacheKey(
@@ -171,9 +174,10 @@ export function renderCacheKey(
   page = '',
   directTarget = '',
   staticProxy = '',
+  serviceId: string | null = null,
 ): string {
   const versions = `${String(IR_VERSION)}.${String(PAGE_MODEL_VERSION)}.${String(RENDER_VERSION)}`;
-  return `oref:${versions}:${documentHash}:${basePath}:${nodeId ?? ''}:${schemaId ?? ''}:${themeName}:${proxyPath}:${page}:${directTarget}:${staticProxy}`;
+  return `oref:${versions}:${documentHash}:${basePath}:${nodeId ?? ''}:${schemaId ?? ''}:${themeName}:${proxyPath}:${page}:${directTarget}:${staticProxy}:${serviceId ?? ''}`;
 }
 
 /**
@@ -247,6 +251,11 @@ export function serializePageModel(model: PageModel): string {
     descriptionHtml: '',
     servers: [],
     node: clientNodeModel(model.node, model.kind),
+    // The service card is adopted, so its report obeys the health page's redaction: the drawn
+    // markup crosses, the findings do not, and `healthRendered` beside them is what the client
+    // reads. What stays is the identity the live status wiring keys on.
+    service:
+      model.service === null ? null : { ...model.service, descriptionHtml: '', health: null },
   });
 }
 
@@ -333,6 +342,9 @@ function pageTitle(model: PageModel): string {
   }
   if (model.kind === 'health') return `Documentation health - ${model.title}`;
   if (model.kind === 'states') return `States - ${model.title}`;
+  if (model.kind === 'service' && model.service !== null) {
+    return `Service: ${model.service.title} - ${model.title}`;
+  }
   if (model.node !== null) return `${model.node.title} - ${model.title}`;
   if (model.schema !== null) return `${model.schema.name} - ${model.title}`;
   return model.title;
@@ -351,6 +363,7 @@ export async function renderPage(
 ): Promise<RenderedPage> {
   const nodeId = options.nodeId ?? null;
   const schemaId = nodeId === null ? (options.schemaId ?? null) : null;
+  const serviceId = options.page === 'service' ? (options.serviceId ?? null) : null;
   const basePath = options.basePath ?? '';
   const theme = resolveTheme(options.theme);
   // THE KEY CARRIES THE THEME'S NAME AND IS EMPTY WHEN THERE IS NONE, so a reference published
@@ -366,6 +379,7 @@ export async function renderPage(
     options.page ?? '',
     options.directTarget ?? '',
     staticProxyKey(options.staticProxy),
+    serviceId,
   );
 
   const cached = await options.cache?.get(key);
@@ -377,6 +391,7 @@ export async function renderPage(
     ...(options.page === undefined ? {} : { page: options.page }),
     nodeId,
     schemaId,
+    serviceId,
     markdown,
     basePath,
     ...(options.proxyPath === undefined ? {} : { proxyPath: options.proxyPath }),
@@ -437,7 +452,7 @@ export async function renderPage(
  */
 export async function renderAllPages(
   document: IRDocument,
-  options: Omit<RenderPageOptions, 'nodeId' | 'schemaId' | 'page'> = {},
+  options: Omit<RenderPageOptions, 'nodeId' | 'schemaId' | 'serviceId' | 'page'> = {},
 ): Promise<RenderedPage[]> {
   const markdown = await markdownFor(options);
 
@@ -446,6 +461,15 @@ export async function renderAllPages(
   // The states page entered the walk with `TX-PARITY-UI`: a tab links to it now, and the walk
   // is every page a tab links to.
   pages.push(await renderPage(document, { ...options, markdown, page: 'states' }));
+
+  // A service card per federated service, since `T046`: the navigation's service groups link
+  // there, and the walk is every page something links to. Zero pages on an unmerged document,
+  // whose `services` is absent.
+  for (const service of document.services ?? []) {
+    pages.push(
+      await renderPage(document, { ...options, markdown, page: 'service', serviceId: service.id }),
+    );
+  }
 
   for (const [nodeId, node] of document.nodes) {
     pages.push(await renderPage(document, { ...options, markdown, nodeId }));

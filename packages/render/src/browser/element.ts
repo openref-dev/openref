@@ -72,7 +72,7 @@ function sameOriginPath(href: string | null): string | null {
  * A lookup adapter over the element itself, for light DOM mode.
  *
  * A shadow root carries `getElementById`; an element does not, so the light mode answers the
- * same four questions scoped to the element's subtree. Events bubble to the host, which is
+ * same five questions scoped to the element's subtree. Events bubble to the host, which is
  * where the deferral gates listen.
  *
  * @param host - The element
@@ -82,6 +82,7 @@ function lightRoot(host: HTMLElement): HydrateRoot {
   return {
     getElementById: (elementId: string) => host.querySelector(`#${CSS.escape(elementId)}`),
     querySelector: (selectors: string) => host.querySelector(selectors),
+    querySelectorAll: (selectors: string) => host.querySelectorAll(selectors),
     addEventListener: host.addEventListener.bind(host),
     removeEventListener: host.removeEventListener.bind(host),
   };

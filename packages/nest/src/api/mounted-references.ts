@@ -13,8 +13,10 @@
  * it. That is what keeps this file free of a value import of `@nestjs/common`.
  */
 
+import { RemoteLifecycleService, type FederationService } from '@openref/federation';
 import { loadDefaultAssets } from '@openref/render';
 import { createReferenceAdapter } from '../http/infrastructure/adapters/reference-adapter.factory';
+import { FederatedReferenceService } from '../reference/application/services/federated-reference.service';
 import { ReferenceService } from '../reference/application/services/reference.service';
 import { normalizeRoute } from '../reference/domain/routes';
 import { admissionFor } from '../visibility/application/services/admission.service';
@@ -59,6 +61,9 @@ export interface MountedReference {
 export class MountedReferences {
   private readonly mounted = new Map<string, MountedReference>();
 
+  /** The federated reference this `forRoot` mounted, when its options named one. */
+  private federatedService: FederatedReferenceService | undefined;
+
   /**
    * @param options - The validated root options
    * @param dependencies - What NestJS resolved for the pass
@@ -69,16 +74,22 @@ export class MountedReferences {
   ) {}
 
   /**
-   * Normalizes, collects and mounts every document.
+   * Normalizes, collects and mounts every document, then the federation over them.
    *
    * Called by NestJS. It is idempotent, because a module imported twice would otherwise register
    * the route table twice and the second registration would never be reached.
+   *
+   * THE ORDER INSIDE THIS HOOK IS LOAD BEARING FOR SPEC 15.3: the documents mount first, so a
+   * federation naming them as local services reads their augmented documents, runtime facts and
+   * health included, from what was just mounted.
    *
    * @throws {ConfigError} When the http adapter is not available or is neither supported platform
    */
   onModuleInit(): void {
     const entries = this.options.documents ?? [];
-    if (entries.length === 0 || this.mounted.size > 0) return;
+    const federation = this.options.federation;
+    if ((entries.length === 0 && federation === undefined) || this.mounted.size > 0) return;
+    if (entries.length === 0 && this.federatedService !== undefined) return;
 
     const httpAdapter = this.dependencies.adapterHost.httpAdapter;
     if (httpAdapter === undefined) {
@@ -89,6 +100,22 @@ export class MountedReferences {
     }
 
     for (const entry of entries) this.mount(entry, httpAdapter);
+    if (federation !== undefined) this.mountFederation(federation, httpAdapter);
+  }
+
+  /**
+   * Stops the federation's polling when the application shuts down.
+   *
+   * Called by NestJS when shutdown hooks are enabled, and safe to call twice. The last served
+   * state stays readable, per the lifecycle's own contract, so an in flight reply can finish.
+   */
+  onApplicationShutdown(): void {
+    this.federatedService?.remotes.stop();
+  }
+
+  /** The federated reference, when this `forRoot` mounted one. */
+  get federated(): FederatedReferenceService | undefined {
+    return this.federatedService;
   }
 
   /**
@@ -185,6 +212,107 @@ export class MountedReferences {
     }
 
     this.mounted.set(entry.id, { id: entry.id, basePath, service, pass });
+  }
+
+  /**
+   * Builds and registers the federated reference, per SPEC 15.3.
+   *
+   * THE LIFECYCLE STARTS AND IS NOT AWAITED. Routes must exist before `listen`, and
+   * `snapshot()` is correct at every moment of the first round: a mixed federation serves its
+   * local services while the first fetches are in flight, and a remote-only one answers 503
+   * with the reason until one lands, which is the degrade principle at second zero.
+   *
+   * @param federation - The validated federation options
+   * @param httpAdapter - The adapter to register the routes on
+   */
+  private mountFederation(
+    federation: NonNullable<OpenRefRootOptions['federation']>,
+    httpAdapter: NonNullable<HttpAdapterHostLike['httpAdapter']>,
+  ): void {
+    const basePath = normalizeRoute(federation.route);
+
+    // The locals are the documents this hook just mounted, read back by id: their documents
+    // carry the runtime pass's facts and the retaken hash, which is the whole reason SPEC 15.3
+    // admits local services at all.
+    const locals: FederationService[] = (federation.services ?? []).map((local) => {
+      const mounted = this.mounted.get(local.id);
+      if (mounted === undefined) {
+        throw new InvalidOptionsError(
+          `the federation names the local service "${local.id}", and no documents entry ` +
+            'carries that id',
+          ErrorCode.CONFIG_INVALID_OPTIONS,
+          undefined,
+          { serviceId: local.id },
+        );
+      }
+
+      return {
+        id: local.id,
+        document: mounted.service.document,
+        ...(local.prefix === undefined ? {} : { prefix: local.prefix }),
+      };
+    });
+
+    const lifecycle = new RemoteLifecycleService({
+      remotes: federation.remotes ?? [],
+      ...(locals.length === 0 ? {} : { services: locals }),
+      document: {
+        id: federation.id,
+        info: {
+          title: federation.title ?? federation.id,
+          version: federation.version ?? 'federated',
+          ...(federation.description === undefined ? {} : { description: federation.description }),
+        },
+        ...(federation.servers === undefined ? {} : { servers: federation.servers }),
+        ...(federation.onConflict === undefined ? {} : { onConflict: federation.onConflict }),
+      },
+      ...(federation.refreshMs === undefined ? {} : { refreshMs: federation.refreshMs }),
+      ...(federation.timeoutMs === undefined ? {} : { timeoutMs: federation.timeoutMs }),
+      ...(federation.failureMode === undefined ? {} : { failureMode: federation.failureMode }),
+      ...(federation.store === undefined ? {} : { cache: federation.store }),
+    });
+
+    const theme = federation.theme ?? this.options.theme;
+    const stylesheets = federation.stylesheets ?? theme?.definition.assets?.css;
+    const clientBundle = federation.clientBundle ?? theme?.bundle;
+
+    const service = new FederatedReferenceService(lifecycle, {
+      basePath,
+      assets:
+        federation.assetPlan ??
+        loadDefaultAssets({
+          ...(stylesheets === undefined ? {} : { stylesheets }),
+          ...(clientBundle === undefined ? {} : { clientBundle }),
+        }),
+      ...(theme === undefined ? {} : { theme }),
+      ...(federation.cache === undefined ? {} : { cache: federation.cache }),
+      ...(federation.highlight === undefined ? {} : { highlight: federation.highlight }),
+      ...(federation.lang === undefined ? {} : { lang: federation.lang }),
+      ...(federation.colorScheme === undefined ? {} : { colorScheme: federation.colorScheme }),
+      ...(federation.onError === undefined ? {} : { onError: federation.onError }),
+      ...(federation.proxy === undefined ? {} : { proxy: federation.proxy }),
+    });
+
+    const admission = admissionFor(
+      'the federated reference',
+      federation,
+      (token) => this.dependencies.moduleRef.get(token, { strict: false }),
+      federation.onError,
+    );
+
+    const adapter = createReferenceAdapter(httpAdapter, admission, {
+      ...(federation.nonce === undefined ? {} : { nonce: federation.nonce }),
+      ...(federation.onError === undefined ? {} : { onError: federation.onError }),
+    });
+
+    mountRouteTable(adapter, {
+      basePath,
+      health: this.options.runtime?.health ?? true,
+      handle: async (id, request) => service.handle(id, request),
+    });
+
+    this.federatedService = service;
+    void lifecycle.start();
   }
 
   /**

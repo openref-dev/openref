@@ -42,6 +42,9 @@ export type { MountedReference } from './api/mounted-references';
 export { assertRootOptions, readSourceLink } from './api/module-options';
 export type {
   OpenRefDocumentOptions,
+  OpenRefFederationLocalOptions,
+  OpenRefFederationOptions,
+  OpenRefFederationRemoteOptions,
   OpenRefRootAsyncOptions,
   OpenRefRootOptions,
   OpenRefRuntimeOptions,
@@ -244,6 +247,8 @@ export type {
   ProxyOptions,
   ReferenceServiceOptions,
 } from './reference/application/services/reference.service';
+export { FederatedReferenceService } from './reference/application/services/federated-reference.service';
+export type { FederatedReferenceOptions } from './reference/application/services/federated-reference.service';
 
 // The same origin proxy of SPEC 14.5, built in T029. The policy is exported because a host that
 // builds its own outbound client still has to answer the same question about an address, and a
@@ -284,6 +289,7 @@ export {
   ASSET_PARAM,
   ASSET_SEGMENT,
   BENCH_SEGMENT,
+  FEDERATION_SEGMENT,
   HEALTH_PAGE_SEGMENT,
   NODE_PARAM,
   normalizeRoute,

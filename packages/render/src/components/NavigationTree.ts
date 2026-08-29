@@ -38,7 +38,7 @@ import { useSlot } from '@openref/vue';
 import { computed, defineComponent, h, ref, watch, type PropType, type VNode } from 'vue';
 import { methodBadge } from './method-badge';
 import { StateNotice } from './StateNotice';
-import { nodeHref, schemaHref } from '../page/domain/links';
+import { nodeHref, schemaHref, serviceHref } from '../page/domain/links';
 import {
   chunkAt,
   chunkOfActive,
@@ -227,13 +227,35 @@ export const NavigationTree = defineComponent({
           ? h('span', { class: 'oref-nav-drift' }, `▲${String(row.driftCount)}`)
           : null;
 
+      // THE SERVICE GROUP'S MARK AND CARD LINK, per SPEC 15.3: a sibling of the toggle rather
+      // than inside it, because a link inside a button is not markup. The anchor is the status
+      // dot: neutral as served, coloured by the `data-oref-remote-status` attribute the
+      // federation snapshot fetch writes, so a degraded remote is visible from anywhere the
+      // rail is. A service with no remote entry is local and keeps the neutral mark.
+      const serviceLink =
+        row.serviceId === null
+          ? null
+          : h('a', {
+              class: 'oref-nav-service',
+              href: serviceHref(row.serviceId, props.basePath),
+              'data-oref-service': row.serviceId,
+              'aria-label': `Service ${row.label}`,
+            });
+
       // A GROUP IS A BUTTON, AND A GROUP WITH NOTHING IN IT IS NOT. `childCount` is what the
       // document has rather than what this page carries, so a closed group offers to open and
-      // an empty one, which `children` alone cannot tell it from, does not.
-      if (href === null && row.childCount > 0) {
+      // an empty one, which `children` alone cannot tell it from, does not. A service group
+      // with nothing in it still gets its card link: it is really in the federation, per the
+      // merge's own navigation rule.
+      if (href === null && (row.childCount > 0 || serviceLink !== null)) {
         return h(
           'li',
-          { class: 'oref-nav-entry', key: row.id, 'data-oref-level': Math.min(row.level, 6) },
+          {
+            class:
+              serviceLink === null ? 'oref-nav-entry' : 'oref-nav-entry oref-nav-entry-service',
+            key: row.id,
+            'data-oref-level': Math.min(row.level, 6),
+          },
           [
             h(
               'button',
@@ -251,6 +273,7 @@ export const NavigationTree = defineComponent({
                 drift,
               ],
             ),
+            serviceLink,
           ],
         );
       }

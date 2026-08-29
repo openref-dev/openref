@@ -333,6 +333,7 @@ const adoptResponseList: Component = () =>
   h('section', { class: 'oref-section oref-section-responses' });
 const adoptOverviewPage: Component = () => h('article', { class: 'oref-overview' });
 const adoptStatesPage: Component = () => h('article', { class: 'oref-states-page' });
+const adoptServicePage: Component = () => h('article', { class: 'oref-service-page' });
 
 /**
  * The tree the gates listen in, the same structural slice `HydrateRoot` names in `index.ts`.
@@ -342,7 +343,11 @@ const adoptStatesPage: Component = () => h('article', { class: 'oref-states-page
  */
 export type HydrateRoot = Pick<
   Document,
-  'getElementById' | 'querySelector' | 'addEventListener' | 'removeEventListener'
+  | 'getElementById'
+  | 'querySelector'
+  | 'querySelectorAll'
+  | 'addEventListener'
+  | 'removeEventListener'
 >;
 
 /** How the client registry reaches a runner without this package importing one. */
@@ -453,6 +458,7 @@ export function deferredComponents(options: DeferredOptions): DeferrableComponen
     responseList: adoptResponseList,
     overviewPage: adoptOverviewPage,
     statesPage: adoptStatesPage,
+    servicePage: adoptServicePage,
 
     shapesFill: deferUntilReached(
       {

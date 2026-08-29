@@ -7,8 +7,9 @@
  * answers at an address, and the answer is always `<address>/index.html`.
  *
  * THE SET OF PAGES IS `renderAllPages`'s SET, WITH ONE ADDITION AND ITS REASON. That walk
- * renders the overview, health, states, every node with a bench per operation, and every schema
- * with its shapes page, which is every address a link on a built page can point at. The
+ * renders the overview, health, states, a service card per federated service, every node with a
+ * bench per operation, and every schema with its shapes page, which is every address a link on a
+ * built page can point at. The
  * addition is nothing: the two showcase addresses `renderAllPages` calls T039's question are
  * already in it since `TX-PARITY-UI` wired a tab to states and a bar link to shapes, so the
  * question is answered by the links rather than by a preference here. A build that held a page
@@ -31,6 +32,7 @@ import {
   pathSegmentOf,
   schemaHref,
   SEARCH_INDEX_SEGMENT,
+  serviceHref,
   shapesHref,
   statesHref,
   type PageKind,
@@ -45,6 +47,8 @@ export interface PlannedPage {
   readonly nodeId: string | null;
   /** Schema the page is about, or null. */
   readonly schemaId: string | null;
+  /** Federated service the page is about, or null, per SPEC 15.3. */
+  readonly serviceId: string | null;
   /**
    * Address the page answers at, with the base path in it: what a link carries.
    *
@@ -103,7 +107,7 @@ function fileOf(segments: readonly string[]): string {
  * How many pages each kind produces, as a total record over `PageKind`.
  *
  * WRITTEN DOWN BY THE PRE-M4 REVIEW, WHICH FOUND THREE HAND KEPT LISTS AND NO TIE BETWEEN THEM:
- * sixteen route ids in `@openref/nest`, seven kinds in this union, and seven `add` calls below.
+ * seventeen route ids in `@openref/nest`, eight kinds in this union, and eight `add` calls below.
  * The three agree today and nothing made them. A kind added to `PageKind` compiles here without
  * a call, and the build then serves a site the renderer can produce a page for and the plan never
  * writes: every link to it is a 404 in a directory nobody notices is missing, which is the
@@ -111,12 +115,13 @@ function fileOf(segments: readonly string[]): string {
  * `page-plan.spec.ts` holds the plan to it over a document that carries one of everything.
  *
  * `once` is one page per document, `per-node` one per node, `per-operation` one per operation
- * node, `per-schema` one per named schema. A kind that a build deliberately does not write would
+ * node, `per-schema` one per named schema, `per-service` one per entry of `IRDocument.services`,
+ * which is zero on every unmerged document. A kind that a build deliberately does not write would
  * be `never` with its reason beside it; there is none today, and the point of the word existing
  * is that leaving a kind out has to be a sentence somebody wrote.
  */
 export const PAGE_KIND_CARDINALITY: Readonly<
-  Record<PageKind, 'once' | 'per-node' | 'per-operation' | 'per-schema' | 'never'>
+  Record<PageKind, 'once' | 'per-node' | 'per-operation' | 'per-schema' | 'per-service' | 'never'>
 > = {
   overview: 'once',
   health: 'once',
@@ -125,6 +130,9 @@ export const PAGE_KIND_CARDINALITY: Readonly<
   bench: 'per-operation',
   schema: 'per-schema',
   shapes: 'per-schema',
+  // The federated service card of SPEC 15.3, since `T046`: the merged navigation's service
+  // groups link to it, and a build of an unmerged document writes none because it has none.
+  service: 'per-service',
 };
 
 /**
@@ -146,11 +154,13 @@ export function planPages(document: IRDocument, basePath: string): readonly Plan
     nodeId: string | null,
     schemaId: string | null,
     extra = '',
+    serviceId: string | null = null,
   ): void => {
     pages.push({
       kind,
       nodeId,
       schemaId,
+      serviceId,
       href,
       file: fileOf(segments),
       key: pageKeyOf(frameHash, kind, node, extra),
@@ -160,6 +170,23 @@ export function planPages(document: IRDocument, basePath: string): readonly Plan
   add('overview', overviewHref(basePath), [], null, null, null);
   add('health', healthPageHref(basePath), ['health'], null, null, null);
   add('states', statesHref(basePath), ['states'], null, null, null);
+
+  // A service card per federated service, per SPEC 15.3: the merged navigation's groups link
+  // there. The key carries the source document hash beside the id, because the card draws what
+  // the service said about itself and a refreshed service is a changed card under an unchanged
+  // frame.
+  for (const service of document.services ?? []) {
+    add(
+      'service',
+      serviceHref(service.id, basePath),
+      ['service', pathSegmentOf(service.id)],
+      null,
+      null,
+      null,
+      `${service.id}:${service.documentHash}`,
+      service.id,
+    );
+  }
 
   for (const [nodeId, node] of document.nodes) {
     const segment = pathSegmentOf(nodeId);

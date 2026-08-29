@@ -12,6 +12,7 @@ function entry(id: string): NavEntryModel {
     kind: 'node',
     nodeId: id,
     schemaId: null,
+    serviceId: null,
     deprecated: false,
     driftCount: 0,
     hint: '',

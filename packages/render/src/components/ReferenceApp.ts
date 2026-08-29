@@ -132,7 +132,8 @@ export const ReferenceApp = defineComponent({
         page.kind === 'schema' ||
         page.kind === 'shapes' ||
         page.kind === 'health' ||
-        page.kind === 'states'
+        page.kind === 'states' ||
+        page.kind === 'service'
       ) {
         remembered.value = recallOperation(props.basePath, page.documentHash);
 
@@ -236,6 +237,13 @@ export const ReferenceApp = defineComponent({
         // the residue the client-js-raw entry named, so the browser fills the position with an
         // element that adopts it and the panel rides no chunk at all.
         return h(deferrable.statesPage);
+      }
+
+      // THE FEDERATED SERVICE CARD, per SPEC 15.3: server markup the client adopts, the Health
+      // panel's shape. The model degrades a missing service to the overview before this runs,
+      // so the branch never draws a card about nothing.
+      if (page.kind === 'service' && page.service !== null) {
+        return h(deferrable.servicePage, { service: page.service });
       }
 
       if (page.node !== null) {

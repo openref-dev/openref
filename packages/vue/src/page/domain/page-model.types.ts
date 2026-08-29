@@ -75,6 +75,14 @@ export interface NavEntryModel {
    * from an empty one, which look identical from `children`.
    */
   readonly childCount: number;
+  /**
+   * The federated service this entry is the group of, per SPEC 15.3, null everywhere else.
+   *
+   * Set only on the top level group a merge builds per service. It is what lets the rail link
+   * the group to `service/{serviceId}` and hang the live status mark on it without parsing the
+   * group's id, which an escaped clash would break.
+   */
+  readonly serviceId: string | null;
   readonly children: readonly NavEntryModel[];
 }
 
@@ -152,6 +160,47 @@ export interface MediaTypeModel {
   readonly schema: IRSchemaSlot | null;
   /** Which half of a schema this position shows, so the viewer filters the same way. */
   readonly view: IRSchemaView;
+}
+
+/**
+ * One federated service on its card, per SPEC 15.3.
+ *
+ * WHAT IT CARRIES IS WHAT THE SERVICE SAID ABOUT ITSELF, which is the half of `IRService` that
+ * would be invisible without a page: the merged document's header is the caller's, so the
+ * service's own title, version, servers and prefix have nowhere else to be shown. The health
+ * report is the service's own, with findings already addressed to merged names per SPEC 15.1,
+ * so every row can link to a node this document really has.
+ */
+export interface ServicePageModel {
+  /** Service identity, as the federation configuration names it. */
+  readonly id: string;
+  /** The service's own title, from its document header. */
+  readonly title: string;
+  readonly version: string;
+  readonly descriptionHtml: string;
+  /** `http`, `events` or `mixed`, as the source document was. */
+  readonly kind: string;
+  /** Path prefix every address of the service was moved under. Empty when none applied. */
+  readonly prefix: string;
+  /** The service's own servers, which the merged header deliberately does not carry. */
+  readonly servers: readonly string[];
+  /** `IRDocument.id` of the source document, which is not always the service id. */
+  readonly documentId: string;
+  /** `IRDocument.hash` of the source document, so a refreshed remote is tellable. */
+  readonly documentHash: string;
+  /** Nodes of the merged document that belong to this service. */
+  readonly operations: number;
+  /** Collectors that ran on the service, per SPEC 6. Empty when none did. */
+  readonly collectors: readonly string[];
+  /**
+   * The service's own health report, drawn like the health page's panel.
+   *
+   * SERVER DRAWN AND REDACTED IN TRANSIT, the health page's own rule: the serializer writes
+   * null here whatever the report is, and `healthRendered` beside it is what the client reads.
+   */
+  readonly health: HealthModel | null;
+  /** Whether the server drew a health panel for this service. */
+  readonly healthRendered: boolean;
 }
 
 /** A named schema shown on a page of its own. */
@@ -613,14 +662,17 @@ export interface HealthModel {
 /**
  * Which page a reader has open.
  *
- * SIX SINCE `TX-FRAME`, per SPEC 13.3: the layout's tab pages are pages with addresses, not
+ * EIGHT SINCE `T046`, per SPEC 13.3: the layout's tab pages are pages with addresses, not
  * anchors. `bench` is the console on its own address, `health` the report page, `shapes` and
  * `states` the showcase pages, in the bar since `TX-PARITY-UI` per the maintainer's
- * 2026-08-14 reversal of the session 55 exclusion. The federated service card of SPEC 13.3
- * enters this union only when M4 gives the page a renderer, the way an SP code is not
- * assigned before its rule exists.
+ * 2026-08-14 reversal of the session 55 exclusion. `service` is the federated service card of
+ * SPEC 15.3, which entered this union exactly when M4 gave the page a renderer, the way an SP
+ * code is not assigned before its rule exists; the widening is a breaking change by the
+ * CONTRACT.md union rule and is recorded there. It is not a tab: the card is reached from the
+ * navigation's service groups, so {@link FrameTabKind} stays six.
  */
-export type PageKind = 'overview' | 'node' | 'schema' | 'bench' | 'health' | 'shapes' | 'states';
+export type PageKind =
+  'overview' | 'node' | 'schema' | 'bench' | 'health' | 'shapes' | 'states' | 'service';
 
 /**
  * Which tab of the frame's bar a target belongs to.
@@ -735,6 +787,8 @@ export interface PageModel {
   readonly node: NodeModel | null;
   /** Set only on a schema page. */
   readonly schema: SchemaPageModel | null;
+  /** Set only on a federated service card, per SPEC 15.3. */
+  readonly service: ServicePageModel | null;
   /** The schemas this page carries, bounded per the payload limit. */
   readonly schemas: Readonly<Record<string, IRSchema>>;
   /** Ids referenced from this page and left behind by the bound, shown as links. */

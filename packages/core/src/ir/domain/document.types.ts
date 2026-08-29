@@ -70,6 +70,15 @@ export interface IRNavNode {
   readonly nodeId?: string;
   /** Key into {@link IRDocument.schemas}, set when `kind` is `schema`. */
   readonly schemaId?: string;
+  /**
+   * Key into {@link IRDocument.services}, set on the group a federated merge builds per service.
+   *
+   * ADDITIVE AND OPTIONAL, per SPEC 15.3, so a document built before `T046` is still a document
+   * and an unmerged one carries nothing here. It exists because the navigation is where a
+   * service's health has to be visible from anywhere on the page, and parsing the group's id
+   * back into a service id would break the day a clash escapes the id.
+   */
+  readonly serviceId?: string;
   readonly deprecated?: boolean;
   readonly children: readonly IRNavNode[];
 }

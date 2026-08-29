@@ -25,6 +25,7 @@ import { ParamTable } from './ParamTable';
 import { ResponseList } from './ResponseList';
 import { RuntimePanel } from './RuntimePanel';
 import { SchemaView } from './SchemaView';
+import { ServiceCard } from './ServiceCard';
 import { ShapesFillPanel } from './ShapesFillPanel';
 import { ShapesReader } from './ShapesReader';
 import { StatesPanel } from './StatesPanel';
@@ -117,4 +118,5 @@ export const EAGER_COMPONENTS: DeferrableComponents = {
   responseList: ResponsesPosition,
   overviewPage: OverviewPosition,
   statesPage: StatesPanel,
+  servicePage: ServiceCard as Component,
 };

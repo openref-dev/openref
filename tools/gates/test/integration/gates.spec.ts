@@ -218,7 +218,12 @@ describe('licensesGate', () => {
     // counterexample above: it is private, `openref` names it in `dependencies`, and the CLI's
     // `tsup.config` inlines it by name, so a consumer of the CLI receives it as bytes and its
     // licence closure belongs in the production zone.
+    // `@openref/federation` JOINED THE SET AT T046, the ordinary case again: it is private,
+    // `@openref/nest` names it in `devDependencies`, and the server build's `tsup.config`
+    // inlines it by name, so a consumer of the module receives the merge engine and the remote
+    // lifecycle as bytes and their licence closure belongs in the production zone.
     expect(result.bundled).toEqual([
+      '@openref/federation',
       '@openref/render',
       '@openref/runner',
       '@openref/search',

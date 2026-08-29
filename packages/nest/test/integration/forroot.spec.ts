@@ -414,3 +414,67 @@ describe('the health route, which the runtime option gates', () => {
     expect(overview.status).toBe(200);
   });
 });
+
+describe('the federation forRoot mounts, per SPEC 15.3', () => {
+  @Module({
+    controllers: [OrdersController],
+    imports: [
+      OpenRefModule.forRoot({
+        documents: [{ id: 'public', route: '/docs', document: document(), assetPlan: assetPlan() }],
+        runtime: { collectors: [scopesCollector] },
+        federation: {
+          route: '/federated',
+          id: 'gateway',
+          assetPlan: assetPlan(),
+          services: [{ id: 'public' }],
+          // A remote nobody answers: the local service must be served while it fails, which
+          // is the degrade principle at second zero.
+          remotes: [{ id: 'ghost', url: 'http://127.0.0.1:9/openapi.json' }],
+          refreshMs: 60_000,
+          timeoutMs: 500,
+        },
+      }),
+    ],
+  })
+  // eslint-disable-next-line @typescript-eslint/no-extraneous-class
+  class FederatedModule {}
+
+  it('should serve the local composition while the remote fails, visibly', async () => {
+    // Given
+    const url = await boot('express', FederatedModule);
+
+    // When: the local document is served at once
+    const overview = await fetch(`${url}/federated`);
+    const html = await overview.text();
+
+    // Then: the local service is on the page with its runtime facts merged in
+    expect(overview.status).toBe(200);
+    expect(html).toContain('data-oref-service="public"');
+
+    // And the live snapshot names the ghost as the remote it is, absent version and all,
+    // while the local service appears only as document data, which is what says local
+    const snapshot = (await (await fetch(`${url}/federated/_federation`)).json()) as {
+      availability: string;
+      remotes: readonly { id: string; status: string }[];
+    };
+    expect(snapshot.availability).toBe('ready');
+    expect(snapshot.remotes.map((remote) => remote.id)).toEqual(['ghost']);
+    expect(['pending', 'failed']).toContain(snapshot.remotes[0]?.status ?? '');
+
+    // And the plain mount still answers untouched beside it
+    expect((await fetch(`${url}/docs`)).status).toBe(200);
+  });
+
+  it('should carry the local service runtime facts into the federated card', async () => {
+    // Given
+    const url = await boot('express', FederatedModule);
+
+    // When
+    const card = await fetch(`${url}/federated/service/public`);
+    const html = await card.text();
+
+    // Then: the collectors that really ran on this process's own document
+    expect(card.status).toBe(200);
+    expect(html).toContain('scopesCollector');
+  });
+});

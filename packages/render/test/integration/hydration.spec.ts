@@ -281,7 +281,146 @@ describe('readPageState', () => {
     // correct and on a static one is the page from before the warning existed. T042 added
     // `staticProxy`, the prefix and pinned order of the SPEC 16.2 rewrite rules, and that is
     // 16: a page cached before it hydrates a console that sends direct on a deployment whose
-    // rules are up, which is the generation side existing and never being offered.
-    expect(state?.pageModelVersion).toBe(16);
+    // rules are up, which is the generation side existing and never being offered. T046 added
+    // `service` and the rail's `serviceId`, the federated card of SPEC 15.3, and that is 17:
+    // a page cached before it hydrates a rail whose service groups have no card link and no
+    // mark for the live status to land on.
+    expect(state?.pageModelVersion).toBe(17);
+  });
+});
+
+describe('the federated page and its live status, per SPEC 15.3', () => {
+  /** The small document as a one service federation, the service card suite's fixture rule. */
+  function federatedDocument(): ReturnType<typeof smallDocument> {
+    const base = smallDocument();
+
+    return {
+      ...base,
+      navigation: [
+        {
+          id: 'group-service-billing',
+          label: 'Billing',
+          kind: 'group' as const,
+          serviceId: 'billing',
+          children: base.navigation,
+        },
+      ],
+      services: [
+        {
+          id: 'billing',
+          documentId: base.id,
+          documentHash: 'c'.repeat(64),
+          kind: 'http' as const,
+          info: { title: 'Billing', version: '1.0.0' },
+          servers: [],
+        },
+      ],
+    };
+  }
+
+  it('should hydrate the service card without a mismatch and mark the live status after it', async () => {
+    // Given: a served service page, and a snapshot the page's one on-load fetch will answer with
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const page = await renderPage(federatedDocument(), {
+      page: 'service',
+      serviceId: 'billing',
+    });
+    document.documentElement.innerHTML = renderHtmlDocument(page, {
+      nonce: 'r4nd0mNONCEvalue',
+      assets: { stylesheets: ['/assets/theme.css'], modules: ['/assets/openref.js'] },
+    });
+
+    // The remembered operation of an earlier case would make this page fetch the navigation,
+    // which is real behaviour and another case's subject; cleared so the count below is this
+    // page's own.
+    sessionStorage.clear();
+
+    const fetched: string[] = [];
+    const fetchStub = vi.fn((input: unknown): Promise<Response> => {
+      fetched.push(String(input));
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({
+            availability: 'ready',
+            httpStatus: 200,
+            degraded: true,
+            remotes: [{ id: 'billing', status: 'degraded' }],
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        ),
+      );
+    });
+    vi.stubGlobal('fetch', fetchStub);
+
+    try {
+      // When
+      const hydrated = hydrateReference();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      // Then: no mismatch, exactly one on-load request, and it is the snapshot's address
+      expect(hydrated).toBe(true);
+      const messages = [...warn.mock.calls, ...error.mock.calls].map((call) => String(call[0]));
+      expect(messages.filter((message) => message.includes('Hydration'))).toEqual([]);
+      expect(fetched).toEqual(['/_federation']);
+
+      // And the mark is on every element about the service: the rail's dot and the card's word
+      const marked = document.querySelectorAll('[data-oref-service="billing"]');
+      expect(marked.length).toBeGreaterThan(1);
+      marked.forEach((element) => {
+        expect(element.getAttribute('data-oref-remote-status')).toBe('degraded');
+      });
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('should fetch nothing on load for a page with no federation in it', async () => {
+    // Given: the unfederated page, which must keep the SPEC 14.4.1 boundary exactly as it was
+    sessionStorage.clear();
+    const fetchStub = vi.fn();
+    document.documentElement.innerHTML = await serveDocument();
+    vi.stubGlobal('fetch', fetchStub);
+
+    try {
+      // When
+      hydrateReference();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      // Then
+      expect(fetchStub).not.toHaveBeenCalled();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('should leave every mark neutral when the snapshot cannot be fetched', async () => {
+    // Given
+    const page = await renderPage(federatedDocument(), { page: 'service', serviceId: 'billing' });
+    document.documentElement.innerHTML = renderHtmlDocument(page, {
+      nonce: 'r4nd0mNONCEvalue',
+      assets: { stylesheets: ['/assets/theme.css'], modules: ['/assets/openref.js'] },
+    });
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.reject(new Error('down'))),
+    );
+
+    try {
+      // When
+      hydrateReference();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      // Then: a mark that claims nothing, never a status nobody confirmed
+      const marked = document.querySelectorAll('[data-oref-service="billing"]');
+      expect(marked.length).toBeGreaterThan(0);
+      marked.forEach((element) => {
+        expect(element.hasAttribute('data-oref-remote-status')).toBe(false);
+      });
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });

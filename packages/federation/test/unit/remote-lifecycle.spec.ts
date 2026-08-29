@@ -16,6 +16,7 @@ import {
   ScriptedFetcher,
   SerializingCacheDriver,
 } from '../mocks/remotes';
+import { buildDocument, operation } from '../mocks/documents';
 
 /**
  * The remote lifecycle of `T045`, against the four things the task asks it to prove: a remote
@@ -587,6 +588,39 @@ describe('RemoteLifecycleService, merge refusals', () => {
     expect(snapshot.reason).toContain('could not be merged');
   });
 
+  it('should drop the one-service transient of the first round rather than serve it under the refusal', async () => {
+    // Given: alpha lands first and beta hangs, under the mode that refuses to choose. Carried
+    // from `T045`'s review: the earlier proof asserted the outcome alone, and a proof of
+    // absence must first assert the subject was present, so the mid-round one-service
+    // composition is pinned before the refusal is.
+    harness = makeHarness({
+      document: {
+        id: 'platform',
+        info: { title: 'Platform', version: '1.0.0' },
+        onConflict: 'fail',
+      },
+    });
+    harness.fetcher.set(URL_A, { kind: 'ok', body: COLLIDING_A });
+    harness.fetcher.set(URL_B, { kind: 'hang' });
+    const started = harness.lifecycle.start();
+    await vi.advanceTimersByTimeAsync(1);
+
+    // And the transient IS being served: alpha alone, mid round, which is the subject
+    const transient = expectReady(harness.lifecycle.snapshot());
+    expect(transient.report.serviceIds).toEqual(['alpha']);
+
+    // When: beta's colliding document lands on the retry after its timeout failure
+    harness.fetcher.set(URL_B, { kind: 'ok', body: COLLIDING_B });
+    await vi.advanceTimersByTimeAsync(TIMEOUT_MS);
+    await started;
+    await vi.advanceTimersByTimeAsync(REFRESH_MS);
+
+    // Then: the alpha-only composition is dropped, not served under the standing refusal,
+    // because serving it would make the page depend on which remote answered first
+    const after = expectUnavailable(harness.lifecycle.snapshot());
+    expect(after.reason).toContain('could not be merged');
+  });
+
   it('should keep serving the last good composition when a refresh brings a conflict, and say so', async () => {
     // Given: a federation that merged cleanly
     harness = makeHarness({
@@ -618,6 +652,83 @@ describe('RemoteLifecycleService, merge refusals', () => {
     const reverted = expectReady(harness.lifecycle.snapshot());
     expect(reverted.mergeError).toBeUndefined();
     expect(reverted.document).toBe(before.document);
+  });
+});
+
+describe('RemoteLifecycleService, local services', () => {
+  const LOCAL = buildDocument({
+    id: 'gamma-doc',
+    title: 'Gamma',
+    nodes: [operation({ id: 'get-gamma', method: 'get', path: '/gamma' })],
+    runtime: { collectors: ['guardsCollector'] },
+    health: { score: 100, operationCount: 1, drift: [], checks: [] },
+  });
+
+  it('should serve a local-only federation before and without start', () => {
+    // Given: a federation of one local document and no remotes, per SPEC 15.3
+    const fetcher = new ScriptedFetcher();
+    harness = {
+      lifecycle: new RemoteLifecycleService({
+        remotes: [],
+        services: [{ id: 'gamma', document: LOCAL }],
+        document: { id: 'platform', info: { title: 'Platform', version: '1.0.0' } },
+        fetcher,
+        cache: new SerializingCacheDriver(),
+      }),
+      fetcher,
+      cache: new SerializingCacheDriver(),
+    };
+
+    // When: nothing is started at all
+    const snapshot = expectReady(harness.lifecycle.snapshot());
+
+    // Then: the local document is served, facts and all, and no remote state exists
+    expect(hasPath(snapshot.document.nodes, '/gamma')).toBe(true);
+    expect(snapshot.document.services?.map((service) => service.id)).toEqual(['gamma']);
+    expect(snapshot.document.services?.[0]?.runtime?.collectors).toEqual(['guardsCollector']);
+    expect(snapshot.remotes).toEqual([]);
+    expect(snapshot.degraded).toBe(false);
+  });
+
+  it('should merge a local service beside the remotes, absent from the remote states', async () => {
+    // Given
+    harness = makeHarness({ services: [{ id: 'gamma', document: LOCAL, prefix: '/gamma' }] });
+
+    // When
+    await harness.lifecycle.start();
+
+    // Then: three services in the document, two states in the snapshot, and the absence of a
+    // gamma state is the answer that says local, per SPEC 15.3
+    const snapshot = expectReady(harness.lifecycle.snapshot());
+    expect(snapshot.document.services?.map((service) => service.id)).toEqual([
+      'alpha',
+      'beta',
+      'gamma',
+    ]);
+    expect(snapshot.remotes.map((remote) => remote.id)).toEqual(['alpha', 'beta']);
+    expect(hasPath(snapshot.document.nodes, '/gamma/gamma')).toBe(true);
+  });
+
+  it('should not let a local service block failureMode fail, which is about remotes', async () => {
+    // Given
+    harness = makeHarness({
+      failureMode: 'fail',
+      services: [{ id: 'gamma', document: LOCAL }],
+    });
+
+    // When: every remote is fresh
+    await harness.lifecycle.start();
+
+    // Then: the local service needs no freshness of its own; it is this process's document
+    const snapshot = harness.lifecycle.snapshot();
+    expect(snapshot.httpStatus).toBe(200);
+  });
+
+  it('should refuse a local service whose id a remote already carries', () => {
+    // Given / When / Then: one grammar over the whole set, per the merge's own validator
+    expect(() => {
+      harness = makeHarness({ services: [{ id: 'alpha', document: LOCAL }] });
+    }).toThrow(/two services are configured with the id "alpha"/);
   });
 });
 
@@ -660,6 +771,41 @@ describe('RemoteLifecycleService, control surface', () => {
     const snapshot = expectReady(harness.lifecycle.snapshot());
     expect(hasPath(snapshot.document.nodes, '/a-orders')).toBe(true);
     expect(stateOf(snapshot, 'alpha').nextAttemptAt).toBeUndefined();
+  });
+
+  it('should record the real failure of a refresh asked for while stopped, not swallow it', async () => {
+    // Given: a lifecycle that was never started, and a remote that is down. Carried from
+    // `T045`'s review: the stop guard swallowed any failure while `running` was false, so an
+    // explicit `refresh()` on a stopped service left the status at pending with no `lastError`,
+    // which is a failure nobody can see. The guard now keys on the lifecycle's own abort.
+    harness = makeHarness();
+    harness.fetcher.set(URL_A, { kind: 'down' });
+
+    // When: a refresh is asked for explicitly, with polling stopped
+    await harness.lifecycle.refresh('alpha');
+
+    // Then: the failure is recorded state, not silence
+    const alpha = stateOf(harness.lifecycle.snapshot(), 'alpha');
+    expect(alpha.status).toBe('failed');
+    expect(alpha.lastError?.message).toContain('could not be fetched');
+  });
+
+  it('should still not record a stop mid-flight as a fact about the remote', async () => {
+    // Given: a healthy first round, then a refresh in flight against a now hung remote
+    harness = makeHarness();
+    await harness.lifecycle.start();
+    harness.fetcher.set(URL_A, { kind: 'hang' });
+    const inFlight = harness.lifecycle.refresh('alpha');
+
+    // When: the lifecycle is stopped while the request is in flight
+    harness.lifecycle.stop();
+    await inFlight;
+
+    // Then: the abort was the lifecycle's own doing, so nothing is recorded against alpha,
+    // whose last completed attempt is still the successful first round
+    const alpha = stateOf(harness.lifecycle.snapshot(), 'alpha');
+    expect(alpha.status).toBe('fresh');
+    expect(alpha.lastError).toBeUndefined();
   });
 
   it('should keep the served document identical across polls that fetched identical bodies', async () => {

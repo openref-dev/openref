@@ -326,6 +326,7 @@ async function writeOnePage(page: PlannedPage, context: PageContext): Promise<Wr
     page: page.kind,
     nodeId: page.nodeId,
     schemaId: page.schemaId,
+    serviceId: page.serviceId,
     basePath: base.basePath,
     ...(context.directTarget === null ? {} : { directTarget: context.directTarget }),
     ...(context.staticProxy === null ? {} : { staticProxy: context.staticProxy }),

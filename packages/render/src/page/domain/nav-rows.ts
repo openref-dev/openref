@@ -41,6 +41,8 @@ export interface NavRow {
   readonly kind: string;
   readonly nodeId: string | null;
   readonly schemaId: string | null;
+  /** The federated service this row is the group of, per SPEC 15.3, null everywhere else. */
+  readonly serviceId: string | null;
   readonly deprecated: boolean;
   /** Findings about this entry, summed over children for a group. Zero draws no marker. */
   readonly driftCount: number;
@@ -90,6 +92,7 @@ export function flattenNavigation(
       kind: entry.kind,
       nodeId: entry.nodeId,
       schemaId: entry.schemaId,
+      serviceId: entry.serviceId,
       deprecated: entry.deprecated,
       driftCount: entry.driftCount,
       hint: entry.hint,

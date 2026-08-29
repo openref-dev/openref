@@ -129,6 +129,7 @@ export type {
   RuntimeValueModel,
   SchemaPageModel,
   SecurityModel,
+  ServicePageModel,
   StaticProxyModel,
 } from '@openref/vue';
 // THE THEME CONTRACT TYPES RIDE THE SAME RE-EXPORT, since T033: `@openref/nest` takes a theme
@@ -175,6 +176,8 @@ export type { NavHit } from './page/domain/nav-search';
 export {
   BENCH_SEGMENT,
   benchHref,
+  FEDERATION_SEGMENT,
+  federationHref,
   HEALTH_PAGE_SEGMENT,
   healthPageHref,
   navigationHref,
@@ -188,6 +191,8 @@ export {
   schemaHref,
   SEARCH_INDEX_SEGMENT,
   searchIndexHref,
+  SERVICE_SEGMENT,
+  serviceHref,
   SHAPES_SEGMENT,
   shapesHref,
   STATES_SEGMENT,

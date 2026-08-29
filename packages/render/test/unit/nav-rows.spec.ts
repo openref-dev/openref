@@ -18,6 +18,7 @@ function entry(id: string, children: NavEntryModel[] = [], nodeId?: string): Nav
     kind: children.length > 0 ? 'group' : 'node',
     nodeId: nodeId ?? null,
     schemaId: null,
+    serviceId: null,
     deprecated: false,
     driftCount: 0,
     hint: '',

@@ -137,7 +137,7 @@ would have been 1 612 858 bytes on `twilio-api-v2010.yaml` against a node page's
 | Name | Kind | What it is |
 | --- | --- | --- |
 | `PageModel` | type | One page, as it travels. Carries `kind` and `frame` since `TX-FRAME` |
-| `PageKind` | type | Which page it is. Seven members since `TX-FRAME`: the three, then `bench`, `health`, `shapes`, `states`, per SPEC 13.3 |
+| `PageKind` | type | Which page it is. Eight members since `T046`: the three, then `bench`, `health`, `shapes`, `states`, then `service` when M4 gave the federated card its renderer, per SPEC 13.3. The widening is on the major side per the union rule above, recorded in `ai-docs/design/CONTRACT.md` |
 | `FrameModel` | type | The app bar's data: resolved tabs, breadcrumb, back, rail statistics. Added at `TX-FRAME`, minor |
 | `FrameTabModel` | type | One tab with its target resolved, so no theme spells an address twice |
 | `FrameTabKind` | type | Which tab it is. Six since `TX-PARITY-UI`: the showcase pages entered the bar by the maintainer's reversal, and the bar is constant by remembering, per SPEC 11 |
@@ -146,8 +146,9 @@ would have been 1 612 858 bytes on `twilio-api-v2010.yaml` against a node page's
 | `NodeSectionMark` | type | One entry of `drawn`. No `errors` member: the contracts grid is inside the responses section since `TX-ADOPT` |
 | `NodeHeaderModel` | type | Its header. Promises `tags` and `operationId` since `TX-MARKUP`, for the kicker, and `sse` since `TX-PARITY-UI`, for the badge |
 | `SchemaPageModel` | type | A named schema on its own page. Carries `dialect` since `TX-MARKUP` |
+| `ServicePageModel` | type | One federated service on its card, per SPEC 15.3: what the service said about itself, its health report and its runtime meta. Added at `T046`, minor; the `PageKind` member beside it is the major half |
 | `StaticProxyModel` | type | The generated rewrite rules of SPEC 16.2 a static build wrote, as `PageModel.staticProxy` carries them: the prefix they live under and the pinned upstreams in the `u<N>` order the rules index them by. Added at `T042`, optional and additive |
-| `NavEntryModel` | type | One row of the navigation. Carries `driftCount` since `TX-FRAME`, summed over children for a group; zero draws no marker and asserts nothing. Carries `method` since `TX-MARKUP`, for the rail's badge, and `sse` since `TX-PARITY-UI`, for the badge that says SSE |
+| `NavEntryModel` | type | One row of the navigation. Carries `driftCount` since `TX-FRAME`, summed over children for a group; zero draws no marker and asserts nothing. Carries `method` since `TX-MARKUP`, for the rail's badge, and `sse` since `TX-PARITY-UI`, for the badge that says SSE. Carries `serviceId` since `T046`, null outside a federated service group, additive |
 | `PaletteHitModel` | type | One row of the command palette |
 | `ParameterModel` | type | One parameter row, with its description already HTML. Carries the scan's columns since `TX-PARITY-UI`: `runtimeNote`, `confidence`, `collector`, `unread` |
 | `ResponseModel` | type | One response, compact since `TX-PARITY-UI`: `phrase`, `schemaLabel` and `schemaHref` added, `content` kept with its `exampleHtml` built empty, the schemas on their own pages |

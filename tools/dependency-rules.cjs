@@ -10,7 +10,7 @@
  *   search     ->  core
  *   theme      ->  nothing
  *   federation ->  core
- *   nest       ->  core, render, runner, search
+ *   nest       ->  core, render, runner, search, federation
  *   cli        ->  core, render, runner, search, static
  *   action     ->  nothing
  *
@@ -55,7 +55,13 @@ const BOUNDARIES = {
   render: ['core', 'vue'],
   runner: ['core'],
   search: ['core'],
-  nest: ['core', 'render', 'runner', 'search'],
+
+  // NEST REACHES FEDERATION SINCE T046, AND THE DIRECTION IS THE TABLE'S OWN. `federation` is an
+  // internal package bundled into `@openref/nest`, per STANDARDS 3.5: the merge and the remote
+  // lifecycle are data producers, and the Nest module is the first place allowed to see both a
+  // document source and a route table, so serving the federated reference composes there. The
+  // edge the other way stays forbidden: `federation` still reaches `core` and nothing else.
+  nest: ['core', 'render', 'runner', 'search', 'federation'],
   theme: [],
 
   // THEME-KIT REACHES THE CONTRACT AND NOTHING BELOW IT. It reads the slot registry, the theme

@@ -81,6 +81,11 @@ const NOT_CLASSES = new Set([
   'oref-level',
   'oref-option',
   'oref-schema',
+  // The federation pair of T046: `data-oref-service` names the service an element is about, and
+  // `data-oref-remote-status` is the live status the snapshot fetch writes onto it. States, not
+  // classes; the stylesheet selects them as attributes.
+  'oref-service',
+  'oref-remote-status',
   // Ids the palette generates one per option, so `aria-activedescendant` can name one.
   'oref-palette-option-',
   // Id prefix of a try-it field, so a label can name the control it belongs to. The full id
@@ -168,6 +173,10 @@ const MODIFIERS_WITHOUT_RULES = new Set([
   // THE ONE OF TX-PARITY-UI, a member by the same rule: the description section sits on
   // `.oref-section`, which draws it, and its prose already carries `.oref-description`.
   'oref-section-description',
+  // THE ONE OF T046, a member by the same rule: the service card's kicker sits on
+  // `.oref-section-title`, which draws it. The facts section is not here, because the facts
+  // grid is its own rule.
+  'oref-service-kicker',
 ]);
 
 /** The syntax token classes are generated one per shiki colour, so they are checked as a group. */

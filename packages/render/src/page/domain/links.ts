@@ -193,6 +193,26 @@ export const SHAPES_SEGMENT = 'shapes';
 export const STATES_SEGMENT = 'states';
 
 /**
+ * Segment of the federated service card, per SPEC 13.3 and 15.3.
+ *
+ * HERE SINCE `T046`, MOVED FROM `@openref/nest` BY THE `PROXY_SEGMENT` PRECEDENT: the route the
+ * Nest module registers, the href the navigation's service groups link, and the file a static
+ * build would write must agree, and this module is the one all three can see. `@openref/nest`
+ * re-exports it, so its public surface is unchanged.
+ */
+export const SERVICE_SEGMENT = 'service';
+
+/**
+ * Segment of the live federation snapshot, per SPEC 13.3 and 15.3.
+ *
+ * A machine answer, underscore family: the page fetches it to mark a degraded remote in the
+ * navigation, because the page itself is cached by document hash and a remote degrading does
+ * not change the hash, per SPEC 12. The mark baked into a cached page would lie in exactly the
+ * moment it exists for.
+ */
+export const FEDERATION_SEGMENT = '_federation';
+
+/**
  * Path of one operation's bench page.
  *
  * The console left the node page with `TX-FRAME`, so this is where a reader sends a request
@@ -236,6 +256,30 @@ export function shapesHref(schemaId: string, basePath = ''): string {
  */
 export function statesHref(basePath = ''): string {
   return `${basePath}/${STATES_SEGMENT}`;
+}
+
+/**
+ * Path of one federated service's card, per SPEC 15.3.
+ *
+ * @param serviceId - Key into `IRDocument.services`
+ * @param basePath - Where the reference is mounted, without a trailing slash
+ * @returns Absolute path of the page
+ */
+export function serviceHref(serviceId: string, basePath = ''): string {
+  return `${basePath}/${SERVICE_SEGMENT}/${encodeURIComponent(pathSegmentOf(serviceId))}`;
+}
+
+/**
+ * Where the live federation snapshot is fetched from, per SPEC 15.3.
+ *
+ * Not addressed by document hash, deliberately: the answer changes while the document does not,
+ * which is the whole reason it is a separate address, and it is served `no-store`.
+ *
+ * @param basePath - Where the reference is mounted, without a trailing slash
+ * @returns Absolute path of the snapshot
+ */
+export function federationHref(basePath = ''): string {
+  return `${basePath}/${FEDERATION_SEGMENT}`;
 }
 
 /**

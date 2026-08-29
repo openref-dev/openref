@@ -97,8 +97,9 @@ describe('referenceRoutes', () => {
     const patterns = routes.map((route) => route.pattern);
 
     // Then, the page family on bare segments and the machine family behind underscores, per
-    // the 2026-08-14 amendment: `health` is the page and `_health` the liveness JSON, and
-    // `service` is registered and reserved so that "no services" is tellable from "no route".
+    // the 2026-08-14 amendment: `health` is the page and `_health` the liveness JSON, `service`
+    // answers the card on a federated document per SPEC 15.3, and `_federation` is the live
+    // snapshot registered on every mount so "not a federation" is tellable from "no route".
     expect(patterns).toEqual([
       '/docs',
       '/docs/',
@@ -108,6 +109,7 @@ describe('referenceRoutes', () => {
       '/docs/_search-index',
       '/docs/_navigation/:documentHash',
       '/docs/_health',
+      '/docs/_federation',
       '/docs/health',
       '/docs/bench/:nodeId',
       '/docs/shapes/:schemaId',
@@ -123,7 +125,7 @@ describe('referenceRoutes', () => {
   /**
    * The totality the case above cannot state, added by the pre-M4 review.
    *
-   * That case pins seventeen patterns and would stay green with an eighteenth route id in the
+   * That case pins eighteen patterns and would stay green with a nineteenth route id in the
    * union and no pattern registered for it. The dispatch in `reference.service.ts` is a switch
    * with no default, so a new id fails to compile there and the handler half is safe; nothing
    * held the registration half, which is an array a person writes by hand. An id with no pattern
@@ -142,6 +144,7 @@ describe('referenceRoutes', () => {
       'search-index': true,
       navigation: true,
       status: true,
+      federation: true,
       health: true,
       bench: true,
       shapes: true,

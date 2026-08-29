@@ -90,4 +90,38 @@ describe('proxyServers', () => {
     // Then
     expect(servers).toEqual(document.servers);
   });
+
+  it('should include each federated service servers, per SPEC 14.5 as amended with SPEC 15.3', () => {
+    // Given: a merged document, whose own servers are empty per SPEC 15.1 and whose services
+    // keep theirs on their `IRService` entries, which is where the federated console reads them
+    const base = documentWith(undefined);
+    const document: typeof base = {
+      ...base,
+      services: [
+        {
+          id: 'billing',
+          documentId: 'billing-doc',
+          documentHash: 'a'.repeat(64),
+          kind: 'http',
+          info: { title: 'Billing', version: '1.0.0' },
+          servers: [{ url: 'https://billing.internal' }],
+        },
+        {
+          id: 'orders',
+          documentId: 'orders-doc',
+          documentHash: 'b'.repeat(64),
+          kind: 'http',
+          info: { title: 'Orders', version: '1.0.0' },
+          servers: [{ url: 'https://orders.internal' }, { url: 'https://billing.internal' }],
+        },
+      ],
+    };
+
+    // When
+    const servers = proxyServers(document).map((server) => server.url);
+
+    // Then: document level first, which is the normalizer's default `/` here, then the union
+    // in service order, duplicates collapsed on first occurrence
+    expect(servers).toEqual(['/', 'https://billing.internal', 'https://orders.internal']);
+  });
 });

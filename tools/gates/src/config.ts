@@ -654,7 +654,23 @@ export const SIZE_BUDGETS: readonly SizeBudget[] = [
     // the two predicates with a case holding it byte equal to this one, which is what the three
     // generated artefacts already do and which would take the 326 bytes back out of the first
     // paint at the price of a copy.
-    limitBytes: 107 * 1024,
+    //
+    // 108 KB SINCE T046, AND THE ARRIVAL IS A FEATURE THE FIRST PAINT USES BY CONSTRUCTION: the
+    // federated page of SPEC 15.3. Measured 109,778 raw across the same six files against 108,850
+    // at the head of this task: 928 bytes, itemised as 743 in the entry, which is the rail's
+    // service card links and status marks, the card's adoption stub, the `service` page branch
+    // and the `_federation` snapshot fetch that marks a degraded remote from anywhere on a page
+    // whose bytes are cached by document hash and therefore cannot carry the mark themselves, and
+    // the rest in the shared chunks for the two addresses and the navigation's `serviceId`. WHAT
+    // WAS TRIED BEFORE MOVING THE NUMBER: the fetch lost its header and 503 branches and the
+    // selector its escaping, needless over the service id alphabet, worth 116 raw; what is left
+    // is the feature, and a deferred chunk was refused because the fetch runs on load, so its
+    // bytes are this budget's material whichever file carries them.
+    //
+    // THE PROPERTY IS RE-CHECKED AND STILL HOLDS. 108 KB is 110,592: the artefact fits with 814
+    // bytes, and `sign-in-return` at 1,451 raw returning to the first load reads 111,229 and
+    // fails it. 107 KB does not fit, so 108 is the one whole KB step available.
+    limitBytes: 108 * 1024,
     roots: CLIENT_JS_ROOTS,
     extensions: ['.js', '.mjs'],
     quantity: 'parse',

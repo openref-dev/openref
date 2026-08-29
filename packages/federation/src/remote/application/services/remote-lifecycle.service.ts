@@ -11,6 +11,7 @@ import type { IRDocument } from '@openref/core';
 import { mergeDocuments } from '../../../merge/domain/merge-documents';
 import { compareText } from '../../../merge/domain/merge-report';
 import type { MergeReport } from '../../../merge/domain/merge-report';
+import { validateServices } from '../../../merge/domain/federation-options';
 import type {
   FederationService,
   MergeDocumentsOptions,
@@ -61,8 +62,18 @@ import { MemoryCacheAdapter } from '../../infrastructure/adapters/memory-cache.a
 
 /** Everything the lifecycle is configured with. */
 export interface RemoteLifecycleOptions {
-  /** The remotes to fetch and poll. */
+  /** The remotes to fetch and poll. May be empty only when `services` is not. */
   readonly remotes: readonly FederationRemoteConfig[];
+  /**
+   * Local services of this process, per SPEC 15.3: documents that already exist here, runtime
+   * facts and health included, joining every composition as they are.
+   *
+   * THEY ARE NOT POLLED AND THEY HAVE NO STATUS, deliberately. The five statuses of SPEC 15.2
+   * partition the outcomes of fetching, and a local document is not fetched: it is this
+   * process's own, current by construction. It appears in the merged document's `services` and
+   * in no remote state, and that absence is what says "local".
+   */
+  readonly services?: readonly FederationService[];
   /** Identity, header and conflict policy of the merged document, as the merge takes them. */
   readonly document: MergeDocumentsOptions;
   /** Poll interval while healthy. Defaults to SPEC 15's 60 000. */
@@ -114,6 +125,7 @@ interface Composition {
 /** Fetches, polls and serves a federation of remotes. */
 export class RemoteLifecycleService {
   private readonly remotes: Map<string, RemoteRuntime>;
+  private readonly locals: readonly FederationService[];
   private readonly documentOptions: MergeDocumentsOptions;
   private readonly refreshMs: number;
   private readonly timeoutMs: number;
@@ -127,11 +139,18 @@ export class RemoteLifecycleService {
   private mergeError: FederationStateError | undefined;
 
   /**
-   * @param options - Remotes, document identity, polling and failure policy
-   * @throws {InvalidOptionsError} When a remote, an interval or a mode is unusable
+   * @param options - Remotes, local services, document identity, polling and failure policy
+   * @throws {InvalidOptionsError} When a remote, a local service, an interval or a mode is
+   *         unusable, or when neither a remote nor a local service is configured
    */
   constructor(options: RemoteLifecycleOptions) {
-    validateRemotes(options.remotes);
+    const locals = options.services ?? [];
+    // ONE GRAMMAR OVER THE WHOLE SET. Locals and remotes end up in one merge, so an id clash
+    // between the two families is the same defect as one inside either, and it is refused by
+    // the same validator. The URL rule stays the remotes' own, since a local has none.
+    validateServices([...locals, ...options.remotes]);
+    if (options.remotes.length > 0) validateRemotes(options.remotes);
+    this.locals = [...locals].sort((left, right) => compareText(left.id, right.id));
     this.failureMode = resolveFailureMode(options.failureMode);
     this.refreshMs = resolveIntervalMs(options.refreshMs, 'refreshMs', DEFAULT_REFRESH_MS);
     this.timeoutMs = resolveIntervalMs(options.timeoutMs, 'timeoutMs', DEFAULT_FETCH_TIMEOUT_MS);
@@ -159,6 +178,11 @@ export class RemoteLifecycleService {
         },
       ]),
     );
+
+    // A local document exists now, so a composition can too: a local-only federation serves
+    // before and without `start()`, and a mixed one serves its locals while the first round of
+    // fetches is still in flight, which is the degrade principle at second zero.
+    if (this.locals.length > 0) this.recompute();
   }
 
   /**
@@ -439,8 +463,13 @@ export class RemoteLifecycleService {
       }
     } catch (cause) {
       // A stop mid-flight aborts the fetch; that is the lifecycle's doing, not a fact about the
-      // remote, so it is not recorded as one.
-      if (!this.running && !timedOut.fired) return;
+      // remote, so it is not recorded as one. THE ABORT IS THE TEST, NOT THE RUNNING FLAG: a
+      // `refresh()` called while stopped or never started runs with `running` false the whole
+      // way, and its real failure, network or status alike, was being swallowed here, leaving
+      // the status at pending or stale with no `lastError`. Carried from `T045`'s review and
+      // closed with the route that made the surface reachable. The timeout stays recorded even
+      // though it aborts the same signal, because its firing is a fact about the remote.
+      if (!this.running && controller.signal.aborted && !timedOut.fired) return;
 
       runtime.outcome = 'failure';
       runtime.consecutiveFailures += 1;
@@ -506,9 +535,12 @@ export class RemoteLifecycleService {
     }
   }
 
-  /** The services the current mode would serve: every remote with a version, in sorted order. */
+  /**
+   * The services the current mode would serve, in sorted id order: every local service, per
+   * SPEC 15.3, and every remote with a version.
+   */
   private availableServices(): FederationService[] {
-    const services: FederationService[] = [];
+    const services: FederationService[] = [...this.locals];
 
     for (const runtime of this.remotes.values()) {
       if (runtime.version === undefined) continue;
@@ -519,7 +551,7 @@ export class RemoteLifecycleService {
       });
     }
 
-    return services;
+    return services.sort((left, right) => compareText(left.id, right.id));
   }
 
   /** Parses and normalizes one fetched body. Fail-closed: garbage throws, nothing guesses. */

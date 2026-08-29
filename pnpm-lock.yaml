@@ -76,6 +76,31 @@ importers:
         specifier: 5.9.3
         version: 5.9.3
 
+  examples/federation:
+    dependencies:
+      '@nestjs/common':
+        specifier: 11.1.28
+        version: 11.1.28(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@7.2.0)
+      '@nestjs/core':
+        specifier: 11.1.28
+        version: 11.1.28(@nestjs/common@11.1.28(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@7.2.0))(@nestjs/platform-express@11.1.28)(reflect-metadata@0.2.2)(rxjs@7.8.2)
+      '@nestjs/platform-express':
+        specifier: 11.1.28
+        version: 11.1.28(@nestjs/common@11.1.28(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@7.2.0))(@nestjs/core@11.1.28)(supports-color@7.2.0)
+      '@openref/nest':
+        specifier: workspace:*
+        version: link:../../packages/nest
+      reflect-metadata:
+        specifier: 0.2.2
+        version: 0.2.2
+      rxjs:
+        specifier: 7.8.2
+        version: 7.8.2
+    devDependencies:
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+
   examples/nest-minimal:
     dependencies:
       '@nestjs/common':
@@ -294,6 +319,9 @@ importers:
       '@nestjs/platform-fastify':
         specifier: 11.1.28
         version: 11.1.28(@nestjs/common@11.1.28(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@7.2.0))(@nestjs/core@11.1.28)
+      '@openref/federation':
+        specifier: workspace:*
+        version: link:../federation
       '@openref/render':
         specifier: workspace:*
         version: link:../render

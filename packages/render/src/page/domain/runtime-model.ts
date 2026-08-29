@@ -511,10 +511,17 @@ export function buildRuntimeModel(
  *
  * @param document - The normalized document
  * @param basePath - Mount point, so a finding can be jumped to
+ * @param own - A narrower report to draw instead of the document's: a federated service's own,
+ *   per SPEC 15.3, whose findings already address merged names and so resolve against this same
+ *   document. Defaults to `document.health`.
  * @returns The panel, or null
  */
-export function buildHealthModel(document: IRDocument, basePath: string): HealthModel | null {
-  const report: IRHealthReport | undefined = document.health;
+export function buildHealthModel(
+  document: IRDocument,
+  basePath: string,
+  own?: IRHealthReport,
+): HealthModel | null {
+  const report: IRHealthReport | undefined = own ?? document.health;
   if (report === undefined) return null;
 
   const operations = String(report.operationCount);

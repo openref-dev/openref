@@ -126,7 +126,6 @@ describe('assertRootOptions', () => {
 
   for (const [key, milestone] of Object.entries({
     runner: /T034 reconciles/,
-    federation: /M4/,
     agent: /M6, T058/,
     devWatch: /M3/,
   })) {
@@ -140,6 +139,61 @@ describe('assertRootOptions', () => {
       }).toThrow(milestone);
     });
   }
+
+  it('should accept a federation of remotes, which left NOT_YET_BUILT at T046', () => {
+    // Given, the SPEC 15 form: remotes to poll, mounted on a route of its own
+    const good = options({
+      federation: {
+        route: '/federated',
+        id: 'gateway',
+        remotes: [{ id: 'billing', url: 'https://billing.example/openapi.json' }],
+      },
+    });
+
+    // When, Then
+    expect(() => {
+      assertRootOptions(good);
+    }).not.toThrow();
+  });
+
+  it('should refuse a federation with nothing to merge', () => {
+    // Given, no remotes and no local services
+    const bad = options({ federation: { route: '/federated', id: 'gateway' } });
+
+    // When, Then
+    expect(() => {
+      assertRootOptions(bad);
+    }).toThrow(/nothing to merge/);
+  });
+
+  it('should refuse a federation naming a local service no documents entry carries', () => {
+    // Given, a local service is a documents entry of this same forRoot, per SPEC 15.3
+    const bad = options({
+      federation: { route: '/federated', id: 'gateway', services: [{ id: 'billing' }] },
+    });
+
+    // When, Then
+    expect(() => {
+      assertRootOptions(bad);
+    }).toThrow(/no documents entry carries that id/);
+  });
+
+  it('should refuse a federation mounted on a route a document claims', () => {
+    // Given
+    const bad = options({
+      documents: [{ id: 'public', route: '/docs', document: {} }],
+      federation: {
+        route: '/docs',
+        id: 'gateway',
+        remotes: [{ id: 'billing', url: 'https://billing.example/openapi.json' }],
+      },
+    });
+
+    // When, Then
+    expect(() => {
+      assertRootOptions(bad);
+    }).toThrow(/both mounted on/);
+  });
 
   it('should accept the theme option, which left NOT_YET_BUILT at T033', () => {
     // Given, the root level default of SPEC 13.2, an L0 definition that needs no bundle

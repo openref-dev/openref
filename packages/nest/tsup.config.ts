@@ -4,10 +4,11 @@ import { defineConfig } from 'tsup';
  * Two builds, for two different runtimes.
  *
  * THE SERVER BUILD. `@openref/nest` is what a consumer installs, so it carries the internal
- * packages inside itself: `render`, `runner` and `search` are private and are bundled here.
+ * packages inside itself: `render`, `runner`, `search` and, since T046, `federation` are
+ * private and are bundled here.
  *
  * Third party code is not bundled with them. `skipNodeModulesBundle` keeps every published
- * dependency external, and `noExternal` makes the three internal workspace packages the one
+ * dependency external, and `noExternal` makes the four internal workspace packages the one
  * exception. Inlining the third party tree instead would copy Vue, the sanitizer and the
  * highlighter into this file, which duplicates them for anyone who also depends on them,
  * defeats their own conditional exports, and puts a server side `new Function` from a CSS
@@ -65,7 +66,9 @@ export default defineConfig([
     clean: true,
     treeshake: true,
     skipNodeModulesBundle: true,
-    noExternal: [/^@openref\/(render|runner|search)$/],
+    // `federation` joined at T046: the merge and the remote lifecycle are internal, per
+    // STANDARDS 3.5, and this is the package a consumer installs to get the federated mount.
+    noExternal: [/^@openref\/(render|runner|search|federation)$/],
     outExtension: ({ format }) => ({ js: format === 'cjs' ? '.cjs' : '.js' }),
   },
   {

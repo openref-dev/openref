@@ -1538,9 +1538,97 @@ button.oref-schema-row:hover {
 
 .oref-bench-page,
 .oref-health-page,
+.oref-service-page,
 .oref-shapes-page,
 .oref-states-page {
   display: block;
+}
+
+.oref-nav-entry-service {
+  align-items: center;
+  display: flex;
+  gap: 4px;
+}
+
+.oref-nav-entry-service .oref-nav-toggle {
+  flex: 1 1 auto;
+}
+
+.oref-nav-service,
+.oref-service-status {
+  background: #79899a;
+  block-size: 10px;
+  border-radius: 50%;
+  display: inline-block;
+  flex: 0 0 auto;
+  inline-size: 10px;
+}
+
+[data-oref-remote-status='fresh'] {
+  background: #3fd18b;
+}
+
+[data-oref-remote-status='stale'],
+[data-oref-remote-status='pending'] {
+  background: #93a4b3;
+}
+
+[data-oref-remote-status='degraded'] {
+  background: #ffb020;
+}
+
+[data-oref-remote-status='failed'] {
+  background: #ff5a47;
+}
+
+.oref-service-status[data-oref-remote-status]::after {
+  color: #79899a;
+  content: attr(data-oref-remote-status);
+  font-size: 12px;
+  margin-inline-start: 14px;
+}
+
+.oref-service-meta {
+  align-items: center;
+  color: #79899a;
+  display: flex;
+  font-size: 13px;
+  gap: 10px;
+}
+
+.oref-service-id {
+  font-family: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+}
+
+.oref-section-service {
+  column-gap: 20px;
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  row-gap: 6px;
+}
+
+.oref-section-service > .oref-section-title {
+  grid-column: 1 / -1;
+}
+
+.oref-service-fact {
+  display: contents;
+}
+
+.oref-service-fact-label {
+  color: #79899a;
+  font-size: 13px;
+}
+
+.oref-service-fact-value {
+  font-size: 13px;
+  min-width: 0;
+}
+
+.oref-service-servers {
+  list-style: none;
+  margin: 0;
+  padding: 0;
 }
 
 .oref-health-empty {

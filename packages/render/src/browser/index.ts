@@ -24,7 +24,7 @@ import { createSSRApp, h } from 'vue';
 import { APP_ROOT_ID, ReferenceApp } from '../components/ReferenceApp';
 import { DEFERRABLE_KEY } from '../components/deferrable';
 import { deferredComponents } from './deferred';
-import { navigationHref, searchIndexHref } from '../page/domain/links';
+import { federationHref, navigationHref, searchIndexHref } from '../page/domain/links';
 import { readNavigationPayload, type NavigationLoader } from '../page/domain/nav-source';
 import { STATE_ELEMENT_ID } from '../page/domain/shell';
 import type { PageModel } from '../page/domain/page-model';
@@ -45,7 +45,11 @@ import type {
  */
 export type HydrateRoot = Pick<
   Document,
-  'getElementById' | 'querySelector' | 'addEventListener' | 'removeEventListener'
+  | 'getElementById'
+  | 'querySelector'
+  | 'querySelectorAll'
+  | 'addEventListener'
+  | 'removeEventListener'
 >;
 
 /** What `hydrateReference` needs to find its way around a document. */
@@ -167,6 +171,50 @@ async function fetchSearchIndex(basePath: string): Promise<string> {
 }
 
 /**
+ * Marks the page's `data-oref-service` elements with the live remote statuses, per SPEC 15.3.
+ *
+ * THE FETCH RUNS ONLY ON A FEDERATED PAGE, and it is the one request a federated page makes on
+ * load: the page itself is cached by document hash and a degrading remote does not change the
+ * hash, so the mark cannot be baked into the markup without lying at the exact moment it exists
+ * for. The answer is `no-store` and same origin by construction, the navigation fetch's rule.
+ *
+ * A SERVICE WITH NO REMOTE ENTRY IS LEFT UNMARKED, which is the answer and not a gap: it is a
+ * local document of the serving process, per SPEC 15.3, current by construction, and the
+ * neutral mark is what says so. A fetch that fails leaves every mark neutral, which claims
+ * nothing, rather than a status nobody confirmed.
+ *
+ * @param root - Tree the marks are in
+ * @param page - The page model, for whether this page is federated at all
+ * @param basePath - Where the reference is mounted
+ */
+function markFederationStatus(root: HydrateRoot, page: PageModel, basePath: string): void {
+  // The navigation is the one test needed: every federated page, the service card included,
+  // carries the merged rail whose groups name their services. The endpoint answers 200 in both
+  // availability states, so `ok` is the whole read. A remote id is confined to `[a-z0-9-]` by
+  // the federation configuration's own validator, so it enters the selector as it is.
+  if (!page.navigation.some((entry) => entry.serviceId !== null)) return;
+
+  void fetch(federationHref(basePath))
+    .then(async (response) => {
+      if (!response.ok) return;
+      const snapshot = (await response.json()) as {
+        remotes?: readonly { id?: unknown; status?: unknown }[];
+      };
+
+      for (const remote of snapshot.remotes ?? []) {
+        if (typeof remote.id !== 'string' || typeof remote.status !== 'string') continue;
+
+        root.querySelectorAll(`[data-oref-service="${remote.id}"]`).forEach((element) => {
+          element.setAttribute('data-oref-remote-status', remote.status as string);
+        });
+      }
+    })
+    .catch(() => {
+      // Neutral marks claim nothing, which is the honest render of an unreachable snapshot.
+    });
+}
+
+/**
  * Reads the page model out of the state element.
  *
  * Returns null rather than throwing when the element is missing or unparseable. A page
@@ -279,6 +327,9 @@ export function hydrateReference(options: HydrateOptions = {}): boolean {
 
   if (options.runner !== undefined) app.provide(RUNNER_KEY, options.runner);
   app.mount(mount);
+
+  // After mount, so the rail's rows exist to be marked. Costs nothing on an unfederated page.
+  markFederationStatus(root, page, basePath);
 
   // THE CHECK IS IN THE FIRST CHUNK AND THE ANSWER IS NOT, AND THE MARKER IS A LITERAL HERE.
   // Importing the constant would put a module and its import glue into the first chunk of every

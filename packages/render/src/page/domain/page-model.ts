@@ -47,6 +47,7 @@ import type {
   ParameterModel,
   ResponseModel,
   SchemaPageModel,
+  ServicePageModel,
   StaticProxyModel,
 } from '@openref/vue';
 import {
@@ -66,6 +67,13 @@ import { reasonPhrase } from '../../shared/status';
 
 /**
  * Version of the page model shape, part of the cache key.
+ *
+ * 17 SINCE `T046`: the model carries `service`, the federated service card of SPEC 15.3, null on
+ * every other page, and every navigation entry carries `serviceId`, null outside the group a
+ * merge builds per service. A page cached before this hydrates a rail whose service groups have
+ * no card link and no status mark to hang the live snapshot on, which is the page from before
+ * federation had a face rather than a broken one, and the version is what keeps a federated
+ * page and a pre-federation client from meeting on one screen.
  *
  * 16 SINCE `T042`: the model carries `staticProxy`, the prefix the SPEC 16.2 rewrite rules live
  * under and the upstreams they are pinned to in `u<N>` order, set only by a static build whose
@@ -138,7 +146,7 @@ import { reasonPhrase } from '../../shared/status';
  * 6 was T027: `run.bodyMediaTypes`, a list of strings, became `run.body`, a list of media types
  * each carrying the editor its schema asks for and the fields it is made of.
  */
-export const PAGE_MODEL_VERSION = 16;
+export const PAGE_MODEL_VERSION = 17;
 
 /** Media types an example is generated for. */
 const JSON_MEDIA_TYPE = /^application\/(?:[\w.+-]+\+)?json$/i;
@@ -167,6 +175,8 @@ export interface PageModelOptions {
   readonly nodeId?: string | null;
   /** Named schema to show, for a schema page. Ignored when `nodeId` is set. */
   readonly schemaId?: string | null;
+  /** Federated service to show, for a service card, per SPEC 15.3. Read only by `service`. */
+  readonly serviceId?: string | null;
   readonly markdown: IMarkdownRenderer;
   /** Where the reference is mounted, so the client can build the links the server built. */
   readonly basePath?: string;
@@ -288,6 +298,7 @@ function navEntry(
     kind: node.kind,
     nodeId: node.nodeId ?? null,
     schemaId: node.schemaId ?? null,
+    serviceId: node.serviceId ?? null,
     deprecated: node.deprecated ?? false,
     // A group's count is its children's, so a closed group still says what it holds; an
     // entry that is both a page and a parent, which the tree does not produce today, would
@@ -568,6 +579,47 @@ const DIALECT_LABELS: Readonly<Record<IRSchemaDialect, string>> = {
   unknown: '',
 };
 
+/**
+ * The card of one federated service, per SPEC 15.3, or null when the id names none.
+ *
+ * NULL RATHER THAN A MISSING FLAG, the node page's rule: an unmerged document has no services at
+ * all, and a wrong id on a merged one is a stale link, so the caller answers 404 off the same
+ * absence either way and the model never draws a card about nothing.
+ */
+function servicePageModel(context: ModelContext, serviceId: string): ServicePageModel | null {
+  const service = context.document.services?.find((entry) => entry.id === serviceId);
+  if (service === undefined) return null;
+
+  let operations = 0;
+  for (const node of context.document.nodes.values()) {
+    if (node.serviceId === serviceId) operations += 1;
+  }
+
+  // GUARDED HERE AND NOT BY THE DEFAULT PARAMETER: a service with no report of its own must
+  // draw the absence, per SPEC 7.3, and falling through to the merged document's report would
+  // show it another service's findings under its own name.
+  const health =
+    service.health === undefined
+      ? null
+      : buildHealthModel(context.document, context.basePath, service.health);
+
+  return {
+    id: service.id,
+    title: service.info.title,
+    version: service.info.version,
+    descriptionHtml: context.markdown.render(service.info.description),
+    kind: service.kind,
+    prefix: service.prefix ?? '',
+    servers: service.servers.map((server) => server.url),
+    documentId: service.documentId,
+    documentHash: service.documentHash,
+    operations,
+    collectors: service.runtime?.collectors ?? [],
+    health,
+    healthRendered: health !== null,
+  };
+}
+
 function schemaPageModel(context: ModelContext, schemaId: string): SchemaPageModel {
   const entry = context.document.schemas.get(schemaId);
 
@@ -809,12 +861,17 @@ function crumbOf(
   document: IRDocument,
   node: NodeModel | null,
   schema: SchemaPageModel | null,
+  service: ServicePageModel | null = null,
 ): string {
   if (node !== null) {
     const address =
       node.method !== null ? `${node.method} ${node.path ?? ''}` : (node.address ?? '');
     return [node.tags[0], address].filter((part) => part !== undefined && part !== '').join(' / ');
   }
+
+  // The service card's crumb is the group's own words: the label the rail draws for the
+  // service is its title, so the crumb repeats no second vocabulary.
+  if (service !== null) return `Services / ${service.title}`;
 
   if (schema === null) return '';
 
@@ -857,6 +914,7 @@ function buildFrame(
   node: NodeModel | null,
   schema: SchemaPageModel | null,
   basePath: string,
+  service: ServicePageModel | null = null,
 ): FrameModel {
   const tabs: FrameTabModel[] = [];
 
@@ -932,7 +990,12 @@ function buildFrame(
           ? schemaHref(schema.id, basePath)
           : overviewHref(basePath);
 
-  return { tabs, crumb: crumbOf(document, node, schema), backHref, stats: frameStats(document) };
+  return {
+    tabs,
+    crumb: crumbOf(document, node, schema, service),
+    backHref,
+    stats: frameStats(document),
+  };
 }
 
 /** The page kind, stated by the caller or derived the way it was before `TX-FRAME`. */
@@ -972,10 +1035,16 @@ export function buildPageModel(document: IRDocument, options: PageModelOptions):
   const node = requestedNode === null ? null : nodeModel(context, requestedNode);
   const requestedSchema = wantsSchema && node === null ? (options.schemaId ?? null) : null;
   const schema = requestedSchema === null ? null : schemaPageModel(context, requestedSchema);
+  const requestedService = requested === 'service' ? (options.serviceId ?? null) : null;
+  const service = requestedService === null ? null : servicePageModel(context, requestedService);
 
   // A requested page whose subject does not exist degrades to the page that can render:
   // the caller answers 404 off the same absence, and a direct call keeps the old behaviour.
-  const kind: PageKind = wantsNode && node === null ? 'overview' : requested;
+  // The service card degrades the node page's way, and for the node page's reason.
+  const kind: PageKind =
+    (wantsNode && node === null) || (requested === 'service' && service === null)
+      ? 'overview'
+      : requested;
 
   const slots: IRSchemaSlot[] =
     node !== null && kind === 'node'
@@ -1015,7 +1084,7 @@ export function buildPageModel(document: IRDocument, options: PageModelOptions):
   return {
     pageModelVersion: PAGE_MODEL_VERSION,
     kind,
-    frame: buildFrame(document, kind, node, schema, basePath),
+    frame: buildFrame(document, kind, node, schema, basePath, service),
     documentId: document.id,
     documentHash: document.hash,
     title: document.info.title,
@@ -1033,6 +1102,7 @@ export function buildPageModel(document: IRDocument, options: PageModelOptions):
     activeSchemaId: schema === null ? null : schema.id,
     node,
     schema,
+    service,
     schemas: payload.schemas,
     truncatedSchemas: truncated,
     health,
@@ -1049,5 +1119,6 @@ export type {
   ParameterModel,
   ResponseModel,
   SchemaPageModel,
+  ServicePageModel,
   StaticProxyModel,
 };
