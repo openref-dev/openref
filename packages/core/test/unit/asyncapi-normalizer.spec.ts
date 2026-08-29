@@ -68,17 +68,22 @@ function minimalDocument(overrides: Record<string, unknown> = {}): Record<string
 }
 
 /**
- * The four objects of a document writing all six members SPEC 8.2 records as unheld.
+ * The four objects of a document writing all six members `T048` recorded as unheld.
  *
  * They are named rather than inlined so the presence half of the proof can read each written
  * member off the fixture itself: `bindings` and `security` on the server, `reply`, `security` and
  * `tags` on the operation, and `tags` on the message.
  *
- * THE CHANNEL STILL WRITES `parameters`, WHICH IS NO LONGER ONE OF THEM. It was the seventh until
- * 2026-08-29, when the maintainer's ruling ahead of `T049` gave it `IRChannel.parameters`, and it
- * stays in this fixture on purpose: the pin below is exact equality on the whole channel, so a
- * normalizer that stopped carrying the block breaks a case here instead of quietly returning the
- * document to six held fields and seven lost ones.
+ * FOUR OF THE SIX ARE NO LONGER UNHELD, AND THE FIXTURE KEEPS WRITING ALL SIX FOR THAT REASON.
+ * `T049` measured the six on the event corpus and gave a carrier to the four the corpus writes and
+ * the maintainer's ruling authorised: `operations[].reply`, `operations[].tags`, `messages[].tags`
+ * and `servers[].bindings`. The two `security` members stay unheld until `T051`, which is where
+ * the growth of `IRSecuritySchemeType` was ruled to belong, and they are the ones the pins below
+ * prove absent. Everything else this fixture writes is now proved present by the same pins, so a
+ * normalizer that stopped carrying a member breaks a case here instead of silently taking the
+ * document back to two held fields and six lost ones.
+ *
+ * THE CHANNEL WRITES `parameters` FOR THE SAME REASON, since 2026-08-29.
  */
 function droppedFieldsParts() {
   const server = {
@@ -437,15 +442,17 @@ describe('normalizeAsyncApiDocument servers', () => {
     // When
     const [broker, websocket] = document.servers;
 
-    // Then, exactly these members and no others. The fixture's broker also declares a `kafka`
-    // server binding, and `IRServer` has nowhere to put one: the equality below is what keeps
-    // that gap recorded rather than invisible, and closing it is a change to a public type that
-    // `T048` did not authorise.
+    // Then, exactly these members and no others. The fixture's broker declares a `kafka` server
+    // binding, which `IRServer` had nowhere to put until `T049` measured the corpus writing one
+    // at three positions and the maintainer's ruling authorised the carrier. The equality below
+    // is what keeps the reading recorded rather than invisible, in both directions: the binding
+    // is carried verbatim, and nothing else has appeared beside it.
     expect(broker).toEqual({
       url: 'kafka://kafka.example.com:9092',
       protocol: 'kafka',
       protocolVersion: '3.5',
       description: 'production broker',
+      bindings: { kafka: { schemaRegistryUrl: 'https://registry.example.com' } },
     });
     expect(websocket?.url).toBe('wss://ws.example.com/events');
     expect(websocket?.variables).toEqual({
@@ -1280,17 +1287,336 @@ describe('normalizeAsyncApiDocument channel parameters', () => {
   });
 });
 
+/**
+ * A request-reply document: one channel takes the request, another carries the reply.
+ *
+ * Shaped after the corpus documents that write `reply`, which are Adeo's Kafka request-reply
+ * example, both Kraken WebSocket examples and EVerest's system API: every one of them names a
+ * second channel and four of the six EVerest replies also name an address expression.
+ */
+function requestReplyDocument(reply: unknown): Record<string, unknown> {
+  return {
+    asyncapi: '3.0.0',
+    info: { title: 'Costing', version: '1.0.0' },
+    channels: {
+      request: { address: 'costing/request', messages: { ask: { payload: { type: 'string' } } } },
+      response: {
+        address: 'costing/response',
+        messages: {
+          answer: { payload: { type: 'string' } },
+          failure: { payload: { type: 'string' } },
+        },
+      },
+    },
+    operations: {
+      askForCosting: { action: 'send', channel: { $ref: '#/channels/request' }, reply },
+    },
+  };
+}
+
+function replyOf(document: IRDocument): IRChannelOperation['reply'] {
+  return operationOf(channelById(document, 'channel-costing-request'), 'askForCosting').reply;
+}
+
+describe('normalizeAsyncApiDocument request and reply', () => {
+  it('should carry the reply channel as the node id of the channel the document names', () => {
+    // Given a reply naming the second channel and an address expression
+    const document = normalizeAsyncApiDocument(
+      requestReplyDocument({
+        channel: { $ref: '#/channels/response' },
+        address: { location: '$message.header#/REPLY_TOPIC', description: 'the consumer inbox' },
+      }),
+    );
+
+    // When
+    const reply = replyOf(document);
+
+    // Then the id is the reply channel's, not the operation's own, and the address is the
+    // `location` alone: its `description` is prose about the expression, which is the choice
+    // `correlationId` already records rather than a second one.
+    expect(reply).toEqual({
+      channelId: 'channel-costing-response',
+      address: '$message.header#/REPLY_TOPIC',
+    });
+    expect(channelById(document, 'channel-costing-response').id).toBe('channel-costing-response');
+  });
+
+  it('should read reply messages as local names inside the reply channel', () => {
+    // Given a reply naming two of the reply channel's messages, in the document's own order
+    const document = normalizeAsyncApiDocument(
+      requestReplyDocument({
+        channel: { $ref: '#/channels/response' },
+        messages: [
+          { $ref: '#/channels/response/messages/failure' },
+          { $ref: '#/channels/response/messages/answer' },
+        ],
+      }),
+    );
+
+    // When
+    const reply = replyOf(document);
+
+    // Then, and the ids are the reply channel's keys rather than the request channel's
+    expect(reply).toEqual({
+      channelId: 'channel-costing-response',
+      messageIds: ['failure', 'answer'],
+    });
+    expect(
+      channelById(document, 'channel-costing-response').messages.map((message) => message.id),
+    ).toEqual(['answer', 'failure']);
+  });
+
+  it('should leave reply messages absent rather than filling in every message of the channel', () => {
+    // Given a reply naming a channel and no message. AsyncAPI writes the "all messages of the
+    // channel" default on the Operation Object and does not write it on the Operation Reply
+    // Object, so the reply channel's two messages must not appear here.
+    const document = normalizeAsyncApiDocument(
+      requestReplyDocument({ channel: { $ref: '#/channels/response' } }),
+    );
+
+    // When
+    const reply = replyOf(document);
+
+    // Then, and the operation's own `messageIds` shows the default that does exist still applies
+    expect(reply).toEqual({ channelId: 'channel-costing-response' });
+    expect(
+      operationOf(channelById(document, 'channel-costing-request'), 'askForCosting').messageIds,
+    ).toEqual(['ask']);
+  });
+
+  it('should carry an empty reply, because it says the operation is one half of a pair', () => {
+    // Given
+    const document = normalizeAsyncApiDocument(requestReplyDocument({}));
+
+    // When
+    const reply = replyOf(document);
+
+    // Then, present and empty, which is not the same fact as absent
+    expect(reply).toEqual({});
+    expect(reply).toBeDefined();
+  });
+
+  it('should leave the reply absent on an operation that writes none', () => {
+    // Given, the control for the case above: the same document with the member removed
+    const document = normalizeAsyncApiDocument(requestReplyDocument(undefined));
+
+    // When
+    const reply = replyOf(document);
+
+    // Then
+    expect(reply).toBeUndefined();
+  });
+
+  it('should refuse a reply naming a channel this document does not list', () => {
+    // Given a reply pointing into components, which the root channels block never names
+    const act = (): IRDocument =>
+      normalizeAsyncApiDocument({
+        ...requestReplyDocument({ channel: { $ref: '#/components/channels/elsewhere' } }),
+        components: { channels: { elsewhere: { address: 'elsewhere' } } },
+      });
+
+    // When, Then
+    expect(act).toThrow(RefResolutionError);
+    expect(act).toThrow(/names no channel this document lists under channels/);
+  });
+
+  it('should refuse a reply message that belongs to another channel', () => {
+    // Given a reply on the response channel naming a message of the request channel
+    const act = (): IRDocument =>
+      normalizeAsyncApiDocument(
+        requestReplyDocument({
+          channel: { $ref: '#/channels/response' },
+          messages: [{ $ref: '#/channels/request/messages/ask' }],
+        }),
+      );
+
+    // When, Then
+    expect(act).toThrow(RefResolutionError);
+    expect(act).toThrow(/names no message of channel response/);
+  });
+
+  it('should refuse a reply that names messages and no channel to look them up in', () => {
+    // Given
+    const act = (): IRDocument =>
+      normalizeAsyncApiDocument(
+        requestReplyDocument({ messages: [{ $ref: '#/channels/response/messages/answer' }] }),
+      );
+
+    // When, Then
+    expect(act).toThrow(RefResolutionError);
+    expect(act).toThrow(/names messages but no channel/);
+  });
+});
+
+describe('normalizeAsyncApiDocument structural references identify a position', () => {
+  it('should read two channels that reference one message as two separate messages', () => {
+    // Given the shape the AsyncAPI Initiative's own streetlights examples use: one Message
+    // Object in components, referenced by two channels, and one operation per channel naming
+    // its own channel's copy. Until `T049` this was refused outright, because the resolved
+    // object is one object and the map from it to a position kept whichever channel was walked
+    // last, so the other channel's operation reported a message that "is not of" its channel.
+    const document = normalizeAsyncApiDocument({
+      asyncapi: '3.1.0',
+      info: { title: 'Streetlights', version: '1.0.0' },
+      channels: {
+        turnOff: {
+          address: 'lights/off',
+          messages: { off: { $ref: '#/components/messages/cmd' } },
+        },
+        turnOn: { address: 'lights/on', messages: { on: { $ref: '#/components/messages/cmd' } } },
+      },
+      operations: {
+        commandOff: {
+          action: 'send',
+          channel: { $ref: '#/channels/turnOff' },
+          messages: [{ $ref: '#/channels/turnOff/messages/off' }],
+        },
+        commandOn: {
+          action: 'send',
+          channel: { $ref: '#/channels/turnOn' },
+          messages: [{ $ref: '#/channels/turnOn/messages/on' }],
+        },
+      },
+      components: { messages: { cmd: { name: 'command', payload: { type: 'string' } } } },
+    });
+
+    // When, both channels are read
+    const off = channelById(document, 'channel-lights-off');
+    const on = channelById(document, 'channel-lights-on');
+
+    // Then each operation names the message of its own channel, and neither channel took the
+    // other's. The construction is asserted before the comparison: two channels, one operation
+    // and one message each.
+    expect([off.operations, on.operations].map((list) => list.length)).toEqual([1, 1]);
+    expect([off.messages, on.messages].map((list) => list.length)).toEqual([1, 1]);
+    expect(operationOf(off, 'commandOff').messageIds).toEqual(['off']);
+    expect(operationOf(on, 'commandOn').messageIds).toEqual(['on']);
+  });
+
+  it('should read two root channels that reference one definition as two separate channels', () => {
+    // Given one Channel Object in components under two root names, which is the same defect one
+    // level up: the object both names resolve to is one object.
+    const document = normalizeAsyncApiDocument({
+      asyncapi: '3.1.0',
+      info: { title: 'Shared', version: '1.0.0' },
+      channels: {
+        first: { $ref: '#/components/channels/shared' },
+        second: { $ref: '#/components/channels/shared' },
+      },
+      operations: {
+        onFirst: { action: 'receive', channel: { $ref: '#/channels/first' } },
+        onSecond: { action: 'send', channel: { $ref: '#/channels/second' } },
+      },
+      components: { channels: { shared: { address: 'shared', messages: { hello: {} } } } },
+    });
+
+    // When, the two channels the one definition produced
+    const [first, second] = [...document.nodes.values()].filter(
+      (node): node is IRChannel => node.kind === 'channel',
+    );
+
+    // Then each carries its own operation rather than both landing on one channel
+    expect(document.nodes.size).toBe(2);
+    expect(first?.operations.map((operation) => operation.id)).toEqual(['onFirst']);
+    expect(second?.operations.map((operation) => operation.id)).toEqual(['onSecond']);
+  });
+
+  it('should bind a channel that names one of two server names sharing one definition', () => {
+    // Given two server names sharing one definition, and a channel naming the first.
+    //
+    // WHAT THIS CASE CANNOT SEE, SAID RATHER THAN PASSED OVER. The same position rule was applied
+    // to the servers block, because the question there is the same one, but which of the two
+    // names the channel ends up bound to is not observable in today's IR: `IRServerOverride`
+    // carries a url and a description, both of which come from the shared definition, so `alpha`
+    // and `beta` produce byte identical overrides. So this case pins the shape and the count,
+    // which it can see, and states that it does not pin the name, which it cannot. The day an
+    // override carries anything derived from the name, the fact becomes visible and this case is
+    // where it goes. Unlike the two above, this one does not go red on the unfixed code, which
+    // was measured rather than assumed.
+    const document = normalizeAsyncApiDocument({
+      asyncapi: '3.1.0',
+      info: { title: 'Two names', version: '1.0.0' },
+      servers: {
+        alpha: { $ref: '#/components/servers/broker' },
+        beta: { $ref: '#/components/servers/broker' },
+      },
+      channels: {
+        ping: { address: 'ping', servers: [{ $ref: '#/servers/alpha' }] },
+      },
+      operations: {},
+      components: { servers: { broker: { host: 'b.example.com', protocol: 'mqtt' } } },
+    });
+
+    // When
+    const channel = channelById(document, 'channel-ping');
+
+    // Then the document has both names and the channel is bound to exactly one server, rather
+    // than to none, which is what a lookup that missed the position entirely would produce.
+    expect(document.servers).toHaveLength(2);
+    expect(channel.servers).toEqual([{ url: 'mqtt://b.example.com' }]);
+  });
+});
+
+describe('normalizeAsyncApiDocument tags on operations and messages', () => {
+  it('should carry the tag names of an operation and of a message', () => {
+    // Given
+    const document = normalizeAsyncApiDocument({
+      asyncapi: '3.1.0',
+      info: { title: 'Tagged', version: '1.0.0' },
+      channels: {
+        orders: {
+          address: 'orders',
+          messages: { placed: { tags: [{ name: 'public' }, { name: 'v2' }] } },
+        },
+      },
+      operations: {
+        publish: {
+          action: 'send',
+          channel: { $ref: '#/channels/orders' },
+          tags: [{ name: 'internal' }],
+        },
+      },
+    });
+
+    // When
+    const channel = channelById(document, 'channel-orders');
+
+    // Then, in the order the document wrote them
+    expect(operationOf(channel, 'publish').tags).toEqual(['internal']);
+    expect(messageOf(channel, 'placed').tags).toEqual(['public', 'v2']);
+  });
+
+  it('should leave tags absent where the document wrote none, unlike the channel that must answer', () => {
+    // Given the same document with both tag blocks removed
+    const document = normalizeAsyncApiDocument({
+      asyncapi: '3.1.0',
+      info: { title: 'Untagged', version: '1.0.0' },
+      channels: { orders: { address: 'orders', messages: { placed: {} } } },
+      operations: { publish: { action: 'send', channel: { $ref: '#/channels/orders' } } },
+    });
+
+    // When
+    const channel = channelById(document, 'channel-orders');
+
+    // Then absent on both, while the channel answers with the empty list its required member has
+    expect(operationOf(channel, 'publish').tags).toBeUndefined();
+    expect(messageOf(channel, 'placed').tags).toBeUndefined();
+    expect(channel.tags).toEqual([]);
+  });
+});
+
 describe('normalizeAsyncApiDocument fields the IR has nowhere to hold', () => {
   it('should produce exactly these members for a channel, its operation and its message', () => {
-    // Given, a document writing all six members SPEC 8.2 names as unheld. The absence proved
-    // below is worth nothing unless each of them was written, so each is read off the fixture
-    // first: a fixture that quietly stopped carrying one would otherwise prove that member gone
-    // from the IR by never having put it there.
+    // Given, a document writing all six members `T048` named as unheld. The absence proved below
+    // is worth nothing unless each of them was written, so each is read off the fixture first: a
+    // fixture that quietly stopped carrying one would otherwise prove that member gone from the
+    // IR by never having put it there.
     //
-    // `channel.parameters` IS ASSERTED HERE FOR THE OPPOSITE REASON, since 2026-08-29. It is the
-    // one member of the original seven that gained a carrier, so its presence in the fixture is
-    // the presence half of a survival rather than of an absence, and the pin below reads it back
-    // off the produced channel.
+    // FOUR OF THE SIX ARE ASSERTED HERE FOR THE OPPOSITE REASON, since `T049`, and so is
+    // `channel.parameters` since the ruling before it. `reply`, `operation.tags`, `message.tags`
+    // and `server.bindings` gained carriers on the corpus's showing, so their presence in the
+    // fixture is the presence half of a survival rather than of an absence, and the pins below
+    // read each one back off the produced node. Two remain absences: both `security` members.
     const parts = droppedFieldsParts();
     const written = [
       ...Object.keys(parts.server).map((key) => `server.${key}`),
@@ -1316,13 +1642,13 @@ describe('normalizeAsyncApiDocument fields the IR has nowhere to hold', () => {
     const operation = operationOf(channel, 'publishOrderPlaced');
     const message = messageOf(channel, 'placed');
 
-    // Then, exact equality on the whole of each produced node, which is what keeps the six
+    // Then, exact equality on the whole of each produced node, which is what keeps both lists
     // recorded: a future IR field, or a member this normalizer stops carrying, breaks a pin here
     // instead of passing in silence. `IRServer` is pinned the same way beside the broker fixture.
     // The channel writes no `servers` block and the document declares one broker, so per SPEC 8.2
     // it is on that broker: this pin held `servers: []` until 2026-08-29, which said the opposite
-    // to anyone reading the field on its own. `parameters` joined the pin the same day, when the
-    // maintainer's ruling gave the block a carrier ahead of `T049`.
+    // to anyone reading the field on its own. `parameters` joined the pin the same day, and
+    // `reply`, both `tags` and the server's `bindings` joined it at `T049`.
     expect(channel).toEqual({
       kind: 'channel',
       id: 'channel-orders-tenant',
@@ -1339,20 +1665,27 @@ describe('normalizeAsyncApiDocument fields the IR has nowhere to hold', () => {
       id: 'publishOrderPlaced',
       direction: 'send',
       messageIds: ['placed'],
+      reply: { channelId: 'channel-orders-tenant' },
+      tags: ['internal'],
     });
     expect(message).toEqual({
       id: 'placed',
       name: 'OrderPlaced',
       payload: { kind: 'named', schemaId: 'Order' },
+      tags: ['public'],
     });
     expect(document.servers).toEqual([
-      { url: 'kafka://kafka.example.com:9092', protocol: 'kafka' },
+      {
+        url: 'kafka://kafka.example.com:9092',
+        protocol: 'kafka',
+        bindings: { kafka: { schemaRegistryUrl: 'https://registry.example.com' } },
+      },
     ]);
   });
 
   it('should leave unreadKeys alone, because that field means an unread path item key', () => {
-    // Given, the same document, whose six unheld members are the loudest candidate this side
-    // has for the record SPEC 7.1 keeps on the OpenAPI side
+    // Given, the same document, whose two remaining unheld members are the loudest candidate
+    // this side has for the record SPEC 7.1 keeps on the OpenAPI side
     const document = normalizeAsyncApiDocument(droppedFieldsDocument());
 
     // When

@@ -114,6 +114,21 @@ export const FIXTURE_ROOTS: readonly FixtureRoot[] = [
     readsLicenseText: false,
     label: 'version(s)',
   },
+  // THE EVENT CORPUS IS A THIRD ROOT FOR A THIRD REASON. Every file of the first root is read by
+  // `normalizeOpenApiDocument` and every file of this one by `normalizeAsyncApiDocument`. One
+  // directory would need a per file switch naming the reader, and a document filed under the wrong
+  // reader would be refused rather than mis-read only by luck.
+  {
+    directory: 'packages/core/test/events-corpus',
+    producedBy: 'T049',
+    filesDirectory: 'documents',
+    noticeFile: 'NOTICE',
+    manifestKey: 'documents',
+    allowedLicenses: FIXTURE_ALLOWED_LICENSES,
+    extensions: ['.json', '.yaml', '.yml'],
+    readsLicenseText: false,
+    label: 'event document(s)',
+  },
   {
     directory: 'packages/theme/fonts',
     producedBy: 'the zone 4 work of 2026-08-10',
@@ -1810,13 +1825,26 @@ export const FEDERATION_SUITE_COVERAGE: readonly StaticCoverage[] = [
   {
     id: 'mixed-http-events',
     spec: 'смешанный HTTP+events',
-    files: ['packages/federation/test/unit/merged-document.spec.ts'],
+    files: [
+      'packages/federation/test/unit/merged-document.spec.ts',
+      // ADDED BY `T049`, AND IT IS THE HALF THE FIRST FILE CANNOT PROVE. That one hands the merge
+      // two fixtures whose `kind` the fixture builder wrote, which proves `mergeKind` and not the
+      // chain. This one starts from a real HTTP corpus document and a real event corpus document
+      // and normalizes both, which is the only way `kind: 'mixed'` is reached from bytes on disk:
+      // no specification format writes HTTP operations and channels together, so both normalizers
+      // answer with one kind each by construction and this merge is the sole producer of the third.
+      'packages/federation/test/integration/mixed-corpus.spec.ts',
+    ],
     cases: [
       // An HTTP service and an event service in one merge: ids, kind, and the address rule that
       // makes a topic stay a topic rather than become a path no broker has.
       'should prefix every node id with the id of its service',
       'should report the kind as mixed when the services do not agree',
       'should join a channel address that is not a path with a separator',
+      // And the same three questions asked of two documents this repository did not write.
+      'should report the merged kind as mixed, with both node kinds in one map',
+      'should keep the channel a channel, address, parameters, servers and all',
+      'should give one hash whichever order the two services are configured in',
     ],
   },
 ];

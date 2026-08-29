@@ -1,0 +1,79 @@
+{
+  "hash": "ec28bb674a64a9633952c8d5f61d3f7897fb7ee1e7d272ee1eb9e8ee24be054f",
+  "id": "account-service",
+  "info": {
+    "description": "This service is in charge of processing user signups",
+    "title": "Account Service",
+    "version": "1.0.0"
+  },
+  "kind": "events",
+  "navigation": [
+    {
+      "children": [
+        {
+          "children": [],
+          "id": "nav-channel-user-signedup",
+          "kind": "node",
+          "label": "user/signedup",
+          "nodeId": "channel-user-signedup"
+        }
+      ],
+      "id": "group-untagged",
+      "kind": "group",
+      "label": "Other"
+    }
+  ],
+  "nodes": [
+    [
+      "channel-user-signedup",
+      {
+        "address": "user/signedup",
+        "deprecated": false,
+        "id": "channel-user-signedup",
+        "kind": "channel",
+        "messages": [
+          {
+            "id": "UserSignedUp",
+            "payload": {
+              "kind": "inline",
+              "schema": {
+                "dialect": "asyncapi-schema",
+                "id": "channel-user-signedup.messages.UserSignedUp.payload",
+                "normalized": {
+                  "properties": {
+                    "displayName": {
+                      "description": "Name of the user",
+                      "type": "string"
+                    },
+                    "email": {
+                      "description": "Email of the user",
+                      "format": "email",
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            }
+          }
+        ],
+        "operations": [
+          {
+            "direction": "send",
+            "id": "sendUserSignedup",
+            "messageIds": [
+              "UserSignedUp"
+            ]
+          }
+        ],
+        "servers": [],
+        "tags": []
+      }
+    ]
+  ],
+  "relationships": [],
+  "schemas": [],
+  "security": [],
+  "servers": [],
+  "webhooks": []
+}

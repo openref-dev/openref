@@ -1,0 +1,230 @@
+{
+  "hash": "70a5efc3fa8560b642abd0f2f5b533224b32d1793f443c74273087c9ad2c79b6",
+  "id": "notifications",
+  "info": {
+    "description": "This contract defines HTTP Push notification for  application authorization revocation topic",
+    "title": "Notifications",
+    "version": "1.0.0"
+  },
+  "kind": "events",
+  "navigation": [
+    {
+      "children": [
+        {
+          "children": [],
+          "id": "nav-channel-authorization-revocation",
+          "kind": "node",
+          "label": "AUTHORIZATION_REVOCATION",
+          "nodeId": "channel-authorization-revocation"
+        }
+      ],
+      "id": "group-untagged",
+      "kind": "group",
+      "label": "Other"
+    },
+    {
+      "children": [
+        {
+          "children": [],
+          "id": "nav-schema-AuthorizationRevocationData",
+          "kind": "schema",
+          "label": "AuthorizationRevocationData",
+          "schemaId": "AuthorizationRevocationData"
+        },
+        {
+          "children": [],
+          "id": "nav-schema-MetaData",
+          "kind": "schema",
+          "label": "MetaData",
+          "schemaId": "MetaData"
+        },
+        {
+          "children": [],
+          "id": "nav-schema-Notification",
+          "kind": "schema",
+          "label": "Notification",
+          "schemaId": "Notification"
+        }
+      ],
+      "id": "group-schemas",
+      "kind": "group",
+      "label": "Schemas"
+    }
+  ],
+  "nodes": [
+    [
+      "channel-authorization-revocation",
+      {
+        "address": "AUTHORIZATION_REVOCATION",
+        "deprecated": false,
+        "id": "channel-authorization-revocation",
+        "kind": "channel",
+        "messages": [
+          {
+            "headers": {
+              "kind": "inline",
+              "schema": {
+                "dialect": "asyncapi-schema",
+                "id": "channel-authorization-revocation.messages.message.headers",
+                "normalized": {
+                  "properties": {
+                    "Content-Type": {
+                      "enum": [
+                        "application/json"
+                      ],
+                      "type": "string"
+                    },
+                    "X-SIGNATURE": {
+                      "description": "ECC message signature",
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "id": "message",
+            "payload": {
+              "kind": "inline",
+              "schema": {
+                "dialect": "asyncapi-schema",
+                "id": "channel-authorization-revocation.messages.message.payload",
+                "normalized": {
+                  "properties": {
+                    "metadata": {
+                      "$ref": "MetaData"
+                    },
+                    "notification": {
+                      "$ref": "Notification"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            }
+          }
+        ],
+        "operations": [
+          {
+            "bindings": {
+              "http": {
+                "method": "POST"
+              }
+            },
+            "direction": "send",
+            "id": "sendAuthRevoke",
+            "messageIds": [
+              "message"
+            ]
+          }
+        ],
+        "servers": [],
+        "tags": []
+      }
+    ]
+  ],
+  "relationships": [],
+  "schemas": [
+    [
+      "AuthorizationRevocationData",
+      {
+        "dialect": "asyncapi-schema",
+        "id": "AuthorizationRevocationData",
+        "name": "AuthorizationRevocationData",
+        "normalized": {
+          "description": "The Authorization Revocation payload.",
+          "properties": {
+            "eiasToken": {
+              "description": "The legacy eiasToken specific to the user",
+              "type": "string"
+            },
+            "revocationDate": {
+              "description": "Date and time when the authorization was revoked",
+              "type": "string"
+            },
+            "revokeReason": {
+              "description": "The reason for authorization revocation",
+              "enum": [
+                "REVOKED_BY_APP",
+                "REVOKED_BY_USER",
+                "REVOKED_BY_ADMIN",
+                "PASSWORD_CHANGE"
+              ],
+              "type": "string"
+            },
+            "userId": {
+              "description": "The immutable public userId for the user",
+              "type": "string"
+            },
+            "username": {
+              "description": "The username for the user.",
+              "type": "string"
+            }
+          },
+          "type": "object"
+        }
+      }
+    ],
+    [
+      "MetaData",
+      {
+        "dialect": "asyncapi-schema",
+        "id": "MetaData",
+        "name": "MetaData",
+        "normalized": {
+          "properties": {
+            "deprecated": {
+              "default": "false",
+              "description": "If this is a deprecated schema or topic.",
+              "type": "boolean"
+            },
+            "schemaVersion": {
+              "description": "The schema for this topic.",
+              "type": "string"
+            },
+            "topic": {
+              "description": "Topic subscribed to.",
+              "type": "string"
+            }
+          },
+          "type": "object"
+        }
+      }
+    ],
+    [
+      "Notification",
+      {
+        "dialect": "asyncapi-schema",
+        "id": "Notification",
+        "name": "Notification",
+        "normalized": {
+          "properties": {
+            "data": {
+              "$ref": "AuthorizationRevocationData"
+            },
+            "eventDate": {
+              "description": "The event date associated with this notification in UTC.",
+              "type": "string"
+            },
+            "notificationId": {
+              "description": "The notification Id.",
+              "type": "string"
+            },
+            "publishAttemptCount": {
+              "description": "The number of attempts made to publish this message.",
+              "type": "integer"
+            },
+            "publishDate": {
+              "description": "The message publish date in UTC.",
+              "type": "string"
+            }
+          },
+          "type": "object"
+        }
+      }
+    ]
+  ],
+  "security": [],
+  "servers": [],
+  "webhooks": []
+}

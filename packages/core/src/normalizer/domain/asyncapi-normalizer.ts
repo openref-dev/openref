@@ -6,6 +6,7 @@ import type {
   IRChannelDirection,
   IRChannelOperation,
   IRChannelParameter,
+  IRChannelReply,
   IRExample,
   IRMessage,
   IRNode,
@@ -107,7 +108,24 @@ interface Context extends SchemaContext {
 }
 
 /**
- * Follows a chain of `$ref` members to the object a structural reference names.
+ * Every object a structural reference stands on, and the value it finally names.
+ *
+ * THE CHAIN IS THE PART THAT MATTERS, AND KEEPING ONLY ITS LAST LINK IS A BUG THE EVENT CORPUS
+ * FOUND. Two channels may reference one Message Object in `components`, which the AsyncAPI
+ * Initiative's own streetlights examples do for `turnOnOff`, and then the resolved object is the
+ * same object for both channels. Identity of the target therefore does not identify a position,
+ * while identity of the link written at the position does, because a `$ref` wrapper is written
+ * once per position. See {@link positionOf}.
+ */
+interface ReferenceChain {
+  /** The objects walked, nearest first: the member as written, then each `$ref` it stands on. */
+  readonly chain: readonly object[];
+  /** What the last link names, which is not always an object. */
+  readonly value: unknown;
+}
+
+/**
+ * Walks a chain of `$ref` members to the value a structural reference names.
  *
  * IT TERMINATES BY CONSTRUCTION rather than by a depth counter: each hop records the object it
  * came from, and a document holds finitely many objects, so the walk either reaches something
@@ -121,17 +139,20 @@ interface Context extends SchemaContext {
  * @param context - The document being normalized
  * @param value - The member as written, which may or may not be a reference
  * @param where - What is being resolved, for the message a reader gets
- * @returns The object the reference names, or the value itself when it is not one
+ * @returns Every object stood on, and the value the last link names
  * @throws {RefResolutionError} When the reference leaves the document or resolves to nothing
  * @throws {CycleDepthError} When the chain of references returns to where it has been
  */
-function followReference(context: Context, value: unknown, where: string): unknown {
+function referenceChain(context: Context, value: unknown, where: string): ReferenceChain {
+  const chain: object[] = [];
   const visited = new Set<object>();
   let current = value;
 
   while (isPlainObject(current)) {
+    chain.push(current);
+
     const reference = asString(current.$ref);
-    if (reference === undefined) return current;
+    if (reference === undefined) return { chain, value: current };
 
     if (visited.has(current)) {
       throw new CycleDepthError(
@@ -157,7 +178,48 @@ function followReference(context: Context, value: unknown, where: string): unkno
     current = resolveJsonPointer(context.document, parsed.pointer);
   }
 
-  return current;
+  return { chain, value: current };
+}
+
+/**
+ * Follows a chain of `$ref` members to the object a structural reference names.
+ *
+ * @param context - The document being normalized
+ * @param value - The member as written, which may or may not be a reference
+ * @param where - What is being resolved, for the message a reader gets
+ * @returns The object the reference names, or the value itself when it is not one
+ * @throws {RefResolutionError} When the reference leaves the document or resolves to nothing
+ * @throws {CycleDepthError} When the chain of references returns to where it has been
+ */
+function followReference(context: Context, value: unknown, where: string): unknown {
+  return referenceChain(context, value, where).value;
+}
+
+/**
+ * The position a reference names, taken from the nearest link of its chain that is a known one.
+ *
+ * WHY NEAREST AND NOT LAST. `#/channels/lightTurnOff/messages/turnOff` resolves in two hops: the
+ * `$ref` wrapper written at that position, then the Message Object in `components` the wrapper
+ * points at. The wrapper belongs to exactly one channel; the Message Object may belong to several,
+ * and in the streetlights examples it belongs to two. Reading the last link asks "which channel
+ * holds this object", which has no single answer, and the map built from it kept whichever channel
+ * was walked last. Reading the nearest known link asks "which position was named", which is the
+ * question, and it has one answer.
+ *
+ * @param known - Positions by every object that identifies one, both wrappers and targets
+ * @param chain - The chain, nearest first
+ * @returns The position, or nothing when no link of the chain names one
+ */
+function positionOf<Position>(
+  known: ReadonlyMap<object, Position>,
+  chain: readonly object[],
+): Position | undefined {
+  for (const link of chain) {
+    const found = known.get(link);
+    if (found !== undefined) return found;
+  }
+
+  return undefined;
 }
 
 /**
@@ -293,6 +355,9 @@ function readAsyncApiServers(context: Context, raw: unknown): Map<string, IRServ
     const variables = readServerVariables(source.variables);
     if (variables !== undefined) server.variables = variables;
 
+    const bindings = readBindings(source.bindings);
+    if (bindings !== undefined) server.bindings = bindings;
+
     servers.set(name, server);
   }
 
@@ -304,6 +369,13 @@ interface RawChannel {
   /** The key the document files the channel under. */
   readonly key: string;
   readonly source: Record<string, unknown>;
+  /**
+   * The member as written at this position, before any `$ref` was followed.
+   *
+   * It identifies the position where {@link RawChannel.source} identifies only the target, which
+   * two positions may share. Absent when the document wrote something that is not an object.
+   */
+  readonly written: Record<string, unknown> | undefined;
   /** Node id, unique within the document. */
   readonly id: string;
   /** The channel's messages by the key its own `messages` map files them under. */
@@ -314,6 +386,8 @@ interface RawChannel {
 interface RawMessage {
   readonly key: string;
   readonly source: Record<string, unknown>;
+  /** The member as written at this position. See {@link RawChannel.written}. */
+  readonly written: Record<string, unknown> | undefined;
 }
 
 /**
@@ -337,9 +411,14 @@ function collectMessages(
 
   const messages: RawMessage[] = [];
   for (const name of Object.keys(raw).sort(compareByCodePoint)) {
-    const resolved = followReference(context, raw[name], `message ${name} of channel ${key}`);
+    const written = raw[name];
+    const resolved = followReference(context, written, `message ${name} of channel ${key}`);
     if (!isPlainObject(resolved)) continue;
-    messages.push({ key: name, source: resolved });
+    messages.push({
+      key: name,
+      source: resolved,
+      written: isPlainObject(written) ? written : undefined,
+    });
   }
 
   return messages;
@@ -456,8 +535,10 @@ function readMessage(context: Context, entry: RawMessage, channelId: string): IR
 
   const bindings = readBindings(source.bindings);
   const examples = readMessageExamples(source.examples);
+  const tags = readTagNames(source.tags);
   if (bindings !== undefined) message.bindings = bindings;
   if (examples !== undefined) message.examples = examples;
+  if (tags.length > 0) message.tags = tags;
 
   return message;
 }
@@ -513,10 +594,10 @@ function readChannelServers(
 
   for (const [index, entry] of raw.entries()) {
     const where = `server ${String(index)} of channel ${key}`;
-    const resolved = followReference(context, entry, where);
-    if (!isPlainObject(resolved)) continue;
+    const resolved = referenceChain(context, entry, where);
+    if (!isPlainObject(resolved.value)) continue;
 
-    const name = context.serverNames.get(resolved);
+    const name = positionOf(context.serverNames, resolved.chain);
     const server = name === undefined ? undefined : context.servers.get(name);
     if (server === undefined) {
       throw new RefResolutionError(
@@ -647,7 +728,8 @@ function collectChannels(context: Context, raw: unknown): RawChannel[] {
   const taken = new Set<string>();
 
   for (const key of Object.keys(raw).sort(compareByCodePoint)) {
-    const source = followReference(context, raw[key], `channel ${key}`);
+    const written = raw[key];
+    const source = followReference(context, written, `channel ${key}`);
     if (!isPlainObject(source)) continue;
 
     const derived = `${CHANNEL_ID_PREFIX}${pathSlug(asString(source.address) ?? key)}`;
@@ -659,10 +741,62 @@ function collectChannels(context: Context, raw: unknown): RawChannel[] {
     }
     taken.add(id);
 
-    channels.push({ key, source, id, messages: collectMessages(context, source, key) });
+    channels.push({
+      key,
+      source,
+      written: isPlainObject(written) ? written : undefined,
+      id,
+      messages: collectMessages(context, source, key),
+    });
   }
 
   return channels;
+}
+
+/** Where a message lives: the channel's key, and its key inside that channel. */
+interface MessagePosition {
+  readonly channel: string;
+  readonly message: string;
+}
+
+/** Every object that identifies a channel position or a message position, and which one. */
+interface Positions {
+  readonly channelKeys: ReadonlyMap<object, string>;
+  readonly messageKeys: ReadonlyMap<object, MessagePosition>;
+}
+
+/**
+ * Indexes every channel and message by both the object written at its position and the object that
+ * position resolves to.
+ *
+ * THE WRITTEN LINK IS REGISTERED SECOND, SO IT WINS. A target may be shared between positions and a
+ * written `$ref` wrapper may not, so where the two disagree the wrapper is the one that answers.
+ * The target stays in the map because a document may name a channel's only message through the
+ * Components Object directly, and dropping the entry would refuse a document that resolves.
+ *
+ * @param channels - The channels, already collected
+ * @returns The two maps {@link positionOf} is read against
+ */
+function positionsOf(channels: readonly RawChannel[]): Positions {
+  const channelKeys = new Map<object, string>();
+  const messageKeys = new Map<object, MessagePosition>();
+
+  for (const channel of channels) {
+    channelKeys.set(channel.source, channel.key);
+    for (const message of channel.messages) {
+      messageKeys.set(message.source, { channel: channel.key, message: message.key });
+    }
+  }
+
+  for (const channel of channels) {
+    if (channel.written !== undefined) channelKeys.set(channel.written, channel.key);
+    for (const message of channel.messages) {
+      if (message.written === undefined) continue;
+      messageKeys.set(message.written, { channel: channel.key, message: message.key });
+    }
+  }
+
+  return { channelKeys, messageKeys };
 }
 
 /**
@@ -671,10 +805,10 @@ function collectChannels(context: Context, raw: unknown): RawChannel[] {
  * FAIL CLOSED ON BOTH REQUIRED MEMBERS. `action` has two legal values and `channel` has to point
  * at a channel this document lists, so an operation missing either is not a malformed optional
  * member to skip past: it is an operation that would leave the reference with nothing anywhere
- * recording that the document had it. The channel is matched by the object a reference resolves
- * to rather than by the text of the pointer, so a document that reaches its channel through
- * `#/components/channels/...` is read correctly as long as the root `channels` block names the
- * same object.
+ * recording that the document had it. The channel is matched by the nearest link of the reference
+ * chain that names a position, per {@link positionOf}, so a document that reaches its channel
+ * through `#/components/channels/...` is read correctly as long as the root `channels` block names
+ * the same object, and two root channels sharing one definition still answer for themselves.
  *
  * @param context - The document being normalized
  * @param raw - The `operations` member, untrusted
@@ -693,14 +827,8 @@ function collectChannelOperations(
 
   if (!isPlainObject(raw)) return byChannel;
 
-  const channelKeys = new Map<object, string>();
-  const messageKeys = new Map<object, { readonly channel: string; readonly message: string }>();
-  for (const channel of channels) {
-    channelKeys.set(channel.source, channel.key);
-    for (const message of channel.messages) {
-      messageKeys.set(message.source, { channel: channel.key, message: message.key });
-    }
-  }
+  const positions = positionsOf(channels);
+  const { channelKeys, messageKeys } = positions;
 
   for (const key of Object.keys(raw).sort(compareByCodePoint)) {
     const resolved = followReference(context, raw[key], `operation ${key}`);
@@ -716,8 +844,8 @@ function collectChannelOperations(
       );
     }
 
-    const target = followReference(context, source.channel, `the channel of operation ${key}`);
-    const channelKey = isPlainObject(target) ? channelKeys.get(target) : undefined;
+    const target = referenceChain(context, source.channel, `the channel of operation ${key}`);
+    const channelKey = positionOf(channelKeys, target.chain);
     if (channelKey === undefined) {
       throw new RefResolutionError(
         `operation ${key} names no channel this document lists under channels`,
@@ -744,14 +872,134 @@ function collectChannelOperations(
     const summary = asString(source.summary);
     const description = asString(source.description);
     const bindings = readBindings(source.bindings);
+    const reply = readOperationReply(context, source.reply, key, channels, positions);
+    const tags = readTagNames(source.tags);
     if (summary !== undefined) operation.summary = summary;
     if (description !== undefined) operation.description = description;
     if (bindings !== undefined) operation.bindings = bindings;
+    if (reply !== undefined) operation.reply = reply;
+    if (tags.length > 0) operation.tags = tags;
 
     byChannel.get(channelKey)?.push(operation);
   }
 
   return byChannel;
+}
+
+/**
+ * Reads the Operation Reply Object, which is the other half of a request-reply pair.
+ *
+ * THE CARRIER EXISTS BECAUSE THE CORPUS WRITES IT, per SPEC 8.2 and the maintainer's ruling of
+ * 2026-08-29: 13 positions across four of the 23 event corpus documents, the most written of the
+ * six members `T048` had nowhere to put.
+ *
+ * FAIL CLOSED ON A REPLY THAT POINTS NOWHERE, by the rule the operation's own channel already
+ * follows. A reply naming a channel this document does not list, or a message that is not of the
+ * channel the reply names, is half a request-reply pair with the other half missing, and carrying
+ * it would print a page whose reply link resolves to nothing.
+ *
+ * AN EMPTY REPLY IS CARRIED AS THE EMPTY RECORD. `reply: {}` says the operation is one half of a
+ * request-reply pair, which is a fact that an operation with no `reply` at all does not carry.
+ *
+ * @param context - The document being normalized
+ * @param raw - The operation's `reply` member, untrusted
+ * @param key - The operation's key, for the message a reader gets
+ * @param channels - The channels, already collected, for the reply channel's node id
+ * @param positions - Every object that names a channel position or a message position
+ * @returns The reply, or nothing when the operation wrote none
+ * @throws {RefResolutionError} When the reply names a channel or a message that is not there
+ */
+function readOperationReply(
+  context: Context,
+  raw: unknown,
+  key: string,
+  channels: readonly RawChannel[],
+  positions: Positions,
+): IRChannelReply | undefined {
+  const source = followReference(context, raw, `the reply of operation ${key}`);
+  if (!isPlainObject(source)) return undefined;
+
+  const reply: Draft<IRChannelReply> = {};
+  let replyChannel: RawChannel | undefined;
+
+  if (source.channel !== undefined) {
+    const where = `the reply channel of operation ${key}`;
+    const channelKey = positionOf(
+      positions.channelKeys,
+      referenceChain(context, source.channel, where).chain,
+    );
+    if (channelKey === undefined) {
+      throw new RefResolutionError(
+        `${where} names no channel this document lists under channels`,
+        ErrorCode.NORM_REF_UNRESOLVED,
+        undefined,
+        { operation: key },
+      );
+    }
+    replyChannel = channels.find((candidate) => candidate.key === channelKey);
+    if (replyChannel !== undefined) reply.channelId = replyChannel.id;
+  }
+
+  if (isUnknownArray(source.messages)) {
+    reply.messageIds = readReplyMessageIds(context, source.messages, key, replyChannel, positions);
+    if (reply.messageIds.length === 0) delete reply.messageIds;
+  }
+
+  const address = followReference(context, source.address, `the reply address of operation ${key}`);
+  if (isPlainObject(address)) {
+    const location = asString(address.location);
+    if (location !== undefined) reply.address = location;
+  }
+
+  return reply;
+}
+
+/**
+ * The messages a reply carries, as ids local to the reply's own channel.
+ *
+ * @param context - The document being normalized
+ * @param raw - The reply's `messages` member, known to be an array
+ * @param key - The operation's key, for the message a reader gets
+ * @param replyChannel - The channel the reply names, absent when it named none
+ * @param positions - Every object that names a message position
+ * @returns The message ids, in the order the reply wrote them
+ * @throws {RefResolutionError} When the reply names messages but no channel, or a foreign message
+ */
+function readReplyMessageIds(
+  context: Context,
+  raw: readonly unknown[],
+  key: string,
+  replyChannel: RawChannel | undefined,
+  positions: Positions,
+): string[] {
+  if (replyChannel === undefined) {
+    throw new RefResolutionError(
+      `the reply of operation ${key} names messages but no channel, and a reply message is a ` +
+        'local name inside the channel the reply is on',
+      ErrorCode.NORM_REF_UNRESOLVED,
+      undefined,
+      { operation: key },
+    );
+  }
+
+  const ids: string[] = [];
+  for (const [index, entry] of raw.entries()) {
+    const where = `reply message ${String(index)} of operation ${key}`;
+    const found = positionOf(positions.messageKeys, referenceChain(context, entry, where).chain);
+
+    if (found?.channel !== replyChannel.key) {
+      throw new RefResolutionError(
+        `${where} names no message of channel ${replyChannel.key}`,
+        ErrorCode.NORM_REF_UNRESOLVED,
+        undefined,
+        { operation: key, channel: replyChannel.key, index },
+      );
+    }
+
+    if (!ids.includes(found.message)) ids.push(found.message);
+  }
+
+  return ids;
 }
 
 /**
@@ -767,7 +1015,7 @@ function collectChannelOperations(
  * @param key - The operation's key, for the message a reader gets
  * @param channelKey - Key of the channel the operation is on
  * @param messages - That channel's messages
- * @param messageKeys - Every message of every channel, by the object it resolves to
+ * @param messageKeys - Every message of every channel, by every object that names its position
  * @returns The message ids, in the order the operation wrote them
  * @throws {RefResolutionError} When a reference names no message of that channel
  */
@@ -777,15 +1025,14 @@ function readOperationMessageIds(
   key: string,
   channelKey: string,
   messages: readonly RawMessage[],
-  messageKeys: ReadonlyMap<object, { readonly channel: string; readonly message: string }>,
+  messageKeys: ReadonlyMap<object, MessagePosition>,
 ): string[] {
   if (!isUnknownArray(raw)) return messages.map((message) => message.key);
 
   const ids: string[] = [];
   for (const [index, entry] of raw.entries()) {
     const where = `message ${String(index)} of operation ${key}`;
-    const resolved = followReference(context, entry, where);
-    const found = isPlainObject(resolved) ? messageKeys.get(resolved) : undefined;
+    const found = positionOf(messageKeys, referenceChain(context, entry, where).chain);
 
     if (found?.channel !== channelKey) {
       throw new RefResolutionError(
@@ -990,14 +1237,20 @@ export function normalizeAsyncApiDocument(
   // The server map is filled in place, because a channel resolves a reference to a server and
   // has to find the entry this walk produced, and both are members of one context.
   const rawServers = isPlainObject(input.servers) ? input.servers : undefined;
+  const writtenServers: [Record<string, unknown>, string][] = [];
   for (const [name, server] of readAsyncApiServers(context, input.servers)) {
     servers.set(name, server);
-    const source =
-      rawServers === undefined
-        ? undefined
-        : followReference(context, rawServers[name], `server ${name}`);
-    if (isPlainObject(source)) serverNames.set(source, name);
+    if (rawServers === undefined) continue;
+
+    const written = rawServers[name];
+    const chain = referenceChain(context, written, `server ${name}`);
+    if (isPlainObject(chain.value)) serverNames.set(chain.value, name);
+    if (isPlainObject(written)) writtenServers.push([written, name]);
   }
+  // Second, so that a `$ref` wrapper beats the definition it points at when two names share one.
+  // The reason is {@link positionOf}'s, and the servers block asks the same question the channels
+  // block does: which name was written here, not which object does this name end at.
+  for (const [written, name] of writtenServers) serverNames.set(written, name);
 
   const rawChannels = collectChannels(context, input.channels);
   const operations = collectChannelOperations(context, input.operations, rawChannels);

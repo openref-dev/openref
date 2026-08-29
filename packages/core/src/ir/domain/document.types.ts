@@ -56,6 +56,14 @@ export interface IRServer {
   readonly protocol?: string;
   readonly protocolVersion?: string;
   readonly variables?: Readonly<Record<string, IRServerVariable>>;
+  /**
+   * Protocol bindings of the server, kept verbatim, keyed by protocol name, per SPEC 8.2.
+   *
+   * ADDITIVE AND OPTIONAL, added 2026-08-29 at `T049` on the event corpus's showing. OpenAPI's
+   * Server Object declares no such member, so an HTTP document leaves this absent always, and
+   * that absence is the absence of a subject rather than something lost on the way in.
+   */
+  readonly bindings?: Readonly<Record<string, IRJsonValue>>;
 }
 
 /** What a navigation entry points at. */

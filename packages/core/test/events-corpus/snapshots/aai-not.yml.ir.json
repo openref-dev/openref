@@ -1,0 +1,94 @@
+{
+  "hash": "6e5ab50a8402cc495589db8c7d89fa574c634d33742c6c35ff44d86095c42ee7",
+  "id": "not-example",
+  "info": {
+    "title": "Not example",
+    "version": "1.0.0"
+  },
+  "kind": "events",
+  "navigation": [
+    {
+      "children": [
+        {
+          "children": [],
+          "id": "nav-channel-test",
+          "kind": "node",
+          "label": "test",
+          "nodeId": "channel-test"
+        }
+      ],
+      "id": "group-untagged",
+      "kind": "group",
+      "label": "Other"
+    },
+    {
+      "children": [
+        {
+          "children": [],
+          "id": "nav-schema-testSchema",
+          "kind": "schema",
+          "label": "testSchema",
+          "schemaId": "testSchema"
+        }
+      ],
+      "id": "group-schemas",
+      "kind": "group",
+      "label": "Schemas"
+    }
+  ],
+  "nodes": [
+    [
+      "channel-test",
+      {
+        "address": "test",
+        "deprecated": false,
+        "id": "channel-test",
+        "kind": "channel",
+        "messages": [
+          {
+            "id": "testMessages",
+            "payload": {
+              "kind": "named",
+              "schemaId": "testSchema"
+            }
+          }
+        ],
+        "operations": [
+          {
+            "direction": "receive",
+            "id": "onTestMsg",
+            "messageIds": [
+              "testMessages"
+            ]
+          }
+        ],
+        "servers": [],
+        "tags": []
+      }
+    ]
+  ],
+  "relationships": [],
+  "schemas": [
+    [
+      "testSchema",
+      {
+        "dialect": "asyncapi-schema",
+        "id": "testSchema",
+        "name": "testSchema",
+        "normalized": {
+          "properties": {
+            "key": {
+              "not": {
+                "type": "integer"
+              }
+            }
+          },
+          "type": "object"
+        }
+      }
+    ]
+  ],
+  "security": [],
+  "servers": [],
+  "webhooks": []
+}

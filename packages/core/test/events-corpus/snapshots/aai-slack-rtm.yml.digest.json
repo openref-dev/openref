@@ -1,0 +1,30 @@
+{
+  "hash": "d8d699fd6b00c792a403ac263bb6c03855f4f729ae505350265464b074e2796b",
+  "id": "slack-real-time-messaging-api",
+  "kind": "events",
+  "info": {
+    "title": "Slack Real Time Messaging API",
+    "version": "1.0.0"
+  },
+  "counts": {
+    "nodes": 1,
+    "schemas": 1,
+    "servers": 1,
+    "operations": 2,
+    "messages": 47,
+    "navigation": 2
+  },
+  "protocols": [
+    "https"
+  ],
+  "navigation": [
+    "group Other (1)",
+    "group Schemas (1)"
+  ],
+  "nodes": [
+    "channel-root"
+  ],
+  "schemas": [
+    "attachment asyncapi-schema f7a29f2939dab507"
+  ]
+}

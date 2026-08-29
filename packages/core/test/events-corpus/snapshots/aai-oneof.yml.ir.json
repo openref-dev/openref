@@ -1,0 +1,186 @@
+{
+  "hash": "ff96c01d9d2431538511451012749852d697e0377a116a0936392c7b1d674a0c",
+  "id": "oneof-example",
+  "info": {
+    "title": "OneOf example",
+    "version": "1.0.0"
+  },
+  "kind": "events",
+  "navigation": [
+    {
+      "children": [
+        {
+          "children": [],
+          "id": "nav-channel-test",
+          "kind": "node",
+          "label": "test",
+          "nodeId": "channel-test"
+        },
+        {
+          "children": [],
+          "id": "nav-channel-test2",
+          "kind": "node",
+          "label": "test2",
+          "nodeId": "channel-test2"
+        }
+      ],
+      "id": "group-untagged",
+      "kind": "group",
+      "label": "Other"
+    },
+    {
+      "children": [
+        {
+          "children": [],
+          "id": "nav-schema-objectWithKey",
+          "kind": "schema",
+          "label": "objectWithKey",
+          "schemaId": "objectWithKey"
+        },
+        {
+          "children": [],
+          "id": "nav-schema-objectWithKey2",
+          "kind": "schema",
+          "label": "objectWithKey2",
+          "schemaId": "objectWithKey2"
+        }
+      ],
+      "id": "group-schemas",
+      "kind": "group",
+      "label": "Schemas"
+    }
+  ],
+  "nodes": [
+    [
+      "channel-test",
+      {
+        "address": "test",
+        "deprecated": false,
+        "id": "channel-test",
+        "kind": "channel",
+        "messages": [
+          {
+            "id": "testMessages",
+            "payload": {
+              "kind": "inline",
+              "schema": {
+                "dialect": "asyncapi-schema",
+                "id": "channel-test.messages.testMessages.payload",
+                "normalized": {
+                  "oneOf": [
+                    {
+                      "$ref": "objectWithKey"
+                    },
+                    {
+                      "$ref": "objectWithKey2"
+                    }
+                  ],
+                  "variants": [
+                    {
+                      "label": "objectWithKey",
+                      "schema": {
+                        "$ref": "objectWithKey"
+                      }
+                    },
+                    {
+                      "label": "objectWithKey2",
+                      "schema": {
+                        "$ref": "objectWithKey2"
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        ],
+        "operations": [
+          {
+            "direction": "receive",
+            "id": "onTestMsg",
+            "messageIds": [
+              "testMessages"
+            ]
+          }
+        ],
+        "servers": [],
+        "tags": []
+      }
+    ],
+    [
+      "channel-test2",
+      {
+        "address": "test2",
+        "deprecated": false,
+        "id": "channel-test2",
+        "kind": "channel",
+        "messages": [
+          {
+            "id": "objectWithKey",
+            "payload": {
+              "kind": "named",
+              "schemaId": "objectWithKey"
+            }
+          },
+          {
+            "id": "objectWithKey2",
+            "payload": {
+              "kind": "named",
+              "schemaId": "objectWithKey2"
+            }
+          }
+        ],
+        "operations": [
+          {
+            "direction": "send",
+            "id": "sendTest",
+            "messageIds": [
+              "objectWithKey",
+              "objectWithKey2"
+            ]
+          }
+        ],
+        "servers": [],
+        "tags": []
+      }
+    ]
+  ],
+  "relationships": [],
+  "schemas": [
+    [
+      "objectWithKey",
+      {
+        "dialect": "asyncapi-schema",
+        "id": "objectWithKey",
+        "name": "objectWithKey",
+        "normalized": {
+          "properties": {
+            "key": {
+              "type": "string"
+            }
+          },
+          "type": "object"
+        }
+      }
+    ],
+    [
+      "objectWithKey2",
+      {
+        "dialect": "asyncapi-schema",
+        "id": "objectWithKey2",
+        "name": "objectWithKey2",
+        "normalized": {
+          "properties": {
+            "key2": {
+              "type": "string"
+            }
+          },
+          "type": "object"
+        }
+      }
+    ]
+  ],
+  "security": [],
+  "servers": [],
+  "webhooks": []
+}

@@ -1,0 +1,193 @@
+NOTICE - third party AsyncAPI documents
+=======================================
+
+This directory holds AsyncAPI documents written by other people. They are vendored
+here as test fixtures for the OPENREF event corpus, per SPEC 21 and BUILD T049.
+Nothing here is part of any published OPENREF package: these files do not ship in a
+tarball, are not linked into any consumer's code, and carry no obligation into it.
+
+It is a second corpus root beside `packages/core/test/corpus` rather than more
+documents inside it, for the reason the version history is a third: every file in the
+HTTP corpus is normalized by `normalizeOpenApiDocument` and every file here by
+`normalizeAsyncApiDocument`, so one directory would need a per file switch that says
+which reader to use, and a document filed under the wrong reader would be refused
+rather than mis-read only by luck.
+
+This NOTICE exists because attribution has to travel with the material. `manifest.json`
+next to it carries the same facts in machine readable form, and the license gate checks
+that the two agree. A manifest line detaches the moment a file is copied out of this
+directory on its own; a NOTICE in the directory does not.
+
+Each document below is listed with its source, the date it was retrieved, its license,
+its copyright holder, and whether OPENREF modified it. The documents are unmodified.
+OPENREF claims no copyright in any of them, and their licenses are not changed by their
+presence here. File names are OPENREF's, because two publishers use the same words for
+different documents; the `source` line of each entry is the file as it stands upstream.
+
+Apache-2.0
+----------
+
+Copyright holder: Christian Rowlands
+License text:     https://www.apache.org/licenses/LICENSE-2.0
+
+  documents/network-survey-messaging.yaml
+      Network Survey Messaging API, the large document
+      source:    https://raw.githubusercontent.com/christianrowlands/network-survey-messaging/develop/src/main/asyncapi/network_survey_messaging.yaml
+      retrieved: 2026-08-29
+      modified:  no
+
+Apache-2.0
+----------
+
+Copyright holder: Pionix GmbH and the EVerest contributors
+License text:     https://www.apache.org/licenses/LICENSE-2.0
+
+  documents/everest-system-api.yaml
+      EVerest system API, MQTT with request reply
+      source:    https://raw.githubusercontent.com/EVerest/EVerest/main/docs/source/reference/EVerest_API/system_API.yaml
+      retrieved: 2026-08-29
+      modified:  no
+
+Apache-2.0
+----------
+
+Copyright holder: The AsyncAPI Initiative
+License text:     https://www.apache.org/licenses/LICENSE-2.0
+
+  documents/aai-adeo-kafka-request-reply.yml
+      AsyncAPI, Adeo Kafka request reply
+      source:    https://raw.githubusercontent.com/asyncapi/spec/master/examples/adeo-kafka-request-reply-asyncapi.yml
+      retrieved: 2026-08-29
+      modified:  no
+
+  documents/aai-anyof.yml
+      AsyncAPI, anyOf payload
+      source:    https://raw.githubusercontent.com/asyncapi/spec/master/examples/anyof-asyncapi.yml
+      retrieved: 2026-08-29
+      modified:  no
+
+  documents/aai-application-headers.yml
+      AsyncAPI, MQTT application headers
+      source:    https://raw.githubusercontent.com/asyncapi/spec/master/examples/application-headers-asyncapi.yml
+      retrieved: 2026-08-29
+      modified:  no
+
+  documents/aai-correlation-id.yml
+      AsyncAPI, correlation id
+      source:    https://raw.githubusercontent.com/asyncapi/spec/master/examples/correlation-id-asyncapi.yml
+      retrieved: 2026-08-29
+      modified:  no
+
+  documents/aai-gitter-streaming.yml
+      AsyncAPI, Gitter streaming API
+      source:    https://raw.githubusercontent.com/asyncapi/spec/master/examples/gitter-streaming-asyncapi.yml
+      retrieved: 2026-08-29
+      modified:  no
+
+  documents/aai-kraken-websocket-reply-channels.yml
+      AsyncAPI, Kraken WebSocket request reply over several channels
+      source:    https://raw.githubusercontent.com/asyncapi/spec/master/examples/kraken-websocket-request-reply-multiple-channels-asyncapi.yml
+      retrieved: 2026-08-29
+      modified:  no
+
+  documents/aai-kraken-websocket-reply-filter.yml
+      AsyncAPI, Kraken WebSocket request reply with a message filter
+      source:    https://raw.githubusercontent.com/asyncapi/spec/master/examples/kraken-websocket-request-reply-message-filter-in-reply-asyncapi.yml
+      retrieved: 2026-08-29
+      modified:  no
+
+  documents/aai-mercure.yml
+      AsyncAPI, Mercure hub
+      source:    https://raw.githubusercontent.com/asyncapi/spec/master/examples/mercure-asyncapi.yml
+      retrieved: 2026-08-29
+      modified:  no
+
+  documents/aai-not.yml
+      AsyncAPI, not payload
+      source:    https://raw.githubusercontent.com/asyncapi/spec/master/examples/not-asyncapi.yml
+      retrieved: 2026-08-29
+      modified:  no
+
+  documents/aai-oneof.yml
+      AsyncAPI, oneOf payload
+      source:    https://raw.githubusercontent.com/asyncapi/spec/master/examples/oneof-asyncapi.yml
+      retrieved: 2026-08-29
+      modified:  no
+
+  documents/aai-operation-security.yml
+      AsyncAPI, operation level security
+      source:    https://raw.githubusercontent.com/asyncapi/spec/master/examples/operation-security-asyncapi.yml
+      retrieved: 2026-08-29
+      modified:  no
+
+  documents/aai-rpc-client.yml
+      AsyncAPI, AMQP rpc client
+      source:    https://raw.githubusercontent.com/asyncapi/spec/master/examples/rpc-client-asyncapi.yml
+      retrieved: 2026-08-29
+      modified:  no
+
+  documents/aai-rpc-server.yml
+      AsyncAPI, AMQP rpc server
+      source:    https://raw.githubusercontent.com/asyncapi/spec/master/examples/rpc-server-asyncapi.yml
+      retrieved: 2026-08-29
+      modified:  no
+
+  documents/aai-simple.yml
+      AsyncAPI, the smallest document
+      source:    https://raw.githubusercontent.com/asyncapi/spec/master/examples/simple-asyncapi.yml
+      retrieved: 2026-08-29
+      modified:  no
+
+  documents/aai-slack-rtm.yml
+      AsyncAPI, Slack RTM API
+      source:    https://raw.githubusercontent.com/asyncapi/spec/master/examples/slack-rtm-asyncapi.yml
+      retrieved: 2026-08-29
+      modified:  no
+
+  documents/aai-streetlights-kafka.yml
+      AsyncAPI, Streetlights over Kafka
+      source:    https://raw.githubusercontent.com/asyncapi/spec/master/examples/streetlights-kafka-asyncapi.yml
+      retrieved: 2026-08-29
+      modified:  no
+
+  documents/aai-streetlights-mqtt.yml
+      AsyncAPI, Streetlights over MQTT
+      source:    https://raw.githubusercontent.com/asyncapi/spec/master/examples/streetlights-mqtt-asyncapi.yml
+      retrieved: 2026-08-29
+      modified:  no
+
+  documents/aai-streetlights-operation-security.yml
+      AsyncAPI, Streetlights with operation security
+      source:    https://raw.githubusercontent.com/asyncapi/spec/master/examples/streetlights-operation-security-asyncapi.yml
+      retrieved: 2026-08-29
+      modified:  no
+
+  documents/aai-websocket-gemini.yml
+      AsyncAPI, Gemini WebSocket market data
+      source:    https://raw.githubusercontent.com/asyncapi/spec/master/examples/websocket-gemini-asyncapi.yml
+      retrieved: 2026-08-29
+      modified:  no
+
+Apache-2.0
+----------
+
+Copyright holder: TransferGo, via the AsyncAPI Initiative case studies
+License text:     https://www.apache.org/licenses/LICENSE-2.0
+
+  documents/transfergo-remittance.yaml
+      TransferGo remittance event bus
+      source:    https://raw.githubusercontent.com/asyncapi/website/master/public/resources/casestudies/transfergo/asyncapi.yaml
+      retrieved: 2026-08-29
+      modified:  no
+
+MIT
+---
+
+Copyright holder: Scalar GmbH
+License text:     https://opensource.org/license/mit
+
+  documents/scalar-multi-protocol.yaml
+      Scalar, one document over three protocols
+      source:    https://raw.githubusercontent.com/scalar/scalar/main/packages/api-reference/public/examples/asyncapi-filters.yaml
+      retrieved: 2026-08-29
+      modified:  no

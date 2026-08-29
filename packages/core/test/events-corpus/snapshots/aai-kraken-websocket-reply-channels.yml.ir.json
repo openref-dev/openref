@@ -1,0 +1,1048 @@
+{
+  "hash": "56e108a38465f4af5d09160900749572e3faf5e4daa32cc9f414b31edb3ad649",
+  "id": "kraken-websockets-api",
+  "info": {
+    "description": "WebSockets API offers real-time market data updates. WebSockets is a bidirectional protocol offering fastest real-time data, helping you build real-time applications. The public message types presented below do not require authentication. Private-data messages can be subscribed on a separate authenticated endpoint. \n\n### General Considerations\n\n- TLS with SNI (Server Name Indication) is required in order to establish a Kraken WebSockets API connection. See Cloudflare's [What is SNI?](https://www.cloudflare.com/learning/ssl/what-is-sni/) guide for more details.\n- All messages sent and received via WebSockets are encoded in JSON format\n- All decimal fields (including timestamps) are quoted to preserve precision.\n- Timestamps should not be considered unique and not be considered as aliases for transaction IDs. Also, the granularity of timestamps is not representative of transaction rates.\n- At least one private message should be subscribed to keep the authenticated client connection open.\n- Please use REST API endpoint [AssetPairs](https://www.kraken.com/features/api#get-tradable-pairs) to fetch the list of pairs which can be subscribed via WebSockets API. For example, field 'wsname' gives the supported pairs name which can be used to subscribe.\n- Cloudflare imposes a connection/re-connection rate limit (per IP address) of approximately 150 attempts per rolling 10 minutes. If this is exceeded, the IP is banned for 10 minutes.\n- Recommended reconnection behaviour is to (1) attempt reconnection instantly up to a handful of times if the websocket is dropped randomly during normal operation but (2) after maintenance or extended downtime, attempt to reconnect no more quickly than once every 5 seconds. There is no advantage to reconnecting more rapidly after maintenance during cancel_only mode.\n",
+    "title": "Kraken Websockets API",
+    "version": "1.8.0"
+  },
+  "kind": "events",
+  "navigation": [
+    {
+      "children": [
+        {
+          "children": [],
+          "id": "nav-channel-root",
+          "kind": "node",
+          "label": "/",
+          "nodeId": "channel-root"
+        },
+        {
+          "children": [],
+          "id": "nav-channel-root-2",
+          "kind": "node",
+          "label": "/",
+          "nodeId": "channel-root-2"
+        },
+        {
+          "children": [],
+          "id": "nav-channel-root-3",
+          "kind": "node",
+          "label": "/",
+          "nodeId": "channel-root-3"
+        },
+        {
+          "children": [],
+          "id": "nav-channel-root-4",
+          "kind": "node",
+          "label": "/",
+          "nodeId": "channel-root-4"
+        },
+        {
+          "children": [],
+          "id": "nav-channel-root-5",
+          "kind": "node",
+          "label": "/",
+          "nodeId": "channel-root-5"
+        },
+        {
+          "children": [],
+          "id": "nav-channel-root-6",
+          "kind": "node",
+          "label": "/",
+          "nodeId": "channel-root-6"
+        },
+        {
+          "children": [],
+          "id": "nav-channel-root-7",
+          "kind": "node",
+          "label": "/",
+          "nodeId": "channel-root-7"
+        }
+      ],
+      "id": "group-untagged",
+      "kind": "group",
+      "label": "Other"
+    },
+    {
+      "children": [
+        {
+          "children": [],
+          "id": "nav-schema-depth",
+          "kind": "schema",
+          "label": "depth",
+          "schemaId": "depth"
+        },
+        {
+          "children": [],
+          "id": "nav-schema-heartbeat",
+          "kind": "schema",
+          "label": "heartbeat",
+          "schemaId": "heartbeat"
+        },
+        {
+          "children": [],
+          "id": "nav-schema-interval",
+          "kind": "schema",
+          "label": "interval",
+          "schemaId": "interval"
+        },
+        {
+          "children": [],
+          "id": "nav-schema-maxratecount",
+          "kind": "schema",
+          "label": "maxratecount",
+          "schemaId": "maxratecount"
+        },
+        {
+          "children": [],
+          "id": "nav-schema-name",
+          "kind": "schema",
+          "label": "name",
+          "schemaId": "name"
+        },
+        {
+          "children": [],
+          "id": "nav-schema-pair",
+          "kind": "schema",
+          "label": "pair",
+          "schemaId": "pair"
+        },
+        {
+          "children": [],
+          "id": "nav-schema-ping",
+          "kind": "schema",
+          "label": "ping",
+          "schemaId": "ping"
+        },
+        {
+          "children": [],
+          "id": "nav-schema-pong",
+          "kind": "schema",
+          "label": "pong",
+          "schemaId": "pong"
+        },
+        {
+          "children": [],
+          "id": "nav-schema-ratecounter",
+          "kind": "schema",
+          "label": "ratecounter",
+          "schemaId": "ratecounter"
+        },
+        {
+          "children": [],
+          "id": "nav-schema-reqid",
+          "kind": "schema",
+          "label": "reqid",
+          "schemaId": "reqid"
+        },
+        {
+          "children": [],
+          "id": "nav-schema-snapshot",
+          "kind": "schema",
+          "label": "snapshot",
+          "schemaId": "snapshot"
+        },
+        {
+          "children": [],
+          "id": "nav-schema-status",
+          "kind": "schema",
+          "label": "status",
+          "schemaId": "status"
+        },
+        {
+          "children": [],
+          "id": "nav-schema-subscribe",
+          "kind": "schema",
+          "label": "subscribe",
+          "schemaId": "subscribe"
+        },
+        {
+          "children": [],
+          "id": "nav-schema-subscriptionStatus",
+          "kind": "schema",
+          "label": "subscriptionStatus",
+          "schemaId": "subscriptionStatus"
+        },
+        {
+          "children": [],
+          "id": "nav-schema-subscriptionStatusCommon",
+          "kind": "schema",
+          "label": "subscriptionStatusCommon",
+          "schemaId": "subscriptionStatusCommon"
+        },
+        {
+          "children": [],
+          "id": "nav-schema-subscriptionStatusError",
+          "kind": "schema",
+          "label": "subscriptionStatusError",
+          "schemaId": "subscriptionStatusError"
+        },
+        {
+          "children": [],
+          "id": "nav-schema-subscriptionStatusSuccess",
+          "kind": "schema",
+          "label": "subscriptionStatusSuccess",
+          "schemaId": "subscriptionStatusSuccess"
+        },
+        {
+          "children": [],
+          "id": "nav-schema-systemStatus",
+          "kind": "schema",
+          "label": "systemStatus",
+          "schemaId": "systemStatus"
+        },
+        {
+          "children": [],
+          "id": "nav-schema-token",
+          "kind": "schema",
+          "label": "token",
+          "schemaId": "token"
+        },
+        {
+          "children": [],
+          "id": "nav-schema-unsubscribe",
+          "kind": "schema",
+          "label": "unsubscribe",
+          "schemaId": "unsubscribe"
+        }
+      ],
+      "id": "group-schemas",
+      "kind": "group",
+      "label": "Schemas"
+    }
+  ],
+  "nodes": [
+    [
+      "channel-root",
+      {
+        "address": "/",
+        "deprecated": false,
+        "id": "channel-root",
+        "kind": "channel",
+        "messages": [
+          {
+            "correlationId": "$message.payload#/reqid",
+            "description": "It is here in this example to showcase that there is an additional message that normally is of a complex structure. It represents actually currency exchange value to show a reply to operation receiveSubscribeRequest with more than one possible message.",
+            "id": "dummyCurrencyInfo",
+            "payload": {
+              "kind": "inline",
+              "schema": {
+                "dialect": "asyncapi-schema",
+                "id": "channel-root.messages.dummyCurrencyInfo.payload",
+                "normalized": {
+                  "properties": {
+                    "data": {
+                      "type": "object"
+                    },
+                    "event": {
+                      "const": "currencyInfo",
+                      "type": "string"
+                    },
+                    "reqid": {
+                      "$ref": "reqid"
+                    }
+                  },
+                  "required": [
+                    "event"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "summary": "Dummy message with no real life details"
+          },
+          {
+            "description": "Subscription status response to subscribe, unsubscribe or exchange initiated unsubscribe.",
+            "examples": {
+              "example-1": {
+                "value": {
+                  "payload": {
+                    "channelID": 10001,
+                    "channelName": "ohlc-5",
+                    "event": "subscriptionStatus",
+                    "pair": "XBT/EUR",
+                    "reqid": 42,
+                    "status": "unsubscribed",
+                    "subscription": {
+                      "interval": 5,
+                      "name": "ohlc"
+                    }
+                  }
+                }
+              },
+              "example-2": {
+                "value": {
+                  "payload": {
+                    "errorMessage": "Subscription depth not supported",
+                    "event": "subscriptionStatus",
+                    "pair": "XBT/USD",
+                    "status": "error",
+                    "subscription": {
+                      "depth": 42,
+                      "name": "book"
+                    }
+                  }
+                }
+              }
+            },
+            "id": "subscriptionStatus",
+            "payload": {
+              "kind": "named",
+              "schemaId": "subscriptionStatus"
+            }
+          }
+        ],
+        "operations": [],
+        "servers": [],
+        "tags": []
+      }
+    ],
+    [
+      "channel-root-2",
+      {
+        "address": "/",
+        "deprecated": false,
+        "id": "channel-root-2",
+        "kind": "channel",
+        "messages": [
+          {
+            "description": "Server heartbeat sent if no subscription traffic within 1 second (approximately)",
+            "id": "heartbeat",
+            "payload": {
+              "kind": "named",
+              "schemaId": "heartbeat"
+            }
+          }
+        ],
+        "operations": [
+          {
+            "direction": "send",
+            "id": "heartbeat",
+            "messageIds": [
+              "heartbeat"
+            ]
+          }
+        ],
+        "servers": [],
+        "tags": []
+      }
+    ],
+    [
+      "channel-root-3",
+      {
+        "address": "/",
+        "deprecated": false,
+        "id": "channel-root-3",
+        "kind": "channel",
+        "messages": [
+          {
+            "correlationId": "$message.payload#/reqid",
+            "description": "Client can ping server to determine whether connection is alive, server responds with pong. This is an application level ping as opposed to default ping in websockets standard which is server initiated",
+            "id": "ping",
+            "payload": {
+              "kind": "named",
+              "schemaId": "ping"
+            },
+            "summary": "Ping server to determine whether connection is alive"
+          }
+        ],
+        "operations": [
+          {
+            "direction": "receive",
+            "id": "receivePing",
+            "messageIds": [
+              "ping"
+            ],
+            "reply": {
+              "channelId": "channel-root-4"
+            }
+          }
+        ],
+        "servers": [],
+        "tags": []
+      }
+    ],
+    [
+      "channel-root-4",
+      {
+        "address": "/",
+        "deprecated": false,
+        "id": "channel-root-4",
+        "kind": "channel",
+        "messages": [
+          {
+            "correlationId": "$message.payload#/reqid",
+            "description": "Server pong response to a ping to determine whether connection is alive. This is an application level pong as opposed to default pong in websockets standard which is sent by client in response to a ping",
+            "id": "pong",
+            "payload": {
+              "kind": "named",
+              "schemaId": "pong"
+            },
+            "summary": "Pong is a response to ping message"
+          }
+        ],
+        "operations": [],
+        "servers": [],
+        "tags": []
+      }
+    ],
+    [
+      "channel-root-5",
+      {
+        "address": "/",
+        "deprecated": false,
+        "id": "channel-root-5",
+        "kind": "channel",
+        "messages": [
+          {
+            "correlationId": "$message.payload#/reqid",
+            "description": "Subscribe to a topic on a single or multiple currency pairs.",
+            "id": "subscribe",
+            "payload": {
+              "kind": "named",
+              "schemaId": "subscribe"
+            }
+          }
+        ],
+        "operations": [
+          {
+            "direction": "receive",
+            "id": "subscribe",
+            "messageIds": [
+              "subscribe"
+            ],
+            "reply": {
+              "channelId": "channel-root"
+            }
+          }
+        ],
+        "servers": [],
+        "tags": []
+      }
+    ],
+    [
+      "channel-root-6",
+      {
+        "address": "/",
+        "deprecated": false,
+        "id": "channel-root-6",
+        "kind": "channel",
+        "messages": [
+          {
+            "description": "Status sent on connection or system status changes.",
+            "id": "systemStatus",
+            "payload": {
+              "kind": "named",
+              "schemaId": "systemStatus"
+            }
+          }
+        ],
+        "operations": [
+          {
+            "direction": "send",
+            "id": "systemStatus",
+            "messageIds": [
+              "systemStatus"
+            ]
+          }
+        ],
+        "servers": [],
+        "tags": []
+      }
+    ],
+    [
+      "channel-root-7",
+      {
+        "address": "/",
+        "deprecated": false,
+        "id": "channel-root-7",
+        "kind": "channel",
+        "messages": [
+          {
+            "correlationId": "$message.payload#/reqid",
+            "description": "Unsubscribe, can specify a channelID or multiple currency pairs.",
+            "id": "unsubscribe",
+            "payload": {
+              "kind": "named",
+              "schemaId": "unsubscribe"
+            }
+          }
+        ],
+        "operations": [
+          {
+            "direction": "receive",
+            "id": "unsubscribe",
+            "messageIds": [
+              "unsubscribe"
+            ],
+            "reply": {
+              "channelId": "channel-root",
+              "messageIds": [
+                "subscriptionStatus"
+              ]
+            }
+          }
+        ],
+        "servers": [],
+        "tags": []
+      }
+    ]
+  ],
+  "relationships": [],
+  "schemas": [
+    [
+      "depth",
+      {
+        "dialect": "asyncapi-schema",
+        "id": "depth",
+        "name": "depth",
+        "normalized": {
+          "default": 10,
+          "description": "Depth associated with book subscription in number of levels each side.",
+          "enum": [
+            10,
+            25,
+            100,
+            500,
+            1000
+          ],
+          "type": "integer"
+        }
+      }
+    ],
+    [
+      "heartbeat",
+      {
+        "dialect": "asyncapi-schema",
+        "id": "heartbeat",
+        "name": "heartbeat",
+        "normalized": {
+          "properties": {
+            "event": {
+              "const": "heartbeat",
+              "type": "string"
+            }
+          },
+          "type": "object"
+        }
+      }
+    ],
+    [
+      "interval",
+      {
+        "dialect": "asyncapi-schema",
+        "id": "interval",
+        "name": "interval",
+        "normalized": {
+          "default": 1,
+          "description": "Time interval associated with ohlc subscription in minutes.",
+          "enum": [
+            1,
+            5,
+            15,
+            30,
+            60,
+            240,
+            1440,
+            10080,
+            21600
+          ],
+          "type": "integer"
+        }
+      }
+    ],
+    [
+      "maxratecount",
+      {
+        "dialect": "asyncapi-schema",
+        "id": "maxratecount",
+        "name": "maxratecount",
+        "normalized": {
+          "description": "Max rate-limit budget. Compare to the ratecounter field in the openOrders updates to check whether you are approaching the rate limit.",
+          "type": "integer"
+        }
+      }
+    ],
+    [
+      "name",
+      {
+        "dialect": "asyncapi-schema",
+        "id": "name",
+        "name": "name",
+        "normalized": {
+          "description": "The name of the channel you subscribe too.",
+          "enum": [
+            "book",
+            "ohlc",
+            "openOrders",
+            "ownTrades",
+            "spread",
+            "ticker",
+            "trade"
+          ],
+          "type": "string"
+        }
+      }
+    ],
+    [
+      "pair",
+      {
+        "dialect": "asyncapi-schema",
+        "id": "pair",
+        "name": "pair",
+        "normalized": {
+          "description": "Array of currency pairs.",
+          "items": {
+            "description": "Format of each pair is \"A/B\", where A and B are ISO 4217-A3 for standardized assets and popular unique symbol if not standardized.",
+            "pattern": "[A-Z\\s]+\\/[A-Z\\s]+",
+            "type": "string"
+          },
+          "type": "array"
+        }
+      }
+    ],
+    [
+      "ping",
+      {
+        "dialect": "asyncapi-schema",
+        "id": "ping",
+        "name": "ping",
+        "normalized": {
+          "properties": {
+            "event": {
+              "const": "ping",
+              "type": "string"
+            },
+            "reqid": {
+              "$ref": "reqid"
+            }
+          },
+          "required": [
+            "event"
+          ],
+          "type": "object"
+        }
+      }
+    ],
+    [
+      "pong",
+      {
+        "dialect": "asyncapi-schema",
+        "id": "pong",
+        "name": "pong",
+        "normalized": {
+          "properties": {
+            "event": {
+              "const": "pong",
+              "type": "string"
+            },
+            "reqid": {
+              "$ref": "reqid"
+            }
+          },
+          "type": "object"
+        }
+      }
+    ],
+    [
+      "ratecounter",
+      {
+        "dialect": "asyncapi-schema",
+        "id": "ratecounter",
+        "name": "ratecounter",
+        "normalized": {
+          "default": false,
+          "description": "Whether to send rate-limit counter in updates (supported only for openOrders subscriptions)",
+          "type": "boolean"
+        }
+      }
+    ],
+    [
+      "reqid",
+      {
+        "dialect": "asyncapi-schema",
+        "id": "reqid",
+        "name": "reqid",
+        "normalized": {
+          "description": "client originated ID reflected in response message.",
+          "type": "integer"
+        }
+      }
+    ],
+    [
+      "snapshot",
+      {
+        "dialect": "asyncapi-schema",
+        "id": "snapshot",
+        "name": "snapshot",
+        "normalized": {
+          "default": true,
+          "description": "Whether to send historical feed data snapshot upon subscription (supported only for ownTrades subscriptions)",
+          "type": "boolean"
+        }
+      }
+    ],
+    [
+      "status",
+      {
+        "dialect": "asyncapi-schema",
+        "id": "status",
+        "name": "status",
+        "normalized": {
+          "enum": [
+            "online",
+            "maintenance",
+            "cancel_only",
+            "limit_only",
+            "post_only"
+          ],
+          "type": "string"
+        }
+      }
+    ],
+    [
+      "subscribe",
+      {
+        "dialect": "asyncapi-schema",
+        "id": "subscribe",
+        "name": "subscribe",
+        "normalized": {
+          "properties": {
+            "event": {
+              "const": "subscribe",
+              "type": "string"
+            },
+            "pair": {
+              "$ref": "pair"
+            },
+            "reqid": {
+              "$ref": "reqid"
+            },
+            "subscription": {
+              "properties": {
+                "depth": {
+                  "$ref": "depth"
+                },
+                "interval": {
+                  "$ref": "interval"
+                },
+                "name": {
+                  "$ref": "name"
+                },
+                "ratecounter": {
+                  "$ref": "ratecounter"
+                },
+                "snapshot": {
+                  "$ref": "snapshot"
+                },
+                "token": {
+                  "$ref": "token"
+                }
+              },
+              "required": [
+                "name"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "event"
+          ],
+          "type": "object"
+        }
+      }
+    ],
+    [
+      "subscriptionStatus",
+      {
+        "dialect": "asyncapi-schema",
+        "id": "subscriptionStatus",
+        "name": "subscriptionStatus",
+        "normalized": {
+          "oneOf": [
+            {
+              "$ref": "subscriptionStatusError"
+            },
+            {
+              "$ref": "subscriptionStatusSuccess"
+            }
+          ],
+          "type": "object",
+          "variants": [
+            {
+              "label": "subscriptionStatusError",
+              "schema": {
+                "$ref": "subscriptionStatusError"
+              }
+            },
+            {
+              "label": "subscriptionStatusSuccess",
+              "schema": {
+                "$ref": "subscriptionStatusSuccess"
+              }
+            }
+          ]
+        }
+      }
+    ],
+    [
+      "subscriptionStatusCommon",
+      {
+        "dialect": "asyncapi-schema",
+        "id": "subscriptionStatusCommon",
+        "name": "subscriptionStatusCommon",
+        "normalized": {
+          "properties": {
+            "event": {
+              "const": "subscriptionStatus",
+              "type": "string"
+            },
+            "pair": {
+              "$ref": "pair"
+            },
+            "reqid": {
+              "$ref": "reqid"
+            },
+            "status": {
+              "$ref": "status"
+            },
+            "subscription": {
+              "properties": {
+                "depth": {
+                  "$ref": "depth"
+                },
+                "interval": {
+                  "$ref": "interval"
+                },
+                "maxratecount": {
+                  "$ref": "maxratecount"
+                },
+                "name": {
+                  "$ref": "name"
+                },
+                "token": {
+                  "$ref": "token"
+                }
+              },
+              "required": [
+                "name"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "event"
+          ],
+          "type": "object"
+        }
+      }
+    ],
+    [
+      "subscriptionStatusError",
+      {
+        "dialect": "asyncapi-schema",
+        "id": "subscriptionStatusError",
+        "name": "subscriptionStatusError",
+        "normalized": {
+          "properties": {
+            "errorMessage": {
+              "type": "string"
+            },
+            "event": {
+              "const": "subscriptionStatus",
+              "type": "string"
+            },
+            "pair": {
+              "$ref": "pair"
+            },
+            "reqid": {
+              "$ref": "reqid"
+            },
+            "status": {
+              "$ref": "status"
+            },
+            "subscription": {
+              "properties": {
+                "depth": {
+                  "$ref": "depth"
+                },
+                "interval": {
+                  "$ref": "interval"
+                },
+                "maxratecount": {
+                  "$ref": "maxratecount"
+                },
+                "name": {
+                  "$ref": "name"
+                },
+                "token": {
+                  "$ref": "token"
+                }
+              },
+              "required": [
+                "name"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "errorMessage",
+            "event"
+          ],
+          "type": "object"
+        }
+      }
+    ],
+    [
+      "subscriptionStatusSuccess",
+      {
+        "dialect": "asyncapi-schema",
+        "id": "subscriptionStatusSuccess",
+        "name": "subscriptionStatusSuccess",
+        "normalized": {
+          "properties": {
+            "channelID": {
+              "description": "ChannelID on successful subscription, applicable to public messages only.",
+              "type": "integer"
+            },
+            "channelName": {
+              "description": "Channel Name on successful subscription. For payloads 'ohlc' and 'book', respective interval or depth will be added as suffix.",
+              "type": "string"
+            },
+            "event": {
+              "const": "subscriptionStatus",
+              "type": "string"
+            },
+            "pair": {
+              "$ref": "pair"
+            },
+            "reqid": {
+              "$ref": "reqid"
+            },
+            "status": {
+              "$ref": "status"
+            },
+            "subscription": {
+              "properties": {
+                "depth": {
+                  "$ref": "depth"
+                },
+                "interval": {
+                  "$ref": "interval"
+                },
+                "maxratecount": {
+                  "$ref": "maxratecount"
+                },
+                "name": {
+                  "$ref": "name"
+                },
+                "token": {
+                  "$ref": "token"
+                }
+              },
+              "required": [
+                "name"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "channelID",
+            "channelName",
+            "event"
+          ],
+          "type": "object"
+        }
+      }
+    ],
+    [
+      "systemStatus",
+      {
+        "dialect": "asyncapi-schema",
+        "id": "systemStatus",
+        "name": "systemStatus",
+        "normalized": {
+          "properties": {
+            "connectionID": {
+              "description": "The ID of the connection",
+              "type": "integer"
+            },
+            "event": {
+              "const": "systemStatus",
+              "type": "string"
+            },
+            "status": {
+              "$ref": "status"
+            },
+            "version": {
+              "type": "string"
+            }
+          },
+          "type": "object"
+        }
+      }
+    ],
+    [
+      "token",
+      {
+        "dialect": "asyncapi-schema",
+        "id": "token",
+        "name": "token",
+        "normalized": {
+          "description": "base64-encoded authentication token for private-data endpoints.",
+          "type": "string"
+        }
+      }
+    ],
+    [
+      "unsubscribe",
+      {
+        "dialect": "asyncapi-schema",
+        "id": "unsubscribe",
+        "name": "unsubscribe",
+        "normalized": {
+          "properties": {
+            "event": {
+              "const": "unsubscribe",
+              "type": "string"
+            },
+            "pair": {
+              "$ref": "pair"
+            },
+            "reqid": {
+              "$ref": "reqid"
+            },
+            "subscription": {
+              "properties": {
+                "depth": {
+                  "$ref": "depth"
+                },
+                "interval": {
+                  "$ref": "interval"
+                },
+                "name": {
+                  "$ref": "name"
+                },
+                "token": {
+                  "$ref": "token"
+                }
+              },
+              "required": [
+                "name"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "event"
+          ],
+          "type": "object"
+        }
+      }
+    ]
+  ],
+  "security": [],
+  "servers": [],
+  "webhooks": []
+}

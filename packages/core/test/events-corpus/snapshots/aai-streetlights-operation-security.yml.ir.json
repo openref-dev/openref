@@ -1,0 +1,471 @@
+{
+  "hash": "215d8f8497ed104d66a7be556e7723cf17a587a230bf7e357545f6594cf1a1fe",
+  "id": "streetlights-kafka-api",
+  "info": {
+    "description": "The Smartylighting Streetlights API allows you to remotely manage the city lights.\n\n### Check out its awesome features:\n\n* Turn a specific streetlight on/off 🌃\n* Dim a specific streetlight 😎\n* Receive real-time information about environmental lighting conditions 📈\n",
+    "license": {
+      "name": "Apache 2.0",
+      "url": "https://www.apache.org/licenses/LICENSE-2.0"
+    },
+    "title": "Streetlights Kafka API",
+    "version": "1.0.0"
+  },
+  "kind": "events",
+  "navigation": [
+    {
+      "children": [
+        {
+          "children": [],
+          "id": "nav-channel-smartylighting-streetlights-1-0-action-streetlightid-turn-off",
+          "kind": "node",
+          "label": "smartylighting.streetlights.1.0.action.{streetlightId}.turn.off",
+          "nodeId": "channel-smartylighting-streetlights-1-0-action-streetlightid-turn-off"
+        },
+        {
+          "children": [],
+          "id": "nav-channel-smartylighting-streetlights-1-0-action-streetlightid-turn-on",
+          "kind": "node",
+          "label": "smartylighting.streetlights.1.0.action.{streetlightId}.turn.on",
+          "nodeId": "channel-smartylighting-streetlights-1-0-action-streetlightid-turn-on"
+        },
+        {
+          "children": [],
+          "id": "nav-channel-smartylighting-streetlights-1-0-event-streetlightid-lighting-measured",
+          "kind": "node",
+          "label": "smartylighting.streetlights.1.0.event.{streetlightId}.lighting.measured",
+          "nodeId": "channel-smartylighting-streetlights-1-0-event-streetlightid-lighting-measured"
+        },
+        {
+          "children": [],
+          "id": "nav-channel-smartylighting-streetlights-1-0-action-streetlightid-dim",
+          "kind": "node",
+          "label": "smartylighting.streetlights.1.0.action.{streetlightId}.dim",
+          "nodeId": "channel-smartylighting-streetlights-1-0-action-streetlightid-dim"
+        }
+      ],
+      "id": "group-untagged",
+      "kind": "group",
+      "label": "Other"
+    },
+    {
+      "children": [
+        {
+          "children": [],
+          "id": "nav-schema-dimLightPayload",
+          "kind": "schema",
+          "label": "dimLightPayload",
+          "schemaId": "dimLightPayload"
+        },
+        {
+          "children": [],
+          "id": "nav-schema-lightMeasuredPayload",
+          "kind": "schema",
+          "label": "lightMeasuredPayload",
+          "schemaId": "lightMeasuredPayload"
+        },
+        {
+          "children": [],
+          "id": "nav-schema-sentAt",
+          "kind": "schema",
+          "label": "sentAt",
+          "schemaId": "sentAt"
+        },
+        {
+          "children": [],
+          "id": "nav-schema-turnOnOffPayload",
+          "kind": "schema",
+          "label": "turnOnOffPayload",
+          "schemaId": "turnOnOffPayload"
+        }
+      ],
+      "id": "group-schemas",
+      "kind": "group",
+      "label": "Schemas"
+    }
+  ],
+  "nodes": [
+    [
+      "channel-smartylighting-streetlights-1-0-action-streetlightid-dim",
+      {
+        "address": "smartylighting.streetlights.1.0.action.{streetlightId}.dim",
+        "deprecated": false,
+        "id": "channel-smartylighting-streetlights-1-0-action-streetlightid-dim",
+        "kind": "channel",
+        "messages": [
+          {
+            "contentType": "application/json",
+            "headers": {
+              "kind": "inline",
+              "schema": {
+                "dialect": "asyncapi-schema",
+                "id": "channel-smartylighting-streetlights-1-0-action-streetlightid-dim.messages.dimLight.headers",
+                "normalized": {
+                  "properties": {
+                    "my-app-header": {
+                      "maximum": 100,
+                      "minimum": 0,
+                      "type": "integer"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "id": "dimLight",
+            "name": "dimLight",
+            "payload": {
+              "kind": "named",
+              "schemaId": "dimLightPayload"
+            },
+            "summary": "Command a particular streetlight to dim the lights.",
+            "title": "Dim light"
+          }
+        ],
+        "operations": [
+          {
+            "bindings": {
+              "kafka": {
+                "clientId": {
+                  "enum": [
+                    "my-app-id"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "direction": "send",
+            "id": "dimLight",
+            "messageIds": [
+              "dimLight"
+            ]
+          }
+        ],
+        "parameters": {
+          "streetlightId": {
+            "description": "The ID of the streetlight."
+          }
+        },
+        "protocol": "kafka-secure",
+        "servers": [
+          {
+            "description": "Test port for oauth",
+            "url": "kafka-secure://test.mykafkacluster.org:8093"
+          }
+        ],
+        "tags": []
+      }
+    ],
+    [
+      "channel-smartylighting-streetlights-1-0-action-streetlightid-turn-off",
+      {
+        "address": "smartylighting.streetlights.1.0.action.{streetlightId}.turn.off",
+        "deprecated": false,
+        "id": "channel-smartylighting-streetlights-1-0-action-streetlightid-turn-off",
+        "kind": "channel",
+        "messages": [
+          {
+            "contentType": "application/json",
+            "headers": {
+              "kind": "inline",
+              "schema": {
+                "dialect": "asyncapi-schema",
+                "id": "channel-smartylighting-streetlights-1-0-action-streetlightid-turn-off.messages.turnOff.headers",
+                "normalized": {
+                  "properties": {
+                    "my-app-header": {
+                      "maximum": 100,
+                      "minimum": 0,
+                      "type": "integer"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "id": "turnOff",
+            "name": "turnOnOff",
+            "payload": {
+              "kind": "named",
+              "schemaId": "turnOnOffPayload"
+            },
+            "summary": "Command a particular streetlight to turn the lights on or off.",
+            "title": "Turn on/off"
+          }
+        ],
+        "operations": [
+          {
+            "bindings": {
+              "kafka": {
+                "clientId": {
+                  "enum": [
+                    "my-app-id"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "direction": "send",
+            "id": "turnOff",
+            "messageIds": [
+              "turnOff"
+            ]
+          }
+        ],
+        "parameters": {
+          "streetlightId": {
+            "description": "The ID of the streetlight."
+          }
+        },
+        "protocol": "kafka-secure",
+        "servers": [
+          {
+            "description": "Test port for oauth",
+            "url": "kafka-secure://test.mykafkacluster.org:8093"
+          }
+        ],
+        "tags": []
+      }
+    ],
+    [
+      "channel-smartylighting-streetlights-1-0-action-streetlightid-turn-on",
+      {
+        "address": "smartylighting.streetlights.1.0.action.{streetlightId}.turn.on",
+        "deprecated": false,
+        "id": "channel-smartylighting-streetlights-1-0-action-streetlightid-turn-on",
+        "kind": "channel",
+        "messages": [
+          {
+            "contentType": "application/json",
+            "headers": {
+              "kind": "inline",
+              "schema": {
+                "dialect": "asyncapi-schema",
+                "id": "channel-smartylighting-streetlights-1-0-action-streetlightid-turn-on.messages.turnOn.headers",
+                "normalized": {
+                  "properties": {
+                    "my-app-header": {
+                      "maximum": 100,
+                      "minimum": 0,
+                      "type": "integer"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "id": "turnOn",
+            "name": "turnOnOff",
+            "payload": {
+              "kind": "named",
+              "schemaId": "turnOnOffPayload"
+            },
+            "summary": "Command a particular streetlight to turn the lights on or off.",
+            "title": "Turn on/off"
+          }
+        ],
+        "operations": [
+          {
+            "bindings": {
+              "kafka": {
+                "clientId": {
+                  "enum": [
+                    "my-app-id"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "direction": "send",
+            "id": "turnOn",
+            "messageIds": [
+              "turnOn"
+            ]
+          }
+        ],
+        "parameters": {
+          "streetlightId": {
+            "description": "The ID of the streetlight."
+          }
+        },
+        "protocol": "kafka-secure",
+        "servers": [
+          {
+            "description": "Test port for oauth",
+            "url": "kafka-secure://test.mykafkacluster.org:8093"
+          }
+        ],
+        "tags": []
+      }
+    ],
+    [
+      "channel-smartylighting-streetlights-1-0-event-streetlightid-lighting-measured",
+      {
+        "address": "smartylighting.streetlights.1.0.event.{streetlightId}.lighting.measured",
+        "deprecated": false,
+        "description": "The topic on which measured values may be produced and consumed.",
+        "id": "channel-smartylighting-streetlights-1-0-event-streetlightid-lighting-measured",
+        "kind": "channel",
+        "messages": [
+          {
+            "contentType": "application/json",
+            "headers": {
+              "kind": "inline",
+              "schema": {
+                "dialect": "asyncapi-schema",
+                "id": "channel-smartylighting-streetlights-1-0-event-streetlightid-lighting-measured.messages.lightMeasured.headers",
+                "normalized": {
+                  "properties": {
+                    "my-app-header": {
+                      "maximum": 100,
+                      "minimum": 0,
+                      "type": "integer"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "id": "lightMeasured",
+            "name": "lightMeasured",
+            "payload": {
+              "kind": "named",
+              "schemaId": "lightMeasuredPayload"
+            },
+            "summary": "Inform about environmental lighting conditions of a particular streetlight.",
+            "title": "Light measured"
+          }
+        ],
+        "operations": [
+          {
+            "bindings": {
+              "kafka": {
+                "clientId": {
+                  "enum": [
+                    "my-app-id"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "direction": "receive",
+            "id": "receiveLightMeasurement",
+            "messageIds": [
+              "lightMeasured"
+            ],
+            "summary": "Inform about environmental lighting conditions of a particular streetlight."
+          }
+        ],
+        "parameters": {
+          "streetlightId": {
+            "description": "The ID of the streetlight."
+          }
+        },
+        "protocol": "kafka-secure",
+        "servers": [
+          {
+            "description": "Test broker",
+            "url": "kafka-secure://test.mykafkacluster.org:8092"
+          }
+        ],
+        "tags": []
+      }
+    ]
+  ],
+  "relationships": [],
+  "schemas": [
+    [
+      "dimLightPayload",
+      {
+        "dialect": "asyncapi-schema",
+        "id": "dimLightPayload",
+        "name": "dimLightPayload",
+        "normalized": {
+          "properties": {
+            "percentage": {
+              "description": "Percentage to which the light should be dimmed to.",
+              "maximum": 100,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "sentAt": {
+              "$ref": "sentAt"
+            }
+          },
+          "type": "object"
+        }
+      }
+    ],
+    [
+      "lightMeasuredPayload",
+      {
+        "dialect": "asyncapi-schema",
+        "id": "lightMeasuredPayload",
+        "name": "lightMeasuredPayload",
+        "normalized": {
+          "properties": {
+            "lumens": {
+              "description": "Light intensity measured in lumens.",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "sentAt": {
+              "$ref": "sentAt"
+            }
+          },
+          "type": "object"
+        }
+      }
+    ],
+    [
+      "sentAt",
+      {
+        "dialect": "asyncapi-schema",
+        "id": "sentAt",
+        "name": "sentAt",
+        "normalized": {
+          "description": "Date and time when the message was sent.",
+          "format": "date-time",
+          "type": "string"
+        }
+      }
+    ],
+    [
+      "turnOnOffPayload",
+      {
+        "dialect": "asyncapi-schema",
+        "id": "turnOnOffPayload",
+        "name": "turnOnOffPayload",
+        "normalized": {
+          "properties": {
+            "command": {
+              "description": "Whether to turn on or off the light.",
+              "enum": [
+                "on",
+                "off"
+              ],
+              "type": "string"
+            },
+            "sentAt": {
+              "$ref": "sentAt"
+            }
+          },
+          "type": "object"
+        }
+      }
+    ]
+  ],
+  "security": [],
+  "servers": [
+    {
+      "description": "Test broker",
+      "protocol": "kafka-secure",
+      "url": "kafka-secure://test.mykafkacluster.org:8092"
+    },
+    {
+      "description": "Test port for oauth",
+      "protocol": "kafka-secure",
+      "url": "kafka-secure://test.mykafkacluster.org:8093"
+    }
+  ],
+  "webhooks": []
+}

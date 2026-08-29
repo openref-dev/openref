@@ -1,0 +1,112 @@
+{
+  "hash": "eb3befb4338a7a89fbef66c9c4d3cc533580e9638b4babff2d15e59c13475308",
+  "id": "mercure-hub-example",
+  "info": {
+    "description": "This example demonstrates how to define a Mercure hub.",
+    "title": "Mercure Hub Example",
+    "version": "1.0.0"
+  },
+  "kind": "events",
+  "navigation": [
+    {
+      "children": [
+        {
+          "children": [],
+          "id": "nav-channel-https-example-com-books-id",
+          "kind": "node",
+          "label": "https://example.com/books/{id}",
+          "nodeId": "channel-https-example-com-books-id"
+        }
+      ],
+      "id": "group-untagged",
+      "kind": "group",
+      "label": "Other"
+    }
+  ],
+  "nodes": [
+    [
+      "channel-https-example-com-books-id",
+      {
+        "address": "https://example.com/books/{id}",
+        "deprecated": false,
+        "description": "Every time a resource of type `http://schema.org/Book` is created or modified, a JSON-LD representation of the new version of this resource must be pushed in this Mercure topic.",
+        "id": "channel-https-example-com-books-id",
+        "kind": "channel",
+        "messages": [
+          {
+            "contentType": "application/ld+json",
+            "id": "book",
+            "payload": {
+              "kind": "inline",
+              "schema": {
+                "dialect": "asyncapi-schema",
+                "id": "channel-https-example-com-books-id.messages.book.payload",
+                "normalized": {
+                  "properties": {
+                    "@id": {
+                      "format": "iri-reference",
+                      "type": "string"
+                    },
+                    "@type": {
+                      "format": "iri-reference",
+                      "type": "string"
+                    },
+                    "abstract": {
+                      "type": "string"
+                    },
+                    "isbn": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "summary": "The content of a book resource."
+          }
+        ],
+        "operations": [
+          {
+            "direction": "receive",
+            "id": "ReceiveBooksInfo",
+            "messageIds": [
+              "book"
+            ]
+          },
+          {
+            "direction": "send",
+            "id": "SendBooksInfo",
+            "messageIds": [
+              "book"
+            ]
+          }
+        ],
+        "parameters": {
+          "id": {
+            "description": "ID of the book"
+          }
+        },
+        "protocol": "mercure",
+        "servers": [
+          {
+            "url": "mercure://demo.mercure.rocks/.well-known/mercure"
+          }
+        ],
+        "tags": []
+      }
+    ]
+  ],
+  "relationships": [],
+  "schemas": [],
+  "security": [],
+  "servers": [
+    {
+      "protocol": "mercure",
+      "url": "mercure://demo.mercure.rocks/.well-known/mercure"
+    }
+  ],
+  "webhooks": []
+}

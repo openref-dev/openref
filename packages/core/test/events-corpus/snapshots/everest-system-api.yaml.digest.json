@@ -1,0 +1,75 @@
+{
+  "hash": "0fb1a8dba74eda8b76b49301cd411bf3ab0cacc6299d95c1ae787ce1fb4fc67a",
+  "id": "everest-api-definition-for-the-system-module",
+  "kind": "events",
+  "info": {
+    "title": "EVerest API definition for the system module",
+    "version": "1.0.0"
+  },
+  "counts": {
+    "nodes": 19,
+    "schemas": 28,
+    "servers": 1,
+    "operations": 19,
+    "messages": 19,
+    "navigation": 2
+  },
+  "protocols": [
+    "mqtt"
+  ],
+  "navigation": [
+    "group Other (19)",
+    "group Schemas (28)"
+  ],
+  "nodes": [
+    "channel-e2m-allow-firmware-installation",
+    "channel-e2m-heartbeat",
+    "channel-e2m-configure-network",
+    "channel-e2m-get-boot-reason",
+    "channel-e2m-is-reset-allowed",
+    "channel-e2m-set-system-time",
+    "channel-e2m-update-firmware",
+    "channel-e2m-upload-logs",
+    "channel-e2m-reset",
+    "channel-m2e-communication-check",
+    "channel-m2e-configure-network-status",
+    "channel-m2e-firmware-update-status",
+    "channel-m2e-log-status",
+    "channel-send-reply-configure-network",
+    "channel-send-reply-get-boot-reason",
+    "channel-send-reply-is-reset-allowed",
+    "channel-send-reply-set-system-time",
+    "channel-send-reply-update-firmware",
+    "channel-send-reply-upload-logs"
+  ],
+  "schemas": [
+    "APN asyncapi-schema 296411dc7158c547",
+    "APNAuthenticationEnum asyncapi-schema 3d9cedac4c0a1245",
+    "BootReason asyncapi-schema 3f9ee71739418ce5",
+    "CommunicationCheck asyncapi-schema ec1dbea83ed8c533",
+    "ConfigureNetworkFinalStatusEnum asyncapi-schema 5ed7688f1cf538e8",
+    "ConfigureNetworkRequest asyncapi-schema 988b806a4acf70a9",
+    "ConfigureNetworkResponse asyncapi-schema 680520c8e4accb02",
+    "ConfigureNetworkStatus asyncapi-schema c129c51356c9764e",
+    "ConfigureNetworkStatusEnum asyncapi-schema 36fde6ca25f4dcd8",
+    "FirmwareUpdateMetadata asyncapi-schema 03b9098f20b60645",
+    "FirmwareUpdateRequest asyncapi-schema 52f8080ccc564f06",
+    "FirmwareUpdateStatus asyncapi-schema a68b8325af9f9756",
+    "FirmwareUpdateStatusEnum asyncapi-schema 72525c027ab8f9d7",
+    "HeartBeatId asyncapi-schema 7fe7c846230a809e",
+    "InterfaceClassEnum asyncapi-schema 1d514b0a3b686588",
+    "LogStatus asyncapi-schema e73d95129cf0e33b",
+    "LogStatusEnum asyncapi-schema 56a252464a48c75b",
+    "ResetAllowed asyncapi-schema 9698dc21cd34f0b8",
+    "ResetRequest asyncapi-schema 9460f1047f77b59d",
+    "ResetType asyncapi-schema 617be4969f636493",
+    "SystemTime asyncapi-schema c4a216b0deb64b77",
+    "SystemTimeSet asyncapi-schema 68e200e2502827bc",
+    "UpdateFirmwareResponse asyncapi-schema 140e9bb256e5a40e",
+    "UploadLogsRequest asyncapi-schema 9169a2343cc6b295",
+    "UploadLogsResponse asyncapi-schema 99cbaf087d695590",
+    "UploadLogsStatus asyncapi-schema e2cba7eccc7ef74b",
+    "VPN asyncapi-schema cc54d31bfe9c397e",
+    "VPNTypeEnum asyncapi-schema 83f8d7e26df8bb6c"
+  ]
+}

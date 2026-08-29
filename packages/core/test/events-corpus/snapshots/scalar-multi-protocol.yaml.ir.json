@@ -1,0 +1,386 @@
+{
+  "hash": "b235528f370c0844a42ebfe240d4f1596885fbf8b6564923b6a2c286b39ec4b0",
+  "id": "asyncapi-sidebar-filters",
+  "info": {
+    "description": "A compact AsyncAPI document for exercising the API reference sidebar filters.\n\nEach channel is pinned to a different server so selecting a protocol or server\nvisibly narrows the navigation tree.\n",
+    "title": "AsyncAPI Sidebar Filters",
+    "version": "1.0.0"
+  },
+  "kind": "events",
+  "navigation": [
+    {
+      "children": [
+        {
+          "children": [],
+          "id": "nav-channel-devices-deviceid-telemetry",
+          "kind": "node",
+          "label": "Device telemetry",
+          "nodeId": "channel-devices-deviceid-telemetry"
+        },
+        {
+          "children": [],
+          "id": "nav-channel-inventory-events",
+          "kind": "node",
+          "label": "Inventory events",
+          "nodeId": "channel-inventory-events"
+        },
+        {
+          "children": [],
+          "id": "nav-channel-users-userid-notifications",
+          "kind": "node",
+          "label": "User notifications",
+          "nodeId": "channel-users-userid-notifications"
+        }
+      ],
+      "id": "group-untagged",
+      "kind": "group",
+      "label": "Other"
+    },
+    {
+      "children": [
+        {
+          "children": [],
+          "id": "nav-schema-DeviceTelemetryPayload",
+          "kind": "schema",
+          "label": "DeviceTelemetryPayload",
+          "schemaId": "DeviceTelemetryPayload"
+        },
+        {
+          "children": [],
+          "id": "nav-schema-InventoryChangedPayload",
+          "kind": "schema",
+          "label": "InventoryChangedPayload",
+          "schemaId": "InventoryChangedPayload"
+        },
+        {
+          "children": [],
+          "id": "nav-schema-UserNotificationPayload",
+          "kind": "schema",
+          "label": "UserNotificationPayload",
+          "schemaId": "UserNotificationPayload"
+        }
+      ],
+      "id": "group-schemas",
+      "kind": "group",
+      "label": "Schemas"
+    }
+  ],
+  "nodes": [
+    [
+      "channel-devices-deviceid-telemetry",
+      {
+        "address": "devices/{deviceId}/telemetry",
+        "bindings": {
+          "mqtt": {
+            "qos": 1
+          }
+        },
+        "deprecated": false,
+        "id": "channel-devices-deviceid-telemetry",
+        "kind": "channel",
+        "messages": [
+          {
+            "contentType": "application/json",
+            "id": "telemetry",
+            "name": "device.telemetry",
+            "payload": {
+              "kind": "named",
+              "schemaId": "DeviceTelemetryPayload"
+            },
+            "summary": "A batch of readings published by a device.",
+            "title": "Device telemetry"
+          }
+        ],
+        "operations": [
+          {
+            "bindings": {
+              "mqtt": {
+                "bindingVersion": "0.2.0",
+                "qos": 1
+              }
+            },
+            "direction": "send",
+            "id": "publishDeviceTelemetry",
+            "messageIds": [
+              "telemetry"
+            ],
+            "summary": "Send sensor readings from a device over MQTT.",
+            "tags": [
+              "Devices"
+            ]
+          }
+        ],
+        "parameters": {
+          "deviceId": {
+            "description": "Unique device identifier.",
+            "examples": [
+              "sensor-7"
+            ]
+          }
+        },
+        "protocol": "mqtt",
+        "servers": [
+          {
+            "description": "Devices publish telemetry over MQTT.",
+            "url": "mqtt://mqtt.example.com"
+          }
+        ],
+        "summary": "Sensor readings published by connected devices.",
+        "tags": [],
+        "title": "Device telemetry"
+      }
+    ],
+    [
+      "channel-inventory-events",
+      {
+        "address": "inventory.events",
+        "bindings": {
+          "kafka": {
+            "topic": "inventory.events"
+          }
+        },
+        "deprecated": false,
+        "id": "channel-inventory-events",
+        "kind": "channel",
+        "messages": [
+          {
+            "contentType": "application/json",
+            "id": "inventoryChanged",
+            "name": "inventory.changed",
+            "payload": {
+              "kind": "named",
+              "schemaId": "InventoryChangedPayload"
+            },
+            "summary": "A product inventory adjustment event.",
+            "title": "Inventory changed"
+          }
+        ],
+        "operations": [
+          {
+            "bindings": {
+              "kafka": {
+                "bindingVersion": "0.5.0"
+              }
+            },
+            "direction": "receive",
+            "id": "consumeInventoryEvents",
+            "messageIds": [
+              "inventoryChanged"
+            ],
+            "summary": "Consume product inventory updates from Kafka.",
+            "tags": [
+              "Backend"
+            ]
+          }
+        ],
+        "protocol": "kafka",
+        "servers": [
+          {
+            "description": "Backend workers consume durable product events from Kafka.",
+            "url": "kafka://kafka.example.com"
+          }
+        ],
+        "summary": "Product inventory changes for backend consumers.",
+        "tags": [],
+        "title": "Inventory events"
+      }
+    ],
+    [
+      "channel-users-userid-notifications",
+      {
+        "address": "users/{userId}/notifications",
+        "bindings": {
+          "ws": {
+            "method": "GET"
+          }
+        },
+        "deprecated": false,
+        "id": "channel-users-userid-notifications",
+        "kind": "channel",
+        "messages": [
+          {
+            "contentType": "application/json",
+            "id": "notification",
+            "name": "user.notification",
+            "payload": {
+              "kind": "named",
+              "schemaId": "UserNotificationPayload"
+            },
+            "summary": "A notification shown to a user.",
+            "title": "User notification"
+          }
+        ],
+        "operations": [
+          {
+            "bindings": {
+              "ws": {
+                "bindingVersion": "0.1.0",
+                "method": "GET"
+              }
+            },
+            "direction": "receive",
+            "id": "subscribeToUserNotifications",
+            "messageIds": [
+              "notification"
+            ],
+            "summary": "Receive notifications for one user over WebSockets.",
+            "tags": [
+              "Browser"
+            ]
+          }
+        ],
+        "parameters": {
+          "userId": {
+            "description": "Unique user identifier.",
+            "examples": [
+              "usr_123"
+            ]
+          }
+        },
+        "protocol": "wss",
+        "servers": [
+          {
+            "description": "Browser clients subscribe to user-facing events over WebSockets.",
+            "url": "wss://stream.example.com/realtime"
+          }
+        ],
+        "summary": "Notifications delivered to browser clients.",
+        "tags": [],
+        "title": "User notifications"
+      }
+    ]
+  ],
+  "relationships": [],
+  "schemas": [
+    [
+      "DeviceTelemetryPayload",
+      {
+        "dialect": "asyncapi-schema",
+        "id": "DeviceTelemetryPayload",
+        "name": "DeviceTelemetryPayload",
+        "normalized": {
+          "properties": {
+            "battery": {
+              "examples": [
+                87
+              ],
+              "maximum": 100,
+              "minimum": 0,
+              "type": "number"
+            },
+            "deviceId": {
+              "examples": [
+                "sensor-7"
+              ],
+              "type": "string"
+            },
+            "temperature": {
+              "examples": [
+                21.4
+              ],
+              "type": "number"
+            }
+          },
+          "required": [
+            "deviceId",
+            "temperature"
+          ],
+          "type": "object"
+        }
+      }
+    ],
+    [
+      "InventoryChangedPayload",
+      {
+        "dialect": "asyncapi-schema",
+        "id": "InventoryChangedPayload",
+        "name": "InventoryChangedPayload",
+        "normalized": {
+          "properties": {
+            "available": {
+              "examples": [
+                42
+              ],
+              "type": "integer"
+            },
+            "sku": {
+              "examples": [
+                "hoodie-black-m"
+              ],
+              "type": "string"
+            },
+            "warehouse": {
+              "examples": [
+                "vancouver"
+              ],
+              "type": "string"
+            }
+          },
+          "required": [
+            "sku",
+            "available"
+          ],
+          "type": "object"
+        }
+      }
+    ],
+    [
+      "UserNotificationPayload",
+      {
+        "dialect": "asyncapi-schema",
+        "id": "UserNotificationPayload",
+        "name": "UserNotificationPayload",
+        "normalized": {
+          "properties": {
+            "id": {
+              "examples": [
+                "ntf_123"
+              ],
+              "type": "string"
+            },
+            "message": {
+              "examples": [
+                "Your report is ready."
+              ],
+              "type": "string"
+            },
+            "severity": {
+              "enum": [
+                "info",
+                "warning",
+                "critical"
+              ],
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "message"
+          ],
+          "type": "object"
+        }
+      }
+    ]
+  ],
+  "security": [],
+  "servers": [
+    {
+      "description": "Backend workers consume durable product events from Kafka.",
+      "protocol": "kafka",
+      "url": "kafka://kafka.example.com"
+    },
+    {
+      "description": "Devices publish telemetry over MQTT.",
+      "protocol": "mqtt",
+      "protocolVersion": "5.0",
+      "url": "mqtt://mqtt.example.com"
+    },
+    {
+      "description": "Browser clients subscribe to user-facing events over WebSockets.",
+      "protocol": "wss",
+      "protocolVersion": "13",
+      "url": "wss://stream.example.com/realtime"
+    }
+  ],
+  "webhooks": []
+}

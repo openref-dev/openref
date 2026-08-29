@@ -1,0 +1,200 @@
+{
+  "hash": "469e41981f140b16feb3189e51fb51df36614b80243888a4a47bbb8bc30ff156",
+  "id": "application-headers-example",
+  "info": {
+    "description": "A cut of the Streetlights API to test application header changes supporting",
+    "license": {
+      "name": "Apache 2.0",
+      "url": "https://www.apache.org/licenses/LICENSE-2.0"
+    },
+    "title": "Application Headers example",
+    "version": "1.0.0"
+  },
+  "kind": "events",
+  "navigation": [
+    {
+      "children": [
+        {
+          "children": [],
+          "id": "nav-channel-smartylighting-streetlights-1-0-event-streetlightid-lighting-measured",
+          "kind": "node",
+          "label": "smartylighting/streetlights/1/0/event/{streetlightId}/lighting/measured",
+          "nodeId": "channel-smartylighting-streetlights-1-0-event-streetlightid-lighting-measured"
+        }
+      ],
+      "id": "group-untagged",
+      "kind": "group",
+      "label": "Other"
+    },
+    {
+      "children": [
+        {
+          "children": [],
+          "id": "nav-schema-applicationInstanceId",
+          "kind": "schema",
+          "label": "applicationInstanceId",
+          "schemaId": "applicationInstanceId"
+        },
+        {
+          "children": [],
+          "id": "nav-schema-lightMeasuredPayload",
+          "kind": "schema",
+          "label": "lightMeasuredPayload",
+          "schemaId": "lightMeasuredPayload"
+        },
+        {
+          "children": [],
+          "id": "nav-schema-sentAt",
+          "kind": "schema",
+          "label": "sentAt",
+          "schemaId": "sentAt"
+        }
+      ],
+      "id": "group-schemas",
+      "kind": "group",
+      "label": "Schemas"
+    }
+  ],
+  "nodes": [
+    [
+      "channel-smartylighting-streetlights-1-0-event-streetlightid-lighting-measured",
+      {
+        "address": "smartylighting/streetlights/1/0/event/{streetlightId}/lighting/measured",
+        "deprecated": false,
+        "id": "channel-smartylighting-streetlights-1-0-event-streetlightid-lighting-measured",
+        "kind": "channel",
+        "messages": [
+          {
+            "contentType": "application/json",
+            "correlationId": "$message.header#/MQMD/CorrelId",
+            "headers": {
+              "kind": "inline",
+              "schema": {
+                "dialect": "asyncapi-schema",
+                "id": "channel-smartylighting-streetlights-1-0-event-streetlightid-lighting-measured.messages.lightMeasured.headers",
+                "normalized": {
+                  "properties": {
+                    "MQMD": {
+                      "properties": {
+                        "CorrelId": {
+                          "format": "binary",
+                          "maxLength": 24,
+                          "minLength": 24,
+                          "type": "string"
+                        }
+                      },
+                      "type": "object"
+                    },
+                    "applicationInstanceId": {
+                      "$ref": "applicationInstanceId"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "id": "lightMeasured",
+            "name": "lightMeasured",
+            "payload": {
+              "kind": "named",
+              "schemaId": "lightMeasuredPayload"
+            },
+            "summary": "Inform about environmental lighting conditions of a particular streetlight.",
+            "title": "Light measured"
+          }
+        ],
+        "operations": [
+          {
+            "direction": "receive",
+            "id": "receiveLightMeasurement",
+            "messageIds": [
+              "lightMeasured"
+            ],
+            "summary": "Inform about environmental lighting conditions of a particular streetlight."
+          }
+        ],
+        "parameters": {
+          "streetlightId": {
+            "description": "The ID of the streetlight."
+          }
+        },
+        "protocol": "mqtt",
+        "servers": [
+          {
+            "description": "Test broker",
+            "url": "mqtt://test.mosquitto.org:{port}"
+          }
+        ],
+        "tags": []
+      }
+    ]
+  ],
+  "relationships": [],
+  "schemas": [
+    [
+      "applicationInstanceId",
+      {
+        "dialect": "asyncapi-schema",
+        "id": "applicationInstanceId",
+        "name": "applicationInstanceId",
+        "normalized": {
+          "description": "Unique identifier for a given instance of the publishing application",
+          "type": "string"
+        }
+      }
+    ],
+    [
+      "lightMeasuredPayload",
+      {
+        "dialect": "asyncapi-schema",
+        "id": "lightMeasuredPayload",
+        "name": "lightMeasuredPayload",
+        "normalized": {
+          "properties": {
+            "lumens": {
+              "description": "Light intensity measured in lumens.",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "sentAt": {
+              "$ref": "sentAt"
+            }
+          },
+          "type": "object"
+        }
+      }
+    ],
+    [
+      "sentAt",
+      {
+        "dialect": "asyncapi-schema",
+        "id": "sentAt",
+        "name": "sentAt",
+        "normalized": {
+          "description": "Date and time when the message was sent.",
+          "format": "date-time",
+          "type": "string"
+        }
+      }
+    ]
+  ],
+  "security": [],
+  "servers": [
+    {
+      "description": "Test broker",
+      "protocol": "mqtt",
+      "url": "mqtt://test.mosquitto.org:{port}",
+      "variables": {
+        "port": {
+          "default": "1883",
+          "description": "Secure connection (TLS) is available through port 8883.",
+          "enum": [
+            "1883",
+            "8883"
+          ]
+        }
+      }
+    }
+  ],
+  "webhooks": []
+}

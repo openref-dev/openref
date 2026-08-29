@@ -1,0 +1,375 @@
+{
+  "hash": "9fd67dd5b4efe70a5be78662dde61982611a9508af887d0be001d7c0972c4fa6",
+  "id": "remittance-service-event-bus-example",
+  "info": {
+    "description": "Example AsyncAPI 2.6.0 model for a Remittance Service.\nA user makes a cross-border transaction request.\nEvents are published to AWS SNS, which pushes them to an SQS queue.\nDownstream services consume the event from SQS.\n",
+    "title": "Remittance Service Event Bus Example",
+    "version": "1.0.0"
+  },
+  "kind": "events",
+  "navigation": [
+    {
+      "children": [
+        {
+          "children": [],
+          "id": "nav-channel-sqs-remittance-transactions-queue",
+          "kind": "node",
+          "label": "sqs/remittance-transactions-queue",
+          "nodeId": "channel-sqs-remittance-transactions-queue"
+        },
+        {
+          "children": [],
+          "id": "nav-channel-sns-remittance-transactions-topic",
+          "kind": "node",
+          "label": "sns/remittance-transactions-topic",
+          "nodeId": "channel-sns-remittance-transactions-topic"
+        }
+      ],
+      "id": "group-untagged",
+      "kind": "group",
+      "label": "Other"
+    }
+  ],
+  "nodes": [
+    [
+      "channel-sns-remittance-transactions-topic",
+      {
+        "address": "sns/remittance-transactions-topic",
+        "deprecated": false,
+        "description": "SNS topic for remittance transaction events.",
+        "id": "channel-sns-remittance-transactions-topic",
+        "kind": "channel",
+        "messages": [
+          {
+            "contentType": "application/json",
+            "examples": {
+              "remittance.transaction.requested.example": {
+                "summary": "Example remittance transaction request",
+                "value": {
+                  "payload": {
+                    "amount": 750,
+                    "createdAt": "2025-09-16T10:15:00Z",
+                    "currency": "EUR",
+                    "paymentMethod": "wire_transfer",
+                    "receiver": {
+                      "country": "UA",
+                      "email": "olena.shevchenko@example.ua",
+                      "name": "Olena Shevchenko"
+                    },
+                    "sender": {
+                      "country": "LT",
+                      "email": "jonas.petrauskas@example.lt",
+                      "name": "Jonas Petrauskas"
+                    },
+                    "transactionId": "33333333-3333-3333-3333-333333333333",
+                    "transactionType": "remittance.requested"
+                  }
+                }
+              }
+            },
+            "id": "publishRemittanceTransactionToSNS",
+            "name": "RemittanceTransactionRequested",
+            "payload": {
+              "kind": "inline",
+              "schema": {
+                "dialect": "asyncapi-schema",
+                "id": "channel-sns-remittance-transactions-topic.messages.publishRemittanceTransactionToSNS.payload",
+                "normalized": {
+                  "properties": {
+                    "amount": {
+                      "description": "Amount requested to transfer.",
+                      "format": "double",
+                      "type": "number"
+                    },
+                    "createdAt": {
+                      "description": "ISO8601 timestamp for when the request was made.",
+                      "format": "date-time",
+                      "type": "string"
+                    },
+                    "currency": {
+                      "description": "ISO 4217 currency code.",
+                      "type": "string"
+                    },
+                    "paymentMethod": {
+                      "description": "Payment method used to fund the transaction.",
+                      "enum": [
+                        "card",
+                        "wire_transfer",
+                        "bank_account"
+                      ],
+                      "type": "string"
+                    },
+                    "receiver": {
+                      "properties": {
+                        "country": {
+                          "description": "ISO 3166-1 alpha-2 country code",
+                          "type": "string"
+                        },
+                        "email": {
+                          "format": "email",
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "name",
+                        "email",
+                        "country"
+                      ],
+                      "type": "object"
+                    },
+                    "sender": {
+                      "properties": {
+                        "country": {
+                          "description": "ISO 3166-1 alpha-2 country code",
+                          "type": "string"
+                        },
+                        "email": {
+                          "format": "email",
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "name",
+                        "email",
+                        "country"
+                      ],
+                      "type": "object"
+                    },
+                    "transactionId": {
+                      "description": "Unique transaction identifier.",
+                      "format": "uuid",
+                      "type": "string"
+                    },
+                    "transactionType": {
+                      "description": "Type of transaction.",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "transactionId",
+                    "transactionType",
+                    "createdAt",
+                    "sender",
+                    "receiver",
+                    "amount",
+                    "currency",
+                    "paymentMethod"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "summary": "Event emitted when a user requests to send money cross-border.",
+            "title": "Remittance Transaction Requested"
+          }
+        ],
+        "operations": [
+          {
+            "direction": "receive",
+            "id": "publishRemittanceTransactionToSNS",
+            "messageIds": [
+              "publishRemittanceTransactionToSNS"
+            ],
+            "summary": "Publish RemittanceTransactionRequested event to SNS topic"
+          }
+        ],
+        "protocol": "https",
+        "servers": [
+          {
+            "description": "AWS endpoints for SNS and SQS.",
+            "url": "https://{service}.{region}.amazonaws.com"
+          }
+        ],
+        "tags": []
+      }
+    ],
+    [
+      "channel-sqs-remittance-transactions-queue",
+      {
+        "address": "sqs/remittance-transactions-queue",
+        "deprecated": false,
+        "description": "SQS queue that receives messages forwarded from SNS topic via subscription.",
+        "id": "channel-sqs-remittance-transactions-queue",
+        "kind": "channel",
+        "messages": [
+          {
+            "contentType": "application/json",
+            "examples": {
+              "remittance.transaction.requested.example": {
+                "summary": "Example remittance transaction request",
+                "value": {
+                  "payload": {
+                    "amount": 750,
+                    "createdAt": "2025-09-16T10:15:00Z",
+                    "currency": "EUR",
+                    "paymentMethod": "wire_transfer",
+                    "receiver": {
+                      "country": "UA",
+                      "email": "olena.shevchenko@example.ua",
+                      "name": "Olena Shevchenko"
+                    },
+                    "sender": {
+                      "country": "LT",
+                      "email": "jonas.petrauskas@example.lt",
+                      "name": "Jonas Petrauskas"
+                    },
+                    "transactionId": "33333333-3333-3333-3333-333333333333",
+                    "transactionType": "remittance.requested"
+                  }
+                }
+              }
+            },
+            "id": "consumeRemittanceTransactionFromSQS",
+            "name": "RemittanceTransactionRequested",
+            "payload": {
+              "kind": "inline",
+              "schema": {
+                "dialect": "asyncapi-schema",
+                "id": "channel-sqs-remittance-transactions-queue.messages.consumeRemittanceTransactionFromSQS.payload",
+                "normalized": {
+                  "properties": {
+                    "amount": {
+                      "description": "Amount requested to transfer.",
+                      "format": "double",
+                      "type": "number"
+                    },
+                    "createdAt": {
+                      "description": "ISO8601 timestamp for when the request was made.",
+                      "format": "date-time",
+                      "type": "string"
+                    },
+                    "currency": {
+                      "description": "ISO 4217 currency code.",
+                      "type": "string"
+                    },
+                    "paymentMethod": {
+                      "description": "Payment method used to fund the transaction.",
+                      "enum": [
+                        "card",
+                        "wire_transfer",
+                        "bank_account"
+                      ],
+                      "type": "string"
+                    },
+                    "receiver": {
+                      "properties": {
+                        "country": {
+                          "description": "ISO 3166-1 alpha-2 country code",
+                          "type": "string"
+                        },
+                        "email": {
+                          "format": "email",
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "name",
+                        "email",
+                        "country"
+                      ],
+                      "type": "object"
+                    },
+                    "sender": {
+                      "properties": {
+                        "country": {
+                          "description": "ISO 3166-1 alpha-2 country code",
+                          "type": "string"
+                        },
+                        "email": {
+                          "format": "email",
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "name",
+                        "email",
+                        "country"
+                      ],
+                      "type": "object"
+                    },
+                    "transactionId": {
+                      "description": "Unique transaction identifier.",
+                      "format": "uuid",
+                      "type": "string"
+                    },
+                    "transactionType": {
+                      "description": "Type of transaction.",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "transactionId",
+                    "transactionType",
+                    "createdAt",
+                    "sender",
+                    "receiver",
+                    "amount",
+                    "currency",
+                    "paymentMethod"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "summary": "Event emitted when a user requests to send money cross-border.",
+            "title": "Remittance Transaction Requested"
+          }
+        ],
+        "operations": [
+          {
+            "direction": "send",
+            "id": "consumeRemittanceTransactionFromSQS",
+            "messageIds": [
+              "consumeRemittanceTransactionFromSQS"
+            ],
+            "summary": "Consumer service polls SQS to consume RemittanceTransactionRequested events."
+          }
+        ],
+        "protocol": "https",
+        "servers": [
+          {
+            "description": "AWS endpoints for SNS and SQS.",
+            "url": "https://{service}.{region}.amazonaws.com"
+          }
+        ],
+        "tags": []
+      }
+    ]
+  ],
+  "relationships": [],
+  "schemas": [],
+  "security": [],
+  "servers": [
+    {
+      "description": "AWS endpoints for SNS and SQS.",
+      "protocol": "https",
+      "url": "https://{service}.{region}.amazonaws.com",
+      "variables": {
+        "region": {
+          "default": "us-east-1",
+          "description": "AWS region used for the SNS/SQS resources."
+        },
+        "service": {
+          "default": "sns",
+          "enum": [
+            "sns",
+            "sqs"
+          ]
+        }
+      }
+    }
+  ],
+  "webhooks": []
+}

@@ -212,6 +212,49 @@ export interface IRMessage {
   /** Protocol bindings, kept verbatim. There is no OpenAPI analogue. */
   readonly bindings?: Readonly<Record<string, IRJsonValue>>;
   readonly examples?: Readonly<Record<string, IRExample>>;
+  /**
+   * Tag names, in the order the document wrote them, per SPEC 8.2.
+   *
+   * ADDITIVE AND OPTIONAL, added 2026-08-29 at `T049` on the event corpus's showing. Absent
+   * where the document wrote no tag, which is the difference from {@link IRChannel.tags}: that
+   * one is required and may be empty, because a required member cannot be added to a public type
+   * without breaking every producer of it.
+   */
+  readonly tags?: readonly string[];
+}
+
+/**
+ * The reply half of a request-reply operation, per SPEC 8.2.
+ *
+ * ALL THREE MEMBERS ARE OPTIONAL BECAUSE THE OPERATION REPLY OBJECT REQUIRES NONE OF THEM, and a
+ * `reply` writing nothing at all is still carried, as the empty record: it says the operation is
+ * one half of a request-reply pair, which is a fact an operation with no `reply` does not carry.
+ */
+export interface IRChannelReply {
+  /**
+   * Node id of the channel the reply travels on, when the document names one.
+   *
+   * IT MAY NAME A CHANNEL OTHER THAN THE OPERATION'S OWN, and usually does. This is the edge a
+   * request-reply pair draws between two channels, and SPEC 9's topology graph is built from it.
+   */
+  readonly channelId?: string;
+  /**
+   * Ids of the reply messages, local to the reply channel rather than to the operation's own.
+   *
+   * Absent when the document names none. The "all messages of the channel" default that
+   * {@link IRChannelOperation.messageIds} applies is deliberately not applied here: AsyncAPI
+   * writes that default on the Operation Object and does not write it on the Operation Reply
+   * Object, so applying it would be a default of this normalizer's invention.
+   */
+  readonly messageIds?: readonly string[];
+  /**
+   * A runtime expression saying where the reply is to be sent.
+   *
+   * The `location` of the Operation Reply Address Object and nothing else. Its `description` is
+   * prose about the expression and is left where it was, the same choice
+   * {@link IRMessage.correlationId} records.
+   */
+  readonly address?: string;
 }
 
 /** A `send` or `receive` operation on a channel. */
@@ -223,6 +266,15 @@ export interface IRChannelOperation {
   /** Ids of the messages this operation carries, referring into the channel's own list. */
   readonly messageIds: readonly string[];
   readonly bindings?: Readonly<Record<string, IRJsonValue>>;
+  /**
+   * The reply of a request-reply operation, per SPEC 8.2. Absent on a one way operation.
+   *
+   * ADDITIVE AND OPTIONAL, added 2026-08-29 at `T049`. It is the most written of the six members
+   * SPEC 8.2 had recorded as unheld: 13 positions across four of the 23 event corpus documents.
+   */
+  readonly reply?: IRChannelReply;
+  /** Tag names, in the order the document wrote them. See {@link IRMessage.tags}. */
+  readonly tags?: readonly string[];
   readonly runtime?: IRNodeRuntime;
 }
 

@@ -1,0 +1,257 @@
+{
+  "documents": [
+    {
+      "file": "aai-adeo-kafka-request-reply.yml",
+      "title": "AsyncAPI, Adeo Kafka request reply",
+      "sourceUrl": "https://raw.githubusercontent.com/asyncapi/spec/master/examples/adeo-kafka-request-reply-asyncapi.yml",
+      "retrievedAt": "2026-08-29",
+      "license": "Apache-2.0",
+      "copyrightHolder": "The AsyncAPI Initiative",
+      "modified": false,
+      "bytes": 10315,
+      "sha256": "657308e25e73a7e5f79dc9a6552782091bbc43dfaf9130bbe838eb7e5d803d2d"
+    },
+    {
+      "file": "aai-anyof.yml",
+      "title": "AsyncAPI, anyOf payload",
+      "sourceUrl": "https://raw.githubusercontent.com/asyncapi/spec/master/examples/anyof-asyncapi.yml",
+      "retrievedAt": "2026-08-29",
+      "license": "Apache-2.0",
+      "copyrightHolder": "The AsyncAPI Initiative",
+      "modified": false,
+      "bytes": 751,
+      "sha256": "f2959a74309baf0927c5e7c968bc70640f0af29d04244d27498bb620bcb10b6d"
+    },
+    {
+      "file": "aai-application-headers.yml",
+      "title": "AsyncAPI, MQTT application headers",
+      "sourceUrl": "https://raw.githubusercontent.com/asyncapi/spec/master/examples/application-headers-asyncapi.yml",
+      "retrievedAt": "2026-08-29",
+      "license": "Apache-2.0",
+      "copyrightHolder": "The AsyncAPI Initiative",
+      "modified": false,
+      "bytes": 2504,
+      "sha256": "82c01805f3f134412962497726077d9580dd320207bb5f4fc023590545f6f259"
+    },
+    {
+      "file": "aai-correlation-id.yml",
+      "title": "AsyncAPI, correlation id",
+      "sourceUrl": "https://raw.githubusercontent.com/asyncapi/spec/master/examples/correlation-id-asyncapi.yml",
+      "retrievedAt": "2026-08-29",
+      "license": "Apache-2.0",
+      "copyrightHolder": "The AsyncAPI Initiative",
+      "modified": false,
+      "bytes": 6351,
+      "sha256": "8e41e7dac419f2d3718f0676af34e788843e87aa858ef5c004a73d43cb8f321a"
+    },
+    {
+      "file": "aai-gitter-streaming.yml",
+      "title": "AsyncAPI, Gitter streaming API",
+      "sourceUrl": "https://raw.githubusercontent.com/asyncapi/spec/master/examples/gitter-streaming-asyncapi.yml",
+      "retrievedAt": "2026-08-29",
+      "license": "Apache-2.0",
+      "copyrightHolder": "The AsyncAPI Initiative",
+      "modified": false,
+      "bytes": 5336,
+      "sha256": "b490002680f7aec53f4e1e80a7b8ebb99139bb48da67f03f1eb14af2015fe6db"
+    },
+    {
+      "file": "aai-kraken-websocket-reply-channels.yml",
+      "title": "AsyncAPI, Kraken WebSocket request reply over several channels",
+      "sourceUrl": "https://raw.githubusercontent.com/asyncapi/spec/master/examples/kraken-websocket-request-reply-multiple-channels-asyncapi.yml",
+      "retrievedAt": "2026-08-29",
+      "license": "Apache-2.0",
+      "copyrightHolder": "The AsyncAPI Initiative",
+      "modified": false,
+      "bytes": 12597,
+      "sha256": "f64369546376e3c19a1ea3f2bdbc137ef2ab2348be4eb6a4fe9b2dda820bd534"
+    },
+    {
+      "file": "aai-kraken-websocket-reply-filter.yml",
+      "title": "AsyncAPI, Kraken WebSocket request reply with a message filter",
+      "sourceUrl": "https://raw.githubusercontent.com/asyncapi/spec/master/examples/kraken-websocket-request-reply-message-filter-in-reply-asyncapi.yml",
+      "retrievedAt": "2026-08-29",
+      "license": "Apache-2.0",
+      "copyrightHolder": "The AsyncAPI Initiative",
+      "modified": false,
+      "bytes": 13060,
+      "sha256": "cc2861313d6da3ddf1d00e39e1b2b047eaaca4832555485ad4dd682573d8a295"
+    },
+    {
+      "file": "aai-mercure.yml",
+      "title": "AsyncAPI, Mercure hub",
+      "sourceUrl": "https://raw.githubusercontent.com/asyncapi/spec/master/examples/mercure-asyncapi.yml",
+      "retrievedAt": "2026-08-29",
+      "license": "Apache-2.0",
+      "copyrightHolder": "The AsyncAPI Initiative",
+      "modified": false,
+      "bytes": 1472,
+      "sha256": "0dd4bea20c823a166400e31af220caca1507e1bd9f4c6350a9252bf1e63eb7d2"
+    },
+    {
+      "file": "aai-not.yml",
+      "title": "AsyncAPI, not payload",
+      "sourceUrl": "https://raw.githubusercontent.com/asyncapi/spec/master/examples/not-asyncapi.yml",
+      "retrievedAt": "2026-08-29",
+      "license": "Apache-2.0",
+      "copyrightHolder": "The AsyncAPI Initiative",
+      "modified": false,
+      "bytes": 560,
+      "sha256": "9557d8ff5ad2032e19fd2e53d8445ed1e47154d6542116639b11b3e8abfd85eb"
+    },
+    {
+      "file": "aai-oneof.yml",
+      "title": "AsyncAPI, oneOf payload",
+      "sourceUrl": "https://raw.githubusercontent.com/asyncapi/spec/master/examples/oneof-asyncapi.yml",
+      "retrievedAt": "2026-08-29",
+      "license": "Apache-2.0",
+      "copyrightHolder": "The AsyncAPI Initiative",
+      "modified": false,
+      "bytes": 1314,
+      "sha256": "9d942900ed25d25fc8aa5e0da37b998aafac43c5c198cbbe2501e77c893a8c19"
+    },
+    {
+      "file": "aai-operation-security.yml",
+      "title": "AsyncAPI, operation level security",
+      "sourceUrl": "https://raw.githubusercontent.com/asyncapi/spec/master/examples/operation-security-asyncapi.yml",
+      "retrievedAt": "2026-08-29",
+      "license": "Apache-2.0",
+      "copyrightHolder": "The AsyncAPI Initiative",
+      "modified": false,
+      "bytes": 3471,
+      "sha256": "4bdb164fef7f74258429c7b646c1cdf3402ec53fe7ccf23162c3de936129fdb9"
+    },
+    {
+      "file": "aai-rpc-client.yml",
+      "title": "AsyncAPI, AMQP rpc client",
+      "sourceUrl": "https://raw.githubusercontent.com/asyncapi/spec/master/examples/rpc-client-asyncapi.yml",
+      "retrievedAt": "2026-08-29",
+      "license": "Apache-2.0",
+      "copyrightHolder": "The AsyncAPI Initiative",
+      "modified": false,
+      "bytes": 1562,
+      "sha256": "cb6296ac842a02d949268467ff72eda43990c9c813e7c462ed2e0d590f52384a"
+    },
+    {
+      "file": "aai-rpc-server.yml",
+      "title": "AsyncAPI, AMQP rpc server",
+      "sourceUrl": "https://raw.githubusercontent.com/asyncapi/spec/master/examples/rpc-server-asyncapi.yml",
+      "retrievedAt": "2026-08-29",
+      "license": "Apache-2.0",
+      "copyrightHolder": "The AsyncAPI Initiative",
+      "modified": false,
+      "bytes": 1487,
+      "sha256": "b552a2acd6bd44a6f7e7fe511e97bc9c943b39d7a2079957724ce9b0dd7c1bb4"
+    },
+    {
+      "file": "aai-simple.yml",
+      "title": "AsyncAPI, the smallest document",
+      "sourceUrl": "https://raw.githubusercontent.com/asyncapi/spec/master/examples/simple-asyncapi.yml",
+      "retrievedAt": "2026-08-29",
+      "license": "Apache-2.0",
+      "copyrightHolder": "The AsyncAPI Initiative",
+      "modified": false,
+      "bytes": 744,
+      "sha256": "8fcbe903a4630d4c8ed7a73726dd603d56c2a98d109498bea1574f0d819d5a92"
+    },
+    {
+      "file": "aai-slack-rtm.yml",
+      "title": "AsyncAPI, Slack RTM API",
+      "sourceUrl": "https://raw.githubusercontent.com/asyncapi/spec/master/examples/slack-rtm-asyncapi.yml",
+      "retrievedAt": "2026-08-29",
+      "license": "Apache-2.0",
+      "copyrightHolder": "The AsyncAPI Initiative",
+      "modified": false,
+      "bytes": 25194,
+      "sha256": "714f0635858eef8ed5e54262c073aea93309a087291da959f8932158ca9efa83"
+    },
+    {
+      "file": "aai-streetlights-kafka.yml",
+      "title": "AsyncAPI, Streetlights over Kafka",
+      "sourceUrl": "https://raw.githubusercontent.com/asyncapi/spec/master/examples/streetlights-kafka-asyncapi.yml",
+      "retrievedAt": "2026-08-29",
+      "license": "Apache-2.0",
+      "copyrightHolder": "The AsyncAPI Initiative",
+      "modified": false,
+      "bytes": 6354,
+      "sha256": "916c6d5a3c16ce9d2837f24ffc27509044de4fe8c2685de50917438b0d5b2076"
+    },
+    {
+      "file": "aai-streetlights-mqtt.yml",
+      "title": "AsyncAPI, Streetlights over MQTT",
+      "sourceUrl": "https://raw.githubusercontent.com/asyncapi/spec/master/examples/streetlights-mqtt-asyncapi.yml",
+      "retrievedAt": "2026-08-29",
+      "license": "Apache-2.0",
+      "copyrightHolder": "The AsyncAPI Initiative",
+      "modified": false,
+      "bytes": 8748,
+      "sha256": "48ed935327e7138f9276cc26c7d632adacd83c403d4f33de8fda368a4a577c9d"
+    },
+    {
+      "file": "aai-streetlights-operation-security.yml",
+      "title": "AsyncAPI, Streetlights with operation security",
+      "sourceUrl": "https://raw.githubusercontent.com/asyncapi/spec/master/examples/streetlights-operation-security-asyncapi.yml",
+      "retrievedAt": "2026-08-29",
+      "license": "Apache-2.0",
+      "copyrightHolder": "The AsyncAPI Initiative",
+      "modified": false,
+      "bytes": 7682,
+      "sha256": "258b69355e7cf1ec35be4b3bd2087736217c3ab349f7b244ef749c2da45f554a"
+    },
+    {
+      "file": "aai-websocket-gemini.yml",
+      "title": "AsyncAPI, Gemini WebSocket market data",
+      "sourceUrl": "https://raw.githubusercontent.com/asyncapi/spec/master/examples/websocket-gemini-asyncapi.yml",
+      "retrievedAt": "2026-08-29",
+      "license": "Apache-2.0",
+      "copyrightHolder": "The AsyncAPI Initiative",
+      "modified": false,
+      "bytes": 8907,
+      "sha256": "6106d84b08694df64d6a4c4c8b327ea0bc72fc1ef62d6417db5a13e3f1852345"
+    },
+    {
+      "file": "everest-system-api.yaml",
+      "title": "EVerest system API, MQTT with request reply",
+      "sourceUrl": "https://raw.githubusercontent.com/EVerest/EVerest/main/docs/source/reference/EVerest_API/system_API.yaml",
+      "retrievedAt": "2026-08-29",
+      "license": "Apache-2.0",
+      "copyrightHolder": "Pionix GmbH and the EVerest contributors",
+      "modified": false,
+      "bytes": 34377,
+      "sha256": "aae2da22ce3fb501d2d638ed9e66d3860812b4f107f36db4c33edfb92067ca1a"
+    },
+    {
+      "file": "network-survey-messaging.yaml",
+      "title": "Network Survey Messaging API, the large document",
+      "sourceUrl": "https://raw.githubusercontent.com/christianrowlands/network-survey-messaging/develop/src/main/asyncapi/network_survey_messaging.yaml",
+      "retrievedAt": "2026-08-29",
+      "license": "Apache-2.0",
+      "copyrightHolder": "Christian Rowlands",
+      "modified": false,
+      "bytes": 132931,
+      "sha256": "6e5dd7d2f6927216a6d28eed7705a73bb79ba517e54767fd5522e12e81e7ba35"
+    },
+    {
+      "file": "scalar-multi-protocol.yaml",
+      "title": "Scalar, one document over three protocols",
+      "sourceUrl": "https://raw.githubusercontent.com/scalar/scalar/main/packages/api-reference/public/examples/asyncapi-filters.yaml",
+      "retrievedAt": "2026-08-29",
+      "license": "MIT",
+      "copyrightHolder": "Scalar GmbH",
+      "modified": false,
+      "bytes": 5084,
+      "sha256": "8a2972102fa6cdf069d94a0b6b0785b23695507d4451cd8b5191015333802394"
+    },
+    {
+      "file": "transfergo-remittance.yaml",
+      "title": "TransferGo remittance event bus",
+      "sourceUrl": "https://raw.githubusercontent.com/asyncapi/website/master/public/resources/casestudies/transfergo/asyncapi.yaml",
+      "retrievedAt": "2026-08-29",
+      "license": "Apache-2.0",
+      "copyrightHolder": "TransferGo, via the AsyncAPI Initiative case studies",
+      "modified": false,
+      "bytes": 4717,
+      "sha256": "c76fbd28aad4ce02baa17a5705b0d89458e09eee48084f262b1099997f082d78"
+    }
+  ]
+}

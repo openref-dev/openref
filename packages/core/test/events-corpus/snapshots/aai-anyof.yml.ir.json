@@ -1,0 +1,143 @@
+{
+  "hash": "4d9dc84074dde0e92b4ccfc8c85bbd49fc17bb40619ed683fdf6535152cea117",
+  "id": "anyof-example",
+  "info": {
+    "title": "AnyOf example",
+    "version": "1.0.0"
+  },
+  "kind": "events",
+  "navigation": [
+    {
+      "children": [
+        {
+          "children": [],
+          "id": "nav-channel-test",
+          "kind": "node",
+          "label": "test",
+          "nodeId": "channel-test"
+        }
+      ],
+      "id": "group-untagged",
+      "kind": "group",
+      "label": "Other"
+    },
+    {
+      "children": [
+        {
+          "children": [],
+          "id": "nav-schema-objectWithKey",
+          "kind": "schema",
+          "label": "objectWithKey",
+          "schemaId": "objectWithKey"
+        },
+        {
+          "children": [],
+          "id": "nav-schema-objectWithKey2",
+          "kind": "schema",
+          "label": "objectWithKey2",
+          "schemaId": "objectWithKey2"
+        }
+      ],
+      "id": "group-schemas",
+      "kind": "group",
+      "label": "Schemas"
+    }
+  ],
+  "nodes": [
+    [
+      "channel-test",
+      {
+        "address": "test",
+        "deprecated": false,
+        "id": "channel-test",
+        "kind": "channel",
+        "messages": [
+          {
+            "id": "testMessages",
+            "payload": {
+              "kind": "inline",
+              "schema": {
+                "dialect": "asyncapi-schema",
+                "id": "channel-test.messages.testMessages.payload",
+                "normalized": {
+                  "anyOf": [
+                    {
+                      "$ref": "objectWithKey"
+                    },
+                    {
+                      "$ref": "objectWithKey2"
+                    }
+                  ],
+                  "variants": [
+                    {
+                      "label": "objectWithKey",
+                      "schema": {
+                        "$ref": "objectWithKey"
+                      }
+                    },
+                    {
+                      "label": "objectWithKey2",
+                      "schema": {
+                        "$ref": "objectWithKey2"
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        ],
+        "operations": [
+          {
+            "direction": "receive",
+            "id": "test",
+            "messageIds": [
+              "testMessages"
+            ]
+          }
+        ],
+        "servers": [],
+        "tags": []
+      }
+    ]
+  ],
+  "relationships": [],
+  "schemas": [
+    [
+      "objectWithKey",
+      {
+        "dialect": "asyncapi-schema",
+        "id": "objectWithKey",
+        "name": "objectWithKey",
+        "normalized": {
+          "properties": {
+            "key": {
+              "additionalProperties": false,
+              "type": "string"
+            }
+          },
+          "type": "object"
+        }
+      }
+    ],
+    [
+      "objectWithKey2",
+      {
+        "dialect": "asyncapi-schema",
+        "id": "objectWithKey2",
+        "name": "objectWithKey2",
+        "normalized": {
+          "properties": {
+            "key2": {
+              "type": "string"
+            }
+          },
+          "type": "object"
+        }
+      }
+    ]
+  ],
+  "security": [],
+  "servers": [],
+  "webhooks": []
+}

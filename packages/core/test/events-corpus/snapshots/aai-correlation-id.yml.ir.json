@@ -1,0 +1,236 @@
+{
+  "hash": "85ffed23e20c6fd2d478e781f6eb91845816c4480933d500c165bfb93378fe86",
+  "id": "correlation-id-example",
+  "info": {
+    "description": "A cut of the Streetlights API to test Correlation ID",
+    "license": {
+      "name": "Apache 2.0",
+      "url": "https://www.apache.org/licenses/LICENSE-2.0"
+    },
+    "title": "Correlation ID Example",
+    "version": "1.0.0"
+  },
+  "kind": "events",
+  "navigation": [
+    {
+      "children": [
+        {
+          "children": [],
+          "id": "nav-channel-smartylighting-streetlights-1-0-event-streetlightid-lighting-measured",
+          "kind": "node",
+          "label": "smartylighting/streetlights/1/0/event/{streetlightId}/lighting/measured",
+          "nodeId": "channel-smartylighting-streetlights-1-0-event-streetlightid-lighting-measured"
+        },
+        {
+          "children": [],
+          "id": "nav-channel-smartylighting-streetlights-1-0-action-streetlightid-dim",
+          "kind": "node",
+          "label": "smartylighting/streetlights/1/0/action/{streetlightId}/dim",
+          "nodeId": "channel-smartylighting-streetlights-1-0-action-streetlightid-dim"
+        }
+      ],
+      "id": "group-untagged",
+      "kind": "group",
+      "label": "Other"
+    },
+    {
+      "children": [
+        {
+          "children": [],
+          "id": "nav-schema-dimLightPayload",
+          "kind": "schema",
+          "label": "dimLightPayload",
+          "schemaId": "dimLightPayload"
+        },
+        {
+          "children": [],
+          "id": "nav-schema-lightMeasuredPayload",
+          "kind": "schema",
+          "label": "lightMeasuredPayload",
+          "schemaId": "lightMeasuredPayload"
+        },
+        {
+          "children": [],
+          "id": "nav-schema-sentAt",
+          "kind": "schema",
+          "label": "sentAt",
+          "schemaId": "sentAt"
+        }
+      ],
+      "id": "group-schemas",
+      "kind": "group",
+      "label": "Schemas"
+    }
+  ],
+  "nodes": [
+    [
+      "channel-smartylighting-streetlights-1-0-action-streetlightid-dim",
+      {
+        "address": "smartylighting/streetlights/1/0/action/{streetlightId}/dim",
+        "deprecated": false,
+        "id": "channel-smartylighting-streetlights-1-0-action-streetlightid-dim",
+        "kind": "channel",
+        "messages": [
+          {
+            "contentType": "application/json",
+            "correlationId": "$message.payload#/sentAt",
+            "id": "dimLight",
+            "name": "dimLight",
+            "payload": {
+              "kind": "named",
+              "schemaId": "dimLightPayload"
+            },
+            "summary": "Command a particular streetlight to dim the lights.",
+            "title": "Dim light"
+          }
+        ],
+        "operations": [
+          {
+            "direction": "send",
+            "id": "dimLight",
+            "messageIds": [
+              "dimLight"
+            ]
+          }
+        ],
+        "parameters": {
+          "streetlightId": {
+            "description": "The ID of the streetlight."
+          }
+        },
+        "protocol": "mqtt",
+        "servers": [
+          {
+            "description": "Test broker",
+            "url": "mqtt://test.mosquitto.org:{port}"
+          }
+        ],
+        "tags": []
+      }
+    ],
+    [
+      "channel-smartylighting-streetlights-1-0-event-streetlightid-lighting-measured",
+      {
+        "address": "smartylighting/streetlights/1/0/event/{streetlightId}/lighting/measured",
+        "deprecated": false,
+        "id": "channel-smartylighting-streetlights-1-0-event-streetlightid-lighting-measured",
+        "kind": "channel",
+        "messages": [
+          {
+            "contentType": "application/json",
+            "correlationId": "$message.header#/MQMD/CorrelId",
+            "id": "lightMeasured",
+            "name": "lightMeasured",
+            "payload": {
+              "kind": "named",
+              "schemaId": "lightMeasuredPayload"
+            },
+            "summary": "Inform about environmental lighting conditions of a particular streetlight.",
+            "title": "Light measured"
+          }
+        ],
+        "operations": [
+          {
+            "direction": "receive",
+            "id": "receiveLightMeasurement",
+            "messageIds": [
+              "lightMeasured"
+            ],
+            "summary": "Inform about environmental lighting conditions of a particular streetlight."
+          }
+        ],
+        "parameters": {
+          "streetlightId": {
+            "description": "The ID of the streetlight."
+          }
+        },
+        "protocol": "mqtt",
+        "servers": [
+          {
+            "description": "Test broker",
+            "url": "mqtt://test.mosquitto.org:{port}"
+          }
+        ],
+        "tags": []
+      }
+    ]
+  ],
+  "relationships": [],
+  "schemas": [
+    [
+      "dimLightPayload",
+      {
+        "dialect": "asyncapi-schema",
+        "id": "dimLightPayload",
+        "name": "dimLightPayload",
+        "normalized": {
+          "properties": {
+            "percentage": {
+              "description": "Percentage to which the light should be dimmed to.",
+              "maximum": 100,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "sentAt": {
+              "$ref": "sentAt"
+            }
+          },
+          "type": "object"
+        }
+      }
+    ],
+    [
+      "lightMeasuredPayload",
+      {
+        "dialect": "asyncapi-schema",
+        "id": "lightMeasuredPayload",
+        "name": "lightMeasuredPayload",
+        "normalized": {
+          "properties": {
+            "lumens": {
+              "description": "Light intensity measured in lumens.",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "sentAt": {
+              "$ref": "sentAt"
+            }
+          },
+          "type": "object"
+        }
+      }
+    ],
+    [
+      "sentAt",
+      {
+        "dialect": "asyncapi-schema",
+        "id": "sentAt",
+        "name": "sentAt",
+        "normalized": {
+          "description": "Date and time when the message was sent.",
+          "format": "date-time",
+          "type": "string"
+        }
+      }
+    ]
+  ],
+  "security": [],
+  "servers": [
+    {
+      "description": "Test broker",
+      "protocol": "mqtt",
+      "url": "mqtt://test.mosquitto.org:{port}",
+      "variables": {
+        "port": {
+          "default": "1883",
+          "description": "Secure connection (TLS) is available through port 8883.",
+          "enum": [
+            "1883",
+            "8883"
+          ]
+        }
+      }
+    }
+  ],
+  "webhooks": []
+}

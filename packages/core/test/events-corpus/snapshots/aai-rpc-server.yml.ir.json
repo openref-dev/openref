@@ -1,0 +1,175 @@
+{
+  "hash": "bdeb0c1be5d87faacd884e542cb032f509c06fee9a80e7e26eca2e65ad19f440",
+  "id": "rpc-server-example",
+  "info": {
+    "description": "This example demonstrates how to define an RPC server.",
+    "title": "RPC Server Example",
+    "version": "1.0.0"
+  },
+  "kind": "events",
+  "navigation": [
+    {
+      "children": [
+        {
+          "children": [],
+          "id": "nav-channel-queue",
+          "kind": "node",
+          "label": "{queue}",
+          "nodeId": "channel-queue"
+        },
+        {
+          "children": [],
+          "id": "nav-channel-rpc-queue",
+          "kind": "node",
+          "label": "rpc_queue",
+          "nodeId": "channel-rpc-queue"
+        }
+      ],
+      "id": "group-untagged",
+      "kind": "group",
+      "label": "Other"
+    }
+  ],
+  "nodes": [
+    [
+      "channel-queue",
+      {
+        "address": "{queue}",
+        "bindings": {
+          "amqp": {
+            "is": "queue",
+            "queue": {
+              "exclusive": true
+            }
+          }
+        },
+        "deprecated": false,
+        "id": "channel-queue",
+        "kind": "channel",
+        "messages": [
+          {
+            "contentType": "application/json",
+            "correlationId": "$message.header#/correlation_id",
+            "id": "sendSumResult",
+            "payload": {
+              "kind": "inline",
+              "schema": {
+                "dialect": "asyncapi-schema",
+                "id": "channel-queue.messages.sendSumResult.payload",
+                "normalized": {
+                  "properties": {
+                    "result": {
+                      "examples": [
+                        7
+                      ],
+                      "type": "number"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            }
+          }
+        ],
+        "operations": [
+          {
+            "bindings": {
+              "amqp": {
+                "ack": true
+              }
+            },
+            "direction": "send",
+            "id": "sendSumResult",
+            "messageIds": [
+              "sendSumResult"
+            ]
+          }
+        ],
+        "parameters": {
+          "queue": {}
+        },
+        "protocol": "amqp",
+        "servers": [
+          {
+            "url": "amqp://rabbitmq.example.org"
+          }
+        ],
+        "tags": []
+      }
+    ],
+    [
+      "channel-rpc-queue",
+      {
+        "address": "rpc_queue",
+        "bindings": {
+          "amqp": {
+            "is": "queue",
+            "queue": {
+              "durable": false
+            }
+          }
+        },
+        "deprecated": false,
+        "id": "channel-rpc-queue",
+        "kind": "channel",
+        "messages": [
+          {
+            "contentType": "application/json",
+            "correlationId": "$message.header#/correlation_id",
+            "id": "sum",
+            "payload": {
+              "kind": "inline",
+              "schema": {
+                "dialect": "asyncapi-schema",
+                "id": "channel-rpc-queue.messages.sum.payload",
+                "normalized": {
+                  "properties": {
+                    "numbers": {
+                      "examples": [
+                        [
+                          4,
+                          3
+                        ]
+                      ],
+                      "items": {
+                        "type": "number"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            }
+          }
+        ],
+        "operations": [
+          {
+            "direction": "receive",
+            "id": "sum",
+            "messageIds": [
+              "sum"
+            ]
+          }
+        ],
+        "protocol": "amqp",
+        "servers": [
+          {
+            "url": "amqp://rabbitmq.example.org"
+          }
+        ],
+        "tags": []
+      }
+    ]
+  ],
+  "relationships": [],
+  "schemas": [],
+  "security": [],
+  "servers": [
+    {
+      "protocol": "amqp",
+      "url": "amqp://rabbitmq.example.org"
+    }
+  ],
+  "webhooks": []
+}
