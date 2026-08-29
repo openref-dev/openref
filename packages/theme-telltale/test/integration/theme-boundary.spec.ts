@@ -1,6 +1,8 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import type { IRDocument } from '@openref/core';
+import type { PageKind } from '@openref/vue';
 import telltale from '../../src/theme';
 import { entryHref, nodeHref, overviewHref, schemaHref } from '../../src/links';
 import {
@@ -63,42 +65,88 @@ type Mutual<TLeft, TRight> = [TLeft] extends [TRight]
     : false
   : false;
 
+/** Which page of a document one render of the sweep asks for. */
+interface SweepWhere {
+  readonly page?: PageKind;
+  readonly nodeId?: string;
+  readonly schemaId?: string;
+  readonly serviceId?: string;
+}
+
+/** One render of the sweep: a document and the page of it to draw. */
+interface SweepRender {
+  readonly document: IRDocument;
+  readonly where: SweepWhere;
+}
+
+/**
+ * How the sweep reaches one page kind: the renders that produce it, or why it makes none.
+ *
+ * A REASON IS A SENTENCE SOMEBODY WROTE, which is the whole difference between a kind left out
+ * and a kind forgotten. There is no excluded kind today, and the arm exists so that leaving one
+ * out costs a sentence rather than a deletion, exactly as `PAGE_KIND_CARDINALITY` in
+ * `@openref/static` keeps the word `never` for a page a build deliberately does not write.
+ */
+type SweptKind = readonly SweepRender[] | { readonly excluded: string };
+
+/**
+ * Every kind of reader page, with the renders that reach it. Total over `PageKind`.
+ *
+ * BOUND TO THE UNION RATHER THAN KEPT BY HAND, 2026-08-29, by the maintainer's ruling and for the
+ * reason the union's three other lists were bound before M4: a kind added to `PageKind` compiled
+ * against a hand written list without appearing in it, so a whole page shipped outside this sweep
+ * with its class names on no list and this theme styling none of them. That happened twice. The
+ * service card of SPEC 15.3 was the first, found by the pre-M5 cleanup; the shapes and states
+ * pages were the second, found by the pre-`T049` slice, eighteen names between them. This record
+ * does not compile until a new kind is placed, so the third one cannot happen quietly.
+ *
+ * THE HEALTH PAGE IS RENDERED FROM THE DOCUMENT WITH AN APPLICATION BEHIND IT, because the panel
+ * is drawn only when there is a report, and a sweep that missed it would report a smaller boundary
+ * than the one that exists. `node` and `bench` are each rendered twice because the two mock
+ * documents put different sections on them.
+ *
+ * @returns The renders of every page kind, keyed by kind
+ */
+function sweptPages(): Readonly<Record<PageKind, SweptKind>> {
+  const api = apiDocument();
+  const runtime = runtimeDocument();
+
+  return {
+    overview: [{ document: runtime, where: {} }],
+    node: [
+      { document: runtime, where: { nodeId: nodeId() } },
+      { document: api, where: { nodeId: postNodeId() } },
+    ],
+    schema: [{ document: api, where: { schemaId: 'Order' } }],
+    bench: [
+      { document: api, where: { page: 'bench', nodeId: postNodeId() } },
+      { document: runtime, where: { page: 'bench', nodeId: nodeId() } },
+    ],
+    health: [{ document: runtime, where: { page: 'health' } }],
+    shapes: [{ document: api, where: { page: 'shapes', schemaId: 'Order' } }],
+    states: [{ document: api, where: { page: 'states' } }],
+    service: [{ document: federatedDocument(), where: { page: 'service', serviceId: SERVICE_ID } }],
+  };
+}
+
 /** Class names from the reference's own namespace that survive a complete L2 theme. */
 async function survivingCoreClasses(): Promise<readonly string[]> {
   const found = new Set<string>();
-  const document = apiDocument();
 
-  // The health page is rendered from the document with an application behind it, because the
-  // panel is drawn only when there is a report, and a sweep that missed it would report a
-  // smaller boundary than the one that exists. Eight renders over the six kinds of page a
-  // reader can open: the bench carries the console the node page lost, and health carries the
-  // panel the overview lost, and node and bench are each rendered twice because the two mock
-  // documents put different sections on them. The two showcase addresses stay out: they are a
-  // theme author's pages, not a reader's. The count is corrected here by `T031-R1`; it read
-  // "six pages" while this list held seven entries. The service card of SPEC 15.3 is the
-  // eighth render and the sixth kind, added by the pre-M5 cleanup: it had shipped outside
-  // this sweep, so its names were on no list and telltale served the page unstyled.
-  const pages = [
-    { document: runtimeDocument(), where: { nodeId: nodeId() } },
-    { document, where: { nodeId: postNodeId() } },
-    { document: runtimeDocument(), where: {} },
-    { document, where: { schemaId: 'Order' } },
-    { document, where: { page: 'bench' as const, nodeId: postNodeId() } },
-    { document: runtimeDocument(), where: { page: 'bench' as const, nodeId: nodeId() } },
-    { document: runtimeDocument(), where: { page: 'health' as const } },
-    { document: federatedDocument(), where: { page: 'service' as const, serviceId: SERVICE_ID } },
-  ];
+  for (const swept of Object.values(sweptPages())) {
+    if ('excluded' in swept) continue;
 
-  for (const page of pages) {
-    const rendered = await renderPage(page.document, {
-      ...page.where,
-      markdown,
-      theme: telltale,
-    });
+    for (const page of swept) {
+      const rendered = await renderPage(page.document, {
+        ...page.where,
+        markdown,
+        theme: telltale,
+      });
 
-    for (const match of rendered.appHtml.matchAll(/class="([^"]*)"/g)) {
-      for (const name of (match[1] ?? '').split(/\s+/)) {
-        if (name.startsWith('oref-')) found.add(name);
+      for (const match of rendered.appHtml.matchAll(/class="([^"]*)"/g)) {
+        for (const name of (match[1] ?? '').split(/\s+/)) {
+          if (name.startsWith('oref-')) found.add(name);
+        }
       }
     }
   }
@@ -107,7 +155,7 @@ async function survivingCoreClasses(): Promise<readonly string[]> {
 }
 
 describe('the markup a complete L2 theme does not own', () => {
-  it('should be exactly these class names, on the six kinds of page a reader can open', async () => {
+  it('should be exactly these class names, on the eight kinds of page a reader can open', async () => {
     // Given a theme that fills all 21 positions of the frozen registry and writes its own
     // stylesheet, which is what SPEC 10.1 calls a level 2 theme: "a package with its own layout;
     // the core contributes no styles".
@@ -139,6 +187,13 @@ describe('the markup a complete L2 theme does not own', () => {
     // the kicker, the meta line with its id and live status mark, the facts section with its
     // label and value cells, and the server list, was on no list and telltale styled none of
     // it. The page looked deliberate and was not, which is the sweep's whole reason to exist.
+    // EIGHTEEN ARRIVED WITH THE PRE-`T049` SLICE, 2026-08-29, and they had been on the page
+    // since `TX-SHAPES` and `TX-PARITY-UI`: the shapes page is fourteen names and the states
+    // page four, and both addresses had been held out of this sweep by a comment calling them a
+    // theme author's pages rather than a reader's. SPEC 13.3 lists both in the reader page
+    // family, so the comment was wrong and the sweep was six kinds wide over an eight kind
+    // union. The list of pages is bound to `PageKind` in the same change, which is what stops
+    // the next kind arriving the way these two and the service card did.
     expect(surviving).toEqual([
       'oref-badge',
       'oref-bench-actions',
@@ -185,10 +240,54 @@ describe('the markup a complete L2 theme does not own', () => {
       'oref-service-page',
       'oref-service-servers',
       'oref-service-status',
+      'oref-shape-announce',
+      'oref-shape-control',
+      'oref-shape-d0',
+      'oref-shape-field',
+      'oref-shape-mark',
+      'oref-shape-name',
+      'oref-shape-req',
+      'oref-shape-row',
+      'oref-shape-rows',
+      'oref-shape-type',
+      'oref-shapes',
+      'oref-shapes-fill',
+      'oref-shapes-page',
+      'oref-shapes-read',
+      'oref-states-item',
+      'oref-states-lead',
+      'oref-states-list',
+      'oref-states-page',
       'oref-title',
       'oref-tryit-form',
       'oref-tryit-reset',
     ]);
+  });
+
+  it('should sweep every kind of reader page, or say in words why it does not', () => {
+    // Given the record above, which is total over `PageKind` and so cannot omit a kind without
+    // failing to compile. What it can still do at runtime is carry a kind with nothing under it,
+    // which is what a hand list looks like from the inside, so that is what this checks.
+    const swept = sweptPages();
+
+    // When
+    const empty = Object.entries(swept).filter(([, entry]) =>
+      'excluded' in entry ? entry.excluded.trim() === '' : entry.length === 0,
+    );
+
+    // Then every kind is either rendered at least once or excluded with a reason a reader can
+    // read. The count is asserted too, because an object that lost its entries reports the same
+    // empty list as one where every entry is full.
+    expect(empty.map(([kind]) => kind)).toEqual([]);
+    expect(Object.keys(swept)).toHaveLength(8);
+
+    // And the renders are more numerous than the kinds, which is the fact the previous hand
+    // written list encoded by hand: `node` and `bench` are each drawn from two documents.
+    const renders = Object.values(swept).reduce(
+      (total, entry) => total + ('excluded' in entry ? 0 : entry.length),
+      0,
+    );
+    expect(renders).toBe(10);
   });
 
   it('should be a count the three documents that quote it agree with, since none of them owns it', async () => {

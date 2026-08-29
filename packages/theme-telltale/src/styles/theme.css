@@ -976,10 +976,14 @@
  * outside every position, with a header block of its own two classes. Named here for the same
  * reason as everything in this region: unstyled they read as a theme nobody finished. The
  * service card of T046 is the third such article, named by the pre-M5 cleanup; its own block
- * is at the end of this region, keyed on the shell's page class. */
+ * is at the end of this region, keyed on the shell's page class. The shapes and states pages
+ * are the fourth and fifth, named by the pre-T049 slice on the same evidence; their blocks are
+ * at the very end of this region, keyed the same way. */
 .oref-bench-page,
 .oref-health-page,
-.oref-service-page {
+.oref-service-page,
+.oref-shapes-page,
+.oref-states-page {
   display: block;
 }
 
@@ -1276,4 +1280,145 @@
 
 .tt-page-service .oref-server {
   font-size: var(--oref-font-size-200);
+}
+
+/* THE TWO SHOWCASE PAGES, per SPEC 13.3, named by the pre-T049 slice, 2026-08-29. `shapes` and
+ * `states` are reader pages of the route table, not a theme author's private addresses, and both
+ * had shipped outside the measuring sweep: fourteen names on the shapes page and four on the
+ * states page were on no list, so this theme styled none of them and both pages rendered on the
+ * generic rules, which looked deliberate and was not. The same finding as the service card, twice
+ * over, which is why the sweep's page list is now bound to `PageKind` rather than kept by hand.
+ *
+ * Every rule is keyed on the page class the shell already writes, `tt-page-shapes` and
+ * `tt-page-states`, so each treatment is this theme's decision about that page and reaches no
+ * other markup; the two page articles joined the TX-FRAME rule above.
+ *
+ * THE SHAPES PAGE IS TWO COLUMNS OF ONE TABLE, which is this theme's whole thesis applied to a
+ * page that draws the same schema twice: reading on the left, filling on the right, both on
+ * `--oref-layout-row` and both hairline ruled, so a reader can see that the row they read and the
+ * row they type into are the same row. */
+
+.tt-page-shapes .oref-shapes {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--oref-space-600);
+}
+
+.tt-page-shapes .oref-shapes-read,
+.tt-page-shapes .oref-shapes-fill {
+  min-width: 0;
+}
+
+.tt-page-shapes .oref-shape-rows {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tt-page-shapes .oref-shape-row {
+  display: flex;
+  align-items: baseline;
+  gap: var(--oref-space-200);
+  min-height: var(--oref-layout-row);
+  border-bottom: var(--oref-border-hair) solid var(--oref-color-line);
+  letter-spacing: var(--oref-font-tracking-code);
+}
+
+/* Depth is a class because a padding computed per element would be an inline style, which is the
+ * rule the head of this file states. The reference counts from zero and the tree next door counts
+ * from one, so the two ladders are written out separately rather than shared. */
+.tt-page-shapes .oref-shape-d0 {
+  padding-left: 0;
+}
+
+.tt-page-shapes .oref-shape-d1 {
+  padding-left: var(--oref-space-400);
+}
+
+.tt-page-shapes .oref-shape-d2 {
+  padding-left: var(--oref-space-500);
+}
+
+.tt-page-shapes .oref-shape-d3 {
+  padding-left: var(--oref-space-600);
+}
+
+.tt-page-shapes .oref-shape-d4 {
+  padding-left: var(--oref-space-700);
+}
+
+.tt-page-shapes .oref-shape-d5,
+.tt-page-shapes .oref-shape-d6 {
+  padding-left: var(--oref-space-800);
+}
+
+.tt-page-shapes .oref-shape-name {
+  color: var(--oref-color-fg);
+}
+
+.tt-page-shapes .oref-shape-type {
+  color: var(--oref-color-accent-spec);
+}
+
+/* Requiredness is an assertion the specification makes, so it takes the specification accent
+ * everywhere it appears: the word in the reading column and the mark on the filling label. */
+.tt-page-shapes .oref-shape-req {
+  color: var(--oref-color-fg-muted);
+  font-size: var(--oref-font-size-100);
+  text-transform: uppercase;
+}
+
+.tt-page-shapes .oref-shape-mark {
+  color: var(--oref-color-accent-spec);
+}
+
+.tt-page-shapes .oref-shape-field {
+  display: flex;
+  align-items: baseline;
+  gap: var(--oref-space-300);
+  min-height: var(--oref-layout-row);
+  border-bottom: var(--oref-border-hair) solid var(--oref-color-line);
+}
+
+.tt-page-shapes .oref-shape-control {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--oref-space-100);
+  min-width: 0;
+}
+
+/* The live region keeps its height while it is empty. It fills and empties as the reader adds and
+ * removes entries, and a region that collapses to nothing moves every row under it on a page
+ * whose whole point is that the rows line up. */
+.tt-page-shapes .oref-shape-announce {
+  display: flex;
+  align-items: center;
+  gap: var(--oref-space-300);
+  min-height: var(--oref-layout-status);
+  color: var(--oref-color-fg-muted);
+  font-size: var(--oref-font-size-100);
+}
+
+/* THE STATES PAGE IS A CATALOGUE, one specimen per notice the product can say, so the rules give
+ * each specimen a ruled band of its own and otherwise stay out of the way: what a reader is
+ * looking at here is the `StateNotice` position, which is this theme's own and is styled above. */
+
+.tt-page-states .oref-states-lead {
+  max-width: var(--oref-layout-measure);
+  margin: 0 0 var(--oref-space-600);
+  color: var(--oref-color-fg-secondary);
+  line-height: var(--oref-font-leading-prose);
+}
+
+.tt-page-states .oref-states-item {
+  margin-bottom: var(--oref-space-500);
+  border-top: var(--oref-border-hair) solid var(--oref-color-line);
+  padding-top: var(--oref-space-300);
+}
+
+.tt-page-states .oref-states-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
