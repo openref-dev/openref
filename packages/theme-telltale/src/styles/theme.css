@@ -1400,6 +1400,66 @@
   font-size: var(--oref-font-size-100);
 }
 
+/* THE ROWS A FLAT SCHEMA NEVER DRAWS, styled at `T054` because until then no swept document had a
+ * `oneOf`, a pattern key, a conditional requirement or an empty body, so thirteen class names of
+ * SPEC 11 were emitted by the reference and styled by nobody while every check stayed green. The
+ * shapes page draws two of each kind, one on each side, and both sides read the same way: a
+ * variant, a pattern key and a condition are all statements the specification makes about when a
+ * row applies, so all three take the specification accent and the muted size the requiredness word
+ * already uses, and none of them gets a colour of its own. */
+
+.tt-page-shapes .oref-shape-variant,
+.tt-page-shapes .oref-shape-pattern-row {
+  color: var(--oref-color-fg-secondary);
+}
+
+.tt-page-shapes .oref-shape-when {
+  color: var(--oref-color-fg-muted);
+  font-size: var(--oref-font-size-100);
+}
+
+/* A conditional requirement is required and not required at once, so it is the requiredness accent
+ * held back to the derived provenance colour, which is what this theme uses everywhere a statement
+ * is true under a condition rather than flatly. */
+.tt-page-shapes .oref-shape-req-cond,
+.tt-page-shapes .oref-shape-mark-cond,
+.tt-page-shapes .oref-shape-hint-cond {
+  color: var(--oref-prov-derived-fg);
+}
+
+/* A body declared with nothing in it says so in words, on the same ruled band as a row, because a
+ * region that collapses to nothing is indistinguishable from a page that failed to render. */
+.tt-page-shapes .oref-shape-empty {
+  display: flex;
+  align-items: center;
+  min-height: var(--oref-layout-row);
+  border-bottom: var(--oref-border-hair) solid var(--oref-color-line);
+  color: var(--oref-color-fg-muted);
+  font-size: var(--oref-font-size-100);
+}
+
+/* The filling half of the same three: a branch chooser, a pattern key entry and the hint under an
+ * input. They are rows of the same table, so they carry the row's own band rather than a box. */
+.tt-page-shapes .oref-shape-branch-row,
+.tt-page-shapes .oref-shape-pattern {
+  display: flex;
+  align-items: baseline;
+  gap: var(--oref-space-200);
+  min-height: var(--oref-layout-row);
+  border-bottom: var(--oref-border-hair) solid var(--oref-color-line);
+}
+
+.tt-page-shapes .oref-shape-branch-note,
+.tt-page-shapes .oref-shape-hint {
+  color: var(--oref-color-fg-muted);
+  font-size: var(--oref-font-size-100);
+}
+
+.tt-page-shapes .oref-shape-add {
+  align-self: flex-start;
+  color: var(--oref-color-accent-runtime);
+}
+
 /* THE STATES PAGE IS A CATALOGUE, one specimen per notice the product can say, so the rules give
  * each specimen a ruled band of its own and otherwise stay out of the way: what a reader is
  * looking at here is the `StateNotice` position, which is this theme's own and is styled above. */

@@ -80,12 +80,13 @@ export interface MountedReference {
    * whose host nobody configured and the payload class no schema answers to; the pairing
    * contributes the channel several handlers serve, and its list was built and thrown away.
    *
-   * NOTHING PRINTS THIS YET, AND THAT IS STATED RATHER THAN IMPLIED. SPEC 8.3 calls each of the
-   * six a `doctor` finding, and `doctor` prints `IRDriftIssue`s keyed by `IRDriftRule`, which no
-   * problem list of this shape can enter without that public union growing. `pass.discoveryProblems`
-   * has had the same shape and the same absence of a printer since `T019`. The obligation is
-   * `BUILD-AMENDMENTS`'s section for `T054`, with the six cases named, so it is enforced by a gate
-   * rather than remembered.
+   * `doctor` PRINTS THIS SINCE `T054`, AND THE GROWTH IT NEEDED WAS TAKEN. This comment said
+   * nothing printed it, which was true from `T019` until that task and false the moment it landed;
+   * the post-`T054` review found the sentence still here. `IRDriftRule` gained `discovery-incomplete`,
+   * code `RT070`, the carrier is `IRRuntimeMeta.problems`, and both lists reach it through the same
+   * pass: these through `carriedProblems`, `pass.discoveryProblems` from the walk itself. They are
+   * still kept here as well, because an integration suite reads this field to check the events half
+   * on its own, which is what tells the two producers apart when the printed report merges them.
    */
   readonly eventProblems?: readonly DiscoveryProblem[];
 }
@@ -220,7 +221,17 @@ export class MountedReferences {
         const paired =
           synthesis === undefined ? undefined : pairChannels(document, synthesis.channels);
         if (paired !== undefined) pairingProblems = paired.problems;
-        pass = this.collect(document, paired?.targets, paired?.directionConfidence);
+        // THE EVENT PROBLEMS GO IN HERE, WHICH IS THE LAST MOMENT THEY CAN, per SPEC 8.3 as
+        // amended by `T054`. Both halves are known by now, the synthesis's from the closure above
+        // and the pairing's from the line above this one, and the pass is where the runtime meta
+        // that carries them to `doctor` is built. They are still kept on the mount below, because
+        // `eventProblems` is what an integration suite reads to check the events half on its own.
+        pass = this.collect(
+          document,
+          paired?.targets,
+          paired?.directionConfidence,
+          synthesis === undefined ? undefined : [...synthesis.problems, ...pairingProblems],
+        );
         return pass.document;
       },
       ...(entry.cache === undefined ? {} : { cache: entry.cache }),
@@ -432,12 +443,14 @@ export class MountedReferences {
    * @param document - The document, before any runtime fact
    * @param channelTargets - Channels paired with their handler, when there are any
    * @param directionConfidence - How each synthesized channel's direction was read, per SPEC 9.3
+   * @param carriedProblems - What the event discovery found and could not state, per SPEC 8.3
    * @returns The pass result, whose document carries the facts and a retaken hash
    */
   collect(
     document: IRDocument,
     channelTargets?: readonly CollectorTarget[],
     directionConfidence?: ChannelDirectionConfidence,
+    carriedProblems?: readonly DiscoveryProblem[],
   ): RuntimePassResult {
     const runtime = this.options.runtime;
     const version = nestCoreVersion();
@@ -457,6 +470,7 @@ export class MountedReferences {
       ...(directionConfidence === undefined
         ? {}
         : { channelDirectionConfidence: directionConfidence }),
+      ...(carriedProblems === undefined ? {} : { carriedProblems }),
     });
   }
 

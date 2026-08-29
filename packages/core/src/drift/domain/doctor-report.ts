@@ -181,9 +181,15 @@ export function readDoctorReport(serialized: string): DoctorReportRead {
  *
  * @param document - The document the finding is about
  * @param issue - The finding
- * @returns A method and path, a schema id and pointer, or `(document)` for neither
+ * @returns A method and path, a schema id and pointer, the issue's own subject, or `(document)`
  */
 function findingSubject(document: IRDocument, issue: IRDriftIssue): string {
+  // THE ISSUE'S OWN SUBJECT COMES FIRST, per SPEC 7.2 and `T054`. A rule whose subject is neither
+  // a node nor a schema, which is what `discovery-incomplete` is, names it itself; `(document)`
+  // would drop the one word a reader acts on, and the two members below cannot carry a gateway
+  // class, a broker protocol or a handler method.
+  if (issue.subject !== undefined) return issue.subject;
+
   if (issue.nodeId !== undefined) {
     const node = document.nodes.get(issue.nodeId);
     if (node === undefined) return issue.nodeId;

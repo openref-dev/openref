@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { countCommitsSince } from '../../src/lib/git';
+import { SPAWNED_PROCESS_TIMEOUT_MS } from '../../../../vitest.spawn-timeout.ts';
 
 /**
  * A scratch repository with three commits: one touching `packages/`, one touching only
@@ -44,7 +45,7 @@ beforeAll(() => {
   first = commitFile('packages/core.txt', 'product work');
   commitFile('ai-docs/NOTES.txt', 'doc only work');
   last = commitFile('packages/render.txt', 'more product work');
-});
+}, SPAWNED_PROCESS_TIMEOUT_MS);
 
 afterAll(() => {
   rmSync(root, { recursive: true, force: true });

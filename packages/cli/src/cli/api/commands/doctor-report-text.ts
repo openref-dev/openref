@@ -3,6 +3,7 @@ import {
   type IRDoctorCheck,
   type IRDoctorFinding,
   type IRDoctorReport,
+  type IRRuntimeMeta,
 } from '@openref/core';
 
 /**
@@ -44,14 +45,31 @@ function renderCheck(check: IRDoctorCheck): string | undefined {
  *
  * @param report - The report to summarize
  * @param title - The document's own title and version, so a reader knows which application this is
+ * @param skipped - Collectors that did not run, from `IRRuntimeMeta.skipped`, with their reasons
  * @returns The block, with no trailing newline
  */
-export function renderDoctorSummary(report: IRDoctorReport, title: string): string {
+export function renderDoctorSummary(
+  report: IRDoctorReport,
+  title: string,
+  skipped: NonNullable<IRRuntimeMeta['skipped']> = [],
+): string {
   const operations = `${String(report.operationCount)} operation${report.operationCount === 1 ? '' : 's'}`;
   const checkLines = report.checks.map(renderCheck).filter((line) => line !== undefined);
 
   const lines = [title, '', `Documentation health: ${String(report.score)}%`, operations];
   if (checkLines.length > 0) lines.push('', ...checkLines);
+
+  // THE SKIPPED COLLECTORS ARE PRINTED HERE AND ARE NOT FINDINGS, per SPEC 7.1 as amended by
+  // `T054`. `IRRuntimeMeta.skipped` has said "for `doctor` to report" since `T017` and nothing
+  // read it, so the `runtime-collectors` line above printed `2/3` and the reason the third did not
+  // run was in the document and on no page. It stays out of the findings for the reason
+  // `collector-registry.service.ts` records: a collector that could not run is the instrument
+  // failing rather than the two sides differing, and it is already counted by that check, so a
+  // finding would move the score a second time for one fact.
+  if (skipped.length > 0) {
+    lines.push('', 'Collectors that did not run:');
+    for (const entry of skipped) lines.push(`  ${entry.collector}: ${entry.reason}`);
+  }
 
   return plainArtefactText(lines.join('\n'));
 }

@@ -497,72 +497,80 @@ function outsideRepository(absolutePath: boolean): OutsideRepository {
 }
 
 describe('a handler in a directory that is not a repository', () => {
-  it('should expand the editor template from the source map alone, with no git anywhere', () => {
-    // Given a compiled handler outside every repository, which is what a container image, an
-    // unpushed checkout and a scratch directory all are. The precondition is asserted rather than
-    // assumed: nothing above this directory carries a `.git`.
-    const found = outsideRepository(true);
+  it(
+    'should expand the editor template from the source map alone, with no git anywhere',
+    () => {
+      // Given a compiled handler outside every repository, which is what a container image, an
+      // unpushed checkout and a scratch directory all are. The precondition is asserted rather than
+      // assumed: nothing above this directory carries a `.git`.
+      const found = outsideRepository(true);
 
-    try {
-      expect(findRepositoryRoot(found.directory)).toBeUndefined();
+      try {
+        expect(findRepositoryRoot(found.directory)).toBeUndefined();
 
-      // Then the position is the original file's, through the map, and the repository half is
-      // absent because there is no repository to be relative to
-      expect(found.source?.file).toBeUndefined();
-      expect(found.source?.absolutePath).toBe(join(found.directory, 'orders.controller.ts'));
-      expect(found.source?.line).toBe(ORIGINAL_LINE);
-      expect(found.source?.column).toBe(ORIGINAL_COLUMN);
+        // Then the position is the original file's, through the map, and the repository half is
+        // absent because there is no repository to be relative to
+        expect(found.source?.file).toBeUndefined();
+        expect(found.source?.absolutePath).toBe(join(found.directory, 'orders.controller.ts'));
+        expect(found.source?.line).toBe(ORIGINAL_LINE);
+        expect(found.source?.column).toBe(ORIGINAL_COLUMN);
 
-      // And the line and the column are read back out of the file the link points at, rather than
-      // compared against a number this test remembers
-      const text = readFileSync(found.source?.absolutePath ?? '', 'utf8').split('\n')[
-        ORIGINAL_LINE - 1
-      ];
-      expect(text?.slice(ORIGINAL_COLUMN - 1).startsWith('findAll(')).toBe(true);
+        // And the line and the column are read back out of the file the link points at, rather than
+        // compared against a number this test remembers
+        const text = readFileSync(found.source?.absolutePath ?? '', 'utf8').split('\n')[
+          ORIGINAL_LINE - 1
+        ];
+        expect(text?.slice(ORIGINAL_COLUMN - 1).startsWith('findAll(')).toBe(true);
 
-      // When the editor template is expanded with no revision passed at all
-      const link = expandSourceLink(
-        'vscode://file/{absolutePath}:{line}:{column}',
-        found.source ?? { controller: '', handler: '' },
-      );
+        // When the editor template is expanded with no revision passed at all
+        const link = expandSourceLink(
+          'vscode://file/{absolutePath}:{line}:{column}',
+          found.source ?? { controller: '', handler: '' },
+        );
 
-      // Then
-      expect(link.reason).toBeUndefined();
-      expect(link.url).toBe(
-        `vscode://file${join(found.directory, 'orders.controller.ts')}:${String(ORIGINAL_LINE)}:${String(ORIGINAL_COLUMN)}`,
-      );
+        // Then
+        expect(link.reason).toBeUndefined();
+        expect(link.url).toBe(
+          `vscode://file${join(found.directory, 'orders.controller.ts')}:${String(ORIGINAL_LINE)}:${String(ORIGINAL_COLUMN)}`,
+        );
 
-      // And the forge form still refuses, by name, because `{file}` is the half that is missing
-      const forge = expandSourceLink(
-        'https://github.com/org/repo/blob/{ref}/{file}#L{line}',
-        found.source ?? { controller: '', handler: '' },
-        'a1b2c3d',
-      );
-      expect(forge.url).toBeUndefined();
-      expect(found.problems.map((problem) => problem.reason).join(' ')).toContain('no .git');
-    } finally {
-      rmSync(found.directory, { recursive: true, force: true });
-    }
-  });
+        // And the forge form still refuses, by name, because `{file}` is the half that is missing
+        const forge = expandSourceLink(
+          'https://github.com/org/repo/blob/{ref}/{file}#L{line}',
+          found.source ?? { controller: '', handler: '' },
+          'a1b2c3d',
+        );
+        expect(forge.url).toBeUndefined();
+        expect(found.problems.map((problem) => problem.reason).join(' ')).toContain('no .git');
+      } finally {
+        rmSync(found.directory, { recursive: true, force: true });
+      }
+    },
+    SPAWNED_PROCESS_TIMEOUT_MS,
+  );
 
-  it('should say nothing about this machine in the same directory with no opt in', () => {
-    // Given the default registration and the same files. THE PROOF OF ABSENCE ASSERTS PRESENCE
-    // FIRST: the case above shows every one of these fields is available here.
-    const found = outsideRepository(false);
+  it(
+    'should say nothing about this machine in the same directory with no opt in',
+    () => {
+      // Given the default registration and the same files. THE PROOF OF ABSENCE ASSERTS PRESENCE
+      // FIRST: the case above shows every one of these fields is available here.
+      const found = outsideRepository(false);
 
-    try {
-      // Then
-      expect(found.source).toEqual({ controller: 'OrdersController', handler: 'findAll' });
+      try {
+        // Then
+        expect(found.source).toEqual({ controller: 'OrdersController', handler: 'findAll' });
 
-      // And the editor template says which option is missing rather than producing nothing
-      const link = expandSourceLink(
-        'vscode://file/{absolutePath}:{line}:{column}',
-        found.source ?? { controller: '', handler: '' },
-      );
-      expect(link.url).toBeUndefined();
-      expect(link.reason).toContain('sourceCollector({ absolutePath: true })');
-    } finally {
-      rmSync(found.directory, { recursive: true, force: true });
-    }
-  });
+        // And the editor template says which option is missing rather than producing nothing
+        const link = expandSourceLink(
+          'vscode://file/{absolutePath}:{line}:{column}',
+          found.source ?? { controller: '', handler: '' },
+        );
+        expect(link.url).toBeUndefined();
+        expect(link.reason).toContain('sourceCollector({ absolutePath: true })');
+      } finally {
+        rmSync(found.directory, { recursive: true, force: true });
+      }
+    },
+    SPAWNED_PROCESS_TIMEOUT_MS,
+  );
 });

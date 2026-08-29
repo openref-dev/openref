@@ -231,7 +231,8 @@ export type IRDriftRule =
   | 'missing-description'
   | 'missing-example'
   | 'missing-operation-id'
-  | 'dto-field-undescribed';
+  | 'dto-field-undescribed'
+  | 'discovery-incomplete';
 
 /** How loudly a drift issue is reported, and what `--fail-on` compares against. */
 export type IRDriftSeverity = 'error' | 'warning' | 'info';
@@ -341,6 +342,17 @@ export interface IRDriftIssue {
   readonly schemaId?: string;
   /** JSON pointer into the subject, such as `/properties/total`, when it is narrower than one. */
   readonly pointer?: string;
+  /**
+   * What the issue is about when it is neither a node nor a schema, per SPEC 7.2.
+   *
+   * ADDED AT `T054` FOR `discovery-incomplete`, whose subjects are handlers, gateways, brokers and
+   * channel addresses. SPEC 7.2 requires a finding to name its subject and the two members above
+   * can name only the two kinds of thing a document holds, so a document level rule about anything
+   * else printed `(document)` and lost the one word a reader needs to act. Set only by a rule that
+   * has a subject of its own; a node or schema issue leaves it out and is named by its id as
+   * before.
+   */
+  readonly subject?: string;
   readonly message: string;
   /** What the runtime says, rendered for display. */
   readonly runtimeValue?: string;
@@ -375,6 +387,23 @@ export interface IRNodeRuntime {
   readonly drift?: readonly IRDriftIssue[];
 }
 
+/**
+ * One thing the discovery of a running application found and could not state, per SPEC 8.3.
+ *
+ * IT IS NOT AN ERROR AND IT IS NOT A GUESS AVOIDED SILENTLY. A pattern no address can be made
+ * from, a gateway that declares no event, a protocol whose host nobody configured, a class name no
+ * supplied schema answers to: each is a fact the reference would have carried and cannot, and
+ * CLAUDE.md's rule is that such a fact reaches `doctor` rather than being invented. The subject is
+ * named the way a reader of `doctor` would recognise it, and the reason is one sentence that says
+ * both what happened and what to write instead.
+ */
+export interface IRDiscoveryProblem {
+  /** What was skipped: a handler, a gateway, a broker, a channel address. */
+  readonly subject: string;
+  /** Why, in a sentence. */
+  readonly reason: string;
+}
+
 /** Document wide runtime metadata: which collectors ran, and how to link to source. */
 export interface IRRuntimeMeta {
   /** Names of the collectors that ran, in registration order. */
@@ -386,4 +415,14 @@ export interface IRRuntimeMeta {
   readonly sourceLinkTemplate?: string;
   /** Collectors that were skipped, with the reason, for `doctor` to report. */
   readonly skipped?: readonly { readonly collector: string; readonly reason: string }[];
+  /**
+   * What the discovery of the running application found and could not state, per SPEC 8.3.
+   *
+   * ONE LIST BECAUSE THE GAP WAS ONE GAP OVER TWO LISTS. `@openref/nest` builds problems on the
+   * HTTP pass and on the event synthesis, and neither had a printer; both land here, before the
+   * health report is built, so the `discovery-incomplete` rule of SPEC 7.1 reads one place. It is
+   * optional because a document that no runtime pass produced has no discovery at all, which is
+   * not the same as a discovery that found nothing.
+   */
+  readonly problems?: readonly IRDiscoveryProblem[];
 }

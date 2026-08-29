@@ -144,6 +144,10 @@ describe('the health report, against the running example application', () => {
         // OpenAPI spells one; the row is still emitted, exactly as every other rule's is when its
         // scope is empty.
         'operation-key-unread',
+        // `T054`. Zero of zero here too, and that is the assertion: this application's discovery
+        // stated everything it found, so the row is emitted and counts nothing, which is what
+        // keeps the score of every existing document where it was.
+        'discovery-incomplete',
       ]);
     },
   );

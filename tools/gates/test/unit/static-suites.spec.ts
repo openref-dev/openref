@@ -656,6 +656,12 @@ describe('the committed wiring', () => {
     // rather than the assertion loosened to "somewhere before coverage": what this case is about is
     // the arrangement, so a gate arriving between the two is a decision to write down.
     expect(order[position + 1]).toBe('federation-suites');
-    expect(order.indexOf('coverage')).toBe(position + 2);
+    // `T054` added two more, and the arrangement is written down rather than loosened for the
+    // reason the paragraph above gives: the row gates run together, newest last, and `coverage`
+    // stays the end of the run because it runs the whole suite a second time under instrumentation.
+    expect(order[position + 2]).toBe('events-suites');
+    expect(order[position + 3]).toBe('reader-pages');
+    expect(order.indexOf('coverage')).toBe(position + 4);
+    expect(order.indexOf('coverage')).toBe(order.length - 1);
   });
 });

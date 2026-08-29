@@ -245,6 +245,38 @@ describe('renderDoctorFinding', () => {
   });
 });
 
+describe('renderDoctorSummary, the collectors that did not run', () => {
+  it('should print the reason each skipped collector gave, which nothing did before T054', () => {
+    // Given a report and the skipped list `IRRuntimeMeta.skipped` carries. That member has said
+    // "for `doctor` to report" since `T017` and had no reader anywhere: the `runtime-collectors`
+    // check printed a count and the reason the missing one did not run was in the document and on
+    // no page.
+    const built = report({ score: 87, operationCount: 12 });
+
+    // When
+    const text = renderDoctorSummary(built, 'Orders 1.0.0', [
+      { collector: 'throttlerCollector', reason: '@nestjs/throttler is not installed' },
+      { collector: 'headersCollector', reason: 'it threw on the third node' },
+    ]);
+
+    // Then both are named with their reasons, under a heading that says what they are. They are
+    // deliberately not findings, per SPEC 7.1: a collector that could not run is the instrument
+    // failing rather than the two sides differing, and it is already counted by its own check.
+    expect(text).toContain('Collectors that did not run:');
+    expect(text).toContain('throttlerCollector: @nestjs/throttler is not installed');
+    expect(text).toContain('headersCollector: it threw on the third node');
+    expect(text).not.toContain('DRIFT');
+  });
+
+  it('should print no such block when every collector ran, which is the control', () => {
+    // Given / When / Then. Without this the case above could not tell a heading that is always
+    // printed from one that answers the document.
+    expect(
+      renderDoctorSummary(report({ score: 100, operationCount: 1 }), 'Orders 1.0.0'),
+    ).not.toContain('Collectors that did not run');
+  });
+});
+
 describe('renderDoctorFindings', () => {
   it('should separate blocks with a blank line', () => {
     // Given

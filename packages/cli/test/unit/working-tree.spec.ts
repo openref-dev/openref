@@ -6,6 +6,7 @@ import { promisify } from 'node:util';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { OpenRefError } from '@openref/core';
 import { readWorkingTree } from '../../src/cli/infrastructure/adapters/working-tree.adapter';
+import { SPAWNED_PROCESS_TIMEOUT_MS } from '../../../../vitest.spawn-timeout.ts';
 
 /**
  * What git is asked before `--fix` writes anything, over a real repository rather than a mock.
@@ -42,58 +43,74 @@ beforeEach(async () => {
   await writeFile(join(root, 'committed.txt'), 'first\n', 'utf8');
   await git('add', '-A');
   await git('commit', '--quiet', '-m', 'first');
-});
+}, SPAWNED_PROCESS_TIMEOUT_MS);
 
 afterEach(async () => {
   await rm(root, { recursive: true, force: true });
 });
 
 describe('readWorkingTree', () => {
-  it('should report a committed tree as clean and name its root', async () => {
-    // When
-    const tree = await readWorkingTree(root);
+  it(
+    'should report a committed tree as clean and name its root',
+    async () => {
+      // When
+      const tree = await readWorkingTree(root);
 
-    // Then
-    expect(tree.dirty).toEqual([]);
-    // macOS resolves the temporary directory through a symlink, so the root git reports is the
-    // real path of the one asked about rather than the string that was passed.
-    expect(tree.root.endsWith(root.replace('/private', ''))).toBe(true);
-  });
+      // Then
+      expect(tree.dirty).toEqual([]);
+      // macOS resolves the temporary directory through a symlink, so the root git reports is the
+      // real path of the one asked about rather than the string that was passed.
+      expect(tree.root.endsWith(root.replace('/private', ''))).toBe(true);
+    },
+    SPAWNED_PROCESS_TIMEOUT_MS,
+  );
 
-  it('should report a modified file as dirty, which is a refusal rather than a warning upstream', async () => {
-    // Given
-    await writeFile(join(root, 'committed.txt'), 'second\n', 'utf8');
+  it(
+    'should report a modified file as dirty, which is a refusal rather than a warning upstream',
+    async () => {
+      // Given
+      await writeFile(join(root, 'committed.txt'), 'second\n', 'utf8');
 
-    // When
-    const tree = await readWorkingTree(root);
+      // When
+      const tree = await readWorkingTree(root);
 
-    // Then
-    expect(tree.dirty).toHaveLength(1);
-    expect(tree.dirty[0]).toContain('committed.txt');
-  });
+      // Then
+      expect(tree.dirty).toHaveLength(1);
+      expect(tree.dirty[0]).toContain('committed.txt');
+    },
+    SPAWNED_PROCESS_TIMEOUT_MS,
+  );
 
-  it('should count an untracked file as dirty, since a fix diff would arrive mixed with it', async () => {
-    // Given
-    await writeFile(join(root, 'scratch.txt'), 'notes\n', 'utf8');
+  it(
+    'should count an untracked file as dirty, since a fix diff would arrive mixed with it',
+    async () => {
+      // Given
+      await writeFile(join(root, 'scratch.txt'), 'notes\n', 'utf8');
 
-    // When
-    const tree = await readWorkingTree(root);
+      // When
+      const tree = await readWorkingTree(root);
 
-    // Then
-    expect(tree.dirty).toHaveLength(1);
-    expect(tree.dirty[0]).toContain('scratch.txt');
-  });
+      // Then
+      expect(tree.dirty).toHaveLength(1);
+      expect(tree.dirty[0]).toContain('scratch.txt');
+    },
+    SPAWNED_PROCESS_TIMEOUT_MS,
+  );
 
-  it('should refuse a directory that is in no repository rather than answer for the one above it', async () => {
-    // Given
-    const elsewhere = await mkdtemp(join(tmpdir(), 'openref-no-repo-'));
+  it(
+    'should refuse a directory that is in no repository rather than answer for the one above it',
+    async () => {
+      // Given
+      const elsewhere = await mkdtemp(join(tmpdir(), 'openref-no-repo-'));
 
-    // When
-    const failure = await readWorkingTree(elsewhere).catch((error: unknown) => error);
+      // When
+      const failure = await readWorkingTree(elsewhere).catch((error: unknown) => error);
 
-    // Then
-    expect(failure).toBeInstanceOf(OpenRefError);
-    expect((failure as OpenRefError).message).toContain('could not find the repository root');
-    await rm(elsewhere, { recursive: true, force: true });
-  });
+      // Then
+      expect(failure).toBeInstanceOf(OpenRefError);
+      expect((failure as OpenRefError).message).toContain('could not find the repository root');
+      await rm(elsewhere, { recursive: true, force: true });
+    },
+    SPAWNED_PROCESS_TIMEOUT_MS,
+  );
 });

@@ -81,6 +81,7 @@ export function runFederationSuitesGate(context: GateContext): GateResult {
   issues.push(
     ...checkStaticCoverage(FEDERATION_SUITE_COVERAGE, {
       specNames: haveSpec ? suiteRowOf(readFileSync(specPath, 'utf8'), FEDERATION_SUITE_ROW) : [],
+      row: FEDERATION_SUITE_ROW,
       ...repository,
       compareWithSpec: haveSpec,
     }),

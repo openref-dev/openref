@@ -78,42 +78,54 @@ describe('the built openref binary', () => {
     expect(existsSync(BIN_PATH)).toBe(true);
   });
 
-  it('should exit 2 and print usage on stderr with no arguments, never throwing raw', async () => {
-    // When
-    const result = await runCliBinary([]);
+  it(
+    'should exit 2 and print usage on stderr with no arguments, never throwing raw',
+    async () => {
+      // When
+      const result = await runCliBinary([]);
 
-    // Then
-    expect(result.code).toBe(2);
-    expect(result.stderr).toContain('a command is required');
-    expect(result.stderr).not.toContain('at ');
-  });
+      // Then
+      expect(result.code).toBe(2);
+      expect(result.stderr).toContain('a command is required');
+      expect(result.stderr).not.toContain('at ');
+    },
+    SPAWNED_PROCESS_TIMEOUT_MS,
+  );
 
-  it('should exit 0 and print usage on stdout for --help', async () => {
-    // When
-    const result = await runCliBinary(['--help']);
+  it(
+    'should exit 0 and print usage on stdout for --help',
+    async () => {
+      // When
+      const result = await runCliBinary(['--help']);
 
-    // Then
-    expect(result.code).toBe(0);
-    expect(result.stdout).toContain('openref build');
-  });
+      // Then
+      expect(result.code).toBe(0);
+      expect(result.stdout).toContain('openref build');
+    },
+    SPAWNED_PROCESS_TIMEOUT_MS,
+  );
 
-  it('should exit 0 for build --spec against a real file on disk', async () => {
-    // Given: `--out` is required since T039, because a build has no defensible default
-    // directory and picking one would write files somewhere the caller never named.
-    const spec = resolve(MOCKS, 'mini-spec.json');
-    const out = await mkdtemp(join(tmpdir(), 'openref-binary-build-'));
+  it(
+    'should exit 0 for build --spec against a real file on disk',
+    async () => {
+      // Given: `--out` is required since T039, because a build has no defensible default
+      // directory and picking one would write files somewhere the caller never named.
+      const spec = resolve(MOCKS, 'mini-spec.json');
+      const out = await mkdtemp(join(tmpdir(), 'openref-binary-build-'));
 
-    // When
-    const result = await runCliBinary(['build', `--spec=${spec}`, `--out=${out}`]);
+      // When
+      const result = await runCliBinary(['build', `--spec=${spec}`, `--out=${out}`]);
 
-    // Then
-    expect(result.code).toBe(0);
-    expect(result.stdout).toContain('Built 5 pages');
-    expect(await readFile(join(out, 'get-ping', 'index.html'), 'utf8')).toContain(
-      '<!DOCTYPE html>',
-    );
-    await rm(out, { recursive: true, force: true });
-  });
+      // Then
+      expect(result.code).toBe(0);
+      expect(result.stdout).toContain('Built 5 pages');
+      expect(await readFile(join(out, 'get-ping', 'index.html'), 'utf8')).toContain(
+        '<!DOCTYPE html>',
+      );
+      await rm(out, { recursive: true, force: true });
+    },
+    SPAWNED_PROCESS_TIMEOUT_MS,
+  );
 
   it(
     'should deploy the static site out of the example application, which is the M3 definition of done',
@@ -220,21 +232,25 @@ describe('the built openref binary', () => {
     SPAWNED_PROCESS_TIMEOUT_MS,
   );
 
-  it('should carry exit code 1 out of the process for a diff with breaking changes', async () => {
-    // Given the pair built to produce the SPEC 17.1 example. The unit suite proves the outcome
-    // object; only a spawned process proves the 1 actually reaches a pipeline, and no other
-    // case in this suite exits 1.
-    const older = resolve(MOCKS, 'diff-old.json');
-    const newer = resolve(MOCKS, 'diff-new.json');
+  it(
+    'should carry exit code 1 out of the process for a diff with breaking changes',
+    async () => {
+      // Given the pair built to produce the SPEC 17.1 example. The unit suite proves the outcome
+      // object; only a spawned process proves the 1 actually reaches a pipeline, and no other
+      // case in this suite exits 1.
+      const older = resolve(MOCKS, 'diff-old.json');
+      const newer = resolve(MOCKS, 'diff-new.json');
 
-    // When
-    const result = await runCliBinary(['diff', older, newer]);
+      // When
+      const result = await runCliBinary(['diff', older, newer]);
 
-    // Then
-    expect(result.code).toBe(1);
-    expect(result.stdout).toContain('BREAKING');
-    expect(result.stdout).toContain('DELETE /users/{id}');
-  });
+      // Then
+      expect(result.code).toBe(1);
+      expect(result.stdout).toContain('BREAKING');
+      expect(result.stdout).toContain('DELETE /users/{id}');
+    },
+    SPAWNED_PROCESS_TIMEOUT_MS,
+  );
 
   it(
     'should carry a non zero exit code out of the process for doctor on drift, which is the M3 definition of done',

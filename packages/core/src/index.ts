@@ -64,6 +64,7 @@ export type {
 } from './ir/domain/node.types';
 
 export type {
+  IRDiscoveryProblem,
   IRDriftAssertion,
   IRDriftBasis,
   IRDriftBucket,

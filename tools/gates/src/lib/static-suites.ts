@@ -182,8 +182,18 @@ export function assertionlessCaseTitlesIn(source: string): string[] {
 
 /** What the coverage check needs from outside. */
 export interface StaticSuiteContext {
-  /** The coverage names SPEC 21's Static row states, or null when the row could not be read. */
+  /** The coverage names the SPEC 21 row states, or null when the row could not be read. */
   readonly specNames: readonly string[] | null;
+  /**
+   * Which row of SPEC 21 is the subject, so a finding names the row that failed.
+   *
+   * ADDED AT `T054`, WHEN THE THIRD CALLER ARRIVED AND THE MESSAGES WERE STILL HARD CODED TO
+   * `Static`. Measured on the mutation runs that proved the new gate red: an Events coverage with
+   * no runner reported "SPEC 21's Static row requires ...", which sends a reader to the wrong row
+   * of the wrong milestone. Defaulted rather than required, so the two existing callers keep the
+   * wording their own cases pin.
+   */
+  readonly row?: string;
   /** Whether a repository relative path exists. */
   readonly exists: (path: string) => boolean;
   /** Case titles of one suite file, empty when it could not be read. */
@@ -222,9 +232,9 @@ export function checkStaticCoverage(
     issues.push({
       rule: 'spec-row-missing',
       message:
-        'SPEC 21 has no Static row, so what this gate is wiring up could not be read. Either the ' +
-        'table moved or the row was deleted, and in both cases the four suites below are ' +
-        'answering a requirement nothing states',
+        `SPEC 21 has no ${context.row ?? 'Static'} row, so what this gate is wiring up could not ` +
+        'be read. Either the table moved or the row was deleted, and in both cases the suites ' +
+        'below are answering a requirement nothing states',
     });
   } else {
     const declared = new Set(coverages.map((coverage) => coverage.spec));
@@ -234,7 +244,7 @@ export function checkStaticCoverage(
 
       issues.push({
         rule: 'coverage-unwired',
-        message: `SPEC 21's Static row requires "${name}" and no suite here answers it. A row of that table with no runner is a requirement nobody checks`,
+        message: `SPEC 21's ${context.row ?? 'Static'} row requires "${name}" and no suite here answers it. A row of that table with no runner is a requirement nobody checks`,
       });
     }
 
@@ -244,7 +254,7 @@ export function checkStaticCoverage(
 
       issues.push({
         rule: 'coverage-unstated',
-        message: `${coverage.id} is wired to "${coverage.spec}", which SPEC 21's Static row does not state. Either the row was reworded and this list was not, or this gate is checking something nobody asked for`,
+        message: `${coverage.id} is wired to "${coverage.spec}", which SPEC 21's ${context.row ?? 'Static'} row does not state. Either the row was reworded and this list was not, or this gate is checking something nobody asked for`,
       });
     }
   }

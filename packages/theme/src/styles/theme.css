@@ -2041,6 +2041,13 @@ a.oref-topology-name {
   color: var(--oref-color-accent-runtime);
 }
 
+/* An own element rule, added at `T054`. It had only the descendant half below, so the row that
+ * stands for a pattern key carried no ground of its own while the variant row beside it did, and
+ * the two read as the same row on a page whose whole job is to say which rows are conditional. */
+.oref-shape-pattern-row {
+  background: var(--oref-color-surface);
+}
+
 .oref-shape-pattern-row > .oref-shape-name {
   color: var(--oref-color-fg-secondary);
 }

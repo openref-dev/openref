@@ -1,10 +1,34 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { COVERAGE_FLOORS, STANDARDS_FILE } from '../../src/config';
 import {
   aggregateByPackage,
   checkCoverageFloors,
+  checkFloorTable,
+  parseFloorTable,
   type CoverageEntry,
   type CoverageSummary,
 } from '../../src/lib/coverage';
+
+const repoRoot = join(import.meta.dirname, '..', '..', '..', '..');
+
+/** STANDARDS 9.1 as this document actually writes it, so the parser is tested on the real shape. */
+const STANDARDS_9_1 = [
+  '### 9.1 Coverage targets',
+  '',
+  '| Package | Target |',
+  '|---------|--------|',
+  '| core | 90%+ |',
+  '| runner | 85%+ |',
+  '',
+  'Some prose about the table.',
+  '',
+  '### 9.2 Style',
+  '',
+  '| Package | Target |',
+  '| nest | 80%+ |',
+].join('\n');
 
 function entry(linesCovered: number, linesTotal: number): CoverageEntry {
   const metric = {
@@ -129,5 +153,103 @@ describe('checkCoverageFloors', () => {
 
     // Then
     expect(findings).toEqual([]);
+  });
+});
+
+describe('parseFloorTable', () => {
+  it('should read the rows of section 9.1 and stop at the next section', () => {
+    // Given a document whose 9.2 also holds a table, which is what a greedy read would swallow
+    // When
+    const floors = parseFloorTable(STANDARDS_9_1);
+
+    // Then
+    expect(floors).toEqual({ core: 90, runner: 85 });
+  });
+
+  it('should answer null when section 9.1 is not there, rather than an empty agreement', () => {
+    // Given the state a renamed or renumbered section produces. An empty record would reconcile
+    // with every floor in the configuration, which is a proof of absence passing because the
+    // subject was absent.
+    // When
+    const floors = parseFloorTable('## 9 Testing\n\n| core | 90%+ |\n');
+
+    // Then
+    expect(floors).toBeNull();
+  });
+
+  it('should answer null when the section is there and carries no readable row', () => {
+    // Given
+    const floors = parseFloorTable('### 9.1 Coverage targets\n\nThe targets moved elsewhere.\n');
+
+    // When, Then
+    expect(floors).toBeNull();
+  });
+});
+
+describe('checkFloorTable', () => {
+  it('should say nothing when the document and the configuration agree exactly', () => {
+    // Given
+    const messages = checkFloorTable({ core: 90, vue: 70 }, { core: 90, vue: 70 });
+
+    // When, Then
+    expect(messages).toEqual([]);
+  });
+
+  it('should report a row of the table that no floor enforces', () => {
+    // Given the state `packages/federation` was in for the whole of M4: a governed table promising
+    // a number, and a configuration measuring nothing against it
+    const messages = checkFloorTable({ core: 90, federation: 90 }, { core: 90 });
+
+    // When, Then
+    expect(messages).toHaveLength(1);
+    expect(messages[0]).toContain('[floor-unenforced]');
+    expect(messages[0]).toContain('federation');
+  });
+
+  it('should report a floor the governed table does not carry', () => {
+    // Given the other direction, which is a threshold applied that nobody wrote down
+    const messages = checkFloorTable({ core: 90 }, { core: 90, search: 80 });
+
+    // When, Then
+    expect(messages).toHaveLength(1);
+    expect(messages[0]).toContain('[floor-undocumented]');
+    expect(messages[0]).toContain('search');
+  });
+
+  it('should report a number that moved on one side only', () => {
+    // Given the shape a lowered floor makes, which ABSOLUTE RULES 3 forbids and which this cannot
+    // itself refuse: what it can do is stop the two copies disagreeing quietly
+    const messages = checkFloorTable({ core: 90 }, { core: 80 });
+
+    // When, Then
+    expect(messages).toHaveLength(1);
+    expect(messages[0]).toContain('[floor-disagrees]');
+    expect(messages[0]).toContain('90');
+    expect(messages[0]).toContain('80');
+  });
+
+  it('should agree with the real STANDARDS 9.1 where this checkout has it', () => {
+    // Given the actual document, which is the case the gate runs. `ai-docs/` is git excluded, so
+    // this reads it only where it is there and says so rather than passing on an absent file.
+    let standards: string | null;
+    try {
+      standards = readFileSync(join(repoRoot, STANDARDS_FILE), 'utf8');
+    } catch {
+      standards = null;
+    }
+
+    if (standards === null) {
+      expect(standards).toBeNull();
+      return;
+    }
+
+    // When
+    const documented = parseFloorTable(standards);
+
+    // Then the parser reads the real table, and the two copies say the same thing. The parse is
+    // asserted non empty first, because a parser that read nothing agrees with nothing.
+    expect(documented, `${STANDARDS_FILE} section 9.1 was not readable`).not.toBeNull();
+    expect(Object.keys(documented ?? {}).length).toBeGreaterThan(3);
+    expect(checkFloorTable(documented ?? {}, COVERAGE_FLOORS)).toEqual([]);
   });
 });

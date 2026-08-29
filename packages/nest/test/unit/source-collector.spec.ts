@@ -16,6 +16,7 @@ import type {
   ModuleRefLike,
   ReflectorLike,
 } from '../../src/shared/types/nest-surface';
+import { SPAWNED_PROCESS_TIMEOUT_MS } from '../../../../vitest.spawn-timeout.ts';
 
 /**
  * `sourceCollector`, through the whole pass rather than on its own.
@@ -207,285 +208,385 @@ const TRACKED_FILE = fileURLToPath(import.meta.url);
 const TRACKED_RELATIVE = 'packages/nest/test/unit/source-collector.spec.ts';
 
 describe('sourceCollector', () => {
-  it('should attribute the right handler when two controllers share a method name', () => {
-    // Given the case T018 names, and the one a match on the method name alone would get wrong.
-    const specs: RouteSpec[] = [
-      { controller: OrdersController, prefix: 'orders', handlers: [{ name: 'findAll', path: '' }] },
-      {
-        controller: InvoicesController,
-        prefix: 'invoices',
-        handlers: [{ name: 'findAll', path: '' }],
-      },
-    ];
+  it(
+    'should attribute the right handler when two controllers share a method name',
+    () => {
+      // Given the case T018 names, and the one a match on the method name alone would get wrong.
+      const specs: RouteSpec[] = [
+        {
+          controller: OrdersController,
+          prefix: 'orders',
+          handlers: [{ name: 'findAll', path: '' }],
+        },
+        {
+          controller: InvoicesController,
+          prefix: 'invoices',
+          handlers: [{ name: 'findAll', path: '' }],
+        },
+      ];
 
-    // When
-    const sources = sourcesOf(specs);
+      // When
+      const sources = sourcesOf(specs);
 
-    // Then each node names its own class, and the two lines are the two methods above
-    expect(sources.get('OrdersController_findAll')?.source?.controller).toBe('OrdersController');
-    expect(sources.get('InvoicesController_findAll')?.source?.controller).toBe(
-      'InvoicesController',
-    );
-    // The first `findAll(): string {` in this file is the one on `OrdersController`. The second
-    // is found through its own body, which is the only line of the two classes that differs.
-    expect(sources.get('OrdersController_findAll')?.source?.line).toBe(
-      lineOf('findAll(): string {'),
-    );
-    expect(sources.get('InvoicesController_findAll')?.source?.line).toBe(
-      lineOf("return 'invoices';") - 1,
-    );
-  });
+      // Then each node names its own class, and the two lines are the two methods above
+      expect(sources.get('OrdersController_findAll')?.source?.controller).toBe('OrdersController');
+      expect(sources.get('InvoicesController_findAll')?.source?.controller).toBe(
+        'InvoicesController',
+      );
+      // The first `findAll(): string {` in this file is the one on `OrdersController`. The second
+      // is found through its own body, which is the only line of the two classes that differs.
+      expect(sources.get('OrdersController_findAll')?.source?.line).toBe(
+        lineOf('findAll(): string {'),
+      );
+      expect(sources.get('InvoicesController_findAll')?.source?.line).toBe(
+        lineOf("return 'invoices';") - 1,
+      );
+    },
+    SPAWNED_PROCESS_TIMEOUT_MS,
+  );
 
-  it('should attribute an inherited handler to the class it is written on', () => {
-    // Given `ProductsController extends CrudController` with `list` inherited. The route belongs
-    // to the subclass and the method body is in the base class's file, and SPEC 6.3's `source` is
-    // where to find the code. Linking to the subclass would land a reader on a class that does
-    // not contain the method they clicked.
-    const specs: RouteSpec[] = [
-      {
-        controller: ProductsController,
-        prefix: 'products',
-        handlers: [{ name: 'list', path: '' }],
-      },
-    ];
+  it(
+    'should attribute an inherited handler to the class it is written on',
+    () => {
+      // Given `ProductsController extends CrudController` with `list` inherited. The route belongs
+      // to the subclass and the method body is in the base class's file, and SPEC 6.3's `source` is
+      // where to find the code. Linking to the subclass would land a reader on a class that does
+      // not contain the method they clicked.
+      const specs: RouteSpec[] = [
+        {
+          controller: ProductsController,
+          prefix: 'products',
+          handlers: [{ name: 'list', path: '' }],
+        },
+      ];
 
-    // When
-    const sources = sourcesOf(specs);
+      // When
+      const sources = sourcesOf(specs);
 
-    // Then the declaring class, and the line the body is actually on
-    const source = sources.get('ProductsController_list')?.source;
-    expect(source?.controller).toBe('CrudController');
-    expect(source?.handler).toBe('list');
-    expect(source?.line).toBe(lineOf('list(): string {'));
-  });
+      // Then the declaring class, and the line the body is actually on
+      const source = sources.get('ProductsController_list')?.source;
+      expect(source?.controller).toBe('CrudController');
+      expect(source?.handler).toBe('list');
+      expect(source?.line).toBe(lineOf('list(): string {'));
+    },
+    SPAWNED_PROCESS_TIMEOUT_MS,
+  );
 
-  it('should express the file relative to the repository, never as an absolute path', () => {
-    // Given. An absolute path names the person who built the image and the machine they built it
-    // on, and it would be served to every reader of the documentation.
-    const specs: RouteSpec[] = [
-      { controller: OrdersController, prefix: 'orders', handlers: [{ name: 'findAll', path: '' }] },
-    ];
+  it(
+    'should express the file relative to the repository, never as an absolute path',
+    () => {
+      // Given. An absolute path names the person who built the image and the machine they built it
+      // on, and it would be served to every reader of the documentation.
+      const specs: RouteSpec[] = [
+        {
+          controller: OrdersController,
+          prefix: 'orders',
+          handlers: [{ name: 'findAll', path: '' }],
+        },
+      ];
 
-    // When
-    const sources = sourcesOf(specs);
+      // When
+      const sources = sourcesOf(specs);
 
-    // Then
-    const file = sources.get('OrdersController_findAll')?.source?.file;
-    expect(file).toBe('packages/nest/test/unit/source-collector.spec.ts');
-    expect(file?.startsWith('/')).toBe(false);
-  });
+      // Then
+      const file = sources.get('OrdersController_findAll')?.source?.file;
+      expect(file).toBe('packages/nest/test/unit/source-collector.spec.ts');
+      expect(file?.startsWith('/')).toBe(false);
+    },
+    SPAWNED_PROCESS_TIMEOUT_MS,
+  );
 
-  it('should report the class and the method even when the handler cannot be located', () => {
-    // Given a locator that found nothing, which is a hardened runtime or a generated handler.
-    const specs: RouteSpec[] = [
-      { controller: OrdersController, prefix: 'orders', handlers: [{ name: 'findAll', path: '' }] },
-    ];
+  it(
+    'should report the class and the method even when the handler cannot be located',
+    () => {
+      // Given a locator that found nothing, which is a hardened runtime or a generated handler.
+      const specs: RouteSpec[] = [
+        {
+          controller: OrdersController,
+          prefix: 'orders',
+          handlers: [{ name: 'findAll', path: '' }],
+        },
+      ];
 
-    // When
-    const sources = sourcesOf(specs, () => ({ reason: 'V8 reported no [[FunctionLocation]]' }));
+      // When
+      const sources = sourcesOf(specs, () => ({ reason: 'V8 reported no [[FunctionLocation]]' }));
 
-    // Then the half that is knowable is still reported, because `OrdersController.findAll` is
-    // useful on its own and is more than the specification could ever say
-    const source = sources.get('OrdersController_findAll')?.source;
-    expect(source).toEqual({ controller: 'OrdersController', handler: 'findAll' });
-  });
+      // Then the half that is knowable is still reported, because `OrdersController.findAll` is
+      // useful on its own and is more than the specification could ever say
+      const source = sources.get('OrdersController_findAll')?.source;
+      expect(source).toEqual({ controller: 'OrdersController', handler: 'findAll' });
+    },
+    SPAWNED_PROCESS_TIMEOUT_MS,
+  );
 
-  it('should emit a file with no line rather than guessing one', () => {
-    // Given a build whose script names a source map that cannot be read, which is the case where
-    // the line is genuinely unknown. A build with NO map is a different case and not this one:
-    // there the emitted JavaScript is the source and the line is precise, which the NestJS 10 arm
-    // of the compatibility matrix pins.
-    const specs: RouteSpec[] = [
-      { controller: OrdersController, prefix: 'orders', handlers: [{ name: 'findAll', path: '' }] },
-    ];
+  it(
+    'should emit a file with no line rather than guessing one',
+    () => {
+      // Given a build whose script names a source map that cannot be read, which is the case where
+      // the line is genuinely unknown. A build with NO map is a different case and not this one:
+      // there the emitted JavaScript is the source and the line is precise, which the NestJS 10 arm
+      // of the compatibility matrix pins.
+      const specs: RouteSpec[] = [
+        {
+          controller: OrdersController,
+          prefix: 'orders',
+          handlers: [{ name: 'findAll', path: '' }],
+        },
+      ];
 
-    // When
-    const sources = sourcesOf(specs, () => ({
-      // A FILE THAT REALLY IS TRACKED, CHANGED IN T025. It used to name `src/a.ts`, which does
-      // not exist, and the collector now refuses to link an untracked path because `{ref}` is the
-      // sha of HEAD and a file that is not in that commit is a link to a 404.
-      location: { file: TRACKED_FILE },
-      reason: 'the source map could not be read',
-    }));
+      // When
+      const sources = sourcesOf(specs, () => ({
+        // A FILE THAT REALLY IS TRACKED, CHANGED IN T025. It used to name `src/a.ts`, which does
+        // not exist, and the collector now refuses to link an untracked path because `{ref}` is the
+        // sha of HEAD and a file that is not in that commit is a link to a 404.
+        location: { file: TRACKED_FILE },
+        reason: 'the source map could not be read',
+      }));
 
-    // Then
-    const source = sources.get('OrdersController_findAll')?.source;
-    expect(source?.file).toBe(TRACKED_RELATIVE);
-    expect(source?.line).toBeUndefined();
-  });
+      // Then
+      const source = sources.get('OrdersController_findAll')?.source;
+      expect(source?.file).toBe(TRACKED_RELATIVE);
+      expect(source?.line).toBeUndefined();
+    },
+    SPAWNED_PROCESS_TIMEOUT_MS,
+  );
 
-  it('should degrade to a file link rather than emitting #LNaN, through the real expander', () => {
-    // Given the whole of T018's fourth test, from the collector to the URL. The two halves are in
-    // two packages, so this is the one place they meet.
-    const specs: RouteSpec[] = [
-      { controller: OrdersController, prefix: 'orders', handlers: [{ name: 'findAll', path: '' }] },
-    ];
-    const sources = sourcesOf(specs, () => ({
-      location: { file: TRACKED_FILE },
-    }));
-    const source = sources.get('OrdersController_findAll')?.source;
+  it(
+    'should degrade to a file link rather than emitting #LNaN, through the real expander',
+    () => {
+      // Given the whole of T018's fourth test, from the collector to the URL. The two halves are in
+      // two packages, so this is the one place they meet.
+      const specs: RouteSpec[] = [
+        {
+          controller: OrdersController,
+          prefix: 'orders',
+          handlers: [{ name: 'findAll', path: '' }],
+        },
+      ];
+      const sources = sourcesOf(specs, () => ({
+        location: { file: TRACKED_FILE },
+      }));
+      const source = sources.get('OrdersController_findAll')?.source;
 
-    // When
-    const link = expandSourceLink(
-      'https://github.com/org/repo/blob/{ref}/{file}#L{line}',
-      source ?? { controller: '', handler: '' },
-      'a1b2c3d',
-    );
-
-    // Then
-    expect(link.url).toBe(`https://github.com/org/repo/blob/a1b2c3d/${TRACKED_RELATIVE}`);
-    expect(link.url).not.toContain('NaN');
-    expect(link.withoutLine).toBe(true);
-  });
-
-  it('should refuse a file outside the repository rather than linking out of it', () => {
-    // Given a handler in a linked package beside the repository, which pnpm produces.
-    const specs: RouteSpec[] = [
-      { controller: OrdersController, prefix: 'orders', handlers: [{ name: 'findAll', path: '' }] },
-    ];
-
-    // When
-    const sources = sourcesOf(specs, () => ({
-      location: { file: '/elsewhere/src/a.ts', line: 4 },
-    }));
-
-    // Then
-    const source = sources.get('OrdersController_findAll')?.source;
-    expect(source?.file).toBeUndefined();
-    expect(source?.controller).toBe('OrdersController');
-  });
-
-  it('should leave the machine out of the document unless the host asked for it', () => {
-    // Given the default registration, which is what a reference served to a team is built with.
-    // The locator has the absolute path and the column in hand for every one of these.
-    const specs: RouteSpec[] = [
-      { controller: OrdersController, prefix: 'orders', handlers: [{ name: 'findAll', path: '' }] },
-    ];
-
-    // When
-    const sources = sourcesOf(specs, () => ({
-      location: { file: TRACKED_FILE, line: 7, column: 5 },
-    }));
-
-    // Then the repository relative path is there and nothing about this machine is
-    const source = sources.get('OrdersController_findAll')?.source;
-    expect(source?.file).toBe(TRACKED_RELATIVE);
-    expect(source?.line).toBe(7);
-    expect(source?.absolutePath).toBeUndefined();
-    expect(source?.column).toBeUndefined();
-  });
-
-  it('should record the absolute path and the column when the host opts in', () => {
-    // Given the opt in of SPEC 6.3, which is the only thing that admits either field.
-    const specs: RouteSpec[] = [
-      { controller: OrdersController, prefix: 'orders', handlers: [{ name: 'findAll', path: '' }] },
-    ];
-
-    // When
-    const sources = sourcesOf(
-      specs,
-      () => ({ location: { file: TRACKED_FILE, line: 7, column: 5 } }),
-      { absolutePath: true },
-    );
-
-    // Then both halves are there: the forge path for a reader elsewhere and the machine path for
-    // the reader who built it
-    const source = sources.get('OrdersController_findAll')?.source;
-    expect(source?.file).toBe(TRACKED_RELATIVE);
-    expect(source?.absolutePath).toBe(TRACKED_FILE);
-    expect(source?.column).toBe(5);
-  });
-
-  it('should keep the position when there is no repository, since only the forge link fails', () => {
-    // Given a handler in a directory with no `.git` above it, which is a container image built
-    // from a copied tree and a checkout that is not a repository at all. This is the branch that
-    // used to return the class and the method and throw the located position away.
-    const specs: RouteSpec[] = [
-      { controller: OrdersController, prefix: 'orders', handlers: [{ name: 'findAll', path: '' }] },
-    ];
-
-    // When
-    const sources = sourcesOf(
-      specs,
-      () => ({ location: { file: '/elsewhere/src/a.ts', line: 4, column: 9 } }),
-      { absolutePath: true },
-    );
-
-    // Then there is no `{file}` to build a forge link from, and the editor form has everything it
-    // needs
-    const source = sources.get('OrdersController_findAll')?.source;
-    expect(source?.file).toBeUndefined();
-    expect(source?.absolutePath).toBe('/elsewhere/src/a.ts');
-    expect(source?.line).toBe(4);
-    expect(source?.column).toBe(9);
-
-    // And the editor link expands from those facts alone, with no revision passed at all
-    expect(
-      expandSourceLink(
-        'vscode://file/{absolutePath}:{line}:{column}',
+      // When
+      const link = expandSourceLink(
+        'https://github.com/org/repo/blob/{ref}/{file}#L{line}',
         source ?? { controller: '', handler: '' },
-      ).url,
-    ).toBe('vscode://file/elsewhere/src/a.ts:4:9');
-  });
+        'a1b2c3d',
+      );
 
-  it('should still say nothing about the machine with no repository and no opt in', () => {
-    // Given the same directory with the default registration. A PROOF OF ABSENCE ASSERTS PRESENCE
-    // FIRST: the case above shows the locator hands over all three fields here.
-    const specs: RouteSpec[] = [
-      { controller: OrdersController, prefix: 'orders', handlers: [{ name: 'findAll', path: '' }] },
-    ];
+      // Then
+      expect(link.url).toBe(`https://github.com/org/repo/blob/a1b2c3d/${TRACKED_RELATIVE}`);
+      expect(link.url).not.toContain('NaN');
+      expect(link.withoutLine).toBe(true);
+    },
+    SPAWNED_PROCESS_TIMEOUT_MS,
+  );
 
-    // When
-    const sources = sourcesOf(specs, () => ({
-      location: { file: '/elsewhere/src/a.ts', line: 4, column: 9 },
-    }));
+  it(
+    'should refuse a file outside the repository rather than linking out of it',
+    () => {
+      // Given a handler in a linked package beside the repository, which pnpm produces.
+      const specs: RouteSpec[] = [
+        {
+          controller: OrdersController,
+          prefix: 'orders',
+          handlers: [{ name: 'findAll', path: '' }],
+        },
+      ];
 
-    // Then the node names the class and the method and nothing else, which is what it did before
-    // this option existed
-    const source = sources.get('OrdersController_findAll')?.source;
-    expect(source).toEqual({ controller: 'OrdersController', handler: 'findAll' });
-  });
+      // When
+      const sources = sourcesOf(specs, () => ({
+        location: { file: '/elsewhere/src/a.ts', line: 4 },
+      }));
 
-  it('should keep the position for a handler outside the configured repository root', () => {
-    // Given a host that named its own root, and a handler in a linked package beside it. The forge
-    // link would leave that repository's tree; the editor link opens the file it names.
-    const specs: RouteSpec[] = [
-      { controller: OrdersController, prefix: 'orders', handlers: [{ name: 'findAll', path: '' }] },
-    ];
+      // Then
+      const source = sources.get('OrdersController_findAll')?.source;
+      expect(source?.file).toBeUndefined();
+      expect(source?.controller).toBe('OrdersController');
+    },
+    SPAWNED_PROCESS_TIMEOUT_MS,
+  );
 
-    // When
-    const sources = sourcesOf(
-      specs,
-      () => ({ location: { file: '/elsewhere/src/a.ts', line: 4, column: 9 } }),
-      { absolutePath: true, repositoryRoot: '/srv/app' },
-    );
+  it(
+    'should leave the machine out of the document unless the host asked for it',
+    () => {
+      // Given the default registration, which is what a reference served to a team is built with.
+      // The locator has the absolute path and the column in hand for every one of these.
+      const specs: RouteSpec[] = [
+        {
+          controller: OrdersController,
+          prefix: 'orders',
+          handlers: [{ name: 'findAll', path: '' }],
+        },
+      ];
 
-    // Then
-    const source = sources.get('OrdersController_findAll')?.source;
-    expect(source?.file).toBeUndefined();
-    expect(source?.absolutePath).toBe('/elsewhere/src/a.ts');
-    expect(source?.line).toBe(4);
-  });
+      // When
+      const sources = sourcesOf(specs, () => ({
+        location: { file: TRACKED_FILE, line: 7, column: 5 },
+      }));
 
-  it('should keep the reason for every source it could not resolve', () => {
-    // Given. "This endpoint has no source link" and "this endpoint was never looked at" are
-    // different states, and only a record of the reason tells a reader which one they are in.
-    const built = harness([
-      { controller: OrdersController, prefix: 'orders', handlers: [{ name: 'findAll', path: '' }] },
-    ]);
-    const collector = sourceCollector({ locate: () => ({ reason: 'nothing was found' }) });
+      // Then the repository relative path is there and nothing about this machine is
+      const source = sources.get('OrdersController_findAll')?.source;
+      expect(source?.file).toBe(TRACKED_RELATIVE);
+      expect(source?.line).toBe(7);
+      expect(source?.absolutePath).toBeUndefined();
+      expect(source?.column).toBeUndefined();
+    },
+    SPAWNED_PROCESS_TIMEOUT_MS,
+  );
 
-    // When
-    runRuntimePass(built.document, {
-      collectors: [collector],
-      discovery: built.discovery,
-      reflector: built.reflector,
-      moduleRef: built.moduleRef,
-    });
+  it(
+    'should record the absolute path and the column when the host opts in',
+    () => {
+      // Given the opt in of SPEC 6.3, which is the only thing that admits either field.
+      const specs: RouteSpec[] = [
+        {
+          controller: OrdersController,
+          prefix: 'orders',
+          handlers: [{ name: 'findAll', path: '' }],
+        },
+      ];
 
-    // Then
-    expect(collector.problems()).toEqual([
-      { subject: 'OrdersController.findAll', reason: 'nothing was found' },
-    ]);
-  });
+      // When
+      const sources = sourcesOf(
+        specs,
+        () => ({ location: { file: TRACKED_FILE, line: 7, column: 5 } }),
+        { absolutePath: true },
+      );
+
+      // Then both halves are there: the forge path for a reader elsewhere and the machine path for
+      // the reader who built it
+      const source = sources.get('OrdersController_findAll')?.source;
+      expect(source?.file).toBe(TRACKED_RELATIVE);
+      expect(source?.absolutePath).toBe(TRACKED_FILE);
+      expect(source?.column).toBe(5);
+    },
+    SPAWNED_PROCESS_TIMEOUT_MS,
+  );
+
+  it(
+    'should keep the position when there is no repository, since only the forge link fails',
+    () => {
+      // Given a handler in a directory with no `.git` above it, which is a container image built
+      // from a copied tree and a checkout that is not a repository at all. This is the branch that
+      // used to return the class and the method and throw the located position away.
+      const specs: RouteSpec[] = [
+        {
+          controller: OrdersController,
+          prefix: 'orders',
+          handlers: [{ name: 'findAll', path: '' }],
+        },
+      ];
+
+      // When
+      const sources = sourcesOf(
+        specs,
+        () => ({ location: { file: '/elsewhere/src/a.ts', line: 4, column: 9 } }),
+        { absolutePath: true },
+      );
+
+      // Then there is no `{file}` to build a forge link from, and the editor form has everything it
+      // needs
+      const source = sources.get('OrdersController_findAll')?.source;
+      expect(source?.file).toBeUndefined();
+      expect(source?.absolutePath).toBe('/elsewhere/src/a.ts');
+      expect(source?.line).toBe(4);
+      expect(source?.column).toBe(9);
+
+      // And the editor link expands from those facts alone, with no revision passed at all
+      expect(
+        expandSourceLink(
+          'vscode://file/{absolutePath}:{line}:{column}',
+          source ?? { controller: '', handler: '' },
+        ).url,
+      ).toBe('vscode://file/elsewhere/src/a.ts:4:9');
+    },
+    SPAWNED_PROCESS_TIMEOUT_MS,
+  );
+
+  it(
+    'should still say nothing about the machine with no repository and no opt in',
+    () => {
+      // Given the same directory with the default registration. A PROOF OF ABSENCE ASSERTS PRESENCE
+      // FIRST: the case above shows the locator hands over all three fields here.
+      const specs: RouteSpec[] = [
+        {
+          controller: OrdersController,
+          prefix: 'orders',
+          handlers: [{ name: 'findAll', path: '' }],
+        },
+      ];
+
+      // When
+      const sources = sourcesOf(specs, () => ({
+        location: { file: '/elsewhere/src/a.ts', line: 4, column: 9 },
+      }));
+
+      // Then the node names the class and the method and nothing else, which is what it did before
+      // this option existed
+      const source = sources.get('OrdersController_findAll')?.source;
+      expect(source).toEqual({ controller: 'OrdersController', handler: 'findAll' });
+    },
+    SPAWNED_PROCESS_TIMEOUT_MS,
+  );
+
+  it(
+    'should keep the position for a handler outside the configured repository root',
+    () => {
+      // Given a host that named its own root, and a handler in a linked package beside it. The forge
+      // link would leave that repository's tree; the editor link opens the file it names.
+      const specs: RouteSpec[] = [
+        {
+          controller: OrdersController,
+          prefix: 'orders',
+          handlers: [{ name: 'findAll', path: '' }],
+        },
+      ];
+
+      // When
+      const sources = sourcesOf(
+        specs,
+        () => ({ location: { file: '/elsewhere/src/a.ts', line: 4, column: 9 } }),
+        { absolutePath: true, repositoryRoot: '/srv/app' },
+      );
+
+      // Then
+      const source = sources.get('OrdersController_findAll')?.source;
+      expect(source?.file).toBeUndefined();
+      expect(source?.absolutePath).toBe('/elsewhere/src/a.ts');
+      expect(source?.line).toBe(4);
+    },
+    SPAWNED_PROCESS_TIMEOUT_MS,
+  );
+
+  it(
+    'should keep the reason for every source it could not resolve',
+    () => {
+      // Given. "This endpoint has no source link" and "this endpoint was never looked at" are
+      // different states, and only a record of the reason tells a reader which one they are in.
+      const built = harness([
+        {
+          controller: OrdersController,
+          prefix: 'orders',
+          handlers: [{ name: 'findAll', path: '' }],
+        },
+      ]);
+      const collector = sourceCollector({ locate: () => ({ reason: 'nothing was found' }) });
+
+      // When
+      runRuntimePass(built.document, {
+        collectors: [collector],
+        discovery: built.discovery,
+        reflector: built.reflector,
+        moduleRef: built.moduleRef,
+      });
+
+      // Then
+      expect(collector.problems()).toEqual([
+        { subject: 'OrdersController.findAll', reason: 'nothing was found' },
+      ]);
+    },
+    SPAWNED_PROCESS_TIMEOUT_MS,
+  );
 });

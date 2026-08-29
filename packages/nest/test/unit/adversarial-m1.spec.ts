@@ -26,6 +26,7 @@ import {
   type SourceCollector,
 } from '../../src/runtime/infrastructure/collectors/source.collector';
 import { specification } from '../mocks/fixtures';
+import { SPAWNED_PROCESS_TIMEOUT_MS } from '../../../../vitest.spawn-timeout.ts';
 
 /** A context over the fixture's one node, for a collector that only reads the handler. */
 function contextFor(): CollectorContext {
@@ -448,32 +449,36 @@ class EverythingFilter {
 }
 
 describe('T025 attack: an application whose whole policy is global', () => {
-  it('should tell a reader that every route is guarded, and by what', () => {
-    // Given guards, an interceptor and a pipe all registered globally and nothing on any route,
-    // which is the arrangement TX-GLOBALGUARD found and the family it belongs to
-    const allGlobal: DiscoveryServiceLike = {
-      getControllers: () => [{ metatype: OrdersController, instance: new OrdersController() }],
-      getProviders: () => [
-        { subtype: 'guard', instance: new ReadonlyGuard() },
-        { subtype: 'interceptor', instance: new LoggingInterceptor() },
-        { subtype: 'pipe', instance: new TrimPipe() },
-        { subtype: 'filter', instance: new EverythingFilter() },
-      ],
-    };
+  it(
+    'should tell a reader that every route is guarded, and by what',
+    () => {
+      // Given guards, an interceptor and a pipe all registered globally and nothing on any route,
+      // which is the arrangement TX-GLOBALGUARD found and the family it belongs to
+      const allGlobal: DiscoveryServiceLike = {
+        getControllers: () => [{ metatype: OrdersController, instance: new OrdersController() }],
+        getProviders: () => [
+          { subtype: 'guard', instance: new ReadonlyGuard() },
+          { subtype: 'interceptor', instance: new LoggingInterceptor() },
+          { subtype: 'pipe', instance: new TrimPipe() },
+          { subtype: 'filter', instance: new EverythingFilter() },
+        ],
+      };
 
-    // When
-    const result = runRuntimePass(document(), {
-      collectors: [],
-      discovery: allGlobal,
-      reflector,
-      moduleRef,
-    });
+      // When
+      const result = runRuntimePass(document(), {
+        collectors: [],
+        discovery: allGlobal,
+        reflector,
+        moduleRef,
+      });
 
-    // Then the hash is over the document as served, and the pass did not fall over the three
-    // families it does not read
-    expect(result.document.hash).toBe(hashDocument(result.document));
-    expect(result.discoveryProblems).toEqual([]);
-  });
+      // Then the hash is over the document as served, and the pass did not fall over the three
+      // families it does not read
+      expect(result.document.hash).toBe(hashDocument(result.document));
+      expect(result.discoveryProblems).toEqual([]);
+    },
+    SPAWNED_PROCESS_TIMEOUT_MS,
+  );
 });
 
 describe('T025 attack: source links in a repository that is not the ordinary one', () => {
@@ -501,24 +506,28 @@ describe('T025 attack: source links in a repository that is not the ordinary one
     return sourceCollector({ locate: () => ({ location: { file, line: 7 } }) });
   }
 
-  it('should still resolve a ref with HEAD detached, which is an ordinary CI checkout', () => {
-    // Given two commits and a checkout of the first, which is what every shallow CI clone of a
-    // pull request produces. The attack is whether `{ref}` degrades there.
-    const root = repositoryAt('detached');
-    writeFileSync(join(root, 'a.ts'), 'export const one = 1;\n');
-    run(root, 'add', '.');
-    run(root, 'commit', '-qm', 'one');
-    writeFileSync(join(root, 'a.ts'), 'export const two = 2;\n');
-    run(root, 'commit', '-qam', 'two');
-    run(root, 'checkout', '-q', 'HEAD~1');
-    resetRepositoryCache();
+  it(
+    'should still resolve a ref with HEAD detached, which is an ordinary CI checkout',
+    () => {
+      // Given two commits and a checkout of the first, which is what every shallow CI clone of a
+      // pull request produces. The attack is whether `{ref}` degrades there.
+      const root = repositoryAt('detached');
+      writeFileSync(join(root, 'a.ts'), 'export const one = 1;\n');
+      run(root, 'add', '.');
+      run(root, 'commit', '-qm', 'one');
+      writeFileSync(join(root, 'a.ts'), 'export const two = 2;\n');
+      run(root, 'commit', '-qam', 'two');
+      run(root, 'checkout', '-q', 'HEAD~1');
+      resetRepositoryCache();
 
-    // When
-    const ref = resolveGitRef(root);
+      // When
+      const ref = resolveGitRef(root);
 
-    // Then a detached HEAD is still a commit, and the sha it names is the one the code came from
-    expect(ref).toMatch(/^[0-9a-f]{40}$/);
-  });
+      // Then a detached HEAD is still a commit, and the sha it names is the one the code came from
+      expect(ref).toMatch(/^[0-9a-f]{40}$/);
+    },
+    SPAWNED_PROCESS_TIMEOUT_MS,
+  );
 
   it('should refuse to link a handler inside a submodule rather than link into the wrong repo', () => {
     // Given a superproject with a submodule, which is how a vendored library is checked out. Both

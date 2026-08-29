@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { InvalidOptionsError } from '@openref/core';
 import { FsOutputStore } from '../../src/index';
+import { SPAWNED_PROCESS_TIMEOUT_MS } from '../../../../vitest.spawn-timeout.ts';
 
 /**
  * The output store against a hostile directory, per the `T043` adversarial pass.
@@ -98,33 +99,37 @@ describe('FsOutputStore, a symbolic link planted in the output directory', () =>
   it.each([
     ['a named pipe, whose open blocks forever', 'fifo'],
     ['a directory where a file belongs', 'directory'],
-  ])('should refuse %s rather than hang or report an errno', async (_reason, kind) => {
-    // Given: `O_NOFOLLOW` declines a symbolic link and nothing else, so a build met a pipe at a
-    // page path and blocked with no output at all until it was killed.
+  ])(
+    'should refuse %s rather than hang or report an errno',
+    async (_reason, kind) => {
+      // Given: `O_NOFOLLOW` declines a symbolic link and nothing else, so a build met a pipe at a
+      // page path and blocked with no output at all until it was killed.
 
-    const path = join(root, 'out', 'llms.txt');
-    if (kind === 'directory') {
-      await mkdir(path, { recursive: true });
-    } else {
-      await new Promise<void>((made, failed) => {
-        exec(`mkfifo ${JSON.stringify(path)}`, (error) => {
-          if (error === null) {
-            made();
-            return;
-          }
-          failed(error);
+      const path = join(root, 'out', 'llms.txt');
+      if (kind === 'directory') {
+        await mkdir(path, { recursive: true });
+      } else {
+        await new Promise<void>((made, failed) => {
+          exec(`mkfifo ${JSON.stringify(path)}`, (error) => {
+            if (error === null) {
+              made();
+              return;
+            }
+            failed(error);
+          });
         });
-      });
-    }
-    const store = new FsOutputStore(join(root, 'out'));
+      }
+      const store = new FsOutputStore(join(root, 'out'));
 
-    // When
-    const attempt = store.write('llms.txt', 'PAGE');
+      // When
+      const attempt = store.write('llms.txt', 'PAGE');
 
-    // Then: refused, by name, rather than blocked.
-    await expect(attempt).rejects.toBeInstanceOf(InvalidOptionsError);
-    await expect(attempt).rejects.toThrow(/rather than a regular file/);
-  });
+      // Then: refused, by name, rather than blocked.
+      await expect(attempt).rejects.toBeInstanceOf(InvalidOptionsError);
+      await expect(attempt).rejects.toThrow(/rather than a regular file/);
+    },
+    SPAWNED_PROCESS_TIMEOUT_MS,
+  );
 
   it('should rewrite a file it wrote itself, so the second name rule spares an ordinary rebuild', async () => {
     // Given: the incremental path of SPEC 16.3 rewrites the previous build's own pages.

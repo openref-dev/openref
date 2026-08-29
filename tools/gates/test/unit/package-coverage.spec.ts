@@ -210,15 +210,19 @@ describe('readPackageDirs', () => {
     expect(rules.readPackageDirs(tree)).toEqual(['core', 'probe2']);
   });
 
-  it('should give the CSP scan a root for every package on disk', () => {
-    // Given the other half of F23, which had nothing to do with the dependency graph: the same
-    // array drove the scan roots, so a ninth package's `dist` was never opened.
-    // When
-    const roots = cspScanRoots(repoRoot);
+  it(
+    'should give the CSP scan a root for every package on disk',
+    () => {
+      // Given the other half of F23, which had nothing to do with the dependency graph: the same
+      // array drove the scan roots, so a ninth package's `dist` was never opened.
+      // When
+      const roots = cspScanRoots(repoRoot);
 
-    // Then
-    expect([...roots]).toEqual(readPackageDirs(repoRoot).map((dir) => `packages/${dir}/dist`));
-  });
+      // Then
+      expect([...roots]).toEqual(readPackageDirs(repoRoot).map((dir) => `packages/${dir}/dist`));
+    },
+    SPAWNED_PROCESS_TIMEOUT_MS,
+  );
 });
 
 /**

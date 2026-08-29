@@ -1689,6 +1689,10 @@ a.oref-topology-name {
   color: #ffb020;
 }
 
+.oref-shape-pattern-row {
+  background: #0f151b;
+}
+
 .oref-shape-pattern-row > .oref-shape-name {
   color: #93a4b3;
 }

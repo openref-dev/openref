@@ -751,6 +751,33 @@ export const UNREAD_KEY_RULE = {
 };
 
 /**
+ * The rule that prints what the discovery of a running application could not state, per SPEC 7.1.
+ *
+ * ONE RULE FOR SIXTEEN PRODUCERS, AND THAT IS THE DECISION `T054` RECORDED. SPEC 8.3 called six of
+ * them «находка `doctor`» from `T051` and nothing printed one; the same shape and the same missing
+ * reader has been true of the HTTP side since `T019`, so it was one gap over two lists rather than
+ * an events gap. A rule per producer would be a catalogue that grows every time somebody adds a
+ * producer, which is a list a person has to remember to update, and the check asks one question:
+ * whether the discovery stated everything it found.
+ *
+ * `warning` FOR THE REASON `UNREAD_KEY_RULE` IS ONE. Every subject here is a piece of the
+ * application the reference appears to describe and does not, which is not a shortfall in how well
+ * the document is written. It is in the `RT` group because its subject is the running application
+ * rather than the specification's text, which is also why `lint`, over a bare file, has no subject
+ * for it and prints no row.
+ *
+ * A SKIPPED COLLECTOR IS DELIBERATELY NOT ONE OF THESE, per SPEC 7.1 and the reasoning
+ * `collector-registry.service.ts` already carries: a collector that could not run is the
+ * instrument failing rather than the two sides differing, it is already counted by the
+ * `runtime-collectors` check, and counting it twice would move the score twice for one fact.
+ */
+export const DISCOVERY_INCOMPLETE_RULE = {
+  id: 'discovery-incomplete' as const,
+  severity: 'warning' as const,
+  label: 'Subjects the discovery could state',
+};
+
+/**
  * How deep a schema is walked while looking for undescribed fields.
  *
  * The normalizer already bounds nesting, and references stay references rather than being
@@ -835,7 +862,12 @@ function documentFields(document: IRDocument): readonly Field[] {
  */
 function issueOf(
   rule: { readonly id: IRDriftRule; readonly severity: IRDriftSeverity },
-  subject: { readonly nodeId?: string; readonly schemaId?: string; readonly pointer?: string },
+  subject: {
+    readonly nodeId?: string;
+    readonly schemaId?: string;
+    readonly pointer?: string;
+    readonly subject?: string;
+  },
   finding: Finding,
 ): IRDriftIssue {
   return {
@@ -844,6 +876,7 @@ function issueOf(
     ...(subject.nodeId === undefined ? {} : { nodeId: subject.nodeId }),
     ...(subject.schemaId === undefined ? {} : { schemaId: subject.schemaId }),
     ...(subject.pointer === undefined ? {} : { pointer: subject.pointer }),
+    ...(subject.subject === undefined ? {} : { subject: subject.subject }),
     message: finding.message,
     ...(finding.runtimeValue === undefined ? {} : { runtimeValue: finding.runtimeValue }),
     ...(finding.specValue === undefined ? {} : { specValue: finding.specValue }),
@@ -903,8 +936,50 @@ export function runDriftRules(
 
   results.push(dtoFieldResult(document));
   results.push(unreadKeyResult(document));
+  results.push(discoveryProblemResult(document));
 
   return results;
+}
+
+/**
+ * The rule about what the discovery found and could not state, per SPEC 7.1.
+ *
+ * ITS SCOPE IS THE PROBLEMS THEMSELVES, the scope `unreadKeyResult` uses and for the same reason:
+ * a document whose discovery stated everything has no subject here, so `total` is zero, the check
+ * is dropped before the mean is taken, and no existing score moves for this rule arriving.
+ *
+ * @param document - The document being checked, with whatever runtime meta is attached to it
+ * @returns Its result, shaped like every other rule's
+ */
+function discoveryProblemResult(document: IRDocument): RuleResult {
+  const problems = document.runtime?.problems ?? [];
+
+  const issues = problems.map((problem) =>
+    issueOf(
+      DISCOVERY_INCOMPLETE_RULE,
+      { subject: problem.subject },
+      {
+        // THE REASON IS ONE SENTENCE THAT CARRIES BOTH HALVES, and it is not split here. Every one
+        // of the sixteen producers writes what happened and what to write instead in one sentence,
+        // and splitting them would mean rewriting sixteen producers to fit a shape that gains a
+        // reader nothing: the block `doctor` prints is the subject and the suggestion, so the
+        // sentence lands where a reader looks for the action.
+        message: `${problem.subject}: ${problem.reason}`,
+        suggestion: problem.reason,
+        edit: 'nothing-to-write',
+        basis: UNOBSERVED,
+      },
+    ),
+  );
+
+  return {
+    rule: DISCOVERY_INCOMPLETE_RULE.id,
+    severity: DISCOVERY_INCOMPLETE_RULE.severity,
+    label: DISCOVERY_INCOMPLETE_RULE.label,
+    total: problems.length,
+    passed: 0,
+    issues,
+  };
 }
 
 /**

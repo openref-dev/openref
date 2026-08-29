@@ -1,8 +1,8 @@
 import 'reflect-metadata';
 import { afterEach, describe, expect, it } from 'vitest';
-import { Controller, Injectable, Module, UseGuards } from '@nestjs/common';
+import { Controller, Get, Injectable, Module, UseGuards } from '@nestjs/common';
 import type { CanActivate, INestApplication } from '@nestjs/common';
-import { NestFactory } from '@nestjs/core';
+import { APP_GUARD, NestFactory } from '@nestjs/core';
 import { EventPattern, MessagePattern, Transport } from '@nestjs/microservices';
 import { OpenRefModule } from '../../src/api/openref.module';
 import { MountedReferences } from '../../src/api/mounted-references';
@@ -10,7 +10,8 @@ import { ApiChannel, ApiMessage, ApiScopes } from '../../src/api/decorators/api-
 import { OPENREF_REFERENCES } from '../../src/shared/constants/tokens';
 import { guardsCollector } from '../../src/runtime/infrastructure/collectors/guards.collector';
 import { declarationsCollector } from '../../src/runtime/infrastructure/collectors/declarations.collector';
-import { assetPlan } from '../mocks/fixtures';
+import { buildDoctorReport } from '@openref/core';
+import { assetPlan, specification } from '../mocks/fixtures';
 
 /**
  * The done-when of `T051`, over real HTTP: events appear in the documentation with no AsyncAPI file.
@@ -305,6 +306,43 @@ for (const platform of PLATFORMS) {
       ).toHaveLength(problems.length);
     });
 
+    it('should print every one of those problems through doctor, which nothing did before T054', async () => {
+      // Given the booted application above. SPEC 8.3 called six of these «находка `doctor`» from
+      // `T051`, and `doctor` printed none: the list ended on the mount, `RuntimePassResult` held
+      // the HTTP half, and `buildDoctorReport` sees a document rather than either.
+      await boot(platform);
+      const mounted = references().get('events');
+      const problems = mounted?.eventProblems ?? [];
+      const document = mounted?.service.document;
+
+      // The subject is asserted present before its absence anywhere else is claimed.
+      expect(problems.length).toBeGreaterThan(0);
+
+      // When the document is read the way the CLI reads it, which is the whole of what `doctor`
+      // gets: `runWithDocument` hands it `pass.document` and nothing else off the mount.
+      const carried = document?.runtime?.problems ?? [];
+      expect(document).toBeDefined();
+      const report = buildDoctorReport(document!);
+      const printed = report.findings.filter((finding) => finding.rule === 'discovery-incomplete');
+
+      // Then every problem the mount found is on the document, and every one of them is a printed
+      // finding under the display code of SPEC 7.1, naming the subject the discovery named.
+      expect(carried.map((problem) => problem.subject)).toEqual(
+        expect.arrayContaining(problems.map((problem) => problem.subject)),
+      );
+      expect(printed.map((finding) => finding.subject)).toEqual(
+        expect.arrayContaining(problems.map((problem) => problem.subject)),
+      );
+      expect(printed).toHaveLength(carried.length);
+      expect(new Set(printed.map((finding) => finding.code))).toEqual(new Set(['RT070']));
+
+      // And the ambiguity of `shipping.updated`, which is the one of the six a reader most needs
+      // the explanation for, is one of the printed ones rather than merely one of the carried.
+      const ambiguity = printed.filter((finding) => finding.subject.includes('shipping.updated'));
+      expect(ambiguity).toHaveLength(1);
+      expect(ambiguity[0]?.suggestion).toContain('2 handlers serve it');
+    });
+
     it('should carry the ambiguity of a channel two handlers serve into the problems', async () => {
       // Given the application above, whose `shipping.updated` is answered twice. The channel is
       // asserted present and factless first, so the problem below explains a real state rather
@@ -330,3 +368,93 @@ for (const platform of PLATFORMS) {
     });
   });
 }
+
+/**
+ * The HTTP half of the same problem list, which had no end-to-end case until the review of `T054`.
+ *
+ * WHY IT IS IN THIS FILE. `IRRuntimeMeta.problems` is one carrier for two producers: the event
+ * discovery, whose findings arrive through `carriedProblems`, and the runtime walk, whose findings
+ * `runRuntimePass` appends itself. The case above proves the first reaches `doctor`; nothing proved
+ * the second, and the section that claims it says "a test per case proves the named finding reaches
+ * the printed report", so the claim was answered for one producer of the two. Keeping both halves
+ * beside each other is what makes the pair readable: one list, two sources, one printed rule.
+ *
+ * THE APPLICATION IS HTTP AND HAS NO EVENTS AT ALL, deliberately. `eventProblems` is undefined on
+ * this mount, so anything on the document came from the walk and from nowhere else. A document with
+ * both would prove the carrier works and leave which half filled it unanswered.
+ */
+@Controller('orders')
+class GuardedOrdersController {
+  @Get(':id')
+  readOrder(): string {
+    return 'an order';
+  }
+}
+
+@Module({
+  controllers: [GuardedOrdersController],
+  // `useValue` with a plain object is the shape SPEC 6.2.1 cannot name: it protects every route
+  // and has no class name to report, which is the one HTTP discovery problem an application can
+  // produce with no other defect in it.
+  providers: [{ provide: APP_GUARD, useValue: { canActivate: (): boolean => true } }],
+  imports: [
+    OpenRefModule.forRoot({
+      documents: [
+        { id: 'http', route: '/docs/http', document: specification(), assetPlan: assetPlan() },
+      ],
+      runtime: { collectors: [guardsCollector()] },
+    }),
+  ],
+})
+// eslint-disable-next-line @typescript-eslint/no-extraneous-class
+class UnnameablyGuardedModule {}
+
+describe('a NestJS application the runtime walk cannot fully read', () => {
+  it('should print the HTTP half of the problem list through doctor, as RT070 with its subject', async () => {
+    // Given an application behind one guard the reference cannot name. It is booted on express
+    // alone, because what is under test is the container walk and the carrier, and neither reads
+    // the adapter; the platform loop above is what covers the two adapters.
+    const app = await NestFactory.create(UnnameablyGuardedModule as never, {
+      logger: false,
+      abortOnError: false,
+    });
+    running = app;
+    await app.listen(0, '127.0.0.1');
+
+    const mounted = references().get('http');
+    const pass = mounted?.pass;
+    const document = pass?.document;
+
+    // The subject is asserted present, and asserted to come from the HTTP half, before anything is
+    // claimed about where it reaches. An events document is what the case above measures, so this
+    // mount having no event problems at all is what makes the assertions below about the walk.
+    expect(document?.kind).toBe('http');
+    expect(mounted?.eventProblems).toBeUndefined();
+    expect(pass?.discoveryProblems.map((problem) => problem.subject)).toEqual(['the application']);
+    expect(pass?.discoveryProblems[0]?.reason).toContain('APP_GUARD');
+
+    // When the document is read the way the CLI reads it, which is the whole of what `doctor`
+    // gets: `runWithDocument` hands it `pass.document` and nothing else off the mount.
+    expect(document).toBeDefined();
+    const carried = document?.runtime?.problems ?? [];
+    const report = buildDoctorReport(document!);
+    const printed = report.findings.filter((finding) => finding.rule === 'discovery-incomplete');
+
+    // Then the walk's own finding is on the document, and it is printed under the display code of
+    // SPEC 7.1 naming the subject the walk named. Until `T054` it reached neither: the pass held
+    // it, nothing downstream read the pass, and `doctor` sees a document.
+    expect(carried).toEqual(pass?.discoveryProblems);
+    expect(printed).toHaveLength(1);
+    expect(printed[0]?.code).toBe('RT070');
+    expect(printed[0]?.subject).toBe('the application');
+    expect(printed[0]?.suggestion).toContain('APP_GUARD');
+
+    // And no route of this application carries a guard row, which is the other half of the same
+    // fact: the problem exists because the name does not, so a row here would be a name nobody
+    // wrote and the finding would be redundant rather than owed.
+    expect(
+      [...(document?.nodes.values() ?? [])].filter((node) => node.runtime?.guards !== undefined),
+    ).toEqual([]);
+    expect(document?.nodes.size, 'the document has no operation, so it proves nothing').toBe(1);
+  });
+});

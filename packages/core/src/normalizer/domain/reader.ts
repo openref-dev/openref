@@ -15,6 +15,7 @@
  */
 
 import type { IRDocument } from '../../ir/domain/document.types';
+import { ErrorCode, NormalizeError } from '../../shared/errors/index';
 import { normalizeAsyncApiDocument } from './asyncapi-normalizer';
 import type { NormalizeAsyncApiOptions } from './asyncapi-normalizer';
 import { normalizeOpenApiDocument } from './openapi-normalizer';
@@ -48,6 +49,19 @@ export function isAsyncApiSource(input: unknown): boolean {
 }
 
 /**
+ * The version a document writes under one of the two root members, when it writes a string there.
+ *
+ * @param input - The parsed document
+ * @param member - `openapi` or `asyncapi`
+ * @returns The version string, or nothing when the member is absent or is not a string
+ */
+function declaredVersion(input: unknown, member: 'openapi' | 'asyncapi'): string | undefined {
+  if (typeof input !== 'object' || input === null) return undefined;
+  const value: unknown = (input as Record<string, unknown>)[member];
+  return typeof value === 'string' ? value : undefined;
+}
+
+/**
  * Normalizes a parsed specification with the reader the document names.
  *
  * A DOCUMENT DECLARING NEITHER MEMBER IS THE OPENAPI READER'S REFUSAL, not a third message
@@ -55,10 +69,21 @@ export function isAsyncApiSource(input: unknown): boolean {
  * which is the sentence a host has to act on; a message from this function would hide it behind
  * a wrapper that knows less.
  *
+ * A DOCUMENT DECLARING BOTH IS THIS FUNCTION'S OWN REFUSAL, per SPEC 8.3, and it is the one
+ * question the predicate above cannot answer. SPEC 8.3's rule is that a document says which
+ * reader it needs; a document writing `openapi` and `asyncapi` in its root says it twice and
+ * differently, and taking the first answer is a silent choice between two statements a host made
+ * on purpose. Measured on the adversarial pass of `T054`: such a document went to the events
+ * reader, every HTTP operation it declared vanished, `unreadKeys` stayed empty and nothing was
+ * reported, which is a reference drawing a service as though it served no endpoint at all. The
+ * refusal names both members and both versions, because the person who has to fix it is the one
+ * who wrote them.
+ *
  * @param input - The parsed document
  * @param options - Identity, external documents and depth limit, as either reader takes them
  * @returns The normalized document, `kind` decided by the reader that ran
- * @throws {NormalizeError} Whatever the reader that ran refuses, unchanged
+ * @throws {NormalizeError} When the document declares both root members, and whatever the reader
+ *         that ran refuses, unchanged
  *
  * @example
  * const document = normalizeSpecification(parseSpecification(body), { documentId: 'orders' });
@@ -67,6 +92,20 @@ export function normalizeSpecification(
   input: unknown,
   options: NormalizeSpecificationOptions = {},
 ): IRDocument {
+  const asyncapi = declaredVersion(input, 'asyncapi');
+  const openapi = declaredVersion(input, 'openapi');
+
+  if (asyncapi !== undefined && openapi !== undefined) {
+    throw new NormalizeError(
+      `the document declares both root members, openapi ${openapi} and asyncapi ${asyncapi}, ` +
+        'so it states two specifications and neither reader can be the right one; ' +
+        'remove the member the document does not mean',
+      ErrorCode.NORM_DOCUMENT_INVALID,
+      undefined,
+      { openapi, asyncapi },
+    );
+  }
+
   return isAsyncApiSource(input)
     ? normalizeAsyncApiDocument(input, options)
     : normalizeOpenApiDocument(input, options);

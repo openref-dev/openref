@@ -145,3 +145,87 @@ export function checkCoverageFloors(
 
   return findings;
 }
+
+/**
+ * The floors STANDARDS 9.1 states in prose, read out of its own table.
+ *
+ * THE TABLE IS FOUND BY ITS HEADING AND THE ROWS BY THEIR CELLS, which is how the document writes
+ * them: a `### 9.1` heading, a two column table of package against target, and each target a
+ * percentage with a trailing `+`. Returning `null` rather than an empty record when the section or
+ * its table is not there is the whole point of the shape: an unreadable table would otherwise
+ * reconcile with everything, which is a proof of absence passing because the subject was absent.
+ *
+ * @param standards - Full text of `ai-docs/00-overview/PROJECT-STANDARDS.md`
+ * @returns The floors by package directory, or null when section 9.1 has no readable table
+ */
+export function parseFloorTable(standards: string): Record<string, number> | null {
+  const heading = /^### 9\.1 /m.exec(standards);
+  if (heading === null) return null;
+
+  const rest = standards.slice(heading.index + heading[0].length);
+  const end = /^#{2,3} /m.exec(rest);
+  const body = end === null ? rest : rest.slice(0, end.index);
+
+  const floors: Record<string, number> = {};
+  for (const line of body.split('\n')) {
+    const row = /^\|\s*([A-Za-z0-9@/-]+)\s*\|\s*(\d+)%\+?\s*\|/.exec(line.trim());
+    if (row === null) continue;
+
+    floors[row[1] ?? ''] = Number(row[2]);
+  }
+
+  return Object.keys(floors).length === 0 ? null : floors;
+}
+
+/**
+ * STANDARDS 9.1 and the committed floors, reconciled in both directions.
+ *
+ * WHY BOTH DIRECTIONS AND NOT ONLY THE ONE THAT LOOKS DANGEROUS. A floor in the configuration with
+ * no row in the document is a threshold nobody agreed to, and a row in the document with no entry
+ * in the configuration is a promise nothing enforces; the second is the one that already happened,
+ * for the length of a whole milestone, to `packages/federation`. Comparing one direction would have
+ * been green through it.
+ *
+ * @param documented - The table as STANDARDS 9.1 writes it
+ * @param floors - What the gate enforces
+ * @returns One message per disagreement, empty when the two agree exactly
+ */
+export function checkFloorTable(
+  documented: Readonly<Record<string, number>>,
+  floors: Readonly<Record<string, number>>,
+): string[] {
+  const messages: string[] = [];
+
+  for (const [packageDir, target] of Object.entries(documented).sort(([left], [right]) =>
+    left < right ? -1 : left > right ? 1 : 0,
+  )) {
+    const floor = floors[packageDir];
+
+    if (floor === undefined) {
+      messages.push(
+        `[floor-unenforced] STANDARDS 9.1 gives ${packageDir} a target of ${String(target)}% and ` +
+          `COVERAGE_FLOORS has no entry for it, so the table promises a floor nothing measures`,
+      );
+      continue;
+    }
+
+    if (floor !== target) {
+      messages.push(
+        `[floor-disagrees] STANDARDS 9.1 gives ${packageDir} a target of ${String(target)}% and ` +
+          `COVERAGE_FLOORS enforces ${String(floor)}%`,
+      );
+    }
+  }
+
+  for (const packageDir of Object.keys(floors).sort()) {
+    if (documented[packageDir] !== undefined) continue;
+
+    messages.push(
+      `[floor-undocumented] COVERAGE_FLOORS enforces ${String(floors[packageDir])}% on ` +
+        `${packageDir} and STANDARDS 9.1 has no row for it, so a threshold is applied that the ` +
+        `governed table does not carry`,
+    );
+  }
+
+  return messages;
+}

@@ -4,6 +4,7 @@ import { createRunner } from '@openref/runner';
 import type { RunnerOperationView } from '@openref/vue';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { bootApp, type BootedApp, type FixtureApp } from '../mocks/app-process';
+import { SPAWNED_PROCESS_TIMEOUT_MS } from '../../../../vitest.spawn-timeout.ts';
 
 /**
  * The three service demo of the M4 DoD, driven end to end: it boots from its single command,
@@ -51,11 +52,11 @@ beforeAll(async () => {
   const origin = /http:\/\/127\.0\.0\.1:\d+/.exec(card)?.[0];
   if (origin === undefined) throw new Error('the orders card names no origin');
   servicesUrl = origin;
-}, 60_000);
+}, SPAWNED_PROCESS_TIMEOUT_MS);
 
 afterAll(async () => {
   await demo.stop();
-});
+}, SPAWNED_PROCESS_TIMEOUT_MS);
 
 describe('the three service demo', () => {
   it('should render the three services as one page, each group carrying its card link', async () => {

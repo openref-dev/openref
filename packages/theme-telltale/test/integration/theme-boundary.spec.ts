@@ -127,7 +127,7 @@ function sweptPages(): Readonly<Record<PageKind, SweptKind>> {
       { document: runtime, where: {} },
       { document: topologyDocument(), where: {} },
     ],
-    // THREE RENDERS, AND THE THIRD IS A CHANNEL. A channel is a node, so its page is this kind
+    // FOUR RENDERS, AND THE LAST TWO ARE CHANNELS. A channel is a node, so its page is this kind
     // and the record above cannot see that a whole family of markup arrived with `T050`; the
     // other two renders are both OpenAPI, so without this one every class the channel sections
     // emit would be on no list and styled by no rule, which is the failure this record exists to
@@ -144,10 +144,50 @@ function sweptPages(): Readonly<Record<PageKind, SweptKind>> {
       { document: runtime, where: { page: 'bench', nodeId: nodeId() } },
     ],
     health: [{ document: runtime, where: { page: 'health' } }],
-    shapes: [{ document: api, where: { page: 'shapes', schemaId: 'Order' } }],
+    // THREE RENDERS, AND THE SECOND AND THIRD ARE THE READING ROWS `Order` CANNOT DRAW. `T054`
+    // added them: this kind was swept from the pre `T049` slice onward and the sweep still missed
+    // THIRTEEN class names, because the schema it renders is a flat object and the rows for a
+    // variant, a conditional requirement, a pattern key and an empty body are drawn only for input
+    // no fixture carried. Four kinds of row, thirteen names; the count said five until the
+    // post-`T054` review read it against the pin below, and none of the thirteen is markup `T054`
+    // wrote, since `packages/render/src` emitted every one of them already. A total record over
+    // `PageKind` cannot report that, because the missing thing is not a page.
+    shapes: [
+      { document: api, where: { page: 'shapes', schemaId: 'Order' } },
+      { document: api, where: { page: 'shapes', schemaId: 'Payment' } },
+      { document: api, where: { page: 'shapes', schemaId: 'Empty' } },
+    ],
     states: [{ document: api, where: { page: 'states' } }],
     service: [{ document: federatedDocument(), where: { page: 'service', serviceId: SERVICE_ID } }],
   };
+}
+
+/** How many renders the sweep makes in total, which is the figure the handoff states in prose. */
+function sweptRenderCount(): number {
+  return Object.values(sweptPages()).reduce(
+    (total, entry) => total + ('excluded' in entry ? 0 : entry.length),
+    0,
+  );
+}
+
+/** This theme's own stylesheet, read once so the two cases that scan it cannot read two files. */
+function themeStylesheet(): string {
+  return readFileSync(join(packageRoot, 'src', 'styles', 'theme.css'), 'utf8');
+}
+
+/**
+ * Which of the surviving names this theme carries a rule for.
+ *
+ * ONE DEFINITION FOR TWO CASES. The styling case below asserts which name is deliberately left
+ * alone, and the count case asserts the handoff states the same total; two copies of the filter
+ * would let those two answers drift apart, which is the class of defect this whole file is about.
+ *
+ * @param surviving - The class names that outlive every override
+ * @param css - This theme's stylesheet
+ * @returns The subset carrying a rule here
+ */
+function styledHere(surviving: readonly string[], css: string): readonly string[] {
+  return surviving.filter((name) => css.includes(`.${name}`));
 }
 
 /** Class names from the reference's own namespace that survive a complete L2 theme. */
@@ -295,16 +335,29 @@ describe('the markup a complete L2 theme does not own', () => {
       'oref-service-page',
       'oref-service-servers',
       'oref-service-status',
+      'oref-shape-add',
       'oref-shape-announce',
+      'oref-shape-branch-note',
+      'oref-shape-branch-row',
       'oref-shape-control',
       'oref-shape-d0',
+      'oref-shape-d1',
+      'oref-shape-empty',
       'oref-shape-field',
+      'oref-shape-hint',
+      'oref-shape-hint-cond',
       'oref-shape-mark',
+      'oref-shape-mark-cond',
       'oref-shape-name',
+      'oref-shape-pattern',
+      'oref-shape-pattern-row',
       'oref-shape-req',
+      'oref-shape-req-cond',
       'oref-shape-row',
       'oref-shape-rows',
       'oref-shape-type',
+      'oref-shape-variant',
+      'oref-shape-when',
       'oref-shapes',
       'oref-shapes-fill',
       'oref-shapes-page',
@@ -339,11 +392,7 @@ describe('the markup a complete L2 theme does not own', () => {
 
     // And the renders are more numerous than the kinds, which is the fact the previous hand
     // written list encoded by hand: `node` and `bench` are each drawn from two documents.
-    const renders = Object.values(swept).reduce(
-      (total, entry) => total + ('excluded' in entry ? 0 : entry.length),
-      0,
-    );
-    expect(renders).toBe(13);
+    expect(sweptRenderCount()).toBe(15);
   });
 
   it('should be a count the three documents that quote it agree with, since none of them owns it', async () => {
@@ -355,21 +404,37 @@ describe('the markup a complete L2 theme does not own', () => {
     // THE NUMBER IS NOT REPEATED IN THIS ASSERTION EITHER. It is read off the list, so the day a
     // name arrives the case above goes red on the name and this one goes red on every document
     // that did not follow, which is the T034 rule about a figure written in three places.
+    //
+    // FOUR FIGURES SINCE THE POST-`T054` REVIEW, AND THE REASON IS WHAT IT FOUND. This case pinned
+    // the count alone, so when `T054` moved the boundary from 86 to 99 the one sentence with a
+    // runner was updated and the three without one were not: the same section still said twelve
+    // renders where there were fifteen, still said 85 of the 86 were styled, and still carried an
+    // arrival table summing to 86 with no row for the thirteen names that had just arrived. A
+    // figure with a runner beside three without one is the defect this case exists against, met
+    // one level down, so the render total, the styled total and the table's own arithmetic are
+    // read off the measurement here too. All four come from the sweep rather than from prose.
     const surviving = await survivingCoreClasses();
     const count = String(surviving.length);
+    const renders = String(sweptRenderCount());
+    const styled = String(styledHere(surviving, themeStylesheet()).length);
+    const boundary = readFileSync(join(packageRoot, 'THEME-BOUNDARY.md'), 'utf8');
 
-    const documents: { name: string; text: string; anchor: string; quote: string }[] = [
+    const documents: { name: string; text: string; anchor: string; quotes: readonly string[] }[] = [
       {
         name: 'THEME-BOUNDARY.md',
-        text: readFileSync(join(packageRoot, 'THEME-BOUNDARY.md'), 'utf8'),
+        text: boundary,
         anchor: 'class names the theme did not write',
-        quote: `${count} class names the theme did not write`,
+        quotes: [
+          `${count} class names the theme did not write`,
+          `${renders} renders in all`,
+          `${styled} of the ${count} are styled here`,
+        ],
       },
       {
         name: 'packages/vue/PUBLIC-API.md',
         text: readFileSync(join(packageRoot, '..', 'vue', 'PUBLIC-API.md'), 'utf8'),
         anchor: 'class names the reference leaves in the markup are not frozen',
-        quote: `${count} of them as of`,
+        quotes: [`${count} of them as of`],
       },
     ];
 
@@ -386,7 +451,7 @@ describe('the markup a complete L2 theme does not own', () => {
         name: 'ai-docs/SPEC.md, section 10.4',
         text: readFileSync(specPath, 'utf8'),
         anchor: 'имён классов из пространства имён ядра',
-        quote: `стилизует ${count} имён классов из пространства имён ядра`,
+        quotes: [`стилизует ${count} имён классов из пространства имён ядра`],
       });
     }
 
@@ -395,30 +460,74 @@ describe('the markup a complete L2 theme does not own', () => {
     // When, Then. The sentence is located before the number is read out of it, so a document
     // that stopped stating the boundary at all fails here on the sentence rather than passing
     // for having nothing left to be wrong about.
+    //
+    // WHITESPACE IS COLLAPSED BEFORE MATCHING, because these are wrapped paragraphs and a
+    // sentence that states a figure may have a line break anywhere in it. Matching the raw text
+    // would make the pin depend on where the paragraph happens to wrap, which is a green case
+    // turning red for a reflow and, worse, a stale figure passing because the reflow moved.
+    const flat = (text: string): string => text.replace(/\s+/g, ' ');
+
     for (const document of documents) {
+      const text = flat(document.text);
       expect(
-        document.text,
+        text,
         `${document.name} no longer carries the sentence that states this boundary`,
-      ).toContain(document.anchor);
-      expect(document.text, `${document.name} does not state the count as ${count}`).toContain(
-        document.quote,
-      );
+      ).toContain(flat(document.anchor));
+
+      for (const quote of document.quotes) {
+        expect(text, `${document.name} does not state "${quote}"`).toContain(flat(quote));
+      }
     }
+
+    // AND THE ARRIVAL TABLE ADDS UP TO THE SAME NUMBER, which is the third figure that went stale
+    // and the only one that cannot be a single sentence: it is a row per task, and a task that
+    // moves the boundary without adding one leaves a table that reads as complete and is not.
+    // The deltas are parsed rather than counted, so an unparsable cell fails here instead of
+    // being silently treated as zero.
+    const table: string[] = [];
+    const fromAnchor = boundary.slice(boundary.indexOf('Where the arrivals came from'));
+    expect(boundary, 'THEME-BOUNDARY.md no longer carries the arrival table').toContain(
+      'Where the arrivals came from',
+    );
+
+    for (const line of fromAnchor.split('\n')) {
+      if (!line.startsWith('|')) {
+        if (table.length > 0) break;
+        continue;
+      }
+      table.push(line);
+    }
+
+    const deltas = table.slice(2).map((row) => (row.split('|')[2] ?? '').trim());
+    const parsed = deltas.map((cell) => {
+      const match = /^(plus |minus )?(\d+)$/.exec(cell);
+      return match === null ? null : (match[1] === 'minus ' ? -1 : 1) * Number(match[2]);
+    });
+
+    expect(
+      deltas.filter((_, index) => parsed[index] === null),
+      'a row of the arrival table states its names in a form this case cannot read',
+    ).toEqual([]);
+    expect(
+      parsed.length,
+      'the arrival table was read as empty, so its arithmetic proves nothing',
+    ).toBeGreaterThan(1);
+    expect(
+      parsed.reduce((total, delta) => (total ?? 0) + (delta ?? 0), 0),
+      'the arrival table does not add up to the boundary it explains',
+    ).toBe(surviving.length);
   });
 
   it('should force this theme to style class names it did not author', async () => {
     // Given the stylesheet this theme ships, and the class names the reference leaves on the page.
-    const css = readFileSync(
-      join(import.meta.dirname, '..', '..', 'src', 'styles', 'theme.css'),
-      'utf8',
-    );
+    const css = themeStylesheet();
     const surviving = await survivingCoreClasses();
 
     // ONE is deliberately not styled, and saying which is the point: `oref-section-health` is
     // the element this theme does not reach inside, because the health position is its own. The
     // comment here named two until `T031-R1` read it against the assertion below: `oref-root`
     // has a rule in this stylesheet, `display: contents`, so it is styled and always was.
-    const styled = surviving.filter((name) => css.includes(`.${name}`));
+    const styled = styledHere(surviving, css);
 
     // When
     const unstyled = surviving.filter((name) => !styled.includes(name));

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { bootApp, FIXTURE_APPS } from '../mocks/app-process';
+import { SPAWNED_PROCESS_TIMEOUT_MS } from '../../../../vitest.spawn-timeout.ts';
 
 /**
  * The compatibility matrix of SPEC 23, run rather than reasoned about.
@@ -24,86 +25,98 @@ const PLATFORMS = ['express', 'fastify'] as const;
 describe('the NestJS and @nestjs/swagger compatibility matrix', () => {
   for (const app of FIXTURE_APPS) {
     for (const platform of PLATFORMS) {
-      it(`should serve the whole route table on ${platform}, ${app.label}`, async () => {
-        // Given
-        const booted = await bootApp(app, platform);
+      it(
+        `should serve the whole route table on ${platform}, ${app.label}`,
+        async () => {
+          // Given
+          const booted = await bootApp(app, platform);
 
-        try {
-          // When
-          const paths = [
-            '/docs',
-            '/docs/',
-            '/docs/openapi.json',
-            '/docs/openapi.yaml',
-            '/docs/_search-index',
-            '/docs/_health',
-            '/docs/health',
-            '/docs/states',
-          ];
-          const statuses = await Promise.all(
-            paths.map(async (path) => (await fetch(`${booted.url}${path}`)).status),
-          );
+          try {
+            // When
+            const paths = [
+              '/docs',
+              '/docs/',
+              '/docs/openapi.json',
+              '/docs/openapi.yaml',
+              '/docs/_search-index',
+              '/docs/_health',
+              '/docs/health',
+              '/docs/states',
+            ];
+            const statuses = await Promise.all(
+              paths.map(async (path) => (await fetch(`${booted.url}${path}`)).status),
+            );
 
-          // Then
-          expect(statuses).toEqual(paths.map(() => 200));
-        } finally {
-          await booted.stop();
-        }
-      }, 60_000);
+            // Then
+            expect(statuses).toEqual(paths.map(() => 200));
+          } finally {
+            await booted.stop();
+          }
+        },
+        SPAWNED_PROCESS_TIMEOUT_MS,
+      );
 
-      it(`should serve an operation page and its assets on ${platform}, ${app.label}`, async () => {
-        // Given
-        const booted = await bootApp(app, platform);
+      it(
+        `should serve an operation page and its assets on ${platform}, ${app.label}`,
+        async () => {
+          // Given
+          const booted = await bootApp(app, platform);
 
-        try {
-          const html = await (await fetch(`${booted.url}/docs`)).text();
-          const bundleHref = /src="([^"]+openref\.[^"]+\.js)"/.exec(html)?.[1] ?? '';
-          const styleHref = /href="([^"]+\.css)"/.exec(html)?.[1] ?? '';
+          try {
+            const html = await (await fetch(`${booted.url}/docs`)).text();
+            const bundleHref = /src="([^"]+openref\.[^"]+\.js)"/.exec(html)?.[1] ?? '';
+            const styleHref = /href="([^"]+\.css)"/.exec(html)?.[1] ?? '';
 
-          // When
-          const bundle = await fetch(`${booted.url}${bundleHref}`);
-          const style = await fetch(`${booted.url}${styleHref}`);
-          const missing = await fetch(`${booted.url}/docs/no-such-operation`);
+            // When
+            const bundle = await fetch(`${booted.url}${bundleHref}`);
+            const style = await fetch(`${booted.url}${styleHref}`);
+            const missing = await fetch(`${booted.url}/docs/no-such-operation`);
 
-          // Then
-          expect(bundle.status).toBe(200);
-          expect(bundle.headers.get('cache-control')).toBe('public, max-age=31536000, immutable');
-          expect(style.status).toBe(200);
-          expect(missing.status).toBe(404);
-        } finally {
-          await booted.stop();
-        }
-      }, 60_000);
+            // Then
+            expect(bundle.status).toBe(200);
+            expect(bundle.headers.get('cache-control')).toBe('public, max-age=31536000, immutable');
+            expect(style.status).toBe(200);
+            expect(missing.status).toBe(404);
+          } finally {
+            await booted.stop();
+          }
+        },
+        SPAWNED_PROCESS_TIMEOUT_MS,
+      );
     }
   }
 
-  it('should normalize an OpenAPI 3.0 document and a 3.1 one to the same shape of reference', async () => {
-    // Given, swagger 8 emits 3.0 and swagger 11 emits 3.1. Both have to arrive as one IR, which
-    // is what makes the version axis of the matrix mean anything beyond "it booted".
-    const booted = await Promise.all(FIXTURE_APPS.map((app) => bootApp(app, 'express')));
+  it(
+    'should normalize an OpenAPI 3.0 document and a 3.1 one to the same shape of reference',
+    async () => {
+      // Given, swagger 8 emits 3.0 and swagger 11 emits 3.1. Both have to arrive as one IR, which
+      // is what makes the version axis of the matrix mean anything beyond "it booted".
+      const booted = await Promise.all(FIXTURE_APPS.map((app) => bootApp(app, 'express')));
 
-    try {
-      // When
-      const versions = await Promise.all(
-        booted.map(async (app) => {
-          const document = (await (await fetch(`${app.url}/docs/openapi.json`)).json()) as {
-            openapi: string;
-          };
-          // The liveness JSON lives at `_health` since TX-FRAME; `health` is a page.
-          const health = (await (await fetch(`${app.url}/docs/_health`)).json()) as {
-            document: { nodes: number };
-          };
+      try {
+        // When
+        const versions = await Promise.all(
+          booted.map(async (app) => {
+            const document = (await (await fetch(`${app.url}/docs/openapi.json`)).json()) as {
+              openapi: string;
+            };
+            // The liveness JSON lives at `_health` since TX-FRAME; `health` is a page.
+            const health = (await (await fetch(`${app.url}/docs/_health`)).json()) as {
+              document: { nodes: number };
+            };
 
-          return { openapi: document.openapi.slice(0, 3), nodes: health.document.nodes };
-        }),
-      );
+            return { openapi: document.openapi.slice(0, 3), nodes: health.document.nodes };
+          }),
+        );
 
-      // Then
-      expect(versions[0]?.openapi).toBe('3.1');
-      expect(versions[1]?.openapi).toBe('3.0');
-      expect(versions.every((entry) => entry.nodes > 0)).toBe(true);
-    } finally {
-      await Promise.all(booted.map((app) => app.stop()));
-    }
-  }, 60_000);
+        // Then
+        expect(versions[0]?.openapi).toBe('3.1');
+        expect(versions[1]?.openapi).toBe('3.0');
+        expect(versions.every((entry) => entry.nodes > 0)).toBe(true);
+      } finally {
+        await Promise.all(booted.map((app) => app.stop()));
+      }
+    },
+    SPAWNED_PROCESS_TIMEOUT_MS,
+  );
 });

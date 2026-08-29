@@ -43,6 +43,7 @@ import { RUNNER_CODE_MARKERS } from '../../src/lib/runner-binding';
 import { collectFiles } from '../../src/lib/walk';
 import { readWorkspaceManifests, resolveShippedPackages } from '../../src/lib/workspace';
 import { GATES, selectGates } from '../../src/run';
+import { SPAWNED_PROCESS_TIMEOUT_MS } from '../../../../vitest.spawn-timeout.ts';
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..');
 
@@ -98,84 +99,110 @@ describe('buildManifestGate', () => {
 });
 
 describe('dependencyGraphGate', () => {
-  it('should pass on the committed dependency graph', async () => {
-    // Given
-    const context = { repoRoot };
+  it(
+    'should pass on the committed dependency graph',
+    async () => {
+      // Given
+      const context = { repoRoot };
 
-    // When
-    const result = await dependencyGraphGate.run(context);
+      // When
+      const result = await dependencyGraphGate.run(context);
 
-    // Then
-    expect(result.status).toBe('pass');
-  }, 180_000);
+      // Then
+      expect(result.status).toBe('pass');
+    },
+    SPAWNED_PROCESS_TIMEOUT_MS,
+  );
 
-  it('should fail when core is made to depend on vue', async () => {
-    // Given
-    writeFileSync(PROBE_PATH, PROBE_SOURCE, 'utf8');
+  it(
+    'should fail when core is made to depend on vue',
+    async () => {
+      // Given
+      writeFileSync(PROBE_PATH, PROBE_SOURCE, 'utf8');
 
-    // When
-    const result = await dependencyGraphGate.run({ repoRoot });
+      // When
+      const result = await dependencyGraphGate.run({ repoRoot });
 
-    // Then
-    expect(result.status).toBe('fail');
-    expect(result.findings.map((finding) => finding.message).join('\n')).toContain('boundary-core');
-  }, 180_000);
+      // Then
+      expect(result.status).toBe('fail');
+      expect(result.findings.map((finding) => finding.message).join('\n')).toContain(
+        'boundary-core',
+      );
+    },
+    SPAWNED_PROCESS_TIMEOUT_MS,
+  );
 
-  it('should return to green once the violation is removed', async () => {
-    // Given
-    writeFileSync(PROBE_PATH, PROBE_SOURCE, 'utf8');
-    rmSync(PROBE_PATH, { force: true });
+  it(
+    'should return to green once the violation is removed',
+    async () => {
+      // Given
+      writeFileSync(PROBE_PATH, PROBE_SOURCE, 'utf8');
+      rmSync(PROBE_PATH, { force: true });
 
-    // When
-    const result = await dependencyGraphGate.run({ repoRoot });
+      // When
+      const result = await dependencyGraphGate.run({ repoRoot });
 
-    // Then
-    expect(result.status).toBe('pass');
-  }, 180_000);
+      // Then
+      expect(result.status).toBe('pass');
+    },
+    SPAWNED_PROCESS_TIMEOUT_MS,
+  );
 });
 
 describe('enginesFloorGate', () => {
-  it('should pass on the committed manifests and the committed closure', async () => {
-    // Given
-    const context = { repoRoot };
+  it(
+    'should pass on the committed manifests and the committed closure',
+    async () => {
+      // Given
+      const context = { repoRoot };
 
-    // When
-    const result = await enginesFloorGate.run(context);
+      // When
+      const result = await enginesFloorGate.run(context);
 
-    // Then
-    const errors = result.findings.filter((finding) => finding.level === 'error');
-    expect(errors).toEqual([]);
-    expect(result.status).toBe('pass');
-  }, 180_000);
+      // Then
+      const errors = result.findings.filter((finding) => finding.level === 'error');
+      expect(errors).toEqual([]);
+      expect(result.status).toBe('pass');
+    },
+    SPAWNED_PROCESS_TIMEOUT_MS,
+  );
 
-  it('should read a range from a real package rather than reporting on an empty set', async () => {
-    // Given, a check that found no declared range anywhere would pass in silence, which is the
-    // shape of failure this gate was built to remove rather than to reproduce.
-    const context = { repoRoot };
+  it(
+    'should read a range from a real package rather than reporting on an empty set',
+    async () => {
+      // Given, a check that found no declared range anywhere would pass in silence, which is the
+      // shape of failure this gate was built to remove rather than to reproduce.
+      const context = { repoRoot };
 
-    // When
-    const result = await enginesFloorGate.run(context);
-    const summary = result.findings.find((finding) => finding.level === 'info')?.message ?? '';
+      // When
+      const result = await enginesFloorGate.run(context);
+      const summary = result.findings.find((finding) => finding.level === 'info')?.message ?? '';
 
-    // Then
-    expect(summary).toMatch(/is a subset of the \d+ declared range\(s\)/);
-    expect(summary).not.toContain('subset of the 0 declared');
-  }, 180_000);
+      // Then
+      expect(summary).toMatch(/is a subset of the \d+ declared range\(s\)/);
+      expect(summary).not.toContain('subset of the 0 declared');
+    },
+    SPAWNED_PROCESS_TIMEOUT_MS,
+  );
 });
 
 describe('licensesGate', () => {
-  it('should pass on the committed dependency tree', async () => {
-    // Given
-    const context = { repoRoot };
+  it(
+    'should pass on the committed dependency tree',
+    async () => {
+      // Given
+      const context = { repoRoot };
 
-    // When
-    const result = await licensesGate.run(context);
+      // When
+      const result = await licensesGate.run(context);
 
-    // Then
-    const errors = result.findings.filter((finding) => finding.level === 'error');
-    expect(errors).toEqual([]);
-    expect(result.status).toBe('pass');
-  }, 180_000);
+      // Then
+      const errors = result.findings.filter((finding) => finding.level === 'error');
+      expect(errors).toEqual([]);
+      expect(result.status).toBe('pass');
+    },
+    SPAWNED_PROCESS_TIMEOUT_MS,
+  );
 
   it('should scope the production zone to the published packages and the ones they bundle', () => {
     // Given
@@ -233,33 +260,37 @@ describe('licensesGate', () => {
     expect(result.shipped).not.toContain('@openref/gates');
   });
 
-  it('should keep the browser driver out of the published closure, measured rather than assumed', () => {
-    // Given, the confirmation T015 owes: `playwright-core` is a devDependency and SPEC 0 zone 2
-    // applies, and both zones allow Apache-2.0, so no licence check can tell whether it shipped.
-    // The published closure is asked directly, and the development tree is asked too, because a
-    // check that found the driver in neither would pass while proving nothing.
-    const manifests = readWorkspaceManifests(repoRoot);
-    const { shipped } = resolveShippedPackages(manifests);
+  it(
+    'should keep the browser driver out of the published closure, measured rather than assumed',
+    () => {
+      // Given, the confirmation T015 owes: `playwright-core` is a devDependency and SPEC 0 zone 2
+      // applies, and both zones allow Apache-2.0, so no licence check can tell whether it shipped.
+      // The published closure is asked directly, and the development tree is asked too, because a
+      // check that found the driver in neither would pass while proving nothing.
+      const manifests = readWorkspaceManifests(repoRoot);
+      const { shipped } = resolveShippedPackages(manifests);
 
-    // When
-    const production = runCommand(
-      'pnpm',
-      ['licenses', 'list', '--json', '--prod', ...shipped.flatMap((name) => ['--filter', name])],
-      repoRoot,
-    );
-    const everything = runCommand('pnpm', ['licenses', 'list', '--json'], repoRoot);
-
-    const namesIn = (stdout: string): string[] =>
-      flattenLicenseReport(JSON.parse(stdout.trim()) as PnpmLicenseReport).map(
-        (entry) => entry.name,
+      // When
+      const production = runCommand(
+        'pnpm',
+        ['licenses', 'list', '--json', '--prod', ...shipped.flatMap((name) => ['--filter', name])],
+        repoRoot,
       );
+      const everything = runCommand('pnpm', ['licenses', 'list', '--json'], repoRoot);
 
-    // Then
-    const shippedNames = namesIn(production.stdout);
-    expect(shippedNames).not.toContain('playwright-core');
-    expect(shippedNames.filter((name) => /playwright|puppeteer|chromium/.test(name))).toEqual([]);
-    expect(namesIn(everything.stdout)).toContain('playwright-core');
-  }, 180_000);
+      const namesIn = (stdout: string): string[] =>
+        flattenLicenseReport(JSON.parse(stdout.trim()) as PnpmLicenseReport).map(
+          (entry) => entry.name,
+        );
+
+      // Then
+      const shippedNames = namesIn(production.stdout);
+      expect(shippedNames).not.toContain('playwright-core');
+      expect(shippedNames.filter((name) => /playwright|puppeteer|chromium/.test(name))).toEqual([]);
+      expect(namesIn(everything.stdout)).toContain('playwright-core');
+    },
+    SPAWNED_PROCESS_TIMEOUT_MS,
+  );
 
   it('should hold a recorded license reading that still matches the text on disk', () => {
     // Given
@@ -633,32 +664,36 @@ describe('the deferred half of the shipped bundle, divided by gesture', () => {
 });
 
 describe('budgetExceptionsGate', () => {
-  it('should pass on an empty list and print every debt that ever closed', async () => {
-    // Given the state at the close of M2: no live entry for the first time since 2026-08-11,
-    // and three closed ones. Each is printed on every run with the reason it ended, because an
-    // entry that simply vanished would leave a reader unable to tell a debt that was paid from
-    // a debt somebody stopped counting, and none of these three ended the same way.
-    const context = { repoRoot };
+  it(
+    'should pass on an empty list and print every debt that ever closed',
+    async () => {
+      // Given the state at the close of M2: no live entry for the first time since 2026-08-11,
+      // and three closed ones. Each is printed on every run with the reason it ended, because an
+      // entry that simply vanished would leave a reader unable to tell a debt that was paid from
+      // a debt somebody stopped counting, and none of these three ended the same way.
+      const context = { repoRoot };
 
-    // When
-    const result = await budgetExceptionsGate.run(context);
-    const printed = result.findings.map((finding) => finding.message).join('\n');
+      // When
+      const result = await budgetExceptionsGate.run(context);
+      const printed = result.findings.map((finding) => finding.message).join('\n');
 
-    // Then
-    expect(result.findings.filter((finding) => finding.level === 'error')).toEqual([]);
-    expect(result.status).toBe('pass');
-    expect(printed).toContain('no budget is excepted');
+      // Then
+      expect(result.findings.filter((finding) => finding.level === 'error')).toEqual([]);
+      expect(result.status).toBe('pass');
+      expect(printed).toContain('no budget is excepted');
 
-    // And the closed entries are still there with the reasons they ended: retired, paid, and
-    // paid-then-re-derived, each with its figure. The page-bytes closure carries the commit its
-    // recorded figure was taken at, per the freshness rule the stale record earned twice.
-    expect(printed).toContain('CLOSED tti');
-    expect(printed).toContain('NO LONGER EXISTS IN GATED FORM');
-    expect(printed).toContain('CLOSED client-js-raw');
-    expect(printed).toContain('CLOSED page-bytes');
-    expect(printed).toContain('at commit 53027c9');
-    expect(printed).toContain('RE-DERIVATION');
-  }, 180_000);
+      // And the closed entries are still there with the reasons they ended: retired, paid, and
+      // paid-then-re-derived, each with its figure. The page-bytes closure carries the commit its
+      // recorded figure was taken at, per the freshness rule the stale record earned twice.
+      expect(printed).toContain('CLOSED tti');
+      expect(printed).toContain('NO LONGER EXISTS IN GATED FORM');
+      expect(printed).toContain('CLOSED client-js-raw');
+      expect(printed).toContain('CLOSED page-bytes');
+      expect(printed).toContain('at commit 53027c9');
+      expect(printed).toContain('RE-DERIVATION');
+    },
+    SPAWNED_PROCESS_TIMEOUT_MS,
+  );
 
   it('should run immediately after the budgets, so the figure is read before the terms', () => {
     // Given
@@ -671,37 +706,41 @@ describe('budgetExceptionsGate', () => {
     expect(order[position - 1]).toBe(budgetsGate.id);
   });
 
-  it('should print no budget as over, now that the last entry closed with the milestone', async () => {
-    // Given the state at the close of M2: the page is inside the re-derived cap on the runner
-    // study the close required, the exception list is empty, and the history holds all three
-    // entries this repository has written. What must stay true is that nothing is over without
-    // terms: a budget going over from here prints without an EXCEPTED half and fails the gate,
-    // which is the property that makes an exception a named debt rather than a hole.
-    const context = { repoRoot };
+  it(
+    'should print no budget as over, now that the last entry closed with the milestone',
+    async () => {
+      // Given the state at the close of M2: the page is inside the re-derived cap on the runner
+      // study the close required, the exception list is empty, and the history holds all three
+      // entries this repository has written. What must stay true is that nothing is over without
+      // terms: a budget going over from here prints without an EXCEPTED half and fails the gate,
+      // which is the property that makes an exception a named debt rather than a hole.
+      const context = { repoRoot };
 
-    // When
-    const result = await budgetsGate.run(context);
-    const over = result.findings.filter((finding) => finding.message.startsWith('OVER'));
-    const reports = result.findings.filter((finding) =>
-      finding.message.includes('RECORDED AND NOT GATED'),
-    );
+      // When
+      const result = await budgetsGate.run(context);
+      const over = result.findings.filter((finding) => finding.message.startsWith('OVER'));
+      const reports = result.findings.filter((finding) =>
+        finding.message.includes('RECORDED AND NOT GATED'),
+      );
 
-    // Then
-    expect(BUDGET_EXCEPTIONS).toEqual([]);
-    expect(BUDGET_EXCEPTION_HISTORY.map((entry) => entry.budget)).toEqual([
-      'tti',
-      'client-js-raw',
-      'page-bytes',
-    ]);
-    expect(over).toEqual([]);
-    expect(result.status).toBe('pass');
-    // And the two rows SPEC 20 records without gating say so on the line, because a printed
-    // figure that reads like a checked one is the defect class SPEC 0 names.
-    expect(reports.map((finding) => finding.message.split(':')[0]).sort()).toEqual([
-      'MEASURED main-thread-work',
-      'MEASURED tti',
-    ]);
-  }, 180_000);
+      // Then
+      expect(BUDGET_EXCEPTIONS).toEqual([]);
+      expect(BUDGET_EXCEPTION_HISTORY.map((entry) => entry.budget)).toEqual([
+        'tti',
+        'client-js-raw',
+        'page-bytes',
+      ]);
+      expect(over).toEqual([]);
+      expect(result.status).toBe('pass');
+      // And the two rows SPEC 20 records without gating say so on the line, because a printed
+      // figure that reads like a checked one is the defect class SPEC 0 names.
+      expect(reports.map((finding) => finding.message.split(':')[0]).sort()).toEqual([
+        'MEASURED main-thread-work',
+        'MEASURED tti',
+      ]);
+    },
+    SPAWNED_PROCESS_TIMEOUT_MS,
+  );
 
   it.skipIf(!HAVE_AI_DOCS)(
     'should keep every owner it ever named a task the plan actually carries',
@@ -770,43 +809,47 @@ describe('budgetExceptionsGate', () => {
     expect(issues[0]?.message).toContain('T011-R');
   });
 
-  it('should print the two counts M0 exited on, both inside their caps again', async () => {
-    // Given the exit condition M0 closed against: `long-tasks` and `page-bytes` inside their
-    // caps on a study taken on the runner, both true on 2026-08-11 when T016 was ticked. The
-    // second spent M2 over its cap under a filed entry, which the T016 clause allows, and is
-    // inside again at the close of M2 on the study that close required: TX-ADOPT paid the page
-    // down and the cap was re-derived for the sanctioned stylesheet arrivals. What this pins is
-    // that the figures are still read from the record and printed on every run, which is what
-    // the exit rested on, and that the baseline's freshness is named beside them.
-    const context = { repoRoot };
+  it(
+    'should print the two counts M0 exited on, both inside their caps again',
+    async () => {
+      // Given the exit condition M0 closed against: `long-tasks` and `page-bytes` inside their
+      // caps on a study taken on the runner, both true on 2026-08-11 when T016 was ticked. The
+      // second spent M2 over its cap under a filed entry, which the T016 clause allows, and is
+      // inside again at the close of M2 on the study that close required: TX-ADOPT paid the page
+      // down and the cap was re-derived for the sanctioned stylesheet arrivals. What this pins is
+      // that the figures are still read from the record and printed on every run, which is what
+      // the exit rested on, and that the baseline's freshness is named beside them.
+      const context = { repoRoot };
 
-    // When
-    const result = await budgetsGate.run(context);
-    const lines = result.findings.map((finding) => finding.message);
+      // When
+      const result = await budgetsGate.run(context);
+      const lines = result.findings.map((finding) => finding.message);
 
-    // Then the count is inside its cap: every study of the close-of-M2 dispatch reads 1.
-    expect(
-      lines.some((line) =>
-        line.startsWith('MEASURED long-tasks: 1 of 2, as a median of 25 navigations'),
-      ),
-    ).toBe(true);
+      // Then the count is inside its cap: every study of the close-of-M2 dispatch reads 1.
+      expect(
+        lines.some((line) =>
+          line.startsWith('MEASURED long-tasks: 1 of 2, as a median of 25 navigations'),
+        ),
+      ).toBe(true);
 
-    // And the bytes are inside and printed as measured, not silently absent.
-    expect(lines.some((line) => line.startsWith('MEASURED page-bytes'))).toBe(true);
-    expect(lines.some((line) => line.startsWith('OVER BUDGET, EXCEPTED page-bytes'))).toBe(false);
+      // And the bytes are inside and printed as measured, not silently absent.
+      expect(lines.some((line) => line.startsWith('MEASURED page-bytes'))).toBe(true);
+      expect(lines.some((line) => line.startsWith('OVER BUDGET, EXCEPTED page-bytes'))).toBe(false);
 
-    // And the record is dated against the tree on the same run: current, stale or unknown, the
-    // line is there, because a record nobody dates is how nine tasks shipped on a page that no
-    // longer existed.
-    expect(
-      lines.some(
-        (line) =>
-          line.includes('is current: no commit touching') ||
-          line.includes('BASELINE STALE') ||
-          line.includes('could not be told'),
-      ),
-    ).toBe(true);
-  }, 180_000);
+      // And the record is dated against the tree on the same run: current, stale or unknown, the
+      // line is there, because a record nobody dates is how nine tasks shipped on a page that no
+      // longer existed.
+      expect(
+        lines.some(
+          (line) =>
+            line.includes('is current: no commit touching') ||
+            line.includes('BASELINE STALE') ||
+            line.includes('could not be told'),
+        ),
+      ).toBe(true);
+    },
+    SPAWNED_PROCESS_TIMEOUT_MS,
+  );
 });
 
 describe('the gates that read ai-docs', () => {
@@ -823,58 +866,62 @@ describe('the gates that read ai-docs', () => {
    */
   const readers = [buildManifestGate, claimsGate, themeMotionGate];
 
-  it('should skip loudly rather than fail when the directory is not there', async () => {
-    // Given, a checkout with no ai-docs at all, which is what every clone of this repository is.
-    const root = mkdtempSync(join(tmpdir(), 'openref-nodocs-'));
+  it(
+    'should skip loudly rather than fail when the directory is not there',
+    async () => {
+      // Given, a checkout with no ai-docs at all, which is what every clone of this repository is.
+      const root = mkdtempSync(join(tmpdir(), 'openref-nodocs-'));
 
-    // When
-    const results = await Promise.all(readers.map((gate) => gate.run({ repoRoot: root })));
-    rmSync(root, { recursive: true, force: true });
+      // When
+      const results = await Promise.all(readers.map((gate) => gate.run({ repoRoot: root })));
+      rmSync(root, { recursive: true, force: true });
 
-    // Then, a skip and never a pass: nothing was checked and the message says so.
-    for (const result of results) {
-      expect(result.status).toBe('skip');
-      expect(result.findings[0]?.level).toBe('warning');
-      expect(result.findings[0]?.message).toContain('SKIPPED, NOT PASSED');
-      expect(result.findings[0]?.message).toContain("AWAITING THE MAINTAINER'S DECISION");
-    }
+      // Then, a skip and never a pass: nothing was checked and the message says so.
+      for (const result of results) {
+        expect(result.status).toBe('skip');
+        expect(result.findings[0]?.level).toBe('warning');
+        expect(result.findings[0]?.message).toContain('SKIPPED, NOT PASSED');
+        expect(result.findings[0]?.message).toContain("AWAITING THE MAINTAINER'S DECISION");
+      }
 
-    // And the fourth, which is conditional on more than the cause. With an entry live it has
-    // terms to validate and no plan to validate them against, so it skips there and says
-    // UNVALIDATED rather than printing the entry as if it had been checked. That branch is
-    // unreachable while the list is empty, exactly as it was before 2026-08-11, because the
-    // gate reads the committed list rather than an injected one; the next entry written makes
-    // it reachable and this case is where its assertions then return.
-    //
-    // WITH THE LIST EMPTY THE GATE NEEDS NO PLAN, WHICH IS WHY IT IS PERMITTED THIS REASON AND
-    // NOT FORCED BY IT, AND SINCE T042 THAT IS NOT THE SAME AS NEEDING NOTHING. This case used to
-    // run the gate over an empty temporary directory and assert it passed, which is the hole T035
-    // filed: the empty list branch returned before anything was weighed, so a run with no build
-    // in it reported that every SPEC 20 budget was inside its limit having weighed none of them.
-    // The two directions are apart now. Over the repository, where the artefacts are, the empty
-    // list still passes with no plan consulted; over a directory with nothing in it, it fails and
-    // says it looked at nothing.
-    const exceptions = await budgetExceptionsGate.run({ repoRoot });
-    const printed = exceptions.findings.map((finding) => finding.message).join('\n');
+      // And the fourth, which is conditional on more than the cause. With an entry live it has
+      // terms to validate and no plan to validate them against, so it skips there and says
+      // UNVALIDATED rather than printing the entry as if it had been checked. That branch is
+      // unreachable while the list is empty, exactly as it was before 2026-08-11, because the
+      // gate reads the committed list rather than an injected one; the next entry written makes
+      // it reachable and this case is where its assertions then return.
+      //
+      // WITH THE LIST EMPTY THE GATE NEEDS NO PLAN, WHICH IS WHY IT IS PERMITTED THIS REASON AND
+      // NOT FORCED BY IT, AND SINCE T042 THAT IS NOT THE SAME AS NEEDING NOTHING. This case used to
+      // run the gate over an empty temporary directory and assert it passed, which is the hole T035
+      // filed: the empty list branch returned before anything was weighed, so a run with no build
+      // in it reported that every SPEC 20 budget was inside its limit having weighed none of them.
+      // The two directions are apart now. Over the repository, where the artefacts are, the empty
+      // list still passes with no plan consulted; over a directory with nothing in it, it fails and
+      // says it looked at nothing.
+      const exceptions = await budgetExceptionsGate.run({ repoRoot });
+      const printed = exceptions.findings.map((finding) => finding.message).join('\n');
 
-    expect(exceptions.status).toBe('pass');
-    expect(printed).toContain('no budget is excepted');
+      expect(exceptions.status).toBe('pass');
+      expect(printed).toContain('no budget is excepted');
 
-    const empty = mkdtempSync(join(tmpdir(), 'openref-nodocs-'));
-    const unweighed = await budgetExceptionsGate.run({ repoRoot: empty });
-    rmSync(empty, { recursive: true, force: true });
+      const empty = mkdtempSync(join(tmpdir(), 'openref-nodocs-'));
+      const unweighed = await budgetExceptionsGate.run({ repoRoot: empty });
+      rmSync(empty, { recursive: true, force: true });
 
-    expect(unweighed.status).toBe('fail');
-    expect(unweighed.findings.map((finding) => finding.message).join('\n')).toContain(
-      'looked at nothing rather than finding nothing wrong',
-    );
+      expect(unweighed.status).toBe('fail');
+      expect(unweighed.findings.map((finding) => finding.message).join('\n')).toContain(
+        'looked at nothing rather than finding nothing wrong',
+      );
 
-    // And the record of what closed is still printed and still checked, because neither depends
-    // on a document outside this package. It was dropped on this branch until 2026-08-11, when
-    // the first entry since `tti` made the branch reachable and the omission visible.
-    expect(printed).toContain('CLOSED tti');
-    expect(printed).toContain('CLOSED page-bytes');
-  }, 180_000);
+      // And the record of what closed is still printed and still checked, because neither depends
+      // on a document outside this package. It was dropped on this branch until 2026-08-11, when
+      // the first entry since `tti` made the branch reachable and the omission visible.
+      expect(printed).toContain('CLOSED tti');
+      expect(printed).toContain('CLOSED page-bytes');
+    },
+    SPAWNED_PROCESS_TIMEOUT_MS,
+  );
 
   it('should go on failing on a missing document when the directory is there', async () => {
     // Given, the distinction the skip rests on. A directory with nothing in it is a document

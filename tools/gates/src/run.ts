@@ -9,7 +9,9 @@ import { coverageGate } from './gates/coverage.gate.js';
 import { cspGate } from './gates/csp.gate.js';
 import { dependencyGraphGate } from './gates/dependency-graph.gate.js';
 import { enginesFloorGate } from './gates/engines-floor.gate.js';
+import { eventsSuitesGate } from './gates/events-suites.gate.js';
 import { federationSuitesGate } from './gates/federation-suites.gate.js';
+import { readerPagesGate } from './gates/reader-pages.gate.js';
 import { fixtureLicensesGate } from './gates/fixture-licenses.gate.js';
 import { formatGate } from './gates/format.gate.js';
 import { licensesGate } from './gates/licenses.gate.js';
@@ -112,6 +114,8 @@ export const GATES: readonly Gate[] = [
   claimsGate,
   staticSuitesGate,
   federationSuitesGate,
+  eventsSuitesGate,
+  readerPagesGate,
   coverageGate,
 ];
 

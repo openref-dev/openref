@@ -96,6 +96,25 @@ export const SKIP_REASONS: readonly SkipReason[] = [
       // rather than discovered by the first CI run that went red on the accounting, which is how
       // `capability-debts` came to be on this list.
       'federation-suites',
+      // `events-suites` is the same mechanism over the SPEC 21 Events row and the M5 definition of
+      // done, added by `T054` with the gate. It skips under the same condition and only that one:
+      // the named suites, the named cases and the run itself all happen on a checkout with no
+      // `ai-docs/` and fail there, so a skip here means the two documents alone went unread.
+      'events-suites',
+      // `reader-pages` compares SPEC 13.3's reader page line with the `PageKind` union, which is
+      // the direction no total record in the tree can see. Added by `T054` with the gate. Its
+      // other half, that every kind the reader page table names is a member of the union, reads
+      // two committed files and runs on a clone, so a skip here means the specification alone
+      // went unread.
+      'reader-pages',
+      // `coverage` compares STANDARDS 9.1's governed table with `COVERAGE_FLOORS`, which is the
+      // direction neither copy of that table can see. Added by the post-`T054` review with the
+      // check. IT IS THE HEAVIEST GATE ON THIS LIST AND THE ONE WHOSE SKIP SAYS THE LEAST, so the
+      // wording is the part that matters: the suite is measured with coverage and every committed
+      // floor is enforced whether or not the directory is there, and a violation still fails, so
+      // a skip here means the prose table alone went unread. It is not on `forced` for that
+      // reason, and because a checkout with a violation must report `fail` rather than `skip`.
+      'coverage',
     ],
     forced: ['build-manifest', 'claims', 'theme-motion'],
   },

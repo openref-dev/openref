@@ -93,7 +93,7 @@ export async function runDoctor(context: CommandContext): Promise<CommandOutcome
       context.stdout(`${canonicalize(report)}\n`);
     } else {
       const title = `${document.info.title} ${document.info.version}`;
-      context.stdout(`${renderDoctorSummary(report, title)}\n`);
+      context.stdout(`${renderDoctorSummary(report, title, document.runtime?.skipped ?? [])}\n`);
       if (report.findings.length > 0)
         context.stdout(`\n${renderDoctorFindings(report.findings)}\n`);
     }

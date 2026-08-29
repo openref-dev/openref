@@ -54,7 +54,7 @@ beforeAll(async () => {
     available('nginx', ['-v']),
     available('caddy', ['version']),
   ]);
-});
+}, SPAWNED_PROCESS_TIMEOUT_MS);
 
 afterAll(async () => {
   await rm(directory, { recursive: true, force: true });

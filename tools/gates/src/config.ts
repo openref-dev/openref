@@ -227,15 +227,40 @@ export const BUILD_TASK_COUNT = 65;
  */
 
 /**
+ * The conventions document, whose section 9.1 is the prose half of the floors below.
+ *
+ * IT IS UNDER `ai-docs/` LIKE THE OTHER THREE, so the gate that reads it skips where the
+ * directory is absent rather than reporting a missing private document as a defect.
+ */
+export const STANDARDS_FILE = 'ai-docs/00-overview/PROJECT-STANDARDS.md';
+
+/**
  * Coverage floors from STANDARDS 9.1, keyed by package directory.
  *
  * A package with no entry has no floor yet; adding one is a task, not a judgement call.
+ *
+ * RECONCILED AGAINST THAT TABLE BY THE COVERAGE GATE, IN BOTH DIRECTIONS, SINCE THE POST-`T054`
+ * REVIEW. Before it, this record and STANDARDS 9.1 were two copies of one five row table with no
+ * runner over either, which is the shape the claims gate exists for on SPEC 20's numbers: a floor
+ * lowered here and left standing there, or a row written there and never enforced here, would read
+ * as agreement from whichever side a person opened. The `federation` row arriving at `T054` is the
+ * exact move that would have gone wrong, and it went right by hand.
  */
 export const COVERAGE_FLOORS: Readonly<Record<string, number>> = {
   core: 90,
   runner: 85,
   nest: 80,
   vue: 70,
+  // ADDED AT `T054`, WHICH IS THE TASK THE DECISION WAS ADDRESSED TO. `packages/federation` was
+  // built across the whole of M4 with no floor, and the carry that said so was a `PROJECT_STATE`
+  // sentence until `T047` converted it into a boxed section here's own doctrine demands: a package
+  // with no entry has no floor yet, and adding one is a task rather than a judgement call a gates
+  // session makes in passing. 90 rather than the measurement, by the margin doctrine the four
+  // floors above already follow: it holds the property with room for the ordinary work of a
+  // milestone. Readings, each measured rather than carried: 97.36 lines / 94.98 statements at the
+  // close of M4, 98.42 at `T053`, and the figure at the close of M5 is stated with its date in
+  // `ai-docs/PROJECT_STATE.md` for that session.
+  federation: 90,
 };
 
 /**
@@ -1042,13 +1067,53 @@ export const SIZE_BUDGETS: readonly SizeBudget[] = [
     // and is the one whole KB step that keeps the derived property exactly: a navigation
     // sized region, 2,520, still fits, 61,932 under the cap; a page frame sized one, 3,287,
     // and a console sized one, 3,669, still land over it.
+    //
+    // RE-READ AT `T054`, AND THE DERIVED PROPERTY THE FIVE PARAGRAPHS ABOVE RESTATE IS RETIRED
+    // RATHER THAN RESTORED. They are kept exactly as they were written, because what a later
+    // reader needs is when the property stopped holding rather than when somebody noticed.
+    //
+    // WHAT WAS FOUND, MEASURED AND DATED. The clause every recompute closes with is that the cap
+    // is the one whole KB step keeping the headroom exactly one small capability wide: a
+    // navigation sized region of 2,520 bytes fits under it, a page frame sized one of 3,287 and a
+    // console sized one of 3,669 do not. Measured before `T050`: 61,157 bytes built, headroom
+    // 1,307, so the clause was already false and 2,520 had not fitted since some point before
+    // that slice. Measured after `T050`: 62,018, headroom 446. Measured 2026-08-29 at `T054`, on
+    // this tree: 62,298 bytes, split 48,380 theme.css, 9,707 tokens.css, 4,211 fonts.css, headroom
+    // 166. The cap binds, every slice since is inside it, and the sentence under it describes a
+    // stylesheet that stopped existing three slices ago.
+    //
+    // WHY RETIRED AND NOT RESTORED, WHICH WAS THE OTHER BRANCH THE SECTION ADDRESSED TO `T054`
+    // OFFERS. Restoring it means the whole KB step that puts the headroom back between 2,520 and
+    // 3,287, and on 62,298 that is exactly one step, 64 KB, which is 65,536 and hands the
+    // stylesheet 3,072 bytes of new room. No capability is waiting for that room. The section
+    // itself opens by saying the cap is correct as committed and must not move, and a cap raised
+    // to make a sentence true again is `ABSOLUTE RULES 3` with its own argument turned around: the
+    // five recomputes each moved this number because a named capability landed with its bytes
+    // measured at the landing, and nothing landed here.
+    //
+    // WHAT REPLACES IT, AND IT IS A DERIVATION RATHER THAN A ROUND NUMBER. The cap is the smallest
+    // whole KB step the built stylesheet fits under. Measured 2026-08-29: 62,298 fits under 61 KB,
+    // which is 62,464, and does not fit under 60 KB, which is 61,440. So 61 is not a number with
+    // room deliberately left in it; it is the tightest step available, which is what this project
+    // wants from a ceiling and what the old clause was a proxy for. It forbids slack instead of
+    // allowing one capability's worth, and it says plainly what a future arrival owes: measure
+    // what it costs, and bring that number and this cap to the maintainer as two choices, rather
+    // than presenting the raise as a consequence of the arrival.
+    //
+    // WHAT KEEPS IT FROM DECAYING THE WAY THE OLD CLAUSE DID. That one had no runner and no
+    // cadence, so it went false and stayed false across five slices. The figure above is dated,
+    // and re-reading it is a section of `ai-docs/BUILD-AMENDMENTS.md` addressed to `T059`, the M6
+    // closing gates task, which is the mechanism this repository uses for an obligation that has
+    // to survive the session that wrote it.
     id: 'theme-css-raw',
     label: 'Default theme CSS, raw bytes',
     limitBytes: 61 * 1024,
     quantity: 'parse',
     roots: THEME_CSS_ROOTS,
     extensions: ['.css'],
-    producedBy: 'T009, recomputed at TX-GUTTER, TX-FRAME, TX-MARKUP, TX-PARITY-UI and TX-SHAPES',
+    producedBy:
+      'T009, recomputed at TX-GUTTER, TX-FRAME, TX-MARKUP, TX-PARITY-UI and TX-SHAPES, ' +
+      're-derived at T054 without moving',
   },
 
   // THE WEB COMPONENT OUTPUTS OF SPEC 10.3, both files of one directory under one cap pair,
@@ -1884,6 +1949,227 @@ export const FEDERATION_SUITE_COVERAGE: readonly StaticCoverage[] = [
       // and the cache file are all the real ones. Named here because listing the file alone left
       // this case deletable with the gate still green.
       'should read an AsyncAPI remote off the wire, merge it as mixed, and revive it from disk',
+    ],
+  },
+];
+
+/** Where `PageKind` is declared, which is the union SPEC 13.3's reader page list has to agree with. */
+export const PAGE_KIND_SOURCE = 'packages/vue/src/page/domain/page-model.types.ts';
+
+/** The line SPEC 13.3 writes its reader page list behind, in the specification's own words. */
+export const READER_PAGES_PREFIX = 'Страницы читателя:';
+
+/**
+ * Every route SPEC 13.3 lists as a reader page, and the `PageKind` member that serves it.
+ *
+ * WHAT THIS TABLE IS FOR, AND WHICH DIRECTION IS THE ONE THAT FAILED. `sweptPages()` in
+ * `packages/theme-telltale` is a total `Readonly<Record<PageKind, ...>>`, so a kind added to the
+ * union does not compile until somebody places it, and `PAGE_KIND_CARDINALITY` in
+ * `packages/static` is a second total record over the same union. Both tie the sweep and the build
+ * plan to `PageKind`. Neither ties `PageKind` to SPEC 13.3, which is where the reader page family
+ * is actually declared and which is a prose list no runner read: a page added to the
+ * specification and never given a member was invisible to every check in the tree, and the first
+ * symptom was a theme serving a page it never styled. That happened twice, with `shapes` and
+ * `states`, and once more with `service`.
+ *
+ * THE TABLE IS RECONCILED IN BOTH DIRECTIONS AND IT IS NOT THE SUBJECT OF EITHER. A route SPEC
+ * 13.3 lists that this table does not map fails, a kind `PageKind` declares that no route here
+ * names fails, and a mapping naming a kind the union does not declare fails as well. The subject
+ * of the comparison is always the specification's own line and the union's own declaration, so
+ * this table is the join between them rather than a third copy of either.
+ *
+ * A KIND MAY BE DELIBERATELY ABSENT FROM SPEC 13.3, and then it carries its reason here rather
+ * than being missing. Nothing is in that state today, which is measured rather than assumed: the
+ * eight routes and the eight members correspond one to one.
+ */
+export const READER_PAGE_KINDS: readonly { readonly route: string; readonly kind: string }[] = [
+  { route: '<route>', kind: 'overview' },
+  { route: '<route>/{nodeId}', kind: 'node' },
+  { route: '<route>/schema/{schemaId}', kind: 'schema' },
+  { route: '<route>/bench/{nodeId}', kind: 'bench' },
+  { route: '<route>/health', kind: 'health' },
+  { route: '<route>/shapes/{schemaId}', kind: 'shapes' },
+  { route: '<route>/states', kind: 'states' },
+  { route: '<route>/service/{serviceId}', kind: 'service' },
+];
+
+/** The first cell of the SPEC 21 row the M5 wiring answers. */
+export const EVENTS_SUITE_ROW = 'Events';
+
+/**
+ * The Events row of SPEC 21, wired coverage by coverage, by the mechanism above.
+ *
+ * THE THIRD ROW TO GET A RUNNER, AND M5 IS THE MILESTONE THAT CLOSES IT. `T054` asks for the
+ * event corpus, channel rendering, collector and topology suites to be wired into `pnpm gates`,
+ * which is four coverages, and until this slice SPEC 21 named none of them: the row was added by
+ * `T054` before this list, so what is reconciled is the specification's own cell rather than a
+ * list this file both declares and checks.
+ *
+ * THE FILES SPAN FOUR PACKAGES AND THAT IS THE POINT OF THE ROW. An event document is normalized
+ * in `core`, drawn in `render`, discovered in `nest` and merged in `federation`, and a coverage
+ * that stopped at one package would be answered by whichever half happened to survive. So each
+ * coverage names the suites that hold it wherever they live, and the gate runs them.
+ */
+export const EVENTS_SUITE_COVERAGE: readonly StaticCoverage[] = [
+  {
+    id: 'events-corpus',
+    spec: 'корпус событий',
+    files: [
+      'packages/core/test/unit/events-corpus-snapshot.spec.ts',
+      'packages/core/test/unit/asyncapi-normalizer.spec.ts',
+    ],
+    cases: [
+      // The corpus itself, its size and its protocol spread, which is SPEC 21's own sentence
+      // about AsyncAPI documents, plus the two properties a snapshot harness exists for.
+      'should hold at least five documents across different protocols, per SPEC 21',
+      'should normalize every document without error',
+      'should produce the same IR on two consecutive runs of every document',
+      'should give a document the hash it records for itself',
+      // And the half the corpus is the only witness to: every member the documents write is
+      // carried, counted by a reader independent of the normalizer.
+      'should match the recorded report, which is where both field lists live with their counts',
+      // The two versions SPEC 8.1 admits, read into one IR, and the refusals either side of them.
+      'should produce one IR from a 3.0 document and the same document declaring 3.1',
+      'should refuse AsyncAPI 2.x by naming the conversion rather than by failing to parse',
+    ],
+  },
+  {
+    id: 'channel-rendering',
+    spec: 'рендер каналов и сообщений',
+    files: ['packages/render/test/unit/channel-page.spec.ts'],
+    cases: [
+      // A channel is the node page through the same address space, per `T050`, so the model half
+      // is what says a channel page is a channel page rather than an operation page.
+      'should carry a channel on a channel node and nothing on an HTTP operation',
+      'should draw the three channel sections and none of the operation ones',
+      // The message half, which is the second noun of the row's own words.
+      'should draw the payload, the headers, the correlation id and the example of one message',
+      'should render an Avro payload as readable annotated source',
+      'should read a JSON Schema payload as rows, requiredness and links included',
+      // And the two rules a rendered page of this project may never break.
+      'should offer no control a reader could press, because nothing would hydrate it',
+      'should write no inline style and no script into any of the three sections',
+    ],
+  },
+  {
+    id: 'event-collectors',
+    spec: 'коллекторы событий',
+    files: [
+      'packages/nest/test/unit/event-discovery.spec.ts',
+      'packages/nest/test/integration/events.spec.ts',
+    ],
+    cases: [
+      // The three sources of SPEC 8.3's table, each read off the real decorator's own metadata.
+      'should read a message pattern and an event pattern off the same controller',
+      'should resolve a gateway namespace and path into one channel address',
+      'should let a declared channel outrank the metadata it stands beside',
+      // The rule that keeps this from being runtime magic: what cannot be read is reported.
+      'should report a gateway with no subscribe message rather than inventing a channel',
+      'should report a pattern no address can be made from rather than rendering what it is',
+      'should report a transport number outside the table rather than inventing a protocol',
+      // And the synthesized document going through the same reader a written file goes through,
+      // proven over real HTTP on a booted application rather than against a fake container.
+      'should build a document the AsyncAPI reader accepts, with no file anywhere',
+      'should build an events document from the application with no file anywhere',
+    ],
+  },
+  {
+    id: 'topology',
+    spec: 'топология',
+    files: [
+      'packages/core/test/unit/topology.spec.ts',
+      'packages/render/test/unit/topology-section.spec.ts',
+      'packages/nest/test/unit/topology-relationships.spec.ts',
+    ],
+    cases: [
+      // The graph: the two directions of SPEC 9.2, the reply edge, and the resolution rule that
+      // refuses to guess between two channels answering one address.
+      'should turn a send and a receive into the two directions of SPEC 9.2',
+      'should turn a reply channel into one calls edge and not into a second direction',
+      'should resolve an event name to the one channel that answers the address',
+      'should leave an event name unresolved when two channels answer the address',
+      // The two facts SPEC 9.5 insists a reader be able to tell apart.
+      'should tell a dead end and an outside end apart, since they are different facts',
+      // The cycle, which is the shape a real estate has and the one a walk would hang on.
+      'should arrange a cycle as three groups rather than walking it',
+      'should draw a cycle as three groups and finish',
+      // The declared-only policy of SPEC 9, at the one place a decorator produces an edge.
+      'should draw one declared edge from the handler node to the event it names',
+      'should report a decorator that names nothing and draw no edge for it',
+      'should lower a declared edge to the level the direction was actually read at',
+    ],
+  },
+];
+
+/** The milestone whose definition of done the events wiring below answers, as SPEC 22 spells it. */
+export const EVENTS_MILESTONE = 'M5';
+
+/**
+ * The M5 definition of done, wired clause by clause to the cases that answer each.
+ *
+ * TWO CLAUSES, AND THE FIRST ONE IS THREE CLAIMS. "An application with RabbitMQ and a WebSocket
+ * gateway is documented on one page together with HTTP" asks for a booted application whose
+ * channels come from decorators and not from a file, for a transport that is really RabbitMQ
+ * rather than the one transport that happened to be easiest, and for one page rather than two.
+ *
+ * THE GATEWAY HALF IS ANSWERED BY A UNIT CASE AND THAT IS STATED RATHER THAN GLOSSED. A
+ * `@WebSocketGateway` in the providers list makes Nest load a websocket adapter at boot, which
+ * needs `socket.io` installed, and an application that cannot boot proves nothing about a
+ * reference; `events.spec.ts` says so in its own header. So the gateway is exercised against the
+ * real `@WebSocketGateway` and `@SubscribeMessage` decorators in `event-discovery.spec.ts`, which
+ * is where the metadata this package reads is actually written, and the booted half carries
+ * RabbitMQ and Kafka. Whether `socket.io` becomes a dev dependency so the booted half can carry a
+ * gateway too is with the maintainer, recorded at `T051`; until it is answered, this list names
+ * what really runs rather than a case that would claim more than it proves.
+ *
+ * AND IT IS BOXED SINCE THE SECOND POST-`T054` REVIEW, WHICH IS WHAT THIS COMMENT WAS MISSING. A
+ * milestone closing over a clause answered by a double, disclosed in a comment and in a narrative
+ * and in no place a gate reads, is SPEC 0's ninth class; the comment was the disclosure and nothing
+ * was the obligation. The section is "`T059` The WebSocket gateway half of the M5 clause, answered
+ * by a unit double" in `ai-docs/BUILD-AMENDMENTS.md`, it carries the dependency question as
+ * escalated, and its box keeps `T059` from being ticked over it.
+ *
+ * NOT RUN BY THIS GATE, per `checkMilestoneClauses` and for the reason the M3 and M4 clauses are
+ * held that way: the cases are `packages/nest` suites that `pnpm test:integration` already runs,
+ * and running them here would report one red twice.
+ */
+export const EVENTS_MILESTONE_CLAUSES: readonly StaticCoverage[] = [
+  {
+    id: 'one-page-with-http',
+    spec: 'приложение с RabbitMQ и WS-гейтвеем документируется одной страницей вместе с HTTP',
+    files: [
+      'packages/nest/test/integration/events.spec.ts',
+      'packages/nest/test/unit/event-discovery.spec.ts',
+      'packages/nest/test/integration/mixed-page.spec.ts',
+    ],
+    cases: [
+      // The booted application, its brokers, and the page a reader opens.
+      'should build an events document from the application with no file anywhere',
+      'should attribute each channel to the broker of its own transport',
+      'should serve the channel page and the asyncapi document, and refuse the openapi one',
+      // The gateway half, against the real decorators, for the reason above.
+      'should resolve a gateway namespace and path into one channel address',
+      // And one page rather than two, which is the clause's own last word.
+      'should put operations and channels in one navigation tree rather than two',
+      'should reach every node of the merged document from the one navigation',
+    ],
+  },
+  {
+    id: 'endpoint-event-consumers-graph',
+    spec: 'виден граф «эндпоинт → событие → потребители»',
+    files: [
+      'packages/render/test/unit/topology-section.spec.ts',
+      'packages/nest/test/integration/topology.spec.ts',
+      'packages/federation/test/unit/cross-service-edges.spec.ts',
+    ],
+    cases: [
+      // The graph is drawn, and the two ends of the arrow are told apart on the page.
+      'should link an end that resolved to a node and leave an unresolved one as text',
+      'should carry the graph on the overview and on no other page',
+      // On a booted application, which is the only place the confidence of an edge is real.
+      'should carry each edge at the confidence its direction was actually read at',
+      // And the consumers half, which needs more than one service to exist at all.
+      'should span services in the topology, which is the reason the feature exists',
     ],
   },
 ];

@@ -196,19 +196,23 @@ describe('the composite step, executed', () => {
 
   beforeEach(async () => {
     workspace = await makeWorkspace(specWithExtraOperation());
-  });
+  }, SPAWNED_PROCESS_TIMEOUT_MS);
 
   afterEach(async () => {
     if (workspace !== undefined) await rm(workspace.dir, { recursive: true, force: true });
     workspace = undefined;
   });
 
-  it('should be running against a built and current CLI rather than skipping itself', () => {
-    // Given: the whole file's meaning rests on this, so it is asserted rather than assumed
-    // When / Then
-    expect(builtCliProblem()).toBeUndefined();
-    expect(existsSync(CLI_BIN)).toBe(true);
-  });
+  it(
+    'should be running against a built and current CLI rather than skipping itself',
+    () => {
+      // Given: the whole file's meaning rests on this, so it is asserted rather than assumed
+      // When / Then
+      expect(builtCliProblem()).toBeUndefined();
+      expect(existsSync(CLI_BIN)).toBe(true);
+    },
+    SPAWNED_PROCESS_TIMEOUT_MS,
+  );
 
   it(
     'should run the command the definition names and print the SPEC 17.2 comment',
@@ -281,17 +285,21 @@ describe('the composite step, executed', () => {
     SPAWNED_PROCESS_TIMEOUT_MS,
   );
 
-  it('should default working-directory to the workspace root when a workflow passes none', () => {
-    // Given: the declared default is `.`, and the resolver has to mean the workspace by it
-    const current = workspace;
-    if (current === undefined) throw new Error('no workspace');
+  it(
+    'should default working-directory to the workspace root when a workflow passes none',
+    () => {
+      // Given: the declared default is `.`, and the resolver has to mean the workspace by it
+      const current = workspace;
+      if (current === undefined) throw new Error('no workspace');
 
-    // When
-    const resolved = resolveStepWorkingDirectory(theStep(), definition, current.dir, {});
+      // When
+      const resolved = resolveStepWorkingDirectory(theStep(), definition, current.dir, {});
 
-    // Then
-    expect(resolved).toBe(current.dir);
-  });
+      // Then
+      expect(resolved).toBe(current.dir);
+    },
+    SPAWNED_PROCESS_TIMEOUT_MS,
+  );
 
   it(
     'should turn the fail-on-breaking input into a non zero step',

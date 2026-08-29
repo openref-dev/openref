@@ -27,6 +27,7 @@ export const DRIFT_RULE_CODES: Readonly<Record<IRDriftRule, string>> = {
   'stream-unspecified': 'RT040',
   'error-undocumented': 'RT050',
   'orphan-operation': 'RT060',
+  'discovery-incomplete': 'RT070',
   'parameter-unread': 'SP010',
   'header-requiredness-drift': 'SP011',
   'status-drift': 'SP012',

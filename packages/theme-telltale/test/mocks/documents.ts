@@ -46,6 +46,28 @@ export function apiDocument(): IRDocument {
           type: 'object',
           properties: { sku: { type: 'string' }, quantity: { type: 'integer' } },
         },
+        // THE SCHEMA THAT PROVOKES THE READING ROWS NO OTHER FIXTURE REACHES, added by `T054`.
+        // `Order` above is a flat object with a plain required list, so the shapes page swept
+        // since the pre `T049` slice drew only the ordinary row: five class names of SPEC 11 were
+        // emitted by no swept render, were therefore in no list, and were styled by no telltale
+        // rule while every check in the tree stayed green. Each member below is here for exactly
+        // one of them: `oneOf` for the variant and its selector line, `patternProperties` for the
+        // pattern row, and `if`/`then` for the conditional requiredness.
+        Payment: {
+          type: 'object',
+          required: ['method'],
+          properties: {
+            method: { type: 'string', enum: ['card', 'invoice'] },
+            card: { oneOf: [{ type: 'string' }, { type: 'integer' }] },
+            labels: { type: 'object', patternProperties: { '^x-': { type: 'string' } } },
+            invoiceRef: { type: 'string' },
+          },
+          if: { properties: { method: { const: 'invoice' } } },
+          then: { required: ['invoiceRef'] },
+        },
+        // AND THE ONE THAT PROVOKES THE ABSENCE, which is a row family of its own: a body a
+        // document declared and left with nothing in it draws a sentence rather than a table.
+        Empty: {},
       },
     },
     paths: {

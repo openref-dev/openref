@@ -75,6 +75,17 @@ export interface RuntimePassOptions extends CollectorRegistryOptions {
    * Absent here, nothing is lowered, which is the correct answer for a document the host handed in.
    */
   readonly channelDirectionConfidence?: ChannelDirectionConfidence;
+  /**
+   * Problems the caller found before this pass ran, per SPEC 8.3, so they reach `doctor` too.
+   *
+   * THE EVENT DISCOVERY RUNS BEFORE THIS PASS AND FINDS MOST OF THEM. The synthesis and the
+   * channel pairing produce every one of SPEC 8.3's six findings, and both happen in
+   * `mounted-references.ts` before the reference service normalizes the document; this pass is
+   * where the runtime meta is built, which is the carrier the `discovery-incomplete` rule of
+   * SPEC 7.1 reads, and it is built before the health report so the rule sees them. Passing them
+   * in rather than re-running the discovery here is what keeps one walk producing one answer.
+   */
+  readonly carriedProblems?: readonly DiscoveryProblem[];
 }
 
 /**
@@ -202,6 +213,7 @@ export function runRuntimePass(
   // protects every route with something the reference cannot name, and a reader is owed the fact
   // that it is there rather than a row that says `Object`.
   const problems: readonly DiscoveryProblem[] = [
+    ...(options.carriedProblems ?? []),
     ...discovered.problems,
     ...ghosts,
     ...declared.problems,
@@ -265,11 +277,19 @@ export function runRuntimePass(
     ...declared.edges,
   ]);
 
+  // THE PROBLEMS RIDE THE RUNTIME META, AND THEY ARE PUT THERE BEFORE THE HEALTH REPORT IS BUILT.
+  // `discovery-incomplete` of SPEC 7.1 reads `IRRuntimeMeta.problems`, and until `T054` the two
+  // lists never left this package: this result carried them, nothing downstream read the result,
+  // and `doctor` sees a document rather than a pass. Ordering matters twice over, as it does for
+  // the health report itself: after the facts, because the meta is what the registry produced, and
+  // before `buildHealthReport`, because a rule cannot count a subject that is not on the document
+  // yet.
+  const meta = registry.meta();
   const documented: IRDocument = {
     ...document,
     nodes,
     relationships,
-    runtime: registry.meta(),
+    runtime: problems.length === 0 ? meta : { ...meta, problems },
     hash: '',
   };
   const withFacts: IRDocument = {

@@ -119,6 +119,11 @@ describe('the committed federation wiring', () => {
     // Then it is in the run at all, and it is beside the gate whose mechanism it reuses
     expect(position).toBeGreaterThan(-1);
     expect(order[position - 1]).toBe('static-suites');
-    expect(order[position + 1]).toBe('coverage');
+    // `events-suites` joined at `T054`, between this one and coverage, and it is named here rather
+    // than the assertion loosened to "somewhere before coverage", by the rule the Static gate's own
+    // ordering case states: what this is about is the arrangement, so a gate arriving between the
+    // two is a decision to write down.
+    expect(order[position + 1]).toBe('events-suites');
+    expect(order.indexOf('coverage')).toBe(order.length - 1);
   });
 });
