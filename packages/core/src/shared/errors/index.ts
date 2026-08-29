@@ -71,6 +71,16 @@ export enum ErrorCode {
    * caller catching `FED_MERGE_CONFLICT` to re-run under another mode cannot silently swallow it.
    */
   FED_MERGE_INCOMPLETE = 'FED_MERGE_INCOMPLETE',
+  /**
+   * A cached copy of a remote's document exists and cannot be used.
+   *
+   * NOT `FED_REMOTE_UNAVAILABLE`, because the remote's reachability is a separate fact: a cache
+   * record can be corrupt while the remote is healthy, and reporting it as an unreachable remote
+   * would send an operator to the wrong machine. The record crosses a process boundary under
+   * SPEC 15's `degrade` mode, so a reader that cannot vouch for it refuses it by name rather
+   * than serving whatever the bytes happen to decode to.
+   */
+  FED_CACHE_INVALID = 'FED_CACHE_INVALID',
 
   /** A theme does not satisfy the theme contract. */
   THEME_CONTRACT_VIOLATED = 'THEME_CONTRACT_VIOLATED',

@@ -25,8 +25,16 @@ export const FEDERATION_CONFLICT_MODES: readonly FederationConflictMode[] = [
 /** The default, which is the one SPEC 15's example configures. */
 export const DEFAULT_CONFLICT_MODE: FederationConflictMode = 'namespace';
 
-/** One service taking part in a merge: its identity, its document and where it is mounted. */
-export interface FederationService {
+/**
+ * Identity and mount of one configured entry, with or without a document.
+ *
+ * IT IS THE PART THE VALIDATION READS, AND IT IS A NAMED TYPE SO THAT THE MERGE AND THE REMOTE
+ * LIFECYCLE OF `T045` ARE HELD TO ONE RULE. A remote is a service whose document has not arrived
+ * yet: its id and prefix carry exactly the obligations a merge service's do, because both end up
+ * in node ids, page addresses and file names. Two validators over one grammar is how the two
+ * that disagreed came to exist elsewhere in this repository.
+ */
+export interface FederationServiceIdentity {
   /**
    * Identity of the service, which every node id of this service is prefixed with.
    *
@@ -35,8 +43,6 @@ export interface FederationService {
    * configuration names the service, and this is that name.
    */
   readonly id: string;
-  /** The service's normalized document. */
-  readonly document: IRDocument;
   /**
    * Path prefix the service is mounted under, such as `/billing`.
    *
@@ -46,6 +52,12 @@ export interface FederationService {
    * is a separate mechanism, and it is `onConflict`.
    */
   readonly prefix?: string;
+}
+
+/** One service taking part in a merge: its identity, its document and where it is mounted. */
+export interface FederationService extends FederationServiceIdentity {
+  /** The service's normalized document. */
+  readonly document: IRDocument;
 }
 
 /** What the merged document is, beyond the services it is made of. */
@@ -79,10 +91,13 @@ const PREFIX_MAX = 256;
 /**
  * Refuses a service list that cannot be merged.
  *
+ * The parameter is the identity subset rather than the full service, so the remote lifecycle
+ * can hold its configured remotes to the same rule before any document exists to attach.
+ *
  * @param services - The services as the caller supplied them, in any order
  * @throws {InvalidOptionsError} When the list is empty, an id is unusable, or an id is repeated
  */
-export function validateServices(services: readonly FederationService[]): void {
+export function validateServices(services: readonly FederationServiceIdentity[]): void {
   if (services.length === 0) {
     throw new InvalidOptionsError(
       'federation has no services to merge; a merge of nothing is not an empty document, ' +
