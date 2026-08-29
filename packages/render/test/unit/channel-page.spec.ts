@@ -10,7 +10,12 @@ import {
   serializePageModel,
 } from '../../src/render/application/services/render.service';
 import { ChannelFacts, ChannelOperations, MessageList } from '../../src/components/ChannelSections';
-import { eventsDocument, runtimeDocument, smallDocument } from '../mocks/documents';
+import {
+  eventsDocument,
+  quietEventsDocument,
+  runtimeDocument,
+  smallDocument,
+} from '../mocks/documents';
 import type { IRDocument } from '@openref/core';
 import type { ChannelModel, NodeModel, PageKind, PageModel } from '@openref/vue';
 
@@ -24,10 +29,15 @@ import type { ChannelModel, NodeModel, PageKind, PageModel } from '@openref/vue'
  * and says nothing in it would pass a count and fail every one of these.
  *
  * AND WHETHER IT LIES ANYWHERE, which is the other half. An Avro payload is source under a named
- * dialect and never a schema view that failed; the security section is absent rather than empty,
- * because an events document's `security` is empty until `T051` and a block over nothing would be
- * a picture of a security posture the IR does not have; and the three sections carry no control,
- * because they are adopted positions and a button inside one has nothing to hydrate it.
+ * dialect and never a schema view that failed; a channel whose document said nothing about
+ * security draws no requirement row at all, because a block over nothing would be a picture of a
+ * security posture the IR does not have; and the three sections carry no control, because they
+ * are adopted positions and a button inside one has nothing to hydrate it.
+ *
+ * SECURITY IS DRAWN FROM 2026-08-29 AND WAS DRAWN NOWHERE BEFORE IT. `T051` gave `IRServer` and
+ * `IRChannelOperation` their `security` carriers and no page read either, which is a fact
+ * collected and never shown. The sentence this file used to carry, that an events document's
+ * security is empty, described the state before that task and outlived it.
  */
 
 const markdown = await createMarkdownRenderer();
@@ -162,6 +172,7 @@ describe('the channel model', () => {
         protocol: 'kafka',
         protocolVersion: '3.7',
         description: 'The production cluster',
+        security: [{ schemeId: 'saslScram', type: 'scramSha256', in: '', name: '', scopes: [] }],
       },
     ]);
   });
@@ -235,18 +246,76 @@ describe('the channel model', () => {
     expect(page.truncatedSchemas).not.toContain('RequestId');
   });
 
-  it('should draw no security section, because an events document has no security to draw', () => {
-    // Given an events document, whose `security` SPEC 8.2 records as empty until `T051`
-    const document = eventsDocument();
-
-    // When the page is built
+  it('should draw the operation page security section on no channel page', () => {
+    // Given the channel page, whose requirements belong to its servers and its operations rather
+    // than to the node, per SPEC 8.2: a channel has no `security` member in either edition
     const node = nodeOf(REQUESTS);
 
-    // Then the absence is the document's own and the page states it by drawing nothing, rather
-    // than by drawing an empty block over a security posture the IR does not have
-    expect(document.security).toEqual([]);
+    // Then the node level list stays empty and the section that draws it is not in the walk, so
+    // the rows below are the channel's own two levels and not a third copy of the operation page
     expect(node.security).toEqual([]);
     expect(node.drawn).not.toContain('security');
+  });
+
+  it('should draw what connecting to a server costs beside that server, per SPEC 8.2', async () => {
+    // Given the channel page of a document whose broker declares a requirement
+    const markup = await html(ChannelFacts, { channel: channelOf(REQUESTS) });
+
+    // Then the document really said it, the row is labelled in words a reader with no stylesheet
+    // reads, and the scheme is named with the type the thirteen row table gives it
+    expect(eventsDocument().servers[0]?.security).toEqual([{ schemeId: 'saslScram', scopes: [] }]);
+    expect(text(markup)).toContain('requires');
+    expect(markup).toContain('<span class="oref-security-type">scramSha256</span>');
+    expect(text(markup)).toContain('saslScram');
+  });
+
+  it('should say where a key travels and fabricate no location for a scheme without one', async () => {
+    // Given both requirements of the page: the operation's `httpApiKey`, which says where its key
+    // goes, and the server's SASL scheme, which says nothing but its type
+    const facts = await html(ChannelFacts, { channel: channelOf(REQUESTS) });
+    const operations = await html(ChannelOperations, { channel: channelOf(REQUESTS) });
+
+    // Then the one that has a location prints it with the document's own key name, and the one
+    // that has none prints no such span at all
+    expect(operations).toContain('<span class="oref-security-type">httpApiKey</span>');
+    expect(operations).toContain('<span class="oref-security-where">header X-Topic-Key</span>');
+    expect(facts).not.toContain('oref-security-where');
+  });
+
+  it('should draw a requirement on the operation that declared one and none on the other', async () => {
+    // Given the two operations of this channel's document, one of which says nothing
+    const markup = await html(ChannelOperations, { channel: channelOf(REQUESTS) });
+    const quiet = await html(ChannelOperations, { channel: channelOf(REPLIES) });
+
+    // Then, with the asymmetry asserted on the document first, the row is on the operation that
+    // declared it and the operation that declared nothing carries no row
+    expect(eventsDocument().nodes.get(REQUESTS)).toBeDefined();
+    expect(markup.split('class="oref-security-item"').length - 1).toBe(1);
+    expect(quiet).not.toContain('oref-security-item');
+  });
+
+  it('should draw no requirement row at all when the document said nothing about security', async () => {
+    // Given the falsification pair: the same section over a document that never wrote `security`
+    // anywhere, beside the one that wrote it in two places
+    const spoken = channelOf(REQUESTS);
+    const quietPage = buildPageModel(quietEventsDocument(), {
+      nodeId: 'channel-orders-requests',
+      markdown,
+    });
+    const quiet = quietPage.node?.channel;
+    if (quiet === undefined || quiet === null) throw new Error('no channel model');
+
+    // When both facts sections are drawn
+    const spokenMarkup = await html(ChannelFacts, { channel: spoken });
+    const quietMarkup = await html(ChannelFacts, { channel: quiet });
+
+    // Then the section is there in both, which is what makes the absence the requirement's and
+    // not the section's, and only the document that spoke has a row
+    expect(quietEventsDocument().security).toEqual([]);
+    expect(quietMarkup).toContain('oref-section-channel');
+    expect(spokenMarkup).toContain('oref-security-list');
+    expect(quietMarkup).not.toContain('oref-security-list');
+    expect(text(quietMarkup)).not.toContain('requires');
   });
 
   it('should promise no bench, because a channel has nothing for a console to send', () => {

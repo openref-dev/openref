@@ -1116,7 +1116,8 @@
 }
 
 .oref-security-type,
-.oref-security-scopes {
+.oref-security-scopes,
+.oref-security-where {
   color: var(--oref-color-fg-muted);
   font-size: var(--oref-font-size-100);
 }

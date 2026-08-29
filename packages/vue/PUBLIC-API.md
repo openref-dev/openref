@@ -226,7 +226,7 @@ here because it is the declared type of something a theme is handed.
 
 **The class names the reference leaves in the markup are not frozen, and a theme styles them.**
 An L2 theme replaces every position and still receives markup drawn outside all of them, under the
-reference's own `oref-` names. 99 of them as of 2026-08-29, measured on the eight kinds of page a
+reference's own `oref-` names. 100 of them as of 2026-08-29, measured on the eight kinds of page a
 reader can open, which is the reader page family of SPEC 13.3, up from 25 when the second theme was
 written. A theme that does not style them ships unstyled regions, and nothing on the theme's own
 side goes red when a new one arrives: it compiles, it renders, and the page has a gap in it. The

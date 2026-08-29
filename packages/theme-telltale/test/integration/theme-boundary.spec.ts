@@ -325,6 +325,7 @@ describe('the markup a complete L2 theme does not own', () => {
       'oref-security-item',
       'oref-security-list',
       'oref-security-type',
+      'oref-security-where',
       'oref-server',
       'oref-service-fact',
       'oref-service-fact-label',

@@ -30,6 +30,7 @@
 
 import { h, type VNode } from 'vue';
 import { MarkdownBlock } from './MarkdownBlock';
+import { securityList } from './NodeSections';
 import { shapeRowsOfBody, type ShapeRow } from '../page/domain/shape-rows';
 import type { IRSchema } from '@openref/core';
 import type {
@@ -39,6 +40,7 @@ import type {
   MessageBodyModel,
   MessageExampleModel,
   MessageModel,
+  SecurityModel,
 } from '@openref/vue';
 
 /** What the message list needs to resolve a payload's references. */
@@ -71,6 +73,33 @@ function fact(label: string, value: VNode | string): VNode {
 function facts(rows: (VNode | null)[]): VNode | null {
   const drawn = rows.filter((row): row is VNode => row !== null);
   return drawn.length === 0 ? null : h('ul', { class: 'oref-facts' }, drawn);
+}
+
+/**
+ * The `requires` row of one position, or no row at all when the position named no scheme.
+ *
+ * A LIST RATHER THAN A NULLABLE ROW, so a caller can splat it in beside its own facts without
+ * carrying a hole. The key comes from the caller because the label does not identify the row:
+ * two servers of one channel can each require something, and `fact` keys by label alone.
+ *
+ * THE ROW BORROWS THE SECURITY FAMILY THE OPERATION PAGE ALREADY DRAWS, which is the rule at the
+ * top of this file: what a requirement says is the same on either page, so it is one renderer and
+ * one set of names rather than a second family two themes would have to style.
+ *
+ * @param security - The requirements of one server or one channel operation
+ * @param key - What tells this row from a sibling with the same label
+ * @returns One row, or nothing
+ */
+function securityFact(security: readonly SecurityModel[], key: string): VNode[] {
+  const list = securityList(security);
+  if (list === null) return [];
+
+  return [
+    h('li', { class: 'oref-fact', key }, [
+      h('span', { class: 'oref-fact-label' }, 'requires'),
+      h('span', { class: 'oref-fact-value' }, [list]),
+    ]),
+  ];
 }
 
 /**
@@ -139,7 +168,10 @@ export function ChannelFacts(props: { readonly channel: ChannelModel }): VNode {
     ]),
   );
 
-  const servers = channel.servers.map((server) =>
+  // THE REQUIREMENT IS ITS OWN ROW BESIDE THE SERVER'S, per SPEC 8.2. It is a condition of
+  // connecting to that one server, so it sits next to that server rather than in a block of its
+  // own; a server that said nothing about security contributes no row at all.
+  const servers = channel.servers.flatMap((server) => [
     fact(
       server.protocol === ''
         ? 'available on'
@@ -153,7 +185,8 @@ export function ChannelFacts(props: { readonly channel: ChannelModel }): VNode {
           : h('span', { class: 'oref-description' }, server.description),
       ]),
     ),
-  );
+    ...securityFact(server.security, `requires:${server.url}`),
+  ]);
 
   return h('section', { class: 'oref-section oref-section-channel' }, [
     h('h2', { class: 'oref-section-title' }, 'Channel'),
@@ -230,6 +263,10 @@ export function ChannelOperations(props: { readonly channel: ChannelModel }): VN
           facts([
             operation.messages.length === 0 ? null : fact('carries', operation.messages.join(', ')),
             operation.tags.length === 0 ? null : fact('tags', operation.tags.join(', ')),
+            // WHAT PERFORMING IT COSTS, BESIDE WHAT CONNECTING COSTS, per SPEC 8.2: the server's
+            // requirement is drawn in the facts section beside the server it belongs to, and this
+            // is what the operation adds on top of it rather than what it replaces.
+            ...securityFact(operation.security, `requires:${operation.id}`),
           ]),
           replyBlock(operation),
           ...bindingBlocks(operation.bindings),

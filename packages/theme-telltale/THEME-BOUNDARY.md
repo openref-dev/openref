@@ -19,7 +19,7 @@ way: the boundary is wider than when this file was written, not narrower. One of
 finding 4. The other five stay open, each now naming who would close it and what closing it costs,
 and two of them gained the check they were missing.
 
-## 1. 99 class names the theme did not write, and cannot replace
+## 1. 100 class names the theme did not write, and cannot replace
 
 Measured on the eight kinds of page a reader can open, the reader page family of SPEC 13.3, 15
 renders in all, with all 21 positions overridden. **The list is not repeated here.** It lives in
@@ -49,12 +49,13 @@ Where the arrivals came from, each with the task that drew them:
 | `T050`           | plus 20 | The channel page. Seventeen are class names the tree did not have before this task, and three, `oref-media-schema`, `oref-schema-link` and `oref-subtitle`, are names the reference already drew and this theme had never met, because the positions that emit them are positions it overrides. **This is the third instance of the row above and the first the `PageKind` binding could not have caught**: a channel is a node, so a channel page is the `node` kind, and both `node` renders were OpenAPI documents. The sweep answers with two more renders of an AsyncAPI document rather than a wider record, because the record was never the thing that was short                                                                                                                                                                         |
 | `T052`           | plus 0  | The topology of SPEC 9. The section is drawn inside `DocumentOverview`, a position this theme overrides, so not one of its seven class names survives to be a boundary name and the count does not move. **That is the finding rather than the absence of one**: the sweep can only ever report markup that outlives an override, so a whole feature added inside a position is invisible to it, and this theme would have served an overview with no graph on it while every list in this file stayed correct. The answer is a component change, not a stylesheet one: telltale's own `DocumentOverview` draws the graph in `tt-` names, and `topology-strip.spec.ts` is what fails when it stops. The overview render added to the sweep is kept anyway, so the day the reference stops overriding, the names arrive here instead of on a page |
 | `T054`           | plus 13 | The shapes page again, and **not one of the thirteen is markup this task wrote**: every one was already emitted by `packages/render/src` and reached by no fixture. The swept schema was a flat object, so the rows a variant, a conditional requirement, a pattern key and an empty body draw were never asked for. This is the fourth instance of the same failure and the first that a record over pages cannot see at all, because the missing thing is not a page: the kind had been swept since the pre-`T049` slice. The sweep answers with two more renders, `Payment` and `Empty`, rather than a wider record                                                                                                                                                                                                                           |
+| channel security | plus 1  | `oref-security-where`, where a key travels, arriving with the channel security rows of 2026-08-29. It is one name rather than a family because the requirement rows borrow the security family the operation page already draws, which is the rule at the head of `ChannelSections.ts`: `theme-css-raw` had 166 bytes of headroom under its cap when this landed and has 122 after it, so a second family for the same subject is a cost with nothing bought. The gzip cap beside it is not tight, 8.7 KB of 15, and naming both as tight would have been half true. **The name reaches this list through the operation page rather than through the channel page**, since the swept operation fixture declares an `apiKey` scheme with a location and the sweep would have caught it either way |
 
 SPEC 10.1 says an L2 theme is "a package with its own layout; the core contributes no styles". The
 core contributes no _stylesheet_. It contributes _markup_, under its own class names, and a theme
 that does not style them ships a page with unstyled regions on every operation. So the last block
 of `src/styles/theme.css` styles class names from somebody else's namespace, which is the opposite
-of what a frozen contract is for. 98 of the 99 are styled here; the one that is not,
+of what a frozen contract is for. 99 of the 100 are styled here; the one that is not,
 `oref-section-health`, is finding 5 below.
 
 **What it costs a theme author, said plainly.** This list is not part of the frozen contract. A

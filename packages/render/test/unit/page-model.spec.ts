@@ -317,8 +317,12 @@ describe('buildPageModel', () => {
     // When
     const model = buildPageModel(document, { markdown, nodeId });
 
-    // Then
-    expect(model.node?.security).toEqual([{ schemeId: 'apiKey', type: 'apiKey', scopes: [] }]);
+    // Then, with where the key travels beside the type since 2026-08-29: a requirement that said
+    // only `apiKey` said nothing about where the key goes, which is the gap `IRSecurityScheme.in`
+    // was grown to five values to close one level down
+    expect(model.node?.security).toEqual([
+      { schemeId: 'apiKey', type: 'apiKey', in: 'header', name: 'X-Key', scopes: [] },
+    ]);
   });
 
   it('should produce the overview for a node id the document does not hold', () => {

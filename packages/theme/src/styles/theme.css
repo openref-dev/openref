@@ -1019,7 +1019,8 @@
   text-transform: uppercase;
 }
 
-.oref-security-scopes {
+.oref-security-scopes,
+.oref-security-where {
   color: var(--oref-color-fg-muted);
 }
 
@@ -1861,6 +1862,7 @@ a.oref-topology-name {
 .oref-schema-doc,
 .oref-schema-name,
 .oref-security-scopes,
+.oref-security-where,
 .oref-server,
 .oref-subtitle,
 .oref-title {

@@ -54,6 +54,10 @@ const DOCUMENT_TEXT_CLASSES: readonly string[] = [
   'oref-schema-doc',
   'oref-schema-name',
   'oref-security-scopes',
+  // Where a key travels, added 2026-08-29 with the channel security rows. The location is a word
+  // out of a closed set, but the name beside it is the document's own key name, so the row carries
+  // supplied text exactly as its neighbour does.
+  'oref-security-where',
   'oref-server',
   'oref-subtitle',
   'oref-title',

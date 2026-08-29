@@ -322,6 +322,16 @@ describe('the channel page inside the element, both modes, per SPEC 11', () => {
     expect(root.querySelector('.oref-channel-reply')?.textContent).toContain('orders.replies');
     expect(root.querySelector('.oref-section-messages .oref-shape-rows')).not.toBeNull();
 
+    // The security rows of both levels survived it too, which is the whole reason they are drawn
+    // inside these positions rather than in a section of their own: what connecting to the broker
+    // costs is a row of the facts section, what performing the operation costs is a row of the
+    // operations section, and each names its scheme's own type
+    const facts = root.querySelector('.oref-section-channel')?.textContent ?? '';
+    const operations = root.querySelector('.oref-section-channel-operations')?.textContent ?? '';
+    expect(facts).toContain('scramSha256');
+    expect(operations).toContain('httpApiKey');
+    expect(operations).toContain('header X-Topic-Key');
+
     // And the sections carry no control, which is what makes adopting them correct: a button
     // here would be pressable and attached to nothing, the F14 class
     expect(root.querySelector('.oref-section-messages button')).toBeNull();

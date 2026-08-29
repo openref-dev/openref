@@ -208,6 +208,17 @@ export interface ChannelServerModel {
   readonly protocol: string;
   readonly protocolVersion: string;
   readonly description: string;
+  /**
+   * What connecting to this server requires, per SPEC 8.2, resolved against the document's table.
+   *
+   * IT IS THE SERVER'S AND NOT THE CHANNEL'S, because AsyncAPI writes `security` on the Server
+   * Object and there is no such member on a channel in either edition. Empty when the server
+   * declared none and when it said it has none, which the model does not tell apart: the
+   * difference lives in `IRServer.security` being absent against present and empty, and a page
+   * that drew "declares no security" would be printing a sentence about a distinction no reader
+   * asked for.
+   */
+  readonly security: readonly SecurityModel[];
 }
 
 /**
@@ -244,6 +255,15 @@ export interface ChannelOperationModel {
   /** The reply, or null on a one way operation. */
   readonly reply: ChannelReplyModel | null;
   readonly tags: readonly string[];
+  /**
+   * What performing this operation requires, per SPEC 8.2, resolved against the document's table.
+   *
+   * SEPARATE FROM {@link ChannelServerModel.security} ON PURPOSE. AsyncAPI's own sentence is that
+   * a server's security applies as well where there is any, so this is what the operation adds
+   * rather than what it replaces, and merging the two lists would erase the difference between
+   * what connecting costs and what performing costs.
+   */
+  readonly security: readonly SecurityModel[];
 }
 
 /**
@@ -403,6 +423,18 @@ export interface ResponseModel {
 export interface SecurityModel {
   readonly schemeId: string;
   readonly type: string;
+  /**
+   * Where the key travels, out of the scheme's own `in`. Empty when the scheme declares none.
+   *
+   * ADDED 2026-08-29, WITH `name` BESIDE IT, when channel security first got drawn. A requirement
+   * carrying only a type says `apiKey` and says nothing about where the key goes, which is the
+   * partial picture `IRSecurityScheme.in` was grown to five values to stop the IR from having.
+   * The model repeated that gap one level up. It is a string rather than the IR's union because a
+   * page model carries what a theme prints, and the five values are the scheme's vocabulary.
+   */
+  readonly in: string;
+  /** Name of the header, query parameter or cookie the key travels under. Empty when none. */
+  readonly name: string;
   readonly scopes: readonly string[];
 }
 

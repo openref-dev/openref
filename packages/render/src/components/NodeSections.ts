@@ -49,24 +49,68 @@ export function NodeDescription(props: { readonly html: string }): VNode {
  * condition and not this component's: the authentication and scopes rows are where the
  * requirement stands when runtime exists, per `TX-GUTTER`.
  *
+ * HANDED AN EMPTY LIST IT DRAWS ITS HEADING AND NO ROWS, WHICH THE SERVER NEVER ASKS FOR AND A
+ * THEME COMPOSING THE PAGE ITSELF CAN. `drawnOf` gates this section on `security.length > 0`, so
+ * nothing this package renders reaches that state; a theme that owns the page through `AppShell`
+ * and mounts this position with an empty list gets a heading over nothing. That is left as it is
+ * rather than guarded here, because it is how every sibling section behaves: `NodeDescription`
+ * below, and `ChannelOperations` and `MessageList` in `ChannelSections.ts`, all draw their heading
+ * unconditionally and are gated by the same walk. A guard on this one alone would make one section
+ * of four disappear where the other three draw an empty block, which is a difference a theme
+ * author would have to learn rather than derive. The rows themselves are still absent rather than
+ * an empty list, per `securityList`, since a `ul` with no `li` in it is markup about nothing.
+ *
  * @param props - The declared requirements
  * @returns The section
  */
 export function NodeSecurity(props: { readonly security: readonly SecurityModel[] }): VNode {
   return h('section', { class: 'oref-section oref-section-security' }, [
     h('h2', { class: 'oref-section-title' }, 'Security'),
-    h(
-      'ul',
-      { class: 'oref-security-list' },
-      props.security.map((requirement) =>
-        h('li', { class: 'oref-security-item', key: requirement.schemeId }, [
-          h('code', {}, requirement.schemeId),
-          h('span', { class: 'oref-security-type' }, requirement.type),
-          requirement.scopes.length === 0
-            ? null
-            : h('span', { class: 'oref-security-scopes' }, requirement.scopes.join(', ')),
-        ]),
-      ),
-    ),
+    securityList(props.security),
   ]);
+}
+
+/**
+ * The requirements of one position as a list of rows, or nothing at all when there are none.
+ *
+ * ONE RENDERER FOR EVERY POSITION, per SPEC 8.2. An HTTP operation, an event server and an event
+ * operation all name schemes out of one table, so they draw one row shape; a second copy here is
+ * how two pages come to disagree about what a requirement says.
+ *
+ * NULL RATHER THAN AN EMPTY LIST, which is what lets a caller draw nothing. A channel whose server
+ * and whose operations said nothing about security draws no row and no heading: an empty Security
+ * block over a channel with no security is a picture of a posture the document does not have,
+ * which is the reading SPEC 8.2 twice refused to publish.
+ *
+ * WHAT A ROW SAYS IS WHAT THE SCHEME SAYS. The name the document filed the scheme under, its type
+ * out of the thirteen AsyncAPI names and the five OpenAPI ones, where the key travels when the
+ * scheme declares a location, and the scopes when there are any. Nothing is composed out of
+ * absence: a `plain` requirement draws its type alone.
+ *
+ * @param security - The requirements of one position
+ * @returns The list, or null when the position named none
+ */
+export function securityList(security: readonly SecurityModel[]): VNode | null {
+  if (security.length === 0) return null;
+
+  return h(
+    'ul',
+    { class: 'oref-security-list' },
+    security.map((requirement) =>
+      h('li', { class: 'oref-security-item', key: requirement.schemeId }, [
+        h('code', {}, requirement.schemeId),
+        h('span', { class: 'oref-security-type' }, requirement.type),
+        requirement.in === ''
+          ? null
+          : h(
+              'span',
+              { class: 'oref-security-where' },
+              requirement.name === '' ? requirement.in : `${requirement.in} ${requirement.name}`,
+            ),
+        requirement.scopes.length === 0
+          ? null
+          : h('span', { class: 'oref-security-scopes' }, requirement.scopes.join(', ')),
+      ]),
+    ),
+  );
 }

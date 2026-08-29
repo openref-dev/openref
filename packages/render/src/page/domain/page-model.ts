@@ -33,6 +33,7 @@ import {
   type IRSchemaDialect,
   type IRSchemaSlot,
   type IRSchemaView,
+  type IRSecurityRequirement,
 } from '@openref/core';
 import {
   materializeNode,
@@ -62,6 +63,7 @@ import type {
   ParameterModel,
   ResponseModel,
   SchemaPageModel,
+  SecurityModel,
   ServicePageModel,
   StaticProxyModel,
 } from '@openref/vue';
@@ -692,6 +694,41 @@ function channelServerModels(channel: IRChannel, document: IRDocument): ChannelS
       protocol: server?.protocol ?? '',
       protocolVersion: server?.protocolVersion ?? '',
       description: override.description ?? server?.description ?? '',
+      security: securityModels(server?.security ?? [], document),
+    };
+  });
+}
+
+/**
+ * Requirements with their schemes looked up, the one builder every position uses.
+ *
+ * ONE FUNCTION FOR THREE POSITIONS, per SPEC 8.2: an HTTP operation names schemes, an event
+ * server names schemes, and an event operation names schemes, and all three name the one table in
+ * `IRDocument.security`. A scheme a document requires and never declared keeps the requirement and
+ * says `unknown`, which is the honest answer and the one the operation page already gave.
+ *
+ * WHAT IT DOES NOT DO IS INVENT A LOCATION. `in` and `name` come off the scheme or come out empty,
+ * so a `plain` or an `X509` requirement draws its type and nothing else.
+ *
+ * @param requirements - The requirements as the position carries them
+ * @param document - The document whose security table resolves them
+ * @returns One model per requirement, in the order the position wrote them
+ */
+function securityModels(
+  requirements: readonly IRSecurityRequirement[],
+  document: IRDocument,
+): SecurityModel[] {
+  const schemes = new Map(document.security.map((scheme) => [scheme.id, scheme]));
+
+  return requirements.map((requirement) => {
+    const scheme = schemes.get(requirement.schemeId);
+
+    return {
+      schemeId: requirement.schemeId,
+      type: scheme?.type ?? 'unknown',
+      in: scheme?.in ?? '',
+      name: scheme?.name ?? '',
+      scopes: requirement.scopes,
     };
   });
 }
@@ -827,6 +864,7 @@ function channelModel(channel: IRChannel, context: ModelContext): ChannelModel {
       bindings: bindingModels(operation.bindings, context),
       reply: channelReplyModel(operation.reply, context),
       tags: operation.tags ?? [],
+      security: securityModels(operation.security ?? [], context.document),
     })),
     messages: channel.messages.map((message) => messageModel(message, context)),
   };
@@ -1024,6 +1062,8 @@ function nodeModel(context: ModelContext, nodeId: string): NodeModel | null {
     security: view.security.map((requirement) => ({
       schemeId: requirement.schemeId,
       type: requirement.scheme?.type ?? 'unknown',
+      in: requirement.scheme?.in ?? '',
+      name: requirement.scheme?.name ?? '',
       scopes: requirement.scopes,
     })),
     codeSamples: codeSampleModels(view.node, context),

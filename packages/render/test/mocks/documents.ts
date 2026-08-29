@@ -744,6 +744,9 @@ export function eventsDocument(): IRDocument {
         protocolVersion: '3.7',
         description: 'The production cluster',
         bindings: { kafka: { schemaRegistryUrl: 'https://registry.example.com' } },
+        // WHAT CONNECTING TO THE BROKER COSTS, per SPEC 8.2. A scheme with no location beside a
+        // requirement that has one is the pair the channel page has to draw differently.
+        security: [{ $ref: '#/components/securitySchemes/saslScram' }],
       },
     },
     channels: {
@@ -828,6 +831,9 @@ export function eventsDocument(): IRDocument {
         description: 'Answered on the replies channel.',
         tags: [{ name: 'costing' }],
         bindings: { kafka: { groupId: { type: 'string' } } },
+        // WHAT PERFORMING IT COSTS ON TOP OF THAT, per SPEC 8.2, and the second operation of this
+        // document deliberately says nothing, so one channel page carries both answers.
+        security: [{ $ref: '#/components/securitySchemes/topicKey' }],
         messages: [{ $ref: '#/channels/requests/messages/CostingRequest' }],
         reply: {
           channel: { $ref: '#/channels/replies' },
@@ -844,6 +850,48 @@ export function eventsDocument(): IRDocument {
     components: {
       schemas: {
         RequestId: { type: 'string', description: 'Identifier of one request' },
+      },
+      securitySchemes: {
+        // TWO OF THE THIRTEEN, CHOSEN FOR THE DIFFERENCE BETWEEN THEM: SASL SCRAM says nothing
+        // but its type, and AsyncAPI's `httpApiKey` says where the key travels and under what
+        // name. A page that drew them identically would be fabricating a location for the first.
+        saslScram: { type: 'scramSha256' },
+        topicKey: { type: 'httpApiKey', in: 'header', name: 'X-Topic-Key' },
+      },
+    },
+  });
+}
+
+/**
+ * The same events document with nothing said anywhere about security, for the absence case.
+ *
+ * IT IS A SECOND DOCUMENT RATHER THAN A STRIPPED COPY OF THE FIRST, because the fact under test
+ * is what an AsyncAPI document that never wrote `security` produces: reaching into a normalized
+ * IR to delete the member would prove the renderer skips an empty list, which is a different
+ * claim and the weaker one.
+ *
+ * @returns The document
+ */
+export function quietEventsDocument(): IRDocument {
+  return normalizeAsyncApiDocument({
+    asyncapi: '3.1.0',
+    info: { title: 'Quiet events', version: '1.0.0' },
+    defaultContentType: 'application/json',
+    servers: {
+      broker: { host: 'kafka.example.com:9092', protocol: 'kafka', protocolVersion: '3.7' },
+    },
+    channels: {
+      requests: {
+        address: 'orders.requests',
+        title: 'Costing requests',
+        messages: { CostingRequest: { payload: { type: 'object' } } },
+      },
+    },
+    operations: {
+      placeCostingRequest: {
+        action: 'send',
+        channel: { $ref: '#/channels/requests' },
+        summary: 'Place a costing request',
       },
     },
   });
