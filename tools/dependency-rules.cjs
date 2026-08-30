@@ -7,6 +7,7 @@
  *   vue        ->  core
  *   render     ->  core, vue
  *   runner     ->  core
+ *   samples    ->  core, runner
  *   search     ->  core
  *   theme      ->  nothing
  *   federation ->  core
@@ -55,6 +56,19 @@ const BOUNDARIES = {
   render: ['core', 'vue'],
   runner: ['core'],
   search: ['core'],
+
+  // THE SAMPLE GENERATOR OF SPEC 18 REACHES THE RUNNER, AND THAT EDGE IS THE FEATURE. The
+  // specification's own sentence is that a sample is assembled from the values the runner sends,
+  // so `buildRequest` is the source and this package formats what it returns. Reaching `core`
+  // alone would mean a second style matrix, a second body encoder and a second credential rule
+  // living here, which is the disagreement T057 exists to make impossible. It deliberately cannot
+  // see `render` or `vue`: a sample is text, and drawing it is the renderer's. ITS TESTS REACH ONE
+  // PACKAGE MORE THAN THIS LINE NAMES, and it is said here because this table is what a reader
+  // checks a closure against: `regenerated-sample.spec.ts` imports `runnerOperationOf` from
+  // `@openref/vue` to start at a real document, so `@openref/vue` is a devDependency. Every rule
+  // here anchors at `^packages/<pkg>/src/`, so a test edge cannot fire one, exactly as `action`
+  // devDepends on `openref` and `static` takes the browser bundle as a resolved path.
+  samples: ['core', 'runner'],
 
   // NEST REACHES FEDERATION SINCE T046, AND THE DIRECTION IS THE TABLE'S OWN. `federation` is an
   // internal package bundled into `@openref/nest`, per STANDARDS 3.5: the merge and the remote
