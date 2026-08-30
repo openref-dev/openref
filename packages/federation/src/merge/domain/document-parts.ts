@@ -90,6 +90,7 @@ export function serviceRecord(
   if (document.health !== undefined) record.health = rewriteHealthReport(document.health, maps);
   if (document.extensions !== undefined) record.extensions = document.extensions;
   if (document.unreadKeys !== undefined) record.unreadKeys = document.unreadKeys;
+  if (document.readerProblems !== undefined) record.readerProblems = document.readerProblems;
 
   return record;
 }

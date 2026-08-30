@@ -1,7 +1,7 @@
 import type { IRHealthReport } from './health.types';
 import type { IRNode, IRSecurityRequirement } from './node.types';
 import type { IRRelationship } from './relationship.types';
-import type { IRRuntimeMeta } from './runtime.types';
+import type { IRDiscoveryProblem, IRRuntimeMeta } from './runtime.types';
 import type { IRJsonValue, IRSchema } from './schema.types';
 
 /**
@@ -271,6 +271,20 @@ export interface IRDocument {
    * so, and `diff` then reported a deletion nobody made.
    */
   readonly unreadKeys?: readonly IRUnreadKey[];
+  /**
+   * Subjects this reader found while normalizing and could not state, per SPEC 5.4 and SPEC 7.1.
+   *
+   * THE SAME SHAPE AND THE SAME RULE AS A RUNTIME PROBLEM, AND A SEPARATE LIST.
+   * `discovery-incomplete` asks one question, whether a pass stated everything it found, and SPEC
+   * 7.1's reason for keeping it one rule over several lists is that a rule per producer is a
+   * catalogue that grows with every producer. What it cannot share is the carrier:
+   * {@link IRRuntimeMeta} exists only where a runtime pass ran, and a document parsed from a file
+   * has none, so writing a normalizer finding there would assert a pass that never happened.
+   *
+   * ADDITIVE AND OPTIONAL, so a document built before 2026-08-30 is still a document, and a
+   * document whose every declared body was read carries nothing here rather than an empty list.
+   */
+  readonly readerProblems?: readonly IRDiscoveryProblem[];
 }
 
 /**
@@ -304,6 +318,18 @@ export interface IRService {
   readonly health?: IRHealthReport;
   readonly extensions?: Readonly<Record<string, IRJsonValue>>;
   /**
+   * The service's own reader problems, per SPEC 5.4, kept beside its unread keys and for the same
+   * reason: what a service said about its own document has nowhere else to go once its nodes have
+   * moved, and a merge that drops it is the silent drop this member exists against.
+   *
+   * IT IS NOT LIFTED TO THE MERGED DOCUMENT EITHER, exactly as {@link IRService.unreadKeys} is not,
+   * so `discovery-incomplete` reports nothing over a federated document and each finding stays
+   * readable against the service and the position that produced it. Stated rather than left to be
+   * discovered: a reader who sees the rule fire on one service and not on the estate is looking at
+   * the precedent below holding, not at a finding going missing.
+   */
+  readonly readerProblems?: readonly IRDiscoveryProblem[];
+  /**
    * The service's own unread path item keys, with the paths exactly as its document wrote them.
    *
    * THEY STAY HERE AND ARE NOT UNIONED UPWARDS, because {@link IRUnreadKey.path} promises the
@@ -314,12 +340,37 @@ export interface IRService {
   readonly unreadKeys?: readonly IRUnreadKey[];
 }
 
-/** One path item key that named an operation this normalizer does not read. */
+/**
+ * Which of the three places a Path Item can be written an unread key hangs off, per SPEC 5.4.
+ *
+ * A PATH IS NOT AN ADDRESS ON ITS OWN. `paths` is keyed by path, `webhooks` by a name the document
+ * invents, and a Callback Object by a runtime expression, so the same string means three different
+ * things and a reader given only the string cannot tell which document member to open.
+ */
+export type IRUnreadKeyPosition = 'paths' | 'webhooks' | 'callback';
+
+/**
+ * One path item key that named an operation this normalizer does not read, per SPEC 5.4 and 7.1.
+ *
+ * TWO CASES, NOT ONE, since 2026-08-30. A key that is an HTTP method spelled in the wrong case
+ * carries the method it would have been; a key that is no method spelling at all carries none,
+ * because inventing one would be the guess SPEC 6 forbids.
+ */
 export interface IRUnreadKey {
-  /** The path it was written under, exactly as the document wrote it. */
+  /** The path, webhook name or runtime expression it was written under, exactly as written. */
   readonly path: string;
   /** The key, exactly as the document wrote it. */
   readonly key: string;
-  /** The method it would have been, had the key been spelled the way OpenAPI spells one. */
-  readonly method: string;
+  /**
+   * The method it would have been, had the key been spelled the way OpenAPI spells one.
+   *
+   * Absent when the key is no method spelling in any case, which is the second case above.
+   */
+  readonly method?: string;
+  /** Which document member the key hangs off, so `path` has an address to be read against. */
+  readonly position: IRUnreadKeyPosition;
+  /** The callback's name as the document wrote it. Present exactly when `position` is `callback`. */
+  readonly callback?: string;
+  /** Node id of the operation the callback hangs off. Present exactly when `position` is `callback`. */
+  readonly parentId?: string;
 }

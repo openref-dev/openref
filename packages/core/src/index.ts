@@ -114,6 +114,7 @@ export type {
   IRContact,
   IRDocument,
   IRUnreadKey,
+  IRUnreadKeyPosition,
   IRDocumentKind,
   IRInfo,
   IRLicense,

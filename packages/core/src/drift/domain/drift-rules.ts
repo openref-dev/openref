@@ -20,7 +20,7 @@
 import { isGeneratedOperationId } from '../../normalizer/domain/operation-identity';
 import { classifyDrift } from './classification';
 import type { IROperation } from '../../ir/domain/node.types';
-import type { IRDocument } from '../../ir/domain/document.types';
+import type { IRDocument, IRUnreadKey } from '../../ir/domain/document.types';
 import type {
   IRDriftAssertion,
   IRDriftBasis,
@@ -952,7 +952,11 @@ export function runDriftRules(
  * @returns Its result, shaped like every other rule's
  */
 function discoveryProblemResult(document: IRDocument): RuleResult {
-  const problems = document.runtime?.problems ?? [];
+  // THREE LISTS SINCE 2026-08-30, NOT TWO, per SPEC 7.1. The reader's own problems come first
+  // because they are produced first, on the document, before any runtime pass exists to add to it.
+  // A separate rule for them would be the per producer catalogue SPEC 7.1 refuses; a separate
+  // carrier is unavoidable, because `IRRuntimeMeta` asserts a pass that a parsed file never had.
+  const problems = [...(document.readerProblems ?? []), ...(document.runtime?.problems ?? [])];
 
   const issues = problems.map((problem) =>
     issueOf(
@@ -993,6 +997,24 @@ function discoveryProblemResult(document: IRDocument): RuleResult {
  * @param document - The document being checked
  * @returns Its result, shaped like every other rule's
  */
+/**
+ * Names the position an unread key hangs off, per SPEC 5.4.
+ *
+ * THE PATH ALONE IS NOT AN ADDRESS. `paths` is keyed by path, `webhooks` by a name the document
+ * invents and a Callback Object by a runtime expression, so a finding that printed the key's
+ * `path` and nothing else sent a reader to look for a path that is not one.
+ *
+ * @param entry - The unread key as the normalizer recorded it
+ * @returns The subject of the finding's sentence
+ */
+function unreadKeySubject(entry: IRUnreadKey): string {
+  if (entry.position === 'webhooks') return `webhook "${entry.path}"`;
+  if (entry.position === 'callback') {
+    return `"${entry.path}" of callback "${entry.callback ?? ''}" on operation "${entry.parentId ?? ''}"`;
+  }
+  return `"${entry.path}"`;
+}
+
 function unreadKeyResult(document: IRDocument): RuleResult {
   const unread = document.unreadKeys ?? [];
 
@@ -1002,10 +1024,15 @@ function unreadKeyResult(document: IRDocument): RuleResult {
       {},
       {
         message:
-          `"${entry.path}" declares an operation under the key "${entry.key}". OpenAPI spells a ` +
-          `path item key in lower case, so this operation was not read and appears nowhere in ` +
-          `this reference, in the search index, or in a diff against it.`,
-        suggestion: `rename the key "${entry.key}" to "${entry.method}" in the document`,
+          `${unreadKeySubject(entry)} declares an operation under the key "${entry.key}". ` +
+          (entry.method === undefined
+            ? 'OpenAPI names no path item field by that key, so this operation was not read '
+            : 'OpenAPI spells a path item key in lower case, so this operation was not read ') +
+          'and appears nowhere in this reference, in the search index, or in a diff against it.',
+        suggestion:
+          entry.method === undefined
+            ? `spell the key "${entry.key}" as one of the methods OpenAPI declares, or remove it`
+            : `rename the key "${entry.key}" to "${entry.method}" in the document`,
         edit: 'nothing-to-write',
         basis: UNOBSERVED,
       },

@@ -1,4 +1,5 @@
 import type { IRSchema, IRSchemaDialect } from '../../ir/domain/schema.types';
+import type { IRDiscoveryProblem } from '../../ir/domain/runtime.types';
 import { ErrorCode, UnsupportedDialectError } from '../../shared/errors/index';
 import { isPlainObject } from './guards';
 import { normalizeSchema, type NormalizeSchemaOptions } from './schema-normalizer';
@@ -117,7 +118,70 @@ export interface SchemaSource {
   /** Dialect to assume when the payload declares no `schemaFormat`. */
   readonly defaultDialect: IRSchemaDialect;
   readonly normalizeOptions: NormalizeSchemaOptions;
+  /**
+   * Where a subject this reader found and could not state is written, per SPEC 5.4.
+   *
+   * Supplied by the normalizer that owns the document; a caller that passes none gets the same
+   * schema and no finding, which is what every existing direct caller of this wants.
+   */
+  readonly readerProblems?: IRDiscoveryProblem[];
 }
+
+/**
+ * Signals that a body is written in a schema language this reader knows is not JSON Schema.
+ *
+ * ENUMERATED, WITH SOURCES, AND NOT A HEURISTIC, per SPEC 5.4. Each condition is decisive on its
+ * own: `record`, `enum` and `fixed` are not among JSON Schema's seven type names, `symbols` and
+ * `size` are not JSON Schema keywords, and a `syntax` declaration naming proto2 or proto3 is the
+ * first statement of a Protocol Buffers file, so none of the four can be satisfied by a JSON Schema
+ * document of any vocabulary.
+ *
+ * A BARE STRING IS NOT ONE OF THESE, and the split is the second blind review's correction of
+ * 2026-08-30. One condition used to read "the body is a string", which refused `''` and `hello`
+ * while naming them a Protocol Buffers definition and citing the Protocol Buffers Language Guide,
+ * a source that says nothing about either. Refusing is right and the reason is not this list's:
+ * {@link refuseBodyThatIsNoSchema} carries it, citing the rule that actually settles it.
+ *
+ * WHY THE LIST EXISTS AT ALL is the correction of 2026-08-30, made the day the first version was
+ * written. The first condition was "the reader took nothing from this body", and a blind review
+ * measured it: twelve of fifteen standard 2020-12 bodies under a truthful `application/schema+json`
+ * were refused, including `{ contentEncoding, contentMediaType }`, whose refusal said that neither
+ * member is a JSON Schema keyword when both are. "The reader took nothing" and "the body is not
+ * JSON Schema" differ by exactly this reader's unimplemented vocabulary, which is the one thing
+ * SPEC 5.4 says must never be refused.
+ */
+const FOREIGN_DIALECT_SIGNALS: readonly {
+  readonly name: string;
+  readonly source: string;
+  readonly matches: (body: unknown) => boolean;
+}[] = [
+  {
+    name: 'an Avro record',
+    source: 'Apache Avro Specification 1.11, Complex Types, Records',
+    matches: (body) =>
+      isPlainObject(body) && body.type === 'record' && ('fields' in body || 'name' in body),
+  },
+  {
+    name: 'an Avro enum',
+    source: 'Apache Avro Specification 1.11, Complex Types, Enums',
+    matches: (body) => isPlainObject(body) && body.type === 'enum' && 'symbols' in body,
+  },
+  {
+    name: 'an Avro fixed',
+    source: 'Apache Avro Specification 1.11, Complex Types, Fixed',
+    matches: (body) => isPlainObject(body) && body.type === 'fixed' && 'size' in body,
+  },
+  {
+    name: 'a Protocol Buffers definition',
+    source: 'Protocol Buffers Language Guide (proto3), the syntax declaration',
+    matches: (body) =>
+      (typeof body === 'string' && PROTO_SYNTAX.test(body)) ||
+      (isPlainObject(body) && (body.syntax === 'proto3' || body.syntax === 'proto2')),
+  },
+];
+
+/** The `syntax` declaration a Protocol Buffers file opens with, per its Language Guide. */
+const PROTO_SYNTAX = /\bsyntax\s*=\s*["'](?:proto2|proto3)["']/;
 
 /**
  * Builds an {@link IRSchema} from a payload, choosing the pipeline by dialect.
@@ -156,5 +220,130 @@ export function buildSchema(source: SchemaSource): IRSchema {
 
   const body = multiFormat === undefined ? source.payload : multiFormat.schema;
 
-  return { ...base, dialect, normalized: normalizeSchema(body, source.normalizeOptions) };
+  // ASKED BEFORE THE BODY IS READ, because a body that is not an object at all is refused by the
+  // JSON Schema reader with a message about a schema object rather than about the dialect the
+  // document named, and the document naming a dialect is the fact a reader here has to act on.
+  if (multiFormat !== undefined) {
+    refuseForeignDialect(multiFormat.schemaFormat, body, source.id);
+    refuseBodyThatIsNoSchema(multiFormat.schemaFormat, body, source.id);
+  }
+
+  const normalized = normalizeSchema(body, source.normalizeOptions);
+
+  if (multiFormat !== undefined) {
+    recordEmptyRead(multiFormat.schemaFormat, body, normalized, source);
+  }
+
+  return { ...base, dialect, normalized };
+}
+
+/**
+ * Refuses a body that carries a positive signal of another schema language, per SPEC 5.4.
+ *
+ * WHAT MAKES THIS CHECKABLE IS THE DECLARATION. A Multi Format Schema Object is the one place a
+ * document NAMES the schema language, so naming JSON Schema over a body that is recognisably Avro
+ * or Protocol Buffers is a statement the document made and got wrong. Measured 2026-08-29 on an
+ * Avro record under `application/schema+json`: `normalized` came out `{}`, the reader was shown a
+ * payload constraining nothing, and there was no finding anywhere.
+ *
+ * ONLY A SIGNAL FROM {@link FOREIGN_DIALECT_SIGNALS} REFUSES. An empty read is not one, and that is
+ * the whole of the 2026-08-30 correction: the vocabulary this reader has not implemented also reads
+ * as empty, and refusing it would refuse a valid document. An empty read with no signal goes to
+ * {@link recordEmptyRead} instead, which is loud and is not a refusal.
+ *
+ * @param schemaFormat - The `schemaFormat` value exactly as the document wrote it
+ * @param body - The `schema` member of the Multi Format Schema Object, untrusted
+ * @param id - The schema's deterministic id, which is where it stands in the document
+ * @throws {UnsupportedDialectError} When the body carries a signal of a known other dialect
+ */
+function refuseForeignDialect(schemaFormat: unknown, body: unknown, id: string): void {
+  const signal = FOREIGN_DIALECT_SIGNALS.find((candidate) => candidate.matches(body));
+  if (signal === undefined) return;
+
+  throw new UnsupportedDialectError(
+    `${id} declares schemaFormat ${JSON.stringify(schemaFormat)}, which names a JSON Schema ` +
+      `compatible dialect, and its body is written as ${signal.name}, per ${signal.source}, so ` +
+      'the body is not in the dialect the document named',
+    ErrorCode.NORM_UNSUPPORTED_DIALECT,
+    undefined,
+    { schemaFormat, position: id, signal: signal.name, source: signal.source },
+  );
+}
+
+/**
+ * Refuses a body that is not a JSON Schema at all, per SPEC 5.4, citing the rule that settles it.
+ *
+ * SEPARATE FROM {@link FOREIGN_DIALECT_SIGNALS} BECAUSE THE REASON IS DIFFERENT, which is the whole
+ * of the split made on 2026-08-30. A string body was refused as "a Protocol Buffers definition, per
+ * Protocol Buffers Language Guide", which is true of `syntax = "proto3"; ...` and a guess about
+ * `hello` or the empty string. What is true of every string is that JSON Schema 2020-12 Core says a
+ * schema is an object or a boolean, so a string is not a schema in any dialect this pipeline reads,
+ * and that is what the refusal says. A string that does carry the proto marker is caught above and
+ * keeps the more specific naming, because the more specific true statement is the more useful one.
+ *
+ * @param schemaFormat - The `schemaFormat` value exactly as the document wrote it
+ * @param body - The `schema` member of the Multi Format Schema Object, untrusted
+ * @param id - The schema's deterministic id, which is where it stands in the document
+ * @throws {UnsupportedDialectError} When the body is neither an object nor a boolean
+ */
+function refuseBodyThatIsNoSchema(schemaFormat: unknown, body: unknown, id: string): void {
+  if (isPlainObject(body) || typeof body === 'boolean') return;
+  // A BODY THAT WAS NEVER WRITTEN IS A MISSING MEMBER, NOT A DIALECT THE DOCUMENT GOT WRONG, so it
+  // goes on being refused by the schema reader, in the words that reader already used for it.
+  if (body === undefined) return;
+
+  const written = Array.isArray(body) ? 'an array' : `a ${typeof body}`;
+
+  throw new UnsupportedDialectError(
+    `${id} declares schemaFormat ${JSON.stringify(schemaFormat)}, which names a JSON Schema ` +
+      `compatible dialect, and its body is written as ${written}; per JSON Schema 2020-12 ` +
+      'Core, section 4.3, a schema is an object or a boolean, so this body is not one',
+    ErrorCode.NORM_UNSUPPORTED_DIALECT,
+    undefined,
+    {
+      schemaFormat,
+      position: id,
+      bodyType: Array.isArray(body) ? 'array' : typeof body,
+      source: 'JSON Schema 2020-12 Core, section 4.3',
+    },
+  );
+}
+
+/**
+ * Records a labelled body the reader took nothing from, per SPEC 5.4 and SPEC 7.1.
+ *
+ * LOUD AND NOT A REFUSAL, which is the disposition SPEC 5.4 narrowed to. The document named a
+ * dialect this reader supports and the reader produced an empty schema out of a body that wrote
+ * members, so the page would show a payload that constrains nothing; that is a subject found and
+ * not stated, which is exactly what `discovery-incomplete` asks about. It is not a refusal because
+ * the commonest cause is a 2020-12 keyword this reader has not implemented, and a valid document
+ * must not be refused for the reader's own gap.
+ *
+ * THE MEMBERS ARE NAMED, so a reader can see which of them went unread rather than being told only
+ * that something did.
+ *
+ * @param schemaFormat - The `schemaFormat` value exactly as the document wrote it
+ * @param body - The `schema` member of the Multi Format Schema Object, untrusted
+ * @param normalized - What the JSON Schema reader made of that body
+ * @param source - The payload's own description, whose problem list is written into
+ */
+function recordEmptyRead(
+  schemaFormat: unknown,
+  body: unknown,
+  normalized: IRSchema['normalized'],
+  source: SchemaSource,
+): void {
+  if (source.readerProblems === undefined) return;
+  if (!isPlainObject(body) || Object.keys(body).length === 0) return;
+  if (normalized === undefined || Object.keys(normalized).length > 0) return;
+
+  const members = Object.keys(body).sort();
+
+  source.readerProblems.push({
+    subject: source.id,
+    reason:
+      `the body declares schemaFormat ${JSON.stringify(schemaFormat)} and this reader took ` +
+      'nothing from it, so the payload shown constrains nothing; unread member(s): ' +
+      members.join(', '),
+  });
 }

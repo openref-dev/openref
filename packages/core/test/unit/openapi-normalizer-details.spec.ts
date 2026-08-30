@@ -102,7 +102,9 @@ function richDocument(): Record<string, unknown> {
             },
           },
         },
-        nonsense: { type: 'unheardOf' },
+        // A scheme of a type OpenAPI does not declare used to live here and be skipped. Since
+        // SPEC 5.4's disposition table it is a refusal, so it has its own case rather than a seat
+        // in a fixture every other case reuses. A member that is not an object is still skipped.
         alsoNonsense: 'not an object',
       },
     },
@@ -235,7 +237,7 @@ describe('normalizeOpenApiDocument optional members', () => {
     expect(ids).toEqual(['post-orders']);
   });
 
-  it('should read every kind of security scheme and skip the ones it cannot name', () => {
+  it('should read every kind of security scheme and skip a member that is not an object', () => {
     // Given
     const document = normalizeOpenApiDocument(richDocument());
 

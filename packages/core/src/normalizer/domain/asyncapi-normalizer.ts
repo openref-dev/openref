@@ -1568,6 +1568,7 @@ export function normalizeAsyncApiDocument(
     externalDocuments: options.externalDocuments ?? {},
     cycleDepth: options.cycleDepth,
     registry: createSchemaRegistry(),
+    readerProblems: [],
     servers,
     serverNames,
     defaultContentType: asString(input.defaultContentType),
@@ -1650,6 +1651,7 @@ export function normalizeAsyncApiDocument(
 
   const extensions = readExtensions(input);
   if (extensions !== undefined) document.extensions = extensions;
+  if (context.readerProblems.length > 0) document.readerProblems = context.readerProblems;
 
   return finalizeDocument(document);
 }

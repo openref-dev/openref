@@ -5,6 +5,7 @@ import type {
   IRLicense,
   IRServerVariable,
 } from '../../ir/domain/document.types';
+import type { IRDiscoveryProblem } from '../../ir/domain/runtime.types';
 import type {
   IRJsonValue,
   IRSchema,
@@ -212,6 +213,14 @@ export interface SchemaContext {
   readonly namedSchemas: ReadonlySet<string>;
   /** Where every named schema reached anywhere in the document is collected. */
   readonly registry: SchemaRegistry;
+  /**
+   * Where a subject this reader found and could not state is collected, per SPEC 5.4 and 7.1.
+   *
+   * ONE ARRAY PER DOCUMENT, WRITTEN INTO IN PLACE, for the reason the registry is one: the finding
+   * is made where the schema is built, several levels below the normalizer that owns the document,
+   * and threading it back up as a return value would change the signature of every reader between.
+   */
+  readonly readerProblems: IRDiscoveryProblem[];
   readonly externalDocuments: Readonly<Record<string, unknown>>;
   readonly cycleDepth: number | undefined;
 }
@@ -274,6 +283,7 @@ export function schemaSlot(
       payload: raw,
       defaultDialect: context.dialect,
       normalizeOptions: schemaOptions(context),
+      readerProblems: context.readerProblems,
     }),
   };
 }

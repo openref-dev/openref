@@ -1136,7 +1136,27 @@ function operationsOf(document: IRDocument): readonly IROperation[] {
  * @returns The keys, as `<method> <path>` exactly as the document wrote the path
  */
 function unreadKeysOf(document: IRDocument): ReadonlySet<string> {
-  return new Set((document.unreadKeys ?? []).map((entry) => `${entry.method} ${entry.path}`));
+  const keys = new Set<string>();
+
+  for (const entry of document.unreadKeys ?? []) {
+    // A KEY WITH NO METHOD DOWNGRADES NOTHING, per SPEC 5.4. `fetch` under a path names no
+    // operation this or any other reader would produce, so there is no `<method> <path>` for it to
+    // stand in for, and inventing one would suppress a removal on a pair the document never wrote.
+    // IT IS NOT DEFENCE IN DEPTH AND IT HAS A RUNNER, which a blind review of 2026-08-30 asked for
+    // after finding the suite green without it. Without the guard the entry renders as
+    // `undefined <path>`, and OpenAPI 3.2 keys `additionalOperations` by method names the
+    // specification does not enumerate, so a document writing `undefined` there produces an
+    // operation whose method is that very string at that very path. The two then match and a real
+    // removal is downgraded. The case is in `openapi-silent-drops.spec.ts`.
+    if (entry.method === undefined) continue;
+    // NOR DOES A WEBHOOK KEY, because webhooks live in `document.webhooks` and the pairing below
+    // walks `document.nodes`; a set entry that can never be consulted is an entry that can only be
+    // consulted by accident.
+    if (entry.position === 'webhooks') continue;
+    keys.add(`${entry.method} ${entry.path}`);
+  }
+
+  return keys;
 }
 
 /** Groups operations by their matching key. */

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  buildDoctorReport,
   buildTopology,
   ErrorCode,
   hashDocument,
@@ -7,6 +8,7 @@ import {
   normalizeAsyncApiDocument,
   normalizeOpenApiDocument,
   normalizeSpecification,
+  UnsupportedDialectError,
   type IRDocument,
   type IRRelationship,
 } from '../../src/index';
@@ -363,13 +365,15 @@ describe('a message payload whose declared dialect does not match its content', 
     });
   });
 
-  it('should empty a body the document mislabelled JSON Schema, which is measured and not fixed here', () => {
+  it('should refuse a body the document mislabelled JSON Schema, naming the format and the position', () => {
     // Given the other direction: an Avro record body declared as JSON Schema. MEASURED 2026-08-29
-    // AND LEFT STANDING, which is why this case is written as a measurement rather than as a
-    // regression. The schema normalizer keeps the keywords it knows and drops the rest, so `type:
-    // 'record'`, `name` and `fields` all vanish and the reader is shown a message whose payload
-    // constrains nothing, with no finding anywhere.
-    const document = events({
+    // AND REFUSED SINCE 2026-08-30, by the seventh row of SPEC 5.4's disposition table. It was
+    // written as a measurement rather than as a regression because it had no owner: the comment
+    // pointed at a debt list that was a sentence in `ai-docs/PROJECT_STATE.md`, which is SPEC 0's
+    // ninth class. The maintainer pulled the row into a directed slice, SPEC 5.4 moved first, and
+    // the schema normalizer keeping only the keywords it knows now ends in a refusal rather than in
+    // a payload that constrains nothing with no finding anywhere.
+    const mislabelled = {
       ch: {
         address: 'a',
         messages: {
@@ -381,25 +385,19 @@ describe('a message payload whose declared dialect does not match its content', 
           },
         },
       },
-    });
+    };
 
-    // When
-    const node = [...document.nodes.values()][0];
-    const payload = node?.kind === 'channel' ? node.messages[0]?.payload : undefined;
+    // Then the refusal names the format, the position, and the signal it refused on
+    expect(() => events(mislabelled)).toThrow(UnsupportedDialectError);
+    expect(() => events(mislabelled)).toThrow(/application\/schema\+json;version=draft-07/);
+    expect(() => events(mislabelled)).toThrow(/channel-a\.messages\.m\.payload/);
+    expect(() => events(mislabelled)).toThrow(/written as an Avro record/);
+    expect(() => events(mislabelled)).toThrow(/Apache Avro Specification/);
 
-    // Then the body is empty. IT IS NOT AN EVENTS DEFECT AND THAT IS WHY IT IS NOT FIXED HERE: the
-    // control below drives the identical body through the OpenAPI reader and gets the identical
-    // empty schema, so this is the OpenAPI side silent drop met from a third direction. Changing it
-    // moves every corpus document and needs SPEC 5.x, which is not this task's section.
-    //
-    // IT HAS AN OWNER, AND IT DID NOT WHEN THIS CASE WAS WRITTEN. The comment pointed at a debt
-    // list that was a sentence in `ai-docs/PROJECT_STATE.md`, carrying four other drops and not
-    // this one, so a measured defect was cited to a paragraph nothing enforces, which is SPEC 0's
-    // ninth class. The post-`T054` review filed all of them, this one included, as the section
-    // "`T059` The OpenAPI side silent drops, which had a list and no owner" in
-    // `ai-docs/BUILD-AMENDMENTS.md`, where an open box keeps `T059` from being ticked over it.
-    expect(payload?.kind === 'inline' ? payload.schema.normalized : 'missing').toEqual({});
-
+    // And the OpenAPI schema position is untouched, which SPEC 5.4 records as a limit rather than
+    // leaving it to be discovered: OpenAPI has no `schemaFormat`, so the document named no dialect
+    // there, and JSON Schema's own rule is that an unknown keyword is ignored. Refusing here would
+    // refuse every document using a vocabulary this reader does not implement yet.
     const http = normalizeOpenApiDocument({
       openapi: '3.1.0',
       info: { title: 'H', version: '1' },
@@ -412,5 +410,226 @@ describe('a message payload whose declared dialect does not match its content', 
     });
     expect([...http.schemas.values()][0]?.normalized).toEqual({});
     expect(http.unreadKeys ?? []).toEqual([]);
+  });
+
+  it('should refuse the other two Avro signals and a Protocol Buffers body, and only those', () => {
+    // Given the signals SPEC 5.4 enumerates, each decisive on its own: `enum` and `fixed` are not
+    // among JSON Schema's seven type names, `symbols` and `size` are not its keywords, and a
+    // Protocol Buffers definition is text rather than an object.
+    const under = (schema: unknown) => (): IRDocument =>
+      events({
+        ch: {
+          address: 'a',
+          messages: { m: { payload: { schemaFormat: 'application/schema+json', schema } } },
+        },
+      });
+
+    // Then
+    expect(under({ type: 'enum', name: 'Colour', symbols: ['RED'] })).toThrow(/an Avro enum/);
+    expect(under({ type: 'fixed', name: 'Md5', size: 16 })).toThrow(/an Avro fixed/);
+    expect(under({ syntax: 'proto3', message: 'Order' })).toThrow(/a Protocol Buffers definition/);
+    expect(under('syntax = "proto3"; message Order { string id = 1; }')).toThrow(
+      /a Protocol Buffers definition/,
+    );
+
+    // And a JSON Schema body that merely shares a word with one of them is not a signal: `enum` as
+    // a keyword is not `type: "enum"`, and `type: "record"` without `name` or `fields` is not the
+    // Avro shape the specification defines.
+    expect(under({ enum: ['RED', 'GREEN'] })).not.toThrow();
+    expect(under({ type: 'string', enum: ['RED'] })).not.toThrow();
+  });
+
+  it('should refuse a string body that carries no proto marker on the rule that settles it', () => {
+    // Given the over-claim a second blind review found: one condition read "the body is a string",
+    // so `''` and `hello` were refused as Protocol Buffers definitions, citing a Language Guide
+    // that says nothing about either. Refusing is right; the naming was a guess.
+    const under = (schema: unknown) => (): IRDocument =>
+      events({
+        ch: {
+          address: 'a',
+          messages: { m: { payload: { schemaFormat: 'application/schema+json', schema } } },
+        },
+      });
+
+    // Then the reason is JSON Schema's own rule, and Protocol Buffers is not named
+    expect(under('hello')).toThrow(UnsupportedDialectError);
+    expect(under('hello')).toThrow(/JSON Schema 2020-12 Core, section 4\.3/);
+    expect(under('hello')).toThrow(/a schema is an object or a boolean/);
+    expect(under('hello')).not.toThrow(/Protocol Buffers/);
+    expect(under('')).not.toThrow(/Protocol Buffers/);
+    expect(under(42)).toThrow(/written as a number/);
+    expect(under([{ type: 'string' }])).toThrow(/written as an array/);
+
+    // And a string that does carry the marker keeps the more specific true statement
+    expect(under('syntax = "proto3"; message Order { string id = 1; }')).toThrow(
+      /a Protocol Buffers definition/,
+    );
+
+    // And a boolean body is a legal schema and is refused by neither
+    expect(under(true)).not.toThrow();
+    expect(under(false)).not.toThrow();
+  });
+
+  it('should not claim a label literally names JSON Schema when it names a compatible dialect', () => {
+    // Given the two vendor formats that map to a JSON Schema compatible dialect without being
+    // called JSON Schema. SPEC 5.4 says "JSON Schema compatible label" and the message said
+    // "which names JSON Schema", which is false of both.
+    const under = (schemaFormat: string) => (): IRDocument =>
+      events({
+        ch: {
+          address: 'a',
+          messages: {
+            m: {
+              payload: {
+                schemaFormat,
+                schema: { type: 'record', name: 'Order', fields: [] },
+              },
+            },
+          },
+        },
+      });
+
+    // Then
+    for (const format of [
+      'application/vnd.aai.asyncapi;version=3.0.0',
+      'application/vnd.oai.openapi;version=3.0.0',
+      'application/schema+json',
+    ]) {
+      expect(under(format)).toThrow(/names a JSON Schema compatible dialect/);
+      expect(under(format)).not.toThrow(/which names JSON Schema,/);
+    }
+  });
+
+  it('should normalize every standard 2020-12 body this reader has not implemented, without refusing', () => {
+    // Given the measurement that narrowed SPEC 5.4's seventh row on the day it was written. Under
+    // the first condition, "the reader took nothing", twelve of these fifteen refused; each is
+    // legal JSON Schema 2020-12 under a truthful label, so each refusal was a valid document turned
+    // away for this reader's own unimplemented vocabulary.
+    const bodies: Record<string, Record<string, unknown>> = {
+      unevaluatedProperties: { unevaluatedProperties: false },
+      unevaluatedItems: { unevaluatedItems: false },
+      contentPair: { contentEncoding: 'base64', contentMediaType: 'image/png' },
+      $defs: { $defs: { A: { type: 'string' } } },
+      $anchor: { $anchor: 'x' },
+      $comment: { $comment: 'note' },
+      $schema: { $schema: 'https://json-schema.org/draft/2020-12/schema' },
+      $vocabulary: { $vocabulary: { 'https://json-schema.org/draft/2020-12/vocab/core': true } },
+      contains: { contains: { type: 'string' } },
+      contentSchema: { contentSchema: { type: 'string' } },
+      dependentSchemas: { dependentSchemas: { a: { type: 'string' } } },
+      minMaxContains: { minContains: 1, maxContains: 2 },
+    };
+
+    // When
+    const refused: string[] = [];
+    for (const [label, schema] of Object.entries(bodies)) {
+      try {
+        events({
+          ch: {
+            address: 'a',
+            messages: { m: { payload: { schemaFormat: 'application/schema+json', schema } } },
+          },
+        });
+      } catch {
+        refused.push(label);
+      }
+    }
+
+    // Then not one of them is refused
+    expect(refused).toEqual([]);
+  });
+
+  it('should record an empty read loudly, through the channel the events side already uses', () => {
+    // Given the idiomatic binary payload, whose two members are both JSON Schema keywords and
+    // neither of which this reader implements. It is not a refusal and it is not silence.
+    const document = events({
+      ch: {
+        address: 'a',
+        messages: {
+          m: {
+            payload: {
+              schemaFormat: 'application/schema+json',
+              schema: { contentEncoding: 'base64', contentMediaType: 'image/png' },
+            },
+          },
+        },
+      },
+    });
+
+    // When
+    const problems = document.readerProblems ?? [];
+
+    // Then the finding names the position and the members that went unread
+    expect(problems).toHaveLength(1);
+    expect(problems[0]?.subject).toBe('channel-a.messages.m.payload');
+    expect(problems[0]?.reason).toContain('took nothing from it');
+    expect(problems[0]?.reason).toContain('contentEncoding, contentMediaType');
+
+    // And it reaches the reader through `discovery-incomplete`, which SPEC 7.1 widened to this
+    // reader rather than gaining a second code for the same question
+    const finding = buildDoctorReport(document).findings.find((entry) => entry.code === 'RT070');
+    expect(finding?.message).toContain('channel-a.messages.m.payload');
+    expect(finding?.message).toContain('contentEncoding, contentMediaType');
+  });
+
+  it('should record nothing at all when the reader did read the body, so the record is not noise', () => {
+    // Given a body this reader reads whole
+    const document = events({
+      ch: {
+        address: 'a',
+        messages: {
+          m: {
+            payload: {
+              schemaFormat: 'application/schema+json',
+              schema: { type: 'object', properties: { a: { type: 'string' } } },
+            },
+          },
+        },
+      },
+    });
+
+    // Then
+    expect(document.readerProblems).toBeUndefined();
+    expect(buildDoctorReport(document).findings.filter((e) => e.code === 'RT070')).toEqual([]);
+  });
+
+  it('should leave a truthfully labelled dialect and an empty body alone, so the check stays narrow', () => {
+    // Given a body that writes nothing, under a format that names JSON Schema. An empty schema is
+    // legal and means "anything", so there is no false statement to refuse.
+    const empty = events({
+      ch: {
+        address: 'a',
+        messages: {
+          m: { payload: { schemaFormat: 'application/schema+json', schema: {} } },
+        },
+      },
+    });
+
+    // When
+    const node = [...empty.nodes.values()][0];
+    const payload = node?.kind === 'channel' ? node.messages[0]?.payload : undefined;
+
+    // Then
+    expect(payload?.kind === 'inline' ? payload.schema.normalized : 'missing').toEqual({});
+
+    // And the same Avro record under the format that names Avro takes the raw path of SPEC 5.2 and
+    // never reaches the check at all, which is what keeps the multi format path AsyncAPI depends on
+    // working exactly as it did.
+    const avro = events({
+      ch: {
+        address: 'a',
+        messages: {
+          m: {
+            payload: {
+              schemaFormat: 'application/vnd.apache.avro;version=1.9.0',
+              schema: { type: 'record', name: 'Order', fields: [{ name: 'id', type: 'string' }] },
+            },
+          },
+        },
+      },
+    });
+    const avroNode = [...avro.nodes.values()][0];
+    const avroPayload = avroNode?.kind === 'channel' ? avroNode.messages[0]?.payload : undefined;
+    expect(avroPayload?.kind === 'inline' ? avroPayload.schema.dialect : '').toBe('avro');
   });
 });

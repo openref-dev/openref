@@ -31,7 +31,7 @@ describe('normalizeOpenApiDocument, a path item key that is a method in the wron
 
     // Then: still not read, and now named.
     expect(document.nodes.size).toBe(0);
-    expect(unread).toEqual([{ path: '/users', key: 'GET', method: 'get' }]);
+    expect(unread).toEqual([{ path: '/users', key: 'GET', method: 'get', position: 'paths' }]);
   });
 
   it('should record nothing for a document whose keys are spelled the way OpenAPI spells them', () => {
@@ -154,7 +154,9 @@ describe('buildDiffReport, the downgrade matched to one operation rather than to
 
     // Then, before the assertion: both sides really are one bucket.
     expect(older.nodes.size).toBe(2);
-    expect(newer.unreadKeys).toEqual([{ path: '/users/{id}', key: 'GET', method: 'get' }]);
+    expect(newer.unreadKeys).toEqual([
+      { path: '/users/{id}', key: 'GET', method: 'get', position: 'paths' },
+    ]);
 
     // When
     const report = buildDiffReport(older, newer);
