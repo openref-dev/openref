@@ -11,9 +11,14 @@ import { buildDocument, channel, operation } from '../mocks/documents';
  * WHY THIS CANNOT BE RESOLVED ANYWHERE ELSE. `@ApiPublishes('orders.placed')` on an HTTP handler
  * produces an `event` end, which SPEC 9.1 defines as a name this document has no node for: the
  * channel is documented by the event service next door. Before the merge there is no second
- * document to resolve against. After the merge it is too late, because the channel's address has
- * moved under its own service's prefix while the event name stayed exactly as it was written. So
- * the merge is the one place the two can meet, and the map it uses is federation wide.
+ * document to resolve against. After the merge there is nothing left to resolve against either,
+ * because the merged addresses are the ones the merge invented. So the merge is the one place the
+ * two can meet, and the map it uses is federation wide and keyed by source addresses.
+ *
+ * SINCE `T053-R1` THE ANSWER IS WRITTEN INTO THE END'S KIND, per SPEC 15.1. Exactly one channel of
+ * the federation answers, so the end becomes a `node` end naming that channel; two or more answer,
+ * so it stays an unresolvable `event`; nothing answers, so it becomes an `undeclared-event`. The
+ * last case is the defect this file's final block reproduces.
  *
  * EVERY CASE ASSERTS THE ADDRESS REALLY MOVED BEFORE IT ASSERTS THE EDGE FOUND IT. A federation
  * with no prefixes resolves this by accident, because the name never had to move, and a suite
@@ -63,7 +68,7 @@ function channelAddress(document: IRDocument): string | undefined {
 }
 
 describe('mergeDocuments, an event end that names another service channel', () => {
-  it('should move the event name onto the address the target channel now answers', () => {
+  it('should resolve the event end onto the channel node the federation answers with', () => {
     // Given an event service mounted under a prefix, so its channel address moves, and an HTTP
     // service publishing to the address the event service's own document wrote
     const services = [httpService(), eventsService('/orders')];
@@ -73,30 +78,33 @@ describe('mergeDocuments, an event end that names another service channel', () =
     const topology = buildTopology(document);
 
     // Then the channel really moved, which is what makes the resolution below a move rather than
-    // a coincidence, and the edge points at the merged channel node
+    // a coincidence, and the edge names the merged channel node rather than any address
     expect(channelAddress(services[1]?.document ?? document)).toBe('orders.placed');
     expect(channelAddress(document)).toBe('orders/orders.placed');
 
     const edge = document.relationships[0];
-    expect(edge?.toKind).toBe('event');
-    expect(edge?.to).toBe('orders/orders.placed');
+    expect(edge?.toKind).toBe('node');
+    expect(edge?.to).toBe('orders_channel-placed');
 
     const target = topology.groups[0]?.edges[0]?.to;
     expect(target?.nodeId).toBe('orders_channel-placed');
+    expect(target?.label).toBe('orders/orders.placed');
     expect(target?.outside).toBe(false);
   });
 
-  it('should leave the edge unresolved and outside when the merge is deleted from under it', () => {
+  it('should resolve it the same way when nothing moved, which is the control', () => {
     // Given the same two services, merged with no prefix anywhere, so nothing moves. This is the
-    // control for the case above: the same assertions pass here for a different reason, and a
-    // suite carrying only this one would prove nothing about the move.
+    // control for the case above: the same end resolves here for a different reason, and a suite
+    // carrying only this one would prove nothing about the move.
     const { document } = mergeDocuments([httpService(), eventsService()], MERGED);
 
     // When
     const target = buildTopology(document).groups[0]?.edges[0]?.to;
 
-    // Then the address did not move, and the report says so by carrying no move for it
+    // Then the address did not move, and the end still names the channel's node rather than the
+    // address, which is what makes the resolution independent of what any address happens to be
     expect(channelAddress(document)).toBe('orders.placed');
+    expect(document.relationships[0]?.toKind).toBe('node');
     expect(target?.nodeId).toBe('orders_channel-placed');
   });
 
@@ -118,17 +126,23 @@ describe('mergeDocuments, an event end that names another service channel', () =
     const target = buildTopology(document).groups[0]?.edges[0]?.to;
 
     // Then both channels are in the merged document under two addresses, neither of which is the
-    // one the edge names, so the edge resolves to nothing and is drawn as leading outside. Moving
-    // it onto either channel would be the guess the confidence policy exists to refuse.
+    // one the edge names, so the edge resolves to nothing. Moving it onto either channel would be
+    // the guess the confidence policy exists to refuse.
     const addresses = [...document.nodes.values()].flatMap((node) =>
       node.kind === 'channel' ? [node.address] : [],
     );
 
     expect(addresses.sort()).toEqual(['archive/orders.placed', 'orders/orders.placed']);
     expect(document.relationships[0]?.to).toBe('orders.placed');
+    expect(document.relationships[0]?.toKind).toBe('event');
     expect(target?.nodeId).toBeUndefined();
-    expect(target?.outside).toBe(true);
+
+    // And it is NOT outside, per SPEC 9.5: the composition really does hold channels at that
+    // address, it just cannot say which one is meant. Marking it outside would print a false
+    // statement about the two documents that describe those channels.
+    expect(target?.outside).toBe(false);
     expect(report.renames.filter((rename) => rename.kind === 'event-name')).toEqual([]);
+    expect(report.endpointKinds).toEqual([]);
   });
 
   it('should move the event name when onConflict renamed the address rather than a prefix', () => {
@@ -193,15 +207,16 @@ describe('mergeDocuments, an event end that names another service channel', () =
         kind: 'event-name',
         serviceId: 'checkout',
         from: 'orders/placed',
-        to: 'beta/orders/placed',
+        to: 'beta_channel-orders-placed',
         reason: 'target-moved',
         contestedBy: [],
       },
     ]);
 
     const target = buildTopology(document).groups[0]?.edges[0]?.to;
-    expect(document.relationships[0]?.to).toBe('beta/orders/placed');
+    expect(document.relationships[0]?.to).toBe('beta_channel-orders-placed');
     expect(target?.nodeId).toBe('beta_channel-orders-placed');
+    expect(target?.label).toBe('beta/orders/placed');
     expect(target?.outside).toBe(false);
   });
 
@@ -220,10 +235,17 @@ describe('mergeDocuments, an event end that names another service channel', () =
         kind: 'event-name',
         serviceId: 'checkout',
         from: 'orders.placed',
-        to: 'orders/orders.placed',
+        to: 'orders_channel-placed',
         reason: 'target-moved',
         contestedBy: [],
       },
+    ]);
+
+    // And the kind change is recorded beside it, which is the half a rename cannot carry: the end
+    // stopped being an `event` end, and an inverter that only put the name back would hand a
+    // reader an edge of the wrong kind
+    expect(report.endpointKinds).toEqual([
+      { serviceId: 'checkout', name: 'orders_channel-placed', from: 'event', to: 'node' },
     ]);
 
     // And the whole edge comes back from the merged document and the report alone, which is the
@@ -234,25 +256,46 @@ describe('mergeDocuments, an event end that names another service channel', () =
       if (rename.kind === 'node' || rename.kind === 'event-name')
         inverse.set(rename.to, rename.from);
     }
+    const kinds = new Map(
+      report.endpointKinds
+        .filter((change) => change.serviceId === 'checkout')
+        .map((change) => [change.name, change.from] as const),
+    );
 
     const restored: IRRelationship[] = document.relationships.map((edge) => ({
       ...edge,
       from: inverse.get(edge.from) ?? edge.from,
+      fromKind: kinds.get(edge.from) ?? edge.fromKind,
       to: inverse.get(edge.to) ?? edge.to,
+      toKind: kinds.get(edge.to) ?? edge.toKind,
     }));
 
     expect(hash(restored)).toBe(hash([...(services[0]?.document.relationships ?? [])]));
   });
 
-  it('should record no move for a federation in which no address moved', () => {
-    // Given the two services with no prefix and no conflict
+  it('should record the resolution even where no address moved at all', () => {
+    // Given the two services with no prefix and no conflict, so nothing in the address space moves
     // When
     const { report } = mergeDocuments([httpService(), eventsService()], MERGED);
 
-    // Then, with the renames list asserted non empty first, so the absence below is a filter over
-    // a real report rather than over an empty one
-    expect(report.renames.length).toBeGreaterThan(0);
-    expect(report.renames.filter((rename) => rename.kind === 'event-name')).toEqual([]);
+    // Then no channel address moved, asserted first so the entry below is not a side effect of one
+    expect(report.renames.filter((rename) => rename.kind === 'channel-address')).toEqual([]);
+
+    // And the event end is recorded anyway, because what it resolved to is a node id and not an
+    // address: the merge answered a question here even where it moved nothing
+    expect(report.renames.filter((rename) => rename.kind === 'event-name')).toEqual([
+      {
+        kind: 'event-name',
+        serviceId: 'checkout',
+        from: 'orders.placed',
+        to: 'orders_channel-placed',
+        reason: 'target-moved',
+        contestedBy: [],
+      },
+    ]);
+    expect(report.endpointKinds).toEqual([
+      { serviceId: 'checkout', name: 'orders_channel-placed', from: 'event', to: 'node' },
+    ]);
   });
 
   it('should move an event name the declaring service also holds a channel for', () => {
@@ -288,11 +331,208 @@ describe('mergeDocuments, an event end that names another service channel', () =
 
     // Then
     expect(channelAddress(document)).toBe('checkout/orders.placed');
-    expect(document.relationships[0]?.to).toBe('checkout/orders.placed');
+    expect(document.relationships[0]?.to).toBe('checkout_channel-placed');
     expect(report.renames.find((rename) => rename.kind === 'event-name')?.reason).toBe(
       'target-moved',
     );
     expect(buildTopology(document).groups[0]?.edges[0]?.to.nodeId).toBe('checkout_channel-placed');
+  });
+});
+
+describe('mergeDocuments, the T053-R1 address that captured a name it never named', () => {
+  /** One event service with a channel at the contested address. */
+  function eventService(id: string): FederationService {
+    return {
+      id,
+      document: buildDocument({
+        id: `${id}-api`,
+        title: id,
+        kind: 'events',
+        nodes: [channel({ id: 'channel-created', address: 'created' })],
+      }),
+    };
+  }
+
+  /** The web service, publishing to a name written the way the merged address happens to read. */
+  function webService(address: string): FederationService {
+    return {
+      id: 'web',
+      document: buildDocument({
+        id: 'web-api',
+        title: 'Web',
+        nodes: [operation({ id: 'get-p', path: '/p' })],
+        relationships: [
+          {
+            from: 'get-p',
+            fromKind: 'node',
+            to: address,
+            toKind: 'event',
+            type: 'publishes',
+            confidence: 'declared',
+          },
+        ],
+      }),
+    };
+  }
+
+  it('should refuse to resolve a name no source document declares, however the merge spells it', () => {
+    // Given the three ordinary services of the filing: `a` and `b` each declare a channel at the
+    // address `created`, and `web` carries `@ApiPublishes('a/created')`.
+    const services = [eventService('a'), eventService('b'), webService('a/created')];
+
+    // Then, BEFORE THE MERGE, no source document holds a channel at `a/created`, asserted over all
+    // three, and the unmerged web document draws the end as leading outside, which is the truth
+    const sourceAddresses = services.flatMap((service) =>
+      [...service.document.nodes.values()].flatMap((node) =>
+        node.kind === 'channel' && node.address !== undefined ? [node.address] : [],
+      ),
+    );
+    expect(sourceAddresses.sort()).toEqual(['created', 'created']);
+    expect(sourceAddresses).not.toContain('a/created');
+
+    const alone = buildTopology(services[2]?.document ?? services[0]?.document ?? ({} as never));
+    expect(alone.groups[0]?.edges[0]?.to.outside).toBe(true);
+    expect(alone.groups[0]?.edges[0]?.to.nodeId).toBeUndefined();
+
+    // When the three are merged under the default namespace mode
+    const { document, report } = mergeDocuments(services, MERGED);
+    const target = buildTopology(document).groups[0]?.edges[0]?.to;
+
+    // Then the merged document really does hold a channel at `a/created`, which is what made the
+    // defect reachable: the address the merge invented for `a` reads exactly like the name `web`
+    // wrote, and before `T053-R1` the page drew a live link into service `a` from it
+    expect(
+      [...document.nodes.values()].flatMap((node) =>
+        node.kind === 'channel' && node.address !== undefined ? [node.address] : [],
+      ),
+    ).toContain('a/created');
+
+    // And the end is still unresolved, because the question is asked of the source addresses and
+    // no source document declares this event. The link is asserted first, deliberately: it is the
+    // defect a reader would see, and on the unfixed code this line reads `a_channel-created`.
+    expect(target?.nodeId).toBeUndefined();
+    expect(target?.outside).toBe(true);
+    expect(document.relationships[0]?.toKind).toBe('undeclared-event');
+    expect(document.relationships[0]?.to).toBe('a/created');
+    expect(report.renames.filter((rename) => rename.kind === 'event-name')).toEqual([]);
+    expect(report.endpointKinds).toEqual([
+      { serviceId: 'web', name: 'a/created', from: 'event', to: 'undeclared-event' },
+    ]);
+  });
+
+  /** The web service after an inner merge that had no channel for what it publishes to. */
+  function innerlyUndeclared(): FederationService {
+    const { document, report } = mergeDocuments([webService('orders.placed')], {
+      id: 'inner',
+      info: { title: 'Inner', version: '1.0.0' },
+    });
+
+    // The inner estate really did stamp the verdict, which is what makes the outer merge below a
+    // re-examination rather than a first look
+    expect(document.relationships[0]?.toKind).toBe('undeclared-event');
+    expect(report.endpointKinds).toEqual([
+      { serviceId: 'web', name: 'orders.placed', from: 'event', to: 'undeclared-event' },
+    ]);
+
+    return { id: 'inner', document };
+  }
+
+  it('should re-examine an undeclared end, because the verdict belongs to the estate that gave it', () => {
+    // Given a previous merge's output, which SPEC 15.1 makes an ordinary service, carrying an end
+    // an inner federation found nothing for, federated now with a service that documents exactly
+    // that channel
+    const services = [innerlyUndeclared(), eventsService()];
+
+    // When
+    const { document, report } = mergeDocuments(services, MERGED);
+    const target = buildTopology(document).groups[0]?.edges[0]?.to;
+
+    // Then the outer estate heals it: a document of THIS federation declares the event, so the end
+    // resolves onto that channel and the page stops printing a sentence that is false here. Left
+    // alone it would have said "no document in this federation declares this event" about a
+    // federation one of whose documents declares it, which is the same lie the kind exists to
+    // refuse, running the other way.
+    expect(target?.nodeId).toBe('orders_channel-placed');
+    expect(target?.outside).toBe(false);
+    expect(document.relationships[0]?.toKind).toBe('node');
+    expect(report.endpointKinds).toEqual([
+      {
+        serviceId: 'inner',
+        name: 'orders_channel-placed',
+        from: 'undeclared-event',
+        to: 'node',
+      },
+    ]);
+  });
+
+  it('should keep the verdict when the outer estate declares nothing either, which is the control', () => {
+    // Given the same previous merge's output, federated with a service that documents no channel
+    // at that address at all
+    const bystander: FederationService = {
+      id: 'zzz',
+      document: buildDocument({
+        id: 'zzz-api',
+        title: 'Bystander',
+        nodes: [operation({ id: 'get-z', path: '/z' })],
+      }),
+    };
+
+    // When
+    const { document, report } = mergeDocuments([innerlyUndeclared(), bystander], MERGED);
+    const target = buildTopology(document).groups[0]?.edges[0]?.to;
+
+    // Then the verdict stands, and the report carries nothing for it: the kind did not change, so
+    // there is nothing to undo, and a re-examination that recorded a decision it did not take
+    // would leave an inverter putting back a kind that never moved
+    expect(document.relationships[0]?.toKind).toBe('undeclared-event');
+    expect(target?.outside).toBe(true);
+    expect(report.endpointKinds).toEqual([]);
+  });
+
+  it('should send the verdict back to ambiguous when the outer estate answers twice', () => {
+    // Given the same output, federated with two services that both document that address
+    const second: FederationService = {
+      id: 'archive',
+      document: buildDocument({
+        id: 'archive-api',
+        title: 'Archive',
+        kind: 'events',
+        nodes: [channel({ id: 'channel-placed', address: 'orders.placed' })],
+      }),
+    };
+
+    // When
+    const { document, report } = mergeDocuments(
+      [innerlyUndeclared(), eventsService(), second],
+      MERGED,
+    );
+    const target = buildTopology(document).groups[0]?.edges[0]?.to;
+
+    // Then the kind moves the other way as well: this estate holds the address twice, so the end
+    // is an ambiguity rather than an absence, unresolved and inside, and the move is recorded so
+    // it inverts
+    expect(document.relationships[0]?.toKind).toBe('event');
+    expect(target?.nodeId).toBeUndefined();
+    expect(target?.outside).toBe(false);
+    expect(report.endpointKinds).toEqual([
+      { serviceId: 'inner', name: 'orders.placed', from: 'undeclared-event', to: 'event' },
+    ]);
+  });
+
+  it('should keep the ambiguous spelling of the same shape inside the composition', () => {
+    // Given the same three services, with `web` publishing to `created` itself, which is the
+    // address two of them answer
+    const services = [eventService('a'), eventService('b'), webService('created')];
+
+    // When
+    const { document } = mergeDocuments(services, MERGED);
+    const target = buildTopology(document).groups[0]?.edges[0]?.to;
+
+    // Then the end is unresolved and the kind did not change, because the federation holds that
+    // address twice: this is an ambiguity rather than an absence, and the two are drawn apart
+    expect(document.relationships[0]?.toKind).toBe('event');
+    expect(target?.nodeId).toBeUndefined();
+    expect(target?.outside).toBe(false);
   });
 });
 

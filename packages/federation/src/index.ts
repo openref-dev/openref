@@ -27,10 +27,13 @@ export type {
 
 export { mergeDocuments, refuseBrokenReferences } from './merge/domain/merge-documents';
 
-export { compareText, sortRenames } from './merge/domain/merge-report';
+export { compareText, sortEndpointKinds, sortRenames } from './merge/domain/merge-report';
 export type {
   MergeDeduplication,
   MergeDeduplicationSource,
+  MergeEndpointAnswerKind,
+  MergeEndpointKind,
+  MergeEndpointSourceKind,
   MergeRename,
   MergeRenameKind,
   MergeRenameReason,
@@ -45,7 +48,7 @@ export {
   rewriteHealthReport,
   serviceRecord,
 } from './merge/domain/document-parts';
-export type { HealthSource } from './merge/domain/document-parts';
+export type { EventTargets, HealthSource } from './merge/domain/document-parts';
 
 export {
   allocateUnique,

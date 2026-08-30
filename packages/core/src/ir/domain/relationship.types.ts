@@ -13,6 +13,15 @@ export type IRRelationshipType = 'publishes' | 'subscribes' | 'calls' | 'webhook
  * node id", which is a coincidence standing in for a fact, and `unresolvedReferences` refused to
  * check edges at all because a checker cannot tell a service called `payments` from a node that
  * was dropped.
+ *
+ * THE FOURTH NAME ARRIVED AT `T053-R1` AND IT CARRIES AN ANSWER RATHER THAN A DECLARATION. In a
+ * merged document an `event` end stood for two facts that are not one fact: an address two
+ * channels of the federation answer, which the composition holds and cannot link, and a name no
+ * document of the federation declares at all. Only the merge can tell them apart, because only
+ * the merge sees every source document at once, and while the type could not carry its answer
+ * the answer was recomputed at render time against the merged addresses, which are addresses the
+ * merge invented rather than addresses any service wrote. That reading drew a live link into
+ * another service's channel from a name nobody declared; SPEC 15.1 records the shape that did it.
  */
 export type IRRelationshipEndpointKind =
   /** A key into {@link IRDocument.nodes} or {@link IRDocument.webhooks}. */
@@ -20,7 +29,14 @@ export type IRRelationshipEndpointKind =
   /** A service name: `IRService.id` in a merged document, `IRDocument.id` in one that is not. */
   | 'service'
   /** An event name this document holds no channel for, which is what `@ApiPublishes` declares. */
-  | 'event';
+  | 'event'
+  /**
+   * An event name no document of this federation declares, per SPEC 9.1.
+   *
+   * Produced by the merge and by nothing else, so an unmerged document never carries one: the
+   * question it answers is about every source document at once, and one document cannot ask it.
+   */
+  | 'undeclared-event';
 
 /**
  * An edge in the service topology.

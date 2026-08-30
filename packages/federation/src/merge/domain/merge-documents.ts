@@ -19,6 +19,7 @@ import {
   mergeKind,
   mergeRelationships,
   serviceRecord,
+  type EventTargets,
   type HealthSource,
   type RelationshipSource,
 } from './document-parts';
@@ -41,8 +42,10 @@ import {
 } from './name-allocation';
 import {
   compareText,
+  sortEndpointKinds,
   sortRenames,
   type MergeDeduplication,
+  type MergeEndpointKind,
   type MergeRename,
   type MergeRenameKind,
   type MergeRenameReason,
@@ -145,15 +148,17 @@ export function mergeDocuments(
   planNodes(ordered, maps, renames);
   const addresses = planAddresses(ordered, mode, renames);
   const schemePlan = planSchemes(ordered, mode, maps, renames);
-  const eventNames = planEventNames(ordered, addresses);
+  const events = planEventTargets(ordered, maps);
+  const endpointKinds: MergeEndpointKind[] = [];
 
   const document = build(ordered, options, {
     maps,
     schemaPlan,
     addresses,
-    eventNames,
+    events,
     schemes: schemePlan,
     renames,
+    endpointKinds,
   });
 
   refuseBrokenReferences(ordered, document);
@@ -165,6 +170,7 @@ export function mergeDocuments(
       onConflict: mode,
       renames: sortRenames(renames),
       deduplicated: schemaPlan.deduplicated,
+      endpointKinds: sortEndpointKinds(endpointKinds),
     },
   };
 }
@@ -351,43 +357,44 @@ function planAddresses(
 }
 
 /**
- * Decides which event names a topology edge carries have to move, and where to.
+ * Decides what the federation answers for every source channel address a topology edge can name.
  *
- * ONLY AN ADDRESS EXACTLY ONE CHANNEL OF THE FEDERATION ANSWERS IS A MOVE, per SPEC 15.1, which is
+ * ONLY AN ADDRESS EXACTLY ONE CHANNEL OF THE FEDERATION ANSWERS RESOLVES, per SPEC 15.1, which is
  * the rule SPEC 9.5 applies inside one document lifted to the whole federation and for the same
- * reason: two services answering one address is an ambiguity, and moving the name onto either of
- * them would be a guess. After the merge those two channels carry different addresses anyway, so
- * the unmoved name resolves to neither, which is the honest answer.
+ * reason: two services answering one address is an ambiguity, and picking either of them would be
+ * a guess. Those two are `held` and not `resolved`, which is the distinction that keeps an
+ * ambiguity inside the composition while a name nothing answers is honestly outside it.
  *
- * A NAME THAT DID NOT MOVE IS NOT IN THIS MAP AT ALL, so nothing is reported for a federation with
- * no prefixes and no address conflicts, where every address is already what it was.
+ * THE TARGET IS A MERGED NODE ID AND NOT A MERGED ADDRESS, AND THAT IS `T053-R1`. An address is a
+ * value the merge may have invented; a node id names the channel itself, so an end carrying one
+ * needs nothing recomputed at render time and cannot collide with an address that was never
+ * written by anybody. The source addresses are what the map is keyed by, because the source
+ * address is what a service's own `@ApiPublishes` was written against.
  *
  * @param ordered - Services, sorted by id
- * @param addresses - Merged address by service id and then by source node id
- * @returns Source channel address to merged address, holding only the addresses that moved
+ * @param maps - Per service maps, whose `nodeIds` name the merged channel
+ * @returns What the federation answers, resolved targets and every address it holds
  */
-function planEventNames(
+function planEventTargets(
   ordered: readonly FederationService[],
-  addresses: ReadonlyMap<string, ReadonlyMap<string, string>>,
-): ReadonlyMap<string, string> {
+  maps: ReadonlyMap<string, MutableMaps>,
+): EventTargets {
   const claimed = new Map<string, string | null>();
 
   for (const service of ordered) {
-    const perService = addresses.get(service.id);
+    const perService = maps.get(service.id);
 
     for (const [sourceId, node] of service.document.nodes) {
       if (node.kind !== 'channel' || node.address === undefined) continue;
-      const merged = perService?.get(sourceId) ?? node.address;
-      claimed.set(node.address, claimed.has(node.address) ? null : merged);
+      const nodeId = perService?.nodeIds.get(sourceId) ?? sourceId;
+      claimed.set(node.address, claimed.has(node.address) ? null : nodeId);
     }
   }
 
-  const moves = new Map<string, string>();
-  for (const [source, merged] of claimed) {
-    if (merged !== null && merged !== source) moves.set(source, merged);
-  }
+  const resolved = new Map<string, string>();
+  for (const [address, nodeId] of claimed) if (nodeId !== null) resolved.set(address, nodeId);
 
-  return moves;
+  return { resolved, held: new Set(claimed.keys()) };
 }
 
 /** What planning the security scheme space produced: one merged scheme per resolved claim. */
@@ -469,10 +476,11 @@ interface BuildPlan {
   readonly maps: ReadonlyMap<string, MutableMaps>;
   readonly schemaPlan: SchemaPlan;
   readonly addresses: ReadonlyMap<string, ReadonlyMap<string, string>>;
-  /** Source channel address to merged address, federation wide, holding only what moved. */
-  readonly eventNames: ReadonlyMap<string, string>;
+  /** What the federation answers for each source channel address, per SPEC 15.1. */
+  readonly events: EventTargets;
   readonly schemes: SchemePlan;
   readonly renames: MergeRename[];
+  readonly endpointKinds: MergeEndpointKind[];
 }
 
 /**
@@ -552,7 +560,7 @@ function build(
     nodes,
     schemas,
     security,
-    relationships: mergeRelationships(edgeSources, plan.eventNames, plan.renames),
+    relationships: mergeRelationships(edgeSources, plan.events, plan.renames, plan.endpointKinds),
     webhooks,
     services,
   };

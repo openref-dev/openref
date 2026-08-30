@@ -33,8 +33,9 @@ export interface IRTopologyEndpoint {
   /**
    * The node this end turned out to name, when it names one.
    *
-   * Absent on a `service` end, on a `node` end whose node is not in this document, and on an
-   * `event` end that no channel address matches or that two channels match at once. The
+   * Absent on a `service` end, on a `node` end whose node is not in this document, on an
+   * `event` end that no channel address matches or that two channels match at once, and on every
+   * `undeclared-event` end, which is the kind the merge gives a name nothing declares. The
    * distinction from {@link IRTopologyEndpoint.kind} is the point: `kind` is what was declared
    * and this is what was found, and a reader is owed both.
    */
@@ -53,9 +54,14 @@ export interface IRTopologyEndpoint {
    *
    * The known set is `nodes` and `webhooks` for a `node` end, `IRService.id` of a merged document
    * or `IRDocument.id` of an unmerged one for a `service` end, and the channel addresses of the
-   * document for an `event` end. AMBIGUITY IS INSIDE: an address two channels answer is held by
-   * this document, so it stays unresolved and not marked, because marking it would print a false
-   * statement about a document that describes those channels.
+   * document for an `event` end of an unmerged document. AMBIGUITY IS INSIDE: an address two
+   * channels answer is held by this document, so it stays unresolved and not marked, because
+   * marking it would print a false statement about a document that describes those channels.
+   *
+   * IN A MERGED DOCUMENT THE MERGE ANSWERED BOTH QUESTIONS ALREADY, per SPEC 15.1. An `event` end
+   * that survived the merge is one the federation answers ambiguously, so it is inside; an
+   * `undeclared-event` end is one no document of the federation declares, so it is outside, and
+   * its mark says that in the federation's own words rather than in this document's.
    */
   readonly outside: boolean;
 }
@@ -187,11 +193,23 @@ function knownServices(document: IRDocument): ReadonlySet<string> {
 /**
  * Builds one end of an edge, resolving it against the document as far as the document allows.
  *
+ * AN `event` END OF A MERGED DOCUMENT IS NOT RESOLVED HERE AT ALL, per SPEC 9.5, and that is
+ * `T053-R1`. The rule one paragraph up resolves an event name against the addresses of the
+ * document being drawn, and a merged document's addresses are the ones the merge invented: two
+ * services holding a channel at `created` come apart into `a/created` and `b/created`, so a third
+ * service that wrote `@ApiPublishes('a/created')` resolved into service `a`'s channel and the page
+ * drew a live link no source document authored. The event names services wrote and the addresses
+ * the merge produced are two vocabularies, and a hit in one is not a fact about the other. The
+ * merge answers instead, against the source addresses of every service at once, and records the
+ * answer in the end's kind: `node` when it resolved, `event` when the federation holds the address
+ * ambiguously, `undeclared-event` when nothing declares it. This function passes that through.
+ *
  * @param kind - What the edge said the end is
  * @param name - The value the edge carried
  * @param nodes - Every node of the document, its own and its webhooks
  * @param addresses - What this document's channels answer to
  * @param services - Service names this document knows
+ * @param merged - Whether this document is a federation, which is what stops event resolution
  * @returns The endpoint, with `nodeId` set only where something was found, and `outside` set only
  *          where nothing under the name is here at all
  */
@@ -201,22 +219,56 @@ function endpointOf(
   nodes: ReadonlyMap<string, IRNode>,
   addresses: ChannelAddresses,
   services: ReadonlySet<string>,
+  merged: boolean,
 ): IRTopologyEndpoint {
-  const id = kind === 'node' ? name : kind === 'event' ? addresses.resolved.get(name) : undefined;
+  const resolvable = kind === 'node' || (kind === 'event' && !merged);
+  const id = kind === 'node' ? name : resolvable ? addresses.resolved.get(name) : undefined;
   const node = id === undefined ? undefined : nodes.get(id);
 
   if (node !== undefined && id !== undefined) {
     return { name, kind, nodeId: id, label: nodeLabel(node), outside: false };
   }
 
-  const outside =
-    kind === 'service'
-      ? !services.has(name)
-      : kind === 'event'
-        ? !addresses.held.has(name)
-        : !nodes.has(name);
+  const outside = outsideOf(kind, name, nodes, addresses, services, merged);
 
   return { name, kind, label: name, outside };
+}
+
+/**
+ * Whether the known set holds nothing at all under this end's name, per SPEC 9.5.
+ *
+ * THE MERGED CASE IS THE MERGE'S ANSWER AND NOT A SECOND OPINION. An `event` end that survived a
+ * merge is one the federation answers ambiguously, which SPEC 9.5 keeps inside because the
+ * composition really does hold those channels; an `undeclared-event` end is one nothing in the
+ * federation declares, which is outside by the definition of the kind. Asking the merged
+ * addresses again would answer a different question with the same words.
+ *
+ * @param kind - What the edge said the end is
+ * @param name - The value the edge carried
+ * @param nodes - Every node of the document, its own and its webhooks
+ * @param addresses - What this document's channels answer to
+ * @param services - Service names this document knows
+ * @param merged - Whether this document is a federation
+ * @returns Whether the end leads out of the known set
+ */
+function outsideOf(
+  kind: IRRelationshipEndpointKind,
+  name: string,
+  nodes: ReadonlyMap<string, IRNode>,
+  addresses: ChannelAddresses,
+  services: ReadonlySet<string>,
+  merged: boolean,
+): boolean {
+  switch (kind) {
+    case 'node':
+      return !nodes.has(name);
+    case 'service':
+      return !services.has(name);
+    case 'event':
+      return merged ? false : !addresses.held.has(name);
+    case 'undeclared-event':
+      return true;
+  }
 }
 
 /**
@@ -239,13 +291,16 @@ export function buildTopology(document: IRDocument): IRTopology {
   const nodes = new Map<string, IRNode>([...document.nodes, ...document.webhooks]);
   const addresses = channelsByAddress(document);
   const services = knownServices(document);
+  // A MERGED DOCUMENT IS ONE WITH MEMBERS, and `IRDocument.services` is where the merge writes
+  // them, so no flag has to be invented and no unmerged document can be mistaken for one.
+  const merged = (document.services ?? []).length > 0;
 
   const kept = orderRelationships(document.relationships);
 
   const resolved = kept.map((edge) => ({
     edge,
-    from: endpointOf(edge.fromKind, edge.from, nodes, addresses, services),
-    to: endpointOf(edge.toKind, edge.to, nodes, addresses, services),
+    from: endpointOf(edge.fromKind, edge.from, nodes, addresses, services, merged),
+    to: endpointOf(edge.toKind, edge.to, nodes, addresses, services, merged),
   }));
 
   // AN ENDPOINT LEADS SOMEWHERE WHEN IT IS THE SOURCE OF AN EDGE, and that is the only reading of

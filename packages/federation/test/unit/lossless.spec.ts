@@ -84,14 +84,25 @@ function federation(): FederationService[] {
           }),
           channel({ id: 'paid', address: 'billing.paid' }),
         ],
-        // An `event` end, per SPEC 9.1: a name orders documents no channel for, answered by a
-        // channel of billing. It is the one name in this federation that belongs to another
-        // service's address space, so it is the one the report has to invert with its own kind.
+        // Two `event` ends, per SPEC 9.1: names orders documents no channel for. The first is
+        // answered by exactly one channel of the federation, billing's, so the merge resolves it
+        // onto that channel's node and both the name and the kind have to come back. The second is
+        // answered by nothing at all, so the merge calls it `undeclared-event` and only the kind
+        // has to come back. Two rather than one because the inversion below would pass on either
+        // alone while getting the other wrong.
         relationships: [
           {
             from: 'get-status',
             fromKind: 'node',
             to: 'billing.settled',
+            toKind: 'event',
+            type: 'publishes',
+            confidence: 'declared',
+          },
+          {
+            from: 'get-status',
+            fromKind: 'node',
+            to: 'nobody.listens',
             toKind: 'event',
             type: 'publishes',
             confidence: 'declared',
@@ -137,9 +148,9 @@ function inverseMaps(report: MergeReport, serviceId: string): RewriteMaps {
  * Merged edge end back to the name one service's own document wrote, for every end kind.
  *
  * A `node` END AND AN `event` END COME FROM TWO RENAME KINDS AND ONE SERVICE. The node id moved
- * because this service's node moved; the event name moved because another service's channel did,
- * and the merge records it against the service that declared the edge precisely so that this
- * inversion can be built from one service's renames alone.
+ * because this service's node moved; the event name moved because the merge resolved it onto
+ * another service's channel, and the merge records it against the service that declared the edge
+ * precisely so that this inversion can be built from one service's renames alone.
  */
 function inverseEdgeNames(report: MergeReport, serviceId: string): Map<string, string> {
   const names = new Map<string, string>();
@@ -152,6 +163,26 @@ function inverseEdgeNames(report: MergeReport, serviceId: string): Map<string, s
   }
 
   return names;
+}
+
+/**
+ * Merged edge end back to the kind one service's own document wrote, per SPEC 15.1.
+ *
+ * THE KIND IS THE HALF A RENAME CANNOT CARRY, and it is why `MergeReport.endpointKinds` exists.
+ * The merge answers an `event` end federation wide and writes the answer into the end: a resolved
+ * one becomes a `node`, one nothing declares becomes an `undeclared-event`. An inversion built out
+ * of names alone would put every name back and hand a reader edges of the wrong kind, which is a
+ * merge that is lossless by the letter and not by the claim.
+ */
+function inverseEdgeKinds(report: MergeReport, serviceId: string): Map<string, string> {
+  const kinds = new Map<string, string>();
+
+  for (const change of report.endpointKinds) {
+    if (change.serviceId !== serviceId) continue;
+    kinds.set(change.name, change.from);
+  }
+
+  return kinds;
 }
 
 /** Merged address back to the address the service's own document wrote. */
@@ -266,7 +297,7 @@ describe('mergeDocuments, losslessness proved by undoing it', () => {
     ]);
   });
 
-  it('should give every source relationship back, the event name a channel move rewrote included', () => {
+  it('should give every source relationship back, both halves of an event end included', () => {
     // Given the same three services, where orders publishes to an address only billing documents
     // a channel for, and billing is mounted under a prefix, so that address moves in the merge
     const services = federation();
@@ -286,26 +317,42 @@ describe('mergeDocuments, losslessness proved by undoing it', () => {
         kind: 'event-name',
         serviceId: 'orders',
         from: 'billing.settled',
-        to: 'billing/billing.settled',
+        to: 'billing_settled',
         reason: 'target-moved',
         contestedBy: [],
       },
     ]);
     const ends = document.relationships.map((edge) => edge.to);
-    expect(ends).toContain('billing/billing.settled');
+    expect(ends).toContain('billing_settled');
     expect(ends).not.toContain('billing.settled');
+
+    // And the merge really did change two kinds, in the two directions it can change one, so the
+    // kind inversion below undoes something as well. Presence first: an inversion asserted over a
+    // merge that changed no kind would pass with the whole of `endpointKinds` deleted.
+    expect(report.endpointKinds).toEqual([
+      { serviceId: 'orders', name: 'billing_settled', from: 'event', to: 'node' },
+      { serviceId: 'orders', name: 'nobody.listens', from: 'event', to: 'undeclared-event' },
+    ]);
+    expect(document.relationships.map((edge) => edge.toKind).sort()).toEqual([
+      'node',
+      'service',
+      'undeclared-event',
+    ]);
 
     // And every edge every service declared comes back from the merged document and the report
     // alone, with the count each service declared asserted beside it so that a service whose
     // edges vanished from the source fixture cannot read as a service that lost nothing
     const restored = services.map((service) => {
       const inverse = inverseEdgeNames(report, service.id);
+      const kinds = inverseEdgeKinds(report, service.id);
       const back = new Set(
         document.relationships.map((edge) =>
           hash({
             ...edge,
             from: inverse.get(edge.from) ?? edge.from,
+            fromKind: kinds.get(edge.from) ?? edge.fromKind,
             to: inverse.get(edge.to) ?? edge.to,
+            toKind: kinds.get(edge.to) ?? edge.toKind,
           }),
         ),
       );
@@ -319,7 +366,7 @@ describe('mergeDocuments, losslessness proved by undoing it', () => {
 
     expect(restored).toEqual([
       { id: 'billing', declared: 1, missing: 0 },
-      { id: 'orders', declared: 1, missing: 0 },
+      { id: 'orders', declared: 2, missing: 0 },
       { id: 'shipping', declared: 0, missing: 0 },
     ]);
   });

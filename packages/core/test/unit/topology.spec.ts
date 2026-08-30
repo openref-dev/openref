@@ -375,11 +375,27 @@ describe('buildTopology', () => {
         .map((name) => ({ name, load: () => eventsDocument(name) })),
     ];
 
-    // When, every document folded a second time by the view
+    // When, every document folded a second time by the view. THE EVENT CLASS IS COUNTED ON THE
+    // SAME WALK, per SPEC 15.1, because it is the same forty documents and a second walk would
+    // buy a second copy of the cost this comment is about. An end of kind `event` is what
+    // `@ApiPublishes` produces and nothing else does, so no published document can carry one; that
+    // is the recorded zero the measurement in SPEC 15.1 rests on, and until this line it had no
+    // runner at all while the other half of the ratio had two.
     let withEdges = 0;
     let refolded = 0;
+    let documentsRead = 0;
+    const eventClassEnds: string[] = [];
     for (const entry of documents) {
       const document = entry.load();
+      documentsRead += 1;
+      for (const edge of document.relationships) {
+        if (edge.fromKind === 'event' || edge.fromKind === 'undeclared-event') {
+          eventClassEnds.push(`${entry.name} ${edge.from}`);
+        }
+        if (edge.toKind === 'event' || edge.toKind === 'undeclared-event') {
+          eventClassEnds.push(`${entry.name} ${edge.to}`);
+        }
+      }
       if (document.relationships.length === 0) continue;
       withEdges += 1;
       if (buildTopology(document).edgeCount !== document.relationships.length) refolded += 1;
@@ -389,6 +405,11 @@ describe('buildTopology', () => {
     // not an empty loop
     expect(withEdges).toBeGreaterThan(20);
     expect(refolded).toBe(0);
+
+    // And the whole corpus, both families, carries no end of the event class, over documents that
+    // were asserted above to carry edges in the first place
+    expect(documentsRead).toBe(40);
+    expect(eventClassEnds).toEqual([]);
   }, 60_000);
 });
 
@@ -532,6 +553,60 @@ describe('buildTopology, the end that leads out of the known set', () => {
     expect(ambiguous?.nodeId).toBeUndefined();
     expect(ambiguous?.outside).toBe(false);
     expect(unknown?.outside).toBe(true);
+  });
+
+  it('should resolve an event end by address in an unmerged document and refuse to in a merged one', () => {
+    // Given one document, twice: the same channel and the same edge, once as a service's own
+    // document and once as a federation. The address is what the merge would have invented for a
+    // channel of service `a`, and the edge is what a third service wrote by hand, which is the
+    // `T053-R1` shape reduced to the one decision this function takes.
+    const nodes = [channel('a_channel-created', 'a/created')];
+    const edges = [edge('get-p', 'node', 'a/created', 'event')];
+    const alone = documentWith(nodes, edges);
+    const merged = federated(nodes, edges, ['a', 'b', 'web']);
+
+    // When the same graph is built over both
+    const before = buildTopology(alone).groups[0]?.edges[0]?.to;
+    const after = buildTopology(merged).groups[0]?.edges[0]?.to;
+
+    // Then the unmerged document resolves it exactly as it always did, because there the address
+    // is what the document's own author wrote
+    expect(before?.nodeId).toBe('a_channel-created');
+    expect(before?.outside).toBe(false);
+
+    // And the merged one resolves nothing, because there the address is what the merge invented,
+    // and a hit in the merged address space is not a fact about any event name a service wrote.
+    // The end stays inside, which is what an unresolved `event` end of a merged document means:
+    // the merge already answered, and what it left is an ambiguity rather than an absence.
+    expect(after?.nodeId).toBeUndefined();
+    expect(after?.outside).toBe(false);
+    expect(merged.nodes.get('a_channel-created')).toBeDefined();
+  });
+
+  it('should mark an undeclared event end as outside and never resolve it', () => {
+    // Given a merged document holding a channel at the very address the end names, which is the
+    // trap: the kind is the merge's answer and it outranks anything the addresses now say
+    const document = federated(
+      [channel('a_channel-created', 'a/created')],
+      [
+        edge('get-p', 'node', 'a/created', 'undeclared-event'),
+        edge('get-p', 'node', 'a/created', 'event'),
+      ],
+      ['a', 'web'],
+    );
+
+    // When
+    const targets = buildTopology(document).groups[0]?.edges.map((entry) => entry.to) ?? [];
+    const undeclared = targets.find((end) => end.kind === 'undeclared-event');
+    const ambiguous = targets.find((end) => end.kind === 'event');
+
+    // Then the undeclared end is unresolved and outside, and the `event` end beside it, with the
+    // same name on the same document, is unresolved and inside. Two facts, two answers, and the
+    // only thing separating them is the kind the merge wrote.
+    expect(undeclared?.nodeId).toBeUndefined();
+    expect(undeclared?.outside).toBe(true);
+    expect(ambiguous?.nodeId).toBeUndefined();
+    expect(ambiguous?.outside).toBe(false);
   });
 
   it('should tell a dead end and an outside end apart, since they are different facts', () => {

@@ -1981,13 +1981,24 @@ export const FEDERATION_SUITE_COVERAGE: readonly StaticCoverage[] = [
       // failure this row's own sentence cannot survive.
       'should merge one of each kind into one document that holds every node',
       'should give one hash and one report whichever order the three are configured in',
-      'should move the event name onto the address the target channel now answers',
+      // THE FIRST TITLE MOVED AT `T053-R1` BECAUSE THE PROPERTY DID, and the case is the same
+      // case: an event end used to be moved onto the merged address of the target channel, and it
+      // is now resolved onto that channel's node, because a merged address is a value the merge
+      // invented while a node id names the channel itself. Nothing is dropped from this row.
+      'should resolve the event end onto the channel node the federation answers with',
       'should leave an event name alone when two services answer the same address',
       'should record the move so the report still inverts the merge',
+      // ADDED BY `T053-R1`: the merged address that read exactly like a name no source document
+      // declared, which resolved into another service's channel and drew a link nobody authored.
+      'should refuse to resolve a name no source document declares, however the merge spells it',
       'should span services in the topology, which is the reason the feature exists',
       // And at the lifecycle, where an events remote is fetched at all and the page is one page.
       'should fetch an events remote at all, which the OpenAPI only reader refused',
       'should merge the four into one document of every kind, and render it as one page',
+      // ADDED BY THE BLIND REVIEW OF `T053-R1`. SPEC 15.1 records a measurement whose runner is
+      // this case, and it was the one case in its file no row named, so deleting the ratio was
+      // silent to every gate. A figure with no runner is what this row exists to prevent.
+      'should carry exactly two of the class of edge no corpus document can produce',
       // And over a real socket, which is the only place the fetch, the parse, the reader dispatch
       // and the cache file are all the real ones. Named here because listing the file alone left
       // this case deletable with the gate still green.

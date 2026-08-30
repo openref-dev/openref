@@ -35,13 +35,30 @@ function endpoint(end: IRTopologyEndpoint, basePath: string): VNode {
 /**
  * The mark for an end that leads out of what this document knows, per SPEC 9.5.
  *
- * A DIFFERENT FACT FROM A MISSING LINK. `nodeId` is unset for four different reasons and only two
- * of them mean the target is not here: a service nobody federated in and a name no node or channel
- * of this document answers. `outside` is the one that says which, and drawing the two alike would
- * leave a reader unable to tell the boundary of the federation from the shape of the estate.
- * Words rather than a colour, the rule this theme applies to every mark it draws.
+ * A DIFFERENT FACT FROM A MISSING LINK. `nodeId` is unset for several different reasons and only
+ * some of them mean the target is not here: a service nobody federated in and a name no node or
+ * channel of this document answers. `outside` is the one that says which, and drawing the two
+ * alike would leave a reader unable to tell the boundary of the federation from the shape of the
+ * estate. Words rather than a colour, the rule this theme applies to every mark it draws.
+ *
+ * AN `undeclared-event` END GETS ITS OWN MARK AND NOT THIS ONE, per SPEC 9.5. The merge already
+ * established that no source document of the federation declares the event, which is more than
+ * "not in this document", so the code stands in for the phrase and the phrase rides in the title.
+ * A three letter code because the provenance marks of this theme carry one, and an `abbr` because
+ * that is the element for a code standing for a longer thing.
  */
 function outsideMark(end: IRTopologyEndpoint): VNode | null {
+  if (end.kind === 'undeclared-event') {
+    return h(
+      'abbr',
+      {
+        class: 'tt-topology-undeclared',
+        title: 'No document in this federation declares this event',
+      },
+      'UND',
+    );
+  }
+
   return end.outside ? h('span', { class: 'tt-topology-outside' }, 'OUTSIDE') : null;
 }
 

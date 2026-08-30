@@ -1611,9 +1611,15 @@
 
 .tt-topology-type,
 .tt-topology-dead,
+.tt-topology-undeclared,
 .tt-topology-outside {
   color: var(--oref-color-fg-secondary);
   font-size: var(--oref-font-size-100);
   letter-spacing: var(--oref-font-tracking-wide);
   text-transform: uppercase;
+}
+
+/* An `abbr`, so the title underline goes, exactly as it goes on `.tt-prov`. */
+.tt-topology-undeclared {
+  text-decoration: none;
 }

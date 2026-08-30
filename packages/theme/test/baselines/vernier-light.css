@@ -2099,9 +2099,14 @@ a.oref-topology-name {
 .oref-fact-label,
 .oref-topology-type,
 .oref-topology-dead,
+.oref-topology-undeclared,
 .oref-topology-outside {
   color: #5f6e7a;
   font-size: 13px;
+}
+
+.oref-topology-undeclared {
+  text-decoration: none;
 }
 
 .oref-fact-value,

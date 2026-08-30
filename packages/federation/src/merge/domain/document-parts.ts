@@ -7,7 +7,12 @@ import type {
   IRService,
 } from '@openref/core';
 import type { FederationService } from './federation-options';
-import type { MergeRename } from './merge-report';
+import type {
+  MergeEndpointAnswerKind,
+  MergeEndpointKind,
+  MergeEndpointSourceKind,
+  MergeRename,
+} from './merge-report';
 import { rewriteDriftIssue, rewriteServers, type RewriteMaps } from './rewrite';
 
 /**
@@ -151,6 +156,20 @@ export interface RelationshipSource {
   readonly serviceId: string;
 }
 
+/** What the whole federation answers for a source channel address, per SPEC 15.1. */
+export interface EventTargets {
+  /** Source channel address to merged node id, holding only the addresses one channel answers. */
+  readonly resolved: ReadonlyMap<string, string>;
+  /** Every source channel address any service of the federation answers, ambiguous ones included. */
+  readonly held: ReadonlySet<string>;
+}
+
+/** One edge end after the merge decided what it is. */
+interface MovedEnd {
+  readonly value: string;
+  readonly kind: IRRelationship['fromKind'];
+}
+
 /**
  * Collects the topology edges of every service onto the merged document.
  *
@@ -159,17 +178,22 @@ export interface RelationshipSource {
  * id, which is a coincidence standing in for a fact: a service whose name happened to equal a
  * dropped node's id would have been rewritten into a node. SPEC 9.1 puts the kind in the type, so
  * a `node` end goes through the node map, a `service` end that names this service's own document
- * becomes this service's id, and an `event` end goes through the federation wide address map
- * described below.
+ * becomes this service's id, and an `event` end is answered federation wide as described below.
  *
  * AN `event` END IS THE CROSS SERVICE CASE AND IT IS WHY `T053` EXISTS. The publisher and the
  * consumer of one event live in different remotes: an HTTP service writes `@ApiPublishes` naming
  * an address it documents no channel for, and the channel is in the event document next door. It
- * cannot be resolved before the merge, because the other document is not here, and it cannot be
- * resolved after the merge either once that channel's address has moved under its service's
- * prefix, because the event name did not move with it. So the merge moves it, by the map
- * `eventNames`, which holds only the source addresses exactly one channel of the whole federation
- * answers, per SPEC 15.1 and by the rule SPEC 9.5 already applies one level down.
+ * cannot be resolved before the merge, because the other document is not here.
+ *
+ * IT IS ALSO WHY `T053-R1` EXISTS, AND THAT IS WHAT THE THREE ANSWERS BELOW ARE. Resolving it
+ * after the merge is worse than useless: the merged addresses are the ones the merge invented, so
+ * two services holding a channel at `created` come apart into `a/created` and `b/created` and a
+ * third service that wrote `@ApiPublishes('a/created')` resolved into service `a`'s channel with
+ * no source document ever saying so. So the question is asked here, once, against the source
+ * addresses of every service at once, and the answer is written into the end's kind rather than
+ * recomputed later: `node` when exactly one channel of the federation answers, `event` when two or
+ * more do, which is an ambiguity SPEC 9.5 keeps unresolved, and `undeclared-event` when nothing
+ * does, which is a true statement about the federation.
  *
  * A `service` END NAMING SOMETHING ELSE IS LEFT ALONE, and that is the interesting half. A
  * service that declares an edge to `ledger-service` while `ledger-service` is not part of this
@@ -180,58 +204,117 @@ export interface RelationshipSource {
  * same event are describing one edge, and a topology graph that drew it twice would weight it
  * twice.
  *
- * THE LAST TWO PARAMETERS ARE REQUIRED, AND THEY CARRIED DEFAULTS FOR EXACTLY ONE REVIEW. An empty
- * map and a discarded array are the pre-`T053` behaviour of this function, so a caller that forgot
- * them got a merge with every event end left where it was written and a report that no longer
- * inverts the merge, silently and with nothing red. That is the shape of defect this repository
- * keeps finding, and a compile error is the cheapest place to put it. The package is internal and
- * unpublished per SPEC 4, so nothing outside this repository is obliged by the change.
+ * THE LAST THREE PARAMETERS ARE REQUIRED, AND THE FIRST TWO OF THEM CARRIED DEFAULTS FOR EXACTLY
+ * ONE REVIEW. An empty map and a discarded array are the pre-`T053` behaviour of this function, so
+ * a caller that forgot them got a merge with every event end left where it was written and a
+ * report that no longer inverts the merge, silently and with nothing red. That is the shape of
+ * defect this repository keeps finding, and a compile error is the cheapest place to put it. The
+ * package is internal and unpublished per SPEC 4, so nothing outside this repository is obliged by
+ * the change.
  *
  * @param sources - Each service's relationships with its identity and rewrite maps, in service order
- * @param eventNames - Source channel address to merged address, federation wide, moves only
+ * @param events - What the federation answers for each source channel address
  * @param renames - Report entries, appended to, so the report still inverts the merge
+ * @param endpointKinds - Kind changes, appended to, so the report inverts those too
  * @returns The merged edges, first occurrence order, without repeats
  */
 export function mergeRelationships(
   sources: readonly RelationshipSource[],
-  eventNames: ReadonlyMap<string, string>,
+  events: EventTargets,
   renames: MergeRename[],
+  endpointKinds: MergeEndpointKind[],
 ): IRRelationship[] {
   const seen = new Set<string>();
   const merged: IRRelationship[] = [];
   const reported = new Set<string>();
 
   for (const source of sources) {
-    const move = (value: string, kind: IRRelationship['fromKind']): string => {
-      if (kind === 'node') return source.maps.nodeIds.get(value) ?? value;
-      if (kind === 'service') return value === source.documentId ? source.serviceId : value;
+    /**
+     * What this federation answers for one event end, and what the report owes for the answer.
+     *
+     * THE END'S CURRENT KIND IS AN INPUT AND NOT A VERDICT, per SPEC 9.1. An `undeclared-event`
+     * end is an answer some other estate gave, and this estate is a different estate: a merge's
+     * output is a service, so the service handed to this merge may itself be a merge's output, and
+     * the channel its inner federation lacked may be right here. Leaving it alone printed "no
+     * document in this federation declares this event" about a federation whose document declares
+     * it, which is the same false statement the kind exists to refuse, running the other way.
+     *
+     * @param value - The event name, as the declaring service wrote it
+     * @param kind - What the end says it is now, which is one of the two event kinds
+     * @returns The end after this federation answered
+     */
+    const answer = (value: string, kind: MergeEndpointSourceKind): MovedEnd => {
+      const target = events.resolved.get(value);
+      const settled: { readonly value: string; readonly kind: MergeEndpointAnswerKind } =
+        target !== undefined
+          ? { value: target, kind: 'node' }
+          : { value, kind: events.held.has(value) ? 'event' : 'undeclared-event' };
 
-      const moved = eventNames.get(value);
-      if (moved === undefined) return value;
+      // AN UNCHANGED KIND OWES THE REPORT NOTHING, because there is nothing to undo. This is what
+      // keeps a federation that changes no answer out of the report entirely.
+      if (settled.kind === kind) return settled;
 
-      // One rename per service and source name, which is the invariant `sortRenames` states. An
-      // edge repeated inside one service, or two edges naming one address, is one move.
+      // One record per service and source name, which is the invariant the report's own sort
+      // states. An edge repeated inside one service, or two edges naming one address, is one
+      // decision taken once.
       const key = `${source.serviceId} ${value}`;
-      if (!reported.has(key)) {
-        reported.add(key);
+      if (reported.has(key)) return settled;
+      reported.add(key);
+
+      if (target !== undefined) {
         renames.push({
           kind: 'event-name',
           serviceId: source.serviceId,
           from: value,
-          to: moved,
+          to: target,
           reason: 'target-moved',
           contestedBy: [],
         });
       }
 
-      return moved;
+      endpointKinds.push({
+        serviceId: source.serviceId,
+        name: settled.value,
+        from: kind,
+        to: settled.kind,
+      });
+
+      return settled;
+    };
+
+    /**
+     * One end, moved into the merged document by its own kind.
+     *
+     * IT IS A `switch` AND NOT AN `if` CHAIN, AND THE REASON IS A PROBE RATHER THAN A STYLE. The
+     * chain this replaced ended in a `kind !== 'event'` return, so a fifth member of
+     * `IRRelationshipEndpointKind` would have been absorbed here in silence while
+     * `ai-docs/design/CONTRACT.md` claimed two compile breaks. Measured on 2026-08-29: one.
+     *
+     * @param value - The end, as the declaring service wrote it
+     * @param kind - What the edge says the end is
+     * @returns The end after the merge decided
+     */
+    const move = (value: string, kind: IRRelationship['fromKind']): MovedEnd => {
+      switch (kind) {
+        case 'node':
+          return { value: source.maps.nodeIds.get(value) ?? value, kind };
+        case 'service':
+          return { value: value === source.documentId ? source.serviceId : value, kind };
+        case 'event':
+        case 'undeclared-event':
+          return answer(value, kind);
+      }
     };
 
     for (const edge of source.edges) {
+      const from = move(edge.from, edge.fromKind);
+      const to = move(edge.to, edge.toKind);
       const moved: IRRelationship = {
         ...edge,
-        from: move(edge.from, edge.fromKind),
-        to: move(edge.to, edge.toKind),
+        from: from.value,
+        fromKind: from.kind,
+        to: to.value,
+        toKind: to.kind,
       };
 
       const key = hash(moved);

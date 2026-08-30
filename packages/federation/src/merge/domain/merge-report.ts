@@ -1,4 +1,4 @@
-import type { IRDocument } from '@openref/core';
+import type { IRDocument, IRRelationshipEndpointKind } from '@openref/core';
 import type { FederationConflictMode } from './federation-options';
 
 /**
@@ -16,11 +16,13 @@ import type { FederationConflictMode } from './federation-options';
  *
  * `event-name` IS THE ONE THAT IS NOT A NAME THE SERVICE OWNS. It is the value an `event` end of a
  * topology edge carried, per SPEC 9.1: an event name is not a node id and not an address of the
- * service that declared it, it is the address of a channel some other service documents. It moves
- * when that channel's address moves, so the rename is recorded against the service that declared
- * the edge while the `channel-address` rename beside it is recorded against the service that owns
- * the channel. Two kinds rather than one, because inverting the merge means asking "what did this
- * service call this" and the two answers come from two services.
+ * service that declared it, it is the address of a channel some other service documents. When the
+ * federation turns out to hold exactly one channel at that address, the merge resolves the end
+ * onto that channel and the name becomes the channel's merged node id, so the rename is recorded
+ * against the service that declared the edge while the `channel-address` rename beside it is
+ * recorded against the service that owns the channel. Two kinds rather than one, because
+ * inverting the merge means asking "what did this service call this" and the two answers come
+ * from two services.
  */
 export type MergeRenameKind =
   | 'node'
@@ -55,9 +57,10 @@ export type MergeRenameReason =
    *
    * ONLY EVER AN `event-name`, and it is the one reason on this list that is about another
    * service's decision. The address a topology edge names belongs to a channel of some other
-   * service, and that channel moved under its own prefix or out of its own conflict; leaving the
-   * edge spelled as it was would leave a cross service relationship resolving to nothing, which is
-   * the whole of what SPEC 15.1 records here.
+   * service, and in the merged document that channel is named by its merged node id whether or
+   * not its address moved. Leaving the edge spelled as it was would leave a cross service
+   * relationship pointing at an address rather than at the channel it found, which is the whole
+   * of what SPEC 15.1 records here.
    */
   | 'target-moved'
   /** The name the rules above produced was already taken by something else. */
@@ -97,6 +100,48 @@ export interface MergeDeduplicationSource {
   readonly schemaId: string;
 }
 
+/**
+ * One topology edge end whose kind the merge decided, per SPEC 15.1.
+ *
+ * IT IS A SECOND LIST RATHER THAN A SEVENTH RENAME KIND BECAUSE IT IS NOT A NAME. An `event` end
+ * names an address some other service documents, and the merge is the only participant that can
+ * say what the federation answers with: exactly one channel, so the end becomes that channel's
+ * node; two or more, so it stays an unresolvable `event`; or nothing at all, so it becomes an
+ * `undeclared-event`. The name half of the first case is a rename and is recorded as one; the
+ * kind half is this. Without it, inverting the merge would mean knowing the rule "an `event-name`
+ * rename means the end also became a node", which is exactly the sort of thing this report exists
+ * to say out loud.
+ */
+export interface MergeEndpointKind {
+  /** Service whose own document declared the edge. */
+  readonly serviceId: string;
+  /** The name the end carries in the merged document. */
+  readonly name: string;
+  /**
+   * What the end was before this merge answered.
+   *
+   * THE TWO NAMES ARE THE TYPE AND NOT A SENTENCE, which is what SPEC 9.1 exists to insist on.
+   * `undeclared-event` is here because an answer belongs to the estate that gave it: a merge's
+   * output is a service, so an end this list carries may already have been answered by an inner
+   * federation that lacked the channel this one has.
+   */
+  readonly from: MergeEndpointSourceKind;
+  /** What the end is in the merged document. Never `service`, which the merge never decides. */
+  readonly to: MergeEndpointAnswerKind;
+}
+
+/** What an end the merge re-examines can have been: the two event kinds and nothing else. */
+export type MergeEndpointSourceKind = Extract<
+  IRRelationshipEndpointKind,
+  'event' | 'undeclared-event'
+>;
+
+/** What this federation can answer with: the channel it found, an ambiguity, or an absence. */
+export type MergeEndpointAnswerKind = Extract<
+  IRRelationshipEndpointKind,
+  'node' | 'event' | 'undeclared-event'
+>;
+
 /** Everything the merge decided, beside the document it decided it about. */
 export interface MergeReport {
   /** Service ids, sorted, which is also the order the merge processed them in. */
@@ -107,6 +152,21 @@ export interface MergeReport {
   readonly renames: readonly MergeRename[];
   /** Every schema class with more than one source, ordered by merged schema id. */
   readonly deduplicated: readonly MergeDeduplication[];
+  /** Every edge end whose kind the merge decided, ordered by service, then merged name. */
+  readonly endpointKinds: readonly MergeEndpointKind[];
+}
+
+/**
+ * Sorts endpoint kind changes into the one order a report is written in.
+ *
+ * @param changes - Changes in whatever order the merge produced them
+ * @returns The same changes, by service and then by merged name
+ */
+export function sortEndpointKinds(changes: readonly MergeEndpointKind[]): MergeEndpointKind[] {
+  return [...changes].sort((left, right) => {
+    const byService = compareText(left.serviceId, right.serviceId);
+    return byService === 0 ? compareText(left.name, right.name) : byService;
+  });
 }
 
 /** A merged document and the account of how it was made. */

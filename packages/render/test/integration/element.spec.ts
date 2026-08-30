@@ -66,15 +66,29 @@ async function servedServicePage(): Promise<string> {
 /**
  * The served overview of `T052`, whose document declares a topology graph.
  *
- * THE EDGES ARE PLANTED ON THE FIXTURE RATHER THAN NORMALIZED OUT OF IT, and the two states the
- * section draws differently are both here on purpose: an event nothing consumes, and an `inferred`
- * edge, which no normalizer produces because SPEC 9.4 gives that level no producer in M5.
+ * THE EDGES ARE PLANTED ON THE FIXTURE RATHER THAN NORMALIZED OUT OF IT, and the three states the
+ * section draws differently are all here on purpose: an event nothing consumes, an `inferred`
+ * edge, which no normalizer produces because SPEC 9.4 gives that level no producer in M5, and,
+ * since `T053-R1`, an `undeclared-event` end, whose mark is the third thing the section says in
+ * words. THE DOCUMENT IS FEDERATED FOR THE THIRD ONE, and it has to be: the merge is that kind's
+ * only producer, and a mark proved on a document no merge could have produced is a mark proved on
+ * a shape a reader never meets.
  */
 function graphDocument(): ReturnType<typeof smallDocument> {
   const base = smallDocument();
 
   return {
     ...base,
+    services: [
+      {
+        id: 'web',
+        documentId: base.id,
+        documentHash: '',
+        kind: 'http' as const,
+        info: { title: 'Web', version: '1.0.0' },
+        servers: [],
+      },
+    ],
     relationships: [
       {
         from: 'get-orders',
@@ -91,6 +105,14 @@ function graphDocument(): ReturnType<typeof smallDocument> {
         toKind: 'event' as const,
         type: 'publishes' as const,
         confidence: 'inferred' as const,
+      },
+      {
+        from: 'get-orders',
+        fromKind: 'node' as const,
+        to: 'a/created',
+        toKind: 'undeclared-event' as const,
+        type: 'publishes' as const,
+        confidence: 'declared' as const,
       },
     ],
   };
@@ -389,15 +411,26 @@ describe('the topology section inside the element, both modes, per SPEC 9.5', ()
   function graph(root: ParentNode): void {
     expect(root.querySelector('.oref-section-topology')).not.toBeNull();
 
-    // Both rows survived hydration rather than being thrown away with the server's markup, and
+    // Every row survived hydration rather than being thrown away with the server's markup, and
     // the two provenance levels are still told apart
-    expect(root.querySelectorAll('.oref-topology-edge')).toHaveLength(2);
+    expect(root.querySelectorAll('.oref-topology-edge')).toHaveLength(3);
     expect(root.querySelector('.oref-prov-declared')).not.toBeNull();
     expect(root.querySelector('.oref-prov-inferred')).not.toBeNull();
 
     // The dead end is words in the markup and not generated content, so it survives a stylesheet
     // that never arrives
     expect(root.querySelector('.oref-topology-dead')?.textContent).toBe('dead end');
+
+    // AND SO IS THE THIRD MARK, per SPEC 9.5. The code and the phrase are both in the adopted
+    // markup, in the element and in both DOM modes, so a reader in print, in a screen reader or
+    // with the stylesheet blocked reads the same fact. A mark drawn only by CSS would vanish for
+    // all three, which is what the other two marks of this section were built to avoid.
+    const undeclared = root.querySelector('.oref-topology-undeclared');
+    expect(undeclared?.textContent).toBe('UND');
+    expect(undeclared?.getAttribute('title')).toBe(
+      'No document in this federation declares this event',
+    );
+    expect(undeclared?.tagName.toLowerCase()).toBe('abbr');
 
     // And the section carries no control, which is what makes adopting it correct: a button here
     // would be pressable and attached to nothing, the F14 class

@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import type { IRDocument } from '@openref/core';
@@ -6,9 +6,11 @@ import {
   buildTopology,
   normalizeAsyncApiDocument,
   normalizeOpenApiDocument,
+  normalizeSpecification,
   parseSpecification,
 } from '@openref/core';
 import { mergeDocuments } from '../../src/index';
+import type { FederationService } from '../../src/index';
 
 /**
  * A mixed document, built from a real HTTP corpus document and a real event corpus document.
@@ -184,18 +186,89 @@ describe('a federation of one HTTP corpus document and one event corpus document
     );
     const topology = buildTopology(document);
 
-    // Then the event name is still what was declared, and it resolves to the other service's
-    // channel node, which is the cross service half of SPEC 9 that no single document can reach.
-    // The address chosen is one the event service consumes, so the chain the graph now holds is
-    // the whole of SPEC 9's diagram: an HTTP operation, an event, and the service that reads it
+    // Then the merge resolved the event end onto the other service's channel node, which is the
+    // cross service half of SPEC 9 that no single document can reach. Since `T053-R1` that
+    // resolution is the merge's answer and the end carries it as a `node` end, so the label a
+    // reader sees is the channel's address while the name is the channel itself. The address
+    // chosen is one the event service consumes, so the chain the graph now holds is the whole of
+    // SPEC 9's diagram: an HTTP operation, an event, and the service that reads it
+    const channelId = [...document.nodes.entries()].find(
+      ([, node]) => node.kind === 'channel' && node.address === address,
+    )?.[0];
     const declared = topology.groups.find((group) => group.from.name === 'petstore_get-pets');
-    const target = declared?.edges.find((edge) => edge.to.kind === 'event');
-    expect(target?.to.name).toBe(address);
-    expect(target?.to.nodeId).toBe(
-      [...document.nodes.entries()].find(
-        ([, node]) => node.kind === 'channel' && node.address === address,
-      )?.[0],
-    );
+    const target = declared?.edges.find((edge) => edge.type === 'publishes');
+    expect(target?.to.kind).toBe('node');
+    expect(target?.to.name).toBe(channelId);
+    expect(target?.to.label).toBe(address);
+    expect(target?.to.nodeId).toBe(channelId);
     expect(target?.deadEnd).toBe(false);
   });
+});
+
+/**
+ * Every corpus document of one family, read as a service of one estate.
+ *
+ * @param family - Which corpus directory to read
+ * @returns One service per document, ids derived from the file names so they cannot collide
+ */
+function corpusServices(family: 'corpus' | 'events-corpus'): FederationService[] {
+  const directory = join(CORE_TEST, family, 'documents');
+
+  return readdirSync(directory)
+    .sort()
+    .map((name) => ({
+      id: `${family}-${name.replace(/[^a-z0-9]/gi, '-').toLowerCase()}`,
+      document: normalizeSpecification(
+        parseSpecification(readFileSync(join(directory, name), 'utf8')),
+        { documentId: name },
+      ),
+    }));
+}
+
+/** Every end of a document's edges that names an event rather than something the document holds. */
+function eventClassEnds(document: IRDocument): string[] {
+  return document.relationships.flatMap((edge) => [
+    ...(edge.fromKind === 'event' || edge.fromKind === 'undeclared-event' ? [edge.from] : []),
+    ...(edge.toKind === 'event' || edge.toKind === 'undeclared-event' ? [edge.to] : []),
+  ]);
+}
+
+/**
+ * The zero half of the `T053-R1` measurement, which had no runner until the second blind review.
+ *
+ * SPEC 15.1 RECORDS TWO NUMBERS AND ONLY ONE OF THEM WAS RUNNABLE. The class that can carry the
+ * defect is an end of kind `event`, produced by `@ApiPublishes` on a handler and by nothing else,
+ * so a published specification cannot carry one; the recorded consequence is that the corpus
+ * produces none of the class at any size. That is a claim about every corpus document at once, and
+ * a claim nothing runs is a claim that goes quietly false, which is the class SPEC 0 names.
+ */
+describe('the event class over the whole corpus, per SPEC 15.1', () => {
+  it('should federate every event corpus document and hold no end of the class', () => {
+    // Given every document of the event corpus as its own service
+    const services = corpusServices('events-corpus');
+
+    // When they are federated into one estate
+    const { document } = mergeDocuments(services, MERGED);
+    const topology = buildTopology(document);
+
+    // Then the estate really has a graph, asserted before the absence below so that a zero read
+    // over an empty graph cannot pass for a zero read over a full one
+    expect(services).toHaveLength(23);
+    expect(topology.edgeCount).toBe(91);
+
+    // And not one of those 91 edges carries an end of the class, which is the recorded figure
+    expect(eventClassEnds(document)).toEqual([]);
+    expect(services.flatMap((service) => eventClassEnds(service.document))).toEqual([]);
+  });
+
+  // THE FORTY DOCUMENT ESTATE IS NOT MERGED HERE, AND THE REASON IS A MEASUREMENT. Read
+  // instrumented, on the run the coverage gate makes: normalizing the seventeen HTTP corpus
+  // documents costs 3,275 ms and merging all forty costs 2,566 ms, so the case sat 841 ms past
+  // vitest's 5,000 ms default and turned the coverage gate red. Raising a timeout to fit it would
+  // be tuning the instrument to the reading, so the estate's zero is run where it costs nothing
+  // instead: `packages/core/test/unit/topology.spec.ts` already walks all forty documents once for
+  // its re-fold case, and counts the class on the same walk. What is lost by not merging them here
+  // is the merged edge count for that estate, which stays a recorded measurement in SPEC 15.1 with
+  // its procedure named, and the merge's own inability to invent the class is proved by the case
+  // above at twenty three services.
 });

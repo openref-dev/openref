@@ -108,6 +108,65 @@ describe('the telltale overview and the topology graph', () => {
     expect(markup).not.toContain('tt-topology-outside');
   });
 
+  it('should name the federation fact on an end no document of it declares', async () => {
+    // Given a merged document, which is the only producer of the fourth end kind, carrying one
+    // undeclared event end beside the fixture's ordinary outside ends
+    const base = topologyDocument();
+    const document = {
+      ...base,
+      services: [
+        {
+          id: 'web',
+          documentId: 'web-api',
+          documentHash: '',
+          kind: 'events' as const,
+          info: { title: 'Web', version: '1.0.0' },
+          servers: [],
+        },
+      ],
+      relationships: [
+        ...base.relationships,
+        {
+          from: base.id,
+          fromKind: 'service' as const,
+          to: 'a/created',
+          toKind: 'undeclared-event' as const,
+          type: 'publishes' as const,
+          confidence: 'declared' as const,
+        },
+      ],
+    };
+
+    // When
+    const markup = await overview(document);
+
+    // Then this theme draws the phrase too, under its own class and its own three letter code,
+    // beside the DCL and INF this file already pins. A theme that drew a third state in colour
+    // alone would lose it in print and in a screen reader, which is what the other two marks of
+    // this section were built to avoid.
+    expect(markup).toContain(
+      '<abbr class="tt-topology-undeclared" ' +
+        'title="No document in this federation declares this event">UND</abbr>',
+    );
+    expect(markup.split('tt-topology-undeclared').length - 1).toBe(1);
+
+    // AND NO PART OF THE PAGE NAMES THE MECHANISM, in this theme as in the reference. Reader
+    // visible text is the text nodes plus every `title`, since a title is what a pointer and a
+    // screen reader are both handed, and a reader of an estate page is owed the estate rather than
+    // an account of what we did to build it. The subject is asserted present before the absence.
+    const readable = markup
+      .replace(/<[^>]*\btitle="([^"]*)"[^>]*>/g, ' $1 ')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/\s+/g, ' ');
+    expect(readable).toContain('No document in this federation declares this event');
+    expect(readable).not.toMatch(/merg|join|address/i);
+
+    // And the row it sits on is the row for that end, with the bare word replaced rather than
+    // joined, while the fixture's own outside ends keep theirs
+    expect(markup).toContain('<span class="tt-topology-name">a/created</span><abbr');
+    expect(markup).toContain('OUTSIDE');
+  });
+
   it('should link an end that resolved to a node and leave an unresolved one as text', async () => {
     // Given the events fixture, whose edges name two channels this document holds and one service
     // it does not, so both branches are on one page

@@ -2503,9 +2503,16 @@ a.oref-topology-name {
 .oref-fact-label,
 .oref-topology-type,
 .oref-topology-dead,
+.oref-topology-undeclared,
 .oref-topology-outside {
   color: var(--oref-color-fg-muted);
   font-size: var(--oref-font-size-300);
+}
+
+/* The code of SPEC 9.5 for an event no document of the federation declares. It is an `abbr`, so
+ * the underline browsers add for a title is turned off the way `.oref-prov` turns it off. */
+.oref-topology-undeclared {
+  text-decoration: none;
 }
 
 .oref-fact-value,

@@ -8,7 +8,7 @@ import { buildPageModel } from '../../src/page/domain/page-model';
 import { serializePageModel } from '../../src/render/application/services/render.service';
 import { DocumentOverview } from '../../src/components/DocumentOverview';
 import { smallDocument } from '../mocks/documents';
-import { buildTopology, type IRDocument, type IRRelationship } from '@openref/core';
+import { buildTopology, type IRChannel, type IRDocument, type IRRelationship } from '@openref/core';
 import type { PageModel } from '@openref/vue';
 
 /**
@@ -90,6 +90,50 @@ function maximumDepth(markup: string): number {
 
 function countOf(markup: string, className: string): number {
   return markup.split(`class="${className}"`).length - 1;
+}
+
+/** The service list a merged document carries, which is what stops event ends resolving here. */
+const SERVICES = ['a', 'b', 'web'].map((id) => ({
+  id,
+  documentId: `${id}-api`,
+  documentHash: '',
+  kind: 'http' as const,
+  info: { title: id, version: '1.0.0' },
+  servers: [],
+}));
+
+/**
+ * One channel node, so a fixture can hold the address the merge would have invented.
+ *
+ * @param id - Node id
+ * @param address - The address the channel answers
+ * @returns The node
+ */
+function channelNode(id: string, address: string): IRChannel {
+  return {
+    kind: 'channel',
+    id,
+    address,
+    tags: [],
+    deprecated: false,
+    servers: [],
+    operations: [],
+    messages: [],
+  };
+}
+
+/**
+ * What a reader actually reads: text nodes, plus every `title`, which is what a pointer and a
+ * screen reader are both handed.
+ *
+ * @param markup - Rendered markup
+ * @returns The reader visible text
+ */
+function readableText(markup: string): string {
+  return markup
+    .replace(/<[^>]*\btitle="([^"]*)"[^>]*>/g, ' $1 ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/\s+/g, ' ');
 }
 
 describe('the topology section', () => {
@@ -214,6 +258,73 @@ describe('the topology section', () => {
     expect(countOf(markup, 'oref-topology-edge')).toBe(1);
     expect(markup).toContain('oref-section-topology');
     expect(markup).not.toContain('oref-topology-outside');
+  });
+
+  it('should name the federation fact on an end no document of it declares', async () => {
+    // Given the merged shape of the `T053-R1` reproduction: services `a`, `b` and `web`, both event
+    // services namespaced apart so the estate really does hold a channel at `a/created`, and the
+    // end `web` declared, which no source document ever named. The trap is written into the
+    // fixture rather than assumed: an assertion that the mark appears on a document that lacks
+    // that address would prove nothing about the address being present and unlinked. An ordinary
+    // outside end stands beside it, because the pair is what the case is about.
+    const document = smallDocument();
+    const merged = {
+      ...document,
+      nodes: new Map([
+        ...document.nodes,
+        ['a_channel-created', channelNode('a_channel-created', 'a/created')],
+        ['b_channel-created', channelNode('b_channel-created', 'b/created')],
+      ]),
+      services: SERVICES,
+      relationships: [
+        edge('get-orders', 'node', 'a/created', 'undeclared-event'),
+        edge('get-orders', 'node', 'ledger-service', 'service', 'calls'),
+      ],
+    };
+    const markup = await renderToString(
+      createSSRApp(DocumentOverview as never, {
+        title: 'Orders API',
+        descriptionHtml: '',
+        servers: [],
+        basePath: '/docs',
+        topology: buildTopology(merged),
+      }),
+    );
+
+    // The estate really holds that address, so the mark below is chosen by the end's kind and not
+    // by the address being missing
+    expect(
+      [...merged.nodes.values()].some(
+        (node) => node.kind === 'channel' && node.address === 'a/created',
+      ),
+    ).toBe(true);
+
+    // Then the mark carries the phrase, and the phrase is about the federation rather than about
+    // the merge: a reader of an estate page is owed the fact, not the mechanism. The code is in
+    // the markup so it survives a stylesheet that never arrives and a monochrome print, and the
+    // `abbr` title is what a screen reader and a pointer both get, which is the shape
+    // `ProvenanceTag` already uses for DCL and INF.
+    const mark = /<abbr class="oref-topology-undeclared" title="([^"]*)">([^<]*)<\/abbr>/.exec(
+      markup,
+    );
+    expect(mark?.[1]).toBe('No document in this federation declares this event');
+    expect(mark?.[2]).toBe('UND');
+    expect(`${mark?.[1] ?? ''} ${mark?.[2] ?? ''}`).not.toMatch(/merg|join|address/i);
+
+    // And it REPLACES the bare word rather than joining it, so one fact is stated once. The
+    // service end beside it still carries `outside`, which is what keeps this an assertion about
+    // the undeclared end rather than about a page with no marks on it.
+    expect(countOf(markup, 'oref-topology-undeclared')).toBe(1);
+    expect(countOf(markup, 'oref-topology-outside')).toBe(1);
+
+    // AND NO PART OF THE PAGE NAMES THE MECHANISM, which is the whole claim rather than the mark's
+    // half of it. Reader visible text is the text nodes plus every `title`, since a title is what a
+    // pointer and a screen reader both get, and the page a reader of an estate meets must talk
+    // about the estate. The subject is asserted present first: the phrase is in this text.
+    const readable = readableText(markup);
+    expect(readable).toContain('No document in this federation declares this event');
+    expect(readable).not.toMatch(/merg|join|address/i);
+    expect(markup).toContain('<span class="oref-topology-name">a/created</span><abbr');
   });
 
   it('should tell an outside end and a dead end apart, since they are different facts', async () => {

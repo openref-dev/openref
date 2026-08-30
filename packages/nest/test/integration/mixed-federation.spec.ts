@@ -206,11 +206,18 @@ function channelAddresses(document: IRDocument): string[] {
   );
 }
 
-/** The one edge of the whole graph whose target end carries this name. */
+/**
+ * The one edge of the whole graph whose target end carries this name or shows it as its label.
+ *
+ * BOTH, BECAUSE `T053-R1` MOVED WHERE THE RESOLUTION HAPPENS. A resolved event end is a `node` end
+ * after the merge, so its name is the channel's merged node id and the address is what a reader
+ * sees; an unresolved one still carries the name as written. Looking up by either is what lets one
+ * case ask the same question of both states.
+ */
 function edgeTo(document: IRDocument, name: string): IRTopologyEdge | undefined {
   return buildTopology(document)
     .groups.flatMap((group) => group.edges)
-    .find((edge) => edge.to.name === name);
+    .find((edge) => edge.to.name === name || edge.to.label === name);
 }
 
 describe('a federation of an HTTP, an events and a mixed service', () => {
@@ -305,6 +312,71 @@ describe('a federation of an HTTP, an events and a mixed service', () => {
     expect(source?.serviceId).toBe('checkout');
     expect(target?.serviceId).toBe('orders');
     expect(placed?.to.outside).toBe(false);
+
+    // And the merge is what resolved it, not the render: the end is a `node` end carrying the
+    // channel itself, which is the whole of `T053-R1`. An end still spelled as an address would
+    // mean the graph resolved it against addresses the merge invented.
+    expect(placed?.to.kind).toBe('node');
+    expect(document.relationships.find((edge) => edge.to === placed?.to.nodeId)?.toKind).toBe(
+      'node',
+    );
+  });
+
+  it('should carry exactly two of the class of edge no corpus document can produce', async () => {
+    // Given the booted federation, which is the committed composition SPEC 15.1 names as the
+    // permanent runner for the `T053-R1` measurement
+    const service = await boot();
+    const snapshot = service.snapshot();
+    const document = readyDocument(service);
+    expect(snapshot.availability).toBe('ready');
+    expect(document).toBeDefined();
+    if (snapshot.availability !== 'ready' || document === undefined) return;
+
+    // When the class is counted TWICE, BY TWO READINGS THAT MUST AGREE, and neither of them is the
+    // report alone. The report lists only ends whose kind the merge changed, so an end that stays
+    // ambiguous across a merge never appears in it and a count taken from it alone would read a
+    // real member of the class as zero. The source reading is the definition: an end of either
+    // event kind in the document a service handed the merge, over every service of the composition
+    // rather than over the one that happens to declare them today.
+    const topology = buildTopology(document);
+    const sourceClassEnds = [
+      readCorpus(CATALOG_BODY, 'catalog'),
+      readCorpus(ORDERS_BODY, 'orders'),
+      readCorpus(LEDGER_BODY, 'ledger'),
+      checkoutService().document,
+    ].flatMap((source) =>
+      source.relationships.flatMap((edge) => [
+        ...(edge.fromKind === 'event' || edge.fromKind === 'undeclared-event' ? [edge.from] : []),
+        ...(edge.toKind === 'event' || edge.toKind === 'undeclared-event' ? [edge.to] : []),
+      ]),
+    );
+
+    // The merged reading is the other half of the same total: an end the merge answered is in the
+    // report, and an end it left exactly as it found it is still an event kind in the merged
+    // document. The two are disjoint by construction and together they are the class.
+    const answered = snapshot.report.endpointKinds.length;
+    const unmoved = document.relationships.filter(
+      (edge) =>
+        edge.fromKind === 'event' ||
+        edge.fromKind === 'undeclared-event' ||
+        edge.toKind === 'event' ||
+        edge.toKind === 'undeclared-event',
+    ).length;
+
+    // Then the graph is eight edges and exactly two of them carry an end `@ApiPublishes` produced,
+    // by both readings. That ratio is why nothing before `T053` could have caught the defect: a
+    // fetched specification never carries an event end at all, so the corpus produces none, which
+    // `mixed-corpus.spec.ts` runs at both corpus sizes, and this composition is the only place the
+    // class exists.
+    expect(topology.edgeCount).toBe(8);
+    expect(sourceClassEnds).toEqual([MEASURED, MARKET_DATA]);
+    expect(answered + unmoved).toBe(sourceClassEnds.length);
+    expect(snapshot.report.endpointKinds.map((change) => [change.from, change.to])).toEqual([
+      ['event', 'node'],
+      ['event', 'node'],
+    ]);
+    expect(edgeTo(document, MOVED)?.to.kind).toBe('node');
+    expect(edgeTo(document, MARKET_DATA)?.to.kind).toBe('node');
   });
 
   it('should draw an edge into an unavailable remote as unknown rather than dropping it', async () => {
@@ -333,6 +405,19 @@ describe('a federation of an HTTP, an events and a mixed service', () => {
     expect(settled?.to.nodeId).toBeUndefined();
     expect(settled?.to.outside).toBe(true);
     expect(rendered.appHtml).toContain(MARKET_DATA);
+
+    // And the words are the federation's own, per SPEC 9.5: the merge established that no document
+    // of this composition declares the event, which is more than "not in this document", so the
+    // mark says that rather than the bare `outside` an unmerged document would print
+    // The mark REPLACES the bare word on this end rather than joining it, which is asserted on the
+    // row itself: the page still prints `outside` elsewhere, for the `bus` service end that names
+    // a service nobody federated in, so a page wide absence would be asserting the wrong thing.
+    expect(settled?.to.kind).toBe('undeclared-event');
+    expect(rendered.appHtml).toContain(
+      `<span class="oref-topology-name">${MARKET_DATA}</span>` +
+        '<abbr class="oref-topology-undeclared" ' +
+        'title="No document in this federation declares this event">UND</abbr>',
+    );
     expect(rendered.appHtml).toContain('oref-topology-outside');
   });
 
@@ -365,5 +450,11 @@ describe('a federation of an HTTP, an events and a mixed service', () => {
     );
     expect(afterEdge?.to.outside).toBe(false);
     expect(afterDocument.nodes.get(afterEdge?.to.nodeId ?? '')?.serviceId).toBe('ledger');
+
+    // And the kind moved with it, in both directions: the same declaration is an
+    // `undeclared-event` while the remote is absent and a `node` once it is here, which is the
+    // one fact `T053-R1` put into the type rather than recomputing at render time
+    expect(beforeEdge?.to.kind).toBe('undeclared-event');
+    expect(afterEdge?.to.kind).toBe('node');
   });
 });

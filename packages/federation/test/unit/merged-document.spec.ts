@@ -643,8 +643,9 @@ describe('mergeDocuments, health and topology', () => {
     ]);
   });
 
-  it('should carry an event end across a merge untouched, because it is in nobody address space', () => {
-    // Given an edge from a handler node to an event name, which is what `@ApiPublishes` declares
+  it('should call an event end undeclared when no document of the federation declares it', () => {
+    // Given an edge from a handler node to an event name, which is what `@ApiPublishes` declares,
+    // in a federation of one service that documents no channel at all
     const orders = buildDocument({
       id: 'orders-api',
       nodes: [operation({ id: 'post-orders', path: '/orders', method: 'post' })],
@@ -661,18 +662,22 @@ describe('mergeDocuments, health and topology', () => {
     });
 
     // When it is merged
-    const { document } = mergeDocuments([{ id: 'orders', document: orders }], MERGED);
+    const { document, report } = mergeDocuments([{ id: 'orders', document: orders }], MERGED);
 
-    // Then only the node end moved
+    // Then the node end moved, the name of the event end did not, and its kind carries the answer
+    // the merge is the only participant able to give: nothing here declares this event
     expect(document.relationships).toEqual([
       {
         from: 'orders_post-orders',
         fromKind: 'node',
         to: 'orders.placed',
-        toKind: 'event',
+        toKind: 'undeclared-event',
         type: 'publishes',
         confidence: 'declared',
       },
+    ]);
+    expect(report.endpointKinds).toEqual([
+      { serviceId: 'orders', name: 'orders.placed', from: 'event', to: 'undeclared-event' },
     ]);
   });
 });

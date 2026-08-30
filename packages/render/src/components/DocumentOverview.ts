@@ -57,6 +57,15 @@ function endpointNode(endpoint: IRTopologyEndpoint, basePath: string): VNode {
 }
 
 /**
+ * What an `undeclared-event` end says, per SPEC 9.5, and the code it says it under.
+ *
+ * THE PHRASE NAMES THE FACT AND NOT THE MECHANISM. "No document in this federation declares this
+ * event" is a statement about the estate; anything about merging or joining addresses would be a
+ * statement about us, and a reader of an estate page is owed the first.
+ */
+const UNDECLARED = ['UND', 'No document in this federation declares this event'] as const;
+
+/**
  * The words that say an end leads out of what this document knows, or nothing when it does not.
  *
  * A DIFFERENT FACT FROM `deadEnd` AND FROM A MISSING LINK, per SPEC 9.5. A dead end is a target
@@ -67,10 +76,21 @@ function endpointNode(endpoint: IRTopologyEndpoint, basePath: string): VNode {
  * federation's boundary. In words rather than in a colour, for the reason `deadEnd` is: a fact
  * that vanishes with the stylesheet is not one a reader can rely on.
  *
+ * AN `undeclared-event` END REPLACES THE WORD RATHER THAN ADDING TO IT. Such an end is outside,
+ * and `outside` is true for it, but the merge knows more than "not in this document": it knows no
+ * source document of the federation declares the event at all, per SPEC 15.1. Printing both marks
+ * would say one thing twice. The mark is an `abbr` with a three letter code, which is the shape
+ * `ProvenanceTag` already uses and for its reasons: the code survives a monochrome print and the
+ * title is what a screen reader and a pointer both get.
+ *
  * @param endpoint - The end, as `buildTopology` resolved it
  * @returns The mark, or null for an end this document knows
  */
 function outsideMark(endpoint: IRTopologyEndpoint): VNode | null {
+  if (endpoint.kind === 'undeclared-event') {
+    return h('abbr', { class: 'oref-topology-undeclared', title: UNDECLARED[1] }, UNDECLARED[0]);
+  }
+
   return endpoint.outside ? h('span', { class: 'oref-topology-outside' }, 'outside') : null;
 }
 
