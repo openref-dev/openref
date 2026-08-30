@@ -28,11 +28,12 @@
  * fact row, a channel operation, a reply block and a message, and nothing else.
  */
 
+import { handshakeBlockedCause } from '@openref/core';
 import { h, type VNode } from 'vue';
 import { MarkdownBlock } from './MarkdownBlock';
 import { securityList } from './NodeSections';
 import { shapeRowsOfBody, type ShapeRow } from '../page/domain/shape-rows';
-import type { IRSchema } from '@openref/core';
+import type { HandshakeBlockedCause, IRSchema } from '@openref/core';
 import type {
   BindingModel,
   ChannelModel,
@@ -100,6 +101,73 @@ function securityFact(security: readonly SecurityModel[], key: string): VNode[] 
       h('span', { class: 'oref-fact-value' }, [list]),
     ]),
   ];
+}
+
+/**
+ * What a reader is told about a scheme a browser cannot present at a socket handshake, per SPEC
+ * 14.7, one sentence per cause and total over the union.
+ *
+ * THE WORDS ARE THIS FILE'S AND THE CAUSE IS THE DOCUMENT'S, which is the `T028` split applied to
+ * the second question of the same shape. `handshakeBlockedCause` in `@openref/core` answers which
+ * of the five a scheme is, because the socket client and this page have to agree on that and
+ * cannot see each other; what a reader reads belongs where a theme can say it differently.
+ *
+ * EACH SENTENCE NAMES ITS OWN ROUTE AND THEY ARE NOT THE SAME ROUTE. Pointing every one of them at
+ * the server bridge would be short and would be false three times: a bridge does not put a
+ * certificate in a browser, it does not decrypt a payload, and it does not tell a document where a
+ * key travels. The task's clause, that a scheme needing an `Authorization` header at the handshake
+ * points at the bridge as the only route, is the first row and is exactly true of that row.
+ */
+const HANDSHAKE_BLOCKED: Readonly<Record<HandshakeBlockedCause, string>> = {
+  'handshake-header':
+    'travels in a request header at the handshake, and a WebSocket opened by a browser cannot set one; a server bridge that opens the connection is the only route',
+  'connection-credential':
+    'is a credential of the broker connection itself, and a socket opened by a browser has no field to carry it; a server bridge that opens the connection is the only route',
+  'transport-certificate':
+    'asks for a client certificate during the TLS handshake, which the browser chooses and no code on this page takes part in; the connection has to be opened by something that holds the certificate',
+  'message-encryption':
+    'encrypts the messages themselves rather than the connection, with key material this document does not carry, so nothing on this page can apply it',
+  undeclared:
+    'is not described well enough to be placed: the document does not say where its value travels, so no handshake can carry it',
+};
+
+/**
+ * The rows saying which of a position's schemes a browser cannot present when opening a socket.
+ *
+ * BESIDE THE `requires` ROW AND NOT IN A BLOCK OF ITS OWN, the placement SPEC 8.2 chose for the
+ * requirement itself: what connecting to a server costs sits next to that server, so what a
+ * browser cannot pay sits next to the cost. A position that requires nothing draws nothing, and a
+ * position whose every scheme a browser can present draws nothing either, which is the absence
+ * rule of SPEC 6.3 rather than a saving.
+ *
+ * SERVER MARKUP, SO THE STATEMENT IS THERE BEFORE ANY SCRIPT RUNS. The channel sections are
+ * adopted by the browser rather than hydrated, per `TX-ADOPT`, so these rows cost a reader no
+ * script at all and are in the document the moment it arrives, which is what "before any
+ * connection is attempted" means when the page is the thing saying it.
+ *
+ * @param security - The requirements of one server or one channel operation
+ * @param key - What tells these rows from a sibling position's
+ * @returns One row per scheme a browser cannot present, empty when there is none
+ */
+function handshakeFacts(security: readonly SecurityModel[], key: string): VNode[] {
+  const rows: VNode[] = [];
+
+  for (const requirement of security) {
+    const cause = handshakeBlockedCause(requirement);
+    if (cause === undefined) continue;
+
+    rows.push(
+      h('li', { class: 'oref-fact', key: `${key}:${requirement.schemeId}` }, [
+        h('span', { class: 'oref-fact-label' }, 'not from a browser'),
+        h('span', { class: 'oref-fact-value' }, [
+          h('code', {}, requirement.schemeId),
+          ` ${HANDSHAKE_BLOCKED[cause]}`,
+        ]),
+      ]),
+    );
+  }
+
+  return rows;
 }
 
 /**
@@ -186,6 +254,7 @@ export function ChannelFacts(props: { readonly channel: ChannelModel }): VNode {
       ]),
     ),
     ...securityFact(server.security, `requires:${server.url}`),
+    ...handshakeFacts(server.security, `handshake:${server.url}`),
   ]);
 
   return h('section', { class: 'oref-section oref-section-channel' }, [
@@ -267,6 +336,7 @@ export function ChannelOperations(props: { readonly channel: ChannelModel }): VN
             // requirement is drawn in the facts section beside the server it belongs to, and this
             // is what the operation adds on top of it rather than what it replaces.
             ...securityFact(operation.security, `requires:${operation.id}`),
+            ...handshakeFacts(operation.security, `handshake:${operation.id}`),
           ]),
           replyBlock(operation),
           ...bindingBlocks(operation.bindings),

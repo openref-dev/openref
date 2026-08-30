@@ -626,8 +626,19 @@ describe('useRunner and useSocket', () => {
     expect((thrown as RunnerError).context?.nodeId).toBe('get-orders');
   });
 
-  it('should report the socket client unavailable and refuse to connect', async () => {
-    // Given
+  /**
+   * `T055` filled this composable, and what stays true of a page with no socket client is here.
+   *
+   * THE STUB CASE THAT USED TO SIT HERE IS GONE BECAUSE THE STUB IS. It asserted that the refusal
+   * named a milestone, which was the rule SPEC 10.4 holds a declared and unimplemented composable
+   * to; `useSocket` is implemented against a port from `T055`, so the milestone sentence would be
+   * naming a wait that ended. What survives it is the third state `useSearch` is already in: the
+   * function works the moment a host supplies the port, and a build with none says so rather than
+   * throwing. The rule itself still has its runner, in `public-surface.spec.ts`, over whatever
+   * rows the stub table holds.
+   */
+  it('should report the socket client unavailable and refuse to connect without one', async () => {
+    // Given, an HTTP document, which is a second reason there is nothing to connect to
     const state = createDocState({ document: simpleDocument() });
 
     // When
@@ -635,31 +646,26 @@ describe('useRunner and useSocket', () => {
 
     // Then
     expect(socket.available.value).toBe(false);
-    await expect(socket.connect()).rejects.toBeInstanceOf(RunnerError);
+    await expect(
+      socket.connect({ address: 'wss://api.example.com/events', transport: 'native' }),
+    ).rejects.toBeInstanceOf(RunnerError);
   });
 
-  /**
-   * T031: the one stub in a frozen surface names the milestone that fills it.
-   *
-   * A COMPOSABLE STUBBED WITH A MILESTONE IS A PROMISE WITH A DATE ON IT. A composable stubbed
-   * with no milestone is a name in a frozen surface that nothing will ever fill, which is the
-   * eighth class of SPEC 0 written into a public contract on purpose. `useSocket` is the only
-   * one of the twelve, and this is the case that keeps its refusal saying so: a later session
-   * rewording the sentence without a milestone goes red here rather than shipping.
-   */
-  it('should name the milestone that fills it, because a stub with no milestone is a dead name', async () => {
+  it('should carry the not available code and the node id on the socket refusal too', async () => {
     // Given
     const state = createDocState({ document: simpleDocument() });
     const socket = await withDocState(state, () => useSocket('get-orders'));
 
     // When
-    const refusal = await socket.connect().then(
-      () => undefined,
-      (cause: unknown) => cause,
-    );
+    const refusal = await socket
+      .connect({ address: 'wss://api.example.com/events', transport: 'native' })
+      .then(
+        () => undefined,
+        (cause: unknown) => cause,
+      );
 
     // Then
-    expect((refusal as RunnerError).message).toMatch(/\bM[1-7]\b/);
     expect((refusal as RunnerError).code).toBe(ErrorCode.RUN_NOT_AVAILABLE);
+    expect((refusal as RunnerError).context?.nodeId).toBe('get-orders');
   });
 });

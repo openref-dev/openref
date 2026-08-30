@@ -88,6 +88,24 @@ export { provideRunner, RUNNER_KEY, useRunnerPort } from './runner/api/context';
 export { runnerOperationOf } from './runner/domain/runner-operation';
 
 export type {
+  ISocketPort,
+  SocketHandshakeBlockView,
+  SocketLogEntryView,
+  SocketLogStateView,
+  SocketMessageDirectionView,
+  SocketMessageSchemaView,
+  SocketNamedMessageView,
+  SocketOpenInput,
+  SocketSecuritySchemeView,
+  SocketSessionHandlersView,
+  SocketSessionStateView,
+  SocketSessionView,
+  SocketStatusView,
+  SocketTransportKindView,
+} from './socket/application/ports/socket.port';
+export { provideSocket, SOCKET_KEY, useSocketPort } from './socket/api/context';
+
+export type {
   BindingModel,
   ChannelModel,
   ChannelOperationModel,
@@ -166,12 +184,18 @@ export type { SchemaPayloadMap } from './slots/domain/slot-props.types';
  * walk of it reaches, and a theme that could name the top of the shape and not the rows under it
  * would be back at `@openref/core` on the second line.
  *
+ * ONE MORE ARRIVED AT `T055` FOR THE FIRST OF THOSE REASONS: `HandshakeBlockedCause` is the type of
+ * `SocketHandshakeBlockView.cause`, so a theme that draws the statement SPEC 14.7 requires, one
+ * sentence per cause and total over the union, would otherwise reach for `@openref/core` to name
+ * what it was handed.
+ *
  * A TYPE RE-EXPORT AND NOT A VALUE ONE. `export type` erases, so the emitted module gains nothing
  * and no reader of any page pays a byte; and the four names widen no contract, because adding a
  * name to this surface is a minor version by `PUBLIC-API.md` while the types themselves stay
  * frozen where they are declared, in `@openref/core`.
  */
 export type {
+  HandshakeBlockedCause,
   IRConfidence,
   IRSchema,
   IRSchemaView,
@@ -212,6 +236,6 @@ export { DEFAULT_HIT_LIMIT, useSearch } from './composables/useSearch';
 export type { UseSearch } from './composables/useSearch';
 export { useSlot } from './composables/useSlot';
 export { useSocket } from './composables/useSocket';
-export type { UseSocket } from './composables/useSocket';
+export type { UseSocket, UseSocketConnectArgs } from './composables/useSocket';
 export { useTheme } from './composables/useTheme';
 export type { UseTheme } from './composables/useTheme';

@@ -278,8 +278,12 @@ export { isSafePattern, matchesPattern, sampleFromPattern } from './examples/dom
 export { expandSourceLink } from './source-link/domain/source-link';
 export type { SourceLinkExpansion } from './source-link/domain/source-link';
 
-export { unsendableSchemeCause } from './security/domain/scheme-support';
-export type { SecuritySchemeShape, UnsendableCause } from './security/domain/scheme-support';
+export { handshakeBlockedCause, unsendableSchemeCause } from './security/domain/scheme-support';
+export type {
+  HandshakeBlockedCause,
+  SecuritySchemeShape,
+  UnsendableCause,
+} from './security/domain/scheme-support';
 
 export { classifyDrift, isMechanicallyFixable } from './drift/domain/classification';
 export {

@@ -191,3 +191,62 @@ export {
   FetchStreamTransport,
   type FetchStreamTransportOptions,
 } from './stream/infrastructure/adapters/fetch-stream.adapter';
+
+export type {
+  ISocketTransport,
+  SocketCloseInfo,
+  SocketConnection,
+  SocketHandshake,
+  SocketTransportHandlers,
+  SocketTransportKind,
+} from './socket/application/ports/socket-transport.port';
+
+export { buildHandshake, type SocketHandshakeInput } from './socket/domain/handshake';
+
+export {
+  checkSocketMessage,
+  type NamedMessageSchema,
+  type SocketMessageVerdict,
+} from './socket/domain/message-check';
+
+export {
+  createSocketLog,
+  DEFAULT_SOCKET_LOG_WINDOW,
+  type SocketLog,
+  type SocketLogEntry,
+  type SocketLogState,
+  type SocketMessageDirection,
+} from './socket/domain/message-log';
+
+export {
+  createSocketClient,
+  DEFAULT_SOCKET_RECONNECT_ATTEMPTS,
+  DEFAULT_SOCKET_RECONNECT_DELAY_MS,
+  openSocket,
+  SOCKET_BACKOFF_CEILING,
+  type SocketClient,
+  type SocketSession,
+  type SocketSessionContext,
+  type SocketSessionHandlers,
+  type SocketSessionOptions,
+  type SocketSessionState,
+  type SocketStatus,
+} from './socket/application/services/socket.service';
+
+export {
+  NativeWebSocketTransport,
+  type NativeWebSocketTransportOptions,
+  type WebSocketCloseLike,
+  type WebSocketFactory,
+  type WebSocketLike,
+} from './socket/infrastructure/adapters/native-websocket.adapter';
+
+export {
+  DEFAULT_SOCKET_IO_EVENT,
+  DEFAULT_SOCKET_IO_TRANSPORTS,
+  SocketIoTransport,
+  type SocketIoFactory,
+  type SocketIoLike,
+  type SocketIoOptions,
+  type SocketIoTransportOptions,
+} from './socket/infrastructure/adapters/socket-io.adapter';

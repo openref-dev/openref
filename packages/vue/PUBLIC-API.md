@@ -128,6 +128,32 @@ console does.
 | `RunnerStreamHandlers` | type | Where a running stream reports to |
 | `RunnerStreamHandle` | type | A stream that is running, and the one thing that can be done to it |
 
+### The socket port
+
+Built at `T055`, per SPEC 14.7. Separate from the runner port because a socket is not a request:
+it has no body, no ending anybody promised, and traffic in both directions. A build with no socket
+client is a supported build, and `useSocket` reports it as `available: false` rather than throwing.
+
+| Name | Kind | What it is |
+| --- | --- | --- |
+| `ISocketPort` | type | How a socket client reaches this layer: one `open`, returning a session |
+| `SOCKET_KEY` | value | The injection key a socket client is provided under |
+| `provideSocket` | value | Provides a socket client to everything below |
+| `useSocketPort` | value | The socket client provided above, or nothing |
+| `SocketOpenInput` | type | One session: the address, the transport, the schemes and the credentials |
+| `SocketSessionView` | type | A running session, and the three things that can be done to it |
+| `SocketSessionStateView` | type | Where a session is, with its log and its attempt count |
+| `SocketSessionHandlersView` | type | Where a running session reports to |
+| `SocketStatusView` | type | Which of the six states a session is in |
+| `SocketLogStateView` | type | The bounded log window and its four counters |
+| `SocketLogEntryView` | type | One message, with what it matched or why it matched nothing |
+| `SocketMessageDirectionView` | type | Which way one message went |
+| `SocketHandshakeBlockView` | type | One scheme a browser cannot present at a handshake, with its cause |
+| `SocketSecuritySchemeView` | type | One security scheme, reduced to what planning a handshake requires |
+| `SocketNamedMessageView` | type | One message a channel declares, which is what a received one is checked against |
+| `SocketMessageSchemaView` | type | The JSON Schema subset of SPEC 14.6, which that check reads |
+| `SocketTransportKindView` | type | Native `WebSocket` or Socket.IO, the two of SPEC 14.7 |
+
 ### The page model
 
 What the server draws a page from and the browser hydrates from. A slot's props are declared in
@@ -221,6 +247,7 @@ here because it is the declared type of something a theme is handed.
 | `IRTopologyEdge` | type | One edge with its type, its confidence and whether its target leads nowhere. Added at `T052`, minor |
 | `IRTopologyEndpoint` | type | One end of an edge: what was declared, what it resolved to, what to show, and since `T053` whether this document holds nothing at all under the name. Added at `T052`, minor. `outside` arrived at `T053` **required rather than optional, so the member is on the major side**, the shape `PageModel.topology` and `NodeModel.channel` took: a value the page reads on every end cannot be one a producer may forget, and `outside === undefined` would read as `false`, which is the answer that means "inside". Reading is unaffected and the producer set is one function, `buildTopology` in `@openref/core`; a theme that renders an end and never builds one compiles unchanged. Recorded in `ai-docs/design/CONTRACT.md` |
 | `UnsendableCause` | type | Why a scheme cannot be signed in from a browser, as `RunnerSecuritySchemeView` reports it |
+| `HandshakeBlockedCause` | type | Why a browser cannot present a scheme when it opens a socket, as `SocketHandshakeBlockView.cause` carries one. Five causes, each with its own route, so a theme that draws the statement of SPEC 14.7 writes a total record over this union. Added at `T055`, minor |
 
 ### What is on a page and is not on this surface
 
@@ -292,8 +319,9 @@ origin by a case in the file named above, because a wrong href is a string and r
 | `useSearch` | value | Search over the document, reporting itself unavailable when no index was supplied. It reads the port off `DocState`, so it answers for a host that composes its own state; the reference's own page carries a `PageModel` and no `DocState`, and reaches the index by the palette's path instead, per the table below |
 | `UseSearch` | type | What that returns |
 | `DEFAULT_HIT_LIMIT` | value | Hits returned when nothing narrows the request further |
-| `useSocket` | value | The interactive event client of SPEC 16, which arrives in M6 |
+| `useSocket` | value | The interactive event client of SPEC 14.7. `blocked` answers what a browser cannot present at a socket handshake and needs no client; connecting, sending and closing need one, and report `available: false` without it |
 | `UseSocket` | type | What that returns |
+| `UseSocketConnectArgs` | type | What opening a session needs beyond the channel itself |
 
 ## `@openref/vue/runner`
 
@@ -310,9 +338,15 @@ origin by a case in the file named above, because a wrong href is a string and r
 A composable that is declared and not implemented is named here with the milestone that fills
 it, because a name in a frozen surface with no milestone is a name nothing will ever fill.
 
+**As of 2026-08-30 there is no such composable left, and the rule stays written rather than being
+deleted with its last subject.** `useSocket` was the one, and `T055` filled it against the socket
+port of SPEC 14.7; its row below now records the same third state `useSearch` is in, because the
+distinction that mattered while it was a stub still matters to whoever meets `available: false` on
+a page the shipped reference serves.
+
 | Name | State | Filled by |
 | --- | --- | --- |
-| `useSocket` | Declared. `available` is false and `connect` rejects with a sentence naming the milestone | M6, `T055`, the WebSocket client |
+| `useSocket` | Implemented against the socket port, and `available` is false on every page the shipped reference serves, because no path in this repository provides a client. The half that needs no client works everywhere: `blocked` reads the channel's own security and names what a browser cannot present at a handshake | M6, `T055`, the WebSocket client, which built the engine, the port and the composable. What stays false on the reference's page is `available`, and that is a route and not a milestone: the shipped page states the limitation and opens no socket, and SPEC 14.7 records the console as a measured debt against `theme-css-raw` |
 | `useChannel` | Implemented, and finds nothing until a document carries channels | M5, `T048`, the AsyncAPI normalizer |
 | `useSearch` | Implemented, and `available` is false on every page the shipped reference serves, because that page builds no `DocState` for a port to be supplied on. It is no longer a missing capability: since `T042` the shipped browser entry fetches `<mount>/_search-index` on the first open of the palette and loads it through `createPageSearch`, and the palette searches that index | M3, `T042`, which shipped full text search by the palette's own store rather than through this composable. The wait this row recorded ended there; what stays false on the reference's page is `available`, and that is a route and not a milestone |
 

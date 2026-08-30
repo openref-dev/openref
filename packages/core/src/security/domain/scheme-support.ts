@@ -60,3 +60,90 @@ export function unsendableSchemeCause(scheme: SecuritySchemeShape): UnsendableCa
 
   return undefined;
 }
+
+/**
+ * Why a browser cannot present a scheme when it opens a socket, per SPEC 14.7.
+ *
+ * A SECOND QUESTION AND NOT THE SAME ONE, which is why it is a second union. `unsendableSchemeCause`
+ * asks what a `fetch` cannot carry; this asks what a WebSocket handshake cannot carry, and the two
+ * answers differ in both directions. A bearer token is an ordinary header to `fetch` and impossible
+ * to a native `WebSocket`, which cannot set one at all. An `apiKey` in a cookie is refused by
+ * `fetch` and is exactly what the browser sends by itself at a handshake.
+ *
+ * EACH CAUSE NAMES A DIFFERENT ROUTE, so they are not collapsed into one. The server bridge of SPEC
+ * 14.8 answers the first two; a certificate is held by whoever opens the connection; message
+ * encryption is not a handshake at all; and a document that did not say where a key travels is
+ * fixed by editing the document. One cause with one sentence would have to point somewhere for all
+ * five, and four of those pointers would be false.
+ */
+export type HandshakeBlockedCause =
+  /** Rides a request header at the handshake, which a native `WebSocket` cannot set. */
+  | 'handshake-header'
+  /** A credential of the broker connection itself, which a browser socket has no field for. */
+  | 'connection-credential'
+  /** A client certificate chosen by the browser during the TLS handshake. */
+  | 'transport-certificate'
+  /** Key material for the messages rather than for the connection. */
+  | 'message-encryption'
+  /** The document does not say enough to place a value at all. */
+  | 'undeclared';
+
+/**
+ * Where an `apiKey` can travel at a handshake: the address, or the browser's own cookie jar.
+ *
+ * `header` IS DELIBERATELY NOT HERE and neither is an absent location. The first is the whole
+ * subject of SPEC 14.7 and the second is a document that did not say, which is `undeclared`.
+ */
+const HANDSHAKE_KEY_LOCATIONS: readonly string[] = ['query', 'cookie'];
+
+/** Scheme types whose credential belongs to the connection rather than to a request header. */
+const CONNECTION_CREDENTIAL_TYPES: readonly string[] = [
+  'userPassword',
+  'plain',
+  'scramSha256',
+  'scramSha512',
+  'gssapi',
+];
+
+/**
+ * Why a browser cannot present this scheme at a socket handshake, or undefined when it can.
+ *
+ * THE ANSWER FOR AN UNREADABLE SCHEME IS A CAUSE AND NEVER `undefined`. A requirement naming a
+ * scheme the document never declared reaches this with a type nothing recognises, and returning
+ * "a browser can present it" for a scheme nobody can read is a check defaulting to success. It
+ * answers `undeclared` instead, which is both what is true and what a reader can act on.
+ *
+ * @param scheme - The scheme as the document declares it
+ * @returns The cause, or undefined when a browser can present it at the handshake
+ *
+ * @example
+ * handshakeBlockedCause({ type: 'http', scheme: 'bearer' });
+ */
+export function handshakeBlockedCause(
+  scheme: SecuritySchemeShape,
+): HandshakeBlockedCause | undefined {
+  if (scheme.type === 'apiKey' || scheme.type === 'httpApiKey') {
+    if (scheme.in === undefined || scheme.in === '') return 'undeclared';
+    if (HANDSHAKE_KEY_LOCATIONS.includes(scheme.in)) return undefined;
+    if (scheme.in === 'header') return 'handshake-header';
+
+    // AsyncAPI's own `apiKey` puts the key in the connection's user or password field, per SPEC
+    // 8.2, and a browser socket has neither. Any location outside the five the IR knows lands
+    // here too, because a location this file cannot place is not a location it may ignore.
+    return 'connection-credential';
+  }
+
+  if (scheme.type === 'http' || scheme.type === 'oauth2' || scheme.type === 'openIdConnect') {
+    return 'handshake-header';
+  }
+
+  if (scheme.type === 'mutualTLS' || scheme.type === 'X509') return 'transport-certificate';
+
+  if (scheme.type === 'symmetricEncryption' || scheme.type === 'asymmetricEncryption') {
+    return 'message-encryption';
+  }
+
+  if (CONNECTION_CREDENTIAL_TYPES.includes(scheme.type)) return 'connection-credential';
+
+  return 'undeclared';
+}

@@ -318,6 +318,111 @@ describe('the channel model', () => {
     expect(text(quietMarkup)).not.toContain('requires');
   });
 
+  /**
+   * The statement SPEC 14.7 requires, built at `T055`.
+   *
+   * IT IS THE `mutualTLS` RULE OF `T028` ONE FLOOR DOWN. A scheme a browser cannot present at a
+   * socket handshake, drawn as if it were an ordinary requirement, teaches a reader that their
+   * credential is wrong when the truth is that nothing ever sent it. The console's version of that
+   * failure was closed by naming the scheme with the reason beside it; the channel page's version
+   * is closed here, in the server's own markup, so the reader meets it before any script has run
+   * and long before any connection could be attempted.
+   */
+  it('should say a scheme needing a handshake header cannot come from a browser, and point at the bridge', async () => {
+    // Given the operation whose `httpApiKey` travels in a header, which is the row SPEC 14.7 sends
+    // to the server bridge and nowhere else
+    const markup = await html(ChannelOperations, { channel: channelOf(REQUESTS) });
+
+    // Then the scheme is named, the limitation is named, and the one route is named
+    expect(eventsDocument().nodes.get(REQUESTS)).toBeDefined();
+    expect(text(markup)).toContain('not from a browser');
+    expect(text(markup)).toContain('topicKey');
+    expect(text(markup)).toContain('cannot set one');
+    expect(text(markup)).toContain('server bridge that opens the connection is the only route');
+  });
+
+  it('should give a broker credential its own sentence rather than the bridge sentence twice', async () => {
+    // Given the server whose SASL scheme is a field of the connection and not a header
+    const markup = await html(ChannelFacts, { channel: channelOf(REQUESTS) });
+
+    // Then the cause it really has is the one it is given, beside the server it belongs to
+    expect(text(markup)).toContain('saslScram');
+    expect(text(markup)).toContain('credential of the broker connection itself');
+    expect(text(markup)).not.toContain('cannot set one');
+  });
+
+  it('should draw the limitation inside the facts family, so no theme owes it a new rule', async () => {
+    // Given both sections, and the rule that markup outside a position is markup two themes must
+    // style: `theme-css-raw` had 40 bytes of headroom on 2026-08-30
+    const facts = await html(ChannelFacts, { channel: channelOf(REQUESTS) });
+    const operations = await html(ChannelOperations, { channel: channelOf(REQUESTS) });
+
+    // Then the rows are `oref-fact` rows and carry no name of their own
+    expect(facts).toContain('<span class="oref-fact-label">not from a browser</span>');
+    expect(operations).toContain('<span class="oref-fact-label">not from a browser</span>');
+    expect(`${facts}${operations}`).not.toContain('oref-handshake');
+    expect(`${facts}${operations}`).not.toContain('oref-socket');
+  });
+
+  it('should draw no limitation row for a scheme a browser can present, which is what makes the rows above the schemes own', async () => {
+    // Given the falsification pair: the same section over a channel whose one requirement is a key
+    // in the query, which SPEC 14.7 admits because the query is part of the address
+    const presentable: ChannelModel = {
+      protocol: 'ws',
+      parameters: [],
+      servers: [
+        {
+          url: 'wss://ws.example.com',
+          protocol: 'ws',
+          protocolVersion: '',
+          description: '',
+          security: [
+            { schemeId: 'queryKey', type: 'httpApiKey', in: 'query', name: 'token', scopes: [] },
+          ],
+        },
+      ],
+      bindings: [],
+      operations: [],
+      messages: [],
+    };
+
+    // When
+    const markup = await html(ChannelFacts, { channel: presentable });
+
+    // Then the requirement is drawn and no limitation is claimed about it
+    expect(markup).toContain('<span class="oref-security-type">httpApiKey</span>');
+    expect(text(markup)).toContain('requires');
+    expect(text(markup)).not.toContain('not from a browser');
+  });
+
+  it('should say a scheme the document never declared cannot be placed, rather than assuming it can', async () => {
+    // Given a requirement naming a scheme outside the document's table, which the model reads as
+    // `unknown` and which a check defaulting to success would wave through
+    const undeclared: ChannelModel = {
+      protocol: 'ws',
+      parameters: [],
+      servers: [
+        {
+          url: 'wss://ws.example.com',
+          protocol: 'ws',
+          protocolVersion: '',
+          description: '',
+          security: [{ schemeId: 'ghost', type: 'unknown', in: '', name: '', scopes: [] }],
+        },
+      ],
+      bindings: [],
+      operations: [],
+      messages: [],
+    };
+
+    // When
+    const markup = await html(ChannelFacts, { channel: undeclared });
+
+    // Then
+    expect(text(markup)).toContain('not from a browser');
+    expect(text(markup)).toContain('not described well enough to be placed');
+  });
+
   it('should promise no bench, because a channel has nothing for a console to send', () => {
     // Given the channel page
     const page = pageOf(REQUESTS);
