@@ -267,8 +267,10 @@ describe('the event class over the whole corpus, per SPEC 15.1', () => {
   // vitest's 5,000 ms default and turned the coverage gate red. Raising a timeout to fit it would
   // be tuning the instrument to the reading, so the estate's zero is run where it costs nothing
   // instead: `packages/core/test/unit/topology.spec.ts` already walks all forty documents once for
-  // its re-fold case, and counts the class on the same walk. What is lost by not merging them here
-  // is the merged edge count for that estate, which stays a recorded measurement in SPEC 15.1 with
-  // its procedure named, and the merge's own inability to invent the class is proved by the case
-  // above at twenty three services.
+  // its re-fold case, and counts the class on the same walk. The merged edge count for that estate
+  // is no longer lost either, and it is not lost anywhere near here: since the SPEC 20 overview cap
+  // was re-derived on the forty document estate on 2026-08-30, that estate is a threshold's input,
+  // so `packages/nest/test/integration/overview-budget.spec.ts` has to merge it in any case and
+  // asserts 95 edges over 68 groups there by exact equality. The merge's own inability to invent
+  // the class is proved by the case above at twenty three services.
 });

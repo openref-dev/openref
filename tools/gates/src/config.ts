@@ -566,7 +566,7 @@ export const BUDGET_SPEC_ROWS: Readonly<Record<string, string>> = {
   'external-requests': 'Внешние сетевые запросы',
   'csp-violations': 'Нарушения строгой CSP',
   'served-document': 'Отданный документ браузеру, как его собирает хост, 1000 узлов, сырые байты',
-  'overview-document': 'Обзорная страница, федерация событийного корпуса, сырые байты',
+  'overview-document': 'Обзорная страница, федерация всего корпуса, сырые байты',
   'static-build': 'Статическая сборка, 1000 узлов, 4 ядра',
 };
 
@@ -1355,30 +1355,51 @@ export const MEASURED_BUDGETS: readonly MeasuredBudget[] = [
   // and the `served-document` pair is stated for the 1000 node fixture and promises nothing about
   // any other document. A page nothing measures grows until somebody notices.
   //
-  // THE INPUT IS THE EVENT CORPUS RATHER THAN A NUMBER SOMEBODY PICKED. One document cannot be the
+  // THE INPUT IS THE WHOLE CORPUS RATHER THAN A NUMBER SOMEBODY PICKED. One document cannot be the
   // input, because the section exists for a composition of services: the largest event document in
   // the corpus, `everest-system-api.yaml`, carries 25 edges and its overview page is 14,556 bytes.
-  // The upper shape the EVENT corpus gives is every one of its twenty three documents federated
-  // into one estate: 23 services, 80 nodes, 221 schemas, 91 edges over 64 groups.
+  // The upper shape the corpus gives is every one of its forty documents, both families, federated
+  // into one estate: 40 services, 1,310 nodes, 2,582 schemas, 95 edges over 68 groups.
   //
-  // IT IS NOT THE UPPER SHAPE OF THE WHOLE CORPUS, and the difference is measured rather than
-  // estimated. All 40 corpus documents, the 17 HTTP ones included, federate to 95 edges over 68
-  // groups, 1,310 nodes, 2,582 schemas and an overview page of 77,328 bytes, which is 6,672 over
-  // this cap. Almost none of that is the graph: four more edges took the section from 45,792 to
-  // 48,046, and the page with no edges at all went from 18,159 to 29,282. The open question that
-  // leaves is whether the overview page renders in full on any estate or has a bounded view with
-  // the rest on its own address, and it belongs to the maintainer: SPEC 9.5.1 carries the record
-  // and forbids choosing it under budget pressure. The cap stays derived from the input its SPEC
-  // 20 row names, and that row names the event corpus.
+  // THE FIRST EDITION TOOK THE EVENT HALF ALONE, and the re-derivation is recorded rather than
+  // silently applied. On 2026-08-29 the input was the 23 event documents, 91 edges over 64 groups,
+  // 80 nodes, 221 schemas, measured 63,951 bytes for a cap of 69 KB. The forty document estate read
+  // 77,328, over that cap by 6,672, and almost none of the overrun was the graph: four more edges
+  // took the section from 45,792 to 48,046 while the page with no edges at all went from 18,159 to
+  // 29,282. A cap derived on a document an order smaller is measuring something other than what it
+  // was set for, so the maintainer re-derived it on 2026-08-30 by the standing rule. A BOUNDED VIEW
+  // OF THE OVERVIEW PAGE WAS REFUSED IN THE SAME RULING, and the reason is the rule itself:
+  // choosing a product shape under budget pressure is the move this project forbids, and if the
+  // page needs a bounded view later that is a design decision taken on its own merits.
   //
-  // MEASURED 63,951 BYTES on the same serving path SPEC 9.5.1 measured the section on, which is the
+  // MEASURED 77,328 BYTES on the same serving path SPEC 9.5.1 measured the section on, which is the
   // shell the renderer produces with one stylesheet and one module and a markdown renderer built
-  // with the highlighter. Plus ten percent, up to the whole KB, is 69 KB, which is 70,656, and the
-  // headroom is 6,705. THE PROPERTY, checked rather than the ten percent taken on trust: this page
-  // costs 503.2 bytes an edge, so thirteen more rows read 70,493 and fit while fourteen read 70,996
-  // and do not, and a service the size of the corpus's largest, 25 edges, reads 76,531 and fails.
-  // An estate that grew by a whole service is re-derived with a figure attached rather than passing
-  // in silence.
+  // with the highlighter. Plus ten percent is 85,060.8, so up to the whole KB is 84 KB, which is
+  // 86,016, and the headroom is 8,688. THE PROPERTY, checked rather than the ten percent taken on
+  // trust: this page costs 505.7 bytes an edge, so seventeen more rows read 85,926 and fit while
+  // eighteen read 86,431 and do not, and a second service the size of the corpus's largest event
+  // document is not extrapolated at all but measured, at 41 services, 120 edges and 89,647 bytes,
+  // which fails. THAT FIGURE WAS TAKEN AT THE COPY ID `everest-system-api-two` AND THE ID IS NAMED
+  // BECAUSE THE FIGURE DEPENDS ON ITS LENGTH: the same copy under an id of length `len` reads
+  // 88,239 + 64 x len, which is 89,647 at twenty two characters, 88,559 at five and 89,775 at
+  // twenty four. The 64 is both ends of twenty five section rows plus a rail row and a state
+  // record. The conclusion holds at every length, since even an empty id would read 88,239 and
+  // fail: an estate that grew by a whole event service is re-derived with a figure attached rather
+  // than passing in silence.
+  //
+  // WHAT MOVED THE CAP IS DOCUMENT SCALE AND NOT SECTION GROWTH, itemised because "scale" on its
+  // own is a word rather than a reading. Of the 13,377 bytes between the two derivations, 2,254 is
+  // the section and 11,123 is the base page; inside the base page, 7,051 is the markup, all of it
+  // navigation rail rows since nothing else in the markup changed, 4,069 is the `navigation` array
+  // of the embedded state, and the remaining 3 bytes are two counters gaining a digit. Both halves
+  // of the navigation carry one entry per service rather than one per node, and
+  // the nodes are nearly free: a forty first service bringing 589 nodes and no edges measures 256
+  // bytes, its own rail row included. THAT ONE WAS TAKEN AT THE COPY ID `stripe-two`, named for the
+  // same reason: the same copy under an id of length `len` reads 77,544 + 4 x len, which is 77,584
+  // at ten characters, 77,564 at five and 77,592 at twelve. A service id is prefixed onto every
+  // node id per SPEC 15.1, so it lands in both ends of every section row and in both halves of the
+  // navigation; neither conclusion here depends on the length, but neither figure reproduces
+  // without it.
   //
   // IT MEASURES THE RENDERER'S SHELL AND NOT THE DOCUMENT A HOST ASSEMBLES, the same quantity as
   // the 41 KB jsdom half of `served-document` and with the same known direction of error: it always
@@ -1387,8 +1408,8 @@ export const MEASURED_BUDGETS: readonly MeasuredBudget[] = [
   // app and a Chrome navigation, none of which the threshold needs.
   {
     id: 'overview-document',
-    label: 'Overview page of the federated event corpus, raw bytes, as the renderer produces it',
-    limit: '69 KB',
+    label: 'Overview page of the federated corpus, raw bytes, as the renderer produces it',
+    limit: '84 KB',
     enforcedBy: 'packages/nest/test/integration/overview-budget.spec.ts',
   },
   {
