@@ -95,4 +95,4 @@ export {
   MCP_SEGMENT,
 } from './llms/domain/llms-text';
 export type { LlmsTextOptions } from './llms/domain/llms-text';
-export { plainSummary, SUMMARY_LIMIT } from './llms/domain/summary';
+export { oneLine, plainSummary, SUMMARY_LIMIT } from './llms/domain/summary';

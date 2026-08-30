@@ -51,6 +51,18 @@ export interface BridgeOptions {
   readonly maxMessagesPerSecond?: number;
   /** Entries the ring holds while the reader is behind. Defaults to 500. */
   readonly bufferSize?: number;
+  /**
+   * Bytes the ring holds while the reader is behind. Defaults to 1 MiB.
+   *
+   * THE SECOND CEILING ON ONE BUFFER, AND SPEC 14.8 RECORDS WHY IT EXISTS. `bufferSize` bounds how
+   * many entries wait and says nothing about how large they are, so a producer of large messages
+   * fills a bounded ring with unbounded memory: measured at `T059`, 200 messages of one megabyte
+   * against a ring of fifty left `buffered: 50`, which is 50.0 MB retained where this ceiling
+   * retains 1.0 MB. Retention rather than RSS, which reads 351 to 403 MB on unchanged code and so
+   * measures allocation churn rather than the bound. Both ceilings are the same
+   * question and are answered by the same three overflow voices, so nothing is lost in silence.
+   */
+  readonly maxBufferedBytes?: number;
   /** What a full ring does with a message. Defaults to `drop-oldest`. */
   readonly onOverflow?: BridgeOverflowMode;
   /** Ceiling on one subscription, in seconds. Defaults to 300. */
@@ -73,6 +85,26 @@ export const DEFAULT_BRIDGE_MESSAGES_PER_SECOND = 50;
 /** Entries the ring holds, when the host names none. */
 export const DEFAULT_BRIDGE_BUFFER_SIZE = 500;
 
+/**
+ * Bytes the ring holds, when the host names none.
+ *
+ * DERIVED RATHER THAN CHOSEN, per SPEC 14.8: it is {@link DEFAULT_BRIDGE_BUFFER_SIZE} entries at
+ * about two kilobytes each, which is the size the old flat memory claim silently assumed. A host
+ * whose messages are larger raises it and knows that it is raising it.
+ */
+export const DEFAULT_BRIDGE_BUFFERED_BYTES = 1_048_576;
+
+/**
+ * Longest `maxConnectionSeconds` a timer can actually hold, per SPEC 14.8.
+ *
+ * `setTimeout` in Node takes a 32-bit signed millisecond delay, and a larger one fires at once with
+ * a `TimeoutOverflowWarning`. Measured at `T059`: `maxConnectionSeconds: 2_147_484` closed the
+ * subscription on the first millisecond saying it had reached its ceiling of 2147484 seconds, and
+ * 2_147_483 held it open. A ceiling that ends the thing it is meant to bound is the `T047` defect
+ * class, which the check below already named and refused on one side only.
+ */
+export const MAX_BRIDGE_CONNECTION_SECONDS = 2_147_483;
+
 /** What a full ring does, when the host names nothing. */
 export const DEFAULT_BRIDGE_OVERFLOW: BridgeOverflowMode = 'drop-oldest';
 
@@ -91,6 +123,7 @@ export interface ResolvedBridgeOptions {
   readonly channels: readonly string[];
   readonly maxMessagesPerSecond: number;
   readonly bufferSize: number;
+  readonly maxBufferedBytes: number;
   readonly onOverflow: BridgeOverflowMode;
   readonly maxConnectionSeconds: number;
   readonly maxConcurrentSubscriptions: number;
@@ -125,8 +158,25 @@ export function assertBridgeOptions(label: string, options: BridgeOptions | unde
 
   positive(label, 'maxMessagesPerSecond', options.maxMessagesPerSecond);
   positive(label, 'bufferSize', options.bufferSize);
+  positive(label, 'maxBufferedBytes', options.maxBufferedBytes);
   positive(label, 'maxConnectionSeconds', options.maxConnectionSeconds);
   positive(label, 'maxConcurrentSubscriptions', options.maxConcurrentSubscriptions);
+
+  // THE OTHER END OF THE SAME CHECK, added at `T059`. `positive` refuses a fraction because a
+  // fractional second is a timer that fires at once; a value past the 32-bit millisecond ceiling
+  // fires at once for the same reason and was accepted. Both directions now name the same defect.
+  if (
+    options.maxConnectionSeconds !== undefined &&
+    options.maxConnectionSeconds > MAX_BRIDGE_CONNECTION_SECONDS
+  ) {
+    throw invalid(
+      `${label} sets bridge.maxConnectionSeconds to ${String(options.maxConnectionSeconds)}. The ` +
+        `longest a timer can hold is ${String(MAX_BRIDGE_CONNECTION_SECONDS)} seconds, because ` +
+        'setTimeout takes a 32-bit millisecond delay and a larger one fires immediately: the ' +
+        'subscription would close on its first millisecond claiming it had reached a ceiling of ' +
+        'that many seconds, which is a limit that ends the thing it is meant to bound',
+    );
+  }
 
   if (options.onOverflow !== undefined && !BRIDGE_OVERFLOW_MODES.includes(options.onOverflow)) {
     throw invalid(
@@ -157,6 +207,7 @@ export function resolveBridgeOptions(options: BridgeOptions | undefined): Resolv
     channels: options?.channels === undefined ? [] : [...options.channels],
     maxMessagesPerSecond: options?.maxMessagesPerSecond ?? DEFAULT_BRIDGE_MESSAGES_PER_SECOND,
     bufferSize: options?.bufferSize ?? DEFAULT_BRIDGE_BUFFER_SIZE,
+    maxBufferedBytes: options?.maxBufferedBytes ?? DEFAULT_BRIDGE_BUFFERED_BYTES,
     onOverflow: options?.onOverflow ?? DEFAULT_BRIDGE_OVERFLOW,
     maxConnectionSeconds: options?.maxConnectionSeconds ?? DEFAULT_BRIDGE_CONNECTION_SECONDS,
     maxConcurrentSubscriptions:

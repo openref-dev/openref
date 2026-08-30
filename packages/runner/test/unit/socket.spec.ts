@@ -405,6 +405,38 @@ describe('openSocket', () => {
     expect(state.log.entries[2]?.matched).toBe('Tick');
   });
 
+  it('should file a frame it could not read as one rather than as a payload that failed a schema', () => {
+    // Given a channel that declares one message, so the validator has a name to blame
+    const recorded = recordingTransport();
+    const session = openSocket(
+      {
+        address: 'wss://example.test/events',
+        transport: 'native',
+        messages: [{ name: 'Tick', schema: { type: 'object', required: ['at'] } }],
+      },
+      {},
+      { transport: recorded.transport },
+    );
+    recorded.handlers().onOpen();
+
+    // When a text message arrives that really does fail the schema, and then a frame that is not
+    // text at all, which is what a server sending binary on a text channel produces
+    recorded.handlers().onMessage('{"nothing":true}');
+    recorded.handlers().onUnreadableFrame('the server sent a frame that is not text');
+    const state = session.state();
+
+    // Then the two are told apart. Before `T059` the binary frame went down the message path
+    // carrying a sentence this package wrote, so a reader was told it did not match `Tick`, which
+    // is a true statement about that sentence and a false one about what the server sent.
+    expect(state.log.invalid).toBe(1);
+    expect(state.log.unreadable).toBe(1);
+    expect(state.log.entries[0]?.problem).toContain('Tick');
+    expect(state.log.entries[1]?.problem).toBe('the server sent a frame that is not text');
+    expect(state.log.entries[1]?.problem).not.toContain('Tick');
+    expect(state.log.entries[1]?.unreadable).toBe(true);
+    expect(state.status).toBe('open');
+  });
+
   it('should log what it sends as well as what it receives', () => {
     // Given
     const recorded = recordingTransport();
@@ -824,7 +856,13 @@ describe('NativeWebSocketTransport', () => {
     const open = (): unknown =>
       transport.open(
         { kind: 'socket.io', url: 'wss://example.test', protocols: [], auth: { token: 'secret' } },
-        { onOpen: vi.fn(), onMessage: vi.fn(), onClose: vi.fn(), onError: vi.fn() },
+        {
+          onOpen: vi.fn(),
+          onMessage: vi.fn(),
+          onUnreadableFrame: vi.fn(),
+          onClose: vi.fn(),
+          onError: vi.fn(),
+        },
       );
 
     // Then, no socket is constructed and the reader is told which route is left
@@ -842,28 +880,38 @@ describe('NativeWebSocketTransport', () => {
     // When
     transport.open(
       { kind: 'native', url: 'wss://example.test/events?t=1', protocols: ['ocpp1.6'], auth: {} },
-      { onOpen: vi.fn(), onMessage: vi.fn(), onClose: vi.fn(), onError: vi.fn() },
+      {
+        onOpen: vi.fn(),
+        onMessage: vi.fn(),
+        onUnreadableFrame: vi.fn(),
+        onClose: vi.fn(),
+        onError: vi.fn(),
+      },
     );
 
     // Then
     expect(create).toHaveBeenCalledWith('wss://example.test/events?t=1', ['ocpp1.6']);
   });
 
-  it('should report a binary frame as one rather than stringifying it into the log', () => {
+  it('should report a binary frame on its own path rather than as a message that failed a schema', () => {
     // Given
     const socket = fakeSocket();
     const transport = new NativeWebSocketTransport({ create: () => socket });
     const onMessage = vi.fn();
+    const onUnreadableFrame = vi.fn();
     transport.open(
       { kind: 'native', url: 'wss://example.test', protocols: [], auth: {} },
-      { onOpen: vi.fn(), onMessage, onClose: vi.fn(), onError: vi.fn() },
+      { onOpen: vi.fn(), onMessage, onUnreadableFrame, onClose: vi.fn(), onError: vi.fn() },
     );
 
     // When
     socket.onmessage?.({ data: { byteLength: 4 } });
 
-    // Then
-    expect(onMessage).toHaveBeenCalledWith('[a binary frame, which this console does not read]');
+    // Then the frame goes nowhere near the validator, per SPEC 14.7 as `T059` wrote it.
+    expect(onMessage).not.toHaveBeenCalled();
+    expect(onUnreadableFrame).toHaveBeenCalledWith(
+      'the server sent a frame that is not text, and this console reads text frames only',
+    );
   });
 
   it('should report one close per open even when the browser fires the error first', () => {
@@ -874,7 +922,7 @@ describe('NativeWebSocketTransport', () => {
     const onError = vi.fn();
     transport.open(
       { kind: 'native', url: 'wss://example.test', protocols: [], auth: {} },
-      { onOpen: vi.fn(), onMessage: vi.fn(), onClose, onError },
+      { onOpen: vi.fn(), onMessage: vi.fn(), onUnreadableFrame: vi.fn(), onClose, onError },
     );
 
     // When
@@ -905,7 +953,13 @@ describe('NativeWebSocketTransport', () => {
     // When
     new NativeWebSocketTransport().open(
       { kind: 'native', url: 'wss://example.test/events', protocols: ['v1'], auth: {} },
-      { onOpen: vi.fn(), onMessage: vi.fn(), onClose: vi.fn(), onError: vi.fn() },
+      {
+        onOpen: vi.fn(),
+        onMessage: vi.fn(),
+        onUnreadableFrame: vi.fn(),
+        onClose: vi.fn(),
+        onError: vi.fn(),
+      },
     );
 
     // Then
@@ -924,7 +978,13 @@ describe('NativeWebSocketTransport', () => {
     const open = (): unknown =>
       transport.open(
         { kind: 'native', url: 'wss://example.test', protocols: [], auth: {} },
-        { onOpen: vi.fn(), onMessage: vi.fn(), onClose: vi.fn(), onError: vi.fn() },
+        {
+          onOpen: vi.fn(),
+          onMessage: vi.fn(),
+          onUnreadableFrame: vi.fn(),
+          onClose: vi.fn(),
+          onError: vi.fn(),
+        },
       );
 
     // Then
@@ -983,7 +1043,13 @@ describe('SocketIoTransport', () => {
         protocols: [],
         auth: { token: 'secret' },
       },
-      { onOpen: vi.fn(), onMessage: vi.fn(), onClose: vi.fn(), onError: vi.fn() },
+      {
+        onOpen: vi.fn(),
+        onMessage: vi.fn(),
+        onUnreadableFrame: vi.fn(),
+        onClose: vi.fn(),
+        onError: vi.fn(),
+      },
     );
 
     // Then, the session owns the attempt budget, so the client may not run one underneath it
@@ -1040,7 +1106,13 @@ describe('SocketIoTransport', () => {
     const open = (): unknown =>
       transport.open(
         { kind: 'native', url: 'wss://example.test', protocols: [], auth: {} },
-        { onOpen: vi.fn(), onMessage: vi.fn(), onClose: vi.fn(), onError: vi.fn() },
+        {
+          onOpen: vi.fn(),
+          onMessage: vi.fn(),
+          onUnreadableFrame: vi.fn(),
+          onClose: vi.fn(),
+          onError: vi.fn(),
+        },
       );
 
     // Then
@@ -1057,7 +1129,7 @@ describe('SocketIoTransport', () => {
     const onError = vi.fn();
     transport.open(
       { kind: 'socket.io', url: 'wss://example.test', protocols: [], auth: {} },
-      { onOpen: vi.fn(), onMessage: vi.fn(), onClose, onError },
+      { onOpen: vi.fn(), onMessage: vi.fn(), onUnreadableFrame: vi.fn(), onClose, onError },
     );
 
     // When
@@ -1077,11 +1149,23 @@ describe('SocketIoTransport', () => {
     const abrupt = vi.fn();
     transport.open(
       { kind: 'socket.io', url: 'wss://example.test', protocols: [], auth: {} },
-      { onOpen: vi.fn(), onMessage: vi.fn(), onClose: clean, onError: vi.fn() },
+      {
+        onOpen: vi.fn(),
+        onMessage: vi.fn(),
+        onUnreadableFrame: vi.fn(),
+        onClose: clean,
+        onError: vi.fn(),
+      },
     );
     new SocketIoTransport({ create: () => second }).open(
       { kind: 'socket.io', url: 'wss://example.test', protocols: [], auth: {} },
-      { onOpen: vi.fn(), onMessage: vi.fn(), onClose: abrupt, onError: vi.fn() },
+      {
+        onOpen: vi.fn(),
+        onMessage: vi.fn(),
+        onUnreadableFrame: vi.fn(),
+        onClose: abrupt,
+        onError: vi.fn(),
+      },
     );
 
     // When
@@ -1104,7 +1188,13 @@ describe('SocketIoTransport', () => {
     const onMessage = vi.fn();
     const connection = transport.open(
       { kind: 'socket.io', url: 'wss://example.test', protocols: [], auth: {} },
-      { onOpen: vi.fn(), onMessage, onClose: vi.fn(), onError: vi.fn() },
+      {
+        onOpen: vi.fn(),
+        onMessage,
+        onUnreadableFrame: vi.fn(),
+        onClose: vi.fn(),
+        onError: vi.fn(),
+      },
     );
 
     // When

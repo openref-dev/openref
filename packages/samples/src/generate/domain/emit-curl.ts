@@ -10,6 +10,7 @@
  */
 
 import { quoteShell } from './literals';
+import type { RunnerBodyField } from '@openref/runner';
 import type { HeaderPair } from './plan-parts';
 import {
   binaryFileOf,
@@ -30,46 +31,124 @@ function headerArguments(headers: readonly HeaderPair[]): readonly string[] {
 }
 
 /**
+ * One value curl's own form parser reads as a quoted literal.
+ *
+ * THE SHELL QUOTING IS NOT THIS QUESTION AND ANSWERING ONE DOES NOT ANSWER THE OTHER, which is the
+ * defect `T059` measured. `quoteShell` makes the argument arrive at curl as one word; inside that
+ * word curl parses `name=content;type=…` itself, so a quote or a semicolon interpolated raw is read
+ * as curl syntax rather than as text. Measured before the fix, against the real binary: a file named
+ * `real.png";type=text/html;x="` emitted `-F 'f=@"real.png";type=text/html;x="";type=image/png'`, and
+ * the part curl then sent declared `text/html`, not the `image/png` the runner would have sent.
+ *
+ * IT IS APPLIED TO THE TWO POSITIONS CURL READS QUOTES IN AND TO NO OTHERS, which was established
+ * by running the binary rather than by reading its manual, and the first form of this fix quoted all
+ * four and was wrong in two. curl takes a field name literally up to the first `=` and a `type=`
+ * value literally to the end, so quoting either produces a part named `%22a%22` or a content type
+ * with quotation marks in it. Those two positions cannot be escaped at all, so they are checked
+ * instead, by {@link inexpressibleField}.
+ *
+ * @param text - Whatever the document or the reader supplied
+ * @returns The text as a curl form literal, quotes included
+ */
+function quoteFormValue(text: string): string {
+  return `"${text.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
+}
+
+/**
+ * Why curl cannot be told to send this part as the runner would, or null when it can.
+ *
+ * TWO POSITIONS AND THE MEASURED REASON FOR EACH, both taken from real curl output. A field name
+ * containing `=` ends the name where curl finds the first one, so `a=b` becomes the field `a` with
+ * the rest as content. A field name containing `"` is emitted by curl as `name="a%22b"` while the
+ * runner's own encoder writes `name="a\"b"`, so the two disagree on the wire even though nothing
+ * was mis-parsed. A content type containing `"` is passed through with the quotation marks in it.
+ *
+ * REFUSING IS THE ANSWER SPEC 18 ALREADY GIVES FOR WHAT A LANGUAGE CANNOT WRITE. A sample that
+ * shows a command sending something other than the button beside it is the one thing that section
+ * forbids by name, so the whole cURL sample goes rather than one silently wrong argument.
+ *
+ * @param field - One multipart field
+ * @returns The reason, or null
+ */
+function inexpressibleField(field: RunnerBodyField): string | null {
+  const contentType = field.kind === 'text' ? field.contentType : field.file.mediaType;
+
+  if (field.name.includes('=')) {
+    return `the multipart field named ${JSON.stringify(field.name)} carries "=", which curl reads as the end of the field name, so the command would send a different field`;
+  }
+  if (/["\r\n]/.test(field.name)) {
+    return `the multipart field named ${JSON.stringify(field.name)} carries a quotation mark or a line break, which curl and this runner write into the part header differently, so the command would not send what the button sends`;
+  }
+  if (contentType?.includes('"') === true) {
+    return `the multipart field ${JSON.stringify(field.name)} declares the content type ${JSON.stringify(contentType)}, and curl passes a "type=" value through literally, so the quotation mark would reach the part header`;
+  }
+
+  return null;
+}
+
+/** What the body of one command turned into: its arguments, or the reason there are none. */
+type BodyArguments =
+  | { readonly kind: 'arguments'; readonly args: readonly string[] }
+  | { readonly kind: 'refused'; readonly reason: string };
+
+/**
+ * Wraps a finished argument list.
+ *
+ * @param args - The arguments
+ * @returns The list as the union member that carries one
+ */
+function arguments_(args: readonly string[]): BodyArguments {
+  return { kind: 'arguments', args };
+}
+
+/**
  * One multipart text part.
  *
  * TWO OPTIONS, BECAUSE ONE OF THEM CANNOT SAY EVERYTHING THE RUNNER SENDS. `--form-string` takes
  * its value literally and is therefore the safe form, and it has no way to give the part a content
  * type of its own. A text part that declares one, which `RunnerBodyField` allows and the runner's
- * encoder writes as a part header, therefore has to go through `-F`, whose value is quoted so that
- * a semicolon inside it is not read as another parameter and a leading at sign is not read as a
- * file name.
+ * encoder writes as a part header, therefore has to go through `-F`, whose content is quoted so
+ * that a semicolon inside it is not read as another parameter and a leading at sign is not read as
+ * a file name.
  */
 function textPart(name: string, value: string, contentType: string | undefined): string {
   if (contentType === undefined) return `--form-string ${quoteShell(`${name}=${value}`)}`;
 
-  const quoted = value.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
-
-  return `-F ${quoteShell(`${name}="${quoted}";type=${contentType}`)}`;
+  return `-F ${quoteShell(`${name}=${quoteFormValue(value)};type=${contentType}`)}`;
 }
 
 /**
  * The arguments that carry the body, whichever of the three shapes it is.
  *
  * @param request - The request being emitted
- * @returns The body arguments, empty when the request carries no body
+ * @returns The body arguments, or the reason no command can carry this body
  */
-function bodyArguments(request: SampleRequest): readonly string[] {
+function bodyArguments(request: SampleRequest): BodyArguments {
   const fields = multipartFieldsOf(request);
   if (fields !== null) {
-    return fields.map((field) =>
-      field.kind === 'text'
-        ? textPart(field.name, field.value, field.contentType)
-        : `-F ${quoteShell(`${field.name}=@"${field.file.fileName}";type=${field.file.mediaType}`)}`,
+    for (const field of fields) {
+      const reason = inexpressibleField(field);
+      if (reason !== null) return { kind: 'refused', reason };
+    }
+
+    return arguments_(
+      fields.map((field) =>
+        field.kind === 'text'
+          ? textPart(field.name, field.value, field.contentType)
+          : `-F ${quoteShell(
+              `${field.name}=@${quoteFormValue(field.file.fileName)};type=${field.file.mediaType}`,
+            )}`,
+      ),
     );
   }
 
   const file = binaryFileOf(request);
-  if (file !== null) return [`--data-binary ${quoteShell(`@${file.fileName}`)}`];
+  if (file !== null) return arguments_([`--data-binary ${quoteShell(`@${file.fileName}`)}`]);
 
   const text = textBodyOf(request);
-  if (text === null) return [];
+  if (text === null) return arguments_([]);
 
-  return [`--data-raw ${quoteShell(text)}`];
+  return arguments_([`--data-raw ${quoteShell(text)}`]);
 }
 
 /**
@@ -85,11 +164,14 @@ function bodyArguments(request: SampleRequest): readonly string[] {
 export function emitCurl(request: SampleRequest): EmitOutcome {
   const setsOwnContentType = multipartFieldsOf(request) !== null;
   const headers = setsOwnContentType ? headersWithoutContentType(request) : headersOf(request);
+  const body = bodyArguments(request);
+
+  if (body.kind === 'refused') return { kind: 'refused', reason: body.reason };
 
   const parts = [
     `curl -X ${request.plan.method} ${quoteShell(request.plan.url)}`,
     ...headerArguments(headers),
-    ...bodyArguments(request),
+    ...body.args,
   ];
 
   return { kind: 'source', source: parts.join(CONTINUE) };

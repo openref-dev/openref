@@ -347,14 +347,28 @@ export interface IRService {
  * invents, and a Callback Object by a runtime expression, so the same string means three different
  * things and a reader given only the string cannot tell which document member to open.
  */
-export type IRUnreadKeyPosition = 'paths' | 'webhooks' | 'callback';
+export type IRUnreadKeyPosition =
+  | 'paths'
+  | 'webhooks'
+  | 'callback'
+  /**
+   * OpenAPI 3.2's `additionalOperations`, where a method the specification enumerates does not
+   * belong, per SPEC 5.4's eighth row.
+   *
+   * ADDED AT `T059` AND BREAKING, recorded in `ai-docs/design/CONTRACT.md` before the code. Without
+   * it the record is byte-identical to a wrong-case key under `paths`, and the two are fixed in
+   * different members of the document.
+   */
+  | 'additional-operations';
 
 /**
  * One path item key that named an operation this normalizer does not read, per SPEC 5.4 and 7.1.
  *
- * TWO CASES, NOT ONE, since 2026-08-30. A key that is an HTTP method spelled in the wrong case
+ * THREE CASES, NOT ONE, since 2026-08-30. A key that is an HTTP method spelled in the wrong case
  * carries the method it would have been; a key that is no method spelling at all carries none,
- * because inventing one would be the guess SPEC 6 forbids.
+ * because inventing one would be the guess SPEC 6 forbids; and a key that is a method spelled
+ * exactly right, in a member where only unenumerated methods belong, carries it and is told apart
+ * from the first by `position`.
  */
 export interface IRUnreadKey {
   /** The path, webhook name or runtime expression it was written under, exactly as written. */

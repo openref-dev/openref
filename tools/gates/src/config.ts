@@ -246,6 +246,35 @@ export const STANDARDS_FILE = 'ai-docs/00-overview/PROJECT-STANDARDS.md';
  * as agreement from whichever side a person opened. The `federation` row arriving at `T054` is the
  * exact move that would have gone wrong, and it went right by hand.
  */
+/**
+ * How far a reading of these floors moves on a tree that did not change.
+ *
+ * MEASURED AT `T059` BECAUSE A FLOOR IS A COMPARISON AGAINST A NUMBER THAT IS SUPPOSED TO BE A
+ * PROPERTY OF THE CODE, and this one is partly a property of the instrument. The observation was
+ * taken twice before and explained neither time: `packages/core` lines read 98.15, 97.98, 97.88,
+ * 97.85 and 97.95 across five runs of one unchanged tree on 2026-08-29, a spread of 0.30 points.
+ *
+ * THE CAUSE IS IDENTIFIED AND IT IS THE V8 COVERAGE MERGE, not the tree and not the test count.
+ * Measured 2026-08-30 over eight runs of `pnpm exec vitest run --coverage`, including three on an
+ * APFS clone whose whole-tree fingerprint was byte-identical before and after each run and whose
+ * executed set was identical down to the failing test names: three different readings, statements
+ * 96.0136 / 95.8825 / 95.8563. The file list is the same 49 files every time and both denominators
+ * are fixed at 3103 lines and 3813 statements; exactly two files move, `freeze.ts` at 28 or 24
+ * lines, whose uncovered range 95-98 is the `instanceof Set` branch reachable only from another
+ * package's suite, and `drift-rules.ts` at 250 or 249 statements. So what varies is whether one
+ * worker's contribution reaches the merge, and the test run itself is deterministic.
+ *
+ * THE BOUND, AND IT IS A PROPERTY OF THE INSTRUMENT RATHER THAN OF THE CODE. The mechanism loses at
+ * most 4 lines and 6 statements at the current denominators, which is 0.129 points of lines and
+ * 0.157 of statements. The 0.30 recorded in 2026-08-29 exceeds that ceiling, so that figure was
+ * this effect plus real movement of the tree, which is what nobody could tell at the time.
+ *
+ * WHAT IT MEANS FOR A FLOOR. Every floor here sits at least eight points below its reading, so the
+ * bound is absorbed many times over and no gate has ever been near it. It is written down now
+ * rather than when it matters, because the first time a reading sits within a point of its floor
+ * the explanation will be wanted under time pressure, and a gate that flickers is a gate nobody
+ * can read. A floor set within 0.2 points of a measurement is a floor this bound can flip.
+ */
 export const COVERAGE_FLOORS: Readonly<Record<string, number>> = {
   core: 90,
   runner: 85,
@@ -261,6 +290,16 @@ export const COVERAGE_FLOORS: Readonly<Record<string, number>> = {
   // close of M4, 98.42 at `T053`, and the figure at the close of M5 is stated with its date in
   // `ai-docs/PROJECT_STATE.md` for that session.
   federation: 90,
+  // ADDED AT `T059`, THE TASK BOTH DECISIONS WERE ADDRESSED TO, and two rather than one because
+  // the second was the quieter debt. `T057` measured `samples` and filed a boxed section for the
+  // floor, on the `federation` precedent; `T058` built `agent` and filed nothing, so a package
+  // shipped inside `@openref/nest` with no floor and no box, which is the shape this list's own
+  // doctrine exists against. 90 for both, by the margin doctrine the five above follow. Measured
+  // 2026-08-30 on the closing run: `samples` 99.05 percent of lines and 98.80 of statements over 11
+  // files, `agent` 100.00 percent of lines and 96.88 of statements over 9. The figures are stated
+  // with their date in STANDARDS 9.1 and in `ai-docs/PROJECT_STATE.md` for that session.
+  samples: 90,
+  agent: 90,
 };
 
 /**
@@ -2066,6 +2105,322 @@ export const READER_PAGE_KINDS: readonly { readonly route: string; readonly kind
   { route: '<route>/shapes/{schemaId}', kind: 'shapes' },
   { route: '<route>/states', kind: 'states' },
   { route: '<route>/service/{serviceId}', kind: 'service' },
+];
+
+/**
+ * The four SPEC 21 rows M6 closes, in the order the table prints them.
+ *
+ * FOUR ROWS AND ONE GATE, WHICH IS THE FIRST TIME THAT COMBINATION APPEARS HERE, and the reason is
+ * that `T059` names four subjects in one sentence: "socket, bridge, samples and agent suites wired
+ * into `pnpm gates`, including the bridge soak test". `Static`, `Federation` and `Events` are one
+ * row each because each closed a milestone on its own; M6 built four things and closes them
+ * together, so a gate per row would be four gates reporting one milestone.
+ *
+ * `Bridge` IS THE ONE ROW THAT ALREADY EXISTED AND HAD NO RUNNER. It was written with the table
+ * itself, and until this wiring nothing tied its three coverages to `T056`'s suites: a renamed or
+ * emptied suite left SPEC 21 promising a coverage that had gone. `T059` also corrected one of its
+ * three words, from "no memory growth" to "bounded memory", because the first was measured on the
+ * message count and the adversarial pass measured it false on the message size.
+ */
+export const M6_SUITE_ROWS: readonly string[] = ['Bridge', 'Socket', 'Samples', 'Agent'];
+
+/**
+ * The four rows, wired coverage by coverage, reconciled against SPEC 21 in both directions.
+ *
+ * THE FILES SPAN FIVE PACKAGES AND THAT IS THE POINT. A socket is opened in `runner` and composed
+ * in `vue`; a bridge is limited in `nest`'s domain and served over HTTP from its API; a sample is
+ * built in `samples` and proved against the real curl binary; the agent surface is built in `agent`
+ * and mounted in `nest`. A coverage that stopped at one package would be answered by whichever half
+ * happened to survive.
+ *
+ * THE SOAK IS NAMED BY `T059` EXPLICITLY AND IS THEREFORE A COVERAGE OF ITS OWN, not a case inside
+ * the backpressure one: SPEC 14.8 accepts it as the acceptance evidence for a claim no code reading
+ * can settle, so a wiring that let it be deleted without going red would be wiring the claim to
+ * nothing.
+ */
+export const M6_SUITE_COVERAGE: readonly StaticCoverage[] = [
+  {
+    id: 'buffer-overflow',
+    spec: 'переполнение буфера',
+    files: [
+      'packages/nest/test/unit/bridge-limits.spec.ts',
+      'packages/nest/test/integration/bridge-route.spec.ts',
+    ],
+    cases: [
+      // The three modes of SPEC 14.8, at the ring and then over real HTTP, because the ring
+      // choosing an end and the reader being told about it are two different properties.
+      'should drop the oldest and keep the newest under drop-oldest',
+      'should refuse the newest and keep the oldest under drop-new',
+      'should say the session is over rather than choose an end under disconnect',
+      'should tell the reader how many messages it lost, in the stream the reader is watching',
+      'should end the stream under disconnect, with the reason and the count before the close',
+    ],
+  },
+  {
+    id: 'rate-limit',
+    spec: 'соблюдение rate limit',
+    files: [
+      'packages/nest/test/unit/bridge-limits.spec.ts',
+      'packages/nest/test/unit/bridge-service.spec.ts',
+    ],
+    cases: [
+      'should hand out one second of burst at the start and refill by elapsed time',
+      'should hold a producer to the rate over a driven minute',
+      'should hold a producer of ten thousand a second to a limit of fifty, and say what it dropped',
+    ],
+  },
+  {
+    id: 'bounded-memory',
+    spec: 'ограниченная память',
+    files: [
+      'packages/nest/test/integration/bridge-soak.spec.ts',
+      'packages/nest/test/unit/adversarial-m6.spec.ts',
+    ],
+    cases: [
+      // The soak, which SPEC 14.8 accepts as acceptance evidence and `T059` names by hand.
+      'should hold the limit and keep the heap flat across a virtual hour of messages',
+      // And the half the soak could not see, because it sends one small message six million
+      // times: the ceiling that counts entries says nothing about how large one is.
+      'should hold the byte ceiling rather than the entry ceiling when the payloads are large',
+      'should keep filling the entry ceiling when the payloads are small, which is the control',
+      'should refuse a maxConnectionSeconds past the 32-bit millisecond ceiling of setTimeout',
+      // The two clauses `T059`'s attack list names literally, committed at the blind review's
+      // finding that both had been driven by hand and neither had a runner.
+      'should refuse a single hundred megabyte payload without disturbing what the ring holds',
+      'should release the source and every timer across two thousand open and abandon cycles',
+    ],
+  },
+  {
+    id: 'handshake-refusal',
+    spec: 'отказ рукопожатия',
+    files: ['packages/runner/test/unit/socket.spec.ts', 'packages/vue/test/unit/socket.spec.ts'],
+    cases: [
+      // SPEC 14.7's first rule: the limitation is named before a connection is attempted, and the
+      // refusal happens on a value rather than on a scheme.
+      'should refuse a value for a scheme that needs a handshake header rather than sending a broken request',
+      'should pass over a blocked scheme the reader supplied no value for, per the T028 rule',
+      'should refuse a blocked credential before it opens anything at all',
+      'should open exactly one connection when nothing is blocked, which is what proves the case above',
+      'should name what a browser cannot present with no client and no connection at all',
+    ],
+  },
+  {
+    id: 'bounded-log',
+    spec: 'ограниченный журнал',
+    files: ['packages/runner/test/unit/socket.spec.ts'],
+    cases: [
+      'should keep a window and count everything a session of ten thousand messages carried',
+      'should hold a ten thousand message session to its window, driven through the session itself',
+      // The verdict half, which is what the window is for: a message read and rejected and a frame
+      // never read are two facts, and `T059` measured the second wearing the first.
+      'should count a marked entry as invalid and keep it in the window',
+      'should file a frame it could not read as one rather than as a payload that failed a schema',
+    ],
+  },
+  {
+    id: 'reconnection-budget',
+    spec: 'бюджет переподключений',
+    files: ['packages/runner/test/unit/socket.spec.ts'],
+    cases: [
+      'should stop reconnecting on a refusing server after its budget, with the delays doubling to the ceiling',
+      'should hold the backoff at the ceiling once doubling reaches it, rather than growing for ever',
+      'should not restore the budget when a connection opens, so an accept and close server is still bounded',
+      'should default the budget to the figure SPEC 14.7 records',
+    ],
+  },
+  {
+    id: 'two-transports',
+    spec: 'два транспорта',
+    files: ['packages/runner/test/unit/socket.spec.ts'],
+    cases: [
+      'should hand the url and the subprotocols to the constructor and nothing else',
+      'should refuse an auth payload rather than connecting without it',
+      'should hand the auth payload to the client and switch its own reconnection off',
+      'should refuse a handshake planned for a native socket, whose credentials went elsewhere',
+      'should carry messages on one named event, in both directions',
+    ],
+  },
+  {
+    id: 'wire-equality',
+    spec: 'равенство на проводе',
+    files: ['packages/samples/test/integration/curl-wire-equality.spec.ts'],
+    cases: [
+      // SPEC 18's whole claim, checked against the real binary rather than against a string.
+      'should agree on a GET carrying query parameters, a header parameter and an apiKey',
+      'should agree on a JSON body carrying the characters a shell would otherwise read',
+      'should agree on a form urlencoded body, which the encoder writes and neither client does',
+      'should agree on a multipart body part for part, boundary aside',
+      'should agree on a binary body, byte for byte',
+    ],
+  },
+  {
+    id: 'regenerated-sample',
+    spec: 'регенерация сэмпла',
+    files: ['packages/samples/test/integration/regenerated-sample.spec.ts'],
+    cases: [
+      'should be the same bytes when the specification did not change',
+      'should follow a parameter that changes its serialization style',
+      'should follow a security scheme that changes where the credential travels',
+      'should follow an operation that gains a request body',
+    ],
+  },
+  {
+    id: 'matrix-and-auth',
+    spec: 'матрица и схемы auth',
+    files: [
+      'packages/samples/test/unit/matrix-coverage.spec.ts',
+      'packages/samples/test/unit/adversarial-m6.spec.ts',
+    ],
+    cases: [
+      'should carry every cell the runner defines and refuse the same ones it refuses',
+      'should carry a multipart body as parts, since the plan holds it as bytes',
+      'should carry a binary body as the file the reader chose',
+      // And what a sample may never do, which is show a command that sends something else.
+      'should keep a hostile query value inside one argument of a real shell',
+      'should refuse the whole sample when a multipart field name carries the character curl reads as the end of a name',
+    ],
+  },
+  {
+    id: 'empty-body-rule',
+    spec: 'правило пустого тела',
+    files: ['packages/samples/test/unit/empty-body-argument.spec.ts'],
+    cases: [
+      'should emit no body argument in any of the nine languages',
+      'should say the request has no body where the language insists on saying something',
+      'should emit one in every language for an operation that does carry a body',
+    ],
+  },
+  {
+    id: 'two-text-files',
+    spec: 'два текстовых файла',
+    files: [
+      'packages/agent/test/unit/llms-text.spec.ts',
+      'packages/agent/test/unit/adversarial-m6.spec.ts',
+    ],
+    cases: [
+      'should name every operation exactly as the page that answers its address does',
+      'should list every named schema at the address its page answers on',
+      'should give an operation the same title in both files as well',
+      'should carry no control character out of a document that carries them',
+      // And the line the document may not write, which `T059` measured it writing, plus the link
+      // it may not build, which the blind review measured surviving the first fix.
+      'should carry the same number of section headings a clean document produces',
+      'should write no list row the document did not earn a node or a schema for',
+      'should let a document value forge no link, measured through the renderer this tree renders with',
+    ],
+  },
+  {
+    id: 'read-only-mcp',
+    spec: 'MCP только читает',
+    files: [
+      'packages/agent/test/unit/mcp-edges.spec.ts',
+      'packages/agent/test/unit/adversarial-m6.spec.ts',
+    ],
+    cases: [
+      'should refuse a JSON scalar, which parses and is not a request',
+      'should answer a parse failure under a null id rather than inventing one',
+      'should build a name from a node id that carries characters MCP does not allow',
+      'should refuse a batch by name rather than answering its first element',
+      'should answer a method name that names a prototype member as an unknown method',
+      'should answer a hostile resource uri as an unknown one rather than reaching for a file',
+    ],
+  },
+  {
+    id: 'audience-filter',
+    spec: 'фильтр аудитории',
+    files: [
+      'packages/agent/test/unit/exposure.spec.ts',
+      'packages/agent/test/unit/adversarial-m6.spec.ts',
+    ],
+    cases: [
+      'should withhold a node marked audience internal and name it as withheld',
+      'should read only the exact internal value and not any other audience',
+      'should refuse a tool named after an internal node the document really does declare',
+      'should keep the internal node out of the tool list and out of the health report',
+    ],
+  },
+];
+
+/** The milestone whose definition of done the M6 wiring answers, as SPEC 22 spells it. */
+export const M6_MILESTONE = 'M6';
+
+/**
+ * Each clause of the M6 definition of done, wired to the cases that answer it.
+ *
+ * SPEC 22 HAD NO M6 CLAUSE AT ALL UNTIL `T059` WROTE ONE, which is why this list exists in the
+ * same slice as the gate that reads it. `T055` recorded the absence in `ai-docs/PROJECT_STATE.md`
+ * prose and filed no section, so nothing carried a box for it and this task could have closed over
+ * it; the clause was written from the milestone's own four tasks before any of this wiring.
+ *
+ * NOT RUN BY THIS GATE, per `checkMilestoneClauses`, for the reason the M3, M4 and M5 clauses are
+ * held that way: the cases named here are already run either by the coverage list above or by
+ * `pnpm test:integration`, and running them here would report one red twice.
+ */
+export const M6_MILESTONE_CLAUSES: readonly StaticCoverage[] = [
+  {
+    id: 'handshake-named-before-connecting',
+    spec: 'схема, которую браузер не может предъявить при рукопожатии, названа читателю до попытки соединения',
+    files: [
+      'packages/runner/test/unit/socket.spec.ts',
+      'packages/vue/test/unit/socket.spec.ts',
+      'packages/render/test/unit/channel-page.spec.ts',
+    ],
+    cases: [
+      // The runner refuses the value, per SPEC 14.7's two halves.
+      'should refuse a value for a scheme that needs a handshake header rather than sending a broken request',
+      // The composable answers with no connection at all, which is the "before" of the clause.
+      'should name what a browser cannot present with no client and no connection at all',
+      // And the page states it, in markup the server wrote, so it is there before a script runs.
+      'should draw the three channel sections and none of the operation ones',
+    ],
+  },
+  {
+    id: 'bridge-survives-a-faster-producer',
+    spec: 'мост переживает продюсера, обгоняющего слив, с ограниченной памятью и без единой молчаливой потери',
+    files: [
+      'packages/nest/test/integration/bridge-soak.spec.ts',
+      'packages/nest/test/integration/bridge-route.spec.ts',
+      'packages/nest/test/unit/adversarial-m6.spec.ts',
+    ],
+    cases: [
+      'should hold the limit and keep the heap flat across a virtual hour of messages',
+      'should hold the byte ceiling rather than the entry ceiling when the payloads are large',
+      // Nothing is lost in silence, said in the stream a reader is actually watching.
+      'should tell the reader how many messages it lost, in the stream the reader is watching',
+      'should end the stream under disconnect, with the reason and the count before the close',
+    ],
+  },
+  {
+    id: 'sample-sends-what-the-button-sends',
+    spec: 'сэмпл кода отправляет то же, что отправляет кнопка',
+    files: [
+      'packages/samples/test/integration/curl-wire-equality.spec.ts',
+      'packages/samples/test/unit/adversarial-m6.spec.ts',
+    ],
+    cases: [
+      'should agree on a multipart body part for part, boundary aside',
+      'should agree on a binary body, byte for byte',
+      // And the case where it cannot agree, which SPEC 18 answers by refusing rather than guessing.
+      'should refuse the whole sample when a multipart field name carries the character curl reads as the end of a name',
+    ],
+  },
+  {
+    id: 'agent-surface-withholds-the-internal',
+    spec: 'агентная поверхность отдаёт справочник машине и не отдаёт того, что помечено внутренним',
+    files: [
+      'packages/nest/test/integration/agent-surface.spec.ts',
+      'packages/agent/test/unit/adversarial-m6.spec.ts',
+    ],
+    cases: [
+      // Over the wire, on a booted application behind a guard, which is the only place the
+      // audience rule and the authentication rule are both real.
+      'should serve the two text files and refuse MCP on a default mount',
+      'should withhold an internal node from both files, over the wire, on both surfaces',
+      'should refuse an unauthenticated tools/list and answer an authenticated one',
+      // And by a guessed name, which is the attack `T059` names.
+      'should refuse a tool named after an internal node the document really does declare',
+    ],
+  },
 ];
 
 /** The first cell of the SPEC 21 row the M5 wiring answers. */

@@ -74,7 +74,7 @@ describe('buildSampleRequest', () => {
     expect(found).toBe('application/vnd.pet+json');
   });
 
-  it('should record that the runner writes both casings when a document names that header', () => {
+  it('should keep the one spelling the document wrote when it names that header itself', () => {
     // Given, the same operation, whose only header parameter is the content type in lower case
     const operation = contentTypeParameterOperation();
     expect(operation.parameters.map((parameter) => parameter.name)).toEqual(['content-type']);
@@ -86,17 +86,14 @@ describe('buildSampleRequest', () => {
       body: { kind: 'text', text: '{}' },
     });
 
-    // Then, `resolveBody` guards on the exact key and HTTP field names are case insensitive, so
-    // the plan carries two, and `new Headers` joins them into one field with the value written
-    // twice. Pinned here because `contentTypeOf` exists for this reading and a caller of this
-    // package should find the behaviour written down rather than in a request.
-    //
-    // THIS PIN IS A DEBT RECORD AND IS EXPECTED TO FLIP. The defect is the runner's, at the
-    // `headers['Content-Type'] ??=` guard in `resolveBody` in `request-plan.ts`, named by its
-    // expression because a line number drifts. Fixing it means SPEC 14.3 moving first, which is
-    // why `T057` did not fix it in passing; it is item 4 of the `T059` section in
-    // `ai-docs/BUILD-AMENDMENTS.md`. When that lands, this case asserts one key rather than two.
-    expect(Object.keys(request.plan.headers).sort()).toEqual(['Content-Type', 'content-type']);
+    // Then one key, in the spelling the document chose. THIS PIN WAS A DEBT RECORD AND HAS FLIPPED,
+    // which is what it said it would do: until `T059` the guard was `headers['Content-Type'] ??=`,
+    // an exact key test against case insensitive field names, so the plan carried both spellings
+    // and `new Headers` joined them into one field with the declared value written twice. SPEC 14.3
+    // moved first and now states the rule; `contentTypeOf` still reads without regard to case,
+    // because that is what makes this package independent of which spelling won.
+    expect(Object.keys(request.plan.headers)).toEqual(['content-type']);
+    expect(request.contentType).toBe('application/vnd.pet+json');
   });
 });
 

@@ -33,6 +33,15 @@ export interface SocketLogEntry {
   /** Why this message matches nothing the channel declares. Absent when it does, or when
    * the channel declares nothing to match against. */
   readonly problem?: string;
+  /**
+   * True when the frame was never read at all, per SPEC 14.7.
+   *
+   * IT IS A MEMBER AND NOT A SHAPE OF `problem`, because the two answer different questions and
+   * `T059` measured a reader being given one for the other: a frame that is not text has no payload
+   * to check, so a `problem` naming a schema is a false reason and an `invalid` count that includes
+   * it is a false number. The entry still carries a `problem`, and it names the frame.
+   */
+  readonly unreadable?: true;
 }
 
 /** The log as a consumer reads it. */
@@ -41,8 +50,10 @@ export interface SocketLogState {
   readonly entries: readonly SocketLogEntry[];
   readonly sent: number;
   readonly received: number;
-  /** How many received messages matched nothing the channel declares. */
+  /** How many received messages were read and matched nothing the channel declares. */
   readonly invalid: number;
+  /** How many frames arrived that this console does not read at all, per SPEC 14.7. */
+  readonly unreadable: number;
   /** How many entries fell out of the window. */
   readonly dropped: number;
 }
@@ -79,10 +90,11 @@ export function createSocketLog(windowSize: number = DEFAULT_SOCKET_LOG_WINDOW):
   let sent = 0;
   let received = 0;
   let invalid = 0;
+  let unreadable = 0;
   let dropped = 0;
 
   return {
-    state: (): SocketLogState => ({ entries, sent, received, invalid, dropped }),
+    state: (): SocketLogState => ({ entries, sent, received, invalid, unreadable, dropped }),
 
     append: (entry): SocketLogEntry => {
       seq += 1;
@@ -91,7 +103,10 @@ export function createSocketLog(windowSize: number = DEFAULT_SOCKET_LOG_WINDOW):
       if (filed.direction === 'sent') sent += 1;
       else received += 1;
 
-      if (filed.problem !== undefined) invalid += 1;
+      // THE TWO COUNTERS ARE EXCLUSIVE AND THAT IS THE WHOLE POINT OF THE SECOND ONE. `invalid` is
+      // "read and matched nothing"; a frame that was never read cannot have matched or failed to.
+      if (filed.unreadable === true) unreadable += 1;
+      else if (filed.problem !== undefined) invalid += 1;
 
       // A NEW ARRAY EVERY TIME, so a consumer holding the previous state sees a value that did
       // not move under it. A ring buffer mutated in place would be cheaper and would make every

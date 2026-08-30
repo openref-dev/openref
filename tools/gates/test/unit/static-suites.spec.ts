@@ -660,8 +660,11 @@ describe('the committed wiring', () => {
     // reason the paragraph above gives: the row gates run together, newest last, and `coverage`
     // stays the end of the run because it runs the whole suite a second time under instrumentation.
     expect(order[position + 2]).toBe('events-suites');
-    expect(order[position + 3]).toBe('reader-pages');
-    expect(order.indexOf('coverage')).toBe(position + 4);
+    // `T059` added the fourth row gate, and it is named here for the same reason: four SPEC 21 rows
+    // close M6, so the family grew by one rather than the arrangement being left to chance.
+    expect(order[position + 3]).toBe('m6-suites');
+    expect(order[position + 4]).toBe('reader-pages');
+    expect(order.indexOf('coverage')).toBe(position + 5);
     expect(order.indexOf('coverage')).toBe(order.length - 1);
   });
 });

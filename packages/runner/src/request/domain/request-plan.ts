@@ -397,8 +397,18 @@ function resolveBody(
   // boundary is not something a reader can know, because the body is built here; a declared
   // `Content-Type: multipart/form-data` with no boundary on it describes a body no parser can
   // read, so it is replaced rather than honoured.
-  if (isMultipart(mediaType)) headers['Content-Type'] = encoded.contentType;
-  else headers['Content-Type'] ??= encoded.contentType;
+  //
+  // THE SPELLING IS LOOKED FOR WITHOUT REGARD TO CASE, per SPEC 14.3 as `T059` wrote it, because
+  // HTTP field names are case insensitive and an exact key test was not. Measured before the fix:
+  // an operation whose only header parameter is `content-type` produced a plan carrying both that
+  // and `Content-Type`, and `new Headers` joined them, so one field went out with the declared
+  // value written twice. The spelling the document chose is the one that stays, on both branches.
+  const declaredSpelling = Object.keys(headers).find(
+    (name) => name.toLowerCase() === 'content-type',
+  );
+
+  if (isMultipart(mediaType)) headers[declaredSpelling ?? 'Content-Type'] = encoded.contentType;
+  else if (declaredSpelling === undefined) headers['Content-Type'] = encoded.contentType;
 
   return encoded.body;
 }

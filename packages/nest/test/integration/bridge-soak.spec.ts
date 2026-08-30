@@ -31,8 +31,34 @@ import { drain, FakeClock, FakeSource } from '../mocks/bridge';
 /** Messages offered per virtual step. A step is ten milliseconds, so this is ten thousand a second. */
 const PER_STEP = 100;
 
-/** Steps in the run. Sixty thousand steps of ten milliseconds is six hundred virtual seconds. */
-const STEPS = 60_000;
+/**
+ * Steps in the run. Three hundred and sixty thousand steps of ten milliseconds is one virtual hour.
+ *
+ * THE HOUR IS THE ATTACK CLAUSE'S OWN WORD AND IT IS MET AS WRITTEN SINCE 2026-08-30. `T059` asks
+ * for "a broker producing messages faster than the ring buffer can rotate, sustained for an hour",
+ * and this ran for six hundred virtual seconds, which met the clause differently and said so
+ * nowhere. The extension was measured rather than assumed affordable: the ten minute form ran in
+ * 657 ms and the hour runs in 3.8 s, so the clause is answered as written for three seconds of
+ * suite time. SPEC 14.8's argument for virtual over wall time is untouched and is what makes this
+ * cheap; what it never addressed was the span.
+ *
+ * THE CONNECTION CEILING HAD TO MOVE WITH IT, AND THE FIRST FORM OF THIS EXTENSION DID NOT NOTICE.
+ * With `maxConnectionSeconds` at 3_600 the run ended exactly on the ceiling, `finish` cleared the
+ * ring, and the last drain never happened: delivered read 180,049 against an ideal 180,050.
+ * Measured across four spans to tell a boundary from a drift, which is the difference between a
+ * note and a defect: 600, 1200 and 1800 virtual seconds were short by 0 and only 3600 was short by
+ * 1. The ceiling is 7_200 now, so what this run measures is the producer rather than the ceiling,
+ * and the delivery figure is exact again rather than bounded.
+ */
+const STEPS = 360_000;
+
+/**
+ * Virtual seconds the run covers, derived so every figure below follows the span.
+ *
+ * DERIVED RATHER THAN RE-STATED, because the figure this feeds was written as `50 * 600 + 50` and
+ * a span that moved without it would have been a number tuned to a reading.
+ */
+const VIRTUAL_SECONDS = (STEPS * 10) / 1000;
 
 /** Steps between one drain of the reader's stream and one heap sample. */
 const SAMPLE_EVERY = 100;
@@ -40,14 +66,17 @@ const SAMPLE_EVERY = 100;
 /**
  * How far the retained set may move between the first tenth of the run and the last, in bytes.
  *
- * MEASURED RATHER THAN CHOSEN, on 2026-08-30, with `--expose-gc` unavailable and 600 samples: the
- * first decile minimum read 75,781,112 bytes, the last decile minimum 76,658,448, so the retained
- * set moved 877,336 bytes, 0.84 MB, across six million messages. The instantaneous peak over the
- * run was 141,467,040, which is the sawtooth between collections and is exactly why the minimum is
- * what is compared. The bound is 16 MB, nineteen times the reading and still far below what an
- * unbounded queue would show, since the payload text alone for six million of these messages is
- * about 240 MiB before any object header. It is a leak detector and not a memory budget, in the
- * sense F25 gives the phrase.
+ * MEASURED RATHER THAN CHOSEN, and re-measured on 2026-08-30 when the span became a virtual hour.
+ * With `--expose-gc` unavailable and 3600 samples: the first decile minimum read 74,557,312 bytes,
+ * the last decile minimum 75,958,560, so the retained set moved 1,401,248 bytes, 1.34 MB, across
+ * thirty six million messages. The instantaneous peak over the run was 141,396,016, which is the
+ * sawtooth between collections and is exactly why the minimum is what is compared. The reading
+ * across six million messages, before the span was extended, was 877,336 bytes over 600 samples,
+ * and it is kept here because a retained set that grew six times the traffic by 1.5 times the bytes
+ * is the shape this bound exists to see. The bound is 16 MB, eleven times the reading and still far
+ * below what an unbounded queue would show, since the payload text alone for thirty six million of
+ * these messages is about 1.4 GiB before any object header. It is a leak detector and not a memory
+ * budget, in the sense F25 gives the phrase.
  */
 const FLAT_WITHIN_BYTES = 16 * 1024 * 1024;
 
@@ -62,7 +91,7 @@ function low(samples: readonly number[]): number {
 }
 
 describe('the broker bridge under a hostile producer', () => {
-  it('should hold the limit and keep the heap flat across six million messages', async () => {
+  it('should hold the limit and keep the heap flat across a virtual hour of messages', async () => {
     // Given, the configuration SPEC 14.8 prints, with a connection ceiling above the run so that
     // what ends this subscription is the loop and not the ceiling
     const clock = new FakeClock();
@@ -74,7 +103,7 @@ describe('the broker bridge under a hostile producer', () => {
       maxMessagesPerSecond: 50,
       bufferSize: 500,
       onOverflow: 'drop-oldest',
-      maxConnectionSeconds: 3_600,
+      maxConnectionSeconds: 7_200,
       maxConcurrentSubscriptions: 1,
       now: clock.now,
       setTimer: clock.setTimer,
@@ -103,7 +132,7 @@ describe('the broker bridge under a hostile producer', () => {
       }
     };
 
-    // When, six hundred virtual seconds of ten thousand messages a second
+    // When, one virtual hour of ten thousand messages a second
     for (let step = 0; step < STEPS; step += 1) {
       for (let message = 0; message < PER_STEP; message += 1) {
         offered += 1;
@@ -127,9 +156,9 @@ describe('the broker bridge under a hostile producer', () => {
     // And the debit reconciles exactly: nothing vanished without being counted
     expect(counts.delivered + counts.dropped + counts.buffered).toBe(counts.received);
 
-    // And the limit held, to the message. Six hundred seconds at fifty a second, plus the one
-    // second of burst `RateGate` starts with and records that it starts with.
-    expect(counts.delivered).toBe(50 * 600 + 50);
+    // And the limit held, to the message. The span at fifty a second, plus the one second of burst
+    // `RateGate` starts with and records that it starts with.
+    expect(counts.delivered).toBe(50 * VIRTUAL_SECONDS + 50);
     expect(counts.dropped).toBe(counts.received - counts.delivered - counts.buffered);
 
     // And the queue never grew past the ring, which is the whole of why the heap can be flat
@@ -141,8 +170,8 @@ describe('the broker bridge under a hostile producer', () => {
 
     // And the reader was told about the loss in the stream it is watching, rather than left to
     // infer it from a gap in a sequence number, which is what SPEC 19.8 forbids
-    expect(counts.dropped).toBeGreaterThan(5_900_000);
-    expect(dropNotices).toBeGreaterThan(500);
+    expect(counts.dropped).toBeGreaterThan(PER_STEP * STEPS - 200_000);
+    expect(dropNotices).toBeGreaterThan(VIRTUAL_SECONDS / 2);
     expect(dropNotices).toBeLessThan(counts.delivered);
     expect(lastNotice).toMatch(/"total":\d{7}/);
 

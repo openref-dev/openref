@@ -336,6 +336,20 @@ export function openSocket(
         file('received', data);
       },
 
+      // A FRAME NOBODY READ NEVER MEETS THE VALIDATOR, per SPEC 14.7 as `T059` wrote it. It is
+      // filed with the transport's own reason and counted apart, because "read and matched nothing"
+      // and "not read at all" are two facts and only one of them is about the document.
+      onUnreadableFrame: (description) => {
+        if (session.settled) return;
+
+        record({
+          direction: 'received',
+          data: description,
+          problem: description,
+          unreadable: true,
+        });
+      },
+
       // A VALIDATION FAILURE NEVER REACHES HERE, which is the point of `file`: it marks the entry
       // and returns, so a session goes on delivering after a message nothing declared.
       onError: (message) => {

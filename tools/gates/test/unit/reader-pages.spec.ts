@@ -313,7 +313,7 @@ describe('the reader pages gate', () => {
     expect(result.status).toBe(aiDocsPresent(repoRoot) ? 'pass' : 'skip');
   });
 
-  it('should be registered in the run, after the events suites gate', () => {
+  it('should be registered in the run, after the M6 suites gate', () => {
     // Given the committed order
     const order = GATES.map((gate) => gate.id);
 
@@ -323,7 +323,7 @@ describe('the reader pages gate', () => {
     // Then it is in the run at all, and it sits with the other document reconciliations rather
     // than after the gate that runs the whole suite
     expect(position).toBeGreaterThan(-1);
-    expect(order[position - 1]).toBe('events-suites');
+    expect(order[position - 1]).toBe('m6-suites');
     expect(order.indexOf('coverage')).toBe(order.length - 1);
   });
 });

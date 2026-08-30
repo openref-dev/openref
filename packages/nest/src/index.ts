@@ -369,10 +369,12 @@ export type {
 export {
   BRIDGE_OVERFLOW_MODES,
   DEFAULT_BRIDGE_BUFFER_SIZE,
+  DEFAULT_BRIDGE_BUFFERED_BYTES,
   DEFAULT_BRIDGE_CONCURRENT_SUBSCRIPTIONS,
   DEFAULT_BRIDGE_CONNECTION_SECONDS,
   DEFAULT_BRIDGE_MESSAGES_PER_SECOND,
   DEFAULT_BRIDGE_OVERFLOW,
+  MAX_BRIDGE_CONNECTION_SECONDS,
 } from './bridge/domain/bridge-options';
 export type { BridgeOptions, BridgeOverflowMode } from './bridge/domain/bridge-options';
 

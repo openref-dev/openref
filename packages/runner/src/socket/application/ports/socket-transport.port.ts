@@ -42,8 +42,22 @@ export interface SocketCloseInfo {
 /** What a transport tells the client while a connection is up. */
 export interface SocketTransportHandlers {
   readonly onOpen: () => void;
-  /** One message, already decoded to text. Binary frames are not read, per SPEC 14.7. */
+  /** One message, already decoded to text. Binary frames go to {@link onUnreadableFrame}. */
   readonly onMessage: (data: string) => void;
+  /**
+   * A frame that arrived and is not text this console can read, per SPEC 14.7.
+   *
+   * SEPARATE FROM `onMessage` BECAUSE THE VERDICT IS DIFFERENT AND `T059` MEASURED THE DIFFERENCE.
+   * A binary frame used to arrive here as the sentence `[a binary frame, which this console does not
+   * read]` on the ordinary message path, so it went through the payload validator and, on a channel
+   * declaring one message, a reader was told `this message does not match Tick: this element is not
+   * JSON, and the document declares an item schema for it`. That is a true sentence about a string
+   * this package wrote and a false one about what the server sent: the payload did not fail the
+   * schema, there was no payload. The transport is the one that knows, so it says so here, and the
+   * session marks the entry with the real reason and counts it apart from the ones that were read
+   * and did not match.
+   */
+  readonly onUnreadableFrame: (description: string) => void;
   readonly onClose: (info: SocketCloseInfo) => void;
   /**
    * A transport level failure with no close frame behind it.

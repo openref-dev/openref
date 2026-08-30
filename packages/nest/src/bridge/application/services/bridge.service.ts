@@ -224,7 +224,15 @@ export class BridgeService {
   private async start(source: IBridgeSource, channel: string): Promise<BridgeSession> {
     const settings = this.settings;
     const now = this.now;
-    const ring = new MessageRing<BridgeMessage>(settings.bufferSize, settings.onOverflow);
+    // THE SECOND CEILING IS MEASURED ON WHAT GOES OUT AND NOT ON WHAT CAME IN, per SPEC 14.8. A
+    // message costs the reader its payload plus its id, and both travel; measuring the payload
+    // alone would let an id nobody bounded carry the memory the payload was refused.
+    const ring = new MessageRing<BridgeMessage>(
+      settings.bufferSize,
+      settings.onOverflow,
+      settings.maxBufferedBytes,
+      (message) => message.data.length + (message.id?.length ?? 0),
+    );
     const gate = new RateGate(settings.maxMessagesPerSecond, now);
 
     let received = 0;
@@ -374,19 +382,23 @@ export class BridgeService {
       if (ended) return;
 
       received += 1;
-      const outcome = ring.push(message);
+      const push = ring.push(message);
 
-      if (outcome === 'dropped-oldest' || outcome === 'dropped-new') {
-        dropped += 1;
-        pending += 1;
+      // THE COUNT COMES FROM THE RING AND IS NOT ASSUMED TO BE ONE, since the byte ceiling of
+      // `T059`: making room for one large message can evict several small ones, and a caller that
+      // added one per push would tell the reader it had lost fewer than it had.
+      if (push.discarded > 0) {
+        dropped += push.discarded;
+        pending += push.discarded;
       }
 
-      if (outcome === 'overflowed') {
+      if (push.outcome === 'overflowed') {
         // `disconnect`: the message that met the full ring is lost too, so it is counted before
         // the close, and the closing event carries the total rather than a number short by one.
         dropped += 1;
         finish(
-          `the buffer of ${String(settings.bufferSize)} messages overflowed and this bridge is ` +
+          `the buffer of ${String(settings.bufferSize)} messages or ` +
+            `${String(settings.maxBufferedBytes)} bytes overflowed and this bridge is ` +
             'configured with onOverflow: disconnect',
         );
 

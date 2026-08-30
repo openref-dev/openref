@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   BRIDGE_OVERFLOW_MODES,
   DEFAULT_BRIDGE_BUFFER_SIZE,
+  DEFAULT_BRIDGE_BUFFERED_BYTES,
   DEFAULT_BRIDGE_CONCURRENT_SUBSCRIPTIONS,
   DEFAULT_BRIDGE_CONNECTION_SECONDS,
   DEFAULT_BRIDGE_MESSAGES_PER_SECOND,
@@ -27,6 +28,14 @@ import { readEvents } from '../mocks/bridge';
  * `bridge-soak.spec.ts`.
  */
 
+/**
+ * A byte ceiling high enough that the cases about the entry ceiling only measure that one.
+ *
+ * THE TWO CEILINGS ARE SEPARATE CASES, per SPEC 14.8, and a case about entries that also happened
+ * to hit the byte one would be answering whichever fired first.
+ */
+const UNBOUNDED_BYTES = Number.MAX_SAFE_INTEGER;
+
 /** A source that exists only to satisfy the option check, since it never subscribes here. */
 const source: IBridgeSource = { subscribe: () => ({ close: (): void => undefined }) };
 
@@ -34,7 +43,7 @@ describe('MessageRing', () => {
   it('should hold its capacity and no more, whatever the mode', () => {
     // Given
     for (const mode of BRIDGE_OVERFLOW_MODES) {
-      const ring = new MessageRing<number>(3, mode);
+      const ring = new MessageRing<number>(3, mode, UNBOUNDED_BYTES, () => 1);
 
       // When
       for (let index = 0; index < 100; index += 1) ring.push(index);
@@ -46,10 +55,10 @@ describe('MessageRing', () => {
 
   it('should drop the oldest and keep the newest under drop-oldest', () => {
     // Given
-    const ring = new MessageRing<number>(3, 'drop-oldest');
+    const ring = new MessageRing<number>(3, 'drop-oldest', UNBOUNDED_BYTES, () => 1);
 
     // When
-    const outcomes = [1, 2, 3, 4, 5].map((value) => ring.push(value));
+    const outcomes = [1, 2, 3, 4, 5].map((value) => ring.push(value).outcome);
 
     // Then, the first three fit and the last two each evict a head
     expect(outcomes).toEqual([
@@ -64,10 +73,10 @@ describe('MessageRing', () => {
 
   it('should refuse the newest and keep the oldest under drop-new', () => {
     // Given the falsification pair for the case above: the same pushes, the other mode
-    const ring = new MessageRing<number>(3, 'drop-new');
+    const ring = new MessageRing<number>(3, 'drop-new', UNBOUNDED_BYTES, () => 1);
 
     // When
-    const outcomes = [1, 2, 3, 4, 5].map((value) => ring.push(value));
+    const outcomes = [1, 2, 3, 4, 5].map((value) => ring.push(value).outcome);
 
     // Then
     expect(outcomes).toEqual(['accepted', 'accepted', 'accepted', 'dropped-new', 'dropped-new']);
@@ -76,10 +85,10 @@ describe('MessageRing', () => {
 
   it('should say the session is over rather than choose an end under disconnect', () => {
     // Given
-    const ring = new MessageRing<number>(2, 'disconnect');
+    const ring = new MessageRing<number>(2, 'disconnect', UNBOUNDED_BYTES, () => 1);
 
     // When
-    const outcomes = [1, 2, 3].map((value) => ring.push(value));
+    const outcomes = [1, 2, 3].map((value) => ring.push(value).outcome);
 
     // Then, the ring is untouched by the overflow: what it holds is what the close discards
     expect(outcomes).toEqual(['accepted', 'accepted', 'overflowed']);
@@ -92,7 +101,12 @@ describe('MessageRing', () => {
     // Given, the leak this file is about, measured on the ring's own slots rather than on the
     // heap: a `WeakRef` would say when a payload was collected, which is a fact about the garbage
     // collector's timing, and what is under test is whether this object still points at it
-    const ring = new MessageRing<{ readonly big: string }>(4, 'drop-oldest');
+    const ring = new MessageRing<{ readonly big: string }>(
+      4,
+      'drop-oldest',
+      UNBOUNDED_BYTES,
+      (value) => value.big.length,
+    );
     const payload = { big: 'x'.repeat(16) };
     ring.push(payload);
 
@@ -111,10 +125,10 @@ describe('MessageRing', () => {
   it('should hold at least one entry when a capacity below one is asked for', () => {
     // Given, a ring of zero is a ring that drops everything and calls it overflow, which the
     // option check refuses; this is the constructor refusing to build one anyway
-    const ring = new MessageRing<number>(0, 'drop-new');
+    const ring = new MessageRing<number>(0, 'drop-new', UNBOUNDED_BYTES, () => 1);
 
     // When
-    const outcome = ring.push(1);
+    const outcome = ring.push(1).outcome;
 
     // Then
     expect(outcome).toBe('accepted');
@@ -287,6 +301,7 @@ describe('resolveBridgeOptions', () => {
       channels: [],
       maxMessagesPerSecond: DEFAULT_BRIDGE_MESSAGES_PER_SECOND,
       bufferSize: DEFAULT_BRIDGE_BUFFER_SIZE,
+      maxBufferedBytes: DEFAULT_BRIDGE_BUFFERED_BYTES,
       onOverflow: DEFAULT_BRIDGE_OVERFLOW,
       maxConnectionSeconds: DEFAULT_BRIDGE_CONNECTION_SECONDS,
       maxConcurrentSubscriptions: DEFAULT_BRIDGE_CONCURRENT_SUBSCRIPTIONS,

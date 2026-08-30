@@ -211,16 +211,19 @@ describe('the events suites gate', () => {
     );
   });
 
-  it('should be registered between the federation suites gate and the reader pages one', () => {
+  it('should be registered between the federation suites gate and the M6 one', () => {
     // Given the committed order
     const order = GATES.map((gate) => gate.id);
 
     // When
     const position = order.indexOf(eventsSuitesGate.id);
 
-    // Then it is in the run at all, and it sits with the two gates whose mechanism it reuses
+    // Then it is in the run at all, and it sits with the gates whose mechanism it reuses. The
+    // neighbour on the right moved at `T059`, when `m6-suites` joined the family: the row gates run
+    // in milestone order, newest last, and the arrangement is written down rather than loosened to
+    // "somewhere before coverage", which is what these cases have said since `T047`.
     expect(position).toBeGreaterThan(-1);
     expect(order[position - 1]).toBe('federation-suites');
-    expect(order[position + 1]).toBe('reader-pages');
+    expect(order[position + 1]).toBe('m6-suites');
   });
 });

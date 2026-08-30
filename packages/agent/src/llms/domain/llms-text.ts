@@ -43,7 +43,7 @@ import {
   type IRSchemaSlot,
 } from '@openref/core';
 import { materializeNode, nodeHref, schemaHref } from '@openref/render';
-import { plainSummary } from './summary';
+import { oneLine, plainSummary } from './summary';
 import { agentExposure, isMutatingMethod } from '../../mcp/domain/exposure';
 import type { ResolvedAgentOptions } from '../../mcp/domain/agent-options';
 
@@ -78,7 +78,12 @@ function documentSummary(document: IRDocument): string {
   const written = plainSummary(document.info.description ?? '');
   if (written !== '') return written;
 
-  return `API reference for ${document.info.title} ${document.info.version}.`;
+  // THE FALLBACK INTERPOLATES TWO DOCUMENT VALUES AND WAS THE ONE PLACE THAT DID SO RAW, found by
+  // the blind review of `T059` measuring two `<a href="ghost">` anchors that survived the first
+  // fix. `plainSummary` guards the branch above, because it strips markdown links and collapses
+  // whitespace; this branch calls neither, so a title carrying a line break split the blockquote
+  // into rows and a title carrying link syntax made one of them a link.
+  return `API reference for ${oneLine(document.info.title)} ${oneLine(document.info.version)}.`;
 }
 
 /**
@@ -90,7 +95,7 @@ function documentSummary(document: IRDocument): string {
  * @returns The markdown list row
  */
 function nodeRow(node: IRNode, document: IRDocument, basePath: string): string {
-  const title = materializeNode(node, document).title;
+  const title = oneLine(materializeNode(node, document).title);
   // THE NOTE IS DROPPED WHEN IT IS THE TITLE. `materializeNode` titles an operation by its summary
   // when it has one, so a note taken from the same summary would print the same words twice on
   // every row of the common case. The same defect `@openref/static` records against its own file.
@@ -146,11 +151,11 @@ function machineRows(document: IRDocument, options: LlmsTextOptions): readonly s
  */
 export function buildLlmsIndex(document: IRDocument, options: LlmsTextOptions): string {
   const lines = [
-    `# ${document.info.title}`,
+    `# ${oneLine(document.info.title)}`,
     '',
     `> ${documentSummary(document)}`,
     '',
-    `Version: ${document.info.version}`,
+    `Version: ${oneLine(document.info.version)}`,
     `Document hash: ${document.hash}`,
   ];
 
@@ -169,7 +174,9 @@ export function buildLlmsIndex(document: IRDocument, options: LlmsTextOptions): 
   if (document.schemas.size > 0) {
     lines.push('', '## Schemas', '');
     for (const schema of document.schemas.values()) {
-      lines.push(`- [${schema.name ?? schema.id}](${schemaHref(schema.id, options.basePath)})`);
+      lines.push(
+        `- [${oneLine(schema.name ?? schema.id)}](${schemaHref(schema.id, options.basePath)})`,
+      );
     }
   }
 
@@ -186,12 +193,12 @@ export function buildLlmsIndex(document: IRDocument, options: LlmsTextOptions): 
  */
 function slotName(slot: IRSchemaSlot | undefined): string | null {
   if (slot === undefined) return null;
-  if (slot.kind === 'named') return slot.schemaId;
+  if (slot.kind === 'named') return oneLine(slot.schemaId);
 
   const type = slot.schema.normalized?.type;
   if (type === undefined) return 'inline';
 
-  return `inline ${Array.isArray(type) ? type.join(' | ') : String(type)}`;
+  return oneLine(`inline ${Array.isArray(type) ? type.join(' | ') : String(type)}`);
 }
 
 /**
@@ -210,7 +217,7 @@ function runtimeLines(node: IRNode): readonly string[] {
 
   const lines: string[] = [];
   const fact = (label: string, value: string, confidence: string, collector: string): void => {
-    lines.push(`- ${label}: ${value} (${confidence}, ${collector})`);
+    lines.push(`- ${label}: ${oneLine(value)} (${confidence}, ${oneLine(collector)})`);
   };
 
   if (runtime.scopes !== undefined) {
@@ -272,7 +279,9 @@ function runtimeLines(node: IRNode): readonly string[] {
     );
   }
   for (const guard of runtime.guards ?? []) {
-    lines.push(`- guard: ${guard.name} (${guard.confidence}, ${guard.collector})`);
+    lines.push(
+      `- guard: ${oneLine(guard.name)} (${guard.confidence}, ${oneLine(guard.collector)})`,
+    );
   }
 
   return lines.length === 0 ? [] : ['Runtime:', ...lines];
@@ -297,24 +306,24 @@ function operationSection(
     // facts: a machine reader addresses the operation by the first and a person recognises it by
     // the second. The title comes from `materializeNode` beside the channel heading above, so the
     // rule holds for both node kinds: no name in either of these files is derived here.
-    `### ${node.method.toUpperCase()} ${node.path}`,
+    `### ${node.method.toUpperCase()} ${oneLine(node.path)}`,
     '',
-    `Title: ${materializeNode(node, document).title}`,
+    `Title: ${oneLine(materializeNode(node, document).title)}`,
     `Address: ${nodeHref(node.id, basePath)}`,
     `Mutating: ${isMutatingMethod(node.method) ? 'yes' : 'no'}`,
   ];
 
-  if (node.operationId !== undefined) lines.push(`Operation id: ${node.operationId}`);
+  if (node.operationId !== undefined) lines.push(`Operation id: ${oneLine(node.operationId)}`);
   if (node.deprecated) lines.push('Deprecated: yes');
-  if (node.tags.length > 0) lines.push(`Tags: ${node.tags.join(', ')}`);
+  if (node.tags.length > 0) lines.push(`Tags: ${node.tags.map(oneLine).join(', ')}`);
   if (node.summary !== undefined) lines.push(`Summary: ${plainSummary(node.summary)}`);
   if (node.description !== undefined) lines.push(`Description: ${plainSummary(node.description)}`);
 
   if (node.security.length > 0) {
     const requirements = node.security.map((requirement) =>
       requirement.scopes.length === 0
-        ? requirement.schemeId
-        : `${requirement.schemeId} (${requirement.scopes.join(', ')})`,
+        ? oneLine(requirement.schemeId)
+        : `${oneLine(requirement.schemeId)} (${requirement.scopes.map(oneLine).join(', ')})`,
     );
     lines.push(`Security: ${requirements.join('; ')}`);
   }
@@ -324,7 +333,7 @@ function operationSection(
     for (const parameter of node.parameters) {
       const schema = slotName(parameter.schema);
       lines.push(
-        `- ${parameter.name} (${parameter.in}, ${parameter.required ? 'required' : 'optional'}` +
+        `- ${oneLine(parameter.name)} (${parameter.in}, ${parameter.required ? 'required' : 'optional'}` +
           `${schema === null ? '' : `, ${schema}`})` +
           (parameter.description === undefined ? '' : `: ${plainSummary(parameter.description)}`),
       );
@@ -334,7 +343,9 @@ function operationSection(
   if (node.requestBody !== undefined) {
     const media = node.requestBody.content.map((entry) => {
       const schema = slotName(entry.schema);
-      return schema === null ? entry.mediaType : `${entry.mediaType} of ${schema}`;
+      return schema === null
+        ? oneLine(entry.mediaType)
+        : `${oneLine(entry.mediaType)} of ${schema}`;
     });
     lines.push(
       `Request body (${node.requestBody.required ? 'required' : 'optional'}): ` +
@@ -347,10 +358,12 @@ function operationSection(
     for (const response of node.responses) {
       const media = response.content.map((entry) => {
         const schema = slotName(entry.schema);
-        return schema === null ? entry.mediaType : `${entry.mediaType} of ${schema}`;
+        return schema === null
+          ? oneLine(entry.mediaType)
+          : `${oneLine(entry.mediaType)} of ${schema}`;
       });
       lines.push(
-        `- ${response.statusCode}${media.length === 0 ? '' : ` (${media.join(', ')})`}` +
+        `- ${oneLine(response.statusCode)}${media.length === 0 ? '' : ` (${media.join(', ')})`}` +
           (response.description === undefined ? '' : `: ${plainSummary(response.description)}`),
       );
     }
@@ -390,16 +403,16 @@ function channelSection(
   basePath: string,
 ): readonly string[] {
   const lines = [
-    `### ${materializeNode(node, document).title}`,
+    `### ${oneLine(materializeNode(node, document).title)}`,
     '',
     `Address: ${nodeHref(node.id, basePath)}`,
     'Mutating: not applicable, a channel is not called over HTTP',
   ];
 
-  if (node.address !== undefined) lines.push(`Channel address: ${node.address}`);
-  if (node.protocol !== undefined) lines.push(`Protocol: ${node.protocol}`);
+  if (node.address !== undefined) lines.push(`Channel address: ${oneLine(node.address)}`);
+  if (node.protocol !== undefined) lines.push(`Protocol: ${oneLine(node.protocol)}`);
   if (node.deprecated) lines.push('Deprecated: yes');
-  if (node.tags.length > 0) lines.push(`Tags: ${node.tags.join(', ')}`);
+  if (node.tags.length > 0) lines.push(`Tags: ${node.tags.map(oneLine).join(', ')}`);
   if (node.summary !== undefined) lines.push(`Summary: ${plainSummary(node.summary)}`);
   if (node.description !== undefined) lines.push(`Description: ${plainSummary(node.description)}`);
 
@@ -407,7 +420,7 @@ function channelSection(
     lines.push('Operations:');
     for (const operation of node.operations) {
       lines.push(
-        `- ${operation.direction}: ${operation.messageIds.join(', ')}` +
+        `- ${operation.direction}: ${operation.messageIds.map(oneLine).join(', ')}` +
           (operation.summary === undefined ? '' : ` (${plainSummary(operation.summary)})`),
       );
     }
@@ -418,8 +431,8 @@ function channelSection(
     for (const message of node.messages) {
       const payload = slotName(message.payload);
       lines.push(
-        `- ${message.name ?? message.id}` +
-          (message.contentType === undefined ? '' : ` (${message.contentType})`) +
+        `- ${oneLine(message.name ?? message.id)}` +
+          (message.contentType === undefined ? '' : ` (${oneLine(message.contentType)})`) +
           (payload === null ? '' : ` of ${payload}`),
       );
     }
@@ -447,7 +460,7 @@ function channelSection(
 function schemaSection(schema: IRSchema, basePath: string): readonly string[] {
   const body = schema.normalized;
   const lines = [
-    `### ${schema.name ?? schema.id}`,
+    `### ${oneLine(schema.name ?? schema.id)}`,
     '',
     `Address: ${schemaHref(schema.id, basePath)}`,
     `Dialect: ${schema.dialect}`,
@@ -455,7 +468,9 @@ function schemaSection(schema: IRSchema, basePath: string): readonly string[] {
 
   if (body?.description !== undefined) lines.push(`Description: ${plainSummary(body.description)}`);
   if (body?.type !== undefined) {
-    lines.push(`Type: ${Array.isArray(body.type) ? body.type.join(' | ') : String(body.type)}`);
+    lines.push(
+      `Type: ${oneLine(Array.isArray(body.type) ? body.type.join(' | ') : String(body.type))}`,
+    );
   }
 
   const properties = Object.entries(body?.properties ?? {});
@@ -472,7 +487,7 @@ function schemaSection(schema: IRSchema, basePath: string): readonly string[] {
             ? property.type.join(' | ')
             : String(property.type));
       lines.push(
-        `- ${name} (${type}, ${required.has(name) ? 'required' : 'optional'})` +
+        `- ${oneLine(name)} (${oneLine(type)}, ${required.has(name) ? 'required' : 'optional'})` +
           (property.description === undefined ? '' : `: ${plainSummary(property.description)}`),
       );
     }
@@ -493,11 +508,11 @@ function schemaSection(schema: IRSchema, basePath: string): readonly string[] {
  */
 export function buildLlmsFull(document: IRDocument, options: LlmsTextOptions): string {
   const lines = [
-    `# ${document.info.title}`,
+    `# ${oneLine(document.info.title)}`,
     '',
     `> ${documentSummary(document)}`,
     '',
-    `Version: ${document.info.version}`,
+    `Version: ${oneLine(document.info.version)}`,
     `Document hash: ${document.hash}`,
     '',
   ];
@@ -505,7 +520,7 @@ export function buildLlmsFull(document: IRDocument, options: LlmsTextOptions): s
   if (document.runtime !== undefined) {
     const collectors = document.runtime.collectors;
     lines.push(
-      `Runtime facts were collected by: ${collectors.length === 0 ? 'no collector' : collectors.join(', ')}.`,
+      `Runtime facts were collected by: ${collectors.length === 0 ? 'no collector' : collectors.map(oneLine).join(', ')}.`,
       'Every fact below carries its confidence and the collector that produced it, per SPEC 6.1.',
       '',
     );

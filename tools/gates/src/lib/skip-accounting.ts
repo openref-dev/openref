@@ -101,6 +101,13 @@ export const SKIP_REASONS: readonly SkipReason[] = [
       // the named suites, the named cases and the run itself all happen on a checkout with no
       // `ai-docs/` and fail there, so a skip here means the two documents alone went unread.
       'events-suites',
+      // `m6-suites` is the same mechanism over four SPEC 21 rows and the M6 definition of done,
+      // added by `T059` with the gate. It skips under the same condition and only that one: the
+      // named suites, the named cases and the run itself, the bridge soak included, all happen on
+      // a checkout with no `ai-docs/` and fail there, so a skip here means the two documents alone
+      // went unread. It reads four rows rather than one, and a row the table has lost is an error
+      // there rather than an empty list, so the skip cannot hide a missing row either.
+      'm6-suites',
       // `reader-pages` compares SPEC 13.3's reader page line with the `PageKind` union, which is
       // the direction no total record in the tree can see. Added by `T054` with the gate. Its
       // other half, that every kind the reader page table names is a member of the union, reads

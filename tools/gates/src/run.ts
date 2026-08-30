@@ -11,6 +11,7 @@ import { dependencyGraphGate } from './gates/dependency-graph.gate.js';
 import { enginesFloorGate } from './gates/engines-floor.gate.js';
 import { eventsSuitesGate } from './gates/events-suites.gate.js';
 import { federationSuitesGate } from './gates/federation-suites.gate.js';
+import { m6SuitesGate } from './gates/m6-suites.gate.js';
 import { readerPagesGate } from './gates/reader-pages.gate.js';
 import { fixtureLicensesGate } from './gates/fixture-licenses.gate.js';
 import { formatGate } from './gates/format.gate.js';
@@ -88,6 +89,13 @@ import type { Gate, GateResult } from './types.js';
  * failure is the kind of misdirection these gates exist to remove. It runs its own suites for the
  * reason the Static one does, and leaves the milestone clause to `pnpm test:integration`.
  *
+ * The M6 suites gate sits fourth in that family and is the only one of the four that reads more
+ * than one row. `Static`, `Federation` and `Events` each close a milestone that built one thing; M6
+ * built a socket client, a bridge, a sample generator and an agent surface, and `T059` asks for all
+ * four wired in one sentence, so four gates would give one failure four titles. It runs its own
+ * suites for the reason the three before it do, the bridge soak included, and leaves the milestone
+ * clause to `pnpm test:integration`.
+ *
  * The text source gate sits beside the format one, third, and the pair is the same question asked
  * twice: whether the repository is in the state its own rules describe, before anything is built.
  * One asks whether a file is formatted the way the project says; the other asks whether a text
@@ -115,6 +123,7 @@ export const GATES: readonly Gate[] = [
   staticSuitesGate,
   federationSuitesGate,
   eventsSuitesGate,
+  m6SuitesGate,
   readerPagesGate,
   coverageGate,
 ];

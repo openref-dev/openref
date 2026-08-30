@@ -796,7 +796,17 @@ function collectPathItems(
     for (const rawMethod of Object.keys(additional).sort(compareByCodePoint)) {
       const source = additional[rawMethod];
       const method = rawMethod.toLowerCase();
-      if (!isPlainObject(source) || isStandardHttpMethod(method)) continue;
+      if (!isPlainObject(source)) continue;
+
+      // THE SKIP IS A CORRECT READING AND WAS A SILENT ONE, which is SPEC 5.4's eighth row and the
+      // mirror of its fourth. `additionalOperations` is defined as the methods the specification
+      // does not enumerate, so an enumerated one written there belongs to the Path Item itself; a
+      // reader who wrote it here gets told rather than shown a reference with the operation gone.
+      if (isStandardHttpMethod(method)) {
+        unread.push({ path, key: rawMethod, method, position: 'additional-operations' });
+        continue;
+      }
+
       operations.push({
         method,
         path,

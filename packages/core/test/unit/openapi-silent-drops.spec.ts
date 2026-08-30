@@ -595,3 +595,77 @@ describe('a security requirement naming a scheme nobody declared', () => {
     expect(node?.kind === 'operation' ? node.security : ['unread']).toEqual([]);
   });
 });
+
+describe('the eighth drop, a standard method under additionalOperations, per SPEC 5.4 and T059', () => {
+  it('should record a standard method written under additionalOperations rather than skip it in silence', () => {
+    // Given a 3.2 document that writes an enumerated method in the member for unenumerated ones
+    const document = openapi({
+      openapi: '3.2.0',
+      paths: {
+        '/a': {
+          additionalOperations: { GET: { responses: { 200: { description: 'ok' } } } },
+        },
+      },
+    });
+
+    // When
+    // Then it is loud, and the position tells it from the wrong-case key of the fourth row, which
+    // records the byte-identical `{ path, key, method }` under a different member of the document.
+    // Measured before the fix: 0 nodes and an empty `unreadKeys`.
+    expect([...document.nodes.keys()]).toEqual([]);
+    expect(document.unreadKeys).toEqual([
+      { path: '/a', key: 'GET', method: 'get', position: 'additional-operations' },
+    ]);
+  });
+
+  it('should record the lower case spelling too, since the position is what is wrong and not the case', () => {
+    // Given
+    const document = openapi({
+      openapi: '3.2.0',
+      paths: {
+        '/a': { additionalOperations: { get: { responses: { 200: { description: 'ok' } } } } },
+      },
+    });
+
+    // When
+    // Then
+    expect(document.unreadKeys).toEqual([
+      { path: '/a', key: 'get', method: 'get', position: 'additional-operations' },
+    ]);
+  });
+
+  it('should still read an unenumerated method there, which is what the member is for', () => {
+    // Given the control: without it the two cases above would pass over a reader that read nothing
+    const document = openapi({
+      openapi: '3.2.0',
+      paths: {
+        '/a': { additionalOperations: { LOCK: { responses: { 200: { description: 'ok' } } } } },
+      },
+    });
+
+    // When
+    // Then
+    expect([...document.nodes.keys()]).toEqual(['lock-a']);
+    expect(document.unreadKeys).toBeUndefined();
+  });
+
+  it('should suggest moving the operation rather than renaming a key that is already spelled right', () => {
+    // Given the sentence the fourth row's branch would have printed: a rename of `get` to `get`
+    const document = openapi({
+      openapi: '3.2.0',
+      paths: {
+        '/a': { additionalOperations: { get: { responses: { 200: { description: 'ok' } } } } },
+      },
+    });
+
+    // When
+    const finding = buildDoctorReport(document).findings.find(
+      (entry) => entry.rule === 'operation-key-unread',
+    );
+
+    // Then
+    expect(finding?.message).toContain('additionalOperations');
+    expect(finding?.suggestion).toContain('move the operation');
+    expect(finding?.suggestion).not.toContain('rename');
+  });
+});

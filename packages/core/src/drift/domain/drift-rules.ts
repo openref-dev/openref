@@ -1012,32 +1012,69 @@ function unreadKeySubject(entry: IRUnreadKey): string {
   if (entry.position === 'callback') {
     return `"${entry.path}" of callback "${entry.callback ?? ''}" on operation "${entry.parentId ?? ''}"`;
   }
+  if (entry.position === 'additional-operations') return `"${entry.path}".additionalOperations`;
+
   return `"${entry.path}"`;
+}
+
+/**
+ * What went wrong and what to do about it, which are two sentences and three cases.
+ *
+ * THE THIRD CASE ARRIVED AT `T059` AND WOULD HAVE PRINTED A FALSE SENTENCE UNDER THE SECOND. A
+ * standard method under `additionalOperations` carries a `method`, because it is spelled exactly as
+ * OpenAPI spells one, so the wrong-case branch would have told a reader that OpenAPI spells a path
+ * item key in lower case and asked them to rename `get` to `get`. `position` is what tells the two
+ * apart, which is the whole reason SPEC 5.4 gave the union a fourth member.
+ *
+ * @param entry - The unread key
+ * @returns The half of the message that says why, and the suggestion
+ */
+function unreadKeyReason(entry: IRUnreadKey): {
+  readonly why: string;
+  readonly suggestion: string;
+} {
+  if (entry.position === 'additional-operations') {
+    return {
+      why:
+        'OpenAPI 3.2 defines additionalOperations as the methods it does not enumerate, and this ' +
+        'is one it does, so this operation was not read ',
+      suggestion: `move the operation from additionalOperations to "${entry.path}".${entry.method ?? entry.key} in the document`,
+    };
+  }
+
+  if (entry.method === undefined) {
+    return {
+      why: 'OpenAPI names no path item field by that key, so this operation was not read ',
+      suggestion: `spell the key "${entry.key}" as one of the methods OpenAPI declares, or remove it`,
+    };
+  }
+
+  return {
+    why: 'OpenAPI spells a path item key in lower case, so this operation was not read ',
+    suggestion: `rename the key "${entry.key}" to "${entry.method}" in the document`,
+  };
 }
 
 function unreadKeyResult(document: IRDocument): RuleResult {
   const unread = document.unreadKeys ?? [];
 
-  const issues = unread.map((entry) =>
-    issueOf(
+  const issues = unread.map((entry) => {
+    const reason = unreadKeyReason(entry);
+
+    return issueOf(
       UNREAD_KEY_RULE,
       {},
       {
         message:
           `${unreadKeySubject(entry)} declares an operation under the key "${entry.key}". ` +
-          (entry.method === undefined
-            ? 'OpenAPI names no path item field by that key, so this operation was not read '
-            : 'OpenAPI spells a path item key in lower case, so this operation was not read ') +
+          reason.why +
           'and appears nowhere in this reference, in the search index, or in a diff against it.',
-        suggestion:
-          entry.method === undefined
-            ? `spell the key "${entry.key}" as one of the methods OpenAPI declares, or remove it`
-            : `rename the key "${entry.key}" to "${entry.method}" in the document`,
+        suggestion: reason.suggestion,
         edit: 'nothing-to-write',
         basis: UNOBSERVED,
       },
-    ),
-  );
+    );
+  });
 
   return {
     rule: UNREAD_KEY_RULE.id,

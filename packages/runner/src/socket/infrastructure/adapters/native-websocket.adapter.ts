@@ -114,10 +114,17 @@ export class NativeWebSocketTransport implements ISocketTransport {
       // TEXT ONLY, PER SPEC 14.7. A binary frame arrives as a Blob or an ArrayBuffer, neither of
       // which this package can read without the DOM lib and neither of which the log can show, so
       // it is reported as what it is rather than stringified into `[object Blob]`.
-      handlers.onMessage(
-        typeof event.data === 'string'
-          ? event.data
-          : '[a binary frame, which this console does not read]',
+      //
+      // AND IT GOES DOWN ITS OWN PATH SINCE `T059`, not down the message one wearing a sentence.
+      // The two are different facts and the payload validator can only answer one of them.
+      if (typeof event.data === 'string') {
+        handlers.onMessage(event.data);
+
+        return;
+      }
+
+      handlers.onUnreadableFrame(
+        'the server sent a frame that is not text, and this console reads text frames only',
       );
     };
 
