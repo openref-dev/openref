@@ -4,8 +4,8 @@ import { defineConfig } from 'tsup';
  * Two builds, for two different runtimes.
  *
  * THE SERVER BUILD. `@openref/nest` is what a consumer installs, so it carries the internal
- * packages inside itself: `render`, `runner`, `search` and, since T046, `federation` are
- * private and are bundled here.
+ * packages inside itself: `render`, `runner`, `search`, since T046 `federation`, and since T058
+ * `agent` are private and are bundled here.
  *
  * Third party code is not bundled with them. `skipNodeModulesBundle` keeps every published
  * dependency external, and `noExternal` makes the four internal workspace packages the one
@@ -68,7 +68,9 @@ export default defineConfig([
     skipNodeModulesBundle: true,
     // `federation` joined at T046: the merge and the remote lifecycle are internal, per
     // STANDARDS 3.5, and this is the package a consumer installs to get the federated mount.
-    noExternal: [/^@openref\/(render|runner|search|federation)$/],
+    // `agent` joined at T058, for the same reason: the surface of SPEC 18.1 is internal and a
+    // host reaches it through two booleans on the options of this package.
+    noExternal: [/^@openref\/(render|runner|search|federation|agent)$/],
     outExtension: ({ format }) => ({ js: format === 'cjs' ? '.cjs' : '.js' }),
   },
   {

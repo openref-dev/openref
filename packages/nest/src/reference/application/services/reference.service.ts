@@ -17,6 +17,7 @@
  */
 
 import { createHash } from 'node:crypto';
+import { AgentSurfaceService, type AgentOptions, type AgentSurfaceReply } from '@openref/agent';
 import {
   ErrorCode,
   InvalidOptionsError,
@@ -144,6 +145,14 @@ export interface ReferenceServiceOptions {
    * proxy has the same pair for the same reason, one layer down in `ProxyServiceOptions`.
    */
   readonly bridge?: BridgeServiceOptions;
+  /**
+   * The agent surface of SPEC 18.1: `llms.txt` on, MCP off, unless this says otherwise.
+   *
+   * IT IS BUILT WHETHER OR NOT THE HOST WROTE ANYTHING, which is the bridge's arrangement rather
+   * than the proxy's and for the bridge's reason: every wording a caller of the three agent
+   * addresses can meet belongs to one file, and "switched off" is one of those wordings.
+   */
+  readonly agent?: AgentOptions;
   /** The theme in force, validated here so both entry points pass one choke point. */
   readonly theme?: OpenRefThemeOptions;
 }
@@ -225,6 +234,15 @@ export class ReferenceService {
   private readonly bridgeService: BridgeService;
 
   /**
+   * The agent surface of SPEC 18.1, always built, with `llms.txt` on and MCP off by default.
+   *
+   * BUILT AFTER THE DOCUMENT AND NEVER BEFORE, because both text files are a projection of the
+   * document this service settled on, runtime facts and retaken hash included. Building it from
+   * the pre-augmentation document would serve an agent a reference that no page shows.
+   */
+  private readonly agentService: AgentSurfaceService;
+
+  /**
    * Node and schema ids by the path segment `links.ts` writes for them.
    *
    * A page's link carries `pathSegmentOf(id)` since T039, so the parameter a route matches is
@@ -297,6 +315,11 @@ export class ReferenceService {
       `the reference mounted on "${this.basePath === '' ? '/' : this.basePath}"`,
       options.bridge,
     );
+    this.agentService = new AgentSurfaceService({
+      document: this.document,
+      basePath: this.basePath,
+      ...(options.agent === undefined ? {} : { agent: options.agent }),
+    });
     this.nodeIdBySegment = segmentIndex(this.document.nodes.keys());
     this.schemaIdBySegment = segmentIndex(this.document.schemas.keys());
     this.serviceIdBySegment = segmentIndex(
@@ -358,9 +381,23 @@ export class ReferenceService {
         return this.proxied(request);
       case 'bridge':
         return answerBridge(this.bridgeService, request, this.options.onError);
+      // THE AGENT SURFACE OF SPEC 18.1. Each of the three is one call, because every decision
+      // about what may be said and what "off" means belongs to `@openref/agent`; what this side
+      // owns is the mapping from that answer to a reply, and `no-store` on all three.
+      case 'llms':
+        return Promise.resolve(agentReply(this.agentService.llmsIndex()));
+      case 'llms-full':
+        return Promise.resolve(agentReply(this.agentService.llmsFull()));
+      case 'mcp':
+        return Promise.resolve(agentReply(this.agentService.mcp(request.body)));
       case 'asset':
         return Promise.resolve(this.asset(request));
     }
+  }
+
+  /** The agent surface, so a host can ask what this mount offers a machine reader. */
+  get agent(): AgentSurfaceService {
+    return this.agentService;
   }
 
   /** Assets as they are served, for a host that wants to publish them itself. */
@@ -1017,6 +1054,27 @@ function readProxyEnvelope(text: string): ProxyRequest | null {
     url: candidate.url,
     headers,
     body: typeof candidate.body === 'string' ? candidate.body : null,
+  };
+}
+
+/**
+ * One agent surface answer as a reply.
+ *
+ * `no-store` ON ALL THREE, AND NOT AN ETAG, which is the one decision this mapping makes. The two
+ * text files are a pure function of the document and could carry a validator like every page here;
+ * MCP cannot, because it is a `POST` whose answer depends on the body. Giving two of the three a
+ * cache directive and the third another would be three addresses of one surface behaving two ways
+ * for a reason a reader would have to derive, and the bytes are cheap next to the pages beside
+ * them.
+ *
+ * @param answer - What the surface decided
+ * @returns The reply
+ */
+function agentReply(answer: AgentSurfaceReply): ReferenceReply {
+  return {
+    status: answer.status,
+    headers: { 'content-type': answer.contentType, 'cache-control': NO_STORE },
+    body: answer.body,
   };
 }
 

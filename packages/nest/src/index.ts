@@ -376,6 +376,21 @@ export {
 } from './bridge/domain/bridge-options';
 export type { BridgeOptions, BridgeOverflowMode } from './bridge/domain/bridge-options';
 
+// THE AGENT SURFACE OF SPEC 18.1, from T058. What a host names is two booleans, and what a host
+// may want to read back is what the mount decided to offer, which is why the service comes out
+// through `ReferenceService.agent`. Everything below that line, the JSON-RPC reader, the tool and
+// resource builders and the two text builders, stays inside `@openref/agent` and reachable by
+// module path: freezing a name that no host calls is what the bridge entry above had to undo.
+export { assertAgentOptions } from './agent/domain/agent-mount';
+export type { AgentMountOptions } from './agent/domain/agent-mount';
+export {
+  AgentSurfaceService,
+  DEFAULT_AGENT_LLMS_TXT,
+  DEFAULT_AGENT_MCP,
+  MCP_PROTOCOL_VERSION,
+} from '@openref/agent';
+export type { AgentOptions, AgentSurfaceOptions, AgentSurfaceReply } from '@openref/agent';
+
 export {
   assetHref,
   ASSET_PARAM,
@@ -384,6 +399,9 @@ export {
   BRIDGE_SEGMENT,
   FEDERATION_SEGMENT,
   HEALTH_PAGE_SEGMENT,
+  LLMS_FULL_SEGMENT,
+  LLMS_SEGMENT,
+  MCP_SEGMENT,
   NODE_PARAM,
   normalizeRoute,
   PROXY_SEGMENT,

@@ -9,9 +9,10 @@
  *   runner     ->  core
  *   samples    ->  core, runner
  *   search     ->  core
+ *   agent      ->  core, render
  *   theme      ->  nothing
  *   federation ->  core
- *   nest       ->  core, render, runner, search, federation
+ *   nest       ->  core, render, runner, search, federation, agent
  *   cli        ->  core, render, runner, search, static
  *   action     ->  nothing
  *
@@ -70,12 +71,24 @@ const BOUNDARIES = {
   // devDepends on `openref` and `static` takes the browser bundle as a resolved path.
   samples: ['core', 'runner'],
 
-  // NEST REACHES FEDERATION SINCE T046, AND THE DIRECTION IS THE TABLE'S OWN. `federation` is an
-  // internal package bundled into `@openref/nest`, per STANDARDS 3.5: the merge and the remote
-  // lifecycle are data producers, and the Nest module is the first place allowed to see both a
-  // document source and a route table, so serving the federated reference composes there. The
-  // edge the other way stays forbidden: `federation` still reaches `core` and nothing else.
-  nest: ['core', 'render', 'runner', 'search', 'federation'],
+  // THE AGENT SURFACE OF SPEC 18.1 REACHES THE IR AND THE ADDRESS AUTHORITY, AND NOTHING ELSE.
+  // `core` is the IR, the canonical serialization the health resource is written through, and the
+  // versioned doctor report a remediation agent reads. `render` is `links.ts` and
+  // `materializeNode`: an agent file that spelled a page address itself would be the broken link
+  // those constants exist to prevent, and one that titled an operation itself would be the two
+  // titles the note in `packages/render/src/index.ts` already refuses. It deliberately cannot see
+  // `runner`: this surface answers questions about the reference and never sends a request, and
+  // sending one is SPEC 14.5's proxy, which has an allowlist and an SSRF defence. Nor `vue`: it
+  // draws nothing.
+  agent: ['core', 'render'],
+
+  // NEST REACHES FEDERATION SINCE T046 AND AGENT SINCE T058, AND THE DIRECTION IS THE TABLE'S OWN.
+  // Both are internal packages bundled into `@openref/nest`, per STANDARDS 3.5: the merge, the
+  // remote lifecycle and the agent surface are data producers, and the Nest module is the first
+  // place allowed to see both a document source and a route table, so serving them composes there.
+  // The edges the other way stay forbidden: `federation` still reaches `core` and nothing else,
+  // and `agent` reaches `core` and `render`.
+  nest: ['core', 'render', 'runner', 'search', 'federation', 'agent'],
   theme: [],
 
   // THEME-KIT REACHES THE CONTRACT AND NOTHING BELOW IT. It reads the slot registry, the theme

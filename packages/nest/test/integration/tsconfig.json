@@ -9,6 +9,7 @@
     "types": ["node"],
     "baseUrl": "../../../..",
     "paths": {
+      "@openref/agent": ["packages/agent/src/index.ts"],
       "@openref/core": ["packages/core/src/index.ts"],
       "@openref/federation": ["packages/federation/src/index.ts"],
       "@openref/render": ["packages/render/src/index.ts"],

@@ -18,6 +18,7 @@
  * is precisely why the order has to be right here rather than left to the router.
  */
 
+import { LLMS_FULL_SEGMENT, LLMS_SEGMENT, MCP_SEGMENT } from '@openref/agent';
 import { ErrorCode, InvalidOptionsError } from '@openref/core';
 import {
   FEDERATION_SEGMENT,
@@ -134,6 +135,31 @@ export { PROXY_SEGMENT } from '@openref/render';
  */
 export const BRIDGE_SEGMENT = '_bridge';
 
+/**
+ * Segments the agent surface of SPEC 18.1 answers on.
+ *
+ * REGISTERED ON EVERY MOUNT, INCLUDING THE ONES WHERE THE SURFACE IS OFF, by the `_proxy`
+ * precedent this file states twice above: a route that exists only when a feature is on makes
+ * "off" and "no such address" the same 404 from outside. The two text addresses answer 403 naming
+ * the option that switches them back on, and `mcp` answers 403 naming the option that switches it
+ * on, because SPEC 18 has it off by default.
+ *
+ * DECLARED HERE AND NOT IN `links.ts` OF `@openref/render`, on the `BRIDGE_SEGMENT` precedent
+ * rather than the `PROXY_SEGMENT` one, and the difference is measured rather than stylistic.
+ * `_proxy`, `_search-index`, `service` and `_federation` are addresses a page links or fetches, so
+ * two spellings of one path is a broken link; nothing in the shipped bundle addresses any of these
+ * three. The day a page fetches one, the constant moves for the reason the others did.
+ *
+ * THREE SEGMENTS AND TWO OF THEM CARRY A DOT, which is a plain static segment in all three routers
+ * this package supports and needs no escaping: `openapi.json` beside them has carried one since M0.
+ *
+ * DEFINED IN `@openref/agent` AND RE-EXPORTED HERE, which is the `PROXY_SEGMENT` half of the
+ * precedent after all, one package further upstream: `llms.txt` names the addresses of
+ * `llms-full.txt` and `mcp` in its own machine readable section, and that file is built there. Two
+ * spellings would be a file this server serves pointing at an address this server does not answer.
+ */
+export { LLMS_FULL_SEGMENT, LLMS_SEGMENT, MCP_SEGMENT } from '@openref/agent';
+
 /** Name of the parameter carrying an asset file name. */
 export const ASSET_PARAM = 'asset';
 
@@ -169,6 +195,9 @@ export type ReferenceRouteId =
   | 'oauth-callback'
   | 'proxy'
   | 'bridge'
+  | 'llms'
+  | 'llms-full'
+  | 'mcp'
   | 'schema'
   | 'node';
 
@@ -270,6 +299,16 @@ export function referenceRoutes(basePath: string): readonly ReferenceRoute[] {
     // The broker bridge of SPEC 14.8, registered on every mount by the `_proxy` precedent: with
     // the bridge off it answers 403 with the reason, so "off" is a fact a request can learn.
     { id: 'bridge', pattern: at(`/${BRIDGE_SEGMENT}`), method: 'get' },
+    // The agent surface of SPEC 18.1, all three on every mount by the same precedent.
+    { id: 'llms', pattern: at(`/${LLMS_SEGMENT}`), method: 'get' },
+    { id: 'llms-full', pattern: at(`/${LLMS_FULL_SEGMENT}`), method: 'get' },
+    // THE MCP ADDRESS IS REGISTERED TWICE, AND THE `GET` IS THE POINT OF THE SECOND. The JSON-RPC
+    // body arrives in a `POST`, as `_proxy` does; without the `GET`, a client that opened this
+    // address would fall through to the node page route below and be told that no operation of
+    // that name is documented, which is a false sentence about an address that exists. The `GET`
+    // reaches the same handler, finds no body and says what this endpoint takes.
+    { id: 'mcp', pattern: at(`/${MCP_SEGMENT}`), method: 'post' },
+    { id: 'mcp', pattern: at(`/${MCP_SEGMENT}`), method: 'get' },
     { id: 'schema', pattern: at(`/schema/:${SCHEMA_PARAM}`), method: 'get' },
     { id: 'node', pattern: at(`/:${NODE_PARAM}`), method: 'get' },
   ];

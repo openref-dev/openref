@@ -25,6 +25,7 @@
  */
 
 import { loadDefaultAssets } from '@openref/render';
+import { assertAgentOptions } from '../agent/domain/agent-mount';
 import { createReferenceAdapter } from '../http/infrastructure/adapters/reference-adapter.factory';
 import { ReferenceService } from '../reference/application/services/reference.service';
 import { normalizeRoute } from '../reference/domain/routes';
@@ -86,6 +87,11 @@ export class OpenRefModule {
     }
 
     const basePath = normalizeRoute(route);
+    // CHECKED BEFORE ANYTHING IS BUILT, per SPEC 18.1: an MCP endpoint with no guard in front of
+    // it is refused at boot rather than served, and this entry point is where the ordinary NestJS
+    // application mounts, so leaving the check to `forRoot` would leave it unchecked for most
+    // hosts. `admissionFor` below refuses the visibility pair on the same principle.
+    assertAgentOptions(`the reference mounted on "${route}"`, options);
     const references = referencesIn(app);
     let pass: RuntimePassResult | undefined;
 
@@ -120,6 +126,7 @@ export class OpenRefModule {
       ...(options.onError === undefined ? {} : { onError: options.onError }),
       ...(options.proxy === undefined ? {} : { proxy: options.proxy }),
       ...(options.bridge === undefined ? {} : { bridge: options.bridge }),
+      ...(options.agent === undefined ? {} : { agent: options.agent }),
     });
 
     // The guard of SPEC 19.6 lands on this entry point too, and SPEC 13.2 says why: the document a

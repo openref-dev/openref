@@ -65,6 +65,7 @@
     "@nestjs/platform-express": "11.1.28",
     "@nestjs/platform-fastify": "11.1.28",
     "@nestjs/websockets": "11.1.28",
+    "@openref/agent": "workspace:*",
     "@openref/federation": "workspace:*",
     "@openref/render": "workspace:*",
     "@openref/runner": "workspace:*",

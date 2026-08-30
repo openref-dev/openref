@@ -189,6 +189,40 @@ describe('the three service demo', () => {
     expect(html).toContain('href="/docs/service/billing"');
   }, 30_000);
 
+  it('should answer the three agent addresses on the federated mount as well', async () => {
+    // Given a mount that is not an ordinary `ReferenceService` at all: `FederatedReferenceService`
+    // answers the table of SPEC 13.3 from a snapshot and delegates what it does not own to an
+    // inner service rebuilt per composition. The agent surface of SPEC 18.1 is delegated, which
+    // is a property of a `switch` in one file and was proved nowhere in the tree until this case.
+    await settledOverview();
+
+    // When
+    const index = await fetch(`${demo.url}/docs/llms.txt`);
+    const indexText = await index.text();
+    const full = await fetch(`${demo.url}/docs/llms-full.txt`);
+    const fullText = await full.text();
+    const mcp = await fetch(`${demo.url}/docs/mcp`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list' }),
+    });
+    const mcpText = await mcp.text();
+
+    // Then the two text files describe the merged document, operations of more than one service
+    // included, and the MCP address answers about itself rather than falling through to the node
+    // page route, which is what the second registration of that address exists for
+    expect(index.status).toBe(200);
+    expect(index.headers.get('content-type')).toContain('text/plain');
+    expect(indexText).toContain('## Operations');
+    expect(indexText).toContain('/docs/orders_get-orders');
+    expect(indexText).toContain('/docs/billing_');
+    expect(full.status).toBe(200);
+    expect(fullText).toContain('Address: /docs/orders_get-orders');
+    // MCP is off unless a host writes it, per SPEC 18, and off says so rather than 404ing
+    expect(mcp.status).toBe(403);
+    expect(mcpText).toContain('agent: { mcp: true }');
+  }, 30_000);
+
   it('should execute a request from the page own material against the guarded service', async () => {
     // Given: the orders bench page, whose state block carries the runner projection
     await settledOverview();

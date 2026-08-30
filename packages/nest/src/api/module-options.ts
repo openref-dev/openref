@@ -32,6 +32,7 @@
  * only `runtime` is the ordinary case rather than a degenerate one.
  */
 
+import type { AgentOptions } from '@openref/agent';
 import { ErrorCode, InvalidOptionsError } from '@openref/core';
 import type { IRServer } from '@openref/core';
 import type {
@@ -39,6 +40,7 @@ import type {
   FederationFailureMode,
   IFederationCacheDriver,
 } from '@openref/federation';
+import { assertAgentOptions } from '../agent/domain/agent-mount';
 import { assertBridgeOptions } from '../bridge/domain/bridge-options';
 import { assertVisibility } from '../visibility/application/services/admission.service';
 import type { EventServerOptions } from '../events/domain/asyncapi-synthesis';
@@ -323,6 +325,13 @@ export interface OpenRefRootOptions {
    * which is the same relation every other shared option has to its per document form.
    */
   readonly theme?: OpenRefThemeOptions;
+  /**
+   * The agent surface every mounted document defaults to, per SPEC 13.2. Built since T058.
+   *
+   * An entry of `documents` that names its own `agent` overrides this for that mount alone, which
+   * is the same relation `theme` has to its per document form.
+   */
+  readonly agent?: AgentOptions;
   /** The federation of SPEC 15, mounted beside the documents. Built since T046. */
   readonly federation?: OpenRefFederationOptions;
 }
@@ -340,17 +349,16 @@ export interface OpenRefRootAsyncOptions {
 /**
  * Options SPEC 13.2 prints that a later milestone owns, and which milestone that is.
  *
- * `theme` left this list at T033, where it was built. `runner` stays with a corrected owner:
- * the console it once stood for shipped across M2, and the proxy tuning arrived as the `proxy`
- * option, so what this aggregate name still promises is the reconciliation with SPEC 13.2's
- * shape plus the `socket` and `bridge` halves, which are M6.
+ * `theme` left this list at T033, where it was built, and `agent` at T058, per SPEC 18.1.
+ * `runner` stays with a corrected owner: the console it once stood for shipped across M2, and the
+ * proxy tuning arrived as the `proxy` option, so what this aggregate name still promises is the
+ * reconciliation with SPEC 13.2's shape plus the `socket` and `bridge` halves, which are M6.
  */
 const NOT_YET_BUILT: Readonly<Record<string, string>> = {
   runner:
     'T034 reconciles this aggregate with SPEC 13.2: the console shipped across M2, proxy ' +
     'tuning is the proxy option, the broker bridge is the bridge option on a mount since T056, ' +
     'and the socket half is the ISocketPort of @openref/vue',
-  agent: 'M6, T058',
   cache: 'M0, and it is per document rather than global: pass it in a documents entry',
   devWatch: 'M3',
 };
@@ -402,13 +410,21 @@ export function assertRootOptions(options: OpenRefRootOptions): void {
     // for a visibility it cannot honour never reaches a route table at all.
     assertVisibility(`the document "${entry.id}"`, entry);
     assertBridgeOptions(`the document "${entry.id}"`, entry.bridge);
+    // THE ROOT DEFAULT IS PART OF WHAT THIS ENTRY MOUNTS, so the pair the check sees is the one
+    // the mount will build from. A `forRoot` that switches MCP on at the root and writes a guard
+    // on no entry is exactly the arrangement the refusal exists for, and reading `entry.agent`
+    // alone would have let it through on every entry that names none.
+    assertAgentOptions(`the document "${entry.id}"`, {
+      ...entry,
+      agent: entry.agent ?? options.agent,
+    });
   }
 
   // Checked here rather than where it is used, so a malformed template is an error at boot rather
   // than a document that renders with no links and no explanation.
   readSourceLink(options.runtime?.sourceLink);
   assertGuardSecuritySchemes(options.runtime?.guardSecuritySchemes);
-  assertFederationOptions(options.federation, ids, routes);
+  assertFederationOptions(options.federation, ids, routes, options.agent);
 }
 
 /**
@@ -424,12 +440,14 @@ export function assertRootOptions(options: OpenRefRootOptions): void {
  * @param federation - The federation options, or nothing
  * @param documentIds - Ids of the `documents` entries
  * @param routes - Routes the `documents` entries claim
+ * @param rootAgent - The root level agent surface default this mount inherits, if any
  * @throws {InvalidOptionsError} When the federation entry is unusable
  */
 function assertFederationOptions(
   federation: OpenRefFederationOptions | undefined,
   documentIds: ReadonlySet<string>,
   routes: ReadonlySet<string>,
+  rootAgent: AgentOptions | undefined,
 ): void {
   if (federation === undefined) return;
 
@@ -467,6 +485,10 @@ function assertFederationOptions(
 
   assertVisibility('the federated reference', federation);
   assertBridgeOptions('the federated reference', federation.bridge);
+  assertAgentOptions('the federated reference', {
+    ...federation,
+    agent: federation.agent ?? rootAgent,
+  });
 }
 
 /**

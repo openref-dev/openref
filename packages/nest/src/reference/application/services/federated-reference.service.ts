@@ -10,7 +10,8 @@
  * ONE INNER SERVICE PER COMPOSITION, KEYED BY DOCUMENT HASH. A refresh that changed nothing
  * produces the same hash and keeps the same service, warm caches and all; a changed remote
  * produces a new hash and the next request builds a new inner service over the same render
- * cache, whose keys already carry the hash, so nothing stale can answer.
+ * cache, whose keys already carry the hash. What that buys is exactly as wide as the hash is,
+ * which is narrower than it reads: see the note on the cache in the constructor.
  *
  * ASSETS ANSWER EVEN WHEN THE DOCUMENT CANNOT. The catalog is a fact about the build, not about
  * any remote, and a 503 page that could not load its stylesheet would be a worse sentence than
@@ -78,8 +79,17 @@ export class FederatedReferenceService {
   constructor(lifecycle: RemoteLifecycleService, options: FederatedReferenceOptions) {
     this.lifecycle = lifecycle;
     this.options = options;
-    // One render cache across compositions: its keys carry the document hash, so a rebuilt
-    // inner service reuses every page of an unchanged document and can never serve a stale one.
+    // One render cache across compositions: its keys carry the document hash, so a rebuilt inner
+    // service reuses every page of a document whose hash did not change.
+    //
+    // WHICH IS NARROWER THAN "CAN NEVER SERVE A STALE ONE", THE CLAIM THIS COMMENT CARRIED UNTIL
+    // THE BLIND REVIEW OF `T058`. The hash is the whole of the freshness argument here and the
+    // hash does not pin everything a page is drawn from: `canonicalize` sorts object keys, so two
+    // merges differing only in the order a schema's `properties` were written hash the same, and
+    // `serviceFor` below then keeps the inner service it already had, with its cached schema page
+    // and its memoized `llms-full.txt` inside it. The claim is corrected rather than the code,
+    // because the gap is in the canonical form rather than here, and it is filed with its measured
+    // blast radius in the `T059` section of `ai-docs/BUILD-AMENDMENTS.md`.
     this.cache = options.cache ?? createMemoryRenderCache();
     this.catalog = buildAssetCatalog(options.assets.sources);
     this.bridgeService = new BridgeService('the federated reference', options.bridge);

@@ -90,7 +90,7 @@ function proxyRequest(envelope: unknown): {
 const TARGET = 'https://api.example.test/orders/7';
 
 describe('the proxy route', () => {
-  it('should be registered on every mount, as the one route that is not a GET', () => {
+  it('should be registered on every mount, and every route that is not a GET is named', () => {
     // Given the route table for a mount
     const routes = referenceRoutes('/docs');
 
@@ -99,7 +99,16 @@ describe('the proxy route', () => {
 
     // Then
     expect(proxy).toEqual([{ id: 'proxy', pattern: '/docs/_proxy', method: 'post' }]);
-    expect(routes.filter((route) => route.method === 'post')).toHaveLength(1);
+    // AND THE SET OF POST ROUTES IS PINNED BY ID RATHER THAN BY COUNT. This case read "the one
+    // route that is not a GET" until T058 gave the MCP endpoint of SPEC 18.1 a JSON-RPC body,
+    // which is the second. A count would have gone green again the moment somebody wrote the new
+    // number; the list makes a third POST route name itself here before it can be registered,
+    // which is what this case was always for: the registration loop reads `method` off the table,
+    // and a route registered on the wrong method reaches no request at all.
+    expect(routes.filter((route) => route.method === 'post').map((route) => route.id)).toEqual([
+      'proxy',
+      'mcp',
+    ]);
   });
 
   it('should refuse when the host never turned the proxy on, which is the default', async () => {

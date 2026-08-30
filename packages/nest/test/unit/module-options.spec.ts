@@ -126,7 +126,6 @@ describe('assertRootOptions', () => {
 
   for (const [key, milestone] of Object.entries({
     runner: /T034 reconciles/,
-    agent: /M6, T058/,
     devWatch: /M3/,
   })) {
     it(`should refuse the ${key} option of SPEC 13.2 and say which milestone owns it`, () => {
@@ -139,6 +138,65 @@ describe('assertRootOptions', () => {
       }).toThrow(milestone);
     });
   }
+
+  it('should accept the agent surface, which left NOT_YET_BUILT at T058', () => {
+    // Given, the SPEC 13.2 form: the two switches, with MCP off, which needs no guard
+    const good = options({ agent: { llmsTxt: true, mcp: false } });
+
+    // When, Then
+    expect(() => {
+      assertRootOptions(good);
+    }).not.toThrow();
+  });
+
+  it('should refuse an MCP endpoint on a document entry that supplies no guard', () => {
+    // Given, SPEC 18 makes authentication mandatory when MCP is on, and the mechanism is the
+    // guard of SPEC 19.6: an entry that switches it on and names no guard would answer every
+    // tool call to anyone
+    const bad = options({
+      documents: [
+        { id: 'public', route: '/docs', document: specification(), agent: { mcp: true } },
+      ],
+    });
+
+    // When, Then
+    expect(() => {
+      assertRootOptions(bad);
+    }).toThrow(/authentication is mandatory when MCP is on|mandatory when MCP is on/);
+  });
+
+  it('should refuse an MCP endpoint switched on at the root over an entry with no guard', () => {
+    // Given, the root value is the default every entry inherits, so an entry that names no agent
+    // of its own is mounted with this one. Reading the entry alone would have let it through.
+    const bad = options({ agent: { mcp: true } });
+
+    // When, Then
+    expect(() => {
+      assertRootOptions(bad);
+    }).toThrow(/supplies no guard/);
+  });
+
+  it('should accept an MCP endpoint on an entry that supplies a guard', () => {
+    // Given, the guard runs in front of every route of SPEC 13.3 through the admission, so the
+    // MCP address is behind it by construction
+    const good = options({
+      documents: [
+        {
+          id: 'closed',
+          route: '/docs',
+          document: specification(),
+          visibility: 'internal',
+          guard: { canActivate: () => true },
+          agent: { mcp: true },
+        },
+      ],
+    });
+
+    // When, Then
+    expect(() => {
+      assertRootOptions(good);
+    }).not.toThrow();
+  });
 
   it('should accept a federation of remotes, which left NOT_YET_BUILT at T046', () => {
     // Given, the SPEC 15 form: remotes to poll, mounted on a route of its own

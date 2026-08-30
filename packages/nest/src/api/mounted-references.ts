@@ -221,6 +221,7 @@ export class MountedReferences {
     const theme = entry.theme ?? this.options.theme;
     const stylesheets = entry.stylesheets ?? theme?.definition.assets?.css;
     const clientBundle = entry.clientBundle ?? theme?.bundle;
+    const agent = entry.agent ?? this.options.agent;
 
     const service = new ReferenceService({
       // `isEventsDocument` narrowed the entry above, and the synthesis is the one produced from
@@ -268,6 +269,10 @@ export class MountedReferences {
       // GIVES. It is an option a host writes on a mount and it has to reach the service that
       // answers that mount's routes, or an enabled bridge answers the 403 of a bridge that is off.
       ...(entry.bridge === undefined ? {} : { bridge: entry.bridge }),
+      // THE ENTRY'S OWN AGENT SURFACE WINS OVER THE ROOT DEFAULT, per SPEC 13.2, which is the
+      // relation `theme` above already has. Absent on both, the service builds the defaults of
+      // SPEC 18.1 itself, so a mount that says nothing serves the two text files and no MCP.
+      ...(agent === undefined ? {} : { agent }),
     });
 
     // THE ADMISSION IS BUILT BEFORE THE ADAPTER AND THROWS RATHER THAN WARNS. A guard the container
@@ -402,6 +407,7 @@ export class MountedReferences {
     const theme = federation.theme ?? this.options.theme;
     const stylesheets = federation.stylesheets ?? theme?.definition.assets?.css;
     const clientBundle = federation.clientBundle ?? theme?.bundle;
+    const agent = federation.agent ?? this.options.agent;
 
     const service = new FederatedReferenceService(lifecycle, {
       basePath,
@@ -419,6 +425,10 @@ export class MountedReferences {
       ...(federation.onError === undefined ? {} : { onError: federation.onError }),
       ...(federation.proxy === undefined ? {} : { proxy: federation.proxy }),
       ...(federation.bridge === undefined ? {} : { bridge: federation.bridge }),
+      // The agent surface of SPEC 18.1 travels the same route as the two options above and for
+      // the same reason: an option a host writes on a mount has to reach the service that answers
+      // that mount's routes, or a switched on surface answers the 403 of a switched off one.
+      ...(agent === undefined ? {} : { agent }),
     });
 
     const admission = admissionFor(

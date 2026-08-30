@@ -9,6 +9,7 @@
  * a cycle in the source, and the next thing added to it may not be a type.
  */
 
+import type { AgentOptions } from '@openref/agent';
 import type { ErrorReporter } from '../http/domain/reply';
 import type { NonceReader } from '../http/infrastructure/adapters/express-reference.adapter';
 import type {
@@ -84,6 +85,22 @@ export interface OpenRefSetupBaseOptions {
    * distinguishable from outside.
    */
   readonly proxy?: ProxyOptions;
+  /**
+   * The agent surface of SPEC 18.1: `llms.txt` on, MCP off, unless this says otherwise.
+   *
+   * IT IS ON BOTH ENTRY POINTS FOR THE REASON `visibility` AND `guard` ARE, per SPEC 13.2. The
+   * ordinary NestJS application builds its document with `SwaggerModule`, which needs the
+   * application, so the document does not exist when `forRoot`'s options are read and that host
+   * mounts through `setup`. An option that lived only on `documents` would be a surface that host
+   * could neither switch on nor switch off.
+   *
+   * IT IS NOT PART OF THE VISIBILITY UNION, WHICH `bridge` IS, and the difference is what SPEC 18
+   * asks for. The bridge is banned outright under public visibility, so the ban is two arms of a
+   * type; MCP requires authentication, which a guard supplies and which a public reference may
+   * also carry, so the refusal is a boot check naming both halves rather than a shape that cannot
+   * be written. See `assertAgentOptions`.
+   */
+  readonly agent?: AgentOptions;
 }
 
 /**

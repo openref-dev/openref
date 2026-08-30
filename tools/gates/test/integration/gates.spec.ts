@@ -249,7 +249,13 @@ describe('licensesGate', () => {
     // `@openref/nest` names it in `devDependencies`, and the server build's `tsup.config`
     // inlines it by name, so a consumer of the module receives the merge engine and the remote
     // lifecycle as bytes and their licence closure belongs in the production zone.
+    // `@openref/agent` JOINED THE SET AT T058, the ordinary case a third time and by the same
+    // three facts: it is private, `@openref/nest` names it in `devDependencies`, and the server
+    // build's `tsup.config` inlines it by name, so a consumer of the module receives the agent
+    // surface of SPEC 18.1 as bytes. Its own dependency closure is `core` and `render`, both
+    // already in this list or published, so the production zone gains no third party licence.
     expect(result.bundled).toEqual([
+      '@openref/agent',
       '@openref/federation',
       '@openref/render',
       '@openref/runner',

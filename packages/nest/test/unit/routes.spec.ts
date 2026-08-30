@@ -120,9 +120,27 @@ describe('referenceRoutes', () => {
       '/docs/_oauth/callback',
       '/docs/_proxy',
       '/docs/_bridge',
+      // The agent surface of SPEC 18.1, from T058. `mcp` appears twice, once per method: the
+      // JSON-RPC body arrives in a POST, and the GET exists so that opening the address in a
+      // client is not answered by the node page route with "no operation of that name".
+      '/docs/llms.txt',
+      '/docs/llms-full.txt',
+      '/docs/mcp',
+      '/docs/mcp',
       '/docs/schema/:schemaId',
       '/docs/:nodeId',
     ]);
+  });
+
+  it('should register the MCP address on both methods, so a GET is not read as a node id', () => {
+    // Given
+    const routes = referenceRoutes('/docs');
+
+    // When
+    const methods = routes.filter((route) => route.id === 'mcp').map((route) => route.method);
+
+    // Then
+    expect(methods).toEqual(['post', 'get']);
   });
 
   /**
@@ -158,6 +176,9 @@ describe('referenceRoutes', () => {
       'oauth-callback': true,
       proxy: true,
       bridge: true,
+      llms: true,
+      'llms-full': true,
+      mcp: true,
       schema: true,
       node: true,
     };
