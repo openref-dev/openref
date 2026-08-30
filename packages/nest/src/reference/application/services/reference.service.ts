@@ -73,6 +73,11 @@ import type {
   ReferenceReply,
   ReferenceRequest,
 } from '../../../http/application/ports/reference-http.port';
+import { answerBridge } from '../../../bridge/api/bridge-route';
+import {
+  BridgeService,
+  type BridgeServiceOptions,
+} from '../../../bridge/application/services/bridge.service';
 import { buildAllowlist } from '../../../proxy/domain/allowlist';
 import type { ProxyLogRecord } from '../../../proxy/domain/forwarding';
 import type {
@@ -131,6 +136,14 @@ export interface ReferenceServiceOptions {
    * means off rather than open. Neither state is an error and both say which one they are.
    */
   readonly proxy?: ProxyOptions;
+  /**
+   * The broker bridge of SPEC 14.8, off unless a host turns it on.
+   *
+   * IT IS `BridgeServiceOptions` HERE AND `BridgeOptions` ON THE MOUNT, and the difference is the
+   * clock and the timer, which are seams a suite drives and not something a host configures. The
+   * proxy has the same pair for the same reason, one layer down in `ProxyServiceOptions`.
+   */
+  readonly bridge?: BridgeServiceOptions;
   /** The theme in force, validated here so both entry points pass one choke point. */
   readonly theme?: OpenRefThemeOptions;
 }
@@ -201,6 +214,17 @@ export class ReferenceService {
   private readonly proxyService: ProxyService | null;
 
   /**
+   * The broker bridge of SPEC 14.8, always built and off unless a host turned it on.
+   *
+   * BUILT EVEN WHEN IT IS OFF, WHICH IS THE OPPOSITE OF THE PROXY BESIDE IT, and the reason is
+   * that every wording a reader can meet on this route belongs to one file. The proxy splits its
+   * refusals between this service and `ProxyService`; here the "not enabled" sentence, the
+   * allowlist sentence and the concurrency sentence are all answers to "may I subscribe", so they
+   * are all answered by the thing that knows.
+   */
+  private readonly bridgeService: BridgeService;
+
+  /**
    * Node and schema ids by the path segment `links.ts` writes for them.
    *
    * A page's link carries `pathSegmentOf(id)` since T039, so the parameter a route matches is
@@ -269,6 +293,10 @@ export class ReferenceService {
     this.stylesheetHrefs = options.assets.stylesheetNames.map(hrefOf);
     this.moduleHrefs = [hrefOf(options.assets.moduleName)];
     this.proxyService = buildProxy(this.document, options.proxy);
+    this.bridgeService = new BridgeService(
+      `the reference mounted on "${this.basePath === '' ? '/' : this.basePath}"`,
+      options.bridge,
+    );
     this.nodeIdBySegment = segmentIndex(this.document.nodes.keys());
     this.schemaIdBySegment = segmentIndex(this.document.schemas.keys());
     this.serviceIdBySegment = segmentIndex(
@@ -328,6 +356,8 @@ export class ReferenceService {
         return Promise.resolve(this.oauthCallback(request));
       case 'proxy':
         return this.proxied(request);
+      case 'bridge':
+        return answerBridge(this.bridgeService, request, this.options.onError);
       case 'asset':
         return Promise.resolve(this.asset(request));
     }
@@ -674,6 +704,11 @@ export class ReferenceService {
         body: JSON.stringify({ error: 'the proxied request did not complete' }),
       };
     }
+  }
+
+  /** The bridge of SPEC 14.8, for a host that wants to end its subscriptions on shutdown. */
+  get bridge(): BridgeService {
+    return this.bridgeService;
   }
 
   /** The page a callback goes back to, or this mount's overview when the state names none. */

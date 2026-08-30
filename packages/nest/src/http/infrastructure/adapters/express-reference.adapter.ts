@@ -9,6 +9,7 @@
  * its own content type.
  */
 
+import { Readable, pipeline } from 'node:stream';
 import { readRequestBody } from '../../domain/request-body';
 import { readNestedString, readStringRecord } from '../../domain/request-shape';
 import { failureReply, type ErrorReporter } from '../../domain/reply';
@@ -45,6 +46,19 @@ interface ServerResponseLike {
 }
 
 /**
+ * The extra members a streamed reply is written through, per SPEC 14.8.
+ *
+ * `pipeline` AND NOT `pipe`, and the difference is the whole point of using it. `pipe` leaves the
+ * source running when the destination goes away, so a reader closing the tab would leave a broker
+ * subscription filling a ring nobody drains until the connection ceiling fires; `pipeline`
+ * destroys the source, which is what the bridge session listens for.
+ */
+interface StreamingResponseLike extends ServerResponseLike {
+  write(chunk: string | Uint8Array): unknown;
+  on(event: string, listener: (...args: never[]) => void): unknown;
+}
+
+/**
  * Reports whether a value can be written to as a Node response.
  *
  * @param value - Whatever the framework passed
@@ -55,6 +69,18 @@ function isServerResponse(value: unknown): value is ServerResponseLike {
   const candidate = value as Record<string, unknown>;
 
   return typeof candidate.setHeader === 'function' && typeof candidate.end === 'function';
+}
+
+/**
+ * Reports whether a response can carry a stream.
+ *
+ * @param value - Whatever the framework passed
+ * @returns True when it carries the members `pipeline` needs
+ */
+function isStreamingResponse(value: ServerResponseLike): value is StreamingResponseLike {
+  const candidate = value as unknown as Record<string, unknown>;
+
+  return typeof candidate.write === 'function' && typeof candidate.on === 'function';
 }
 
 /**
@@ -69,6 +95,25 @@ export function writeExpressReply(reply: unknown, response: ReferenceReply): boo
 
   reply.statusCode = response.status;
   for (const [name, value] of Object.entries(response.headers)) reply.setHeader(name, value);
+
+  if (response.body instanceof Readable) {
+    // A RESPONSE THAT CANNOT BE WRITTEN TO INCREMENTALLY IS SAID SO RATHER THAN ANSWERED EMPTY.
+    // The duck type above admits anything with `setHeader` and `end`, and a test double is
+    // usually exactly that; ending the response with no body would look to a reader like a
+    // subscription that opened and said nothing.
+    if (!isStreamingResponse(reply)) {
+      response.body.destroy();
+      reply.statusCode = 500;
+      reply.end('this response cannot carry a stream');
+
+      return true;
+    }
+
+    pipeline(response.body, reply as unknown as NodeJS.WritableStream, () => undefined);
+
+    return true;
+  }
+
   reply.end(response.body);
 
   return true;

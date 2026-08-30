@@ -117,6 +117,23 @@ export const OAUTH_CALLBACK_SEGMENT = 'callback';
  */
 export { PROXY_SEGMENT } from '@openref/render';
 
+/**
+ * Segment the broker bridge of SPEC 14.8 answers on.
+ *
+ * REGISTERED ON EVERY MOUNT, INCLUDING THE ONES WHERE THE BRIDGE IS OFF, by the `_proxy` precedent
+ * this file states one entry above: a route that exists only when a feature is on makes "off" and
+ * "no such address" the same 404 from outside. This one answers 403 with the reason.
+ *
+ * DECLARED HERE AND NOT IN `links.ts` OF `@openref/render`, which is the opposite of `_proxy`,
+ * `_search-index`, `service` and `_federation`, and the difference is measured rather than
+ * stylistic. Those four are addresses a page links or fetches, so two spellings of one path is a
+ * broken link; nothing in the shipped bundle addresses this one, because SPEC 14.7 recorded the
+ * interactive console as a debt against 40 bytes of stylesheet headroom and SPEC 14.8 puts the
+ * reader's indicator in the stream instead of on a page. The day a page fetches it, the constant
+ * moves for the reason the others did.
+ */
+export const BRIDGE_SEGMENT = '_bridge';
+
 /** Name of the parameter carrying an asset file name. */
 export const ASSET_PARAM = 'asset';
 
@@ -151,6 +168,7 @@ export type ReferenceRouteId =
   | 'service'
   | 'oauth-callback'
   | 'proxy'
+  | 'bridge'
   | 'schema'
   | 'node';
 
@@ -249,6 +267,9 @@ export function referenceRoutes(basePath: string): readonly ReferenceRoute[] {
       method: 'get',
     },
     { id: 'proxy', pattern: at(`/${PROXY_SEGMENT}`), method: 'post' },
+    // The broker bridge of SPEC 14.8, registered on every mount by the `_proxy` precedent: with
+    // the bridge off it answers 403 with the reason, so "off" is a fact a request can learn.
+    { id: 'bridge', pattern: at(`/${BRIDGE_SEGMENT}`), method: 'get' },
     { id: 'schema', pattern: at(`/schema/:${SCHEMA_PARAM}`), method: 'get' },
     { id: 'node', pattern: at(`/:${NODE_PARAM}`), method: 'get' },
   ];

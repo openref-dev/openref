@@ -1,5 +1,6 @@
 import 'reflect-metadata';
 import { describe, expect, it, vi } from 'vitest';
+import { replyText } from '../../src/http/domain/reply';
 import { InvalidOptionsError } from '@openref/core';
 import {
   REFUSED_BODY,
@@ -170,8 +171,9 @@ describe('RouteAdmission.behind', () => {
     const refusal = await run(admission);
 
     // Then
+    expect(refusal).toBeDefined();
     expect(refusal?.status).toBe(500);
-    expect(String(refusal?.body)).not.toContain('token service');
+    expect(refusal === undefined ? '' : replyText(refusal)).not.toContain('token service');
     expect(onError).toHaveBeenCalledOnce();
   });
 
@@ -245,8 +247,9 @@ describe('RouteAdmission.behind', () => {
     const refusal = await run(admission);
 
     // Then
+    expect(refusal).toBeDefined();
     expect(refusal?.status).toBe(500);
-    expect(String(refusal?.body)).not.toContain('10.0.0.7');
+    expect(refusal === undefined ? '' : replyText(refusal)).not.toContain('10.0.0.7');
     expect(onError).toHaveBeenCalledOnce();
   });
 

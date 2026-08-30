@@ -11,7 +11,7 @@ import { assetPlan, specification } from '../mocks/fixtures';
 /**
  * SPEC 19.6 against real NestJS applications, on both adapters.
  *
- * WHAT ONLY THIS FILE CAN PROVE, AND WHY IT HAS TO PROVE IT TWICE. The seventeen routes are
+ * WHAT ONLY THIS FILE CAN PROVE, AND WHY IT HAS TO PROVE IT TWICE. The routes of SPEC 13.3 are
  * registered on the http adapter directly, which is what keeps a documentation page out from
  * behind whatever the application applies globally and is exactly why NestJS never sees them: no
  * controller, no `@UseGuards`, no `APP_GUARD`. The guard is therefore resolved and called by this
@@ -258,7 +258,9 @@ for (const platform of PLATFORMS) {
 
     it('should serve the pages and the machine answers alike once admitted', async () => {
       // Given, the four addresses SPEC 19.6 names by hand, so the sweep above cannot pass by
-      // finding seventeen 404s
+      // finding a table full of 404s. The sweep's own length is read off `referenceRoutes` and is
+      // deliberately not written down here: a number in a comment is the thing that goes stale,
+      // which is what these four sites were before T056 corrected them
       const url = await boot(platform, GuardedModule);
       const named = ['/docs', '/docs/openapi.json', '/docs/_search-index', '/docs/health'];
 

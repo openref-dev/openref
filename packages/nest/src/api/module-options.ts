@@ -39,6 +39,7 @@ import type {
   FederationFailureMode,
   IFederationCacheDriver,
 } from '@openref/federation';
+import { assertBridgeOptions } from '../bridge/domain/bridge-options';
 import { assertVisibility } from '../visibility/application/services/admission.service';
 import type { EventServerOptions } from '../events/domain/asyncapi-synthesis';
 import type { CollectorRegistration } from '../runtime/application/ports/collector.port';
@@ -71,10 +72,27 @@ interface OpenRefMountOptions {
 /**
  * One mounted document the host hands over.
  *
- * `visibility` AND `guard` ARE INHERITED RATHER THAN DECLARED HERE, from `OpenRefSetupOptions`, so
- * the two forms of SPEC 13 cannot drift apart on a security option.
+ * `visibility`, `guard` AND `bridge` ARE INHERITED RATHER THAN DECLARED HERE, from
+ * `OpenRefSetupOptions`, so the two forms of SPEC 13 cannot drift apart on a security option.
  */
-export interface OpenRefHandedDocumentOptions extends OpenRefSetupOptions, OpenRefMountOptions {}
+export type OpenRefHandedDocumentOptions = WithMount<OpenRefSetupOptions>;
+
+/**
+ * Puts the mount pair on each arm of an options union.
+ *
+ * The same distribution `WithSetupBase` performs, and there for the same reason: an intersection
+ * written flat over a union collapses the arms and takes SPEC 14.8's bridge ban with them.
+ */
+type WithMount<T> = T extends unknown ? T & OpenRefMountOptions : never;
+
+/**
+ * The setup options without the document, arm by arm.
+ *
+ * `Omit` IS NOT DISTRIBUTIVE AND THAT MATTERS HERE. `Omit<A | B, 'document'>` keys itself off
+ * `keyof (A | B)`, which is the intersection of the two key sets, so the two arms come back as one
+ * flattened object and the bridge ban is gone from it. Applying it per arm keeps the union.
+ */
+type WithoutDocument<T> = T extends unknown ? Omit<T, 'document'> : never;
 
 /**
  * One events document, synthesized from the running application, per SPEC 8.3 and SPEC 13.2.
@@ -91,8 +109,21 @@ export interface OpenRefHandedDocumentOptions extends OpenRefSetupOptions, OpenR
  * is not a module. A host whose events live in a file passes it as an ordinary `document`, which
  * this package reads with the AsyncAPI reader because the file says `asyncapi` at its root.
  */
-export interface OpenRefEventsDocumentOptions
-  extends Omit<OpenRefSetupOptions, 'document'>, OpenRefMountOptions {
+export type OpenRefEventsDocumentOptions = EventsEntry<WithoutDocument<OpenRefSetupOptions>>;
+
+/**
+ * Puts the mount pair and the events members on each arm.
+ *
+ * WRITTEN AS ONE DISTRIBUTION AND NOT AS TWO INTERSECTIONS, because an intersection applied to a
+ * union outside a distribution is where the arms collapse again, and a collapsed arm is SPEC
+ * 14.8's ban silently gone from the events entry alone.
+ */
+type EventsEntry<T> = T extends unknown
+  ? T & OpenRefMountOptions & OpenRefEventsDocumentParts
+  : never;
+
+/** What an events entry carries beyond the shared mount options. */
+interface OpenRefEventsDocumentParts {
   /** Says the document is the application's events rather than a document handed over. */
   readonly kind: 'events';
   /** Title of the synthesized document. Defaults to the entry's id. */
@@ -240,7 +271,13 @@ export interface OpenRefFederationLocalOptions {
  * their runtime facts and health per SPEC 15.3, and the route answers the snapshot's own
  * decision, 200 or 503.
  */
-export interface OpenRefFederationOptions extends Omit<OpenRefSetupOptions, 'document'> {
+export type OpenRefFederationOptions = FederationEntry<WithoutDocument<OpenRefSetupOptions>>;
+
+/** Puts the federation members on each arm, per the note on {@link EventsEntry}. */
+type FederationEntry<T> = T extends unknown ? T & OpenRefFederationParts : never;
+
+/** What a federation entry carries beyond the shared mount options. */
+interface OpenRefFederationParts {
   /** Where the federated reference is mounted, such as `/docs`. */
   readonly route: string;
   /** `IRDocument.id` of the merged document, which the CLI addresses it by. */
@@ -311,7 +348,8 @@ export interface OpenRefRootAsyncOptions {
 const NOT_YET_BUILT: Readonly<Record<string, string>> = {
   runner:
     'T034 reconciles this aggregate with SPEC 13.2: the console shipped across M2, proxy ' +
-    'tuning is the proxy option, and the socket and bridge halves are M6',
+    'tuning is the proxy option, the broker bridge is the bridge option on a mount since T056, ' +
+    'and the socket half is the ISocketPort of @openref/vue',
   agent: 'M6, T058',
   cache: 'M0, and it is per document rather than global: pass it in a documents entry',
   devWatch: 'M3',
@@ -363,6 +401,7 @@ export function assertRootOptions(options: OpenRefRootOptions): void {
     // fires while `forRoot` is being evaluated, before the container exists, so a document asking
     // for a visibility it cannot honour never reaches a route table at all.
     assertVisibility(`the document "${entry.id}"`, entry);
+    assertBridgeOptions(`the document "${entry.id}"`, entry.bridge);
   }
 
   // Checked here rather than where it is used, so a malformed template is an error at boot rather
@@ -427,6 +466,7 @@ function assertFederationOptions(
   }
 
   assertVisibility('the federated reference', federation);
+  assertBridgeOptions('the federated reference', federation.bridge);
 }
 
 /**

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { replyText } from '../../src/http/domain/reply';
 import { RemoteLifecycleService } from '@openref/federation';
 import { buildAssetCatalog } from '@openref/render';
 import type { IRemoteFetcher, RemoteFetchRequest, RemoteDocumentSource } from '@openref/federation';
@@ -103,7 +104,7 @@ describe('FederatedReferenceService, ready', () => {
 
     // Then
     expect(reply.status).toBe(200);
-    const html = String(reply.body);
+    const html = replyText(reply);
     expect(html).toContain('Billing');
     expect(html).toContain('Orders');
     expect(html).toContain('data-oref-service="billing"');
@@ -119,8 +120,8 @@ describe('FederatedReferenceService, ready', () => {
 
     // Then
     expect(reply.status).toBe(200);
-    expect(String(reply.body)).toContain('oref-service-page');
-    expect(String(reply.body)).toContain('https://billing.internal');
+    expect(replyText(reply)).toContain('oref-service-page');
+    expect(replyText(reply)).toContain('https://billing.internal');
   });
 
   it('should name the services it does have when the name asked for is not one of them', async () => {
@@ -138,7 +139,7 @@ describe('FederatedReferenceService, ready', () => {
     expect(reply.status).toBe(404);
     expect(reply.headers['cache-control']).toBe('no-store');
     expect(reply.headers['content-type']).toBe('text/plain; charset=utf-8');
-    expect(String(reply.body)).toBe(
+    expect(replyText(reply)).toBe(
       'No service of that name is in this federation. The services it documents are: ' +
         'billing, orders.',
     );
@@ -154,7 +155,7 @@ describe('FederatedReferenceService, ready', () => {
     const plain = await host.handle('service', request({ serviceId: 'shipping' }));
     const attack = await host.handle('service', request({ serviceId: hostile }));
     const long = await host.handle('service', request({ serviceId: marker }));
-    const body = String(attack.body);
+    const body = replyText(attack);
 
     // Then the body does interpolate, and what it interpolates is this federation's own ids:
     // the absence below is measured against a sentence that demonstrably carries values.
@@ -168,12 +169,12 @@ describe('FederatedReferenceService, ready', () => {
     expect(body).not.toContain(hostile);
     expect(body).not.toContain('<img');
     expect(body).not.toContain('onerror');
-    expect(String(long.body)).not.toContain(marker);
+    expect(replyText(long)).not.toContain(marker);
 
     // And the proof that it cannot reflect is that the answer does not vary with the name at
     // all: three unrelated wrong names, one set of bytes, so length alone tells nothing either.
-    expect(body).toBe(String(plain.body));
-    expect(String(long.body)).toBe(String(plain.body));
+    expect(body).toBe(replyText(plain));
+    expect(replyText(long)).toBe(replyText(plain));
   });
 
   it('should answer the live snapshot without the document, no-store', async () => {
@@ -186,7 +187,7 @@ describe('FederatedReferenceService, ready', () => {
     // Then
     expect(reply.status).toBe(200);
     expect(reply.headers['cache-control']).toBe('no-store');
-    const body = JSON.parse(String(reply.body)) as Record<string, unknown>;
+    const body = JSON.parse(replyText(reply)) as Record<string, unknown>;
     expect(body.availability).toBe('ready');
     expect(body.httpStatus).toBe(200);
     expect(body.document).toBeUndefined();
@@ -206,7 +207,7 @@ describe('FederatedReferenceService, ready', () => {
 
     // Then
     expect(reply.status).toBe(404);
-    const body = JSON.parse(String(reply.body)) as { error: string; services: string[] };
+    const body = JSON.parse(replyText(reply)) as { error: string; services: string[] };
     expect(body.error).toContain('merged from 2 services');
     expect(body.services).toEqual(['billing', 'orders']);
   });
@@ -220,7 +221,7 @@ describe('FederatedReferenceService, ready', () => {
 
     // Then
     expect(reply.status).toBe(200);
-    const serialized = String(reply.body);
+    const serialized = replyText(reply);
     expect(serialized).toContain('billing_post-charges');
     expect(serialized).toContain('orders_get-orders');
   });
@@ -238,7 +239,7 @@ describe('FederatedReferenceService, unavailable', () => {
     expect(reply.status).toBe(503);
     expect(reply.headers['content-type']).toContain('text/html');
     expect(reply.headers['cache-control']).toBe('no-store');
-    const html = String(reply.body);
+    const html = replyText(reply);
     expect(html).toContain('unavailable');
     expect(html).toContain('billing');
     expect(html).not.toContain('style=');
@@ -255,7 +256,7 @@ describe('FederatedReferenceService, unavailable', () => {
     // Then
     expect(reply.status).toBe(503);
     expect(reply.headers['content-type']).toContain('application/json');
-    expect((JSON.parse(String(reply.body)) as { error: string }).error).toContain('billing');
+    expect((JSON.parse(replyText(reply)) as { error: string }).error).toContain('billing');
   });
 
   it('should still serve assets, so the 503 page keeps its stylesheet', async () => {
@@ -280,7 +281,7 @@ describe('FederatedReferenceService, unavailable', () => {
 
     // Then
     expect(reply.status).toBe(200);
-    const body = JSON.parse(String(reply.body)) as Record<string, unknown>;
+    const body = JSON.parse(replyText(reply)) as Record<string, unknown>;
     expect(body.availability).toBe('unavailable');
     expect(body.httpStatus).toBe(503);
     expect(typeof body.reason).toBe('string');

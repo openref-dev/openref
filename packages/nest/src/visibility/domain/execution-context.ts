@@ -1,7 +1,7 @@
 /**
  * The `ExecutionContext` a reference route hands a guard, built rather than received.
  *
- * WHY IT HAS TO BE BUILT. The seventeen routes of SPEC 13.3 are registered on the http adapter
+ * WHY IT HAS TO BE BUILT. The routes of SPEC 13.3 are registered on the http adapter
  * directly, which is the decision that keeps a documentation page out from behind whatever the
  * application applies globally, and its consequence is that NestJS never sees these routes at all:
  * no controller, no `@UseGuards`, no `APP_GUARD`, and therefore no context object. SPEC 19.6 says

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { replyText } from '../../src/http/domain/reply';
 import {
   forwardableRequestHeaders,
   forwardableResponseHeaders,
@@ -110,7 +111,7 @@ describe('the proxy route', () => {
 
     // Then
     expect(reply.status).toBe(403);
-    expect(String(reply.body)).toContain('not enabled');
+    expect(replyText(reply)).toContain('not enabled');
     expect(reply.headers['cache-control']).toBe('no-store');
   });
 
@@ -127,7 +128,7 @@ describe('the proxy route', () => {
 
     // Then
     expect(reply.status).toBe(403);
-    expect(String(reply.body)).toContain('is not under any server');
+    expect(replyText(reply)).toContain('is not under any server');
     expect(outbound.sent).toEqual([]);
   });
 
@@ -143,7 +144,7 @@ describe('the proxy route', () => {
     // Then
     expect(reply.status).toBe(200);
     expect(reply.headers['cache-control']).toBe('no-store');
-    const envelope = JSON.parse(String(reply.body)) as { status: number; body: string };
+    const envelope = JSON.parse(replyText(reply)) as { status: number; body: string };
     expect(envelope.status).toBe(200);
     expect(envelope.body).toBe('{"ok":true}');
   });
@@ -198,7 +199,7 @@ describe('the proxy route', () => {
     const reply = await reference.handle('proxy', proxyRequest({ method: 'GET', url: TARGET }));
 
     // Then
-    const envelope = JSON.parse(String(reply.body)) as { headers: [string, string][] };
+    const envelope = JSON.parse(replyText(reply)) as { headers: [string, string][] };
     expect(envelope.headers.map(([name]) => name)).not.toContain('set-cookie');
   });
 
@@ -221,7 +222,7 @@ describe('the proxy route', () => {
 
     // Then
     expect(outbound.sent[0]?.headers.cookie).toBe('sid=1');
-    const envelope = JSON.parse(String(reply.body)) as { headers: [string, string][] };
+    const envelope = JSON.parse(replyText(reply)) as { headers: [string, string][] };
     expect(envelope.headers.map(([name]) => name)).toContain('set-cookie');
   });
 });

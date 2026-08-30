@@ -19,14 +19,14 @@ import type { OpenRefVisibilityOptions } from '../visibility/domain/visibility';
 import type { AssetPlan, IRenderCache } from '@openref/render';
 
 /**
- * Everything `setup` accepts. Only `document` is required, per SPEC 13.1.
+ * Everything `setup` accepts apart from the visibility pair, which arrives beside it.
  *
- * IT EXTENDS THE VISIBILITY PAIR SINCE `TX-VIS`, AND THAT IS WHERE BOTH ENTRY POINTS GET IT. An
- * entry of `documents` is these options plus an id and a route, so declaring `visibility` and
- * `guard` here puts them on both forms at once and makes it impossible for one of the two to gain a
- * security option the other quietly lacks. SPEC 13.2 records why `setup` needs them at all.
+ * SPLIT OUT OF `OpenRefSetupOptions` AT `T056`, when that type stopped being an interface. SPEC
+ * 14.8 bans a bridge under public visibility at the type level, the ban is two arms of a union,
+ * and an interface cannot extend one; the members that do not take part in the ban stay here, in
+ * one place, so no arm can gain an option the other quietly lacks.
  */
-export interface OpenRefSetupOptions extends OpenRefVisibilityOptions {
+export interface OpenRefSetupBaseOptions {
   /** The OpenAPI document, as the object `SwaggerModule.createDocument` returns, or as text. */
   readonly document: unknown;
   /**
@@ -85,3 +85,26 @@ export interface OpenRefSetupOptions extends OpenRefVisibilityOptions {
    */
   readonly proxy?: ProxyOptions;
 }
+
+/**
+ * Everything `setup` accepts. Only `document` is required, per SPEC 13.1.
+ *
+ * IT CARRIES THE VISIBILITY PAIR SINCE `TX-VIS`, AND THAT IS WHERE BOTH ENTRY POINTS GET IT. An
+ * entry of `documents` is these options plus an id and a route, so declaring `visibility` and
+ * `guard` in one place puts them on both forms at once and makes it impossible for one of the two
+ * to gain a security option the other quietly lacks. SPEC 13.2 records why `setup` needs them at
+ * all, and since `T056` the pair carries the bridge of SPEC 14.8 with it, for the same reason: the
+ * bridge is banned by the visibility, so the two travel as one.
+ */
+export type OpenRefSetupOptions = WithSetupBase<OpenRefVisibilityOptions>;
+
+/**
+ * Puts the base options on each arm of a visibility union.
+ *
+ * IT DISTRIBUTES, WHICH IS THE WHOLE OF WHY IT EXISTS. Written as a plain intersection,
+ * `Base & (Public | Closed)` is one intersection whose `keyof` collapses the two arms, and the
+ * ban goes with it: `bridge` becomes assignable again because the compiler no longer has two
+ * shapes to choose between. A conditional over a naked type parameter distributes, so what comes
+ * out is a real union of two object types and the discrimination survives every later `Omit`.
+ */
+type WithSetupBase<T> = T extends unknown ? T & OpenRefSetupBaseOptions : never;

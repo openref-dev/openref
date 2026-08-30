@@ -119,6 +119,7 @@ describe('referenceRoutes', () => {
       '/docs/service/:serviceId',
       '/docs/_oauth/callback',
       '/docs/_proxy',
+      '/docs/_bridge',
       '/docs/schema/:schemaId',
       '/docs/:nodeId',
     ]);
@@ -156,6 +157,7 @@ describe('referenceRoutes', () => {
       service: true,
       'oauth-callback': true,
       proxy: true,
+      bridge: true,
       schema: true,
       node: true,
     };

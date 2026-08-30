@@ -12,6 +12,7 @@
  * like a font that failed to load.
  */
 
+import { Readable } from 'node:stream';
 import { readRequestBody } from '../../domain/request-body';
 import { readNestedString, readStringRecord } from '../../domain/request-shape';
 import { failureReply } from '../../domain/reply';
@@ -34,7 +35,7 @@ const NONCE_PATHS: readonly (readonly string[])[] = [
 interface FastifyReplyLike {
   status(code: number): unknown;
   header(name: string, value: string): unknown;
-  send(payload: string | Uint8Array): unknown;
+  send(payload: string | Uint8Array | Readable): unknown;
 }
 
 /**
@@ -66,6 +67,17 @@ export function writeFastifyReply(reply: unknown, response: ReferenceReply): boo
 
   reply.status(response.status);
   for (const [name, value] of Object.entries(response.headers)) reply.header(name, value);
+
+  // A STREAM GOES TO `send` LIKE ANYTHING ELSE, per the file header. Fastify pipes a readable to
+  // the socket itself and destroys it when the response finishes or the reader hangs up, which is
+  // what the bridge session of SPEC 14.8 listens for; reaching for `reply.raw` here to pipe by
+  // hand is the exact mistake this adapter was written to avoid.
+  if (response.body instanceof Readable) {
+    reply.send(response.body);
+
+    return true;
+  }
+
   reply.send(typeof response.body === 'string' ? response.body : Buffer.from(response.body));
 
   return true;

@@ -22,6 +22,8 @@ import { buildAssetCatalog, createMemoryRenderCache } from '@openref/render';
 import type { AssetCatalog, IRenderCache } from '@openref/render';
 import type { FederationSnapshot, RemoteLifecycleService } from '@openref/federation';
 import { ReferenceService, type ReferenceServiceOptions } from './reference.service';
+import { answerBridge } from '../../../bridge/api/bridge-route';
+import { BridgeService } from '../../../bridge/application/services/bridge.service';
 import { IMMUTABLE, NO_STORE, notFoundReply } from '../../../http/domain/reply';
 import { ASSET_PARAM, type ReferenceRouteId } from '../../domain/routes';
 import type {
@@ -58,6 +60,18 @@ export class FederatedReferenceService {
   private inner: { readonly hash: string; readonly service: ReferenceService } | undefined;
 
   /**
+   * The broker bridge of SPEC 14.8, owned here rather than by whichever inner service is current.
+   *
+   * BECAUSE THE INNER SERVICE IS REBUILT AND A SUBSCRIPTION IS NOT. A refresh that changes any
+   * remote produces a new document hash and a new inner service, and a bridge living inside one
+   * would take its concurrency count, its ceilings and its live sessions with it: the readers
+   * would keep their sockets, nothing would ever close their broker subscriptions, and the ceiling
+   * on concurrent subscriptions would reset to zero on every refresh. A bridge is about a channel
+   * allowlist and a source, neither of which the merged document has anything to do with.
+   */
+  private readonly bridgeService: BridgeService;
+
+  /**
    * @param lifecycle - The remote lifecycle, constructed and owned by the caller
    * @param options - Mount point, assets and rendering choices, as `ReferenceService` takes them
    */
@@ -68,11 +82,17 @@ export class FederatedReferenceService {
     // inner service reuses every page of an unchanged document and can never serve a stale one.
     this.cache = options.cache ?? createMemoryRenderCache();
     this.catalog = buildAssetCatalog(options.assets.sources);
+    this.bridgeService = new BridgeService('the federated reference', options.bridge);
   }
 
   /** The lifecycle, so the module can start and stop what it mounted. */
   get remotes(): RemoteLifecycleService {
     return this.lifecycle;
+  }
+
+  /** The bridge, so the module can end its subscriptions before the server closes. */
+  get bridgeSessions(): BridgeService {
+    return this.bridgeService;
   }
 
   /**
@@ -89,6 +109,14 @@ export class FederatedReferenceService {
 
     // Assets are readiness independent, so the 503 page keeps its stylesheet.
     if (id === 'asset') return Promise.resolve(this.asset(request));
+
+    // The bridge is readiness independent for the same reason it is not owned by the inner
+    // service: a broker subscription is a fact about a channel and a source, not about whether
+    // some remote's specification came back. A federation whose remotes are all down still knows
+    // whether a host allowed this channel, and answering 503 there would say the wrong thing.
+    if (id === 'bridge') {
+      return answerBridge(this.bridgeService, request, this.options.onError);
+    }
 
     const snapshot = this.lifecycle.snapshot();
 
@@ -133,9 +161,16 @@ export class FederatedReferenceService {
   /** The inner service for this composition, rebuilt only when the document changed. */
   private serviceFor(document: IRDocument): ReferenceService {
     if (this.inner?.hash !== document.hash) {
+      // THE BRIDGE IS WITHHELD FROM THE INNER SERVICE RATHER THAN LEFT TO BE BUILT AND IGNORED.
+      // This route never delegates `bridge`, so an inner one would be a second `BridgeService` per
+      // document hash: its own ceiling, its own timers, its own empty session set, and nothing
+      // that ever reaches it. Withholding it is also what makes the ownership readable at the one
+      // place a reader would ask, which is the line that rebuilds everything else.
+      const { bridge: _ownedHere, ...delegated } = this.options;
+
       this.inner = {
         hash: document.hash,
-        service: new ReferenceService({ ...this.options, ir: document, cache: this.cache }),
+        service: new ReferenceService({ ...delegated, ir: document, cache: this.cache }),
       };
     }
 

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { replyText } from '../../src/http/domain/reply';
 import { buildNavigation, navigationHref, type NavEntryModel } from '@openref/render';
 import { ReferenceService } from '../../src/reference/application/services/reference.service';
 import { NAVIGATION_PARAM, referenceRoutes } from '../../src/reference/domain/routes';
@@ -67,7 +68,7 @@ describe('the navigation route', () => {
 
     // When
     const reply = await reference.handle('navigation', request(reference.document.hash));
-    const payload = JSON.parse(String(reply.body)) as {
+    const payload = JSON.parse(replyText(reply)) as {
       documentHash: string;
       navigation: NavEntryModel[];
     };

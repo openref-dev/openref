@@ -7,6 +7,8 @@
  * whole route table be tested without either.
  */
 
+import type { Readable } from 'node:stream';
+
 /** One request, reduced to what a documentation route reads. */
 export interface ReferenceRequest {
   /** Route parameters, already decoded by the router. */
@@ -45,8 +47,20 @@ export interface ReferenceRequest {
 export interface ReferenceReply {
   readonly status: number;
   readonly headers: Readonly<Record<string, string>>;
-  /** Text for a document or a payload, bytes for a font. */
-  readonly body: string | Uint8Array;
+  /**
+   * Text for a document or a payload, bytes for a font, a stream for the bridge of SPEC 14.8.
+   *
+   * THE STREAM ARM ARRIVED WITH `T056` AND IT WIDENED THIS UNION RATHER THAN ADDING A SIBLING
+   * MEMBER, which is recorded in `ai-docs/design/CONTRACT.md` as a break. An optional `stream`
+   * beside a `body` would leave a consumer that never heard of it writing the empty body and
+   * closing, which is a working response carrying nothing and a defect nothing goes red on. A
+   * widened union in an output position stops that consumer's compile instead.
+   *
+   * EVERY OTHER ROUTE STILL ANSWERS IN ONE WRITE, and that is worth keeping true: a page, a
+   * specification and a font are values this package already holds whole, so streaming them would
+   * buy nothing and cost the etag comparison its subject.
+   */
+  readonly body: string | Uint8Array | Readable;
 }
 
 /** A route handler. */

@@ -119,6 +119,7 @@ export class OpenRefModule {
       ...(options.colorScheme === undefined ? {} : { colorScheme: options.colorScheme }),
       ...(options.onError === undefined ? {} : { onError: options.onError }),
       ...(options.proxy === undefined ? {} : { proxy: options.proxy }),
+      ...(options.bridge === undefined ? {} : { bridge: options.bridge }),
     });
 
     // The guard of SPEC 19.6 lands on this entry point too, and SPEC 13.2 says why: the document a

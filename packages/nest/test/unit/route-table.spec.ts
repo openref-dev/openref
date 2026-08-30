@@ -11,7 +11,7 @@ import type { ReferenceReply } from '../../src/http/application/ports/reference-
  *
  * `setup` READ THE METHOD AND `forRoot` DID NOT, so the proxy of SPEC 14.5 was registered as a
  * `GET` on every document `forRoot` mounted. The `POST` a page sends reached nothing, and the
- * route that did exist was the one route of the seventeen whose whole contract is a request body.
+ * route that did exist was the one route in the table whose whole contract is a request body.
  * Both entry points now walk this function, and the case below fails the moment either of them
  * stops reading `method`.
  */

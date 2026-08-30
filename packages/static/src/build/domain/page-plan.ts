@@ -107,8 +107,12 @@ function fileOf(segments: readonly string[]): string {
  * How many pages each kind produces, as a total record over `PageKind`.
  *
  * WRITTEN DOWN BY THE PRE-M4 REVIEW, WHICH FOUND THREE HAND KEPT LISTS AND NO TIE BETWEEN THEM:
- * seventeen route ids in `@openref/nest`, eight kinds in this union, and eight `add` calls below.
- * The three agree today and nothing made them. A kind added to `PageKind` compiles here without
+ * the route ids of `@openref/nest`, the kinds in this union, and the `add` calls below. The three
+ * agree today and nothing made them. THE ROUTE ID COUNT USED TO STAND HERE AS A NUMBER AND WAS
+ * WRONG TWICE BY 2026-08-30, once when `T051` added the two AsyncAPI addresses and again when
+ * `T056` added the broker bridge, which is the same defect this paragraph is about wearing the
+ * shape of a comment: a figure nothing compares drifts silently. Only the second and third lists
+ * are this file's to hold, and the record below is what holds them. A kind added to `PageKind` compiles here without
  * a call, and the build then serves a site the renderer can produce a page for and the plan never
  * writes: every link to it is a 404 in a directory nobody notices is missing, which is the
  * quietest failure this package has. This record does not compile until a new kind is placed, and

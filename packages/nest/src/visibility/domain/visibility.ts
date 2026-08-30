@@ -8,6 +8,7 @@
  * the ordinary NestJS application is unable to close.
  */
 
+import type { BridgeOptions } from '../../bridge/domain/bridge-options';
 import type { GuardLike } from '../../shared/types/nest-surface';
 
 /**
@@ -35,14 +36,11 @@ export const VISIBILITIES: readonly OpenRefVisibility[] = ['public', 'partner', 
  */
 export const DEFAULT_VISIBILITY: OpenRefVisibility = 'public';
 
-/** The two fields both entry points of SPEC 13 carry. */
-export interface OpenRefVisibilityOptions {
-  /**
-   * Who this reference is for. Defaults to {@link DEFAULT_VISIBILITY}.
-   *
-   * Anything other than `public` requires {@link OpenRefVisibilityOptions.guard}, per SPEC 19.6.
-   */
-  readonly visibility?: OpenRefVisibility;
+/** Every visibility that is not `public`, which is every one that may carry a bridge. */
+export type OpenRefClosedVisibility = Exclude<OpenRefVisibility, 'public'>;
+
+/** What both entry points of SPEC 13 carry whatever the visibility is. */
+export interface OpenRefGuardOptions {
   /**
    * The guard every route of this mount runs behind, per SPEC 13.2 and 19.6.
    *
@@ -56,3 +54,37 @@ export interface OpenRefVisibilityOptions {
    */
   readonly guard?: GuardLike | readonly GuardLike[];
 }
+
+/**
+ * The two fields both entry points of SPEC 13 carry, in the two arms the bridge ban splits them
+ * into.
+ *
+ * IT IS A UNION SO THAT SPEC 14.8's BAN IS A COMPILE ERROR RATHER THAN A REVIEW COMMENT, on the
+ * `T013` precedent that keeps a prefilled credential off a public runner. The bridge holds a live
+ * broker subscription open behind a documentation route, and "the reference is on the open
+ * internet" is exactly the deployment where that must not be configurable at all. `visibility` and
+ * `bridge` sit in one object, so the ban has to be expressed by the object: the public arm makes
+ * `bridge` a `never`, the closed arm requires the visibility to be named before it allows one.
+ *
+ * AN ABSENT `visibility` FALLS INTO THE PUBLIC ARM, which is the case worth stating because it is
+ * the common one. {@link DEFAULT_VISIBILITY} is `public`, so a mount that says nothing about who
+ * it is for gets no bridge either, and the type says so rather than a check saying so later.
+ *
+ * A VISIBILITY THAT IS A VARIABLE RATHER THAN A LITERAL MATCHES NEITHER ARM, and that is the ban
+ * erring in the direction it should: a host holding `OpenRefVisibility` in a configuration value
+ * narrows it before mounting, which is one `if`, rather than reaching a bridge through a type the
+ * compiler cannot tell apart from `public`.
+ */
+export type OpenRefVisibilityOptions =
+  | (OpenRefGuardOptions & {
+      /** Who this reference is for. Defaults to {@link DEFAULT_VISIBILITY}. */
+      readonly visibility?: 'public';
+      /** Refused at the type level here, per SPEC 14.8 and 19.8. */
+      readonly bridge?: never;
+    })
+  | (OpenRefGuardOptions & {
+      /** Who this reference is for. Requires a guard, per SPEC 19.6. */
+      readonly visibility: OpenRefClosedVisibility;
+      /** The broker bridge of SPEC 14.8, off unless this says otherwise. */
+      readonly bridge?: BridgeOptions;
+    });

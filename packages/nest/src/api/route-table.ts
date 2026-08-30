@@ -2,8 +2,8 @@
  * The one loop that registers the routes of SPEC 13.3, shared by both entry points of SPEC 13.
  *
  * IT IS ONE LOOP BECAUSE TWO OF THEM HAD ALREADY DRIFTED. `setup` read `method` off the table and
- * `forRoot` did not, so the proxy of SPEC 14.5, the only route of the seventeen that is not a
- * `GET`, was registered as a `GET` on every document `forRoot` mounted: the `POST` a page sends
+ * `forRoot` did not, so the proxy of SPEC 14.5, the one route in the table that is not a `GET`,
+ * was registered as a `GET` on every document `forRoot` mounted: the `POST` a page sends
  * reached no route at all, and the `GET` that did exist answered a route whose whole contract is a
  * request body. Found while `TX-VIS` was putting the admission in front of the same loop, which is
  * the argument for there being one: two loops over one table agree until somebody edits one.

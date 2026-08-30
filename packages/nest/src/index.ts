@@ -338,11 +338,50 @@ export { NodeAddressResolver } from './proxy/infrastructure/adapters/node-addres
 export { NodeOutboundHttp } from './proxy/infrastructure/adapters/node-outbound.adapter';
 export { MAX_REQUEST_BODY_BYTES, readRequestBody } from './http/domain/request-body';
 
+// The broker bridge of SPEC 14.8, built in T056, and the surface is the four things a host outside
+// this package can have a reason to name. The port, because a host supplies the subscription
+// itself: this package ships no broker client and may not choose one. The options and their
+// defaults, because a host writes them, which is the `DEFAULT_PROXY_TIMEOUT_MS` and `VISIBILITIES`
+// precedent. The service and its result types, because `ReferenceService.bridge` hands one back
+// and an unnameable return type is not a usable one.
+//
+// AND NOT THE LIMITER ITSELF, MEASURED RATHER THAN ASSUMED. The first edition exported the ring,
+// the rate gate, the framing, `resolveBridgeOptions` and `assertBridgeOptions` on the proxy
+// allowlist's precedent, and the precedent does not reach: `buildAllowlist` is public because a
+// host implementing `IOutboundHttp` has to answer the same address question, whereas a host
+// implementing `IBridgeSource` hands over a message and answers nothing. Measured over the whole
+// workspace, the consumers of those names outside `src/bridge` were this package's own suites and
+// nothing else, so they are reached by module path from the tests that measure them and are not
+// frozen into a released surface that has no caller.
+export { BridgeService } from './bridge/application/services/bridge.service';
+export type {
+  BridgeCounts,
+  BridgeOpenResult,
+  BridgeRefusal,
+  BridgeServiceOptions,
+  BridgeSession,
+} from './bridge/application/services/bridge.service';
+export type {
+  BridgeMessage,
+  BridgeSubscription,
+  IBridgeSource,
+} from './bridge/application/ports/bridge-source.port';
+export {
+  BRIDGE_OVERFLOW_MODES,
+  DEFAULT_BRIDGE_BUFFER_SIZE,
+  DEFAULT_BRIDGE_CONCURRENT_SUBSCRIPTIONS,
+  DEFAULT_BRIDGE_CONNECTION_SECONDS,
+  DEFAULT_BRIDGE_MESSAGES_PER_SECOND,
+  DEFAULT_BRIDGE_OVERFLOW,
+} from './bridge/domain/bridge-options';
+export type { BridgeOptions, BridgeOverflowMode } from './bridge/domain/bridge-options';
+
 export {
   assetHref,
   ASSET_PARAM,
   ASSET_SEGMENT,
   BENCH_SEGMENT,
+  BRIDGE_SEGMENT,
   FEDERATION_SEGMENT,
   HEALTH_PAGE_SEGMENT,
   NODE_PARAM,
@@ -393,6 +432,7 @@ export {
   IMMUTABLE,
   NO_STORE,
   notFoundReply,
+  replyText,
   REVALIDATE,
   textReply,
 } from './http/domain/reply';
@@ -430,6 +470,14 @@ export type { RouteTableMount } from './api/route-table';
 export { RouteAdmission, REFUSED_BODY, REFUSED_STATUS } from './visibility/domain/admission';
 export type { RouteGate } from './visibility/domain/admission';
 export { DEFAULT_VISIBILITY, VISIBILITIES } from './visibility/domain/visibility';
+// `OpenRefVisibilityOptions` AND NOT THE THREE NAMES T056 SPLIT IT INTO, measured the same way the
+// bridge's own surface was. `OpenRefClosedVisibility`, `OpenRefGuardOptions` and
+// `OpenRefSetupBaseOptions` are how the two arms of SPEC 14.8's bridge ban are assembled, and a
+// host assembles nothing: the closed arm is reached by writing the literal `'internal'` or
+// `'partner'`, the guard by writing `guard:` inside the options object, and the base half is not
+// separately usable at all, since without a visibility it cannot be passed to `setup`. Zero
+// consumers across the workspace outside the two files declaring them, and `WithSetupBase` in the
+// same module is the proof that the union works with them internal.
 export type { OpenRefVisibilityOptions } from './visibility/domain/visibility';
 export {
   admissionFor,

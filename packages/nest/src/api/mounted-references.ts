@@ -138,6 +138,27 @@ export class MountedReferences {
   }
 
   /**
+   * Ends every broker subscription, before the http server is asked to close.
+   *
+   * IT IS THIS HOOK AND NOT `onApplicationShutdown`, WHICH IS A DEFECT THIS PACKAGE'S OWN SUITE
+   * CAUGHT. NestJS closes the http server between the two, and a server with an event stream still
+   * open has a connection that never drains, so `app.close()` hung until a test's own hook timed
+   * out. A bridge subscription is by construction the longest lived response this package can
+   * produce, so it is the one that has to go first.
+   *
+   * IT IS ENDED WITH WORDS RATHER THAN DROPPED, per SPEC 14.8: a reader whose stream simply stops
+   * cannot tell a deployment from a network that broke, and the closing event carries the reason
+   * and the counts that subscription ended with. Safe to call twice, because closing a session
+   * that is already closed does nothing.
+   */
+  onModuleDestroy(): void {
+    for (const mounted of this.mounted.values()) {
+      mounted.service.bridge.closeAll('this reference is shutting down');
+    }
+    this.federatedService?.bridgeSessions.closeAll('this reference is shutting down');
+  }
+
+  /**
    * Stops the federation's polling when the application shuts down.
    *
    * Called by NestJS when shutdown hooks are enabled, and safe to call twice. The last served
@@ -243,6 +264,10 @@ export class MountedReferences {
       // an id and a route, so the proxy option was accepted here and read by nothing. A host that
       // enabled the proxy on a `forRoot` document got the permanent 403 of a proxy that is off.
       ...(entry.proxy === undefined ? {} : { proxy: entry.proxy }),
+      // THE BRIDGE OF SPEC 14.8 TRAVELS THE SAME ROUTE AND FOR THE SAME REASON THE LINE ABOVE
+      // GIVES. It is an option a host writes on a mount and it has to reach the service that
+      // answers that mount's routes, or an enabled bridge answers the 403 of a bridge that is off.
+      ...(entry.bridge === undefined ? {} : { bridge: entry.bridge }),
     });
 
     // THE ADMISSION IS BUILT BEFORE THE ADAPTER AND THROWS RATHER THAN WARNS. A guard the container
@@ -393,6 +418,7 @@ export class MountedReferences {
       ...(federation.colorScheme === undefined ? {} : { colorScheme: federation.colorScheme }),
       ...(federation.onError === undefined ? {} : { onError: federation.onError }),
       ...(federation.proxy === undefined ? {} : { proxy: federation.proxy }),
+      ...(federation.bridge === undefined ? {} : { bridge: federation.bridge }),
     });
 
     const admission = admissionFor(

@@ -337,7 +337,7 @@ describe('the pass runs once, at bootstrap', () => {
 
 describe('the route table forRoot registers, which used to drop the method', () => {
   // Found by TX-VIS while putting the admission in front of the same loop. `setup` read `method`
-  // off the table and this path did not, so the one route of the seventeen that is not a GET, the
+  // off the table and this path did not, so the one route in the table that is not a GET, the
   // proxy of SPEC 14.5, was registered as a GET: the POST a page sends reached nothing at all.
   @Module({
     controllers: [OrdersController],

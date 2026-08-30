@@ -23,6 +23,31 @@ export const REVALIDATE = 'no-cache';
 export type ErrorReporter = (error: unknown) => void;
 
 /**
+ * The text of a reply whose body is a value, refusing one whose body is a stream.
+ *
+ * IT EXISTS BECAUSE `ReferenceReply.body` GAINED A `Readable` ARM AT `T056`, and the two halves of
+ * that union cannot be read the same way: a value is already whole and a stream is by construction
+ * not. Every caller that wants text is a caller that already knows which route it asked, so the
+ * narrowing is a statement rather than a burden, and the refusal names the one route that answers
+ * otherwise rather than handing back an empty string that reads like an empty document.
+ *
+ * @param reply - Any reply
+ * @returns Its body as text
+ * @throws {TypeError} When the body is a stream, which is the bridge of SPEC 14.8 and nothing else
+ */
+export function replyText(reply: ReferenceReply): string {
+  const body = reply.body;
+
+  if (typeof body === 'string') return body;
+  if (body instanceof Uint8Array) return Buffer.from(body).toString('utf8');
+
+  throw new TypeError(
+    'this reply carries an event stream rather than a value, so it has no text to read. Only ' +
+      'the broker bridge of SPEC 14.8 answers that way',
+  );
+}
+
+/**
  * A plain text reply.
  *
  * @param status - HTTP status

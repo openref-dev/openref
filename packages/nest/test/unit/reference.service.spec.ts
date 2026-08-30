@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { replyText } from '../../src/http/domain/reply';
 import { h } from 'vue';
 import { NormalizeError } from '@openref/core';
 import { ReferenceService } from '../../src/reference/application/services/reference.service';
@@ -80,8 +81,8 @@ describe('ReferenceService, pages', () => {
     // Then
     expect(reply.status).toBe(200);
     expect(reply.headers['content-type']).toBe('text/html; charset=utf-8');
-    expect(String(reply.body)).toContain('<!DOCTYPE html>');
-    expect(String(reply.body)).toContain('id="oref-state"');
+    expect(replyText(reply)).toContain('<!DOCTYPE html>');
+    expect(replyText(reply)).toContain('id="oref-state"');
   });
 
   it('should link every stylesheet and the client bundle under their hashed names', async () => {
@@ -91,7 +92,7 @@ describe('ReferenceService, pages', () => {
     const bundleName = reference.assets.byName.get('openref.js')?.servedName ?? '';
 
     // When
-    const body = String((await reference.handle('overview', request())).body);
+    const body = replyText(await reference.handle('overview', request()));
 
     // Then
     expect(body).toContain(`/docs/_assets/${themeName}`);
@@ -103,8 +104,8 @@ describe('ReferenceService, pages', () => {
     const reference = service();
 
     // When
-    const body = String(
-      (await reference.handle('overview', { params: {}, headers: {}, nonce: 'abcd1234' })).body,
+    const body = replyText(
+      await reference.handle('overview', { params: {}, headers: {}, nonce: 'abcd1234' }),
     );
 
     // Then
@@ -121,7 +122,7 @@ describe('ReferenceService, pages', () => {
 
     // Then
     expect(reply.status).toBe(200);
-    expect(String(reply.body)).toContain('Read one order');
+    expect(replyText(reply)).toContain('Read one order');
   });
 
   it('should answer a node that is not documented with a 404 rather than an empty page', async () => {
@@ -145,7 +146,7 @@ describe('ReferenceService, pages', () => {
 
     // Then
     expect(reply.status).toBe(200);
-    expect(String(reply.body)).toContain('Order');
+    expect(replyText(reply)).toContain('Order');
   });
 
   it('should answer a repeat visit holding the same validator with a 304', async () => {
@@ -185,7 +186,7 @@ describe('ReferenceService, specification', () => {
 
     // When
     const reply = await reference.handle('openapi-json', request());
-    const parsed = JSON.parse(String(reply.body)) as Record<string, unknown>;
+    const parsed = JSON.parse(replyText(reply)) as Record<string, unknown>;
 
     // Then
     expect(parsed.openapi).toBe('3.1.0');
@@ -201,7 +202,7 @@ describe('ReferenceService, specification', () => {
 
     // Then
     expect(reply.headers['content-type']).toBe('application/yaml; charset=utf-8');
-    expect(String(reply.body)).toContain('openapi: 3.1.0');
+    expect(replyText(reply)).toContain('openapi: 3.1.0');
   });
 
   it('should serve the keys in the order the author wrote them rather than sorted', async () => {
@@ -212,8 +213,8 @@ describe('ReferenceService, specification', () => {
     const reference = service();
 
     // When
-    const json = String((await reference.handle('openapi-json', request())).body);
-    const yaml = String((await reference.handle('openapi-yaml', request())).body);
+    const json = replyText(await reference.handle('openapi-json', request()));
+    const yaml = replyText(await reference.handle('openapi-yaml', request()));
     const parsed = JSON.parse(json) as {
       components: { schemas: { Order: { properties: Record<string, unknown> } } };
     };
@@ -229,16 +230,14 @@ describe('ReferenceService, specification', () => {
 
     // When
     const bodies = [
-      String((await reference.handle('openapi-json', request())).body),
-      String(
-        (
-          await new ReferenceService({
-            document: specification(),
-            basePath: '/docs',
-            assets: assetPlan(),
-            highlight: false,
-          }).handle('openapi-json', request())
-        ).body,
+      replyText(await reference.handle('openapi-json', request())),
+      replyText(
+        await new ReferenceService({
+          document: specification(),
+          basePath: '/docs',
+          assets: assetPlan(),
+          highlight: false,
+        }).handle('openapi-json', request()),
       ),
     ];
 
@@ -254,7 +253,7 @@ describe('ReferenceService, search index and health', () => {
 
     // When
     const reply = await reference.handle('search-index', request());
-    const parsed = JSON.parse(String(reply.body)) as { documentHash: string };
+    const parsed = JSON.parse(replyText(reply)) as { documentHash: string };
 
     // Then
     expect(parsed.documentHash).toBe(reference.document.hash);
@@ -267,7 +266,7 @@ describe('ReferenceService, search index and health', () => {
     // When, on the status route: the liveness JSON lives at `_health` since TX-FRAME, and
     // `health` is the Documentation Health page, per SPEC 13.3.
     const reply = await reference.handle('status', request());
-    const parsed = JSON.parse(String(reply.body)) as Record<string, unknown>;
+    const parsed = JSON.parse(replyText(reply)) as Record<string, unknown>;
 
     // Then
     expect(parsed.status).toBe('ok');
@@ -300,7 +299,7 @@ describe('ReferenceService, search index and health', () => {
     expect(reply.status).toBe(404);
     expect(reply.headers['cache-control']).toBe('no-store');
     expect(reply.headers['content-type']).toBe('text/plain; charset=utf-8');
-    expect(String(reply.body)).toBe(
+    expect(replyText(reply)).toBe(
       'This mount is not a federation. It serves a single service, so there are no service ' +
         'pages here; if you expected a federation, this reference is not mounted as one.',
     );
@@ -319,11 +318,11 @@ describe('ReferenceService, search index and health', () => {
     expect(reply.status).toBe(404);
     expect(reply.headers['cache-control']).toBe('no-store');
     expect(reply.headers['content-type']).toBe('text/plain; charset=utf-8');
-    expect(String(reply.body)).toBe(
+    expect(replyText(reply)).toBe(
       'This mount is not a federation. It serves a single service, so there is no federation ' +
         'snapshot here; if you expected a federation, this reference is not mounted as one.',
     );
-    expect(String(reply.body)).not.toContain('of that name');
+    expect(replyText(reply)).not.toContain('of that name');
   });
 });
 
