@@ -1,0 +1,51 @@
+{
+  "name": "@openref/nuxt",
+  "version": "0.0.0",
+  "description": "OPENREF for Nuxt. The module of SPEC 16.4, wrapping the render and static paths",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "source": "./src/index.ts",
+  "exports": {
+    ".": {
+      "source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    },
+    "./runtime": {
+      "source": "./src/runtime/handler.ts",
+      "types": "./dist/runtime/handler.d.ts",
+      "import": "./dist/runtime/handler.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "sideEffects": false,
+  "engines": {
+    "node": "^22.22.2 || ^24.15.0 || >=26.0.0"
+  },
+  "scripts": {
+    "build": "tsup"
+  },
+  "private": true,
+  "dependencies": {
+    "@openref/core": "workspace:*",
+    "@openref/nest": "workspace:*",
+    "@openref/render": "workspace:*",
+    "@openref/search": "workspace:*",
+    "@openref/static": "workspace:*"
+  },
+  "peerDependencies": {
+    "h3": "^1.15.0",
+    "nuxt": "^4.0.0"
+  },
+  "devDependencies": {
+    "h3": "1.15.11",
+    "tsup": "8.5.1",
+    "typescript": "5.9.3"
+  }
+}

@@ -123,6 +123,21 @@ const BOUNDARIES = {
 
   cli: ['core', 'render', 'runner', 'search', 'static'],
 
+  // THE NUXT MODULE OF SPEC 16.4 REACHES THE STATIC BUILD AND WHAT THE STATIC BUILD REACHES. It
+  // mounts a site rather than making one: `static` produces every artefact, `render` owns the
+  // address space and the shell, `search` and `core` arrive underneath them. It deliberately
+  // cannot see `nest`: a Nuxt application does not install NestJS, and a module that imported the
+  // Nest side would put a container, a discovery service and two http adapters into the closure
+  // of a package whose whole job is to call `renderStaticSite`. Nor `cli`: the wiring both entry
+  // points share moved into `static` at `T061` precisely so this edge would not have to exist,
+  // and a Nuxt application has no business installing a TypeScript source rewriter.
+  //
+  // `@openref/nest` IS A MANIFEST DEPENDENCY AND NOT AN EDGE, and the distinction is the one
+  // `package-assets.adapter.ts` draws: the default client bundle is resolved as a file path and
+  // read as bytes, never imported, so it is installed rather than depended on. `openref` carries
+  // the same pair for the same reason.
+  nuxt: ['core', 'render', 'search', 'static'],
+
   // THE GITHUB ACTION REACHES NOTHING, AND THAT IS THE WHOLE SHAPE OF IT. `action.yml` is a
   // definition and `src/` is the reader that turns it into data for its own tests; the work the
   // action performs is `openref pr`, in the CLI, where a test can run it. An edge from here to

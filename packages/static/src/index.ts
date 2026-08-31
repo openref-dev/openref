@@ -27,6 +27,23 @@ export type {
   BuildSiteOptions,
 } from './build/application/services/build-site.service';
 
+export {
+  highlighterFor,
+  renderStaticSite,
+} from './build/application/services/render-static-site.service';
+export type { StaticBuildRequest } from './build/application/services/render-static-site.service';
+
+export { createSiteServer } from './site/application/services/site-server.service';
+export type {
+  ISiteServer,
+  SiteAnswer,
+  SiteAssetNames,
+  SiteAssetSources,
+  SiteServerOptions,
+} from './site/application/services/site-server.service';
+export { documentHtmlOf, navigationPayload, renderPageOf } from './site/domain/site-artefacts';
+export type { PageRenderContext } from './site/domain/site-artefacts';
+
 export type { IOutputStore } from './build/application/ports/output-store.port';
 export { FsOutputStore } from './build/infrastructure/adapters/fs-output-store.adapter';
 

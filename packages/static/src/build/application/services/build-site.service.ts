@@ -21,9 +21,6 @@ import { proxyServers, sha256Hex, type IRDocument } from '@openref/core';
 import {
   APP_ROOT_ID,
   buildAssetCatalog,
-  buildNavigation,
-  renderHtmlDocument,
-  renderPage,
   type AssetCatalog,
   type AssetSource,
   type IHighlighter,
@@ -46,7 +43,12 @@ import {
 import { planProxy, type ProxyPlan } from '../../../proxy/domain/proxy-plan';
 import { proxyPathPrefix } from '../../../proxy/domain/proxy-files';
 import type { BuildTarget } from '../../../proxy/domain/proxy-target';
-import { headOf } from '../../domain/page-metadata';
+import {
+  documentHtmlOf,
+  navigationPayload,
+  renderPageOf,
+  type PageRenderContext,
+} from '../../../site/domain/site-artefacts';
 import { PAGE_KEY_VERSION } from '../../domain/page-key';
 import {
   ASSET_DIRECTORY,
@@ -183,8 +185,21 @@ export async function buildSite(options: BuildSiteOptions): Promise<BuildReport>
     return `${base.basePath}/${ASSET_DIRECTORY}/${asset.servedName}`;
   };
 
-  const stylesheets = options.assets.stylesheetNames.map(assetHrefOf);
-  const modules = [assetHrefOf(options.assets.moduleName)];
+  // THE RENDER CONTEXT IS THE SERVED ONE WITH NO NONCE IN IT, per `site-artefacts.ts`. A file on
+  // disk is one response reused, so the built page carries no nonce attribute at all, and that is
+  // the one input on which the built and the served page legitimately differ.
+  const render: PageRenderContext = {
+    base,
+    stylesheets: options.assets.stylesheetNames.map(assetHrefOf),
+    modules: [assetHrefOf(options.assets.moduleName)],
+    directTarget: proxy.directTarget,
+    staticProxy,
+    ...(options.highlighter === undefined ? {} : { highlighter: options.highlighter }),
+    ...(options.markdown === undefined ? {} : { markdown: options.markdown }),
+    ...(options.theme === undefined ? {} : { theme: options.theme }),
+    ...(options.lang === undefined ? {} : { lang: options.lang }),
+    ...(options.colorScheme === undefined ? {} : { colorScheme: options.colorScheme }),
+  };
 
   const previous = await readPreviousManifest(store);
   const reusable = manifestApplies(
@@ -207,13 +222,8 @@ export async function buildSite(options: BuildSiteOptions): Promise<BuildReport>
   for (const page of pages) {
     const outcome = await writeOnePage(page, {
       options,
-      base,
-      catalog,
-      stylesheets,
-      modules,
+      render,
       previous: reusable.get(page.file),
-      directTarget: proxy.directTarget,
-      staticProxy,
     });
 
     written.set(page.file, outcome.bytes);
@@ -275,15 +285,9 @@ export async function buildSite(options: BuildSiteOptions): Promise<BuildReport>
 /** What writing one page needs beyond the page itself. */
 interface PageContext {
   readonly options: BuildSiteOptions;
-  readonly base: SiteBase;
-  readonly catalog: AssetCatalog;
-  readonly stylesheets: readonly string[];
-  readonly modules: readonly string[];
+  /** What a page is made of, shared with the live server of SPEC 16.4. */
+  readonly render: PageRenderContext;
   readonly previous: ManifestPage | undefined;
-  /** The direct mode warning of SPEC 16.2, or null; every page of a build carries the same. */
-  readonly directTarget: string | null;
-  /** The generated rules of SPEC 16.2, or null; every page of a build carries the same. */
-  readonly staticProxy: StaticProxyModel | null;
 }
 
 /** What writing one page did. */
@@ -307,7 +311,7 @@ interface WrittenPage {
  * @returns Whether the page was carried, and the digest of what was written
  */
 async function writeOnePage(page: PlannedPage, context: PageContext): Promise<WrittenPage> {
-  const { options, base } = context;
+  const { options, render } = context;
   const { document } = options;
 
   let carried = false;
@@ -322,31 +326,12 @@ async function writeOnePage(page: PlannedPage, context: PageContext): Promise<Wr
     carried = rendered !== null;
   }
 
-  rendered ??= await renderPage(document, {
-    page: page.kind,
-    nodeId: page.nodeId,
-    schemaId: page.schemaId,
-    serviceId: page.serviceId,
-    basePath: base.basePath,
-    ...(context.directTarget === null ? {} : { directTarget: context.directTarget }),
-    ...(context.staticProxy === null ? {} : { staticProxy: context.staticProxy }),
-    ...(options.highlighter === undefined ? {} : { highlighter: options.highlighter }),
-    ...(options.markdown === undefined ? {} : { markdown: options.markdown }),
-    ...(options.theme === undefined ? {} : { theme: options.theme }),
-  });
-
-  const head = headOf(document, { ...page, title: rendered.title }, base);
+  rendered ??= await renderPageOf(document, page, render);
 
   // NO NONCE, AND THAT IS THE STATIC CASE RATHER THAN AN OMISSION: a file on disk is one
   // response reused, and a nonce that is reused is not a nonce. `ShellOptions.nonce` says so
-  // where it is declared.
-  const html = renderHtmlDocument(rendered, {
-    assets: { stylesheets: context.stylesheets, modules: context.modules },
-    head,
-    ...(options.lang === undefined ? {} : { lang: options.lang }),
-    ...(options.colorScheme === undefined ? {} : { colorScheme: options.colorScheme }),
-    ...(options.theme?.tokens === undefined ? {} : { tokens: options.theme.tokens }),
-  });
+  // where it is declared, and `render` carries none.
+  const html = documentHtmlOf(document, page, rendered, render);
 
   await options.store.write(page.file, html);
 
@@ -382,10 +367,7 @@ async function writeSiteFiles(
   // group, and a directory of files has no route to answer with. Written once per document
   // rather than per page, which is the whole reason it left the page.
   const navigationFile = navigationFileOf(document.hash);
-  await store.write(
-    navigationFile,
-    JSON.stringify({ documentHash: document.hash, navigation: buildNavigation(document) }),
-  );
+  await store.write(navigationFile, navigationPayload(document));
   files.push(navigationFile);
 
   await store.write(SEARCH_INDEX_FILE, buildSearchIndex(document).serialized);

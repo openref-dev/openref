@@ -1,0 +1,6 @@
+# What a Nuxt build writes. `dist` is a symlink Nuxt creates to .output/public, so the
+# repository rule for dist directories does not match it.
+.openref/
+.output/
+.nuxt/
+dist

@@ -208,7 +208,12 @@ export {
   STATES_SEGMENT,
   statesHref,
 } from './page/domain/links';
-export { assertNonce, renderHtmlDocument, STATE_ELEMENT_ID } from './page/domain/shell';
+export {
+  assertNonce,
+  contentSecurityPolicy,
+  renderHtmlDocument,
+  STATE_ELEMENT_ID,
+} from './page/domain/shell';
 export type { ShellAssets, ShellHead, ShellOptions } from './page/domain/shell';
 
 // EVERY DEFAULT OF THE 21 SLOTS IS EXPORTED, and that is what makes an L1 theme composable

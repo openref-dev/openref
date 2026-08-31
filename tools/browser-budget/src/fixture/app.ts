@@ -28,6 +28,7 @@ import {
   TTI_NODE_COUNT,
 } from './specification.js';
 import type { Request, Response } from 'express';
+import { contentSecurityPolicy } from '@openref/render';
 
 /**
  * Which document a boot serves.
@@ -73,36 +74,15 @@ export interface FixtureOptions {
 }
 
 /**
- * The policy every response carries.
+ * The policy every response carries, re-exported from its one home.
  *
- * `default-src 'none'` rather than `'self'`, because the claim SPEC 19.2 makes is about what
- * the page needs rather than about what it happens to get away with. Every directive below it
- * is one this reference actually uses, and anything that appears later has to be added here
- * deliberately instead of arriving under a permissive default.
- *
- * NO `unsafe-inline` AND NO `unsafe-eval` IN EITHER OF THE TWO DIRECTIVES THAT MATTER. That is
- * the whole competitive claim, and here a browser enforces it rather than a scan.
- *
- * @param nonce - The nonce generated for this response
- * @returns The header value
+ * IT MOVED TO `@openref/render` AT `T061`, and this name stays here because this is where the
+ * suites import it from. Three surfaces speak this policy now, the third being the Nuxt example
+ * of SPEC 16.4, and a vocabulary spoken by more than one surface lives in one exported constant:
+ * a fixture proving a browser enforces a policy that a deployment does not serve would be a proof
+ * of the wrong sentence.
  */
-export function contentSecurityPolicy(nonce: string, connect: readonly string[] = []): string {
-  return [
-    "default-src 'none'",
-    `script-src 'self' 'nonce-${nonce}'`,
-    `style-src 'self' 'nonce-${nonce}'`,
-    "font-src 'self'",
-    "img-src 'self' data:",
-    // `connect-src` IS THE ONE DIRECTIVE A HOST HAS TO WIDEN, and T035 is where that stopped being
-    // a note. The token exchange of the authorization code flow is a browser `fetch` to the
-    // authorization server, so a reference under `connect-src 'self'` cannot sign in at all. The
-    // extra origins are passed in rather than defaulted, so a case can be run both ways.
-    ['connect-src', "'self'", ...connect].join(' '),
-    "base-uri 'none'",
-    "form-action 'none'",
-    "frame-ancestors 'none'",
-  ].join('; ');
-}
+export { contentSecurityPolicy };
 
 /**
  * The specification one document name stands for.

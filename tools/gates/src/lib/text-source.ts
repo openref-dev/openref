@@ -165,6 +165,16 @@ const SKIPPED_DIRECTORIES: ReadonlySet<string> = new Set([
   '.git',
   '.turbo',
   'ai-docs',
+  // THE THREE A NUXT BUILD WRITES, ADDED AT `T061` AND FOUND BY THIS GATE RATHER THAN GUESSED AT.
+  // The first `nuxt build` in this repository put two findings on the board: Nitro's own bundled
+  // server chunk carries a U+200E LEFT-TO-RIGHT MARK, in `.nuxt/prerender/chunks/virtual/entry.mjs`
+  // and again in `.output/server/chunks/virtual/entry.mjs`. The character is real and the rule is
+  // right; what is wrong is the subject. This gate reads the text this repository writes, and a
+  // bundle assembled from somebody else's packages is `dist` under another name. `.openref` joins
+  // them because it holds what the module generates for Nitro to compile.
+  '.output',
+  '.nuxt',
+  '.openref',
 ]);
 
 /**

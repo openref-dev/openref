@@ -1,0 +1,20 @@
+{
+  "name": "@openref/example-nuxt-reference",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "The SPEC 16.4 example: a Nuxt application serving the reference under its own base",
+  "license": "MIT",
+  "scripts": {
+    "generate": "nuxt generate",
+    "serve": "nuxt build",
+    "start": "node .output/server/index.mjs"
+  },
+  "dependencies": {
+    "@openref/nuxt": "workspace:*"
+  },
+  "devDependencies": {
+    "nuxt": "4.5.2",
+    "typescript": "5.9.3"
+  }
+}

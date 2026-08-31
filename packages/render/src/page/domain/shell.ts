@@ -20,6 +20,47 @@ import { escapeHtml, escapeJsonForScript } from '../../shared/html';
 export const STATE_ELEMENT_ID = 'oref-state';
 
 /**
+ * The policy of SPEC 19.2, which is the one this shell is written to run under.
+ *
+ * `default-src 'none'` rather than `'self'`, because the claim SPEC 19.2 makes is about what the
+ * page needs rather than about what it happens to get away with. Every directive below it is one
+ * this reference actually uses, and anything that appears later has to be added here deliberately
+ * instead of arriving under a permissive default.
+ *
+ * NO `unsafe-inline` AND NO `unsafe-eval` IN EITHER OF THE TWO DIRECTIVES THAT MATTER. That is the
+ * whole competitive claim.
+ *
+ * IT LIVES HERE SINCE `T061`, MOVED FROM THE BROWSER FIXTURE, and the move is the standing rule
+ * about a vocabulary spoken by more than one surface. Three surfaces now say this policy: the
+ * fixture a browser enforces it in, the Nuxt example that serves the reference under it, and the
+ * suite that compares the served header with it. Three spellings of one policy is a reference
+ * proved under a weaker rule than the one it claims, so there is one spelling, next to
+ * `assertNonce` and to the shell whose elements the nonce is written onto. A host writing its own
+ * policy calls this and adds what its own pages need.
+ *
+ * @param nonce - The nonce generated for this response
+ * @param connect - Extra `connect-src` origins. `connect-src` IS THE ONE DIRECTIVE A HOST HAS TO
+ *   WIDEN, and T035 is where that stopped being a note: the token exchange of the authorization
+ *   code flow is a browser `fetch` to the authorization server, so a reference under
+ *   `connect-src 'self'` cannot sign in at all. Passed in rather than defaulted, so a case can be
+ *   run both ways.
+ * @returns The header value
+ */
+export function contentSecurityPolicy(nonce: string, connect: readonly string[] = []): string {
+  return [
+    "default-src 'none'",
+    `script-src 'self' 'nonce-${nonce}'`,
+    `style-src 'self' 'nonce-${nonce}'`,
+    "font-src 'self'",
+    "img-src 'self' data:",
+    ['connect-src', "'self'", ...connect].join(' '),
+    "base-uri 'none'",
+    "form-action 'none'",
+    "frame-ancestors 'none'",
+  ].join('; ');
+}
+
+/**
  * Characters a nonce may consist of.
  *
  * The CSP grammar says base64, and this is that set. It is checked rather than escaped

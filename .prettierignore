@@ -1,6 +1,13 @@
 node_modules
 dist
 coverage
+
+# What a Nuxt build writes, added at T061 and the same class as dist: the deployment Nitro
+# assembles, the directory Nuxt generates to build it, and the entries the module writes for
+# Nitro to compile.
+.output
+.nuxt
+.openref
 pnpm-lock.yaml
 .changeset
 ai-docs
