@@ -62,6 +62,7 @@ export type {
   IRServerOverride,
   IRStandardHttpMethod,
 } from './ir/domain/node.types';
+export { AUDIENCE_EXTENSION, INTERNAL_AUDIENCE, isInternalAudience } from './ir/domain/audience';
 
 export type {
   IRDiscoveryProblem,
@@ -155,6 +156,7 @@ export {
   BIDI_CONTROL_CODE_POINTS,
   carriesControlCharacters,
   plainArtefactText,
+  oneLine,
 } from './security/domain/plain-text';
 
 export {

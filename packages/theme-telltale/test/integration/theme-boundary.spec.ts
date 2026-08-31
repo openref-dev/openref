@@ -190,6 +190,54 @@ function styledHere(surviving: readonly string[], css: string): readonly string[
   return surviving.filter((name) => css.includes(`.${name}`));
 }
 
+/**
+ * Every `oref-` literal the renderer's own sources carry, split by SPEC 10.4's rule.
+ *
+ * THE RULE IS THE SPECIFICATION'S AND IS APPLIED HERE RATHER THAN PARAPHRASED: a literal ending in
+ * a hyphen is a runtime prefix and everything else is a name a page can carry. It is applied to
+ * `packages/render/src` because that is where the reference's markup is written; this theme reads
+ * those sources already, three imports up.
+ *
+ * @returns The literals, the runtime prefixes and the names
+ */
+function emittedCoreClasses(): {
+  readonly literals: readonly string[];
+  readonly prefixes: readonly string[];
+  readonly names: readonly string[];
+  readonly files: number;
+} {
+  const root = join(packageRoot, '..', 'render', 'src');
+  const found = new Set<string>();
+  let files = 0;
+
+  const walk = (directory: string): void => {
+    for (const entry of readdirSync(directory, { withFileTypes: true })) {
+      const path = join(directory, entry.name);
+      if (entry.isDirectory()) {
+        walk(path);
+        continue;
+      }
+      if (!entry.name.endsWith('.ts')) continue;
+
+      files += 1;
+      for (const match of readFileSync(path, 'utf8').matchAll(/oref-[a-z0-9-]*/g)) {
+        found.add(match[0]);
+      }
+    }
+  };
+
+  walk(root);
+
+  const literals = [...found].sort();
+
+  return {
+    literals,
+    prefixes: literals.filter((literal) => literal.endsWith('-')),
+    names: literals.filter((literal) => !literal.endsWith('-')),
+    files,
+  };
+}
+
 /** Class names from the reference's own namespace that survive a complete L2 theme. */
 async function survivingCoreClasses(): Promise<readonly string[]> {
   const found = new Set<string>();
@@ -394,6 +442,49 @@ describe('the markup a complete L2 theme does not own', () => {
     // And the renders are more numerous than the kinds, which is the fact the previous hand
     // written list encoded by hand: `node` and `bench` are each drawn from two documents.
     expect(sweptRenderCount()).toBe(15);
+  });
+
+  it('should reconcile what the renderer can emit with what this sweep reaches, in both directions', async () => {
+    // Given both sets, taken by two different instruments: one reads the sources by SPEC 10.4's
+    // rule, the other renders eight kinds of page and reads the markup. Until `T062` the two were
+    // compared by a person on a date, which is how the previous figures went stale between
+    // milestones without anything going red.
+    const emitted = emittedCoreClasses();
+    const surviving = await survivingCoreClasses();
+
+    // Then the subject is present before anything is said about absence: the renderer emits names,
+    // the sweep reaches names, and the sweep reaches fewer.
+    expect(emitted.files).toBe(78);
+    expect(emitted.literals).toHaveLength(352);
+    expect(emitted.prefixes).toHaveLength(11);
+    expect(emitted.names).toHaveLength(341);
+    expect(surviving.length).toBeLessThan(emitted.names.length);
+
+    // And the partition is pinned, both ways. 245 emitted names no fixture provokes is the number
+    // the `T062` amendment section carries with the reason for each family; a name arriving on
+    // either side moves one of these and is read rather than absorbed.
+    const emittedNotSwept = emitted.names.filter((name) => !surviving.includes(name));
+    const sweptNotEmitted = surviving.filter((name) => !emitted.names.includes(name));
+    expect(emittedNotSwept).toHaveLength(245);
+    expect(sweptNotEmitted).toEqual([
+      'oref-method-get',
+      'oref-method-post',
+      'oref-shape-d0',
+      'oref-shape-d1',
+    ]);
+
+    // AND EACH OF THOSE FOUR IS BUILT AT RUNTIME FROM A LITERAL THE RULE DOES COUNT, which is the
+    // whole reason they are swept and not emitted. Two come from `oref-method-`, a prefix the rule
+    // sees; two come from `oref-shape-d`, which the rule reads as a name because it does not end
+    // in a hyphen. That asymmetry is a limit of SPEC 10.4's rule rather than a defect in either
+    // instrument, and it is asserted here so it is a measured fact and not a footnote.
+    for (const name of sweptNotEmitted) {
+      expect(emitted.literals.some((literal) => literal !== name && name.startsWith(literal))).toBe(
+        true,
+      );
+    }
+    expect(emitted.prefixes).toContain('oref-method-');
+    expect(emitted.names).toContain('oref-shape-d');
   });
 
   it('should be a count the three documents that quote it agree with, since none of them owns it', async () => {

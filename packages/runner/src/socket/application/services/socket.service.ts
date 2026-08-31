@@ -26,6 +26,7 @@ import { buildHandshake } from '../../domain/handshake';
 import { checkSocketMessage, type NamedMessageSchema } from '../../domain/message-check';
 import {
   createSocketLog,
+  DEFAULT_SOCKET_LOG_BYTES,
   DEFAULT_SOCKET_LOG_WINDOW,
   type SocketLogEntry,
   type SocketLogState,
@@ -70,6 +71,14 @@ export interface SocketSessionOptions {
   readonly messages?: readonly NamedMessageSchema[];
   /** Log window, defaulting to {@link DEFAULT_SOCKET_LOG_WINDOW}. */
   readonly windowSize?: number;
+  /**
+   * Payload bytes the log holds, defaulting to {@link DEFAULT_SOCKET_LOG_BYTES}.
+   *
+   * THE SECOND CEILING, ADDED AT `T062` BECAUSE THE FIRST ONE ALONE BOUNDS NOTHING. A window of
+   * entries times an unbounded frame size is an unbounded log, measured at 500 entries and 500.0
+   * MB from 600 frames of a megabyte.
+   */
+  readonly maxBufferedBytes?: number;
   /** Reconnections allowed, defaulting to {@link DEFAULT_SOCKET_RECONNECT_ATTEMPTS}. */
   readonly maxReconnectAttempts?: number;
   /** Base reconnection delay, defaulting to {@link DEFAULT_SOCKET_RECONNECT_DELAY_MS}. */
@@ -151,7 +160,7 @@ export function createSocketClient(
   context: SocketSessionContext,
   defaults: Pick<
     SocketSessionOptions,
-    'windowSize' | 'maxReconnectAttempts' | 'reconnectDelayMs'
+    'windowSize' | 'maxBufferedBytes' | 'maxReconnectAttempts' | 'reconnectDelayMs'
   > = {},
 ): SocketClient {
   return {
@@ -190,7 +199,10 @@ export function openSocket(
   });
 
   const messages = options.messages ?? [];
-  const log = createSocketLog(options.windowSize ?? DEFAULT_SOCKET_LOG_WINDOW);
+  const log = createSocketLog(
+    options.windowSize ?? DEFAULT_SOCKET_LOG_WINDOW,
+    options.maxBufferedBytes ?? DEFAULT_SOCKET_LOG_BYTES,
+  );
   const budget = Math.max(0, options.maxReconnectAttempts ?? DEFAULT_SOCKET_RECONNECT_ATTEMPTS);
   const baseDelay = Math.max(0, options.reconnectDelayMs ?? DEFAULT_SOCKET_RECONNECT_DELAY_MS);
 

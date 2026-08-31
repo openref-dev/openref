@@ -22,7 +22,7 @@
 
 import { ErrorCode, InvalidOptionsError } from '@openref/core';
 import { FsOutputStore, type IOutputStore } from '@openref/static';
-import { lstat } from 'node:fs/promises';
+import { lstat, mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 
 /** What the guarded store needs to know about the directory it is writing into. */
@@ -47,6 +47,9 @@ export class PublicDirStore implements IOutputStore {
 
   /** Contents of the withheld file, once the build has offered it. */
   private withheldContent: string | null = null;
+
+  /** Whether the mount directory has already been proven to be a directory in this build. */
+  private mountVerified = false;
 
   /** @param options - Where it writes and what it may overwrite */
   constructor(options: PublicDirStoreOptions) {
@@ -74,6 +77,7 @@ export class PublicDirStore implements IOutputStore {
       return;
     }
 
+    await this.verifyMount();
     await this.refuseForeign(path);
     await this.inner.write(path, contents);
     this.owned.add(path);
@@ -81,6 +85,7 @@ export class PublicDirStore implements IOutputStore {
 
   /** @inheritdoc */
   async writeBytes(path: string, bytes: Uint8Array): Promise<void> {
+    await this.verifyMount();
     await this.refuseForeign(path);
     await this.inner.writeBytes(path, bytes);
     this.owned.add(path);
@@ -90,6 +95,55 @@ export class PublicDirStore implements IOutputStore {
   remove(path: string): Promise<void> {
     this.owned.delete(path);
     return this.inner.remove(path);
+  }
+
+  /**
+   * Verifies the mount directory itself, once, before anything is written under it.
+   *
+   * THE ONE PATH THE INNER STORE DOES NOT CHECK IS ITS OWN ROOT, AND UNDER NUXT THAT ROOT IS NOT
+   * THE DEPLOYER'S WORD. `FsOutputStore` verifies every directory inside the root and deliberately
+   * follows the root itself, because for `openref build --out` the root is what the flag asked
+   * for. Here the root is `<publicDir>/<mount>`: only `publicDir` is the deployment's, and the
+   * mount segments are computed from `base`. `T062` measured both halves of the hole. A symbolic
+   * link at `public/docs`, which is an ordinary thing for a repository to commit, carried the
+   * whole reference outside the public directory while every other check said the paths were
+   * inside; a plain file at the same place produced a raw `EEXIST: file already exists, mkdir`
+   * from underneath, in a store whose entire purpose is a refusal that names the file and the
+   * fact.
+   *
+   * THE SEGMENTS ARE WALKED, NOT JUST THE LAST ONE, because a mount of `/docs/v1` has two of them
+   * and a link at either carries the same write to the same place.
+   *
+   * @throws {InvalidOptionsError} When a mount segment is a link or is not a directory
+   */
+  private async verifyMount(): Promise<void> {
+    if (this.mountVerified) return;
+
+    // THE PUBLIC DIRECTORY ITSELF IS NITRO'S AND IS TREATED THE WAY `FsOutputStore` TREATS ITS OWN
+    // ROOT: created if absent, followed if it is a link, because it is the deployment's own word.
+    await mkdir(this.root, { recursive: true });
+
+    let current = this.root;
+    for (const segment of this.mount.split('/').filter((part) => part !== '')) {
+      current = join(current, segment);
+
+      const entry = await lstat(current).catch(() => null);
+      if (entry === null) {
+        await mkdir(current);
+        continue;
+      }
+
+      if (entry.isSymbolicLink() || !entry.isDirectory()) {
+        throw new InvalidOptionsError(
+          `openref: ${current} is ${entry.isSymbolicLink() ? 'a symbolic link' : 'not a directory'}, and it is where the reference would be written. A build never follows a link out of the directory it was given, and it never writes the reference over somebody else's file. Mount the reference at a path of its own, or remove that entry`,
+          ErrorCode.CONFIG_INVALID_OPTIONS,
+          undefined,
+          { mount: this.mount, root: this.root, entry: current },
+        );
+      }
+    }
+
+    this.mountVerified = true;
   }
 
   /**

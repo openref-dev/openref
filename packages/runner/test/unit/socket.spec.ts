@@ -14,6 +14,7 @@ import {
   checkSocketMessage,
   createSocketClient,
   createSocketLog,
+  DEFAULT_SOCKET_LOG_BYTES,
   DEFAULT_SOCKET_LOG_WINDOW,
   DEFAULT_SOCKET_RECONNECT_ATTEMPTS,
   NativeWebSocketTransport,
@@ -333,6 +334,90 @@ describe('createSocketLog', () => {
     expect(state.sent).toBe(1);
     expect(state.received).toBe(1);
     expect(state.entries.map((entry) => entry.data)).toEqual(['a', 'b']);
+  });
+
+  it('should hold the byte ceiling rather than the entry window when the frames are large', () => {
+    // Given the input `T062` measured: a server sending frames of one megabyte. Before the ceiling
+    // this left 60 entries holding 60.0 MB, and 600 frames left 500 entries holding 500.0 MB, so
+    // the bound was the window times the frame size, which bounds nothing.
+    const log = createSocketLog();
+    const megabyte = 'x'.repeat(1_000_000);
+
+    // When
+    for (let index = 0; index < 60; index += 1) {
+      log.append({ direction: 'received', data: megabyte });
+    }
+    const state = log.state();
+
+    // Then the subject is present, and it is bounded: entries are still kept, and what they hold
+    // is under the ceiling rather than under the window.
+    expect(state.entries.length).toBeGreaterThan(0);
+    expect(state.entries.length).toBeLessThan(60);
+    const held = state.entries.reduce(
+      (total, entry) =>
+        total + entry.data.length + (entry.problem?.length ?? 0) + (entry.matched?.length ?? 0),
+      0,
+    );
+    expect(held).toBeLessThanOrEqual(DEFAULT_SOCKET_LOG_BYTES);
+
+    // And nothing is lost in silence, which is the rule the window already followed
+    expect(state.received).toBe(60);
+    expect(state.dropped).toBe(60 - state.entries.length);
+  });
+
+  it('should count every string an entry holds, not the payload the server happened to send', () => {
+    // Given the input the blind review of `T062` named and the measurement that followed it: a two
+    // byte payload carrying a one megabyte `problem`. `problem` is built from the declared
+    // message's own name, so its size is a value the DOCUMENT wrote, not the server. Counting the
+    // payload alone retained 60.0 MB with `dropped` at zero while the counted total read 120 bytes
+    // of a 1,048,576 ceiling, which is the ceiling fully bypassed through a companion field.
+    const log = createSocketLog();
+    const problem = 'p'.repeat(1_000_000);
+
+    // When
+    for (let index = 0; index < 60; index += 1) {
+      log.append({ direction: 'received', data: '{}', problem });
+    }
+    const state = log.state();
+
+    // Then what is held is measured whole, and it is under the ceiling
+    const held = state.entries.reduce(
+      (total, entry) =>
+        total + entry.data.length + (entry.problem?.length ?? 0) + (entry.matched?.length ?? 0),
+      0,
+    );
+    expect(state.entries.length).toBeGreaterThan(0);
+    expect(held).toBeLessThanOrEqual(DEFAULT_SOCKET_LOG_BYTES);
+    expect(state.received).toBe(60);
+    expect(state.dropped).toBe(60 - state.entries.length);
+  });
+
+  it('should refuse to keep one frame larger than the whole ceiling, and say it dropped it', () => {
+    // Given
+    const log = createSocketLog(500, 1_000);
+
+    // When
+    log.append({ direction: 'received', data: 'small' });
+    log.append({ direction: 'received', data: 'y'.repeat(5_000) });
+    const state = log.state();
+
+    // Then emptying the log for an entry that still would not fit loses everything and bounds
+    // nothing, so the oversized frame is the one that goes, and it is counted
+    expect(state.entries.map((entry) => entry.data)).toEqual(['small']);
+    expect(state.received).toBe(2);
+    expect(state.dropped).toBe(1);
+  });
+
+  it('should still bound small messages by the entry window, which the byte ceiling must not replace', () => {
+    // Given a ceiling no ordinary session can reach
+    const log = createSocketLog(3, DEFAULT_SOCKET_LOG_BYTES);
+
+    // When
+    for (const data of ['a', 'b', 'c', 'd']) log.append({ direction: 'received', data });
+
+    // Then
+    expect(log.state().entries.map((entry) => entry.data)).toEqual(['b', 'c', 'd']);
+    expect(log.state().dropped).toBe(1);
   });
 });
 

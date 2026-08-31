@@ -10,7 +10,7 @@
  * it, so two builds of one document write the same bytes without anything being sorted here.
  */
 
-import { plainArtefactText, type IRDocument } from '@openref/core';
+import { isInternalAudience, oneLine, plainArtefactText, type IRDocument } from '@openref/core';
 import { materializeNode } from '@openref/render';
 import { plainSummary } from './page-metadata';
 import type { PlannedPage } from './page-plan';
@@ -64,6 +64,20 @@ export function sitemapXml(pages: readonly PlannedPage[], base: SiteBase): strin
 /**
  * `llms.txt`: what this reference is and where each page of it lives.
  *
+ * IT TAKES THE SAME AUDIENCE THE MOUNTED FILE TAKES, per the SPEC 16.1 ruling of `T062`. A node
+ * marked `x-openref-audience: internal` is not listed here, exactly as it is not listed in the file
+ * SPEC 18.1 serves. The two generators are separate by construction, one building from a page plan
+ * and the other from the IR, and that is not the divergence: what one document is said to hold is.
+ * A machine crawlable file has one text for every reader, so it takes the conservative audience;
+ * the operation's own page is written as before, which SPEC 18.1 records as the price.
+ *
+ * AND A DOCUMENT VALUE CREATES NO LINE AND NO LINK HERE EITHER. `oneLine` is `@openref/core`'s,
+ * the same function the mounted file calls, and it is applied to every value the document wrote
+ * that reaches a line of this file. `T059` measured and closed this on the agent side and left it
+ * open here; the measurement is the same one, a title carrying `\nInjected line\n## Operations` and
+ * `- [Ghost](ghost)`, and it produced headings this generator never writes and an anchor at an
+ * address this build never wrote.
+ *
  * @param document - The normalized document
  * @param pages - The planned pages
  * @param base - The build's base, for absolute links when there is an origin
@@ -76,39 +90,52 @@ export function llmsTxt(
 ): string {
   const summary = plainSummary(document.info.description ?? '');
   const linkOf = (page: PlannedPage): string => absoluteUrlOf(base, page.href) ?? page.href;
+  const title = oneLine(document.info.title);
+  const version = oneLine(document.info.version);
 
-  const operations = pages.filter((page) => page.kind === 'node');
+  const nodeOf = (page: PlannedPage): ReturnType<IRDocument['nodes']['get']> =>
+    page.nodeId === null ? undefined : document.nodes.get(page.nodeId);
+
+  const operations = pages.filter((page) => {
+    if (page.kind !== 'node') return false;
+
+    const node = nodeOf(page);
+
+    return node === undefined || !isInternalAudience(node);
+  });
   const schemas = pages.filter((page) => page.kind === 'schema');
 
   const lines = [
-    `# ${document.info.title}`,
+    `# ${title}`,
     '',
-    `> ${summary === '' ? `API reference for ${document.info.title} ${document.info.version}.` : summary}`,
+    `> ${summary === '' ? `API reference for ${title} ${version}.` : summary}`,
     '',
-    `Version: ${document.info.version}`,
+    `Version: ${version}`,
     '',
     '## Operations',
     '',
   ];
 
   for (const page of operations) {
-    const node = page.nodeId === null ? undefined : document.nodes.get(page.nodeId);
+    const node = nodeOf(page);
     // THE TITLE COMES FROM THE ONE FUNCTION THE PAGE USES, so this file and the page it links
     // to cannot call the same operation two different things.
-    const title = node === undefined ? (page.nodeId ?? '') : materializeNode(node, document).title;
+    const heading = oneLine(
+      node === undefined ? (page.nodeId ?? '') : materializeNode(node, document).title,
+    );
     // THE NOTE IS DROPPED WHEN IT IS THE TITLE. `materializeNode` titles an operation by its
     // summary when it has one, so a note taken from the same summary printed the same words
     // twice on every line of the common case.
-    const summary = plainSummary(node?.summary ?? '');
-    const note = summary === title ? '' : summary;
-    lines.push(`- [${title}](${linkOf(page)})${note === '' ? '' : `: ${note}`}`);
+    const summary = oneLine(plainSummary(node?.summary ?? ''));
+    const note = summary === heading ? '' : summary;
+    lines.push(`- [${heading}](${linkOf(page)})${note === '' ? '' : `: ${note}`}`);
   }
 
   lines.push('', '## Schemas', '');
 
   for (const page of schemas) {
     const schema = page.schemaId === null ? undefined : document.schemas.get(page.schemaId);
-    lines.push(`- [${schema?.name ?? page.schemaId ?? ''}](${linkOf(page)})`);
+    lines.push(`- [${oneLine(schema?.name ?? page.schemaId ?? '')}](${linkOf(page)})`);
   }
 
   lines.push('');

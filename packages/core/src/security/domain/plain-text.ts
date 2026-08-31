@@ -88,3 +88,82 @@ export function plainArtefactText(text: string): string {
 export function carriesControlCharacters(text: string): boolean {
   return REMOVED_ANY.test(text);
 }
+
+/**
+ * THE PER VALUE HALF OF THIS FILE, MOVED HERE FROM `@openref/agent` BY `T062`.
+ *
+ * `plainArtefactText` above runs once over a finished artefact and exempts the line feed, because
+ * there the line feed is the generator's own structure. Inside a value the document wrote it is
+ * not, and the two rules therefore differ by their subject rather than by their character set. It
+ * lived in `@openref/agent` because that is where the file that needed it was written; the ruling
+ * of SPEC 16.1 and SPEC 18.1 gave the static build's `llms.txt` the same rule, and a second
+ * spelling of it in `@openref/static` would be the very duplication that ruling exists to end.
+ * `@openref/agent` still exports the name, and reads it from here.
+ */
+
+/**
+ * The two characters a link cannot be opened without, removed rather than escaped.
+ *
+ * REMOVAL, AND THE CHOICE WAS MEASURED RATHER THAN REASONED, per SPEC 18.1. The first form of this
+ * rule backslash-escaped five characters by the letter of CommonMark, and driving it through this
+ * repository's own `createMarkdownRenderer` refused it: `- [Order … - \[Ghost\](ghost)](/docs/…)`
+ * rendered as `<a href="/docs/…">Order … - </a><a href="ghost">Ghost</a>`, so the renderer closed
+ * the outer link early and built the forged one anyway. A rule that holds against the format's
+ * specification and not against the renderer this project renders with is not a rule.
+ *
+ * SO IT TAKES SPEC 19.1'S OWN ANSWER FOR A PLAIN TEXT ARTEFACT: not carrying the character at all.
+ * Markup can isolate and JSON can escape; plain text can do neither, which is the reasoning that
+ * section already states for control characters. Without an unescaped `[` … `]` pair there is
+ * nothing to open an inline link, a reference link or an image with, under any renderer.
+ *
+ * PARENTHESES AND ANGLE BRACKETS ARE LEFT ALONE, each for its own reason. A parenthesis with no
+ * bracket pair before it opens nothing. An angle bracket would close the autolink form, but GFM
+ * makes a link of a bare URL without one, and removing it would turn a version like `>=1.0` into
+ * something else: a rule that breaks a value to reach a form already covered costs more than it
+ * gives.
+ */
+const LINK_SYNTAX = /[[\]]/gu;
+
+/**
+ * One document value as text that cannot create a line or a link of its own.
+ *
+ * THE HALF `plainSummary` ALREADY DID FOR TWO POSITIONS, EXTENDED TO THE OTHERS, per SPEC 18.1 as
+ * `T059` wrote it. Both files are line oriented and their reader splits on newlines, so a value the
+ * document wrote that carries one does not produce a mangled line, it produces extra records.
+ * Measured before the fix: a document whose `info.title`, `info.version`, `operationId`, first tag
+ * and schema name each carried `\nInjected line\n## Operations\n\n- [Ghost](ghost)` produced an
+ * `llms.txt` with six `##` headings where the generator writes three, and three `Ghost` rows naming
+ * an operation the document does not declare, at an address the reference does not serve.
+ *
+ * IT IS NOT `plainArtefactText` AND DOES NOT REPLACE IT. That runs once over the finished artefact
+ * and removes what a plain text artefact may not carry, deliberately including U+2028 and U+2029
+ * because they forge a line; the line feed itself is exempt there because it is the generator's own
+ * structure. The exemption is right for the artefact and wrong for a value inside it, so the
+ * boundary is the source of the text rather than the character, and this is the per value half.
+ *
+ * IT IS NOT `plainSummary` EITHER, because these are names and not prose: a title cut at 300
+ * characters with an ellipsis would be a title no page shows, and markdown stripped out of an
+ * `operationId` would be an identifier that identifies nothing.
+ *
+ * BOUNDING THE LINE WAS NOT ENOUGH AND THE SECOND HALF ARRIVED WITH THE BLIND REVIEW OF `T059`. A
+ * collapsed value still carries link syntax into a line that is itself a link row, and CommonMark
+ * does not nest links, so `- [Order … - [Ghost](ghost)](/docs/schema/…)` renders the inner one and
+ * drops the outer. Measured with this repository's own `createMarkdownRenderer` rather than
+ * reasoned: the forged document produced three `<a href="ghost">` anchors in the rendered
+ * `llms.txt`. So a document value is neutralized as well as flattened, and the two happen in one
+ * function because a value that reached only one of them is the defect twice.
+ *
+ * @param value - A value the document wrote
+ * @returns The value on one line, with the characters that open a link removed
+ *
+ * @example
+ * oneLine('Orders\n## Operations'); // 'Orders ## Operations'
+ * @example
+ * oneLine('[Ghost](ghost)'); // 'Ghost(ghost)'
+ */
+export function oneLine(value: string): string {
+  return value
+    .replace(/[\r\n\u2028\u2029]+/gu, ' ')
+    .replace(LINK_SYNTAX, '')
+    .trim();
+}

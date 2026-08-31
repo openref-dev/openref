@@ -108,6 +108,16 @@ export const SKIP_REASONS: readonly SkipReason[] = [
       // went unread. It reads four rows rather than one, and a row the table has lost is an error
       // there rather than an empty list, so the skip cannot hide a missing row either.
       'm6-suites',
+      // `m7-suites` is the same mechanism over the SPEC 21 Nuxt row and the M7 definition of done,
+      // added by `T062` with the gate, and it reads one document more than the four above: it also
+      // states which tasks M7 closes over, out of `BUILD.md` and the open `T060` section of
+      // `BUILD-AMENDMENTS.md`. That third reading is a `warning` and not a `skip` of its own, and
+      // its message says the scope went unread rather than passing on it, so the skip here still
+      // means what the four above mean: the documents alone went unread, while the named suites,
+      // the named cases and the run itself, the real `nuxt generate` included, all happen on a
+      // checkout with no `ai-docs/` and fail there. A row the table has lost is an error rather
+      // than an empty list here too, so the skip cannot hide a missing row.
+      'm7-suites',
       // `reader-pages` compares SPEC 13.3's reader page line with the `PageKind` union, which is
       // the direction no total record in the tree can see. Added by `T054` with the gate. Its
       // other half, that every kind the reader page table names is a member of the union, reads

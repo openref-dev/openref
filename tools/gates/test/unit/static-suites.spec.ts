@@ -663,8 +663,10 @@ describe('the committed wiring', () => {
     // `T059` added the fourth row gate, and it is named here for the same reason: four SPEC 21 rows
     // close M6, so the family grew by one rather than the arrangement being left to chance.
     expect(order[position + 3]).toBe('m6-suites');
-    expect(order[position + 4]).toBe('reader-pages');
-    expect(order.indexOf('coverage')).toBe(position + 5);
+    // `T062` added the fifth, the row M7 closes, and named it here for the same reason again.
+    expect(order[position + 4]).toBe('m7-suites');
+    expect(order[position + 5]).toBe('reader-pages');
+    expect(order.indexOf('coverage')).toBe(position + 6);
     expect(order.indexOf('coverage')).toBe(order.length - 1);
   });
 });

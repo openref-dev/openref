@@ -57,6 +57,34 @@ export const NO_STORE = 'no-store';
 export const NOT_FOUND_BODY = 'No page of that address is documented here.';
 
 /**
+ * Whether one request path is the mounted reference rather than a page of the host's own.
+ *
+ * IT IS HERE SO THAT A SUITE CAN DRIVE IT, WHICH IS THE HALF THAT WAS MISSING. The example's Nitro
+ * plugin decided this with `path.startsWith(base)`, and `T062` measured what that costs: a host
+ * page at `/docs-legacy` was served under the reference's strict policy, and under
+ * `script-src 'self' 'nonce-...'` with no `unsafe-inline` a Nuxt page loses the hydration payload it
+ * writes as an unnonced inline script. The corrected predicate then lived in `examples/`, where no
+ * suite and no gate reads it, so the fix had no runner: this is the same one-home move the policy
+ * string itself already made, for the same reason.
+ *
+ * THE QUERY IS PART OF WHAT h3 HANDS IN, and the pattern admits it. `event.path` carries the query
+ * string, so the mount asked for with `?a=1` is still the mount, and dropping the policy there
+ * would be the same defect in the other direction.
+ *
+ * @param path - The request path as h3's `event.path` gives it, query included
+ * @param basePath - The mount, with a leading slash and no trailing one
+ * @returns True for the mount itself and everything under it, false for a sibling route
+ *
+ * @example
+ * servesReference('/docs/get-parcels', '/docs'); // true
+ * @example
+ * servesReference('/docs-legacy', '/docs'); // false
+ */
+export function servesReference(path: string, basePath: string): boolean {
+  return new RegExp(`^${basePath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?:[/?#]|$)`).test(path);
+}
+
+/**
  * The CSP nonce a host generated for this response, per SPEC 19.2.
  *
  * @param context - The event context

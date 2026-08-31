@@ -37,6 +37,8 @@ export {
   ASSET_MAX_AGE,
   GENERATED_ASSET_DIRECTORY,
   GENERATED_DIRECTORY,
+  generatedEntryFile,
+  prerenderIgnorePattern,
   PROXY_ENTRY,
   REFERENCE_ENTRY,
   referenceEntrySource,
@@ -68,4 +70,5 @@ export type {
   NuxtModule,
   NuxtSurface,
 } from './shared/types/nuxt-surface';
+export { servesReference } from './runtime/handler';
 export type { EmbeddedSite } from './runtime/site';

@@ -12,6 +12,7 @@ import { enginesFloorGate } from './gates/engines-floor.gate.js';
 import { eventsSuitesGate } from './gates/events-suites.gate.js';
 import { federationSuitesGate } from './gates/federation-suites.gate.js';
 import { m6SuitesGate } from './gates/m6-suites.gate.js';
+import { m7SuitesGate } from './gates/m7-suites.gate.js';
 import { readerPagesGate } from './gates/reader-pages.gate.js';
 import { fixtureLicensesGate } from './gates/fixture-licenses.gate.js';
 import { formatGate } from './gates/format.gate.js';
@@ -89,6 +90,13 @@ import type { Gate, GateResult } from './types.js';
  * failure is the kind of misdirection these gates exist to remove. It runs its own suites for the
  * reason the Static one does, and leaves the milestone clause to `pnpm test:integration`.
  *
+ * The M7 suites gate sits fifth in that family and is the only one that reads BUILD.md as well as
+ * the specification. Its row is one, because M7 built one thing; what it adds is the milestone's
+ * own scope, which no earlier gate of this family had to state: M7 closes over two tasks and its
+ * third row can never tick, so the gate says so in its output and fails if the amendment section
+ * that justifies the exclusion is gone. It runs its own suites for the reason the four before it
+ * do, the real `nuxt generate` included, and leaves the milestone clause to `pnpm test:integration`.
+ *
  * The M6 suites gate sits fourth in that family and is the only one of the four that reads more
  * than one row. `Static`, `Federation` and `Events` each close a milestone that built one thing; M6
  * built a socket client, a bridge, a sample generator and an agent surface, and `T059` asks for all
@@ -124,6 +132,7 @@ export const GATES: readonly Gate[] = [
   federationSuitesGate,
   eventsSuitesGate,
   m6SuitesGate,
+  m7SuitesGate,
   readerPagesGate,
   coverageGate,
 ];

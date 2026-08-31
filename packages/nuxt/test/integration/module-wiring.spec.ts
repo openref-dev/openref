@@ -7,9 +7,11 @@ import { BUILD_MANIFEST_FILE } from '@openref/static';
 import {
   GENERATED_ASSET_DIRECTORY,
   GENERATED_DIRECTORY,
+  generatedEntryFile,
   nitroProxyFile,
   nitroProxyRoute,
   openRefNuxtModule,
+  prerenderIgnorePattern,
   PROXY_ENTRY,
   REFERENCE_ENTRY,
 } from '../../src/index';
@@ -129,7 +131,10 @@ describe('the module under a server deployment', () => {
 
     // When
     nuxt.configure(undefined);
-    const entry = await readFile(join(root, GENERATED_DIRECTORY, REFERENCE_ENTRY), 'utf8');
+    const entry = await readFile(
+      join(root, GENERATED_DIRECTORY, generatedEntryFile(REFERENCE_ENTRY, '/docs')),
+      'utf8',
+    );
 
     // Then
     expect(entry).toContain('createReferenceHandler(');
@@ -144,7 +149,10 @@ describe('the module under a server deployment', () => {
 
     // When
     nuxt.configure(undefined);
-    const entry = await readFile(join(root, GENERATED_DIRECTORY, REFERENCE_ENTRY), 'utf8');
+    const entry = await readFile(
+      join(root, GENERATED_DIRECTORY, generatedEntryFile(REFERENCE_ENTRY, '/docs')),
+      'utf8',
+    );
     const embedded = /createReferenceHandler\((?<site>[\s\S]*)\);/u.exec(entry)?.groups?.site;
     const site = JSON.parse(embedded ?? '{}') as {
       assets: { servedNames: Record<string, string>; moduleName: string };
@@ -194,8 +202,8 @@ describe('the module under a static deployment', () => {
     const generated = nuxt.configure(true);
 
     // Then
-    expect(served.prerender.ignore).toEqual(['/docs']);
-    expect(generated.prerender.ignore).toEqual(['/docs']);
+    expect(served.prerender.ignore).toEqual([prerenderIgnorePattern('/docs')]);
+    expect(generated.prerender.ignore).toEqual([prerenderIgnorePattern('/docs')]);
   });
 });
 
@@ -212,7 +220,9 @@ describe('the proxy route of SPEC 16.2', () => {
 
     // Then
     const registered = config.handlers.find((entry) => entry.route === nitroProxyRoute('/docs'));
-    expect(registered?.handler).toBe(join(root, GENERATED_DIRECTORY, PROXY_ENTRY));
+    expect(registered?.handler).toBe(
+      join(root, GENERATED_DIRECTORY, generatedEntryFile(PROXY_ENTRY, '/docs')),
+    );
     expect(await readFile(registered?.handler ?? '', 'utf8')).toContain(
       'https://api.parcels.example.com/v1',
     );
@@ -231,7 +241,11 @@ describe('the proxy route of SPEC 16.2', () => {
 
     // Then
     expect(config.handlers.some((entry) => entry.route.includes('_proxy'))).toBe(false);
-    expect(await stat(join(root, GENERATED_DIRECTORY, PROXY_ENTRY)).catch(() => null)).toBeNull();
+    expect(
+      await stat(join(root, GENERATED_DIRECTORY, generatedEntryFile(PROXY_ENTRY, '/docs'))).catch(
+        () => null,
+      ),
+    ).toBeNull();
   });
 });
 

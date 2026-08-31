@@ -93,7 +93,10 @@ export function absoluteUrlOf(base: SiteBase, href: string): string | null {
  *
  * REFUSED RATHER THAN REWRITTEN when the parser would change the value: a base silently
  * percent encoded is a base whose pages answer at an address the deployer did not choose, and
- * nothing downstream would say so.
+ * nothing downstream would say so. The same sentence is why `T062` widened the escape rule from a
+ * character class to the value itself: `%2F` is a slash, and a slash the class allows, so the
+ * character reading let a base spell the site root in escapes and walk past the one refusal SPEC
+ * 16.4 calls unrecoverable.
  *
  * @param value - The trimmed value, known to start with a slash
  * @param original - What the caller wrote, for the message
@@ -125,15 +128,24 @@ function parsedPath(value: string, original: string): string {
     );
   }
 
-  // AND THE ESCAPES ARE CHECKED AFTER ONE DECODE, so a percent escape cannot smuggle a character
-  // past the class above into a platform that decodes before it routes. `%2A` is a star and `%0A`
-  // is a newline; both survived the class and neither is a path.
+  // AND THE RULE IS ABOUT THE VALUE, NOT ABOUT THE CHARACTER SET, WHICH `T062` MEASURED THE HARD
+  // WAY. The first form of this check decoded once and looked for a forbidden character, which is
+  // right about `%0A` and blind about `%2F`: a slash and a dot are both in the class above, so
+  // `/docs%2F..%2F..` and `/a%2F..` passed, and one decode turns each of them into the site root.
+  // That is the exact configuration SPEC 16.4 refuses by name, reachable by spelling it in escapes,
+  // so the refusal a deployment cannot recover from was bypassable.
+  //
+  // SO ANY ESCAPE THAT CHANGES THE PATH IS REFUSED, and the reason it costs nothing is the class
+  // above: an escape either encodes a character the class already allows written plainly, in which
+  // case it is redundant, or it encodes one the class forbids, in which case it is smuggling. In
+  // neither case is the address the deployer chose the address a platform that decodes before it
+  // routes will use, and two addresses for one mount is the whole defect.
   const decoded = decodeOnce(parsed.pathname);
-  if (decoded === null || FOREIGN_BASE_CHARACTER.test(decoded.replace(/%/g, ''))) {
+  if (decoded === null || decoded !== parsed.pathname) {
     throw new InvalidOptionsError(
-      `--base carries a percent escape that is not part of a path: "${original}" decodes to ` +
-        'something a generated configuration would read as syntax. A base path is letters, ' +
-        'digits and -._~, separated by /',
+      `--base carries a percent escape, and one decode of "${original}" is ` +
+        `"${decoded ?? 'not a valid escape sequence'}", which is a different path. A base is ` +
+        'written as the address it mounts at: letters, digits and -._~, separated by /',
       ErrorCode.CONFIG_INVALID_OPTIONS,
       undefined,
       { base: original },

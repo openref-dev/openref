@@ -300,6 +300,15 @@ export const COVERAGE_FLOORS: Readonly<Record<string, number>> = {
   // with their date in STANDARDS 9.1 and in `ai-docs/PROJECT_STATE.md` for that session.
   samples: 90,
   agent: 90,
+  // ADDED AT `T062`, THE TASK THE DECISION WAS ADDRESSED TO, and the eighth package this list
+  // governs. `T061` built `packages/nuxt` and filed the floor as a boxed section rather than
+  // setting it, on the precedent `T047` set for `federation` and `T059` followed for `samples` and
+  // `agent`: a package with no entry has no floor yet, and adding one is a task rather than a
+  // judgement a building session makes in passing. 90 by the margin doctrine the seven above
+  // follow. Measured 2026-08-30 on `T062`'s own run rather than carried from the filing, since the
+  // package moved under this task's adversarial pass: the figure is stated with its date in
+  // STANDARDS 9.1 and in `ai-docs/PROJECT_STATE.md` for that session.
+  nuxt: 90,
 };
 
 /**
@@ -2422,6 +2431,251 @@ export const M6_MILESTONE_CLAUSES: readonly StaticCoverage[] = [
     ],
   },
 ];
+
+/**
+ * The SPEC 21 row M7 closes, as its first cell spells it.
+ *
+ * ONE ROW AGAIN, AFTER M6'S FOUR, because M7 built one thing: a Nuxt module that is a wrapper. The
+ * eleven coverages under it are the eleven ways that one claim is checked, not eleven subjects.
+ */
+export const M7_SUITE_ROWS: readonly string[] = ['Nuxt'];
+
+/**
+ * The Nuxt row of SPEC 21, wired coverage by coverage, reconciled with the row in both directions.
+ *
+ * TEN OF THE ELEVEN EXISTED AT `T061` AND NO ROW NAMED THEM, which is the state the paragraphs
+ * under that table describe as the failure the row exists to prevent. The eleventh is `T062`'s own
+ * adversarial suite, and it is named here for the same reason as the bridge soak: a suite nothing
+ * reconciles can be deleted without anything going red.
+ *
+ * ONE COVERAGE LIVES IN ANOTHER PACKAGE AND THAT IS DELIBERATE. `отданное равно собранному` is a
+ * property of `createSiteServer`, which `@openref/static` owns and this module consumes, so the
+ * suite is where the property is rather than where the consumer is. A row written from the
+ * `packages/nuxt` directory alone would have left it unpinned.
+ */
+export const M7_SUITE_COVERAGE: readonly StaticCoverage[] = [
+  {
+    id: 'build-equality',
+    spec: 'равенство сборок',
+    files: ['packages/nuxt/test/integration/nuxt-parity.spec.ts'],
+    cases: [
+      'should write the same files, byte for byte, with the enumerated difference and no other',
+      'should register the withheld server source as a route, with the generator bytes intact',
+      'should hold nothing of the reference outside the mount, and nothing of Nuxt inside it',
+      'should serve the page the build writes, plus the response nonce and nothing else',
+      'should carry the strict policy of SPEC 19.2 with that same nonce',
+    ],
+  },
+  {
+    id: 'both-halves',
+    spec: 'обе половины модуля',
+    files: ['packages/nuxt/test/integration/module-wiring.spec.ts'],
+    cases: [
+      'should register the mount and its catch all, publish the assets and write no page',
+      'should register no route and write the whole site into the public directory',
+      'should keep the prerenderer out of the mount in both deployments, which is the second writer it would otherwise be',
+    ],
+  },
+  {
+    id: 'zero-outbound',
+    spec: 'ноль исходящих',
+    files: ['packages/nuxt/test/integration/zero-outbound.spec.ts'],
+    cases: [
+      // The trap is proved able to see a call before either half is judged by it.
+      'should see a socket and a fetch, so a zero from it means something',
+      'should write the whole site without opening a socket',
+      'should build its site and answer a page without opening a socket',
+    ],
+  },
+  {
+    id: 'proxy-artefact',
+    spec: 'артефакт прокси',
+    files: ['packages/nuxt/test/unit/nitro-proxy.spec.ts'],
+    cases: [
+      'should be the generator output for the Nitro row of SPEC 16.2, byte for byte',
+      'should produce nothing for a document that pins no upstream, which is a state and not a failure',
+      'should spell the file the CLI writes and the route Nitro matches from one base',
+    ],
+  },
+  {
+    id: 'public-dir-refusal',
+    spec: 'отказ публичного каталога',
+    files: [
+      'packages/nuxt/test/unit/public-dir-store.spec.ts',
+      'packages/nuxt/test/unit/adversarial-m7.spec.ts',
+    ],
+    cases: [
+      'should refuse to overwrite a file no openref build wrote, naming it',
+      'should overwrite a file the previous manifest claimed, which is what a rebuild does',
+      'should keep the withheld server source out of the published directory and hand it back',
+      // The two `T062` measured: the mount directory itself was the one path nothing verified.
+      'should refuse a symbolic link at the mount rather than carrying the build through it',
+      'should name the file when the mount is somebody else, rather than reporting a raw mkdir failure',
+    ],
+  },
+  {
+    id: 'mount-options',
+    spec: 'опции монтирования',
+    files: ['packages/nuxt/test/unit/module-options.spec.ts'],
+    cases: [
+      'should refuse a mount at the site root, naming the collision rather than picking a winner',
+      'should refuse a target that names no platform, listing the ones that do',
+      'should follow Nitro under auto, so the static deployment writes and the server renders',
+    ],
+  },
+  {
+    id: 'h3-route',
+    spec: 'маршрут h3',
+    files: ['packages/nuxt/test/unit/reference-handler.spec.ts'],
+    cases: [
+      'should answer the overview at the mount, as html the deployment may revalidate',
+      'should refuse an address the site does not hold, in words and with no store',
+      'should write the host nonce onto every element that needs one, and none when there is none',
+    ],
+  },
+  {
+    id: 'ssr-cache',
+    spec: 'кэш §12 при SSR',
+    files: ['packages/nuxt/test/unit/runtime-site.spec.ts'],
+    cases: [
+      'should answer a second request for one address out of the cache rather than rendering again',
+      'should key by address, so a second page is a miss and not somebody else s page',
+      'should keep two mounts apart, which a module level cache could not',
+    ],
+  },
+  {
+    id: 'cache-vocabulary',
+    spec: 'словарь кэша',
+    files: ['packages/nuxt/test/unit/runtime-handler.spec.ts'],
+    cases: [
+      'should be the one @openref/nest serves the same reference with',
+      'should read the nonce a host put on the event context',
+      'should carry the specification text itself, so the server needs no file at run time',
+    ],
+  },
+  {
+    id: 'served-equals-built',
+    spec: 'отданное равно собранному',
+    files: ['packages/static/test/unit/served-equals-built.spec.ts'],
+    cases: [
+      'should answer every file the build wrote with the same bytes, at the address that file is read from',
+      'should declare exactly the files the build wrote, the manifest excepted',
+      'should put the host nonce in the served page and nowhere else, which is the one difference from the built file',
+    ],
+  },
+  {
+    id: 'hostile-mount',
+    spec: 'враждебный монтаж',
+    files: ['packages/nuxt/test/unit/adversarial-m7.spec.ts'],
+    cases: [
+      'should give each mount its own generated entry, which is what the runtime memoization assumes',
+      'should keep out of the mount and its subtree, and leave a sibling route alone',
+      'should refuse a named pipe by name instead of waiting for a writer that never comes',
+      // The three host states of the task's own attack list, added after the blind review found
+      // the bullet unanswered: a host route at the mount, a host policy already on the response,
+      // and the scope predicate the example's plugin decides with.
+      'should refuse a host proxy route at the address SPEC 16.2 generates into',
+      'should write no policy of its own and no nonce, which is the page the build writes',
+      'should scope the host plugin seam to the mount, which is where the example decides it',
+      // The title carries `%s` because the case is an `it.each` over three spellings of the base,
+      // and the reconciliation reads the title the source declares rather than the ones it prints.
+      'should refuse %s, which one decode turns into a different path',
+    ],
+  },
+];
+
+/** The milestone whose definition of done the M7 wiring answers, as SPEC 22 spells it. */
+export const M7_MILESTONE = 'M7';
+
+/**
+ * Each clause of the M7 definition of done, wired to the cases that answer it.
+ *
+ * SPEC 22 HAD NO M7 CLAUSE UNTIL `T062` WROTE ONE, which is the third time this hole has been
+ * found and the second time it has been filled by the task that closes the milestone: M0 through
+ * M5 carry one, `T059` wrote M6's, and M7 carried two sentences about the L3 decision and nothing
+ * a reader could check. The clause was written from the milestone's own two tasks before this
+ * wiring existed.
+ *
+ * NOT RUN BY THIS GATE, per `checkMilestoneClauses` and for the reason the M3 through M6 clauses
+ * are held that way: every case named here is already run by the coverage above.
+ */
+export const M7_MILESTONE_CLAUSES: readonly StaticCoverage[] = [
+  {
+    id: 'one-tree-built-twice',
+    spec: 'одна спецификация, собранная `nuxt generate` и собранная `openref build`, даёт одно дерево файлов, побайтово равное, а всякое расхождение перечислено точным списком, а не допуском',
+    files: ['packages/nuxt/test/integration/nuxt-parity.spec.ts'],
+    cases: [
+      'should write the same files, byte for byte, with the enumerated difference and no other',
+      'should hold nothing of the reference outside the mount, and nothing of Nuxt inside it',
+      'should register the withheld server source as a route, with the generator bytes intact',
+    ],
+  },
+  {
+    id: 'served-page-is-the-built-page',
+    spec: 'смонтированный справочник отдаёт ту же страницу, которую пишет сборка, под строгой политикой §19.2, и отличается от неё ровно значением nonce',
+    files: [
+      'packages/nuxt/test/integration/nuxt-parity.spec.ts',
+      'packages/static/test/unit/served-equals-built.spec.ts',
+    ],
+    cases: [
+      'should serve the page the build writes, plus the response nonce and nothing else',
+      'should carry the strict policy of SPEC 19.2 with that same nonce',
+      'should serve a page a strict policy can execute: no inline style attribute, no unnonced script',
+      'should put the host nonce in the served page and nowhere else, which is the one difference from the built file',
+    ],
+  },
+  {
+    id: 'hostile-mount-is-named',
+    spec: 'враждебное монтирование останавливает сборку предложением, называющим путь и то, чем он является, а не сырой ошибкой и не тишиной',
+    files: [
+      'packages/nuxt/test/unit/adversarial-m7.spec.ts',
+      'packages/nuxt/test/unit/public-dir-store.spec.ts',
+      'packages/nuxt/test/unit/module-options.spec.ts',
+    ],
+    cases: [
+      'should refuse a symbolic link at the mount rather than carrying the build through it',
+      'should name the file when the mount is somebody else, rather than reporting a raw mkdir failure',
+      'should refuse a named pipe by name instead of waiting for a writer that never comes',
+      'should refuse to overwrite a file no openref build wrote, naming it',
+      'should refuse a mount at the site root, naming the collision rather than picking a winner',
+    ],
+  },
+  {
+    id: 'no-outbound-request-from-either-half',
+    spec: 'ни одна из двух половин модуля не делает ни одного исходящего запроса, и ловушка сперва доказана способной такой запрос увидеть',
+    files: ['packages/nuxt/test/integration/zero-outbound.spec.ts'],
+    cases: [
+      'should see a socket and a fetch, so a zero from it means something',
+      'should write the whole site without opening a socket',
+      'should build its site and answer a page without opening a socket',
+    ],
+  },
+];
+
+/**
+ * The milestone M7 closes over, and the task its own row can never tick.
+ *
+ * READ WITH THE `T060` SECTION OF `ai-docs/BUILD-AMENDMENTS.md`. L3 was declined on measured
+ * grounds at `T034`, and BUILD.md cannot lose a line, so `T060`'s row stands unticked forever and
+ * the open section is what keeps that a mechanism rather than a memory. A gate that counted M7's
+ * boxes and reported three unfinished ones would be reporting a fact it had misread, so the gate
+ * counts two and names the section that says why the third is not counted, and fails if that
+ * section is not there.
+ */
+export const M7_TASKS: readonly string[] = ['T061', 'T062'];
+
+/** The task M7 does not close over, whose exclusion an open amendment section has to justify. */
+export const M7_DECLINED_TASK = 'T060';
+
+/**
+ * The opening of that section's title, because the task id alone is not enough to find it.
+ *
+ * MEASURED WHILE THE GATE WAS BEING PROVED RED. `T060` has two open sections: the L3 decision and
+ * an unrelated one about a theme that throws on the client. A check that looked for any open
+ * section addressed to `T060` stayed green when the L3 one was closed, which is exactly the
+ * silence it was written to prevent, so it matches the section this exclusion actually rests on.
+ */
+export const M7_DECLINED_SECTION = 'Out of scope';
 
 /** The first cell of the SPEC 21 row the M5 wiring answers. */
 export const EVENTS_SUITE_ROW = 'Events';

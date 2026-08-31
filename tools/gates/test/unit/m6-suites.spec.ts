@@ -213,7 +213,7 @@ describe('the M6 suites gate on a planted tree', () => {
 });
 
 describe('the committed wiring of the gate itself', () => {
-  it('should run between the events suites gate and the reader pages one', () => {
+  it('should run between the events suites gate and the M7 one', () => {
     // Given the committed order
     const order = GATES.map((gate) => gate.id);
 
@@ -224,7 +224,10 @@ describe('the committed wiring of the gate itself', () => {
     // which is the arrangement `T042`, `T047` and `T054` each wrote down rather than loosened
     expect(position).toBeGreaterThan(-1);
     expect(order[position - 1]).toBe('events-suites');
-    expect(order[position + 1]).toBe('reader-pages');
+    // `T062` added the fifth member of the family, and it is named here rather than the assertion
+    // loosened to "somewhere before coverage", for the reason this case already gives: what it is
+    // about is the arrangement, so a gate arriving beside this one is a decision to write down.
+    expect(order[position + 1]).toBe('m7-suites');
     expect(order.indexOf('coverage')).toBe(order.length - 1);
   });
 });

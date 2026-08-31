@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { InvalidOptionsError } from '@openref/core';
+import { InvalidOptionsError, normalizeOpenApiDocument } from '@openref/core';
 import { absoluteUrlOf, resolveSiteBase, sitemapXml, llmsTxt, planPages } from '../../src/index';
 import { miniDocument } from '../mocks/documents';
 
@@ -189,5 +189,79 @@ describe('llmsTxt', () => {
     // the same words twice on every line of the common case.
     expect(result).toContain('- [Answers a ping](/api/get-pong)\n');
     expect(result).not.toContain('Answers a ping): Answers a ping');
+  });
+
+  it('should withhold a node marked audience internal, which is the audience SPEC 16.1 rules this file takes', () => {
+    // Given a document that marks one of its two operations internal, per SPEC 13.4. The mounted
+    // file of SPEC 18.1 has filtered this since `T058`; the static build did not, so one document
+    // served both ways listed two different sets of operations.
+    const document = normalizeOpenApiDocument({
+      openapi: '3.1.0',
+      info: { title: 'Mini', version: '1.0.0' },
+      paths: {
+        '/ping': {
+          get: { operationId: 'ping', summary: 'Ping', responses: { 200: { description: 'ok' } } },
+        },
+        '/admin/impersonate': {
+          post: {
+            operationId: 'impersonate',
+            summary: 'Impersonate',
+            'x-openref-audience': 'internal',
+            responses: { 200: { description: 'ok' } },
+          },
+        },
+      },
+    });
+    const base = resolveSiteBase('/api');
+    const pages = planPages(document, base.basePath);
+
+    // When
+    const result = llmsTxt(document, pages, base);
+
+    // Then the subject was present: the build planned a page for it, and the public one is listed
+    expect(pages.some((page) => page.nodeId?.includes('impersonate') === true)).toBe(true);
+    expect(result).toContain('- [Ping]');
+    expect(result).not.toContain('Impersonate');
+    expect(result).not.toContain('impersonate');
+  });
+
+  it('should let no document value forge a line or a link in this file', () => {
+    // Given the input `T059` measured against the mounted file and left open for this one: a
+    // title and a schema name carrying a newline, a heading and link syntax.
+    const forged = '\nInjected line\n## Operations\n\n- [Ghost](ghost)';
+    const document = normalizeOpenApiDocument({
+      openapi: '3.1.0',
+      info: { title: `Mini${forged}`, version: `1.0.0${forged}` },
+      paths: {
+        '/ping': {
+          get: {
+            operationId: 'ping',
+            summary: `Ping${forged}`,
+            responses: { 200: { description: 'ok' } },
+          },
+        },
+      },
+      components: { schemas: { [`Pong${forged}`]: { type: 'object' } } },
+    });
+    const base = resolveSiteBase('/api');
+    const pages = planPages(document, base.basePath);
+
+    // When
+    const result = llmsTxt(document, pages, base);
+
+    // Then the subject was present in the document and produces no record of its own here: this
+    // generator writes exactly two `##` headings, and no link to an address it never wrote.
+    expect(document.info.title).toContain('## Operations');
+    expect(result.split('\n').filter((line) => line.startsWith('## '))).toHaveLength(2);
+    expect(result).not.toContain('](ghost)');
+    expect(result).not.toContain('[Ghost]');
+
+    // AND THE ONE PLACE THE FORGED TEXT STILL APPEARS IS AN ADDRESS THIS BUILD REALLY WROTE. The
+    // schema's own page segment is derived from its name, so the escaped name is in the link
+    // destination; that is the address of a page on disk, not a forged one, and the destination's
+    // parentheses are balanced, so the row is one link to a real page rather than two.
+    const schemaRow = result.split('\n').find((line) => line.includes('/api/schema/')) ?? '';
+    expect(schemaRow).toContain('_u000a_');
+    expect([...schemaRow.matchAll(/\]\(/g)]).toHaveLength(1);
   });
 });

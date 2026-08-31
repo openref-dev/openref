@@ -211,6 +211,7 @@ export {
 
 export {
   createSocketLog,
+  DEFAULT_SOCKET_LOG_BYTES,
   DEFAULT_SOCKET_LOG_WINDOW,
   type SocketLog,
   type SocketLogEntry,

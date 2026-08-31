@@ -19,30 +19,20 @@
  * does not filter the pages or the two text files, which show what the reference's own HTML shows.
  */
 
-import type { IRDocument, IRNode } from '@openref/core';
+import { isInternalAudience, type IRDocument, type IRNode } from '@openref/core';
 
 /**
- * The extension `@ApiAudience` writes, per SPEC 13.4.
+ * The audience vocabulary, re-exported from `@openref/core` where it now lives.
  *
- * SPELLED HERE AND CHECKED AGAINST `@openref/nest`'s OWN CONSTANT BY A CASE, rather than imported:
- * `agent` may not reach `nest`, per STANDARDS 3.5, and the decorator that writes the key lives
- * there. Two spellings of one key is a filter that silently matches nothing, which on this
- * question means exposed, so the agreement is asserted rather than assumed.
+ * IT WAS SPELLED HERE AND HELD AGAINST `@openref/nest`'s COPY BY A CASE, because `agent` may not
+ * reach `nest` and the decorator that writes the key lives there. `T062` gave the static build's
+ * `llms.txt` the same filter, per the SPEC 16.1 ruling, and `@openref/static` can see neither of
+ * those packages: a third spelling would be a filter that silently matches nothing, which on this
+ * question means exposed. So the two strings moved up to the one package all three can see, and
+ * the names stay exported here for every caller and every case that already reads them from this
+ * module.
  */
-export const AUDIENCE_EXTENSION = 'x-openref-audience';
-
-/** The audience value that keeps a node off the MCP surface, per SPEC 18. */
-export const INTERNAL_AUDIENCE = 'internal';
-
-/**
- * Whether one node is marked for internal eyes only.
- *
- * @param node - The node
- * @returns True when its `x-openref-audience` extension reads `internal`
- */
-export function isInternalAudience(node: IRNode): boolean {
-  return node.extensions?.[AUDIENCE_EXTENSION] === INTERNAL_AUDIENCE;
-}
+export { AUDIENCE_EXTENSION, INTERNAL_AUDIENCE, isInternalAudience } from '@openref/core';
 
 /** What the MCP surface may talk about, computed once per document. */
 export interface AgentExposure {

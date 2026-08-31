@@ -21,6 +21,7 @@
 
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { ErrorCode, InvalidOptionsError, sha256Hex } from '@openref/core';
 import { buildAssetCatalog, loadDefaultAssets, type AssetPlan } from '@openref/render';
 import { ASSET_DIRECTORY as SITE_ASSET_SEGMENT } from '@openref/static';
 import {
@@ -41,6 +42,7 @@ import {
 import type { EmbeddedSite } from '../../runtime/site';
 import type {
   NitroConfigSurface,
+  NitroHandlerEntry,
   NitroSurface,
   NuxtModule,
   NuxtSurface,
@@ -63,8 +65,8 @@ import type {
  */
 export const GENERATED_DIRECTORY = '.openref';
 
-/** The generated file that hands the runtime its embedded site. */
-export const REFERENCE_ENTRY = 'reference-handler.ts';
+/** Stem of the generated file that hands the runtime its embedded site. */
+export const REFERENCE_ENTRY = 'reference-handler';
 
 /** Directory under {@link GENERATED_DIRECTORY} holding the assets a served mount publishes. */
 export const GENERATED_ASSET_DIRECTORY = 'assets';
@@ -72,8 +74,50 @@ export const GENERATED_ASSET_DIRECTORY = 'assets';
 /** How long a hashed asset may be cached: it is addressed by its own digest. */
 export const ASSET_MAX_AGE = 31_536_000;
 
-/** The generated file holding SPEC 16.2's Nitro route, byte for byte as the CLI writes it. */
-export const PROXY_ENTRY = 'proxy-route.ts';
+/** Stem of the generated file holding SPEC 16.2's Nitro route, byte for byte as the CLI writes it. */
+export const PROXY_ENTRY = 'proxy-route';
+
+/**
+ * The name of one generated entry, which belongs to the mount rather than to the package.
+ *
+ * THE CONSTANT WAS A DEFECT AND `T062` MEASURED IT. `site.ts` states that a Nuxt application may
+ * mount two references at two bases, and its memoization is written for exactly that. The file
+ * names were constants, so two mounts in one project wrote one `reference-handler.ts`: the second
+ * call overwrote the first, both routes were registered against that one path, and `/docs` served
+ * the document asked for at `/reference`. The claim in the header was refuted by the name of a
+ * file.
+ *
+ * A DIGEST BESIDE THE READABLE PART, AND THE DIGEST IS THE HALF THAT IS LOAD BEARING. A base is
+ * letters, digits and `-._~` separated by `/`, so no substitution of the separator is injective:
+ * `/a/b` and `/a-b` both read as `a-b`. The readable part is there for the developer who opens
+ * `.openref` and the digest is there so two mounts are two files, which is a property rather than
+ * a convention.
+ *
+ * @param stem - {@link REFERENCE_ENTRY} or {@link PROXY_ENTRY}
+ * @param basePath - The resolved mount, with a leading slash
+ * @returns The file name, relative to {@link GENERATED_DIRECTORY}
+ */
+export function generatedEntryFile(stem: string, basePath: string): string {
+  const readable = basePath.replace(/^\//, '').replace(/\//g, '-').slice(0, 24);
+  const digest = sha256Hex(basePath).slice(0, 8);
+
+  return `${stem}.${readable === '' ? 'root' : readable}.${digest}.ts`;
+}
+
+/**
+ * What the prerenderer is told to stay out of, as a pattern that stops at the mount.
+ *
+ * A BARE STRING WAS TOO WIDE, MEASURED ON NITRO 2.13.4. `matchesIgnorePattern` compares a string
+ * pattern with `path.startsWith(pattern)`, so the base `/docs` also excluded the host's own
+ * `/docs-legacy` from the prerender, silently and with no line in the output. Mounting a reference
+ * beside an application page is not a reason to stop building that page.
+ *
+ * @param basePath - The resolved mount, with a leading slash
+ * @returns A pattern matching the mount and its subtree and nothing else
+ */
+export function prerenderIgnorePattern(basePath: string): RegExp {
+  return new RegExp(`^${basePath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?:/|$)`);
+}
 
 /** Specifier the generated entry imports the runtime from. */
 export const RUNTIME_SPECIFIER = '@openref/nuxt/runtime';
@@ -161,6 +205,36 @@ function publishAssets(assets: AssetPlan, directory: string): readonly string[] 
 }
 
 /**
+ * Refuses a route another writer already registered, rather than registering a second one.
+ *
+ * TWO HANDLERS AT ONE ROUTE IS THE FAILURE SPEC 16.4 ALREADY REFUSES ON DISK, MET ON THE ROUTER.
+ * The public directory refuses a file the reference did not write, because whichever writer goes
+ * last wins and nothing says so; a Nitro route table has the same property and no such refusal, so
+ * a host with its own `/docs` page, or with its own proxy at `<base>/_proxy/**`, would get whichever
+ * of the two the router happened to pick. That is a fact about the deployment nobody can recover
+ * from later, which is this module's own definition of a configuration time refusal.
+ *
+ * THE COMPARISON IS ON THE EXACT ROUTE STRING AND NOTHING ELSE. A host catch all at `/**` is not a
+ * collision with `/docs/**`: it is a route Nitro orders by specificity, and refusing it would refuse
+ * an ordinary application. What is refused is the address written twice.
+ *
+ * @param handlers - The handlers already in the Nitro configuration
+ * @param route - The route this module is about to register
+ * @throws {InvalidOptionsError} When something is already registered at that exact route
+ */
+function refuseTakenRoute(handlers: readonly NitroHandlerEntry[], route: string): void {
+  const taken = handlers.find((entry) => entry.route === route);
+  if (taken === undefined) return;
+
+  throw new InvalidOptionsError(
+    `openref: this Nuxt application already registers a route at "${route}", handled by ${taken.handler}, and the reference is mounted there too. Two handlers at one address means one of them silently wins. Mount the reference at a base of its own, or remove that route`,
+    ErrorCode.CONFIG_INVALID_OPTIONS,
+    undefined,
+    { route, handler: taken.handler },
+  );
+}
+
+/**
  * The module Nuxt calls.
  *
  * @param inlineOptions - Options written beside the module in `nuxt.config`
@@ -208,7 +282,7 @@ async function openRefModule(
 
     if (!generating) {
       const assets = loadDefaultAssets({ resolveFrom: import.meta.url });
-      const entry = join(generatedDirectory, REFERENCE_ENTRY);
+      const entry = join(generatedDirectory, generatedEntryFile(REFERENCE_ENTRY, options.basePath));
       writeFileSync(
         entry,
         referenceEntrySource(embeddedSiteOf(options, specification, assets)),
@@ -218,6 +292,8 @@ async function openRefModule(
       // measured on Nitro 2.13.4, where `/docs/**` answered `/docs/get-parcels` and left `/docs`
       // to the application's own renderer, so the overview was the framework's 404 page. The
       // overview's address is the bare base, per `overviewHref`, so it is registered by name.
+      refuseTakenRoute(config.handlers, options.basePath);
+      refuseTakenRoute(config.handlers, `${options.basePath}/**`);
       config.handlers.push({ route: options.basePath, handler: entry, method: 'get' });
       config.handlers.push({ route: `${options.basePath}/**`, handler: entry, method: 'get' });
 
@@ -234,7 +310,8 @@ async function openRefModule(
     // THE PROXY ROUTE IS THE GENERATOR'S FILE, WRITTEN WHERE NITRO CAN LOAD IT. Its bytes are
     // what `openref build --target nitro` writes, which is asserted rather than assumed.
     if (proxySource !== null) {
-      const entry = join(generatedDirectory, PROXY_ENTRY);
+      refuseTakenRoute(config.handlers, nitroProxyRoute(options.basePath));
+      const entry = join(generatedDirectory, generatedEntryFile(PROXY_ENTRY, options.basePath));
       writeFileSync(entry, proxySource, 'utf8');
       config.handlers.push({ route: nitroProxyRoute(options.basePath), handler: entry });
 
@@ -251,7 +328,7 @@ async function openRefModule(
 
     config.prerender ??= {};
     config.prerender.ignore ??= [];
-    config.prerender.ignore.push(options.basePath);
+    config.prerender.ignore.push(prerenderIgnorePattern(options.basePath));
   });
 
   nuxt.hook('nitro:build:public-assets', async (nitro: NitroSurface) => {

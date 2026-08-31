@@ -11,7 +11,12 @@ import { contentSecurityPolicy } from '@openref/render';
 import { BUILD_MANIFEST_FILE } from '@openref/static';
 import { builtCliProblem, BUILT_CLI_BIN } from '../../../../vitest.built-cli.ts';
 import { SPAWNED_PROCESS_TIMEOUT_MS } from '../../../../vitest.spawn-timeout.ts';
-import { GENERATED_DIRECTORY, nitroProxyFile, PROXY_ENTRY } from '../../src/index';
+import {
+  GENERATED_DIRECTORY,
+  generatedEntryFile,
+  nitroProxyFile,
+  PROXY_ENTRY,
+} from '../../src/index';
 
 /**
  * The claim T061 is finished by: the Nuxt path is a wrapper and not a fork.
@@ -223,7 +228,10 @@ describe('static generation from Nuxt, against the CLI build of the same documen
     const fromCli = await readFile(join(cliOut ?? '', nitroProxyFile(BASE)), 'utf8');
 
     // When
-    const registered = await readFile(join(EXAMPLE, GENERATED_DIRECTORY, PROXY_ENTRY), 'utf8');
+    const registered = await readFile(
+      join(EXAMPLE, GENERATED_DIRECTORY, generatedEntryFile(PROXY_ENTRY, BASE)),
+      'utf8',
+    );
 
     // Then
     expect(registered).toBe(fromCli);
