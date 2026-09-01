@@ -1,7 +1,20 @@
-# The OPENREF demo
+# The OPENREF examples
 
-A real NestJS application with its reference mounted on it. One controller, one line of setup,
-and a page you can send requests from.
+<!-- gen: count:table -->Seven<!-- /gen --> directories, each small enough to read in a sitting. Every one that listens is booted and
+fetched by `tools/docs-site/test/integration/example-applications.spec.ts`, so an example that
+stops working is a failing test rather than a surprise for whoever opens it next.
+
+| Directory | Start it with | What it is for |
+| --- | --- | --- |
+| `nest-minimal` | `pnpm demo` | the first minute, and the application the README quotes |
+| `runtime-intelligence` | `pnpm --filter @openref/example-runtime-intelligence start` | a collector written by hand, and provenance on the page |
+| `custom-theme` | `pnpm --filter @openref/example-custom-theme start` | an L0 theme: six token values, no bundle |
+| `events` | `pnpm --filter @openref/example-events start` | HTTP and message channels from one application |
+| `federation` | `pnpm demo:federation` | three services as one reference |
+| `static-build` | `pnpm --filter @openref/example-static-build start` | ten static builds, one per hosting target |
+| `nuxt-reference` | see its own README | the Nuxt module |
+
+The rest of this file is about `nest-minimal`, which is the one to open first.
 
 ## Run it
 
@@ -16,7 +29,7 @@ Then open <http://127.0.0.1:3000/docs>.
 
 ## What to look at
 
-The renderer is not the point. These seven are, because each one is a place a reference either
+The renderer is not the point. These <!-- gen: count:table -->seven<!-- /gen --> are, because each one is a place a reference either
 works or quietly gives up:
 
 | Open                     | What it shows                                                          |
@@ -29,7 +42,8 @@ works or quietly gives up:
 | `List orders by page`    | a generic wrapper, `paginated(OrderDto)`, with no wrapper DTO written   |
 | `Watch orders`           | an SSE route whose item type is declared, because nothing can infer it  |
 
-`Create an order` also documents six status codes, each with the body shape it answers with.
+`Create an order` also documents <!-- gen: count:demo-create-responses -->six<!-- /gen --> status codes, each with the body shape it
+answers with.
 
 ## Try it
 
@@ -52,7 +66,7 @@ application rather than in a second demo.
 | the errors it promises  | `@ApiErrors` on `Read one order` and `Create an order`, in their own group |
 | the errors it can answer with anyway | the guard and the rate limit, in a second group nobody wrote |
 
-Each fact is shown with where it came from and how sure it is. Four of the seven operations are
+Each fact is shown with where it came from and how sure it is. <!-- gen: count:demo-unscoped-handlers -->Four<!-- /gen --> of the operations are
 guarded and declare no scopes, which is deliberate: that is a policy written in code that will
 never be readable, and `doctor` reports it rather than letting it look like a route that needs no
 scopes at all.

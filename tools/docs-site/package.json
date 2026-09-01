@@ -1,0 +1,23 @@
+{
+  "name": "@openref/docs-site",
+  "version": "0.0.0",
+  "description": "The documentation site, composed from docs/guide and built by the openref CLI itself",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "source": "./src/index.ts",
+  "engines": {
+    "node": "^22.22.2 || ^24.15.0 || >=26.0.0"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  },
+  "devDependencies": {
+    "@openref/nest": "workspace:*",
+    "@openref/static": "workspace:*",
+    "@openref/vue": "workspace:*",
+    "typescript": "5.9.3",
+    "vitest": "4.1.10"
+  }
+}

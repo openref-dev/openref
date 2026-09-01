@@ -225,14 +225,40 @@ for (const platform of PLATFORMS) {
   });
 }
 
+/**
+ * SPEC 13.1 with nothing else in the application, on both boots.
+ *
+ * WHAT THIS PAIR CAN AND CANNOT DELIVER, STATED EXACTLY, BECAUSE THE FIRST WORDING OVERCLAIMED.
+ * Until 2026-09-01 the only case here passed `abortOnError: false`, which switches off the
+ * mechanism a reader meets: `NestFactory.create` returns a proxy that runs every call through
+ * `ExceptionsZone`, and with the default the zone ends the process instead of rethrowing. `setup`
+ * asked the container a question whose throw it was catching, the catch never ran, and a reader's
+ * process exited 1 with no output while this file stayed green.
+ *
+ * ADDING A DEFAULT BOOT DOES NOT FIX THAT ON ITS OWN, AND THE CLAIM THAT IT DID WAS WRONG.
+ * Measured on 2026-09-01: with the production fix reverted, this whole file is 20 of 20 green,
+ * because inside a vitest worker the `process.exit(1)` in question does not end the run. So
+ * neither case below can see the defect, and the proof that a reader's own boot survives is
+ * `packages/nest/test/integration/first-minute.spec.ts`, which spawns a child and reads its exit
+ * code. Reverted, that child exits 1 with nothing on either stream.
+ *
+ * WHAT THE PAIR DOES DELIVER is that `setup` without `forRoot` mounts and serves under both boot
+ * options, so a host who sets neither and a host who sets `abortOnError: false` get the same
+ * answer. That is worth having and it is all it is.
+ *
+ * THE FOUR OTHER USES OF `abortOnError: false` IN THIS FILE ARE THE HARNESS'S, not a claim about
+ * boot options: the `platforms` helper and the two `forRootAsync` cases set it so that a
+ * misconfiguration under test surfaces as a rejected promise the case can assert on, rather than
+ * as a killed worker with no message.
+ */
 describe('setup with no forRoot at all, which is SPEC 13.1 unchanged', () => {
   @Module({ controllers: [OrdersController] })
   // eslint-disable-next-line @typescript-eslint/no-extraneous-class
   class PlainModule {}
 
-  it('should mount and serve, collecting nothing', async () => {
-    // Given
-    const app = await NestFactory.create(PlainModule, { logger: false, abortOnError: false });
+  it('should mount and serve on a default boot, which is how a reader boots', async () => {
+    // Given the options SPEC 2's first minute implies: none
+    const app = await NestFactory.create(PlainModule, { logger: false });
     running = app;
 
     // When
@@ -247,6 +273,23 @@ describe('setup with no forRoot at all, which is SPEC 13.1 unchanged', () => {
     expect([...service.document.nodes.values()].every((node) => node.runtime === undefined)).toBe(
       true,
     );
+    expect((await fetch(`${await app.getUrl()}/docs`)).status).toBe(200);
+  });
+
+  it('should mount and serve when the framework rethrows instead of aborting', async () => {
+    // Given the boot every other case in this file uses, which is the other half of the pair
+    const app = await NestFactory.create(PlainModule, { logger: false, abortOnError: false });
+    running = app;
+
+    // When
+    const service = OpenRefModule.setup('/docs', app, {
+      document: document(),
+      assetPlan: assetPlan(),
+    });
+    await app.listen(0, '127.0.0.1');
+
+    // Then
+    expect(service.document.runtime).toBeUndefined();
     expect((await fetch(`${await app.getUrl()}/docs`)).status).toBe(200);
   });
 });

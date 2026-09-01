@@ -13,6 +13,7 @@
     "build": "pnpm -r run build",
     "demo": "pnpm install && pnpm run build && pnpm --filter @openref/example-nest-minimal start",
     "demo:federation": "pnpm install && pnpm run build && pnpm --filter @openref/example-federation start",
+    "docs:build": "pnpm --filter @openref/docs-site run build && node tools/docs-site/dist/build.js",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p packages/render/test/integration/tsconfig.json --noEmit && tsc -p packages/nest/test/integration/tsconfig.json --noEmit && tsc -p packages/theme-telltale/tsconfig.browser.json --noEmit",
     "lint": "pnpm run typecheck && eslint . && pnpm run lint:deps",
     "lint:deps": "depcruise packages --config .dependency-cruiser.cjs",

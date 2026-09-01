@@ -1,0 +1,15 @@
+{
+  "name": "@openref/example-static-build",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "The static build, and the proxy configuration each hosting platform needs",
+  "license": "MIT",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/serve.js"
+  },
+  "devDependencies": {
+    "typescript": "5.9.3"
+  }
+}

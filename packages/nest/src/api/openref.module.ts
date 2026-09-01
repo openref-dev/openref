@@ -34,7 +34,7 @@ import { mountRouteTable } from './route-table';
 import { isNestApplication } from '../shared/types/nest-surface';
 import type { DynamicModuleLike } from '../shared/types/nest-surface';
 import type { DynamicModule } from '@nestjs/common';
-import type { NestApplicationLike } from '../shared/types/nest-surface';
+import type { ModuleRefLike, NestApplicationLike } from '../shared/types/nest-surface';
 import { ErrorCode, InvalidOptionsError, type IRDocument } from '@openref/core';
 import { loadNestCore } from '../runtime/infrastructure/adapters/nest-core.adapter';
 import { MountedReferences } from './mounted-references';
@@ -288,6 +288,22 @@ function guardResolverFor(app: NestApplicationLike): (token: unknown) => unknown
  * ordinary case rather than an error. `get` throws when a token is unknown, which is what the
  * catch is for; NestJS offers no way to ask without throwing.
  *
+ * THE QUESTION GOES THROUGH `ModuleRef` AND NOT THROUGH THE APPLICATION, AND THAT IS THE WHOLE
+ * OF THIS FUNCTION. Written the obvious way, `app.get(OPENREF_REFERENCES)` inside the try above,
+ * the catch never runs and SPEC 2's first minute ends in exit code 1 with no output at all.
+ * `NestFactory.create` returns a proxy that puts every call through `ExceptionsZone`, and with
+ * `abortOnError` at its default the zone hands the error to its own handler and calls
+ * `process.exit(1)` instead of rethrowing. So the fail open policy above was written, was
+ * correct, and was unreachable: SPEC 0's eighth class, code that is right, loaded and never
+ * reached.
+ *
+ * `ModuleRef` IS ASKED FOR FIRST BECAUSE IT ALWAYS RESOLVES. The framework registers it in
+ * every application, so that call cannot be the one that enters the failing path; and
+ * `ModuleRef.get` is the container's own method rather than the proxy's, so its throw on an
+ * unknown token is an ordinary throw that the catch below handles. Both halves are proved by
+ * `packages/nest/test/integration/first-minute.spec.ts`, which boots the way a reader boots,
+ * with `NestFactory.create` defaults and no `forRoot` anywhere.
+ *
  * @param app - The application `setup` was given
  * @returns The provider, or undefined when the module was not imported
  */
@@ -295,7 +311,13 @@ function referencesIn(app: NestApplicationLike): MountedReferences | undefined {
   if (typeof app.get !== 'function') return undefined;
 
   try {
-    const resolved = app.get(OPENREF_REFERENCES, { strict: false });
+    // A test double may hand back anything, including nothing, so the container is checked
+    // before it is used rather than asserted into shape.
+    const container = app.get(loadNestCore().ModuleRef, { strict: false });
+    const lookup = (container as { get?: unknown } | null | undefined)?.get;
+    if (typeof lookup !== 'function') return undefined;
+
+    const resolved = (container as ModuleRefLike).get(OPENREF_REFERENCES, { strict: false });
     return resolved instanceof MountedReferences ? resolved : undefined;
   } catch {
     return undefined;
