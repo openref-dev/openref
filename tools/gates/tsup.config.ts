@@ -16,5 +16,13 @@ export default defineConfig({
   // interop shim's `require` in the file, which throws on the first call: "Dynamic require of
   // process is not supported". These gates run from inside this repository, where both packages
   // are on disk, so there is nothing to gain by inlining them and a runtime failure to lose.
-  external: ['acorn', 'yaml'],
+  //
+  // `@openref/render` STAYS OUT FOR A DIFFERENT REASON, AND IT IS THE POINT OF ITS BEING HERE.
+  // The two raw budgets weigh the published form of the artefacts, which is the form the asset
+  // catalog produces, and that catalog is the renderer's. Inlining a copy of it into this bundle
+  // is how the gate and the two surfaces that actually publish would come to disagree about what
+  // a reader downloads, which is the whole defect the subject move fixes. It is loaded lazily and
+  // only when a published form budget has files to weigh, so a tree with nothing built never
+  // reaches it.
+  external: ['acorn', 'yaml', '@openref/render'],
 });

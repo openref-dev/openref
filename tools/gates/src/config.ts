@@ -338,6 +338,26 @@ export interface SizeBudget {
    * and one that is on neither fails the budget rather than being left out of it.
    */
   readonly partition?: BundlePartition;
+  /**
+   * Which form of the artefact this budget weighs, the one a package publishes or the one a
+   * reader downloads.
+   *
+   * ABSENT MEANS THE FORM ON DISK, and until 2026-08-31 that was the only form any budget knew.
+   * It is wrong for anything a reader receives through the asset catalog: the catalog renames
+   * every file after the digest of its bytes and rewrites the references inside stylesheets and
+   * modules onto those names, so the file that ships is longer than the file the bundler wrote.
+   * `published` weighs what ships, by asking the catalog rather than by describing it. See
+   * `readPublishedForm`, and SPEC 20 for the ruling, the itemised difference and the two caps
+   * re-derived from it.
+   *
+   * WHY IT IS NOT SIMPLY ON EVERY BUDGET. Two of these rows are the same file in both forms and
+   * are so by construction, not by luck: an embedded Web Component is one file that names no
+   * sibling, and a font file is renamed without a byte of it being rewritten, which is measured
+   * rather than assumed. The rest still weigh the form on disk, and SPEC 20 names them and their
+   * published figures rather than leaving the reader to find them, because two of them stand over
+   * their cap in the form that ships and moving a cap is the maintainer's.
+   */
+  readonly form?: 'published';
 }
 
 /** One side of a split bundle, named by the entry the graph is walked from. */
@@ -454,7 +474,7 @@ export const SHIPPED_CLIENT_BUNDLES: readonly ShippedClientBundle[] = [
  * ONE LIST FOR BOTH CAPS, deliberately. Two copies of the roots is how the two budgets would
  * come to bound different file sets while reading as two views of one.
  */
-const THEME_CSS_ROOTS: readonly string[] = ['packages/theme/dist', 'packages/theme/fonts'];
+export const THEME_CSS_ROOTS: readonly string[] = ['packages/theme/dist', 'packages/theme/fonts'];
 
 /**
  * The shipped browser bundle, named once for the four budgets that partition it.
@@ -468,7 +488,7 @@ const CLIENT_JS_ROOTS: readonly string[] = [
   'packages/theme/dist/browser',
 ];
 
-const CLIENT_JS_ENTRY = 'packages/nest/dist/browser/openref.js';
+export const CLIENT_JS_ENTRY = 'packages/nest/dist/browser/openref.js';
 
 /**
  * The deferred half, divided by the gesture that pays for it.
@@ -759,10 +779,30 @@ export const SIZE_BUDGETS: readonly SizeBudget[] = [
     // THE PROPERTY IS RE-CHECKED AND STILL HOLDS. 108 KB is 110,592: the artefact fits with 814
     // bytes, and `sign-in-return` at 1,451 raw returning to the first load reads 111,229 and
     // fails it. 107 KB does not fit, so 108 is the one whole KB step available.
+    //
+    // THE SUBJECT MOVED TO THE PUBLISHED FORM ON 2026-08-31, AND THE CAP DID NOT MOVE WITH IT.
+    // Ruled by the maintainer on the section `T061` filed and `T062` re-measured: every reading
+    // above was taken on the six files as the bundler leaves them, and a reader downloads them
+    // after the asset catalog has rewritten each sibling specifier onto a name carrying sixteen
+    // digest characters. Published, the six weigh 110,539 against 110,284 on disk: 255 bytes over
+    // three of the six, `openref.js` 20,013 to 20,217 for twelve specifiers, `chunk-6FGSEGCV.js`
+    // 5,600 to 5,634 for two and `chunk-YKIET4FQ.js` 1,939 to 1,956 for one, at a dot plus
+    // sixteen characters each. The other three name no sibling and do not move.
+    //
+    // THE PROPERTY IS RE-CHECKED AGAINST THE NEW SUBJECT AND STILL CHOOSES 108. The artefact fits
+    // 110,592 with 53 bytes, `sign-in-return` published is 1,468 raw and returning to the first
+    // load reads 112,007 and fails it, and 107 KB at 109,568 does not fit the artefact at all.
+    // Nothing here is an artefact growing: the same commit gives both figures, and `T061` and
+    // `T062` added no browser byte at all.
+    //
+    // 53 BYTES IS THE NUMBER TO WATCH, AND IT IS WRITTEN HERE RATHER THAN LEFT AS A MARGIN. The
+    // next fifty four bytes the first paint gains fail this budget, so the task that brings them
+    // comes to the maintainer with its own measurement rather than with a raise.
     limitBytes: 108 * 1024,
     roots: CLIENT_JS_ROOTS,
     extensions: ['.js', '.mjs'],
     quantity: 'parse',
+    form: 'published',
     producedBy: 'T011-R, re-derived in TX-SLOTWIRE, T031 and TX-ADOPT',
     partition: { entry: CLIENT_JS_ENTRY, side: 'initial' },
   },
@@ -1154,15 +1194,45 @@ export const SIZE_BUDGETS: readonly SizeBudget[] = [
     // and re-reading it is a section of `ai-docs/BUILD-AMENDMENTS.md` addressed to `T059`, the M6
     // closing gates task, which is the mechanism this repository uses for an obligation that has
     // to survive the session that wrote it.
+    // 62 KB SINCE 2026-08-31, AND THE SUBJECT MOVED RATHER THAN THE STYLESHEET GROWING. Ruled by
+    // the maintainer on the section `T061` filed and `T062` re-measured. Every figure above was
+    // taken on the three files as `pnpm build` leaves them, and no reader receives those: the
+    // asset catalog rewrites each `url()` in `fonts.css` onto a name carrying the digest of the
+    // font it names, so `fonts.css` ships at 4,381 rather than 4,211. Published, the three weigh
+    // 62,594 against 62,424 on disk, and the whole 170 is ten references at a dot plus sixteen
+    // digest characters each. `theme.css` at 48,506 and `tokens.css` at 9,707 are byte identical
+    // in both forms, because neither refers to another asset, and the ten font files themselves
+    // are renamed without a byte being rewritten, which is measured rather than assumed.
+    //
+    // THE PROPERTY IS THE SAME ONE AND IT CHOOSES 62. The cap is the smallest whole KB step the
+    // built stylesheet fits under: 62,594 does not fit under 61 KB, which is 62,464, and fits
+    // under 62 KB, which is 63,488. It is still the tightest step available rather than room left
+    // in deliberately; the headroom it happens to leave is 894 bytes.
+    //
+    // THIS IS THE `page-bytes` DIRECTION OF `T033` AND NOT ITS OPPOSITE. There the input changed
+    // under an unchanged artefact and the cap was recomputed; the forbidden move is the mirror
+    // image, an artefact growing under an unchanged subject. Here the subject changed under an
+    // unchanged artefact: the same commit gives 62,424 and 62,594, `T061` and `T062` spent no
+    // stylesheet byte at all, and the 130 that stood over the old cap is the rewrite rather than
+    // an arrival.
+    //
+    // WHAT THE MOVE COSTS THIS ROW, STATED WHERE ITS SUBJECT IS. The published form is one served
+    // reference, so this row now needs `packages/nest/dist/browser/openref.js` to exist as well as
+    // the stylesheets: a tree with the theme built and the client bundle not built fails this row,
+    // naming the file it could not read, instead of measuring it. That is the correction and not a
+    // side effect. Before the move, a tree with nothing built at all printed `OK theme-css-raw:
+    // 4.1 KB raw of 61.0 KB across 1 file(s)`, weighing the one committed `fonts.css` and saying
+    // nothing about the two stylesheets that were absent, which is this defect in its purest form.
     id: 'theme-css-raw',
     label: 'Default theme CSS, raw bytes',
-    limitBytes: 61 * 1024,
+    limitBytes: 62 * 1024,
     quantity: 'parse',
     roots: THEME_CSS_ROOTS,
     extensions: ['.css'],
+    form: 'published',
     producedBy:
       'T009, recomputed at TX-GUTTER, TX-FRAME, TX-MARKUP, TX-PARITY-UI and TX-SHAPES, ' +
-      're-derived at T054 without moving',
+      're-derived at T054 without moving and on 2026-08-31 onto the published form',
   },
 
   // THE WEB COMPONENT OUTPUTS OF SPEC 10.3, both files of one directory under one cap pair,

@@ -21,6 +21,7 @@ import {
   FONT_BUDGETS,
   MEASURED_BUDGETS,
   SIZE_BUDGETS,
+  type SizeBudget,
 } from '../config.js';
 import {
   BASELINE_INPUT_PATHS,
@@ -44,6 +45,7 @@ import {
   partitionModuleGraph,
   type GesturePartition,
 } from './module-graph.js';
+import { readPublishedForm, type PublishedForm } from './published-form.js';
 import { collectFiles } from './walk.js';
 
 /** How each quantity is printed, so a figure is never read as the other one. */
@@ -105,6 +107,12 @@ export interface BudgetReport {
    * `budget-exceptions` passed while printing that it had read four budgets "under the built
    * artefacts of SPEC 20", which was false about every one of them.
    *
+   * IT IS THREE SINCE 2026-08-31, AND THE ONE THAT LEFT IS THE ONE THAT LIED LOUDEST.
+   * `theme-css-raw` now weighs the published form, so on a tree with nothing built it fails
+   * naming the client bundle it could not read, instead of reporting the single committed
+   * `fonts.css` as though it were the default theme's stylesheets. Measured A/B on one copy: six
+   * gates fail on that tree where five did before.
+   *
    * A committed input is still weighed and still gated. What it may not do is stand in for a
    * build, which is why the two counts are carried apart rather than one being dropped.
    */
@@ -114,12 +122,32 @@ export interface BudgetReport {
 }
 
 /**
+ * The two things a test drives that a run of the gates takes from the repository.
+ *
+ * BOTH SEAMS EXIST BECAUSE THREE BRANCHES HAD NO RUNNER, found by the review of 2026-08-31. The
+ * published form measurement, the unreachable catalog refusal and the file-not-in-the-catalog
+ * refusal cannot be reached from the real tree without breaking the real tree, and a branch that
+ * only runs when the repository is broken is a branch nothing can watch fail. Both default to the
+ * real thing, so a gate run is unchanged and nothing here is a test-only code path.
+ */
+export interface BudgetReportOptions {
+  /** The budgets to weigh. Defaults to every SPEC 20 size budget. */
+  readonly budgets?: readonly SizeBudget[];
+  /** How the published form is read. Defaults to the renderer's own asset catalog. */
+  readonly publishedForm?: (repoRoot: string) => PublishedForm;
+}
+
+/**
  * Measures every SPEC 20 budget against the built artifacts and the committed browser study.
  *
  * @param repoRoot - Absolute repository root
+ * @param options - Seams a test drives; every one of them defaults to the real thing
  * @returns One outcome per budget, plus anything that is wrong with the measurement itself
  */
-export function collectBudgetOutcomes(repoRoot: string): BudgetReport {
+export function collectBudgetOutcomes(
+  repoRoot: string,
+  options: BudgetReportOptions = {},
+): BudgetReport {
   const outcomes: BudgetOutcome[] = [];
   const errors: string[] = [];
   const notes: string[] = [];
@@ -139,8 +167,10 @@ export function collectBudgetOutcomes(repoRoot: string): BudgetReport {
   // budgets share one bundle, so walking it six times would print the same unclaimed chunk six
   // times and train a reader to skip all six.
   const gestureSplits = new Map<string, GesturePartition>();
+  const budgets = options.budgets ?? SIZE_BUDGETS;
+  const publishedFormOf = options.publishedForm ?? readPublishedForm;
 
-  for (const budget of SIZE_BUDGETS) {
+  for (const budget of budgets) {
     const present: string[] = [];
 
     for (const root of budget.roots) {
@@ -225,12 +255,73 @@ export function collectBudgetOutcomes(repoRoot: string): BudgetReport {
       }
     }
 
+    // THE FORM IS CHOSEN BEFORE THE BYTES ARE COUNTED, per the SPEC 20 ruling of 2026-08-31. A
+    // budget over the published form weighs the file as the asset catalog serves it, which is
+    // longer than the file on disk wherever that file names a sibling. Reading the catalog can
+    // fail only in ways that mean the check cannot be made, so it fails the budget rather than
+    // falling back to the form nobody downloads: that substitution is the defect the move fixed.
+    let published: PublishedForm | null = null;
+
+    if (budget.form === 'published' && wanted.length > 0) {
+      try {
+        published = publishedFormOf(repoRoot);
+      } catch (cause) {
+        errors.push(
+          `${budget.id}: weighs the published form and the asset catalog could not be read: ${cause instanceof Error ? cause.message : String(cause)}. Weighing the files on disk instead would report a form no reader receives`,
+        );
+        continue;
+      }
+    }
+
+    // A `const` copy, because the two closures below only narrow away the null through one.
+    const publishedSizes = published;
+
+    // TWO FILES WITH ONE BASE NAME FAIL RATHER THAN SHARING A FIGURE, found by the review of
+    // 2026-08-31 as a latent defect. The catalog is keyed by the name a file has on disk, because
+    // that is the name a stylesheet or a module refers to it by, and a budget spanning two roots
+    // could hold `a/x.js` and `b/x.js`. Both would read one catalog entry, so one file would be
+    // weighed twice and the other never, silently. No budget has such a pair today, which is why
+    // this is a refusal rather than a second key: what a served reference cannot contain is two
+    // assets of one name, and a budget that produced one is not describing a served reference.
+    const collisions =
+      publishedSizes === null
+        ? []
+        : [...groupByName(wanted).values()].filter((paths) => paths.length > 1);
+
+    if (collisions.length > 0) {
+      errors.push(
+        `${budget.id}: ${String(collisions.length)} base name(s) under ${budget.roots.join(', ')} are carried by more than one file: ${collisions.map((paths) => paths.join(' and ')).join('; ')}. A served reference holds one asset per name, so these cannot both be weighed as published`,
+      );
+      continue;
+    }
+
+    // A FILE THE CATALOG DOES NOT HOLD IS A FAILURE, NOT A FALLBACK. The two lists are built two
+    // different ways, one by walking the roots and one by following what a page loads, and the
+    // whole value of weighing the published form is that they describe one artefact. A file on
+    // one side and not the other means they have stopped doing so.
+    const missing =
+      publishedSizes === null
+        ? []
+        : wanted.filter((relativePath) => !publishedSizes.has(chunkName(relativePath)));
+
+    if (missing.length > 0) {
+      errors.push(
+        `${budget.id}: ${String(missing.length)} file(s) under ${budget.roots.join(', ')} are not in the asset catalog a served reference is built from: ${missing.map(chunkName).join(', ')}. The budget's file walk and what a page actually loads have stopped describing one artefact`,
+      );
+      continue;
+    }
+
     const measurements: ArtifactMeasurement[] = wanted.map((relativePath) => {
-      const content = readFileSync(join(repoRoot, relativePath));
+      const served = publishedSizes?.get(chunkName(relativePath));
+      // BOTH QUANTITIES COME FROM ONE FORM. Measuring the raw size of what ships and the gzip
+      // size of what does not is one artefact reported as two, which is the shape of the defect
+      // this whole move is about rather than a rounding difference.
+      const content = served ?? readFileSync(join(repoRoot, relativePath));
+
       return {
         path: relativePath,
         rawBytes: content.byteLength,
-        gzipBytes: gzipSizeOf(content),
+        gzipBytes: gzipSizeOf(Buffer.from(content)),
       };
     });
 
@@ -453,6 +544,23 @@ export function collectBudgetOutcomes(repoRoot: string): BudgetReport {
   }
 
   return { outcomes, errors, notes, warnings, measuredCount, builtCount, committedCount };
+}
+
+/**
+ * The paths of a budget's file set, grouped by the base name the asset catalog keys them under.
+ *
+ * @param paths - Repository relative paths
+ * @returns Base name to every path carrying it, in walk order
+ */
+function groupByName(paths: readonly string[]): Map<string, string[]> {
+  const grouped = new Map<string, string[]>();
+
+  for (const path of paths) {
+    const name = chunkName(path);
+    grouped.set(name, [...(grouped.get(name) ?? []), path]);
+  }
+
+  return grouped;
 }
 
 /**

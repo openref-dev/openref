@@ -403,10 +403,12 @@ describe('the empty list, which used to be an unconditional pass', () => {
 
   it('should refuse to count the committed fonts as a build, which is how it passed on an empty dist', () => {
     // Given the tree the review measured this gate passing on: every `packages/*/dist` gone and
-    // the committed fonts still there. Four budgets weigh files in that state, the two font caps
+    // the committed fonts still there. Four budgets weighed files in that state, the two font caps
     // and the two theme stylesheet caps whose roots include `packages/theme/fonts`, so the first
     // form of the empty artefact rule read four and passed while printing that it had read four
-    // budgets under the built artefacts of SPEC 20. Not one of the four came from a build.
+    // budgets under the built artefacts of SPEC 20. Not one of the four came from a build. It is
+    // three since 2026-08-31: `theme-css-raw` weighs the published form and fails on that tree
+    // rather than weighing the one committed `fonts.css`, which is the same defect one size down.
     const repo = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..');
     const bare = mkdtempSync(join(tmpdir(), 'openref-exceptions-fonts-'));
     for (const theme of ['theme', 'theme-telltale']) {

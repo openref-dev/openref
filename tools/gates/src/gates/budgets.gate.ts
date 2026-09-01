@@ -88,10 +88,17 @@ export const budgetsGate: Gate = {
 
     // NOTHING BUILT IS NOT EVERY BUDGET INSIDE ITS LIMIT, and until the pre-M4 review this line
     // asked the wrong count. `measuredCount` includes budgets weighed over committed inputs, which
-    // on this tree is four of them: the two font budgets and the two theme stylesheet ones, whose
-    // roots reach `packages/theme/fonts`. So it never reaches zero, and a tree with the client
-    // bundle removed, or with every `dist` removed, printed twelve `SKIP` lines and returned
-    // `pass`. Measured on a mirror of this repository with the build taken away, twice.
+    // on this tree is three of them: the two font budgets and `theme-css`, whose roots reach
+    // `packages/theme/fonts`. So it never reaches zero, and a tree with the client bundle removed,
+    // or with every `dist` removed, printed twelve `SKIP` lines and returned `pass`. Measured on a
+    // mirror of this repository with the build taken away, twice.
+    //
+    // IT WAS FOUR UNTIL 2026-08-31, AND THE FOURTH WAS THE DEFECT ITSELF. `theme-css-raw` weighed
+    // the one committed `fonts.css` on a tree with nothing built and printed `OK theme-css-raw:
+    // 4.1 KB raw of 61.0 KB across 1 file(s)`, silent about the two stylesheets that were not
+    // there at all. It now weighs the published form, so on that tree it fails naming the client
+    // bundle it could not read. Measured A/B on one copy: six gates fail there where five did,
+    // and `budget-exceptions` reads three committed budgets where it read four. See SPEC 20.
     //
     // `builtCount` is the figure that answers the question the comment above always claimed to
     // ask, and it was added at `T042` for the debt gate and not wired into the gate that owns the

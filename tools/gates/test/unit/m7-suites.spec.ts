@@ -97,6 +97,75 @@ function errorsOf(root: string): string[] {
     .map((finding) => finding.message);
 }
 
+/**
+ * One substitution, refusing to plant a fault whose subject it could not find.
+ *
+ * `String.replace` answers the document unchanged when the literal it was handed is not in it, so a
+ * plant written against a line that can legitimately change quietly stops planting anything, and
+ * the case then reports the gate as broken. That is what happened here the day `T062` was ticked:
+ * the plant below anchored on the literal text of an unticked `T062` CONTENTS line, the tick made
+ * that text absent, the planted tree became the real one, and the case went red with nothing wrong
+ * in the gate at all. A proof that a gate refuses something must first prove the something was
+ * there.
+ *
+ * @param text - Document to plant the fault in
+ * @param pattern - Subject the plant rewrites, which must be present
+ * @param replacement - What that subject becomes
+ * @returns The planted document
+ */
+function plantInto(text: string, pattern: RegExp | string, replacement: string): string {
+  const result = text.replace(pattern, replacement);
+  expect(result, 'the plant matched nothing, so this case injected no fault').not.toBe(text);
+
+  return result;
+}
+
+/**
+ * The real BUILD.md with the boxes of the two M7 tasks set, in CONTENTS and on their headings.
+ *
+ * THE TICK STATE IS AN INPUT TO THESE CASES RATHER THAN A CONSTANT OF THEM. What the scope reading
+ * states is which tasks `M7` closes over, which is a fact about the milestone's membership and not
+ * about how much of it is finished: it has to read the same the day before the last box is ticked
+ * and the day after. Both states are planted, so closing the milestone cannot turn this file red
+ * the way ticking `T062` once did.
+ *
+ * @param build - Content of `ai-docs/BUILD.md`
+ * @param box - The box each M7 task other than the declined one carries
+ * @returns The document with those boxes set
+ */
+function withM7TaskBoxes(build: string, box: ' ' | 'x'): string {
+  const result = M7_TASKS.reduce(
+    (text, task) =>
+      text
+        .replace(new RegExp(`^- \\[[ x]\\] \`${task}\``, 'm'), `- [${box}] \`${task}\``)
+        .replace(new RegExp(`^### ${task} \\[[ x]\\]`, 'm'), `### ${task} [${box}]`),
+    build,
+  );
+
+  // ASSERTED BY ITS RESULT RATHER THAN BY A CHANGE, because setting a box to the one it already
+  // carries is a legitimate no-op, and both lines still have to end up saying it.
+  for (const task of M7_TASKS) {
+    expect(result).toContain(`- [${box}] \`${task}\``);
+    expect(result).toContain(`### ${task} [${box}]`);
+  }
+
+  return result;
+}
+
+/**
+ * The same document with a task added to M7, planted at whichever box `T062` carries.
+ *
+ * @param build - Content of `ai-docs/BUILD.md`
+ * @returns The document with one more task under the milestone
+ */
+function withTaskAddedToM7(build: string): string {
+  return plantInto(
+    build,
+    /^- \[[ x]\] `T062`/m,
+    '- [ ] `T066`  L1642-L1650  A task nobody planned\n$&',
+  );
+}
+
 describe('the committed M7 wiring', () => {
   it('should name a suite file that is there for every coverage of the row', () => {
     // Given the wiring this repository ships
@@ -177,12 +246,13 @@ describe('the committed M7 wiring', () => {
 });
 
 describe('the milestone scope this gate states in its output', () => {
-  it.skipIf(!aiDocsPresent(repoRoot))(
-    'should name the two tasks M7 closes over and the section that excludes the third',
-    () => {
-      // Given the real documents
+  it.skipIf(!aiDocsPresent(repoRoot)).each([' ', 'x'] as const)(
+    'should name the two tasks M7 closes over and the section that excludes the third, with its tasks [%s]',
+    (box) => {
+      // Given the real documents, with the M7 boxes set both ways: what the reading states is the
+      // milestone's membership, and finishing its tasks is not what makes the statement true
       // When
-      const result = runM7SuitesGate({ repoRoot: cleanRoot() });
+      const result = runM7SuitesGate({ repoRoot: cleanRoot(box) });
       const scope = result.findings.find((finding) =>
         finding.message.startsWith(`${M7_MILESTONE} closes over`),
       );
@@ -201,7 +271,8 @@ describe('the milestone scope this gate states in its output', () => {
       // Given the same tree with the L3 section ticked, which is the same act as reversing the
       // SPEC 10.2 decision. Every other input is the real one, so nothing else can be the reason.
       const files = cleanTree();
-      files[BUILD_AMENDMENTS_FILE] = (files[BUILD_AMENDMENTS_FILE] ?? '').replace(
+      files[BUILD_AMENDMENTS_FILE] = plantInto(
+        files[BUILD_AMENDMENTS_FILE] ?? '',
         `### [ ] \`${M7_DECLINED_TASK}\` ${M7_DECLINED_SECTION}`,
         `### [x] \`${M7_DECLINED_TASK}\` ${M7_DECLINED_SECTION}`,
       );
@@ -216,16 +287,13 @@ describe('the milestone scope this gate states in its output', () => {
     },
   );
 
-  it.skipIf(!aiDocsPresent(repoRoot))(
-    'should refuse a milestone whose tasks are not the ones this wiring was written for',
-    () => {
-      // Given a BUILD.md with a task added to M7, every other input real
+  it.skipIf(!aiDocsPresent(repoRoot)).each([' ', 'x'] as const)(
+    'should refuse a milestone whose tasks are not the ones this wiring was written for, with its tasks [%s]',
+    (box) => {
+      // Given a BUILD.md with a task added to M7, every other input real, and the milestone's own
+      // boxes set both ways: the refusal is about membership, so it must not depend on either
       const files = cleanTree();
-      const build = files[BUILD_FILE] ?? '';
-      files[BUILD_FILE] = build.replace(
-        '- [ ] `T062`',
-        '- [ ] `T066`  L1642-L1650  A task nobody planned\n- [ ] `T062`',
-      );
+      files[BUILD_FILE] = withTaskAddedToM7(withM7TaskBoxes(files[BUILD_FILE] ?? '', box));
 
       // When
       const errors = errorsOf(plant(files));
@@ -276,14 +344,19 @@ describe('the milestone scope this gate states in its output', () => {
 });
 
 /**
- * A planted root carrying the real documents and the real suites.
+ * A planted root carrying the real documents and the real suites, at the given M7 tick state.
  *
  * THE SUITES ARE THE REAL FILES RATHER THAN FABRICATED ONES HERE, so the scope reading is taken on
  * a tree the gate would otherwise pass, and the only thing a case changes is the one thing it is
- * about.
+ * about. `x` is the state this repository is in, so one of the two runs is the real tree unaltered
+ * and the other is the same tree before its last box was ticked.
  *
+ * @param box - The box each M7 task other than the declined one carries
  * @returns Absolute path of the planted root
  */
-function cleanRoot(): string {
-  return plant(cleanTree());
+function cleanRoot(box: ' ' | 'x'): string {
+  const files = cleanTree();
+  files[BUILD_FILE] = withM7TaskBoxes(files[BUILD_FILE] ?? '', box);
+
+  return plant(files);
 }
