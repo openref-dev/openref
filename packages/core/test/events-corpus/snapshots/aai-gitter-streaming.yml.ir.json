@@ -1,5 +1,5 @@
 {
-  "hash": "300afcb890afbc9a226c80f65e1c3cb075331e279d2860c2fb30c8527e56ec12",
+  "hash": "fd281a9a1749f9726d1bd538d838e909b3c36c9e2addc27da8a7af04924e15a3",
   "id": "gitter-streaming-api",
   "info": {
     "title": "Gitter Streaming API",
@@ -35,17 +35,17 @@
             "bindings": {
               "http": {
                 "headers": {
+                  "type": "object",
                   "properties": {
-                    "Trailer": {
-                      "const": "\\r\\n",
-                      "type": "string"
-                    },
                     "Transfer-Encoding": {
-                      "const": "chunked",
-                      "type": "string"
+                      "type": "string",
+                      "const": "chunked"
+                    },
+                    "Trailer": {
+                      "type": "string",
+                      "const": "\\r\\n"
                     }
-                  },
-                  "type": "object"
+                  }
                 }
               }
             },
@@ -57,16 +57,44 @@
                 "id": "channel-rooms-roomid-resource.messages.chatMessage.payload",
                 "normalized": {
                   "properties": {
+                    "id": {
+                      "description": "ID of the message.",
+                      "type": "string"
+                    },
+                    "text": {
+                      "description": "Original message in plain-text/markdown.",
+                      "type": "string"
+                    },
+                    "html": {
+                      "description": "HTML formatted message.",
+                      "type": "string"
+                    },
+                    "sent": {
+                      "description": "ISO formatted date of the message.",
+                      "format": "date-time",
+                      "type": "string"
+                    },
                     "fromUser": {
                       "description": "User that sent the message.",
                       "properties": {
-                        "avatarUrl": {
-                          "description": "User avatar URI.",
-                          "format": "uri",
+                        "id": {
+                          "description": "Gitter User ID.",
                           "type": "string"
                         },
-                        "avatarUrlMedium": {
-                          "description": "User avatar URI (medium).",
+                        "username": {
+                          "description": "Gitter/GitHub username.",
+                          "type": "string"
+                        },
+                        "displayName": {
+                          "description": "Gitter/GitHub user real name.",
+                          "type": "string"
+                        },
+                        "url": {
+                          "description": "Path to the user on Gitter.",
+                          "type": "string"
+                        },
+                        "avatarUrl": {
+                          "description": "User avatar URI.",
                           "format": "uri",
                           "type": "string"
                         },
@@ -75,54 +103,35 @@
                           "format": "uri",
                           "type": "string"
                         },
-                        "displayName": {
-                          "description": "Gitter/GitHub user real name.",
-                          "type": "string"
-                        },
-                        "gv": {
-                          "description": "Stands for \"Gravatar version\" and is used for cache busting.",
-                          "type": "string"
-                        },
-                        "id": {
-                          "description": "Gitter User ID.",
-                          "type": "string"
-                        },
-                        "url": {
-                          "description": "Path to the user on Gitter.",
-                          "type": "string"
-                        },
-                        "username": {
-                          "description": "Gitter/GitHub username.",
+                        "avatarUrlMedium": {
+                          "description": "User avatar URI (medium).",
+                          "format": "uri",
                           "type": "string"
                         },
                         "v": {
                           "description": "Version.",
                           "type": "number"
+                        },
+                        "gv": {
+                          "description": "Stands for \"Gravatar version\" and is used for cache busting.",
+                          "type": "string"
                         }
                       },
                       "type": "object"
                     },
-                    "gv": {
-                      "description": "Stands for \"Gravatar version\" and is used for cache busting.",
-                      "type": "string"
+                    "unread": {
+                      "description": "Boolean that indicates if the current user has read the message.",
+                      "type": "boolean"
                     },
-                    "html": {
-                      "description": "HTML formatted message.",
-                      "type": "string"
+                    "readBy": {
+                      "description": "Number of users that have read the message.",
+                      "type": "number"
                     },
-                    "id": {
-                      "description": "ID of the message.",
-                      "type": "string"
-                    },
-                    "issues": {
-                      "description": "List of #Issues referenced in the message.",
+                    "urls": {
+                      "description": "List of URLs present in the message.",
                       "items": {
-                        "properties": {
-                          "number": {
-                            "type": "string"
-                          }
-                        },
-                        "type": "object"
+                        "format": "uri",
+                        "type": "string"
                       },
                       "type": "array"
                     },
@@ -147,39 +156,30 @@
                       },
                       "type": "array"
                     },
+                    "issues": {
+                      "description": "List of #Issues referenced in the message.",
+                      "items": {
+                        "properties": {
+                          "number": {
+                            "type": "string"
+                          }
+                        },
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
                     "meta": {
                       "description": "Metadata. This is currently not used for anything.",
                       "items": {},
                       "type": "array"
                     },
-                    "readBy": {
-                      "description": "Number of users that have read the message.",
-                      "type": "number"
-                    },
-                    "sent": {
-                      "description": "ISO formatted date of the message.",
-                      "format": "date-time",
-                      "type": "string"
-                    },
-                    "text": {
-                      "description": "Original message in plain-text/markdown.",
-                      "type": "string"
-                    },
-                    "unread": {
-                      "description": "Boolean that indicates if the current user has read the message.",
-                      "type": "boolean"
-                    },
-                    "urls": {
-                      "description": "List of URLs present in the message.",
-                      "items": {
-                        "format": "uri",
-                        "type": "string"
-                      },
-                      "type": "array"
-                    },
                     "v": {
                       "description": "Version.",
                       "type": "number"
+                    },
+                    "gv": {
+                      "description": "Stands for \"Gravatar version\" and is used for cache busting.",
+                      "type": "string"
                     }
                   },
                   "type": "object"
@@ -192,17 +192,17 @@
             "bindings": {
               "http": {
                 "headers": {
+                  "type": "object",
                   "properties": {
-                    "Trailer": {
-                      "const": "\\r\\n",
-                      "type": "string"
-                    },
                     "Transfer-Encoding": {
-                      "const": "chunked",
-                      "type": "string"
+                      "type": "string",
+                      "const": "chunked"
+                    },
+                    "Trailer": {
+                      "type": "string",
+                      "const": "\\r\\n"
                     }
-                  },
-                  "type": "object"
+                  }
                 }
               }
             },

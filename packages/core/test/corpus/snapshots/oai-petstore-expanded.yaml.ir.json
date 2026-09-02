@@ -1,5 +1,5 @@
 {
-  "hash": "9c2094f6e0f3afeacbd009a5354f3d50498614f132267879c85a53ad9b615596",
+  "hash": "d8bc1214ed685d69ca4533b7b9290a7898327eefa4a76c247e262c6847423702",
   "id": "swagger-petstore",
   "info": {
     "contact": {
@@ -415,15 +415,15 @@
         "name": "Pet",
         "normalized": {
           "properties": {
-            "id": {
-              "format": "int64",
-              "type": "integer"
-            },
             "name": {
               "type": "string"
             },
             "tag": {
               "type": "string"
+            },
+            "id": {
+              "format": "int64",
+              "type": "integer"
             }
           },
           "required": [

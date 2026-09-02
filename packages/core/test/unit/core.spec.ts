@@ -14,9 +14,10 @@ describe('@openref/core package shell', () => {
   });
 
   it('should pin the intermediate representation version', () => {
-    // Given, 2 since TX-SHAPES: the conditional keywords entered the IR, so a document that
-    // writes them hashes differently than it did under 1
-    const expected = 2;
+    // Given, 3 since 2026-09-01: canonical serialization stopped sorting the keys of a map whose
+    // order the document wrote, per SPEC 5.3, so the same document carries a different hash than
+    // it did under 2 while nothing about its shape moved
+    const expected = 3;
 
     // When
     const actual = IR_VERSION;

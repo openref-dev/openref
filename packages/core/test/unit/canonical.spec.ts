@@ -33,6 +33,144 @@ describe('canonicalize', () => {
     expect(results[0]).toBe('{"200":"ok","404":"gone","default":"other"}');
   });
 
+  it('should keep the key order of a map whose order the document wrote', () => {
+    // Given, SPEC 5.3's one exception. `properties` is the map a schema page draws in order.
+    const written = { properties: { zulu: 1, alpha: 2, mike: 3 } };
+
+    // When
+    const canonical = canonicalize(written);
+
+    // Then, and the sorted spelling is a different string, so the two answers are tellable apart
+    expect(canonical).toBe('{"properties":{"zulu":1,"alpha":2,"mike":3}}');
+    expect(canonical).not.toBe('{"properties":{"alpha":2,"mike":3,"zulu":1}}');
+  });
+
+  it('should give two orders of one authored map two canonical forms', () => {
+    // Given
+    const forward = { properties: { alpha: 1, zulu: 2 } };
+    const backward = { properties: { zulu: 2, alpha: 1 } };
+
+    // When
+    const results = [canonicalize(forward), canonicalize(backward)];
+
+    // Then
+    expect(results[0]).not.toBe(results[1]);
+  });
+
+  it('should still sort the object a value of an authored map holds', () => {
+    // Given, the exception reaches the map's own keys and not what sits under them: the value
+    // here is a schema, whose members are names this IR chose.
+    const written = { properties: { zulu: { type: 'string', format: 'uuid' } } };
+
+    // When
+    const canonical = canonicalize(written);
+
+    // Then
+    expect(canonical).toBe('{"properties":{"zulu":{"format":"uuid","type":"string"}}}');
+  });
+
+  it('should treat a property literally named properties as a property and not as a map', () => {
+    // Given, an author may name a field anything, including the name of an IR member. Inside an
+    // authored map the keys are the document's, so the record is not consulted for them.
+    const written = { properties: { properties: { zulu: 1, alpha: 2 } } };
+
+    // When
+    const canonical = canonicalize(written);
+
+    // Then, the outer map keeps its order and the inner object, which is a schema, sorts
+    expect(canonical).toBe('{"properties":{"properties":{"alpha":2,"zulu":1}}}');
+  });
+
+  it('should sort an object reached through an array, whatever member the array hangs off', () => {
+    // Given
+    const written = { properties: [{ zulu: 1, alpha: 2 }] };
+
+    // When
+    const canonical = canonicalize(written);
+
+    // Then
+    expect(canonical).toBe('{"properties":[{"alpha":2,"zulu":1}]}');
+  });
+
+  it('should sort a map the record does not call authored, whatever its insertion order', () => {
+    // Given, `nodes` is keyed by an id the normalizer builds and its order is walk order.
+    const written = { nodes: { zulu: 1, alpha: 2 } };
+
+    // When
+    const canonical = canonicalize(written);
+
+    // Then
+    expect(canonical).toBe('{"nodes":{"alpha":2,"zulu":1}}');
+  });
+
+  it('should keep every level of an extension value in the order the author wrote it', () => {
+    // Given, `extensions` holds `IRJsonValue`, which is where the IR stops describing the shape,
+    // so nothing below it is this IR's and every level of it is content.
+    const written = { extensions: { 'x-a': { properties: { b: 1, a: 2 }, z: 1, y: 2 } } };
+
+    // When
+    const canonical = canonicalize(written);
+
+    // Then, uniformly: the siblings keep their order too, so nothing here turns on a key
+    // happening to be spelled like an IR member
+    expect(canonical).toBe('{"extensions":{"x-a":{"properties":{"b":1,"a":2},"z":1,"y":2}}}');
+  });
+
+  it('should keep every level of a raw path schema in the order the author wrote it', () => {
+    // Given, `IRSchema.raw` is the one member the IR declares as `unknown`, and SPEC 5.2 has it
+    // rendered as annotated source, so its order is drawn and the hash has to carry it.
+    const written = { raw: { type: 'record', name: 'Order', fields: [{ z: 1, y: 2 }] } };
+
+    // When
+    const canonical = canonicalize(written);
+
+    // Then
+    expect(canonical).toBe('{"raw":{"type":"record","name":"Order","fields":[{"z":1,"y":2}]}}');
+  });
+
+  it('should keep a declared const, default and example in the order the author wrote them', () => {
+    // Given
+    const written = { const: { z: 1, y: 2 }, default: { z: 1, y: 2 }, example: { z: 1, y: 2 } };
+
+    // When
+    const canonical = canonicalize(written);
+
+    // Then, the three member names sort against each other, being this IR's, and their values do
+    // not, being the author's
+    expect(canonical).toBe(
+      '{"const":{"z":1,"y":2},"default":{"z":1,"y":2},"example":{"z":1,"y":2}}',
+    );
+  });
+
+  it('should sort under the two names that serve an author value and an IR value alike', () => {
+    // Given, the measured cost of keying the record by member name. `value` is `IRExample.value`
+    // and `IRFact.value`; `examples` is a map of `IRExample` and an array of arbitrary JSON. The
+    // IR reading wins at both, because the alternative hashes an order a normalizer literal chose.
+    const written = { value: { z: 1, y: 2 }, examples: [{ z: 1, y: 2 }] };
+
+    // When
+    const canonical = canonicalize(written);
+
+    // Then
+    expect(canonical).toBe('{"examples":[{"y":2,"z":1}],"value":{"y":2,"z":1}}');
+  });
+
+  it('should sort a field an author named properties, and order the schema member below it', () => {
+    // Given, the two spellings the exception has to tell apart. The first `properties` is an IR
+    // member, so its keys are the author's field names; a field the author called `properties`
+    // holds a schema, whose members are this IR's again; that schema's own `properties` is an IR
+    // member once more and keeps its order.
+    const written = { properties: { properties: { title: 'x', properties: { b: 1, a: 2 } } } };
+
+    // When
+    const canonical = canonicalize(written);
+
+    // Then, the middle level sorts and the innermost keeps its order
+    expect(canonical).toBe(
+      '{"properties":{"properties":{"properties":{"b":1,"a":2},"title":"x"}}}',
+    );
+  });
+
   it('should omit undefined object members rather than writing null', () => {
     // Given
     const value = { present: 1, absent: undefined };

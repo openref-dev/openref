@@ -1,5 +1,5 @@
 {
-  "hash": "015ede8f0c7fcf2d0ac638f3a3deca06bb394e8c9c380a96e6b07cbb89ad2760",
+  "hash": "6989fb5e4fec4818078fc270cf05eda67daf21fd9d17b8f7ad9d185ed1c4310a",
   "id": "asyncapi-sidebar-filters",
   "info": {
     "description": "A compact AsyncAPI document for exercising the API reference sidebar filters.\n\nEach channel is pinned to a different server so selecting a protocol or server\nvisibly narrows the navigation tree.\n",
@@ -285,14 +285,6 @@
         "name": "DeviceTelemetryPayload",
         "normalized": {
           "properties": {
-            "battery": {
-              "examples": [
-                87
-              ],
-              "maximum": 100,
-              "minimum": 0,
-              "type": "number"
-            },
             "deviceId": {
               "examples": [
                 "sensor-7"
@@ -303,6 +295,14 @@
               "examples": [
                 21.4
               ],
+              "type": "number"
+            },
+            "battery": {
+              "examples": [
+                87
+              ],
+              "maximum": 100,
+              "minimum": 0,
               "type": "number"
             }
           },
@@ -322,17 +322,17 @@
         "name": "InventoryChangedPayload",
         "normalized": {
           "properties": {
-            "available": {
-              "examples": [
-                42
-              ],
-              "type": "integer"
-            },
             "sku": {
               "examples": [
                 "hoodie-black-m"
               ],
               "type": "string"
+            },
+            "available": {
+              "examples": [
+                42
+              ],
+              "type": "integer"
             },
             "warehouse": {
               "examples": [

@@ -21,8 +21,14 @@ export const PACKAGE_NAME = '@openref/core';
  * 2, TX-SHAPES: the normalizer carries `if`, `then`, `else` and `dependentRequired` instead
  * of dropping them, so a document that writes them normalizes to a different IR and a
  * different hash than it did under 1.
+ *
+ * 3, 2026-09-01: canonical serialization stopped sorting the keys of a map whose order the
+ * document wrote, per SPEC 5.3. THE IR DID NOT CHANGE SHAPE AND THAT IS WHY THE NUMBER HAS TO
+ * MOVE: nothing a consumer compiles against is different, and the digest printed on every
+ * document is, so a cache keyed on the hash would answer for a property order it no longer
+ * describes unless the key's namespace moves with it.
  */
-export const IR_VERSION = 2;
+export const IR_VERSION = 3;
 
 export type { IRConfidence, IRFact } from './ir/domain/confidence.types';
 

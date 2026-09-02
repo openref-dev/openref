@@ -1,5 +1,5 @@
 {
-  "hash": "cee30b20eac1015dd0cf37119f4a205d191cebf64acb96950eccb8839373348f",
+  "hash": "16f3ed128dddfc335fa2279f6dbf31b5e42aef9a666f60d247d0dffea7a8cd8a",
   "id": "mercure-hub-example",
   "info": {
     "description": "This example demonstrates how to define a Mercure hub.",
@@ -51,13 +51,13 @@
                       "format": "iri-reference",
                       "type": "string"
                     },
-                    "abstract": {
+                    "name": {
                       "type": "string"
                     },
                     "isbn": {
                       "type": "string"
                     },
-                    "name": {
+                    "abstract": {
                       "type": "string"
                     }
                   },

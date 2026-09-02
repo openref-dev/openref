@@ -1,5 +1,5 @@
 {
-  "hash": "116219b84b23ece83bc55d3cc1cfc5ccf559df7d6069709062b22c325f323777",
+  "hash": "fedfeb5f657f98fbcf06fa70a7dbe58a1ea3cd0f6d159a764ce172e15a21495b",
   "id": "flight-api",
   "info": {
     "title": "Flight API",
@@ -46,6 +46,39 @@
                   "id": "query-flights-search.requestBody.application/json",
                   "normalized": {
                     "properties": {
+                      "origin": {
+                        "examples": [
+                          "ATL"
+                        ],
+                        "type": "string"
+                      },
+                      "destination": {
+                        "examples": [
+                          "LHR"
+                        ],
+                        "type": "string"
+                      },
+                      "departureDate": {
+                        "examples": [
+                          "2026-06-15"
+                        ],
+                        "format": "date",
+                        "type": "string"
+                      },
+                      "returnDate": {
+                        "examples": [
+                          "2026-06-25"
+                        ],
+                        "format": "date",
+                        "type": "string"
+                      },
+                      "passengers": {
+                        "examples": [
+                          2
+                        ],
+                        "minimum": 1,
+                        "type": "integer"
+                      },
                       "cabinClass": {
                         "enum": [
                           "economy",
@@ -58,44 +91,11 @@
                         ],
                         "type": "string"
                       },
-                      "departureDate": {
-                        "examples": [
-                          "2026-06-15"
-                        ],
-                        "format": "date",
-                        "type": "string"
-                      },
-                      "destination": {
-                        "examples": [
-                          "LHR"
-                        ],
-                        "type": "string"
-                      },
                       "nonStopOnly": {
                         "examples": [
                           true
                         ],
                         "type": "boolean"
-                      },
-                      "origin": {
-                        "examples": [
-                          "ATL"
-                        ],
-                        "type": "string"
-                      },
-                      "passengers": {
-                        "examples": [
-                          2
-                        ],
-                        "minimum": 1,
-                        "type": "integer"
-                      },
-                      "returnDate": {
-                        "examples": [
-                          "2026-06-25"
-                        ],
-                        "format": "date",
-                        "type": "string"
                       }
                     },
                     "required": [
@@ -126,26 +126,6 @@
                         "flights": {
                           "items": {
                             "properties": {
-                              "arrivalTime": {
-                                "examples": [
-                                  "2026-06-16T10:15:00Z"
-                                ],
-                                "format": "date-time",
-                                "type": "string"
-                              },
-                              "departureTime": {
-                                "examples": [
-                                  "2026-06-15T22:30:00Z"
-                                ],
-                                "format": "date-time",
-                                "type": "string"
-                              },
-                              "destination": {
-                                "examples": [
-                                  "LHR"
-                                ],
-                                "type": "string"
-                              },
                               "flightNumber": {
                                 "examples": [
                                   "DL30"
@@ -156,6 +136,26 @@
                                 "examples": [
                                   "ATL"
                                 ],
+                                "type": "string"
+                              },
+                              "destination": {
+                                "examples": [
+                                  "LHR"
+                                ],
+                                "type": "string"
+                              },
+                              "departureTime": {
+                                "examples": [
+                                  "2026-06-15T22:30:00Z"
+                                ],
+                                "format": "date-time",
+                                "type": "string"
+                              },
+                              "arrivalTime": {
+                                "examples": [
+                                  "2026-06-16T10:15:00Z"
+                                ],
+                                "format": "date-time",
                                 "type": "string"
                               },
                               "price": {

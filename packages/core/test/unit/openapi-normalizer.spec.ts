@@ -8,7 +8,7 @@ import {
   normalizeOpenApiDocument,
   UnsupportedDialectError,
 } from '../../src/index';
-import { createRandom, shuffleKeys } from '../mocks/document.mock';
+import { createRandom, shuffleEquivalentKeys } from '../mocks/document.mock';
 import { createOpenApi30, createOpenApi31, createOpenApi32 } from '../mocks/openapi.mock';
 
 function operationsOf(document: IRDocument): IROperation[] {
@@ -261,7 +261,7 @@ describe('normalizeOpenApiDocument ordering', () => {
     // When
     const shapes = new Set<string>();
     for (let variant = 0; variant < 100; variant += 1) {
-      const shuffled = shuffleKeys(source, random);
+      const shuffled = shuffleEquivalentKeys(source, random);
       shapes.add(labels(normalizeOpenApiDocument(shuffled).navigation).join('|'));
     }
 
@@ -270,18 +270,23 @@ describe('normalizeOpenApiDocument ordering', () => {
     expect([...shapes]).toEqual([expected.join('|')]);
   });
 
-  it('should produce one hash across 100 shuffled input orderings', () => {
-    // Given
+  it('should produce one hash across 100 equivalently shuffled input orderings', () => {
+    // Given, an equivalent shuffle since 2026-09-01: SPEC 5.3 has the hash carry the order of a
+    // map the document wrote, so permuting `properties` here would be permuting content.
     const source = createOpenApi31();
     const random = createRandom(99);
 
     // When
     const hashes = new Set<string>();
+    const spellings = new Set<string>();
     for (let variant = 0; variant < 100; variant += 1) {
-      hashes.add(normalizeOpenApiDocument(shuffleKeys(source, random)).hash);
+      const shuffled = shuffleEquivalentKeys(source, random);
+      spellings.add(JSON.stringify(shuffled));
+      hashes.add(normalizeOpenApiDocument(shuffled).hash);
     }
 
-    // Then
+    // Then, the inputs really did differ before the one hash means anything.
+    expect(spellings.size).toBeGreaterThan(90);
     expect(hashes.size).toBe(1);
   });
 

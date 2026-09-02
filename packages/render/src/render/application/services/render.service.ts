@@ -200,14 +200,18 @@ async function markdownFor(options: RenderPageOptions): Promise<IMarkdownRendere
 /**
  * Serializes the page model for the client.
  *
- * KEY ORDER IS PRESERVED, AND `canonicalize` IS THEREFORE THE WRONG TOOL HERE. It sorts keys
- * by code point, per SPEC 5.3, which is exactly right for a hash and wrong for a payload: the
- * `properties` object of every schema that travels with a page is authored order, and sorting
- * it rewrites what the author said. The server draws the schema tree from the model in memory
- * and the browser draws it from this JSON, so the two disagreed the moment the client rendered
- * anything: `AddressDto` read `line1, city, postalCode, country, geo` until a reader opened a
- * position and `city, country, geo, line1, postalCode` afterwards. Found in a browser on the
- * demo, recorded in SPEC 12.
+ * KEY ORDER IS PRESERVED, AND `canonicalize` IS STILL THE WRONG TOOL HERE, THOUGH NOT FOR THE
+ * REASON THIS COMMENT GAVE UNTIL 2026-09-02. It used to say that `canonicalize` sorts keys by code
+ * point and that sorting a schema's `properties` rewrites what the author said. The second half was
+ * the defect that was found in a browser: `AddressDto` read `line1, city, postalCode, country, geo`
+ * from the server and `city, country, geo, line1, postalCode` from this JSON, recorded in SPEC 12.
+ * The first half stopped being true when SPEC 5.3 gained its exception: `canonicalize` now keeps the
+ * key order of `properties`, so it would no longer scramble a schema tree.
+ *
+ * WHAT KEEPS THE CHOICE RIGHT IS THE OTHER HALF OF THE RULE. This payload is not an IR fragment and
+ * it is not hashed; it is a page model, whose members are names this renderer chose, and the
+ * canonical form sorts those on purpose. Handing a client a model with its own members reordered to
+ * serve a hash would be paying a cost with no buyer, since nothing keys a cache on this text.
  *
  * DETERMINISM IS STILL HERE AND COMES FROM SOMEWHERE ELSE. A page model is a pure function of
  * a deterministic IR built by deterministic code, so two runs insert the same keys in the same

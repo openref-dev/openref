@@ -1435,6 +1435,94 @@ describe('buildDiffReport and document order', () => {
     expect(report.nonBreaking).toEqual([]);
   });
 
+  it('should stay silent about a property reorder, which is deliberate and not an oversight', () => {
+    // Given two documents differing only in the order one schema writes its properties in, inside
+    // a `oneOf` branch, which is where the differ compares whole subtrees as canonical text rather
+    // than walking them by name. A mutation that let that comparison see the order reddens here.
+    const build = (properties: Record<string, unknown>): Record<string, unknown> =>
+      raw(
+        {
+          '/orders': {
+            get: {
+              responses: {
+                '200': {
+                  description: 'ok',
+                  content: {
+                    'application/json': { schema: { $ref: '#/components/schemas/Order' } },
+                  },
+                },
+              },
+            },
+          },
+        },
+        {
+          Order: {
+            oneOf: [{ type: 'object', properties }, { type: 'string' }],
+          },
+        },
+      );
+    const forward = { id: { type: 'string' }, total: { type: 'number' } };
+    const backward = { total: { type: 'number' }, id: { type: 'string' } };
+    const older = normalize(build(forward));
+    const newer = normalize(build(backward));
+
+    // Then, the subject is present: two orders of the same two names, and two different documents
+    expect(Object.keys(backward)).not.toEqual(Object.keys(forward));
+    expect([...Object.keys(backward)].sort()).toEqual([...Object.keys(forward)].sort());
+    expect(older.hash).not.toBe(newer.hash);
+
+    // When
+    const report = buildDiffReport(older, newer);
+
+    // Then the differ says nothing, because it answers a different question: what a consumer has
+    // to change. A property order is not that, and SPEC 17.1 records the judgement. This case
+    // exists so the silence is a decision with a runner rather than an absence nobody chose.
+    expect(report.breaking).toEqual([]);
+    expect(report.nonBreaking).toEqual([]);
+  });
+
+  it('should report a reordered raw body, because a raw body has no structure to walk', () => {
+    // Given, an Avro schema written twice with its own members in different orders, as a named
+    // schema so that the differ's schema walk reaches it. The reorder is of the object's keys and
+    // not of an array, because an array carries its order in the canonical form either way and a
+    // case built on one would prove nothing about the exception.
+    const withRaw = (schema: Record<string, unknown>): Record<string, unknown> => ({
+      asyncapi: '3.0.0',
+      info: { title: 'Orders', version: '1' },
+      channels: {
+        dispatched: {
+          address: 'dispatched',
+          messages: { one: { payload: { $ref: '#/components/schemas/Shipment' } } },
+        },
+      },
+      operations: { send: { action: 'send', channel: { $ref: '#/channels/dispatched' } } },
+      components: {
+        schemas: {
+          Shipment: {
+            schemaFormat: 'application/vnd.apache.avro;version=1.9.0',
+            schema,
+          },
+        },
+      },
+    });
+    const fields = [{ name: 'id', type: 'string' }];
+    const older = normalizeAsyncApiDocument(withRaw({ type: 'record', name: 'Shipment', fields }));
+    const newer = normalizeAsyncApiDocument(withRaw({ name: 'Shipment', fields, type: 'record' }));
+
+    // Then, the subject is present: a named schema really does carry a raw body here, its members
+    // really are in two different orders, and the two documents really are different documents
+    const carried = [...older.schemas.values()].find((schema) => schema.raw !== undefined);
+    expect(carried).toBeDefined();
+    expect(older.hash).not.toBe(newer.hash);
+
+    // When
+    const report = buildDiffReport(older, newer);
+
+    // Then, non breaking and said out loud, rather than compared as sorted text and called equal
+    expect(report.breaking).toEqual([]);
+    expect(report.nonBreaking.map((change) => change.kind)).toEqual(['constraints-changed']);
+  });
+
   it('should produce an empty diff when set shaped arrays are reversed', () => {
     // Given required, enum, oneOf, parameters, security and scopes each in reverse order
     const older = orderable();

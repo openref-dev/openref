@@ -1,5 +1,5 @@
 {
-  "hash": "a5988fe7ac23bbfcbecb3215d1ce057928fcfc88b576a22d10b80191a700a633",
+  "hash": "5e8dcc3e428b2efb7aca96157e7c27cc15a6a30564c43064ae32340256273237",
   "id": "kraken-websockets-api",
   "info": {
     "description": "WebSockets API offers real-time market data updates. WebSockets is a bidirectional protocol offering fastest real-time data, helping you build real-time applications. The public message types presented below do not require authentication. Private-data messages can be subscribed on a separate authenticated endpoint. \n\n### General Considerations\n\n- TLS with SNI (Server Name Indication) is required in order to establish a Kraken WebSockets API connection. See Cloudflare's [What is SNI?](https://www.cloudflare.com/learning/ssl/what-is-sni/) guide for more details.\n- All messages sent and received via WebSockets are encoded in JSON format\n- All decimal fields (including timestamps) are quoted to preserve precision.\n- Timestamps should not be considered unique and not be considered as aliases for transaction IDs. Also, the granularity of timestamps is not representative of transaction rates.\n- At least one private message should be subscribed to keep the authenticated client connection open.\n- Please use REST API endpoint [AssetPairs](https://www.kraken.com/features/api#get-tradable-pairs) to fetch the list of pairs which can be subscribed via WebSockets API. For example, field 'wsname' gives the supported pairs name which can be used to subscribe.\n- Cloudflare imposes a connection/re-connection rate limit (per IP address) of approximately 150 attempts per rolling 10 minutes. If this is exceeded, the IP is banned for 10 minutes.\n- Recommended reconnection behaviour is to (1) attempt reconnection instantly up to a handful of times if the websocket is dropped randomly during normal operation but (2) after maintenance or extended downtime, attempt to reconnect no more quickly than once every 5 seconds. There is no advantage to reconnecting more rapidly after maintenance during cancel_only mode.\n",
@@ -232,15 +232,15 @@
                 "id": "channel-root.messages.dummyCurrencyInfo.payload",
                 "normalized": {
                   "properties": {
-                    "data": {
-                      "type": "object"
-                    },
                     "event": {
                       "const": "currencyInfo",
                       "type": "string"
                     },
                     "reqid": {
                       "$ref": "reqid"
+                    },
+                    "data": {
+                      "type": "object"
                     }
                   },
                   "required": [
@@ -778,11 +778,11 @@
               "const": "subscribe",
               "type": "string"
             },
-            "pair": {
-              "$ref": "pair"
-            },
             "reqid": {
               "$ref": "reqid"
+            },
+            "pair": {
+              "$ref": "pair"
             },
             "subscription": {
               "properties": {
@@ -863,11 +863,11 @@
               "const": "subscriptionStatus",
               "type": "string"
             },
-            "pair": {
-              "$ref": "pair"
-            },
             "reqid": {
               "$ref": "reqid"
+            },
+            "pair": {
+              "$ref": "pair"
             },
             "status": {
               "$ref": "status"
@@ -918,11 +918,11 @@
               "const": "subscriptionStatus",
               "type": "string"
             },
-            "pair": {
-              "$ref": "pair"
-            },
             "reqid": {
               "$ref": "reqid"
+            },
+            "pair": {
+              "$ref": "pair"
             },
             "status": {
               "$ref": "status"
@@ -979,11 +979,11 @@
               "const": "subscriptionStatus",
               "type": "string"
             },
-            "pair": {
-              "$ref": "pair"
-            },
             "reqid": {
               "$ref": "reqid"
+            },
+            "pair": {
+              "$ref": "pair"
             },
             "status": {
               "$ref": "status"
@@ -1029,13 +1029,13 @@
         "name": "systemStatus",
         "normalized": {
           "properties": {
-            "connectionID": {
-              "description": "The ID of the connection",
-              "type": "integer"
-            },
             "event": {
               "const": "systemStatus",
               "type": "string"
+            },
+            "connectionID": {
+              "description": "The ID of the connection",
+              "type": "integer"
             },
             "status": {
               "$ref": "status"
@@ -1072,11 +1072,11 @@
               "const": "unsubscribe",
               "type": "string"
             },
-            "pair": {
-              "$ref": "pair"
-            },
             "reqid": {
               "$ref": "reqid"
+            },
+            "pair": {
+              "$ref": "pair"
             },
             "subscription": {
               "properties": {

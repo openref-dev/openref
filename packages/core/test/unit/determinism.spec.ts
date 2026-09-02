@@ -1,10 +1,41 @@
 import { describe, expect, it } from 'vitest';
+import { CANONICAL_MAP_ORDER } from '../../src/hashing/domain/canonical-order';
 import { canonicalize, hash, hashDocument, normalizeOpenApiDocument } from '../../src/index';
-import { createDocumentFixture, createRandom, shuffleKeys } from '../mocks/document.mock';
+import type { IRSchema } from '../../src/index';
+import {
+  AUTHORED_KEY_MEMBERS,
+  AUTHORED_ORDER_MEMBERS,
+  AUTHORED_TREE_MEMBERS,
+  createDocumentFixture,
+  createRandom,
+  shuffleEquivalentKeys,
+} from '../mocks/document.mock';
 import { createExternalReferenceSource, createForgedExternalIdSource } from '../mocks/openapi.mock';
 
+/**
+ * An order sensitive rendering of a value, for asserting that a shuffle actually shuffled.
+ *
+ * `JSON.stringify` cannot do this job: it writes a `Map` as `{}`, so the entry order of the three
+ * document maps would be invisible and a degenerate shuffle could hide inside the figure.
+ */
+function spelling(value: unknown): string {
+  if (value instanceof Map) {
+    const entries = [...(value as Map<unknown, unknown>).entries()];
+    return `M[${entries.map(([key, held]) => `${String(key)}:${spelling(held)}`).join(',')}]`;
+  }
+  if (Array.isArray(value)) {
+    return `A[${(value as readonly unknown[]).map((item) => spelling(item)).join(',')}]`;
+  }
+  if (value !== null && typeof value === 'object') {
+    const source = value as Record<string, unknown>;
+    const keys = Object.keys(source);
+    return `O{${keys.map((key) => `${key}:${spelling(source[key])}`).join(',')}}`;
+  }
+  return String(value);
+}
+
 describe('determinism of the document hash', () => {
-  it('should produce one hash for 1000 shuffled variants of the same document', () => {
+  it('should produce one hash for 1000 equivalently shuffled variants of the same document', () => {
     // Given
     const document = createDocumentFixture();
     const random = createRandom(20260809);
@@ -12,11 +43,16 @@ describe('determinism of the document hash', () => {
 
     // When
     const hashes = new Set<string>();
+    const spellings = new Set<string>();
     for (let variant = 0; variant < 1000; variant += 1) {
-      hashes.add(hash(shuffleKeys({ ...document, hash: '' }, random)));
+      const shuffled = shuffleEquivalentKeys({ ...document, hash: '' }, random);
+      spellings.add(spelling(shuffled));
+      hashes.add(hash(shuffled));
     }
 
-    // Then
+    // Then, the spellings really were different first. A shuffle that had degenerated to the
+    // identity would satisfy every other assertion in this case while proving nothing.
+    expect(spellings.size).toBeGreaterThan(900);
     expect(hashes.size).toBe(1);
     expect([...hashes]).toEqual([expected]);
   });
@@ -76,16 +112,18 @@ describe('determinism of the document hash', () => {
     expect(hashes[0]).not.toBe(hashes[1]);
   });
 
-  it('should canonicalize a shuffled variant to byte identical text', () => {
+  it('should canonicalize an equivalently shuffled variant to byte identical text', () => {
     // Given
     const document = createDocumentFixture();
     const random = createRandom(7);
+    const shuffledDocument = shuffleEquivalentKeys(document, random);
 
     // When
     const original = canonicalize(document);
-    const shuffledText = canonicalize(shuffleKeys(document, random));
+    const shuffledText = canonicalize(shuffledDocument);
 
-    // Then
+    // Then, the input moved and the output did not.
+    expect(spelling(shuffledDocument)).not.toBe(spelling(document));
     expect(shuffledText).toBe(original);
   });
 
@@ -99,6 +137,131 @@ describe('determinism of the document hash', () => {
 
     // Then
     expect(hashes[0]).toBe(hashes[1]);
+  });
+});
+
+/**
+ * The other half of SPEC 5.3, and the half that did not exist until 2026-09-01.
+ *
+ * A suite that only proves shuffling changes nothing proves the hash is stable, not that it is the
+ * document's identity. The exception has to be shown from both sides: an order the document wrote
+ * moves the hash, and an order it did not write does not. Either case alone would stay green if
+ * the exception covered every map or none of them.
+ */
+describe('the hash carries an order the document wrote, per SPEC 5.3', () => {
+  /** The same schema with its property map written the other way round, and nothing else moved. */
+  function reversedProperties(schema: IRSchema): IRSchema {
+    const normalized = schema.normalized;
+    if (normalized?.properties === undefined) {
+      throw new Error('the fixture schema no longer carries a property map');
+    }
+    return {
+      ...schema,
+      normalized: {
+        ...normalized,
+        properties: Object.fromEntries(Object.entries(normalized.properties).reverse()),
+      },
+    };
+  }
+
+  it('should give a different hash to a document whose property order was reversed', () => {
+    // Given, one schema of the fixture rewritten with its properties in the opposite order.
+    const document = createDocumentFixture();
+    const order = document.schemas.get('Order');
+    if (order === undefined) throw new Error('the fixture no longer carries the Order schema');
+    const schemas = new Map(document.schemas);
+    schemas.set('Order', reversedProperties(order));
+    const reversed = { ...document, schemas };
+
+    // When
+    const forwardNames = Object.keys(order.normalized?.properties ?? {});
+    const reversedNames = Object.keys(schemas.get('Order')?.normalized?.properties ?? {});
+
+    // Then, the subject is present: four names, the same four, in a different order. Without
+    // this the case could pass on a schema that had one property or none.
+    expect(forwardNames.length).toBeGreaterThan(1);
+    expect([...reversedNames].sort()).toEqual([...forwardNames].sort());
+    expect(reversedNames).not.toEqual(forwardNames);
+
+    // Then, and that difference alone moves the hash.
+    expect(hashDocument(reversed)).not.toBe(hashDocument(document));
+  });
+
+  it('should write a property map in the document order rather than sorted', () => {
+    // Given, a property order that is not the sorted one, so the two answers are tellable apart.
+    const document = createDocumentFixture();
+    const names = Object.keys(document.schemas.get('Order')?.normalized?.properties ?? {});
+
+    // When
+    const text = canonicalize(document);
+    const positions = names.map((name) => text.indexOf(`"${name}":`));
+
+    // Then
+    expect(names).not.toEqual([...names].sort());
+    expect(positions.every((position) => position >= 0)).toBe(true);
+    expect([...positions].sort((left, right) => left - right)).toEqual(positions);
+  });
+
+  it('should still sort a map whose keys the normalizer builds', () => {
+    // Given, the node map written the other way round. Its order is walk order, per SPEC 5.1.1.
+    const document = createDocumentFixture();
+    const entries = [...document.nodes.entries()];
+    const reversed = { ...document, nodes: new Map([...entries].reverse()) };
+
+    // Then, the subject is present and the hash does not move with it.
+    expect(entries.length).toBeGreaterThan(1);
+    expect([...reversed.nodes.keys()]).not.toEqual([...document.nodes.keys()]);
+    expect(hashDocument(reversed)).toBe(hashDocument(document));
+  });
+
+  it('should hold the same list of authored maps as the canonical form does', () => {
+    // Given, the shuffler's lists are written by hand so that they cannot follow the record.
+    const recorded = Object.entries(CANONICAL_MAP_ORDER)
+      .filter(([, verdict]) => verdict !== 'sorted')
+      .map(([member]) => member)
+      .sort();
+
+    // When
+    const declared = [...AUTHORED_KEY_MEMBERS, ...AUTHORED_TREE_MEMBERS].sort();
+
+    // Then, both directions, so neither list can gain or lose a name on its own.
+    expect(declared).toEqual(recorded);
+    expect(recorded.length).toBeGreaterThan(0);
+  });
+
+  it('should split the two authored lists exactly as the record splits its two verdicts', () => {
+    // Given, one verdict keeps a map's own keys and returns to the IR below it; the other keeps
+    // every level. A shuffler that confused them would permute inside a raw path schema.
+    const keyed = Object.entries(CANONICAL_MAP_ORDER)
+      .filter(([, verdict]) => verdict === 'ordered')
+      .map(([member]) => member)
+      .sort();
+    const tree = Object.entries(CANONICAL_MAP_ORDER)
+      .filter(([, verdict]) => verdict === 'ordered-tree')
+      .map(([member]) => member)
+      .sort();
+
+    // Then, both directions on both lists
+    expect([...AUTHORED_KEY_MEMBERS].sort()).toEqual(keyed);
+    expect([...AUTHORED_TREE_MEMBERS].sort()).toEqual(tree);
+    expect(keyed.length).toBeGreaterThan(0);
+    expect(tree.length).toBeGreaterThan(0);
+  });
+
+  it('should leave every map the record calls sorted out of the shuffler exception', () => {
+    // Given
+    const sorted = Object.entries(CANONICAL_MAP_ORDER)
+      .filter(([, verdict]) => verdict === 'sorted')
+      .map(([member]) => member);
+
+    // When
+    const leaked = sorted.filter((member) => AUTHORED_ORDER_MEMBERS.includes(member));
+
+    // Then, the subject is present: there are sorted maps, and none of them is in the list.
+    // `value` is here because one name serves `IRExample.value` and `IRFact.value` and the
+    // serializer sees only the name, which the record states in full.
+    expect(sorted).toEqual(['nodes', 'schemas', 'webhooks', 'value']);
+    expect(leaked).toEqual([]);
   });
 });
 
@@ -119,14 +282,17 @@ describe('determinism of a document carrying external references', () => {
 
     // When
     const hashes = new Set<string>();
+    const spellings = new Set<string>();
     for (let variant = 0; variant < 1000; variant += 1) {
-      const shuffled = shuffleKeys(source.root, random);
+      const shuffled = shuffleEquivalentKeys(source.root, random);
+      spellings.add(spelling(shuffled));
       hashes.add(
         normalizeOpenApiDocument(shuffled, { externalDocuments: source.externalDocuments }).hash,
       );
     }
 
     // Then
+    expect(spellings.size).toBeGreaterThan(900);
     expect(hashes.size).toBe(1);
   }, 60_000);
 
@@ -139,14 +305,17 @@ describe('determinism of a document carrying external references', () => {
 
     // When
     const hashes = new Set<string>();
+    const spellings = new Set<string>();
     for (let variant = 0; variant < 1000; variant += 1) {
-      const shuffled = shuffleKeys(source.root, random);
+      const shuffled = shuffleEquivalentKeys(source.root, random);
+      spellings.add(spelling(shuffled));
       hashes.add(
         normalizeOpenApiDocument(shuffled, { externalDocuments: source.externalDocuments }).hash,
       );
     }
 
     // Then
+    expect(spellings.size).toBeGreaterThan(900);
     expect(hashes.size).toBe(1);
   }, 60_000);
 

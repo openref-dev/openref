@@ -1,5 +1,5 @@
 {
-  "hash": "a9e7ac994ffbdcf300110f00ec4f56f838fef14c62508251d55135d09417121f",
+  "hash": "a5d27cbf221dce446f728cb08fc8bb146d59efc8e4d6e6d91b3f0ac5a9737a48",
   "id": "adeo-asyncapi-case-study",
   "info": {
     "contact": {
@@ -125,8 +125,8 @@
         "address": "adeo-{env}-case-study-COSTING-REQUEST-{version}",
         "bindings": {
           "kafka": {
-            "partitions": 3,
             "replicas": 3,
+            "partitions": 3,
             "topicConfiguration": {
               "cleanup.policy": [
                 "delete"
@@ -149,17 +149,17 @@
                 "id": "channel-adeo-env-case-study-costing-request-version.messages.CostingRequest.headers",
                 "normalized": {
                   "properties": {
+                    "REQUEST_ID": {
+                      "$ref": "RequestId"
+                    },
                     "REPLY_TOPIC": {
                       "$ref": "ReplyTopic"
-                    },
-                    "REQUESTER_CODE": {
-                      "$ref": "RequesterCode"
                     },
                     "REQUESTER_ID": {
                       "$ref": "RequesterId"
                     },
-                    "REQUEST_ID": {
-                      "$ref": "RequestId"
+                    "REQUESTER_CODE": {
+                      "$ref": "RequesterCode"
                     }
                   },
                   "required": [
@@ -180,10 +180,10 @@
                 "dialect": "avro",
                 "id": "channel-adeo-env-case-study-costing-request-version.messages.CostingRequest.payload",
                 "raw": {
+                  "schemaFormat": "application/vnd.apache.avro;version=1.9.0",
                   "schema": {
                     "$ref": "https://www.asyncapi.com/resources/casestudies/adeo/CostingRequestPayload.avsc"
-                  },
-                  "schemaFormat": "application/vnd.apache.avro;version=1.9.0"
+                  }
                 }
               }
             },
@@ -199,12 +199,12 @@
             "bindings": {
               "kafka": {
                 "groupId": {
-                  "description": "The groupId must be prefixed by your `svc` account, deliver by the Adeo Kafka team. This `svc` must have the write access to the topic.\n",
-                  "type": "string"
+                  "type": "string",
+                  "description": "The groupId must be prefixed by your `svc` account, deliver by the Adeo Kafka team. This `svc` must have the write access to the topic.\n"
                 },
                 "x-value.subject.name.strategy": {
-                  "description": "We use the RecordNameStrategy to infer the messages schema. Use `value.subject.name.strategy=io.confluent.kafka.serializers.subject.RecordNameStrategy` in your producer configuration.\n",
-                  "type": "string"
+                  "type": "string",
+                  "description": "We use the RecordNameStrategy to infer the messages schema. Use `value.subject.name.strategy=io.confluent.kafka.serializers.subject.RecordNameStrategy` in your producer configuration.\n"
                 }
               }
             },
@@ -267,12 +267,12 @@
         "bindings": {
           "kafka": {
             "x-key.subject.name.strategy": {
-              "description": "We use the RecordNameStrategy to infer the messages schema. Use `key.subject.name.strategy=io.confluent.kafka.serializers.subject.RecordNameStrategy` in your consumer configuration.\n",
-              "type": "string"
+              "type": "string",
+              "description": "We use the RecordNameStrategy to infer the messages schema. Use `key.subject.name.strategy=io.confluent.kafka.serializers.subject.RecordNameStrategy` in your consumer configuration.\n"
             },
             "x-value.subject.name.strategy": {
-              "description": "We use the RecordNameStrategy to infer the messages schema. Use `value.subject.name.strategy=io.confluent.kafka.serializers.subject.RecordNameStrategy` in your consumer configuration.\n",
-              "type": "string"
+              "type": "string",
+              "description": "We use the RecordNameStrategy to infer the messages schema. Use `value.subject.name.strategy=io.confluent.kafka.serializers.subject.RecordNameStrategy` in your consumer configuration.\n"
             }
           }
         },
@@ -294,16 +294,16 @@
                     "CALCULATION_ID": {
                       "$ref": "MessageId"
                     },
-                    "CALCULATION_TIMESTAMP": {
-                      "description": "Technical timestamp for the costing calculation",
-                      "format": "date-time",
-                      "type": "string"
-                    },
                     "CORRELATION_ID": {
                       "$ref": "CorrelationId"
                     },
                     "REQUEST_TIMESTAMP": {
                       "description": "Timestamp of the costing request",
+                      "format": "date-time",
+                      "type": "string"
+                    },
+                    "CALCULATION_TIMESTAMP": {
+                      "description": "Technical timestamp for the costing calculation",
                       "format": "date-time",
                       "type": "string"
                     }
@@ -320,10 +320,10 @@
                 "dialect": "avro",
                 "id": "channel-costingresponsechannel.messages.costingResponse.payload",
                 "raw": {
+                  "schemaFormat": "application/vnd.apache.avro;version=1.9.0",
                   "schema": {
                     "$ref": "https://www.asyncapi.com/resources/casestudies/adeo/CostingResponsePayload.avsc"
-                  },
-                  "schemaFormat": "application/vnd.apache.avro;version=1.9.0"
+                  }
                 }
               }
             },

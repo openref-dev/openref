@@ -1,5 +1,5 @@
 {
-  "hash": "d77e12284d61fae407569559f44132ddd69c94102a5004882fd376c27f7a9cab",
+  "hash": "ae61deb5f0657365535d16a9f1e7c7dd9dccf6b7e3e9204a17bb615ca9143f80",
   "id": "gemini-market-data-websocket-api",
   "info": {
     "contact": {
@@ -78,40 +78,40 @@
           "ws": {
             "bindingVersion": "0.1.0",
             "query": {
+              "type": "object",
               "description": "The semantics of entry type filtering is:\n\nIf any entry type is specified as true or false, all of them must be explicitly flagged true to show up in the response\nIf no entry types filtering parameters are included in the url, then all entry types will appear in the response\n\nNOTE: top_of_book has no meaning and initial book events are empty when only trades is specified\n",
               "properties": {
-                "auctions": {
-                  "default": true,
-                  "description": "Include auction events",
-                  "type": "boolean"
-                },
-                "bids": {
-                  "default": true,
-                  "description": "Include bids in change events",
-                  "type": "boolean"
-                },
                 "heartbeat": {
+                  "type": "boolean",
                   "default": false,
-                  "description": "Optionally add this parameter and set to true to receive a heartbeat every 5 seconds",
-                  "type": "boolean"
-                },
-                "offers": {
-                  "default": true,
-                  "description": "Include asks in change events",
-                  "type": "boolean"
+                  "description": "Optionally add this parameter and set to true to receive a heartbeat every 5 seconds"
                 },
                 "top_of_book": {
+                  "type": "boolean",
                   "default": false,
-                  "description": "If absent or false, receive full order book depth; if present and true, receive top of book only. Only applies to bids and offers.",
-                  "type": "boolean"
+                  "description": "If absent or false, receive full order book depth; if present and true, receive top of book only. Only applies to bids and offers."
+                },
+                "bids": {
+                  "type": "boolean",
+                  "default": true,
+                  "description": "Include bids in change events"
+                },
+                "offers": {
+                  "type": "boolean",
+                  "default": true,
+                  "description": "Include asks in change events"
                 },
                 "trades": {
+                  "type": "boolean",
                   "default": true,
-                  "description": "Include trade events",
-                  "type": "boolean"
+                  "description": "Include trade events"
+                },
+                "auctions": {
+                  "type": "boolean",
+                  "default": true,
+                  "description": "Include auction events"
                 }
-              },
-              "type": "object"
+              }
             }
           }
         },
@@ -122,15 +122,6 @@
           {
             "description": "The initial response message will show the existing state of the order book. Subsequent messages will show all executed trades, as well as all other changes to the order book from orders placed or canceled.\n",
             "examples": {
-              "heartbeatMessage": {
-                "summary": "Example of additional heartbeat message when you enable them.",
-                "value": {
-                  "payload": {
-                    "socket_sequence": 1656,
-                    "type": "heartbeat"
-                  }
-                }
-              },
               "updateMessage": {
                 "summary": "Example of an update message that contains a change in price information.",
                 "value": {
@@ -150,6 +141,15 @@
                     "timestamp": 1619769673,
                     "timestampms": 1619769673527,
                     "type": "update"
+                  }
+                }
+              },
+              "heartbeatMessage": {
+                "summary": "Example of additional heartbeat message when you enable them.",
+                "value": {
+                  "payload": {
+                    "socket_sequence": 1656,
+                    "type": "heartbeat"
                   }
                 }
               }
@@ -296,14 +296,25 @@
           "items": {
             "additionalProperties": false,
             "properties": {
-              "delta": {
-                "description": "The quantity changed. May be negative, if an order is filled or canceled. For initial messages, delta will equal remaining.",
-                "type": "number"
+              "type": {
+                "enum": [
+                  "trade",
+                  "change",
+                  "auction, block_trade"
+                ],
+                "type": "string"
               },
               "price": {
                 "description": "The price of this order book entry.",
                 "multipleOf": 0.01,
                 "type": "number"
+              },
+              "side": {
+                "enum": [
+                  "bid",
+                  "side"
+                ],
+                "type": "string"
               },
               "reason": {
                 "description": "Indicates why the change has occurred. initial is for the initial response message, which will show the entire existing state of the order book.",
@@ -319,20 +330,9 @@
                 "description": "The quantity remaining at that price level after this change occurred. May be zero if all orders at this price level have been filled or canceled.",
                 "type": "number"
               },
-              "side": {
-                "enum": [
-                  "bid",
-                  "side"
-                ],
-                "type": "string"
-              },
-              "type": {
-                "enum": [
-                  "trade",
-                  "change",
-                  "auction, block_trade"
-                ],
-                "type": "string"
+              "delta": {
+                "description": "The quantity changed. May be negative, if an order is filled or canceled. For initial messages, delta will equal remaining.",
+                "type": "number"
               }
             },
             "type": "object"
@@ -350,13 +350,13 @@
         "normalized": {
           "description": "This object is always part of the payload. In case of type=heartbeat, these are the only fields.",
           "properties": {
-            "socket_sequence": {
-              "description": "zero-indexed monotonic increasing sequence number attached to each message sent - if there is a gap in this sequence, you have missed a message. If you choose to enable heartbeats, then heartbeat and update messages will share a single increasing sequence. See [Sequence Numbers](https://docs.sandbox.gemini.com/websocket-api/#sequence-numbers) for more information.",
-              "type": "integer"
-            },
             "type": {
               "const": "heartbeat",
               "type": "string"
+            },
+            "socket_sequence": {
+              "description": "zero-indexed monotonic increasing sequence number attached to each message sent - if there is a gap in this sequence, you have missed a message. If you choose to enable heartbeats, then heartbeat and update messages will share a single increasing sequence. See [Sequence Numbers](https://docs.sandbox.gemini.com/websocket-api/#sequence-numbers) for more information.",
+              "type": "integer"
             }
           },
           "required": [
@@ -409,16 +409,16 @@
         "normalized": {
           "description": "This object is always part of the payload. In case of type=heartbeat, these are the only fields.",
           "properties": {
+            "type": {
+              "const": "update",
+              "type": "string"
+            },
             "eventId": {
               "description": "A monotonically increasing sequence number indicating when this change occurred. These numbers are persistent and consistent between market data connections.",
               "type": "integer"
             },
             "events": {
               "$ref": "events"
-            },
-            "socket_sequence": {
-              "description": "zero-indexed monotonic increasing sequence number attached to each message sent - if there is a gap in this sequence, you have missed a message. If you choose to enable heartbeats, then heartbeat and update messages will share a single increasing sequence. See [Sequence Numbers](https://docs.sandbox.gemini.com/websocket-api/#sequence-numbers) for more information.",
-              "type": "integer"
             },
             "timestamp": {
               "description": "The timestamp in seconds for this group of events (included for compatibility reasons). We recommend using the timestampms field instead.",
@@ -428,9 +428,9 @@
               "description": "The timestamp in milliseconds for this group of events.",
               "type": "number"
             },
-            "type": {
-              "const": "update",
-              "type": "string"
+            "socket_sequence": {
+              "description": "zero-indexed monotonic increasing sequence number attached to each message sent - if there is a gap in this sequence, you have missed a message. If you choose to enable heartbeats, then heartbeat and update messages will share a single increasing sequence. See [Sequence Numbers](https://docs.sandbox.gemini.com/websocket-api/#sequence-numbers) for more information.",
+              "type": "integer"
             }
           },
           "required": [

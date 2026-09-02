@@ -1,5 +1,5 @@
 {
-  "hash": "b59f99226b27679ee3556ff63cd27d3cbd7ecc861e601d6c9d03a415d6fd750f",
+  "hash": "38fa3be8db7fac07779593cd92f66044a97ebd62f26b04658bd1a4e3c7e287b7",
   "id": "streetlights-kafka-api",
   "info": {
     "description": "The Smartylighting Streetlights API allows you to remotely manage the city lights.\n\n### Check out its awesome features:\n\n* Turn a specific streetlight on/off 🌃\n* Dim a specific streetlight 😎\n* Receive real-time information about environmental lighting conditions 📈\n",
@@ -126,10 +126,10 @@
             "bindings": {
               "kafka": {
                 "clientId": {
+                  "type": "string",
                   "enum": [
                     "my-app-id"
-                  ],
-                  "type": "string"
+                  ]
                 }
               }
             },
@@ -201,10 +201,10 @@
             "bindings": {
               "kafka": {
                 "clientId": {
+                  "type": "string",
                   "enum": [
                     "my-app-id"
-                  ],
-                  "type": "string"
+                  ]
                 }
               }
             },
@@ -276,10 +276,10 @@
             "bindings": {
               "kafka": {
                 "clientId": {
+                  "type": "string",
                   "enum": [
                     "my-app-id"
-                  ],
-                  "type": "string"
+                  ]
                 }
               }
             },
@@ -352,10 +352,10 @@
             "bindings": {
               "kafka": {
                 "clientId": {
+                  "type": "string",
                   "enum": [
                     "my-app-id"
-                  ],
-                  "type": "string"
+                  ]
                 }
               }
             },

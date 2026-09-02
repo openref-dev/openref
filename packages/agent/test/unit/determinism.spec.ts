@@ -6,32 +6,10 @@ import {
   buildLlmsIndex,
   type LlmsTextOptions,
 } from '../../src/index';
+import { createRandom, shuffleEquivalentKeys } from '../../../core/test/mocks/document.mock';
 import { orderSource } from '../mocks/documents';
 
 const mounted: LlmsTextOptions = { basePath: '/docs', agent: { llmsTxt: true, mcp: true } };
-
-/**
- * A deterministic shuffle, so a failure reproduces from the seed rather than from a lucky run.
- *
- * `Math.random` WOULD MAKE THIS SUITE UNREPRODUCIBLE, which is the one thing a determinism suite
- * cannot be: a red run whose input nobody can rebuild is a red run nobody can fix.
- */
-function shuffled<T>(entries: readonly T[], seed: number): T[] {
-  const copy = [...entries];
-  let state = seed + 1;
-
-  for (let index = copy.length - 1; index > 0; index -= 1) {
-    state = (state * 1103515245 + 12345) % 2147483648;
-    const target = state % (index + 1);
-    const held = copy[index];
-    const other = copy[target];
-    if (held === undefined || other === undefined) continue;
-    copy[index] = other;
-    copy[target] = held;
-  }
-
-  return copy;
-}
 
 /**
  * The same source document with its object keys written in a different order.
@@ -40,25 +18,31 @@ function shuffled<T>(entries: readonly T[], seed: number): T[] {
  * document, so the normalizer has to produce the same hash and everything downstream has to
  * produce the same bytes; if either moved, an SSR cache and every consumer that diffs these files
  * would see a change nobody made.
+ *
+ * EXCEPT WHERE THE ORDER IS THE DOCUMENT'S OWN, since 2026-09-01. SPEC 5.3 has the hash carry the
+ * key order a document wrote, so permuting `properties` is writing a different document rather than
+ * spelling the same one differently, and the case below that reverses one on purpose is where that
+ * half is proved.
+ *
+ * IT CALLS `@openref/core`'s OWN SHUFFLER RATHER THAN KEEPING A WALKER AND A LIST OF ITS OWN. Until
+ * a review pointed it out this file held a third hand written copy of the authored names, answering
+ * to nothing, while core kept two and reconciled them both ways against the record. A cross package
+ * import between two test trees is outside the boundary rules, which anchor at
+ * `^packages/<name>/src/`, so the rule now has one home and one runner.
+ *
+ * THE SEED STILL DRIVES IT, because a determinism suite whose red run cannot be rebuilt is the one
+ * thing this file may not be: the seed makes the generator, the generator makes the shuffle.
  */
 function reorderedSource(seed: number): Record<string, unknown> {
-  const source = orderSource();
-  const reorder = (value: unknown, depth: number): unknown => {
-    if (Array.isArray(value)) return value.map((entry) => reorder(entry, depth + 1));
-    if (typeof value !== 'object' || value === null) return value;
-
-    const entries = shuffled(Object.entries(value as Record<string, unknown>), seed + depth);
-    return Object.fromEntries(entries.map(([key, held]) => [key, reorder(held, depth + 1)]));
-  };
-
-  return reorder(source, 0) as Record<string, unknown>;
+  return shuffleEquivalentKeys(orderSource(), createRandom(seed)) as Record<string, unknown>;
 }
 
 describe('the agent surface is deterministic for a given IR hash', () => {
-  it('should produce one llms.txt over a thousand shuffled spellings of one document', () => {
+  it('should produce one llms.txt and one llms-full.txt over a thousand spellings of one document', () => {
     // Given a thousand documents that differ only in the order their keys were written in
     const hashes = new Set<string>();
     const indexes = new Set<string>();
+    const fulls = new Set<string>();
     let reordered = 0;
 
     // When
@@ -68,6 +52,7 @@ describe('the agent surface is deterministic for a given IR hash', () => {
       const document: IRDocument = normalizeSpecification(source);
       hashes.add(document.hash);
       indexes.add(buildLlmsIndex(document, mounted));
+      fulls.add(buildLlmsFull(document, mounted));
     }
 
     // Then, with the presence half asserted first: a run over a thousand identical inputs would
@@ -75,6 +60,11 @@ describe('the agent surface is deterministic for a given IR hash', () => {
     expect(reordered).toBeGreaterThan(900);
     expect(hashes.size).toBe(1);
     expect(indexes.size).toBe(1);
+
+    // and `llms-full.txt` joins the claim, which is what SPEC 5.3's exception bought: before
+    // 2026-09-01 this same loop read one hash and two full texts, and the difference was exactly
+    // the two lines of one property list.
+    expect(fulls.size).toBe(1);
   });
 
   it('should produce one llms-full.txt over a thousand builds of one document', () => {
@@ -90,24 +80,17 @@ describe('the agent surface is deterministic for a given IR hash', () => {
   });
 
   /**
-   * THE BOUNDARY OF THE CLAIM, MEASURED RATHER THAN ASSUMED, AND IT IS NOT THIS FILE'S TO MOVE.
+   * THE CASE THAT MEASURED THE DEFECT, KEPT AND INVERTED RATHER THAN DELETED.
    *
-   * `llms.txt` is a function of the document hash and the case above proves it. `llms-full.txt` is
-   * not, and the reason is one level up: `canonicalize` sorts object keys by code point, so a
-   * schema whose `properties` were written in a different order hashes the same, while the IR
-   * keeps the order the document wrote and every consumer that walks `properties` inherits it.
-   * Measured on the fixture below: one hash, two property orders.
-   *
-   * SORTING HERE WOULD BE THE WRONG FIX AND IS REFUSED FOR THE REASON THE `openapi.json` ROUTE
-   * ALREADY RECORDS. That route was canonicalized once, and every schema's fields came out
-   * alphabetical, so a generated SDK listed them in an order nobody chose. The full text is read
-   * beside the schema page, the page walks the same order the document wrote, and a file that
-   * disagreed with the page it describes would be worse than one that inherits the document's own
-   * order. So the property is stated at its true strength, and the wider question, that the hash
-   * the SPEC 12 render cache is keyed by does not pin this order for any consumer, is recorded in
-   * SPEC 18.1 and belongs to whoever owns the canonical form.
+   * Until 2026-09-01 this case read: one hash, two property orders, two `llms-full.txt`. That was
+   * the measurement the maintainer ruled on, and the ruling was that the hash carries the order,
+   * so the same fixture now has to read the other way round. Sorting the property list was refused
+   * then and is refused still, for the reason the canonicalized `openapi.json` route records: the
+   * full text is read beside the schema page, the page walks the order the document wrote, and a
+   * file disagreeing with the page it describes is worse than one inheriting the author's order.
+   * What changed is not the text; it is that the hash now covers what the text is drawn from.
    */
-  it('should inherit the property order the document wrote, which the hash does not pin', () => {
+  it('should give two property orders two hashes, and two full texts to match', () => {
     // Given two spellings of one document that differ only in the order of two properties
     const forward = normalizeSpecification(orderSource());
     const shuffledSource = orderSource();
@@ -123,14 +106,30 @@ describe('the agent surface is deterministic for a given IR hash', () => {
     const first = buildLlmsFull(forward, mounted);
     const second = buildLlmsFull(backward, mounted);
 
-    // Then, with the presence half first: the two really are one hash, and the two really do
-    // carry different property orders, so what follows is a statement about the hash
-    expect(forward.hash).toBe(backward.hash);
-    expect(Object.keys(forward.schemas.get('Order')?.normalized?.properties ?? {})).not.toEqual(
-      Object.keys(backward.schemas.get('Order')?.normalized?.properties ?? {}),
-    );
+    // Then, with the presence half first: the two really do carry different property orders and
+    // the same property names, so what follows is a statement about order and nothing else
+    const forwardNames = Object.keys(forward.schemas.get('Order')?.normalized?.properties ?? {});
+    const backwardNames = Object.keys(backward.schemas.get('Order')?.normalized?.properties ?? {});
+    expect(forwardNames.length).toBeGreaterThan(1);
+    expect([...backwardNames].sort()).toEqual([...forwardNames].sort());
+    expect(backwardNames).not.toEqual(forwardNames);
+
+    // Then the hash moves with the order, and the full text moves with it
+    expect(forward.hash).not.toBe(backward.hash);
     expect(first).not.toBe(second);
-    expect(buildLlmsIndex(forward, mounted)).toBe(buildLlmsIndex(backward, mounted));
+
+    // and `llms.txt` moves too, but only in the one line that carries the digest: it lists
+    // operations rather than properties, so the order reaches its body nowhere. Measured rather
+    // than asserted as a whole file equality, which is what the first edition of this case got
+    // wrong: the index prints `Document hash:` and always has.
+    const firstIndex = buildLlmsIndex(forward, mounted).split('\n');
+    const secondIndex = buildLlmsIndex(backward, mounted).split('\n');
+    const differing = firstIndex
+      .map((line, position) => (line === secondIndex[position] ? undefined : position))
+      .filter((position): position is number => position !== undefined);
+    expect(firstIndex).toHaveLength(secondIndex.length);
+    expect(differing).toHaveLength(1);
+    expect(firstIndex[differing[0] ?? 0]).toContain('Document hash:');
   });
 
   it('should serialize the health resource to identical bytes on two reads', () => {

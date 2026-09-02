@@ -19,7 +19,7 @@ import {
   UnsupportedDialectError,
 } from '../../src/index';
 import { createAsyncApi30, createAsyncApi31 } from '../mocks/asyncapi.mock';
-import { createRandom, shuffleKeys } from '../mocks/document.mock';
+import { createRandom, shuffleEquivalentKeys } from '../mocks/document.mock';
 
 function channelsOf(document: IRDocument): IRChannel[] {
   return [...document.nodes.values()].filter((node): node is IRChannel => node.kind === 'channel');
@@ -2189,7 +2189,7 @@ describe('normalizeAsyncApiDocument the six members T048 had nowhere to hold', (
 });
 
 describe('normalizeAsyncApiDocument determinism', () => {
-  it('should produce one hash from 200 shuffled spellings of one document', () => {
+  it('should produce one hash from 200 equivalently shuffled spellings of one document', () => {
     // Given
     const random = createRandom(48);
     const base = JSON.stringify(createAsyncApi30());
@@ -2199,15 +2199,17 @@ describe('normalizeAsyncApiDocument determinism', () => {
     const spellings: string[] = [];
     const hashes = new Set<string>();
     for (let index = 0; index < 200; index += 1) {
-      const shuffled = shuffleKeys(createAsyncApi30(), random);
+      const shuffled = shuffleEquivalentKeys(createAsyncApi30(), random);
       spellings.push(JSON.stringify(shuffled));
       hashes.add(hashDocument(normalizeAsyncApiDocument(shuffled)));
     }
 
     // Then, the constructions differ before the hashes are compared. One hash out of 200 inputs
     // says nothing about ordering unless the 200 inputs were 200 different orderings, and a
-    // `shuffleKeys` that had quietly become the identity would satisfy the equality below while
-    // proving nothing at all.
+    // shuffler that had quietly become the identity would satisfy the equality below while
+    // proving nothing at all. The shuffle is the equivalent one since 2026-09-01: SPEC 5.3 has
+    // the hash carry the order of a map the document wrote, and permuting one of those is
+    // permuting content rather than spelling.
     expect(spellings).toHaveLength(200);
     expect(new Set(spellings).size).toBe(200);
     expect(spellings.filter((spelling) => spelling === base)).toEqual([]);

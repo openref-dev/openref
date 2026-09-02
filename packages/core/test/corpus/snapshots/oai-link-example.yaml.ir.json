@@ -1,5 +1,5 @@
 {
-  "hash": "6c0c9604700696e3b3b7de6bf9f8c1a5506b1b7f5a87474e9c2ed635e4b8267d",
+  "hash": "d21091662223a5d4b7c8a66689983f0584d2b0a9357fd49a8316b2c638663cb1",
   "id": "link-example",
   "info": {
     "title": "Link Example",
@@ -525,17 +525,17 @@
         "name": "pullrequest",
         "normalized": {
           "properties": {
-            "author": {
-              "$ref": "user"
-            },
             "id": {
               "type": "integer"
+            },
+            "title": {
+              "type": "string"
             },
             "repository": {
               "$ref": "repository"
             },
-            "title": {
-              "type": "string"
+            "author": {
+              "$ref": "user"
             }
           },
           "type": "object"
@@ -550,11 +550,11 @@
         "name": "repository",
         "normalized": {
           "properties": {
-            "owner": {
-              "$ref": "user"
-            },
             "slug": {
               "type": "string"
+            },
+            "owner": {
+              "$ref": "user"
             }
           },
           "type": "object"

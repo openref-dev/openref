@@ -1,5 +1,5 @@
 {
-  "hash": "d48c0a2d0ab80ef6de96d4a649ba9a3d30a1feaddec74ef6aa49b6c63f42b32d",
+  "hash": "db0282dc5cf22c8d886fe8adaa8f8713e425b04c65f3cf29ce8470b8eabb37d1",
   "id": "uspto-data-set-api",
   "info": {
     "contact": {
@@ -179,21 +179,21 @@
             "content": [
               {
                 "example": {
+                  "total": 2,
                   "apis": [
                     {
-                      "apiDocumentationUrl": "https://developer.uspto.gov/ds-api-docs/index.html?url=https://developer.uspto.gov/ds-api/swagger/docs/oa_citations.json",
                       "apiKey": "oa_citations",
+                      "apiVersionNumber": "v1",
                       "apiUrl": "https://developer.uspto.gov/ds-api/oa_citations/v1/fields",
-                      "apiVersionNumber": "v1"
+                      "apiDocumentationUrl": "https://developer.uspto.gov/ds-api-docs/index.html?url=https://developer.uspto.gov/ds-api/swagger/docs/oa_citations.json"
                     },
                     {
-                      "apiDocumentationUrl": "https://developer.uspto.gov/ds-api-docs/index.html?url=https://developer.uspto.gov/ds-api/swagger/docs/cancer_moonshot.json",
                       "apiKey": "cancer_moonshot",
+                      "apiVersionNumber": "v1",
                       "apiUrl": "https://developer.uspto.gov/ds-api/cancer_moonshot/v1/fields",
-                      "apiVersionNumber": "v1"
+                      "apiDocumentationUrl": "https://developer.uspto.gov/ds-api-docs/index.html?url=https://developer.uspto.gov/ds-api/swagger/docs/cancer_moonshot.json"
                     }
-                  ],
-                  "total": 2
+                  ]
                 },
                 "mediaType": "application/json",
                 "schema": {
@@ -281,14 +281,14 @@
                         "description": "Uses Lucene Query Syntax in the format of propertyName:value, propertyName:[num1 TO num2] and date range format: propertyName:[yyyyMMdd TO yyyyMMdd]. In the response please see the 'docs' element which has the list of record objects. Each record structure would consist of all the fields and their corresponding values.",
                         "type": "string"
                       },
-                      "rows": {
-                        "default": 100,
-                        "description": "Specify number of rows to be returned. If you run the search with default values, in the response you will see 'numFound' attribute which will tell the number of records available in the dataset.",
-                        "type": "integer"
-                      },
                       "start": {
                         "default": 0,
                         "description": "Starting record number. Default value is 0.",
+                        "type": "integer"
+                      },
+                      "rows": {
+                        "default": 100,
+                        "description": "Specify number of rows to be returned. If you run the search with default values, in the response you will see 'numFound' attribute which will tell the number of records available in the dataset.",
                         "type": "integer"
                       }
                     },
@@ -354,16 +354,18 @@
         "name": "dataSetList",
         "normalized": {
           "properties": {
+            "total": {
+              "type": "integer"
+            },
             "apis": {
               "items": {
                 "properties": {
-                  "apiDocumentationUrl": {
-                    "description": "A URL to the API console for each API",
-                    "format": "uriref",
-                    "type": "string"
-                  },
                   "apiKey": {
                     "description": "To be used as a dataset parameter value",
+                    "type": "string"
+                  },
+                  "apiVersionNumber": {
+                    "description": "To be used as a version parameter value",
                     "type": "string"
                   },
                   "apiUrl": {
@@ -371,17 +373,15 @@
                     "format": "uriref",
                     "type": "string"
                   },
-                  "apiVersionNumber": {
-                    "description": "To be used as a version parameter value",
+                  "apiDocumentationUrl": {
+                    "description": "A URL to the API console for each API",
+                    "format": "uriref",
                     "type": "string"
                   }
                 },
                 "type": "object"
               },
               "type": "array"
-            },
-            "total": {
-              "type": "integer"
             }
           },
           "type": "object"

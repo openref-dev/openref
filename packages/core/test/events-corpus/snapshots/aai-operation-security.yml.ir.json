@@ -1,5 +1,5 @@
 {
-  "hash": "94f242a0d28eebae63c53cb2d70463d30ec04be13887a0cde599471519dc195d",
+  "hash": "b007fc2bc489ced599d0a4cca1b7d442ca6f5cd57d88b98c1a755d4015a9fbdc",
   "id": "notifications",
   "info": {
     "description": "This contract defines HTTP Push notification for  application authorization revocation topic",
@@ -68,14 +68,14 @@
                 "id": "channel-authorization-revocation.messages.message.headers",
                 "normalized": {
                   "properties": {
+                    "X-SIGNATURE": {
+                      "description": "ECC message signature",
+                      "type": "string"
+                    },
                     "Content-Type": {
                       "enum": [
                         "application/json"
                       ],
-                      "type": "string"
-                    },
-                    "X-SIGNATURE": {
-                      "description": "ECC message signature",
                       "type": "string"
                     }
                   },
@@ -151,12 +151,16 @@
         "normalized": {
           "description": "The Authorization Revocation payload.",
           "properties": {
-            "eiasToken": {
-              "description": "The legacy eiasToken specific to the user",
+            "username": {
+              "description": "The username for the user.",
               "type": "string"
             },
-            "revocationDate": {
-              "description": "Date and time when the authorization was revoked",
+            "userId": {
+              "description": "The immutable public userId for the user",
+              "type": "string"
+            },
+            "eiasToken": {
+              "description": "The legacy eiasToken specific to the user",
               "type": "string"
             },
             "revokeReason": {
@@ -169,12 +173,8 @@
               ],
               "type": "string"
             },
-            "userId": {
-              "description": "The immutable public userId for the user",
-              "type": "string"
-            },
-            "username": {
-              "description": "The username for the user.",
+            "revocationDate": {
+              "description": "Date and time when the authorization was revoked",
               "type": "string"
             }
           },
@@ -190,18 +190,18 @@
         "name": "MetaData",
         "normalized": {
           "properties": {
-            "deprecated": {
-              "default": "false",
-              "description": "If this is a deprecated schema or topic.",
-              "type": "boolean"
+            "topic": {
+              "description": "Topic subscribed to.",
+              "type": "string"
             },
             "schemaVersion": {
               "description": "The schema for this topic.",
               "type": "string"
             },
-            "topic": {
-              "description": "Topic subscribed to.",
-              "type": "string"
+            "deprecated": {
+              "default": "false",
+              "description": "If this is a deprecated schema or topic.",
+              "type": "boolean"
             }
           },
           "type": "object"
@@ -216,24 +216,24 @@
         "name": "Notification",
         "normalized": {
           "properties": {
-            "data": {
-              "$ref": "AuthorizationRevocationData"
+            "notificationId": {
+              "description": "The notification Id.",
+              "type": "string"
             },
             "eventDate": {
               "description": "The event date associated with this notification in UTC.",
               "type": "string"
             },
-            "notificationId": {
-              "description": "The notification Id.",
+            "publishDate": {
+              "description": "The message publish date in UTC.",
               "type": "string"
             },
             "publishAttemptCount": {
               "description": "The number of attempts made to publish this message.",
               "type": "integer"
             },
-            "publishDate": {
-              "description": "The message publish date in UTC.",
-              "type": "string"
+            "data": {
+              "$ref": "AuthorizationRevocationData"
             }
           },
           "type": "object"

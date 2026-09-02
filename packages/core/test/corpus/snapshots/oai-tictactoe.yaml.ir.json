@@ -1,5 +1,5 @@
 {
-  "hash": "fc05e69495da083a373699a66716fc356fe7b5bed784edc57c7ac1cf8fb4e049",
+  "hash": "1452746f316a245c562ab121c18ae9d0eea724543ece6f52baccfde78de8cca8",
   "id": "tic-tac-toe",
   "info": {
     "description": "This API allows writing down marks on a Tic Tac Toe board\nand requesting the state of the board or of individual squares.\n",
@@ -454,11 +454,11 @@
         "name": "status",
         "normalized": {
           "properties": {
-            "board": {
-              "$ref": "board"
-            },
             "winner": {
               "$ref": "winner"
+            },
+            "board": {
+              "$ref": "board"
             }
           },
           "type": "object"

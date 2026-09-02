@@ -463,13 +463,27 @@ function sortedBranches(branches: readonly IRJsonSchema[]): readonly Record<stri
     .sort((left, right) => (canonicalize(left) < canonicalize(right) ? -1 : 1));
 }
 
-/** Applies a function to every value of a record, keeping the keys. */
+/**
+ * Applies a function to every value of a record, rebuilding it with its keys in sorted order.
+ *
+ * THE SORT IS THE DIFFER'S SUBJECT, MADE EXPLICIT RATHER THAN INHERITED, per SPEC 17.1. The
+ * comparison this feeds asks whether two bodies are the same CONTRACT, and a property order is not
+ * something a consumer has to change, so the answer must not move with it. It used to be order
+ * blind for free, because canonical serialization sorted every key; since SPEC 5.3's exception the
+ * canonical form carries the order of an authored map, so a comparison that wants the contract has
+ * to say so here. The document hash asks the other question, whether two documents are the same
+ * document, and carries the order; the two forms answer two questions and neither is the other's
+ * bug.
+ */
 function mapValues<T, U>(
   record: Readonly<Record<string, T>>,
   transform: (value: T) => U,
 ): Record<string, U> {
   const out: Record<string, U> = {};
-  for (const [key, value] of Object.entries(record)) out[key] = transform(value);
+  for (const key of Object.keys(record).sort()) {
+    const value = record[key];
+    if (value !== undefined) out[key] = transform(value);
+  }
   return out;
 }
 
@@ -1074,9 +1088,15 @@ function diffSlot(
 
   if (oldBody === undefined || newBody === undefined) {
     // A raw, non JSON Schema dialect on either side: the only honest comparison is textual.
+    //
+    // NAMED AS THE POSITION IT CAME FROM, per SPEC 5.3. A value handed to `canonicalize` with no
+    // position is serialized as if its keys were this IR's, so a raw body hashed bare would be
+    // sorted and two spellings of it would compare equal while the document hash told them apart.
+    // Here that is not only a consistency point: Avro writes a record's fields in wire order, so a
+    // reordered raw body is a changed one, and the differ says so.
     const oldRaw = oldSlot.kind === 'inline' ? (oldSlot.schema.raw ?? null) : null;
     const newRaw = newSlot.kind === 'inline' ? (newSlot.schema.raw ?? null) : null;
-    if (canonicalize(oldRaw) !== canonicalize(newRaw)) {
+    if (canonicalize(oldRaw, 'raw') !== canonicalize(newRaw, 'raw')) {
       emit(context, {
         kind: 'constraints-changed',
         classification: 'non-breaking',
@@ -1617,7 +1637,8 @@ function diffNamedSchemas(context: DiffContext, flags: ReadonlyMap<string, Reach
     };
 
     if (older.normalized === undefined || newer.normalized === undefined) {
-      if (canonicalize(older.raw ?? null) !== canonicalize(newer.raw ?? null)) {
+      // Named as the position it came from, for the reason the inline raw comparison above states.
+      if (canonicalize(older.raw ?? null, 'raw') !== canonicalize(newer.raw ?? null, 'raw')) {
         emit(context, {
           kind: 'constraints-changed',
           classification: 'non-breaking',

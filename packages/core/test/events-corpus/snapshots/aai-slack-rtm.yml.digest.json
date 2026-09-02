@@ -1,5 +1,5 @@
 {
-  "hash": "1936792cd7af746c563d469db60dd8d7d66b5dfb6ac87ce70768d3c03f2ad5a4",
+  "hash": "fc9f67e25a8d045a37b95ff47b604577a6c121ec73a64e4c4b38d3da1391fee9",
   "id": "slack-real-time-messaging-api",
   "kind": "events",
   "info": {
@@ -25,6 +25,6 @@
     "channel-root"
   ],
   "schemas": [
-    "attachment asyncapi-schema f7a29f2939dab507"
+    "attachment asyncapi-schema 1ef562e9e5510d31"
   ]
 }
