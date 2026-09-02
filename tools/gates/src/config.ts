@@ -408,9 +408,17 @@ export interface SizeBudget {
    * WHY IT IS NOT SIMPLY ON EVERY BUDGET. Two of these rows are the same file in both forms and
    * are so by construction, not by luck: an embedded Web Component is one file that names no
    * sibling, and a font file is renamed without a byte of it being rewritten, which is measured
-   * rather than assumed. The rest still weigh the form on disk, and SPEC 20 names them and their
-   * published figures rather than leaving the reader to find them, because two of them stand over
-   * their cap in the form that ships and moving a cap is the maintainer's.
+   * rather than assumed.
+   *
+   * IT IS ON A ROW WHEN THAT ROW'S CAP WAS DERIVED FROM THE PUBLISHED FORM, and that is the whole
+   * rule. Four rows carry it: `client-js-raw` and `theme-css-raw` since 2026-08-31, and
+   * `client-js-schema` and `theme-entry` since 2026-09-02, the two the first pass found already
+   * over their cap in the form that ships and filed rather than moved, because re-deriving a cap
+   * is the maintainer's. The remaining twelve still weigh the form on disk, and SPEC 20 records
+   * each one's published figure and the measured fact that binds it: every one of the twelve has
+   * more headroom under its cap than the difference between the two forms costs it, so today each
+   * bounds what a reader receives as well. That is a reading on a date, not a property, and a row
+   * whose headroom falls under its own form difference comes to the maintainer with a measurement.
    */
   readonly form?: 'published';
 }
@@ -1054,11 +1062,33 @@ export const SIZE_BUDGETS: readonly SizeBudget[] = [
     // moved it is a capability arriving in this chunk: the permanent field anchor, its
     // mount-time walk that expands the ancestors of a fragment, and the view the segment
     // narrows, per SPEC 11. The old 1,800 held 1,782 until then.
-    limitBytes: 2_100,
+    //
+    // THE SUBJECT MOVED ONTO THE PUBLISHED FORM ON 2026-09-02 AND THE CAP WITH IT, by the
+    // maintainer's ruling on the section addressed to `T065`. This row was found over its cap in
+    // the form that ships on 2026-08-31, in the same pass that moved `client-js-raw` and
+    // `theme-css-raw`, and it was written down rather than moved because re-deriving a cap is the
+    // maintainer's. The maintainer's line about that is in SPEC 20: two rows found after the
+    // subject changed means the subject change was applied row by row rather than to the set.
+    //
+    // RE-DERIVED BY THIS ROW'S OWN PROPERTY AND NOT A GENERIC ONE, which is the same one the 2,100
+    // came from: measured, plus ten percent, rounded down to a hundred bytes. Published 2,150
+    // against 2,082 on disk, and the whole of the 68 is the four sibling chunks
+    // `SchemaView-WWYEEAZZ.js` names, at a dot and sixteen digest characters each. 2,150 plus ten
+    // percent is 2,365, down to a hundred is 2,300, headroom 150.
+    //
+    // THE PROPERTY WAS RE-CHECKED AND WHAT FAILS IT IS MEASURED RATHER THAN EXTRAPOLATED: 417 raw
+    // bytes of new code in this chunk read 2,301 gzip and fail, 416 read 2,300 and fit. THE TWIN
+    // BINDS FIRST AND BY A WIDE MARGIN, which is why the gesture carries two caps rather than one:
+    // `client-js-schema-raw` stays at 5,300 and its published figure is 5,227, so 74 raw bytes
+    // fail the pair while this row would not notice them.
+    limitBytes: 2_300,
     roots: CLIENT_JS_ROOTS,
     extensions: ['.js', '.mjs'],
     quantity: 'transfer',
-    producedBy: 'T011-R, split by gesture in T026, re-derived in TX-MARKUP',
+    form: 'published',
+    producedBy:
+      'T011-R, split by gesture in T026, re-derived in TX-MARKUP and on 2026-09-02 onto the ' +
+      'published form',
     partition: { entry: CLIENT_JS_ENTRY, side: 'deferred', gesture: 'schema' },
   },
   {
@@ -1329,13 +1359,32 @@ export const SIZE_BUDGETS: readonly SizeBudget[] = [
   // chunk, so the shapes engine's chunk and the entry growth of the TX work land here by
   // construction. Measured 226,778 raw and 81,562 gzip, plus ten percent, whole KiB.
   {
+    // THE SUBJECT MOVED ONTO THE PUBLISHED FORM ON 2026-09-02 AND THE CAP WITH IT, by the same
+    // ruling that moved `client-js-schema`. This entry is served to a reader the way the default
+    // bundle is, through `theme.bundle` and the same catalog, so the form that ships is the form a
+    // host shipping telltale actually serves. It stood over its cap in that form from 2026-08-31,
+    // written down rather than moved, and SPEC 20 carries the maintainer's line about why two rows
+    // had to be found twice.
+    //
+    // RE-DERIVED BY THIS ROW'S OWN PROPERTY, the one the 78 KB of T033 and the 88 KB of TX-SHAPES
+    // both came from: measured, plus ten percent, rounded up to the whole KiB. Published 90,284
+    // against 89,545 on disk, 739 bytes across twelve of the eighteen files, the other six naming
+    // no sibling. 90,284 plus ten percent is 99,312.4, up to the whole KiB is 97, so 99,328.
+    //
+    // THE HEADROOM IS 9,044 AND THAT IS SAID PLAINLY RATHER THAN LEFT IN THE ARITHMETIC. What
+    // fails it, measured on the artefacts here and not extrapolated: one more chunk the size of
+    // `runner-factory`, 14,459 published gzip bytes, reads 104,743 and fails; the largest chunk
+    // this directory carries that still fits is `TryItPanel` at 7,338, which reads 97,622. AND THE
+    // TWIN BINDS LONG BEFORE THIS ROW DOES: `theme-entry-raw` stays at 249,856 against a published
+    // 248,936, so 921 raw bytes anywhere in this directory fail the pair.
     id: 'theme-entry',
     label: 'telltale themed entry, whole directory, transfer',
-    limitBytes: 88 * 1024,
+    limitBytes: 97 * 1024,
     quantity: 'transfer',
     roots: ['packages/theme-telltale/dist/entry'],
     extensions: ['.js'],
-    producedBy: 'T033, re-derived at TX-SHAPES',
+    form: 'published',
+    producedBy: 'T033, re-derived at TX-SHAPES and on 2026-09-02 onto the published form',
   },
   {
     id: 'theme-entry-raw',

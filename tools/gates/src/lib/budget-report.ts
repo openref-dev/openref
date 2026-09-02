@@ -45,7 +45,7 @@ import {
   partitionModuleGraph,
   type GesturePartition,
 } from './module-graph.js';
-import { readPublishedForm, type PublishedForm } from './published-form.js';
+import { readPublishedForm, servedReferenceOf, type PublishedForm } from './published-form.js';
 import { collectFiles } from './walk.js';
 
 /** How each quantity is printed, so a figure is never read as the other one. */
@@ -133,8 +133,14 @@ export interface BudgetReport {
 export interface BudgetReportOptions {
   /** The budgets to weigh. Defaults to every SPEC 20 size budget. */
   readonly budgets?: readonly SizeBudget[];
-  /** How the published form is read. Defaults to the renderer's own asset catalog. */
-  readonly publishedForm?: (repoRoot: string) => PublishedForm;
+  /**
+   * How the published form is read. Defaults to the renderer's own asset catalog.
+   *
+   * The roots are passed rather than an entry, because which served reference a row belongs to is
+   * part of reading the form and not a decision the caller makes: resolving it here would refuse
+   * a probe budget's invented roots before a supplied double was ever asked.
+   */
+  readonly publishedForm?: (repoRoot: string, roots: readonly string[]) => PublishedForm;
 }
 
 /**
@@ -168,7 +174,10 @@ export function collectBudgetOutcomes(
   // times and train a reader to skip all six.
   const gestureSplits = new Map<string, GesturePartition>();
   const budgets = options.budgets ?? SIZE_BUDGETS;
-  const publishedFormOf = options.publishedForm ?? readPublishedForm;
+  const publishedFormOf =
+    options.publishedForm ??
+    ((root: string, roots: readonly string[]): PublishedForm =>
+      readPublishedForm(root, servedReferenceOf(roots)));
 
   for (const budget of budgets) {
     const present: string[] = [];
@@ -260,11 +269,16 @@ export function collectBudgetOutcomes(
     // longer than the file on disk wherever that file names a sibling. Reading the catalog can
     // fail only in ways that mean the check cannot be made, so it fails the budget rather than
     // falling back to the form nobody downloads: that substitution is the defect the move fixed.
+    //
+    // WHICH SERVED REFERENCE, SINCE THE RULING OF 2026-09-02 ADDED A SECOND. `theme-entry` weighs
+    // the browser entry telltale ships, which a host serves through `theme.bundle`, and five of
+    // its files are in no asset of the default reference. The reference is looked up from the
+    // budget's own roots against `SHIPPED_CLIENT_BUNDLES` rather than named a second time here.
     let published: PublishedForm | null = null;
 
     if (budget.form === 'published' && wanted.length > 0) {
       try {
-        published = publishedFormOf(repoRoot);
+        published = publishedFormOf(repoRoot, budget.roots);
       } catch (cause) {
         errors.push(
           `${budget.id}: weighs the published form and the asset catalog could not be read: ${cause instanceof Error ? cause.message : String(cause)}. Weighing the files on disk instead would report a form no reader receives`,
