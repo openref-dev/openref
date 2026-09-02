@@ -32,10 +32,17 @@ export class FakeClock {
   readonly setTimer = (callback: () => void, ms: number): unknown => {
     const handle = this.next;
     this.next += 1;
+    this.arms += 1;
     this.pending.set(handle, { due: this.at + ms, run: callback });
 
     return handle;
   };
+
+  /** How many timers have been armed over the life of this clock, per the `T065` bound. */
+  arms = 0;
+
+  /** How many armed timers have been cancelled, per the same bound. */
+  cancels = 0;
 
   /**
    * Cancels a timer.
@@ -43,7 +50,7 @@ export class FakeClock {
    * @param handle - What `setTimer` returned
    */
   readonly clearTimer = (handle: unknown): void => {
-    this.pending.delete(handle as number);
+    if (this.pending.delete(handle as number)) this.cancels += 1;
   };
 
   /** How many timers are armed, so a case can assert that nothing was left running. */

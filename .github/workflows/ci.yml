@@ -74,6 +74,23 @@ jobs:
       - name: Gates
         run: pnpm run gates
 
+      # A REGENERATED RECORDING MUST NOT REACH A COMMIT UNNOTICED, per the T065 section on the
+      # file snapshot harness. Measured on vitest 4.1.10: a perturbed `toMatchFileSnapshot`
+      # recording fails red and is not rewritten, with CI set and without it, but an ABSENT one is
+      # written and the run is green when CI is unset. Nine call sites over four files carry
+      # readings that way, so deleting one locally and re-running yields a pass and a modified
+      # working tree, and nothing between that and a commit reads the tree. This step is that
+      # reader. It runs after every suite and after the gates, so it also catches anything else
+      # the run writes back into the checkout.
+      - name: No suite rewrote a recorded reading
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "The working tree changed while the suites ran. A recorded reading was rewritten:"
+            git status --porcelain
+            git diff --stat
+            exit 1
+          fi
+
   static-build-budget:
     name: static build of 1000 nodes on a declared runner size
     runs-on: ubuntu-latest

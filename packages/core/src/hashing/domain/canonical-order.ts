@@ -29,15 +29,33 @@ import type { IRJsonValue } from '../../ir/domain/schema.types';
  * the document can reach, including a type that does not exist yet, makes
  * {@link CANONICAL_MAP_ORDER} stop being total and fails the compile until it is given a verdict.
  *
- * THE BOUND ON THAT CLAIM, MEASURED RATHER THAN ASSERTED. The walk counts down {@link Fuel}, so it
- * is total to a measured depth and not to any depth. At the committed budget a position 32 type
- * graph edges from `IRDocument` fails the compile and one at 33 does not. The deepest position in
- * the IR today sits at 6 edges, `nodes` to `IRNode` to `responses` to `content` to `schema` to
- * `IRSchema` to `normalized`, so the headroom is 26 edges. The budget is not free either: the real
- * IR compiles at budgets of 48, 49, 50, 52 and 53 and first raises `TS2589` at 54, so the committed
- * value leaves 22 of margin below the first failing one rather than the 16 the first draft of this
- * paragraph claimed, which was an inference from one failing reading rather than a search for the
- * boundary. Every figure here reproduces by planting a chain of that length and compiling.
+ * THE BOUND ON THAT CLAIM, MEASURED WITH A NEGATIVE CONTROL, WHICH THE FIRST TWO READINGS OF THIS
+ * PARAGRAPH DID NOT HAVE. The walk counts down {@link Fuel}, so the record is total to a measured
+ * depth and not to any depth, and past that depth the compile is still red without the record
+ * having anything to do with it. Measured 2026-09-02 by planting a chain of N interfaces hung off
+ * `IRDocument` through one optional member, twice at every length: once ending in a map, and once
+ * ending in a `string`, which is the control that says whether the redness is about the map.
+ *
+ * - **At 30 links the record fires and identifies the member**: the map tail gives exactly one
+ *   error, `TS1360`, naming `probeDepthMapT065`, and the plain tail COMPILES CLEAN. So at that
+ *   depth the red is caused by the map and by nothing else.
+ * - **At 31, 32, 33, 40, 64 and 121 links the two tails are indistinguishable**: `TS1360` and
+ *   `TS2589` together, identically, with and without a map. Past the bound the compile is red
+ *   because the type graph got too deep for the compiler, and the `TS1360` beside it fires for a
+ *   chain carrying no map at all.
+ *
+ * SO WHAT IS TRUE PAST THE BOUND IS WEAKER THAN RED SUGGESTS, not stronger, and the earlier
+ * sentence here had it backwards. It said a position 32 edges out fails the compile and one at 33
+ * does not, in a geometry it did not state, and inferred from the surviving `TS1360` that the union
+ * had been checked and found short. The control refutes that inference: the redness past 30 links
+ * carries no information about the record. What the record guarantees is coverage to 30 links in
+ * this geometry, against a deepest real position of 6 edges, `nodes` to `IRNode` to `responses` to
+ * `content` to `schema` to `IRSchema` to `normalized`, so the working margin is 24 links.
+ *
+ * THE FUEL ITSELF IS NOT FREE EITHER, and that half is unchanged: the real IR compiles at budgets
+ * of 48, 49, 50, 52 and 53 and first raises `TS2589` at 54, so the committed value of 32 leaves 22
+ * of margin below the first failing one. Every figure here reproduces by planting a chain of the
+ * stated length, with both tails, and compiling.
  *
  * WHY IT IS KEYED BY MEMBER NAME. The name is the only thing the serializer can see while walking a
  * value, so two IR types declaring a position under one name have to agree, and keying by the pair

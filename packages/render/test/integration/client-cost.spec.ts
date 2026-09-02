@@ -101,6 +101,14 @@ const MEMORY_CEILING_BYTES = 250 * 1024 * 1024;
 const DOCUMENT_CEILING_BYTES = 41 * 1024;
 
 /**
+ * How many named schemas of the corpus document get a schema page in the bound case below.
+ *
+ * BOUNDED BECAUSE THE DOCUMENT HAS 1,440 OF THEM and each page builds a closure; sixty is enough
+ * to reach the limit, measured, and is a few seconds rather than a few minutes.
+ */
+const SCHEMA_PAGE_SAMPLE = 60;
+
+/**
  * The largest document in the corpus, which is what SPEC 20's figure is about.
  *
  * `stripe.yaml` is 1.9 MB of source and 5.3 MB of IR, with 589 operations and 1440 schemas. A
@@ -213,15 +221,37 @@ describe('the cost of a page of a thousand nodes', () => {
   }, 120_000);
 
   it('should carry a page state whose schemas cannot outgrow the bound', () => {
-    // Given, the one part of the state that grows with the document rather than with the page.
-    const document_ = largeDocument(NODE_COUNT);
-    const nodeId = [...document_.nodes.keys()][0] ?? '';
+    // Given, THE SUBJECT HAS TO BE PRESENT AND IT WAS NOT UNTIL `T065`. This case used to weigh
+    // `largeDocument`, whose generated operations have no request body and whose parameters carry
+    // inline schemas, so `buildSchemaPayload` got no seed and the payload was `{}`: 2 bytes
+    // measured against 131,072, on a document with 1,750 named schemas. A bound with no subject
+    // passes whatever the code does. The subject is the real document the rest of this file
+    // measures, on a page whose operation takes a body that pulls named schemas in.
+    // THE PAGE THAT CARRIES ONE IS THE SCHEMA PAGE, WHICH IS ALSO A FACT WORTH RECORDING. The
+    // payload is seeded from the parameter and request body slots of the page, and every one of
+    // this document's 589 operations has a request body whose schema is written inline with no
+    // `$ref` in it, so `seedsOf` yields nothing and a node page of it legitimately ships `{}`.
+    // Measured: all 589 node pages weigh 2 bytes. A schema page seeds from the named schema
+    // itself, so that is where the closure grows and where the bound binds.
+    const document_ = stripe();
+    const sampled = [...document_.schemas.keys()].slice(0, SCHEMA_PAGE_SAMPLE);
+    let heaviest = { id: '', bytes: 0, keys: 0 };
 
     // When
-    const model = buildPageModel(document_, { nodeId, markdown });
-    const bytes = JSON.stringify(model.schemas).length;
+    for (const schemaId of sampled) {
+      const model = buildPageModel(document_, { page: 'schema', schemaId, markdown });
+      const bytes = JSON.stringify(model.schemas).length;
+      if (bytes > heaviest.bytes) {
+        heaviest = { id: schemaId, bytes, keys: Object.keys(model.schemas).length };
+      }
+    }
 
-    // Then
-    expect(bytes).toBeLessThanOrEqual(128 * 1024);
-  }, 120_000);
+    // Then, the payload is really there on the page it is heaviest on, it is large enough for the
+    // bound to be the thing that stopped it, and it is under the bound. The builder truncates at
+    // the limit rather than overshooting it, which is what the last two assertions together say.
+    expect(sampled.length).toBe(SCHEMA_PAGE_SAMPLE);
+    expect(heaviest.keys).toBeGreaterThan(0);
+    expect(heaviest.bytes).toBeGreaterThan(64 * 1024);
+    expect(heaviest.bytes).toBeLessThanOrEqual(128 * 1024);
+  }, 180_000);
 });

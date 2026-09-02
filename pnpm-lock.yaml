@@ -716,6 +716,12 @@ importers:
 
   tools/browser-budget:
     devDependencies:
+      '@openref/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      '@openref/federation':
+        specifier: workspace:*
+        version: link:../../packages/federation
       '@openref/gates':
         specifier: workspace:*
         version: link:../gates

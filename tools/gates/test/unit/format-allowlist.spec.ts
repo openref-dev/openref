@@ -1,7 +1,7 @@
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { globSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, join, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { SPAWNED_PROCESS_TIMEOUT_MS } from '../../../../vitest.spawn-timeout.ts';
@@ -133,6 +133,58 @@ describe('the format allowlist', () => {
       expect(allowed.some((file) => file.includes('ai-docs/'))).toBe(false);
       expect(allowed.some((file) => file.endsWith('CLAUDE.md'))).toBe(false);
       expect(allowed.some((file) => file.endsWith('pnpm-lock.yaml'))).toBe(false);
+    },
+    SPAWNED_PROCESS_TIMEOUT_MS,
+  );
+
+  /**
+   * The partition, which is the property this suite deliberately did not hold until `T065`.
+   *
+   * THE ALLOWLIST FAILS CLOSED AND THAT IS THE DEFECT HERE RATHER THAN THE PROTECTION. Until
+   * `T065` the only markdown pattern under `packages/` was `packages/*&#47;README.md`, so
+   * `packages/vue/PUBLIC-API.md`, `packages/theme-telltale/THEME-BOUNDARY.md` and
+   * `packages/nest/DISTRIBUTION.md` were left alone, and measured, all three were unformatted.
+   * Nothing asserted that a markdown file under `packages/` is either on the list or deliberately
+   * off it, so a new one arrived silently on whichever side it landed. This case asserts the
+   * partition, so a `packages/<name>/SOMETHING.md` fails until somebody decides which side it is
+   * on, and the two deliberate exclusions carry their reason here.
+   */
+  it(
+    'should put every markdown file under packages on one side of the list or the other',
+    () => {
+      // Given, every markdown file in the workspace's packages, however deep.
+      const found = execFileSync(
+        'git',
+        ['ls-files', '--cached', '--others', '--exclude-standard', 'packages/**/*.md'],
+        { cwd: repoRoot, encoding: 'utf8' },
+      )
+        .split('\n')
+        .map((line) => line.trim())
+        .filter((line) => line.length > 0);
+
+      // WHAT THE LIST REACHES, EXPANDED FROM THE SCRIPT'S OWN PATTERNS. `--list-different` cannot
+      // answer this: it names the files prettier would change, so a list that reached a file and
+      // found it already formatted is indistinguishable from a list that never reached it.
+      const listed = new Set(
+        pathsOf(scripts()['format:check'] ?? '').flatMap((pattern) =>
+          globSync(pattern, { cwd: repoRoot }).map((file) => file.split(sep).join('/')),
+        ),
+      );
+
+      // DELIBERATELY OFF, EACH WITH ITS REASON. The corpus is vendored upstream text and
+      // generated snapshots, and reformatting either would rewrite somebody else's document or a
+      // recorded reading; the font notices are licence text that a reflow would alter.
+      const deliberatelyOff = (file: string): boolean =>
+        file.startsWith('packages/core/test/') || /^packages\/[^/]+\/fonts\//.test(file);
+
+      // When
+      const unaccounted = found.filter((file) => !listed.has(file) && !deliberatelyOff(file));
+
+      // Then, the subject is present on both sides, so neither half can pass by being empty.
+      expect(found.length).toBeGreaterThan(10);
+      expect(found.some((file) => deliberatelyOff(file))).toBe(true);
+      expect(found.some((file) => listed.has(file))).toBe(true);
+      expect(unaccounted).toEqual([]);
     },
     SPAWNED_PROCESS_TIMEOUT_MS,
   );

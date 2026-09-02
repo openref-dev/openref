@@ -1,3 +1,4 @@
+import { ErrorCode, StreamError } from '@openref/core';
 /**
  * Turning a byte stream into elements, one chunk at a time, per SPEC 14.6.
  *
@@ -41,14 +42,29 @@ export interface StreamFrame {
  */
 export const DEFAULT_MAX_ELEMENT_CHARS = 1024 * 1024;
 
-/** Thrown by the decoder when one element passes the limit it was built with. */
-export class ElementTooLargeError extends Error {
+/**
+ * Thrown by the decoder when one element passes the limit it was built with.
+ *
+ * IT EXTENDS `StreamError` SINCE `T065`, AND IT EXTENDED `Error` BEFORE THAT, WHICH WAS A RULE
+ * VIOLATION IN THE PUBLISHED SURFACE. STANDARDS and `CLAUDE.md` both say every error of this
+ * project extends `OpenRefError` and carries an `ErrorCode`, and the hierarchy already had the
+ * exact place for this one, `RunnerError -> StreamError`. This is the only error class
+ * `@openref/runner`, `@openref/nest` and `@openref/vue` export at all, so the one that reached a
+ * consumer was the one that broke the rule: a caller doing `error instanceof OpenRefError` or
+ * reading `error.code` got neither, and a `@throws` tag named a shape the rest of the surface does
+ * not share. `limit` stays a readonly member so the existing catch site keeps compiling, and it is
+ * repeated into the error context, which is where every other error of this project puts its
+ * subject.
+ */
+export class ElementTooLargeError extends StreamError {
   /** @param limit - The limit that was passed, in characters */
   constructor(public readonly limit: number) {
     super(
       `one element of the stream is longer than the ${String(limit)} characters this console will buffer`,
+      ErrorCode.RUN_STREAM_FAILED,
+      undefined,
+      { limit },
     );
-    this.name = 'ElementTooLargeError';
   }
 }
 

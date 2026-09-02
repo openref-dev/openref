@@ -528,3 +528,108 @@ describe('encodeValue and isJsonMediaType', () => {
     expect(actual).toEqual([true, true, true, false, false]);
   });
 });
+
+/**
+ * A declared content type is written once, in the document's own spelling, per SPEC 14.3.
+ *
+ * THE RULING THIS ANSWERS, AND WHY IT IS A CASE AND NOT A FIX. A maintainer's ruling of 2026-08-30
+ * routed the runner's duplicate `Content-Type` to a section that was never written, so no box
+ * carried it and no reader could check the claim that the tree is already correct. Measured before
+ * the fix that `T059` made: an operation whose only header parameter is `content-type` produced a
+ * plan carrying that key and `Content-Type`, and `new Headers` joined the two, so one field went
+ * out with the declared value written twice. These cases are that reader.
+ */
+describe('buildRequest and a document that declares its own content type', () => {
+  /** An operation with one header parameter, spelled the way the document wrote it. */
+  function declaring(spelling: string, mediaType: string): ReturnType<typeof operation> {
+    return operation({
+      method: 'post',
+      path: '/orders',
+      parameters: [parameter({ name: spelling, in: 'header', required: true, style: 'simple' })],
+      body: [{ mediaType }],
+    });
+  }
+
+  /** Every header key that names a content type, in the plan's own spellings. */
+  function contentTypeKeys(headers: Readonly<Record<string, string>>): string[] {
+    return Object.keys(headers).filter((name) => name.toLowerCase() === 'content-type');
+  }
+
+  it('should carry exactly one content type, in the casing the document used', () => {
+    // Given, a spelling the guard does not itself use
+    const target = declaring('content-type', 'application/json');
+
+    // When
+    const plan = buildRequest(target, {
+      serverUrl: 'https://api.example.com',
+      values: {
+        'header:content-type': { kind: 'primitive', value: 'application/vnd.orders+json' },
+      },
+      mediaType: 'application/json',
+      body: { kind: 'text', text: '{"id":1}' },
+    });
+
+    // Then, the subject is present: the document really declared it, and only once.
+    expect(contentTypeKeys(plan.headers)).toEqual(['content-type']);
+    expect(plan.headers['content-type']).toBe('application/vnd.orders+json');
+  });
+
+  it('should still write one when the document spells it in yet another casing', () => {
+    // Given
+    const target = declaring('CONTENT-TYPE', 'application/json');
+
+    // When
+    const plan = buildRequest(target, {
+      serverUrl: 'https://api.example.com',
+      values: {
+        'header:CONTENT-TYPE': { kind: 'primitive', value: 'application/vnd.orders+json' },
+      },
+      mediaType: 'application/json',
+      body: { kind: 'text', text: '{"id":1}' },
+    });
+
+    // Then
+    expect(contentTypeKeys(plan.headers)).toEqual(['CONTENT-TYPE']);
+    expect(plan.headers['CONTENT-TYPE']).toBe('application/vnd.orders+json');
+  });
+
+  it('should replace the declared spelling on the multipart branch, boundary and all', () => {
+    // Given, SPEC 14.3 says multipart replaces the declared value rather than joining it, because
+    // the boundary is built here and a declared type with no boundary describes an unreadable body
+    const target = declaring('content-type', 'multipart/form-data');
+
+    // When
+    const plan = buildRequest(target, {
+      serverUrl: 'https://api.example.com',
+      values: { 'header:content-type': { kind: 'primitive', value: 'multipart/form-data' } },
+      mediaType: 'multipart/form-data',
+      body: { kind: 'fields', fields: [{ kind: 'text', name: 'a', value: '1' }] },
+    });
+
+    // Then, one key, the document's spelling, and the runner's own value with the boundary on it
+    expect(contentTypeKeys(plan.headers)).toEqual(['content-type']);
+    expect(plan.headers['content-type']).toMatch(/^multipart\/form-data; boundary=/);
+  });
+
+  it('should write its own header when the document declares none, which is the control', () => {
+    // Given
+    const target = operation({
+      method: 'post',
+      path: '/orders',
+      parameters: [],
+      body: [{ mediaType: 'application/json' }],
+    });
+
+    // When
+    const plan = buildRequest(target, {
+      serverUrl: 'https://api.example.com',
+      values: {},
+      mediaType: 'application/json',
+      body: { kind: 'text', text: '{"id":1}' },
+    });
+
+    // Then
+    expect(contentTypeKeys(plan.headers)).toEqual(['Content-Type']);
+    expect(plan.headers['Content-Type']).toBe('application/json');
+  });
+});

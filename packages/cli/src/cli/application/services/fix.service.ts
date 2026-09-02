@@ -1,5 +1,6 @@
 import { readFile, writeFile } from 'node:fs/promises';
 import { isAbsolute, relative, resolve, sep } from 'node:path';
+import { refusedNonRegularFile } from '../../infrastructure/adapters/regular-file.adapter';
 import {
   rewriteSource,
   type RefusedEdit,
@@ -156,9 +157,17 @@ function insideRoot(root: string, file: string): string | undefined {
   return absolute;
 }
 
-/** A file's text, or undefined when it is not there. */
+/**
+ * A file's text, or undefined when it is not there or is not a regular file.
+ *
+ * THE SAME GUARD THE DOCUMENT READS CARRY, per the `T065` rule in `regular-file.adapter.ts`: the
+ * path here comes out of a source link in a document this tool did not write, so a named pipe at
+ * that address would hang `openref doctor --fix` with nothing printed. It fails soft rather than
+ * throwing, because a source file that cannot be read is already a skip on this path.
+ */
 async function readSource(absolute: string): Promise<string | undefined> {
   try {
+    if ((await refusedNonRegularFile(absolute)) !== undefined) return undefined;
     return await readFile(absolute, 'utf8');
   } catch {
     return undefined;

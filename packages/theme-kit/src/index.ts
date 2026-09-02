@@ -9,9 +9,13 @@ import { PACKAGE_NAME as VUE_PACKAGE } from '@openref/vue';
  * the first and survives the second, so an author starts from something that conforms rather
  * than from an empty directory and a specification.
  *
- * Internal, per SPEC 4: it is bundled rather than published, because what a theme author
- * installs is the contract in `@openref/vue`. That is a product decision and it is reviewed
- * when somebody needs this without the rest.
+ * PUBLISHED SINCE `T064`, and this paragraph said the opposite until `T065` read the tarball. It
+ * used to say the package was internal and bundled, on the reasoning that what a theme author
+ * installs is the contract in `@openref/vue`; the maintainer's own test at `T064` was whether a
+ * theme author can use it without the rest, and this is the one thing they run to check a theme
+ * against the frozen contract of SPEC 10.4 outside this repository. The sentence shipped inside
+ * `dist/index.d.ts`, which is where a consumer reads it, so a stale claim there is a claim made
+ * to the one reader it is about.
  */
 
 /** Name of this package. */

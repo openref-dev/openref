@@ -32,6 +32,14 @@ export interface SocketLogEntryView {
   readonly matched?: string;
   /** Why this message matches nothing the channel declares, absent when it does. */
   readonly problem?: string;
+  /**
+   * True when the frame was never read at all, per SPEC 14.7 and the `T065` section.
+   *
+   * THE ENTRY HALF OF THE COUNTER BELOW. Without it a theme can read that some frames were
+   * unreadable and cannot say which, so it would have to guess from the `problem` sentence, which
+   * is the guess the split exists to remove.
+   */
+  readonly unreadable?: true;
 }
 
 /** The log, bounded by its window, with everything counted. */
@@ -40,6 +48,17 @@ export interface SocketLogStateView {
   readonly sent: number;
   readonly received: number;
   readonly invalid: number;
+  /**
+   * Messages the log could not read at all, per SPEC 14.7 and the `T065` section.
+   *
+   * SEPARATE FROM `invalid` BECAUSE THE TWO MEAN DIFFERENT THINGS TO A READER. A binary frame on a
+   * text channel was never checked against a schema, so counting it as a schema mismatch tells a
+   * reader to go and look at a schema that is fine. `T059` split the pair in
+   * `packages/runner/src/socket/domain/message-log.ts` and this view never gained the member, so a
+   * Vue consumer could not read the counter the split exists to provide, and structural assignment
+   * kept the omission green.
+   */
+  readonly unreadable: number;
   readonly dropped: number;
 }
 

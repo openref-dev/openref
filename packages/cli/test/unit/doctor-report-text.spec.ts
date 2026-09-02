@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import type { IRDoctorFinding, IRDoctorReport } from '@openref/core';
+import {
+  buildDoctorReport,
+  normalizeOpenApiDocument,
+  type IRDoctorFinding,
+  type IRDoctorReport,
+  type IRDocument,
+} from '@openref/core';
 import {
   renderDoctorFinding,
   renderDoctorFindings,
@@ -294,5 +300,84 @@ describe('renderDoctorFindings', () => {
   it('should print nothing for no findings', () => {
     // Given / When / Then
     expect(renderDoctorFindings([])).toBe('');
+  });
+});
+
+/**
+ * What a reader of the terminal can tell about where an unread key is, per the `T065` section.
+ *
+ * DRIVEN THROUGH THE REAL NORMALIZER AND THE REAL RULE, not through a hand written finding.
+ * The defect was that `unreadKeyResult` called `issueOf` with an empty subject, so `findingSubject`
+ * fell through to the literal `(document)` while the whole address sat in `message`, which this
+ * renderer does not read: measured before the fix on a document carrying a wrong case key under a
+ * path and another under a webhook, both blocks headed `DRIFT  DX050  (document)`.
+ */
+describe('a DX050 finding, at each of the four positions an unread key can hang off', () => {
+  /** One document that carries all four, so the case cannot pass by covering one. */
+  function unreadKeyDocument(): IRDocument {
+    return normalizeOpenApiDocument({
+      openapi: '3.2.0',
+      info: { title: 'Unread', version: '1' },
+      paths: {
+        '/a': {
+          GET: { responses: { '200': { description: 'ok' } } },
+          get: {
+            responses: { '200': { description: 'ok' } },
+            callbacks: {
+              onEvent: {
+                '{$request.body#/url}': { PUT: { responses: { '200': { description: 'ok' } } } },
+              },
+            },
+          },
+          additionalOperations: { get: { responses: { '200': { description: 'ok' } } } },
+        },
+      },
+      webhooks: { onOrder: { POST: { responses: { '200': { description: 'ok' } } } } },
+    });
+  }
+
+  it('should carry all four positions, so nothing below passes on a document with one', () => {
+    // Given / When
+    const positions = (unreadKeyDocument().unreadKeys ?? []).map((key) => key.position);
+
+    // Then
+    expect([...new Set(positions)].sort()).toEqual([
+      'additional-operations',
+      'callback',
+      'paths',
+      'webhooks',
+    ]);
+  });
+
+  it('should head every block with the member the key hangs off, never with (document)', () => {
+    // Given
+    const document = unreadKeyDocument();
+    const findings = buildDoctorReport(document).findings.filter((entry) => entry.code === 'DX050');
+
+    // When
+    const headers = findings.map((entry) => renderDoctorFinding(entry).split('\n')[0]);
+
+    // Then, the subject is present and none of it is the literal the rule used to fall through to.
+    expect(findings.length).toBe(4);
+    expect(headers).toContain('DRIFT  DX050  webhook "onOrder"');
+    expect(headers).toContain('DRIFT  DX050  "/a".additionalOperations');
+    expect(headers).toContain(
+      'DRIFT  DX050  "{$request.body#/url}" of callback "onEvent" on operation "get-a"',
+    );
+    expect(headers).toContain('DRIFT  DX050  "/a"');
+    expect(headers.some((header) => (header ?? '').includes('(document)'))).toBe(false);
+  });
+
+  it('should still name the key to rename, so the header is an address and not the whole answer', () => {
+    // Given
+    const findings = buildDoctorReport(unreadKeyDocument()).findings.filter(
+      (entry) => entry.code === 'DX050' && entry.subject === 'webhook "onOrder"',
+    );
+
+    // When
+    const block = renderDoctorFinding(findings[0]!);
+
+    // Then
+    expect(block).toContain('rename the key "POST" to "post"');
   });
 });

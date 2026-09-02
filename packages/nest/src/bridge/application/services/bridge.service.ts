@@ -244,6 +244,7 @@ export class BridgeService {
     let ended = false;
     let released = false;
     let pumpTimer: unknown;
+    let pumpDeadline = 0;
     let subscription: BridgeSubscription | undefined;
 
     const stream = new Readable({
@@ -298,6 +299,7 @@ export class BridgeService {
       if (pumpTimer === undefined) return;
       this.clearTimer(pumpTimer);
       pumpTimer = undefined;
+      pumpDeadline = 0;
     };
 
     /**
@@ -329,23 +331,46 @@ export class BridgeService {
       write(sseDropped({ dropped: since, total: dropped, mode: settings.onOverflow }));
     }
 
-    /** Arms the next drain, when there is anything left to drain or to announce. */
+    /**
+     * Arms the next drain, when there is anything left to drain or to announce.
+     *
+     * AN ARMED DEADLINE THAT HAS NOT MOVED EARLIER IS KEPT, per the `T065` section. `deliver` calls
+     * `pump` for every message that does not overflow the ring and `pump` ends here, so under a
+     * producer that outruns the gate both conditions below hold continuously and this used to
+     * cancel and re-arm once per message. Measured on the soak's own configuration before the
+     * change: 100,000 messages over ten virtual seconds produced 100,461 `setTimer` calls and
+     * 99,959 `clearTimer` calls. The deadline is what the timer is for, and it does not move while
+     * the gate is waiting for the same token, so re-arming it was work that changed nothing.
+     *
+     * ONLY AN EARLIER DEADLINE RE-ARMS. Keeping a timer that fires sooner than needed is safe: the
+     * pump wakes, finds nothing it may spend, and schedules again. Keeping one that fires later
+     * would be a message held past its turn, which is why the comparison is one sided.
+     */
     const schedule = (): void => {
-      clearPump();
-      if (ended || !thirsty) return;
+      if (ended || !thirsty) {
+        clearPump();
+        return;
+      }
 
       const waits: number[] = [];
       if (ring.size > 0) waits.push(gate.waitMs());
       if (pending > 0) waits.push(Math.max(1, BRIDGE_DROP_NOTICE_MS - (now() - lastNoticeAt)));
-      if (waits.length === 0) return;
+      if (waits.length === 0) {
+        clearPump();
+        return;
+      }
 
-      pumpTimer = this.setTimer(
-        (): void => {
-          pumpTimer = undefined;
-          pump();
-        },
-        Math.min(...waits),
-      );
+      const wait = Math.min(...waits);
+      const deadline = now() + wait;
+      if (pumpTimer !== undefined && pumpDeadline <= deadline) return;
+
+      clearPump();
+      pumpDeadline = deadline;
+      pumpTimer = this.setTimer((): void => {
+        pumpTimer = undefined;
+        pumpDeadline = 0;
+        pump();
+      }, wait);
     };
 
     /** Drains what the gate and the reader will take, then arms the next attempt. */

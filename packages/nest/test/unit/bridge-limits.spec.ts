@@ -17,7 +17,8 @@ import { assertBridgeOptions, resolveBridgeOptions } from '../../src/bridge/doma
 import { MessageRing } from '../../src/bridge/domain/message-ring';
 import { RateGate } from '../../src/bridge/domain/rate-gate';
 import { sseClosed, sseDropped, sseMessage, ssePrelude } from '../../src/bridge/domain/sse';
-import { readEvents } from '../mocks/bridge';
+import { BridgeService } from '../../src/index';
+import { drain, FakeClock, FakeSource, readEvents } from '../mocks/bridge';
 
 /**
  * The three pieces the limiter of SPEC 14.8 is made of, measured one at a time.
@@ -386,5 +387,76 @@ describe('assertBridgeOptions', () => {
     expect(() => {
       assertBridgeOptions('the mount', { channels: ['orders.created', ''] });
     }).toThrow(/empty channel address/);
+  });
+});
+
+/**
+ * What the pump costs per message, per the `T065` section, and the bound a regression crosses.
+ *
+ * THE PROSE THAT ASKED FOR THIS. `T056` recorded "pump re-arms a timer on nearly every message,
+ * about 10k setTimeout/clearTimeout pairs per second at the soak's rate, memory flat but no
+ * control bounds the CPU cost", and no section, no budget row and no case carried it: the soak
+ * bounds the retained set at 16 MB and runs on a virtual clock, so elapsed time there says nothing
+ * about a process, and a change that doubled the arming rate was green everywhere.
+ *
+ * MEASURED BEFORE AND AFTER, ON THE SOAK'S OWN CONFIGURATION. 100,000 messages over ten virtual
+ * seconds produced 100,461 arms and 99,959 cancels before the fix, one of each per message; with
+ * `schedule` keeping a deadline that has not moved earlier, the same run produces the figures the
+ * bound below is set from. The bound is per message and generous, so it catches a class of change
+ * rather than a byte of drift.
+ */
+describe('what the drain costs per message, per SPEC 14.8', () => {
+  /** Timer operations per message the pump may spend before this is a different mechanism. */
+  const OPERATIONS_PER_MESSAGE = 0.2;
+
+  it('should not arm a timer for every message a producer pushes', async () => {
+    // Given, the soak's own configuration and its arrival pattern, on a counting clock
+    const clock = new FakeClock();
+    const source = new FakeSource();
+    const bridge = new BridgeService('the pump mount', {
+      enabled: true,
+      channels: ['orders.created'],
+      source,
+      maxMessagesPerSecond: 50,
+      bufferSize: 500,
+      onOverflow: 'drop-oldest',
+      maxConcurrentSubscriptions: 1,
+      now: clock.now,
+      setTimer: clock.setTimer,
+      clearTimer: clock.clearTimer,
+    });
+
+    const opened = await bridge.open('orders.created');
+    if (opened.session === undefined) throw new Error('the bridge refused the subscription');
+    const live = opened.session;
+
+    const messages = 100_000;
+    const armsBefore = clock.arms;
+    const cancelsBefore = clock.cancels;
+
+    // When, ten virtual seconds at ten thousand messages a second
+    for (let step = 0; step < messages / 100; step += 1) {
+      for (let message = 0; message < 100; message += 1) {
+        source.emit(`{"seq":${String(step * 100 + message)},"channel":"orders.created"}`);
+      }
+      clock.advance(10);
+      drain(live.stream);
+    }
+
+    const arms = clock.arms - armsBefore;
+    const cancels = clock.cancels - cancelsBefore;
+
+    // Then, the producer really produced, so the ratio below is a measurement
+    expect(live.counts().received).toBe(messages);
+
+    // And the pump armed a bounded number of timers rather than one per message
+    expect(arms).toBeLessThan(messages * OPERATIONS_PER_MESSAGE);
+    expect(cancels).toBeLessThan(messages * OPERATIONS_PER_MESSAGE);
+
+    // And it armed some, so a pump that had stopped draining altogether cannot pass this
+    expect(arms).toBeGreaterThan(0);
+    expect(live.counts().delivered).toBeGreaterThan(400);
+
+    live.close('closed');
   });
 });

@@ -1063,7 +1063,13 @@ function unreadKeyResult(document: IRDocument): RuleResult {
 
     return issueOf(
       UNREAD_KEY_RULE,
-      {},
+      // THE RULE NAMES ITS OWN SUBJECT, per the `discovery-incomplete` precedent `findingSubject`
+      // already records, and it did not until `T065`. An unread key hangs off no node and no
+      // schema, so an empty subject fell through to the literal `(document)` and the whole address
+      // lived inside `message`; `renderDoctorFinding` never reads `message`, so a reader of
+      // `openref doctor` was shown `DRIFT  DX050  (document)` twice over for a path and a webhook
+      // and could not tell which member to open. Measured on a document carrying both.
+      { subject: unreadKeySubject(entry) },
       {
         message:
           `${unreadKeySubject(entry)} declares an operation under the key "${entry.key}". ` +

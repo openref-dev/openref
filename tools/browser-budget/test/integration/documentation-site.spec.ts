@@ -261,7 +261,7 @@ describe('the documentation site', () => {
   );
 
   it(
-    "should be a page the gate's own text scan calls three violations and a browser calls none",
+    "should be a page the gate's own text scan calls one violation and a browser calls none",
     async () => {
       // Given the same bytes the browser cases above loaded
       const html = await readFile(join(output, 'index.html'), 'utf8');
@@ -269,19 +269,26 @@ describe('the documentation site', () => {
       // When: the scan the `csp` gate applies to built output, run on this file
       const scanned = scanForCspViolations(html);
 
-      // Then: three, and each one is a false positive of a different kind
-      expect(scanned.map((violation) => violation.rule)).toEqual([
-        // The theme chapter teaches the rule by quoting the thing it forbids, and a regular
-        // expression over text cannot tell a quotation from an attribute.
-        'vue-style-binding',
-        // Both of these are data blocks. `application/ld+json` and `application/json` are not
-        // JavaScript, so `script-src` does not reach them and the browser reports nothing; the
-        // rule reads the nonce, the src and the body, and never the type.
-        'inline-script-element',
-        'inline-script-element',
-      ]);
+      // Then: one, and it is the false positive a scan over text cannot avoid.
+      //
+      // IT WAS THREE WHEN `T063` FIRST RAN THIS, and the other two were the scan's own defect
+      // rather than the page's. `<script type="application/ld+json">` and
+      // `<script type="application/json" id="oref-state">` are data blocks: a browser does not
+      // parse either as script and `script-src` does not govern them, which is why the browser
+      // cases above report nothing while this reported two. `isViolation` read the nonce, the src
+      // and the body and never the type. `T065` gave it a CLOSED list of the two spellings this
+      // repository emits, closed because `importmap` and `speculationrules` are also not
+      // JavaScript MIME types and ARE governed, so "not JavaScript, therefore allowed" would have
+      // opened exactly the two that matter. The remaining one is real and is not about this
+      // product: the theme chapter teaches the rule by quoting the thing it forbids, and a regular
+      // expression over text cannot tell a quotation from an attribute.
+      expect(scanned.map((violation) => violation.rule)).toEqual(['vue-style-binding']);
+
+      // And the two data blocks are still on the page, so the reading above is the rule having
+      // learned to read a type rather than the page having lost its structured data.
       expect(html).toContain('<code>style="..."</code>');
       expect(html).toContain('<script type="application/ld+json">');
+      expect(html).toContain('<script type="application/json" id="oref-state">');
     },
     TIMEOUT,
   );

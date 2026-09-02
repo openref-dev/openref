@@ -280,7 +280,18 @@ export interface OwnedEntry {
 }
 
 const OWNED_ENTRY_PATTERN = /^### \[([ x])\] `((?:T\d{3}-R\d*)|(?:TX-[A-Z-]+))`(?: +(.*?))? *$/;
-const MILESTONE_LINE_PATTERN = /^\*\*Milestone:\*\* (M\d+)\b/;
+/**
+ * The milestone an entry declares it closes inside.
+ *
+ * `M\d+` OR `RELEASE`, AND THE SECOND HALF WAS MISSING UNTIL `T065`. `MILESTONE_PATTERN` below
+ * reads `**RELEASE**` out of the CONTENTS block as a milestone like any other, with `T063`, `T064`
+ * and `T065` under it, so `checkOwnedEntries` can expire an entry homed there; this pattern could
+ * not read the declaration, so no entry could ever be homed there and release block work had
+ * nowhere to live but a per task section. Two regular expressions in one file disagreeing about
+ * what a milestone is, with only one of them able to fail: the mechanism was silent about the
+ * block by construction, which is exactly the class it exists to prevent one level down.
+ */
+const MILESTONE_LINE_PATTERN = /^\*\*Milestone:\*\* (M\d+|RELEASE)\b/;
 
 /**
  * Reads every RETROFIT and TX entry, with the milestone line its body declares.

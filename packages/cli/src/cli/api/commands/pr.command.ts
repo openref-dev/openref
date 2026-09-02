@@ -1,4 +1,4 @@
-import { appendFile, readFile } from 'node:fs/promises';
+import { appendFile } from 'node:fs/promises';
 import { buildDiffReport, type IRDiffReport, type IRDocument } from '@openref/core';
 import { isBuildTarget, type BuildTarget } from '@openref/static';
 import { loadDocument } from '../../application/services/load-document.service';
@@ -7,6 +7,7 @@ import { parseApiOrigin, type ApiOrigin } from '../../domain/api-origin';
 import type { CommandContext, CommandOutcome } from '../../domain/command.types';
 import { EXIT_CODE } from '../../domain/exit-code.constants';
 import { refusedGitArgument } from '../../domain/git-ref';
+import { readHandedFile } from '../../infrastructure/adapters/regular-file.adapter';
 import {
   readPullRequestEvent,
   REFUSED_EVENT_NAME,
@@ -381,7 +382,10 @@ async function readEvent(env: Environment, io: CommandContext): Promise<EventRea
 
   let json: string;
   try {
-    json = await readFile(path, 'utf8');
+    // THE ENTRY IS ASKED ABOUT BEFORE IT IS OPENED, per the `T065` rule in
+    // `regular-file.adapter.ts`. This path comes out of the environment inside somebody else's
+    // job, which is the case where nobody is watching a command that never returns.
+    json = await readHandedFile(path, (reason) => new Error(reason));
   } catch (error) {
     const reason = `GITHUB_EVENT_PATH names ${path}, which could not be read: ${error instanceof Error ? error.message : String(error)}`;
     io.stderr(`openref pr: ${reason}\n`);

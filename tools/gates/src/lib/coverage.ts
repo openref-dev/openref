@@ -193,8 +193,26 @@ export function parseFloorTable(standards: string): Record<string, number> | nul
 export function checkFloorTable(
   documented: Readonly<Record<string, number>>,
   floors: Readonly<Record<string, number>>,
+  publishedDirs: readonly string[] = [],
 ): string[] {
   const messages: string[] = [];
+
+  // THE THIRD DIRECTION, ADDED AT `T065`, AND IT IS THE ONE THAT WOULD HAVE CAUGHT THE DEFECT THAT
+  // MADE THE OTHER TWO WORTH HAVING. The two loops below reconcile the table with the constant and
+  // the constant with the table, and both are silent about a package that is in neither. That is
+  // how `@openref/theme-telltale` shipped publishable for five milestones at the lowest coverage of
+  // any published package with nothing able to notice: the gate printed `no floor yet` beside it
+  // and passed. Governing a package is still a decision and this does not take it; what it refuses
+  // is taking it by not looking.
+  for (const packageDir of [...publishedDirs].sort()) {
+    if (floors[packageDir] !== undefined || documented[packageDir] !== undefined) continue;
+
+    messages.push(
+      `[floor-ungoverned] ${packageDir} is published and neither STANDARDS 9.1 nor ` +
+        `COVERAGE_FLOORS carries it, so it ships governed by nothing. Give it a row and an entry, ` +
+        `or record in STANDARDS 9.1 why it is declined`,
+    );
+  }
 
   for (const [packageDir, target] of Object.entries(documented).sort(([left], [right]) =>
     left < right ? -1 : left > right ? 1 : 0,

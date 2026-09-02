@@ -115,7 +115,7 @@ function fakePort(refuse?: Error): FakePort {
         const counters = { closes: 0 };
         let state: SocketSessionStateView = {
           status: 'connecting',
-          log: { entries: [], sent: 0, received: 0, invalid: 0, dropped: 0 },
+          log: { entries: [], sent: 0, received: 0, invalid: 0, unreadable: 0, dropped: 0 },
           attempts: 1,
         };
 
@@ -188,7 +188,9 @@ function stateWith(entries: readonly SocketLogEntryView[]): SocketSessionStateVi
       entries,
       sent: entries.filter((entry) => entry.direction === 'sent').length,
       received: entries.filter((entry) => entry.direction === 'received').length,
-      invalid: entries.filter((entry) => entry.problem !== undefined).length,
+      invalid: entries.filter((entry) => entry.problem !== undefined && entry.unreadable !== true)
+        .length,
+      unreadable: entries.filter((entry) => entry.unreadable === true).length,
       dropped: 0,
     },
     attempts: 1,
@@ -289,6 +291,52 @@ describe('useSocket', () => {
     expect(socket.log.value.received).toBe(2);
     expect(socket.log.value.invalid).toBe(1);
     expect(socket.log.value.entries[1]?.problem).toBe('nothing declares this');
+  });
+
+  it('should let a theme read the unreadable counter the runner splits out, per T065', async () => {
+    // Given, the split `T059` made in the runner: a frame that was never read is not a schema
+    // mismatch, and until `T065` the view type had no member for it, so a consumer could read
+    // neither the counter nor which entry it was about.
+    const state = createDocState({ document: securedEventsDocument() });
+    const fake = fakePort();
+    const socket = await withSocket(state, () => useSocket('channel-orders-created'), fake.port);
+    await socket.connect({ address: 'wss://ws.example.com/orders', transport: 'native' });
+
+    // When
+    fake.session().publish(
+      stateWith([
+        { seq: 1, direction: 'received', data: '{"id":"1"}', matched: 'OrderCreated' },
+        { seq: 2, direction: 'received', data: '{}', problem: 'nothing declares this' },
+        {
+          seq: 3,
+          direction: 'received',
+          data: '[binary frame]',
+          problem: 'the frame is not text',
+          unreadable: true,
+        },
+      ]),
+    );
+
+    // Then, the two counters are exclusive and both reach the theme, and the entry says which.
+    expect(socket.log.value.received).toBe(3);
+    expect(socket.log.value.invalid).toBe(1);
+    expect(socket.log.value.unreadable).toBe(1);
+    expect(socket.log.value.entries[2]?.unreadable).toBe(true);
+    expect(socket.log.value.entries[1]?.unreadable).toBeUndefined();
+  });
+
+  it('should report the counter as zero before any session is opened', async () => {
+    // Given, the empty log a page holds before a connection, which is the other place the member
+    // had to arrive or a consumer would read `undefined` on a page that has not connected.
+    const state = createDocState({ document: securedEventsDocument() });
+    const fake = fakePort();
+
+    // When
+    const socket = await withSocket(state, () => useSocket('channel-orders-created'), fake.port);
+
+    // Then
+    expect(socket.log.value.unreadable).toBe(0);
+    expect(socket.log.value.invalid).toBe(0);
   });
 
   it('should keep the refusal sentence when the client refuses a credential no handshake carries', async () => {

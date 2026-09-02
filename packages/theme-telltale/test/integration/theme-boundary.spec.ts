@@ -777,11 +777,26 @@ describe('the markup a complete L2 theme does not own', () => {
     // documented there and missing from the artefact fails over there rather than here.
     const surface = readFileSync(join(packageRoot, '..', 'vue', 'PUBLIC-API.md'), 'utf8');
 
-    // When, Then. The row form is asserted rather than the bare name, because `IRSchema` is a
-    // prefix of `IRSchemaView` and a substring match would report one name twice.
-    expect(surface, 'PUBLIC-API.md is empty, so this case proves nothing').toContain('SlotName');
+    // When, Then. The row is read as CELLS rather than as a literal, because `IRSchema` is a
+    // prefix of `IRSchemaView` and a substring match would report one name twice, while a literal
+    // `| \`x\` | type |` also asserted the table's column widths: `T065` put every markdown file
+    // under `packages/` on the format list, prettier aligns a table to its widest cell, and this
+    // case then failed on a document whose contents had not changed. What it is about is which
+    // names the register publishes and as what, so that is what it reads.
+    const published = new Map(
+      [...surface.matchAll(/^\|([^|\n]*)\|([^|\n]*)\|/gm)].map((row) => [
+        (row[1] ?? '').trim().replaceAll('`', ''),
+        (row[2] ?? '').trim(),
+      ]),
+    );
+
+    expect(
+      published.size,
+      'PUBLIC-API.md carries no table rows, so this case proves nothing',
+    ).toBeGreaterThan(20);
+    expect(published.has('SlotName')).toBe(true);
     for (const name of ['IRConfidence', 'IRSchema', 'IRSchemaView', 'UnsendableCause']) {
-      expect(surface, `PUBLIC-API.md does not publish ${name}`).toContain(`| \`${name}\` | type |`);
+      expect(published.get(name), `PUBLIC-API.md does not publish ${name} as a type`).toBe('type');
     }
 
     // And no file of this theme's source reaches for the core package any more. Walked from

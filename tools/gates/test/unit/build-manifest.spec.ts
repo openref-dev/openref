@@ -680,6 +680,49 @@ describe('checkOwnedEntries', () => {
     expect(issues[0]?.message).toContain('T005-R1');
   });
 
+  it('should read a RELEASE milestone line, which nothing could declare until T065', () => {
+    // Given, `parseMilestones` has read `**RELEASE**` out of the CONTENTS block as a milestone
+    // like any other since the block existed, and the line pattern accepted only `M<digits>`, so
+    // an entry could never be homed there and release block work had nowhere to live but a per
+    // task section. Two regular expressions in one file disagreeing about what a milestone is.
+    const release = parseMilestones(
+      splitLines(
+        ['**RELEASE**', '', '- [ ] `T065`  L1623-L1641  Final adversarial pass'].join('\n'),
+      ),
+    );
+    const entries = parseOwnedEntries(
+      splitLines(
+        ['### [ ] `TX-SOCKET-CONSOLE` The console', '**Milestone:** RELEASE. Set here.'].join('\n'),
+      ),
+    );
+
+    // Then, the subject is present and the entry is held rather than rejected
+    expect(release.map((milestone) => milestone.id)).toEqual(['RELEASE']);
+    expect(entries[0]?.milestone).toBe('RELEASE');
+    expect(checkOwnedEntries(entries, release)).toEqual([]);
+  });
+
+  it('should expire a RELEASE entry the moment every release task is ticked', () => {
+    // Given, the same entry against a release block whose one task is done
+    const closed = parseMilestones(
+      splitLines(
+        ['**RELEASE**', '', '- [x] `T065`  L1623-L1641  Final adversarial pass'].join('\n'),
+      ),
+    );
+    const entries = parseOwnedEntries(
+      splitLines(
+        ['### [ ] `TX-SOCKET-CONSOLE` The console', '**Milestone:** RELEASE. Set here.'].join('\n'),
+      ),
+    );
+
+    // When
+    const issues = checkOwnedEntries(entries, closed);
+
+    // Then
+    expect(issues.map((issue) => issue.rule)).toEqual(['entry-milestone-closed']);
+    expect(issues[0]?.message).toContain('TX-SOCKET-CONSOLE');
+  });
+
   it('should fail an open entry naming a milestone the plan does not carry', () => {
     // Given
     const entries = parseOwnedEntries(

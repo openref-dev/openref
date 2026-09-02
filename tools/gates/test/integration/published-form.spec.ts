@@ -30,9 +30,9 @@ const INITIAL = [
   'openref.js',
   'chunk-YKIET4FQ.js',
   'chunk-3BFRF6WF.js',
-  'chunk-6FGSEGCV.js',
+  'chunk-TEAI3FZD.js',
   'chunk-6D5ZGNOV.js',
-  'chunk-IXYKZR3T.js',
+  'chunk-KW7NTLUC.js',
 ] as const;
 
 /** The three stylesheets of the default theme, by the name the catalog keys them under. */
@@ -79,9 +79,9 @@ describe('the published form of this tree', () => {
     const total = INITIAL.reduce((sum, name) => sum + sizeOf(name), 0);
 
     // Then
-    expect(total).toBe(110_539);
+    expect(total).toBe(110_559);
     expect(sizeOf('openref.js')).toBe(20_217);
-    expect(sizeOf('chunk-6FGSEGCV.js')).toBe(5_634);
+    expect(sizeOf('chunk-TEAI3FZD.js')).toBe(5_623);
     expect(sizeOf('chunk-YKIET4FQ.js')).toBe(1_956);
   });
 
@@ -123,7 +123,7 @@ describe('the published form of this tree', () => {
 
     // Then, the published totals rather than the 62,424 and 110,284 the disk holds
     expect(messageOf('theme-css-raw')).toContain(`${formatBytes(62_594)} raw`);
-    expect(messageOf('client-js-raw')).toContain(`${formatBytes(110_539)} raw`);
+    expect(messageOf('client-js-raw')).toContain(`${formatBytes(110_559)} raw`);
     expect(report.errors).toEqual([]);
   });
 
@@ -136,6 +136,12 @@ describe('the published form of this tree', () => {
     expect(capOf('theme-css-raw')).toBe(62 * 1024);
     expect(capOf('client-js-raw')).toBe(108 * 1024);
     expect(capOf('theme-css-raw') - 62_594).toBe(894);
-    expect(capOf('client-js-raw') - 110_539).toBe(53);
+    // 33 SINCE 2026-09-02 AND IT WAS 53, AND THE TWENTY BYTES ARE NAMED RATHER THAN ABSORBED.
+    // `T065` made `ElementTooLargeError` extend `StreamError` with an `ErrorCode`, because it is
+    // the one error class any of the three published runtime packages exports and it was the one
+    // breaking the rule STANDARDS and `CLAUDE.md` both state. Obeying the rule costs the subclass
+    // plumbing in the first paint closure. Measured by building the tree twice, with and without
+    // that one change: 110,539 against 110,559. THE CAP DID NOT MOVE and is asserted above.
+    expect(capOf('client-js-raw') - 110_559).toBe(33);
   });
 });

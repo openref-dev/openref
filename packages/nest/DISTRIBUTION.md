@@ -3,12 +3,12 @@
 The four ways the reference client ships, per SPEC 10.3, and what each one is for. The table
 is the specification's, with the artefact that answers each row.
 
-| Output | Artefact | Shadow DOM | Theme compatibility |
-| --- | --- | --- | --- |
-| ESM library | `@openref/nest/browser-entry` (`mountReference`), `@openref/render/browser` (`hydrateReference`, `defineReferenceElement`) | no | L0-L3: the host composes, so nothing is foreclosed |
-| IIFE bundle | `@openref/nest/element.iife` | no | L0-L3, global CSS applies |
-| Web Component, `shadow` (default) | `@openref/nest/element`, `<openref-reference href="/docs">` | yes | L0, L1, L2 while the theme is self sufficient in styles; host CSS does not reach in |
-| Web Component, `shadow="false"` | the same element | no | L0-L3, the host page's global CSS applies |
+| Output                            | Artefact                                                                                                                   | Shadow DOM | Theme compatibility                                                                 |
+| --------------------------------- | -------------------------------------------------------------------------------------------------------------------------- | ---------- | ----------------------------------------------------------------------------------- |
+| ESM library                       | `@openref/nest/browser-entry` (`mountReference`), `@openref/render/browser` (`hydrateReference`, `defineReferenceElement`) | no         | L0-L3: the host composes, so nothing is foreclosed                                  |
+| IIFE bundle                       | `@openref/nest/element.iife`                                                                                               | no         | L0-L3, global CSS applies                                                           |
+| Web Component, `shadow` (default) | `@openref/nest/element`, `<openref-reference href="/docs">`                                                                | yes        | L0, L1, L2 while the theme is self sufficient in styles; host CSS does not reach in |
+| Web Component, `shadow="false"`   | the same element                                                                                                           | no         | L0-L3, the host page's global CSS applies                                           |
 
 `shadow="false"` is a first class supported mode, not a workaround: it is the mode for a theme
 that leans on the CSS the host page already has, and the browser suite proves it against an

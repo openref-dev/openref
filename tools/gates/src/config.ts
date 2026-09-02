@@ -364,6 +364,30 @@ export const COVERAGE_FLOORS: Readonly<Record<string, number>> = {
   // package moved under this task's adversarial pass: the figure is stated with its date in
   // STANDARDS 9.1 and in `ai-docs/PROJECT_STATE.md` for that session.
   nuxt: 90,
+  // ADDED AT `T065`, WHICH IS WHERE THE SCOPE WAS FINALLY THE RIGHT ONE. Every row above was added
+  // one package at a time, by the task that built it, and the question nobody asked was which of
+  // the ELEVEN PUBLISHED packages are governed at all. Measured at `T064`: four were, and seven
+  // were not, among them `@openref/theme-telltale`, publishable since `T032` in M2 and carrying the
+  // lowest reading of any published package through five closed milestones with nothing able to
+  // notice, because the gate prints `no floor yet` beside a package with no entry and passes.
+  //
+  // 90 BY THE MARGIN DOCTRINE WHERE THE READING ALLOWS IT, AND LOWER WHERE IT DOES NOT, which is
+  // the doctrine and not an exception to it: the floor is a round step that holds the property with
+  // room for the ordinary work of a milestone, not the measurement rounded. Readings taken on this
+  // task's own closing run and stated with their date in STANDARDS 9.1.
+  cli: 85,
+  theme: 90,
+  'theme-kit': 85,
+  'collector-access-control': 90,
+  'collector-casl': 90,
+  'collector-throttler': 90,
+  // THE ONE ROW TAKEN EXPLICITLY RATHER THAN BY ROUNDING, because rounding gives two wrong answers
+  // here. At 77.20 of lines and 74.20 of statements, 80 would be red on the day it lands and a
+  // floor at the measurement would govern nothing. 70 is the step that governs: it is a real floor
+  // with 7.20 points of lines and 4.20 of statements above it, the thinnest margin in this table,
+  // and it is thin because the package is thin on tests rather than because the doctrine bent. What
+  // moves this row is coverage in `packages/theme-telltale`, which is work and not a judgement.
+  'theme-telltale': 70,
 };
 
 /**

@@ -542,3 +542,58 @@ describe('canonicalize sparse arrays', () => {
     expect(() => JSON.parse(result) as unknown).not.toThrow();
   });
 });
+
+/**
+ * What the exception cannot preserve, named as a price rather than left to be discovered.
+ *
+ * SPEC 5.3's point 2 names integer like keys as the reason canonical form exists at all: JS
+ * enumerates such an own key in ascending numeric order whatever the author wrote. The exception
+ * enumerates rather than sorts, so at an authored position that is a plain object the author's
+ * order is not what comes back. It is a price and not a defect, because the page draws from the
+ * same object, so the hash is still a function of everything the page is drawn from; what stops
+ * being literally true is the sentence "in the author's order". Measured over both corpora at
+ * `T065`: zero positions inside an authored space carry an integer like key.
+ */
+describe('an authored position whose keys look like integers, per SPEC 5.3', () => {
+  it('should keep the written order for keys that are not integer like, which is the control', () => {
+    // Given / When
+    const canonical = canonicalize({ properties: { b: 1, a: 2, c: 3 } });
+
+    // Then
+    expect(canonical).toBe('{"properties":{"b":1,"a":2,"c":3}}');
+  });
+
+  it('should hand back the numeric order for integer like keys, whatever was written', () => {
+    // Given, an order no sort and no insertion would produce on its own
+    const written = { properties: { b: 1, '2': 2, a: 3, '1': 4 } };
+
+    // Then, the subject is present: the object itself already enumerates them that way, which is
+    // the whole of the finding. The canonical form reports what the page would draw.
+    expect(Object.keys(written.properties)).toEqual(['1', '2', 'b', 'a']);
+    expect(canonicalize(written)).toBe('{"properties":{"1":4,"2":2,"b":1,"a":3}}');
+  });
+
+  it('should do the same at every level of an ordered tree', () => {
+    // Given
+    const written = { extensions: { 'x-a': { z: 1, '10': 2, '9': 3 } } };
+
+    // Then
+    expect(canonicalize(written)).toBe('{"extensions":{"x-a":{"9":3,"10":2,"z":1}}}');
+  });
+
+  it('should be exactly what a Map at the same position does not do', () => {
+    // Given, a `Map` keeps insertion order for every key shape, which is why the three document
+    // maps and the exception behave differently and why the price above is about plain objects.
+    const map = new Map<string, number>([
+      ['b', 1],
+      ['2', 2],
+      ['1', 3],
+    ]);
+
+    // When
+    const canonical = canonicalize({ examples: map });
+
+    // Then
+    expect(canonical).toBe('{"examples":[["b",1],["2",2],["1",3]]}');
+  });
+});

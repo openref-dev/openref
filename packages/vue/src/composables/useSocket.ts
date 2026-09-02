@@ -93,6 +93,7 @@ const EMPTY_LOG: SocketLogStateView = {
   sent: 0,
   received: 0,
   invalid: 0,
+  unreadable: 0,
   dropped: 0,
 };
 

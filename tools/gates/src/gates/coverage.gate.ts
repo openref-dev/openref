@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { COVERAGE_FLOORS, STANDARDS_FILE } from '../config.js';
+import { COVERAGE_FLOORS, PUBLISHED_PACKAGES, STANDARDS_FILE } from '../config.js';
 import { AI_DOCS_DIR, aiDocsPresent } from '../lib/ai-docs.js';
 import {
   aggregateByPackage,
@@ -63,7 +63,7 @@ function reconcileWithStandards(repoRoot: string): {
             .join(', '),
       },
     ],
-    errors: checkFloorTable(documented, COVERAGE_FLOORS),
+    errors: checkFloorTable(documented, COVERAGE_FLOORS, publishedPackageDirs()),
   };
 }
 
@@ -80,6 +80,19 @@ function reconcileWithStandards(repoRoot: string): {
  * enforcing half is clean and the document half alone went unread, and the message says which
  * half that was.
  */
+/**
+ * The directory name of every published package, which is what the floor table is keyed by.
+ *
+ * `openref` IS `packages/cli`, WHICH IS WHY THIS IS A FUNCTION AND NOT A `map`. The published set
+ * is npm names and the floor table is directory names, and the one that does not follow the scope
+ * stripping rule is the one the CLI ships under.
+ */
+function publishedPackageDirs(): readonly string[] {
+  return PUBLISHED_PACKAGES.map((name) =>
+    name === 'openref' ? 'cli' : name.replace('@openref/', ''),
+  );
+}
+
 export const coverageGate: Gate = {
   id: 'coverage',
   title: 'Coverage floors, reconciled with STANDARDS 9.1',

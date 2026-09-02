@@ -1,3 +1,4 @@
+import { ErrorCode, OpenRefError } from '@openref/core';
 import { describe, expect, it } from 'vitest';
 import {
   checkStreamItem,
@@ -206,6 +207,20 @@ describe('StreamDecoder', () => {
 
     // Then
     expect(push).toThrow(ElementTooLargeError);
+
+    // And it obeys the error rule the rest of this project follows, which it did not until `T065`:
+    // it is the only error class any of the three published runtime packages exports, so the one
+    // that reached a consumer was the one that carried neither `OpenRefError` nor a code.
+    let thrown: unknown;
+    try {
+      push();
+    } catch (error) {
+      thrown = error;
+    }
+    expect(thrown).toBeInstanceOf(OpenRefError);
+    expect((thrown as ElementTooLargeError).code).toBe(ErrorCode.RUN_STREAM_FAILED);
+    expect((thrown as ElementTooLargeError).limit).toBe(32);
+    expect((thrown as ElementTooLargeError).context).toEqual({ limit: 32 });
   });
 });
 
