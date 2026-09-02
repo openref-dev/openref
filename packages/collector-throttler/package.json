@@ -3,6 +3,15 @@
   "version": "0.0.0",
   "description": "OPENREF collector for @nestjs/throttler: rate limit facts from the running application",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/openref-dev/openref.git",
+    "directory": "packages/collector-throttler"
+  },
+  "homepage": "https://openref.dev",
+  "bugs": {
+    "url": "https://github.com/openref-dev/openref/issues"
+  },
   "type": "module",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",

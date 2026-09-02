@@ -65,7 +65,7 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - uses: openref/openref/packages/action@v1
+      - uses: openref-dev/openref/packages/action@v1
         with:
           spec: openapi.json
           out: dist-docs

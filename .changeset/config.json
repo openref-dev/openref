@@ -6,7 +6,10 @@
     [
       "@openref/core",
       "@openref/nest",
+      "@openref/runner",
       "@openref/theme",
+      "@openref/theme-kit",
+      "@openref/theme-telltale",
       "@openref/vue",
       "openref",
       "@openref/action"

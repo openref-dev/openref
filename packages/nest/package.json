@@ -3,6 +3,15 @@
   "version": "0.0.0",
   "description": "OPENREF for NestJS. Module, decorators and runtime collectors",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/openref-dev/openref.git",
+    "directory": "packages/nest"
+  },
+  "homepage": "https://openref.dev",
+  "bugs": {
+    "url": "https://github.com/openref-dev/openref/issues"
+  },
   "type": "module",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
@@ -45,6 +54,7 @@
   "dependencies": {
     "@noble/hashes": "1.8.0",
     "@openref/core": "workspace:*",
+    "@openref/runner": "workspace:*",
     "@openref/theme": "workspace:*",
     "@openref/vue": "workspace:*",
     "isomorphic-dompurify": "3.22.0",
@@ -68,7 +78,6 @@
     "@openref/agent": "workspace:*",
     "@openref/federation": "workspace:*",
     "@openref/render": "workspace:*",
-    "@openref/runner": "workspace:*",
     "@openref/search": "workspace:*",
     "@openref/static": "workspace:*",
     "jsdom": "30.0.1",

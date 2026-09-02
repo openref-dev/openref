@@ -3,6 +3,15 @@
   "version": "0.0.0",
   "description": "OPENREF GitHub Action: the pull request API review of SPEC 17.2",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/openref-dev/openref.git",
+    "directory": "packages/action"
+  },
+  "homepage": "https://openref.dev",
+  "bugs": {
+    "url": "https://github.com/openref-dev/openref/issues"
+  },
   "type": "module",
   "source": "./src/index.ts",
   "exports": {

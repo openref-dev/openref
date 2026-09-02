@@ -11,6 +11,8 @@ import {
   findNeverShippedViolations,
   findStaleAttestations,
   findStaleDataOnlyAttestations,
+  findUnverifiedDataOnlyAttestations,
+  readLockfileIntegrities,
   flattenLicenseReport,
   hashLicenseText,
   isLicenseAllowed,
@@ -22,6 +24,23 @@ import {
 } from '../lib/licenses.js';
 import { readWorkspaceManifests, resolveShippedPackages } from '../lib/workspace.js';
 import type { Gate, GateFinding, GateResult } from '../types.js';
+
+/**
+ * The lockfile text, or the empty string when it cannot be read.
+ *
+ * An unreadable lockfile is reported by the check that consumes this, as "no integrity hash could
+ * be read", rather than being swallowed here into something indistinguishable from a clean tree.
+ *
+ * @param repoRoot - Absolute repository root
+ * @returns The whole of `pnpm-lock.yaml`, or an empty string
+ */
+function lockfileOf(repoRoot: string): string {
+  try {
+    return readFileSync(join(repoRoot, 'pnpm-lock.yaml'), 'utf8');
+  } catch {
+    return '';
+  }
+}
 
 const LICENSE_FILE_NAMES: readonly string[] = [
   'LICENSE',
@@ -185,6 +204,18 @@ export const licensesGate: Gate = {
     }
 
     for (const finding of findStaleDataOnlyAttestations(DATA_ONLY_ATTESTATIONS, dataOnlyKeys)) {
+      findings.push({ level: finding.level, message: `data-only reading: ${describe(finding)}` });
+    }
+
+    // THE OTHER HALF OF THE SAME RECORD, ADDED AT T064. A stale record is one that matches no tree;
+    // an unverified one matches a tree and names a different tarball than the one it was read from.
+    // Until now only the version tied the reading to its subject, while the sibling licence record
+    // ten lines above named the SHA-256 of the text it read. The lockfile already carried the
+    // digest, so the stronger record cost only the reading.
+    for (const finding of findUnverifiedDataOnlyAttestations(
+      DATA_ONLY_ATTESTATIONS,
+      readLockfileIntegrities(lockfileOf(context.repoRoot)),
+    )) {
       findings.push({ level: finding.level, message: `data-only reading: ${describe(finding)}` });
     }
 

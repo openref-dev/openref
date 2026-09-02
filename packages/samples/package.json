@@ -3,6 +3,15 @@
   "version": "0.0.0",
   "description": "OPENREF code sample generator. Internal, not published; no package imports it yet, and its first consumer arrives with the sample reader question boxed to T059",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/openref-dev/openref.git",
+    "directory": "packages/samples"
+  },
+  "homepage": "https://openref.dev",
+  "bugs": {
+    "url": "https://github.com/openref-dev/openref/issues"
+  },
   "type": "module",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",

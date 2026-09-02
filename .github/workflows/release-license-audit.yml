@@ -12,6 +12,14 @@ name: Release license audit
 #
 # Callable, so the release job of T064 gates publication on both with `uses:` rather than
 # reimplementing them.
+#
+# THE NODE VERSION BELOW WAS 20 UNTIL T064 AND THAT MADE THIS JOB DEAD ON ARRIVAL. SPEC 23 says the
+# engines range is `^22.22.2 || ^24.15.0 || >=26.0.0` and says why: the sanitizer this product ships
+# dropped Node 20 at its own end of life, so the package loads on no Node 20 at all, and pnpm
+# 11.20.0 declares `node >=22.13` and would not have installed there either. The one check meant to
+# gate publication could never have run. It lived because `tools/gates/test/unit/module-floor.spec.ts`
+# compared every pinned `node-version:` against the floor and read only `ci.yml`, so the single file
+# nothing checked was the one that publishes. That case now reads every workflow in this directory.
 
 on:
   push:
@@ -36,7 +44,7 @@ jobs:
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: '^24.15.0'
           cache: pnpm
 
       - name: Install

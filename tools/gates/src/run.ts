@@ -17,6 +17,7 @@ import { readerPagesGate } from './gates/reader-pages.gate.js';
 import { fixtureLicensesGate } from './gates/fixture-licenses.gate.js';
 import { formatGate } from './gates/format.gate.js';
 import { licensesGate } from './gates/licenses.gate.js';
+import { publishListGate } from './gates/publish-list.gate.js';
 import { staticSuitesGate } from './gates/static-suites.gate.js';
 import { themeFontsGate } from './gates/theme-fonts.gate.js';
 import { themeMotionGate } from './gates/theme-motion.gate.js';
@@ -35,6 +36,13 @@ import type { Gate, GateResult } from './types.js';
  * The fixture license gate sits beside the dependency one rather than inside it. SPEC 0 has
  * three zones, and zones 1 and 2 are answered by walking the dependency tree while zone 3 is
  * answered by walking vendored files. Two questions, two walks, two reports.
+ *
+ * The publish list gate sits beside the licence and engines pair, and is the third question asked
+ * of the same set. One asks what the licence obliges and one what the runtime requires; this asks
+ * what the set is, which the other two had always taken as given. It runs the command a release
+ * runs rather than restating its rule, because a check that reimplements `private` agrees with
+ * itself whatever the manifests say, and the failure it exists for is a package that became
+ * publishable by accident.
  *
  * The engines gate sits beside the licence one because both read the same published closure and
  * ask a question of every package in it. One asks what the licence obliges, the other what the
@@ -117,6 +125,7 @@ export const GATES: readonly Gate[] = [
   dependencyGraphGate,
   enginesFloorGate,
   licensesGate,
+  publishListGate,
   fixtureLicensesGate,
   budgetsGate,
   budgetExceptionsGate,

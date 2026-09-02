@@ -61,7 +61,19 @@ export default defineConfig([
     entry: ['src/index.ts'],
     format: ['esm', 'cjs'],
     target: 'node20',
-    dts: true,
+    // THE DECLARATION INLINES THE FOUR INTERNAL PACKAGES THE WAY THE CODE DOES, since the post
+    // T064 review, and until then it did not. `noExternal` governs the JavaScript alone: the
+    // declaration step kept every workspace import as a specifier, so `dist/index.d.ts` opened
+    // with `import { AgentOptions } from '@openref/agent'` and named `@openref/render` and
+    // `@openref/federation` beside it. All three are private, so a consumer cannot install any of
+    // them, and `tsc` in a tree holding only the published tarball fails to resolve five imports.
+    // The bytes were there and the types were a promise about packages that do not exist.
+    //
+    // INLINING RATHER THAN DECLARING THEM. Adding a private package to `dependencies` would make
+    // the install fail instead of the typecheck, and moving these types into a published package
+    // would publish a surface nobody asked for. `resolve` makes the declaration carry the type
+    // text, which is what the bundle already does with the code.
+    dts: { resolve: [/^@openref\/(render|search|federation|agent)$/] },
     sourcemap: true,
     clean: true,
     treeshake: true,
@@ -70,7 +82,18 @@ export default defineConfig([
     // STANDARDS 3.5, and this is the package a consumer installs to get the federated mount.
     // `agent` joined at T058, for the same reason: the surface of SPEC 18.1 is internal and a
     // host reaches it through two booleans on the options of this package.
-    noExternal: [/^@openref\/(render|runner|search|federation|agent)$/],
+    //
+    // `runner` LEFT AT T064, WHEN IT WAS PUBLISHED, and it left by the rule rather than by
+    // preference. SPEC 4: a published package declared as a dependency of another published
+    // package is not bundled into it, because two copies of one module in one process are two
+    // different values for every mechanism built on identity, and each of them fails silently.
+    // It moved from `devDependencies` to `dependencies` in the same change, which is the other
+    // half of the same rule: an internal package sits in `devDependencies` precisely because it
+    // is inlined, and one that is installed beside this package is a real dependency.
+    //
+    // The browser build below is unaffected and deliberately so: `BROWSER_NO_EXTERNAL` inlines
+    // every `@openref/*` because an embed has no installer, so first paint bytes do not move.
+    noExternal: [/^@openref\/(render|search|federation|agent)$/],
     outExtension: ({ format }) => ({ js: format === 'cjs' ? '.cjs' : '.js' }),
   },
   {

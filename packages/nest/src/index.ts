@@ -563,3 +563,55 @@ export {
   mergeContributions,
 } from './runtime/domain/merge';
 export type { Contribution } from './runtime/domain/merge';
+
+// The policy of SPEC 19.2, re-exported so a Nest host can call it from the package it installed.
+// THE HOST SETS THE POLICY AND THIS MODULE SETS NO HEADER. Nothing here writes a
+// `Content-Security-Policy`; what the reference guarantees is that its own output is compatible
+// with the policy this builds. `docs/guide/09-security.md` told a host to send the header and
+// named `@openref/render`, which is internal and not installable, so the instruction had no way to
+// be followed. Added at T064 with the rename that made the verb say who does what.
+export { buildContentSecurityPolicy } from '@openref/render';
+
+// THE IR TYPES THIS PACKAGE'S OWN PUBLIC SIGNATURES NAME, so a collector author installs one
+// package. SPEC 4 records the decision and SPEC 6.2 describes the contract these serve.
+//
+// IT IS THE `T031-R1` DEFECT ARRIVING FROM THE OTHER SIDE. There it was a theme author, whose
+// slot props were declared in IR types `@openref/vue` did not re-export, so typing what they were
+// handed cost a second package. Here it is a collector author: `IRuntimeCollector.collect` returns
+// `IRNodeRuntime`, `CollectorContext.node` is an `IRNode`, and `fact` is typed in `IRConfidence`
+// and `IRFact`. None of them was reachable from here, so writing the return annotation the
+// contract asks for installed `@openref/core` for one type name, and not writing it left an
+// ecosystem collector leaning on contextual typing from a return position.
+//
+// MEASURED FROM THE ARTEFACT RATHER THAN FROM THIS FILE, which is how `T031-R1` measured the theme
+// side and is the only reading that cannot miss one. `packages/nest/dist/index.d.ts` imports
+// exactly these eleven names from `@openref/core`, and the case that pins it re-derives the list
+// from the built declaration rather than repeating it, so a twelfth name appearing in a public
+// signature fails rather than passing unnoticed.
+//
+// IT WAS NINE UNTIL THE DECLARATION STOPPED HIDING TWO OF THEM, and the order of the two findings
+// is the point. While `dts` left `@openref/federation` as an external specifier, the federation
+// declarations were not inlined, so `IRInfo` and `IRRelationshipEndpointKind` never reached this
+// file's import line: nine was an honest reading of a dishonest artefact. Inlining the four private
+// packages, which is what stopped the published declaration naming packages a consumer cannot
+// install, made the same measurement say eleven. Both are reachable from types already re-exported
+// here rather than from internals alone, checked against `@openref/core`: `IRDocument.info` is an
+// `IRInfo`, and `IRRelationship.fromKind` and `.toKind` are `IRRelationshipEndpointKind`. So a
+// consumer holding an `IRDocument` from this package and naming its header installed
+// `@openref/core` for that one name, which is the defect this whole block exists to close.
+//
+// A NAME ADDED HERE IS A MINOR VERSION AND A NAME REMOVED IS A MAJOR ONE, per `PUBLIC-API.md`.
+// That asymmetry is the whole price of the decision.
+export type {
+  IRConfidence,
+  IRDocument,
+  IRFact,
+  IRHealthCheck,
+  IRInfo,
+  IRNode,
+  IRNodeRuntime,
+  IRRelationship,
+  IRRelationshipEndpointKind,
+  IRRuntimeMeta,
+  IRServer,
+} from '@openref/core';

@@ -6,7 +6,7 @@
  * random value per response, into the header and into the context, and the page carries it on
  * every element a strict policy would otherwise refuse.
  *
- * THE POLICY TEXT IS NOT WRITTEN HERE, AND THAT IS THE POINT. `contentSecurityPolicy` comes from
+ * THE POLICY TEXT IS NOT WRITTEN HERE, AND THAT IS THE POINT. `buildContentSecurityPolicy` comes from
  * `@openref/nuxt/runtime`, which re-exports it from `@openref/render`, where it lives beside the
  * shell whose elements the nonce is written onto. Three surfaces speak this policy, this one, the
  * browser fixture that enforces it in a real Chrome, and the suite that compares the served
@@ -22,7 +22,7 @@
  */
 
 import { randomBytes } from 'node:crypto';
-import { contentSecurityPolicy, servesReference } from '@openref/nuxt/runtime';
+import { buildContentSecurityPolicy, servesReference } from '@openref/nuxt/runtime';
 
 /** Where the reference is mounted, matching `openref.base` in `nuxt.config.ts`. */
 const MOUNT = '/docs';
@@ -59,6 +59,6 @@ export default defineNitroPlugin((nitroApp) => {
 
     const nonce = randomBytes(16).toString('base64');
     event.context.cspNonce = nonce;
-    event.node.res.setHeader('Content-Security-Policy', contentSecurityPolicy(nonce));
+    event.node.res.setHeader('Content-Security-Policy', buildContentSecurityPolicy(nonce));
   });
 });

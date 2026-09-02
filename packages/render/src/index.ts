@@ -210,7 +210,7 @@ export {
 } from './page/domain/links';
 export {
   assertNonce,
-  contentSecurityPolicy,
+  buildContentSecurityPolicy,
   renderHtmlDocument,
   STATE_ELEMENT_ID,
 } from './page/domain/shell';

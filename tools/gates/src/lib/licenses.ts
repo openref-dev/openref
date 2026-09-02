@@ -294,6 +294,81 @@ export interface DataOnlyAttestation {
   readonly license: string;
   /** What the package holds, and why the withheld patent grant covers nothing in it. */
   readonly rationale: string;
+
+  /**
+   * The lockfile's integrity hash of the exact tarball the rationale above was read out of.
+   *
+   * ADDED AT T064, AND THE REASON IS THAT ITS SIBLING NAMED ITS INPUT AND THIS DID NOT.
+   * `LicenseAttestation` records the SHA-256 of the licence text it read, so a changed text stops
+   * matching and the gate asks again. This record's conclusion, that a package is data, depends on
+   * the tarball just as much, and only the version named it. A registry that forbids republishing
+   * a version makes the version a sound proxy, so this was a weaker record rather than an unsound
+   * one; the lockfile already carries the digest, so the stronger record cost nothing but reading
+   * it. Checked by {@link findUnverifiedDataOnlyAttestations} against `pnpm-lock.yaml`.
+   */
+  readonly integrity: string;
+}
+
+/** `name@version:` followed by its `resolution: {integrity: ...}` in a pnpm lockfile. */
+const LOCKFILE_INTEGRITY = /^ {2}(\S+?):\n {4}resolution: \{integrity: ([^}]+)\}/gm;
+
+/**
+ * Reads every `name@version` to integrity mapping out of a pnpm lockfile.
+ *
+ * @param lockfile - The whole of `pnpm-lock.yaml`
+ * @returns Package key to integrity string
+ */
+export function readLockfileIntegrities(lockfile: string): Map<string, string> {
+  return new Map(
+    [...lockfile.matchAll(LOCKFILE_INTEGRITY)].map((match) => [match[1] ?? '', match[2] ?? '']),
+  );
+}
+
+/**
+ * Holds every data-only record against the tarball digest the lockfile carries.
+ *
+ * A record whose package is not in the lockfile at all is reported by
+ * {@link findStaleDataOnlyAttestations} rather than here, so the two do not both speak about it.
+ *
+ * @param attestations - The committed records
+ * @param integrities - What the lockfile says, from {@link readLockfileIntegrities}
+ * @returns One finding per record whose digest does not match, empty when all match
+ */
+export function findUnverifiedDataOnlyAttestations(
+  attestations: readonly DataOnlyAttestation[],
+  integrities: ReadonlyMap<string, string>,
+): LicenseFinding[] {
+  const findings: LicenseFinding[] = [];
+
+  if (integrities.size === 0 && attestations.length > 0) {
+    findings.push({
+      level: 'error',
+      packageName: 'pnpm-lock.yaml',
+      versions: [],
+      license: '',
+      reason:
+        'no integrity hash could be read from the lockfile, so no data-only record was verified. A read that found nothing reports what a clean one does',
+    });
+
+    return findings;
+  }
+
+  for (const attestation of attestations) {
+    const recorded = integrities.get(attestation.package);
+    if (recorded === undefined) continue;
+
+    if (recorded !== attestation.integrity) {
+      findings.push({
+        level: 'error',
+        packageName: attestation.package,
+        versions: [],
+        license: attestation.license,
+        reason: `the data-only record names integrity ${attestation.integrity} and the lockfile carries ${recorded}. The reading was taken from a different tarball; read the contents again before moving the record`,
+      });
+    }
+  }
+
+  return findings;
 }
 
 /**

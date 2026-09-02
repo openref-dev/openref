@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -16,6 +16,7 @@ import {
   SPEC_20_BUDGET_IDS,
   FONT_STYLESHEETS,
   LICENSE_ATTESTATIONS,
+  PUBLISHED_PACKAGES,
   THEME_TOKEN_STYLESHEETS,
 } from '../../src/config';
 import { budgetExceptionsGate } from '../../src/gates/budget-exceptions.gate';
@@ -26,6 +27,7 @@ import { dependencyGraphGate } from '../../src/gates/dependency-graph.gate';
 import { enginesFloorGate } from '../../src/gates/engines-floor.gate';
 import { fixtureLicensesGate } from '../../src/gates/fixture-licenses.gate';
 import { licensesGate } from '../../src/gates/licenses.gate';
+import { publishListGate } from '../../src/gates/publish-list.gate';
 import { themeFontsGate } from '../../src/gates/theme-fonts.gate';
 import { themeMotionGate } from '../../src/gates/theme-motion.gate';
 import { AI_DOCS_DIR, aiDocsPresent } from '../../src/lib/ai-docs';
@@ -219,28 +221,40 @@ describe('licensesGate', () => {
     // AND THE SIXTH PUBLISHED PACKAGE ARRIVED IN T032. `@openref/theme-telltale` is the second
     // theme, and SPEC 4 lists it beside the first: a theme is published because a consumer chooses
     // it, which is the same reason `@openref/theme` is.
+    // AND TWO MORE ARRIVED AT T064, each answering a section addressed to it. `@openref/theme-kit`
+    // is published because the theme contract of SPEC 10.4 is frozen public API and `assertTheme`
+    // is what makes it enforceable where themes are actually written; `@openref/runner` because a
+    // host can drive the serialization matrix of SPEC 14.2 outside a page, which was proved by
+    // compiling `@openref/core` to `@openref/vue`'s `runnerOperationOf` to `createRunner().send`.
+    // A third, `@openref/nuxt`, was decided the same way and then reversed by measurement: it
+    // drags Nuxt's build toolchain into SPEC 0's zone 1 through a resolved peer dependency, and
+    // five licences there are outside the allowlist. SPEC 4 carries all three.
     expect(result.published).toEqual([
       '@openref/collector-access-control',
       '@openref/collector-casl',
       '@openref/collector-throttler',
       '@openref/core',
       '@openref/nest',
+      '@openref/runner',
       '@openref/theme',
+      '@openref/theme-kit',
       '@openref/theme-telltale',
       '@openref/vue',
       'openref',
     ]);
-    // AND `@openref/theme-kit` JOINED THE BUNDLED SET IN T032 WITHOUT BEING BUNDLED, which is this
-    // heuristic meeting its first counterexample and is recorded rather than smoothed over.
-    // `resolveShippedPackages` reads any edge from a published package to a private workspace one
-    // as bundling, and says why: an internal package sits in `devDependencies` precisely because it
-    // is inlined rather than installed. `@openref/theme-telltale` names theme-kit in
-    // `devDependencies` to run the conformance checker over itself in a test, and its `tsup.config`
-    // never bundles it: nothing in that package's `src` imports it. The classification is
-    // conservative in the safe direction, since it only widens the licence zone, so it is left
-    // alone here. What it is evidence for is a product question, filed against `T064`: the first
-    // consumer that needs theme-kit without the rest has appeared, which is the condition SPEC 4
-    // names for publishing it.
+    // `@openref/theme-kit` JOINED THE BUNDLED SET IN T032 WITHOUT BEING BUNDLED, WHICH WAS THIS
+    // HEURISTIC'S FIRST COUNTEREXAMPLE, AND AT T064 IT LEFT BY BEING PUBLISHED RATHER THAN BY THE
+    // HEURISTIC CHANGING. `resolveShippedPackages` reads any edge from a published package to a
+    // private workspace one as bundling, and says why: an internal package sits in
+    // `devDependencies` precisely because it is inlined rather than installed.
+    // `@openref/theme-telltale` named theme-kit there to run the conformance checker over itself in
+    // a test, and its `tsup.config` never bundled it. Now that theme-kit is published the edge runs
+    // between two published packages, which this function does not read at all, so the
+    // counterexample is gone rather than tolerated. THE RULE IS STILL DELIBERATELY WIDE AND SPEC 4
+    // SAYS SO: widening only ever over reports, and a package wrongly called shipped is checked
+    // more strictly than it needs to be while one wrongly called unshipped is not checked at all.
+    // `@openref/runner` left the bundled set at T064 for a different reason: it is published, so
+    // per SPEC 4 `@openref/nest` stopped inlining it and declares it instead.
     // `@openref/static` JOINED THE SET AT T039, and it is the ordinary case rather than the
     // counterexample above: it is private, `openref` names it in `dependencies`, and the CLI's
     // `tsup.config` inlines it by name, so a consumer of the CLI receives it as bytes and its
@@ -258,10 +272,8 @@ describe('licensesGate', () => {
       '@openref/agent',
       '@openref/federation',
       '@openref/render',
-      '@openref/runner',
       '@openref/search',
       '@openref/static',
-      '@openref/theme-kit',
     ]);
     expect(result.shipped).not.toContain('@openref/gates');
   });
@@ -316,6 +328,95 @@ describe('licensesGate', () => {
     expect(recorded?.sha256).toBe(actual);
     expect(detectLicenseFromText(readFileSync(path, 'utf8'))).toBe(recorded?.license);
   });
+});
+
+describe('publishListGate', () => {
+  it(
+    'should pass on this repository',
+    async () => {
+      // Given, the gate shells out to `pnpm publish --dry-run` with the registry pointed at an
+      // address nothing answers on, so this case runs the whole thing end to end and is also the
+      // proof that the run needs no registry: a run that reached for one would fail here.
+      const context = { repoRoot };
+
+      // When
+      const result = await publishListGate.run(context);
+
+      // Then
+      expect(result.findings.filter((finding) => finding.level === 'error')).toEqual([]);
+      expect(result.status).toBe(HAVE_AI_DOCS ? 'pass' : 'skip');
+    },
+    SPAWNED_PROCESS_TIMEOUT_MS,
+  );
+
+  it(
+    'should read the dry run rather than reporting on an empty list',
+    async () => {
+      // Given, a dry run that named nothing would satisfy every set comparison below it for free,
+      // so the count is asserted before anything is concluded from it.
+      const context = { repoRoot };
+
+      // When
+      const result = await publishListGate.run(context);
+      const summary = result.findings.find((finding) =>
+        finding.message.includes('the publish dry run names exactly'),
+      );
+
+      // Then
+      expect(summary?.message).toContain(`exactly the ${String(PUBLISHED_PACKAGES.length)}`);
+    },
+    SPAWNED_PROCESS_TIMEOUT_MS,
+  );
+
+  it(
+    'should warn rather than fail when CLAUDE.md is not in the checkout',
+    async () => {
+      // Given, CLAUDE.md is excluded from git in `.git/info/exclude` exactly as `ai-docs/` is, so a
+      // clone has neither and an error here would fail every checkout but the maintainer's. The
+      // content is held rather than moved, so it is restored even if an assertion throws, and a
+      // checkout that already lacks the file is the condition itself rather than a case to set up.
+      const path = join(repoRoot, 'CLAUDE.md');
+      const present = existsSync(path);
+      const held = present ? readFileSync(path, 'utf8') : '';
+      let result;
+
+      // When
+      try {
+        if (present) rmSync(path);
+        result = await publishListGate.run({ repoRoot });
+      } finally {
+        if (present) writeFileSync(path, held, 'utf8');
+      }
+
+      // Then, unread and saying so, rather than a pass or a defect in the code.
+      const warnings = result.findings.filter((finding) => finding.level === 'warning');
+      expect(result.findings.filter((finding) => finding.level === 'error')).toEqual([]);
+      expect(warnings.map((finding) => finding.message).join('\n')).toContain(
+        'the fourth hand written copy of the published set went unread',
+      );
+      expect(existsSync(path)).toBe(present);
+    },
+    SPAWNED_PROCESS_TIMEOUT_MS,
+  );
+
+  it(
+    'should compare the manifests against the repository this checkout came from',
+    async () => {
+      // Given, the expected repository is derived rather than typed, so the gate reports which one
+      // it used and where it read it. A literal here would be the drift this replaced.
+      const context = { repoRoot };
+
+      // When
+      const result = await publishListGate.run(context);
+      const summary = result.findings.find((finding) =>
+        finding.message.includes('published packages carry the licence text'),
+      );
+
+      // Then
+      expect(summary?.message).toMatch(/naming \S+\/\S+, which is where this build runs/);
+    },
+    SPAWNED_PROCESS_TIMEOUT_MS,
+  );
 });
 
 describe('fixtureLicensesGate', () => {

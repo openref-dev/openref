@@ -26,16 +26,23 @@ import type { EventHandler, H3Event } from 'h3';
 import { createSite, type EmbeddedSite } from './site';
 
 /**
- * The policy of SPEC 19.2, re-exported so a host writing a Nitro plugin has it in the package it
- * installed.
+ * Builds the policy of SPEC 19.2, for a host to set. This module sets no header.
  *
- * ONE HOME AND THREE READERS, per the standing rule about a vocabulary spoken by more than one
- * surface. `@openref/render` owns it, beside the shell whose elements the nonce is written onto;
- * the browser fixture enforces it in a real Chrome; the Nuxt example serves the reference under
- * it; and `nuxt-parity.spec.ts` compares the served header with it. A host that transcribed the
- * policy instead would be serving a rule nothing in this repository ever proved.
+ * PUBLIC API FROM T064, WHICH IS WHEN THIS PACKAGE WAS PUBLISHED, and frozen from that day. Both
+ * halves of the surface were settled before the publish rather than after it: the name became a
+ * verb, and this sentence says what the verb does. THE HOST SETS THE POLICY AND THE REFERENCE MAKES
+ * ITS OUTPUT COMPATIBLE WITH ONE. Nothing in this package writes a `Content-Security-Policy`
+ * header; `createReferenceHandler` below sets content type and cache control and nothing else. A
+ * host that wants the reference under a nonce policy calls this, adds whatever its own pages need,
+ * and sets the header itself, which is what `examples/nuxt-reference/server/plugins/csp.ts` does.
+ *
+ * RE-EXPORTED RATHER THAN RESTATED, per the standing rule about a vocabulary spoken by more than
+ * one surface. `@openref/render` owns it, beside the shell whose elements the nonce is written
+ * onto; the browser fixture enforces it in a real Chrome; the Nuxt example serves the reference
+ * under it; and `nuxt-parity.spec.ts` compares the served header with it. A host that transcribed
+ * the policy instead would be serving a rule nothing in this repository ever proved.
  */
-export { contentSecurityPolicy } from '@openref/render';
+export { buildContentSecurityPolicy } from '@openref/render';
 
 /**
  * What a hashed asset may be cached for: it is addressed by its own digest.

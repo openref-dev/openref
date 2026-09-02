@@ -28,7 +28,7 @@ import {
   TTI_NODE_COUNT,
 } from './specification.js';
 import type { Request, Response } from 'express';
-import { contentSecurityPolicy } from '@openref/render';
+import { buildContentSecurityPolicy } from '@openref/render';
 
 /**
  * Which document a boot serves.
@@ -82,7 +82,7 @@ export interface FixtureOptions {
  * a fixture proving a browser enforces a policy that a deployment does not serve would be a proof
  * of the wrong sentence.
  */
-export { contentSecurityPolicy };
+export { buildContentSecurityPolicy };
 
 /**
  * The specification one document name stands for.
@@ -135,7 +135,7 @@ export function createFixture(
     const nonce = randomBytes(16).toString('base64');
     response.locals.cspNonce = nonce;
     if (options.policy !== false) {
-      response.setHeader('Content-Security-Policy', contentSecurityPolicy(nonce, connect));
+      response.setHeader('Content-Security-Policy', buildContentSecurityPolicy(nonce, connect));
     }
     next();
   });

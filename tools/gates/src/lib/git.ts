@@ -49,3 +49,25 @@ export function countCommitsSince(
 
   return { count: parsed };
 }
+
+/**
+ * The address `origin` points at, which is the repository this checkout came from.
+ *
+ * IT IS READ RATHER THAN DECLARED, and that is the whole point of it. npm attaches a provenance
+ * statement to a publish and attests it against the repository the workflow ran in, so a
+ * `repository` field that names anything else does not publish unattested, it refuses. A committed
+ * constant holding the expected address is a second copy of a fact git already carries, and the two
+ * drifted: the manifests named `openref-dev/openref` while the gate's own constant named
+ * `openref/openref`, and nothing could tell which was wrong because nothing read the repository.
+ *
+ * @param repoRoot - Absolute repository root
+ * @returns The configured url, or null when there is no repository or no `origin`
+ */
+export function readOriginRemote(repoRoot: string): string | null {
+  const result = runCommand('git', ['config', '--get', 'remote.origin.url'], repoRoot);
+  if (!result.ok) return null;
+
+  const url = result.stdout.trim();
+
+  return url === '' ? null : url;
+}

@@ -89,6 +89,22 @@ export const SKIP_REASONS: readonly SkipReason[] = [
       // to it is this entry rather than a quieter accounting: the gate's skip is legitimate, and
       // nothing had said so.
       'capability-debts',
+      // `publish-list` reads SPEC 4's own tables and compares them with the intended set, and it
+      // reads `.changeset/config.json`'s fixed groups against the same table. Those two halves need
+      // the document. The two that do not, the dry run and what a published package owes, run there
+      // and fail there, so it skips only when both are clean and the documents alone went unread.
+      //
+      // A FOURTH COMPARISON IS NOT ENFORCED IN CI AT ALL, AND IT IS RECORDED HERE SO THAT NOBODY
+      // READS IT AS THOUGH IT WERE. The gate also holds `CLAUDE.md`'s two package tables against the
+      // intended set, and `CLAUDE.md` is excluded from git in `.git/info/exclude` exactly as
+      // `ai-docs/` is: `git ls-files CLAUDE.md` is empty, so no clone and no runner has the file.
+      // Its absence is reported as a `warning` naming the unread copy rather than as an error, which
+      // is what keeps a clone green, and the consequence is that this quarter of the gate runs on
+      // the maintainer's machine and nowhere else. It is the same standing exception the four `ai-docs`
+      // readers carry, arriving through a file that is not under `ai-docs/`, and it is written down
+      // because a comparison that exists in the code and never runs on a runner is indistinguishable
+      // from an enforced one to anyone reading the gate list.
+      'publish-list',
       // `federation-suites` is the Static gate's mechanism over the SPEC 21 Federation row and the
       // M4 definition of done, so it skips for the same reason and only under the same condition:
       // the halves that need no document, the named suites, the named cases and the run itself,

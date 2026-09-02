@@ -50,7 +50,41 @@ export const DATA_ONLY_ATTESTATIONS: readonly DataOnlyAttestation[] = [
     license: 'CC0-1.0',
     rationale:
       'Read at 2.27.1: 19 JSON files of CSS, API and localization reference tables, plus four index modules whose entire body is require() of those files. It implements nothing, so the patent grant CC0 withholds covers nothing that could be asserted. Arrives through @openref/render -> isomorphic-dompurify -> jsdom -> css-tree.',
+    integrity:
+      'sha512-9Yubnt3e8A0OKwxYSXyhLymGW4sCufcLG6VdiDdUGVkPhpqLxlvP5vl1983gQjJl3tqbrM731mjaZaP68AgosQ==',
   },
+];
+
+/**
+ * The packages a release publishes, and the whole of it.
+ *
+ * THIS IS THE INTENDED SET AND NOT THE ONE THAT WOULD GO OUT. What would go out is read from
+ * `pnpm publish --dry-run` by the `publish-list` gate, and the two are compared. A list that was
+ * derived from the manifests would agree with them by construction and could never notice that a
+ * package became publishable by accident, which is exactly the failure BUILD.md T064 asks the dry
+ * run to catch.
+ *
+ * IT IS ALSO COMPARED WITH SPEC 4, which states the same set by hand in two tables. Three copies of
+ * one fact is how the last drift happened: `@openref/theme-telltale` became publishable at T032,
+ * SPEC 4 recorded it, `PROJECT-STANDARDS.md` 3.1 did not, and for five milestones nothing read
+ * either. The comparison is what makes a fourth copy safe.
+ *
+ * ELEVEN NAMES. Eight from SPEC 4's published table, three ecosystem collectors. `@openref/action`
+ * is not among them and never was: a composite GitHub Action is consumed by git ref rather than
+ * installed, so it stays private and is versioned in lockstep with the CLI it runs.
+ */
+export const PUBLISHED_PACKAGES: readonly string[] = [
+  '@openref/collector-access-control',
+  '@openref/collector-casl',
+  '@openref/collector-throttler',
+  '@openref/core',
+  '@openref/nest',
+  '@openref/runner',
+  '@openref/theme',
+  '@openref/theme-kit',
+  '@openref/theme-telltale',
+  '@openref/vue',
+  'openref',
 ];
 
 /** A package that must never reach a consumer, and the reason it would be a defect if it did. */
@@ -159,6 +193,27 @@ export const FIXTURE_ROOTS: readonly FixtureRoot[] = [
 
 /** The build manifest, addressed by absolute line number by every session. */
 export const BUILD_FILE = 'ai-docs/BUILD.md';
+
+/**
+ * The instruction file every session is told to read first, and the fourth copy of the package set.
+ *
+ * IT IS EXCLUDED FROM GIT THE WAY `ai-docs/` IS, measured rather than assumed: `.git/info/exclude`
+ * names both, and `git ls-files CLAUDE.md` is empty. So the gate that reads it reports its absence
+ * as a warning that says the fourth copy went unread, rather than as a defect in the code or as a
+ * silent pass. It was the copy that drifted: after `T064` published `@openref/runner` and
+ * `@openref/theme-kit` it still listed both as internal and omitted both from its published table,
+ * and nothing read it.
+ */
+export const CLAUDE_FILE = 'CLAUDE.md';
+
+/**
+ * Where the version lockstep of the published set is declared.
+ *
+ * A package outside every `fixed` group takes a version of its own, so this file decides whether
+ * one tag means one version across the product. Nothing read it until the post `T064` review, and
+ * its one group had fallen three packages behind the published table.
+ */
+export const CHANGESET_CONFIG_FILE = '.changeset/config.json';
 
 /**
  * Where work scheduled between two regenerations of BUILD.md lives.

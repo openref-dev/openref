@@ -1,0 +1,147 @@
+name: Release
+
+# THE JOB THAT PUBLISHES, AND EVERY GATE IT WAITS ON.
+#
+# It gates publication on checks that already exist rather than reimplementing them, which is what
+# `release-license-audit.yml` was made `workflow_call`able for. Reimplementing a gate here would
+# give the release its own second answer to a question the repository already answers, and the two
+# would diverge on the first change to either.
+#
+# WHAT PUBLISHES, AND WHAT DECIDES IT. `changesets/action` runs `changeset publish`, which publishes
+# every workspace package that is not `private` and whose version is not on the registry yet. The
+# list is therefore the manifests rather than a copy of the list kept here, and the `publish-list`
+# gate in `pnpm gates` is what holds the manifests to SPEC 4. A copy in this file would be a third
+# place to change and the one nobody would remember.
+#
+# PROVENANCE. `NPM_CONFIG_PROVENANCE` makes npm attach a signed provenance statement to every
+# publish, which needs `id-token: write` on the job and a `repository` field in each manifest that
+# resolves to this repository. Both are here; the manifests gained the field at T064, because
+# without it the publish fails rather than silently publishing unattested. Which repository that is
+# is read from the checkout by the `publish-list` gate rather than compared against a literal, so a
+# manifest naming somewhere else fails `pnpm gates` below instead of failing the attestation here.
+#
+# WHAT A RELEASE EXPECTS OF THE TREE IT RUNS ON, since nothing said it before. Every publishable
+# manifest sits at `0.0.0`, which is the placeholder for "never released", and the version that
+# ships is written by `changeset version` out of the markdown under `.changeset/`. So the order is:
+# a changeset describing the change, a version pull request that applies it, and a tag on the commit
+# that pull request produced. Tagging a tree that is still at `0.0.0` would publish `0.0.0`, and
+# nothing in the gate suite would have gone red for it, because `0.0.0` is a valid version and the
+# gates ask what publishes rather than at what version. `tools/release-preflight.mjs` is the step
+# that refuses it, and it runs before the publish rather than after.
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  # The published closure's licences and the packed attribution of zone 4, from the file that owns
+  # them. Called rather than copied.
+  licenses:
+    name: license and attribution audit
+    uses: ./.github/workflows/release-license-audit.yml
+
+  # SPEC 23's matrix, run as a release gate. The two framework arms are two workspace packages with
+  # their own node_modules, driven by `compatibility-matrix.spec.ts`; the ESM and CJS load on the
+  # engines floor is `tools/module-floor-check.mjs`, run here on the floor itself rather than on
+  # whatever this job happens to build with.
+  compatibility:
+    name: SPEC 23 compatibility matrix
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '^24.15.0'
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm build
+
+      - name: NestJS 10 and 11, swagger 8 and 11, Express and Fastify
+        run: pnpm exec vitest run packages/nest/test/integration/compatibility-matrix.spec.ts
+
+      - name: The published tarballs in a consumer that installed them
+        run: pnpm exec vitest run packages/nest/test/integration/published-consumer.spec.ts
+
+      - name: Switch to the engines floor
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.22.2
+
+      - name: ESM and CJS load on the floor
+        run: node tools/module-floor-check.mjs
+
+  publish:
+    name: publish
+    needs: [licenses, compatibility]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    permissions:
+      contents: write
+      # Required for npm provenance. Without it `npm publish` refuses rather than publishing
+      # unattested, which is the failure mode worth having.
+      id-token: write
+      pull-requests: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '^24.15.0'
+          cache: pnpm
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm build
+
+      # The whole committed gate suite, `publish-list` included. It is what says the manifests
+      # still name the packages SPEC 4 lists and no internal package has become publishable.
+      - name: Gates
+        run: pnpm run gates
+
+      # The one thing the gates deliberately do not check, because on any ordinary day the answer
+      # has to be "still at the placeholder". Read the script's header for what a release expects.
+      - name: Refuse a placeholder version
+        run: node tools/release-preflight.mjs
+
+      - name: Publish
+        uses: changesets/action@v1
+        with:
+          publish: pnpm exec changeset publish
+          version: pnpm run version-packages
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_CONFIG_PROVENANCE: 'true'

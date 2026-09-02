@@ -26,9 +26,13 @@ script, and takes a nonce on the two elements that need one. A CI check scans bu
 inline `style=` attributes, inline scripts and dynamic code evaluation, and a browser under the
 policy below counts violations and requires zero.
 
-What you have to do: send the header. This is the policy the output is built for, and
-`contentSecurityPolicy` from `@openref/render` returns exactly it, so a host does not have to
-transcribe it:
+What you have to do: send the header. The host sets the policy; the reference makes its output
+compatible with one and writes no `Content-Security-Policy` header of its own. This is the policy
+the output is built for, and `buildContentSecurityPolicy` returns exactly it, so a host does not
+have to transcribe it. It is exported from `@openref/nest`, which is the package a Nest host
+installs. A Nuxt host transcribes the block below for now, and the reason is written down rather
+than glossed: `@openref/nuxt` is not published, so there is no package a Nuxt application can
+install that exports the builder. The policy is this:
 
 ```
 default-src 'none';

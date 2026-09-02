@@ -295,6 +295,7 @@ describe('evaluateProductionTree, data-only condition', () => {
     package: 'mdn-data@2.27.1',
     license: 'CC0-1.0',
     rationale: 'reference tables about CSS, no implementation of anything patentable',
+    integrity: 'sha512-test==',
   };
 
   function dataPackage(version: string, license = 'CC0-1.0'): LicensedPackage {
@@ -377,7 +378,7 @@ describe('findStaleDataOnlyAttestations', () => {
   it('should warn about a record that matches nothing in the closure', () => {
     // Given
     const records: DataOnlyAttestation[] = [
-      { package: 'gone@1.0.0', license: 'CC0-1.0', rationale: 'data' },
+      { package: 'gone@1.0.0', license: 'CC0-1.0', rationale: 'data', integrity: 'sha512-a==' },
     ];
 
     // When
@@ -391,7 +392,12 @@ describe('findStaleDataOnlyAttestations', () => {
   it('should stay silent about a record that was used', () => {
     // Given
     const records: DataOnlyAttestation[] = [
-      { package: 'mdn-data@2.27.1', license: 'CC0-1.0', rationale: 'data' },
+      {
+        package: 'mdn-data@2.27.1',
+        license: 'CC0-1.0',
+        rationale: 'data',
+        integrity: 'sha512-a==',
+      },
     ];
 
     // When

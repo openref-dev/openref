@@ -1,8 +1,17 @@
 {
   "name": "@openref/theme-kit",
   "version": "0.0.0",
-  "description": "OPENREF theme authoring kit: scaffolding, dev harness, contract conformance. Internal",
+  "description": "OPENREF theme authoring kit: scaffolding, dev harness, contract conformance",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/openref-dev/openref.git",
+    "directory": "packages/theme-kit"
+  },
+  "homepage": "https://openref.dev",
+  "bugs": {
+    "url": "https://github.com/openref-dev/openref/issues"
+  },
   "type": "module",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
@@ -26,7 +35,9 @@
   "scripts": {
     "build": "tsup"
   },
-  "private": true,
+  "publishConfig": {
+    "access": "public"
+  },
   "dependencies": {
     "@openref/core": "workspace:*",
     "@openref/vue": "workspace:*",

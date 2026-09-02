@@ -16,14 +16,21 @@ export interface CommandResult {
  * @param command - Executable name
  * @param args - Arguments, passed without a shell
  * @param cwd - Working directory
+ * @param env - Variables added to this process's environment for the child only
  * @returns Captured result; a missing executable is reported as a non zero exit
  */
-export function runCommand(command: string, args: readonly string[], cwd: string): CommandResult {
+export function runCommand(
+  command: string,
+  args: readonly string[],
+  cwd: string,
+  env: Readonly<Record<string, string>> = {},
+): CommandResult {
   const result = spawnSync(command, [...args], {
     cwd,
     encoding: 'utf8',
     shell: false,
     maxBuffer: 64 * 1024 * 1024,
+    env: { ...process.env, ...env },
   });
 
   if (result.error !== undefined) {

@@ -20,7 +20,29 @@ import { escapeHtml, escapeJsonForScript } from '../../shared/html';
 export const STATE_ELEMENT_ID = 'oref-state';
 
 /**
- * The policy of SPEC 19.2, which is the one this shell is written to run under.
+ * Builds the policy of SPEC 19.2, for a host to set. This module sets no header.
+ *
+ * THE NAME IS A VERB SINCE T064, AND THE RENAME IS THE WHOLE POINT OF THE ENTRY. It was
+ * `contentSecurityPolicy`, a bare noun, and in an export list a bare noun for a policy reads as
+ * "the policy this module applies". It applies none: nothing in this package, in `@openref/nest`
+ * or in `@openref/nuxt` writes a `Content-Security-Policy` header, deliberately, because a header
+ * written by a module the host did not ask for a policy from is either too narrow for the host's
+ * own pages or too wide to be worth writing. The reference makes its output compatible with this
+ * policy; the host decides whether to serve it. The rename happened at T064 rather than being
+ * noted, because T064 is the task that decided which packages go out, and a name is frozen from
+ * the day the package carrying it is published.
+ *
+ * WHERE A HOST REACHES IT, STATED AFTER THE REVERSAL RATHER THAN BEFORE IT. The reason above was
+ * first written as "T064 publishes `@openref/nuxt`", and T064 reversed that decision in the same
+ * session: `@openref/nuxt` stays private, because its peer dependency lands in the licence policy's
+ * zone 1. So a Nest host reaches this through `@openref/nest`, which re-exports it, and a Nuxt host
+ * has no package to reach it from and transcribes the policy for now. The guide says exactly that,
+ * and `published-consumer.spec.ts` holds every package the guide names against what a consumer can
+ * install, so the sentence cannot go back to naming one they cannot.
+ *
+ * WHAT A CALLER RECEIVES IS A STRING, AND WHAT THEY DO WITH IT IS THEIRS. A host that serves no
+ * policy calls nothing here and gets a page with no nonce attribute, which is the same page the
+ * static build writes.
  *
  * `default-src 'none'` rather than `'self'`, because the claim SPEC 19.2 makes is about what the
  * page needs rather than about what it happens to get away with. Every directive below it is one
@@ -46,7 +68,7 @@ export const STATE_ELEMENT_ID = 'oref-state';
  *   run both ways.
  * @returns The header value
  */
-export function contentSecurityPolicy(nonce: string, connect: readonly string[] = []): string {
+export function buildContentSecurityPolicy(nonce: string, connect: readonly string[] = []): string {
   return [
     "default-src 'none'",
     `script-src 'self' 'nonce-${nonce}'`,

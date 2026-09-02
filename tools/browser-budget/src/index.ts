@@ -7,7 +7,7 @@ export { spawnServer } from './spawn.js';
 export type { SpawnedServer, SpawnOptions } from './spawn.js';
 export { bootFixture, FIXTURE_ENTRY } from './fixture/boot.js';
 export type { BootedFixture } from './fixture/boot.js';
-export { contentSecurityPolicy, createFixture, FIXTURE_BASE_PATH } from './fixture/app.js';
+export { buildContentSecurityPolicy, createFixture, FIXTURE_BASE_PATH } from './fixture/app.js';
 export type { FixtureDocument, FixtureOptions } from './fixture/app.js';
 export {
   ALLOW_CONTROL_PATH,

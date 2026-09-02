@@ -7,7 +7,7 @@ import { join, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { contentSecurityPolicy } from '@openref/render';
+import { buildContentSecurityPolicy } from '@openref/render';
 import { BUILD_MANIFEST_FILE } from '@openref/static';
 import { builtCliProblem, BUILT_CLI_BIN } from '../../../../vitest.built-cli.ts';
 import { SPAWNED_PROCESS_TIMEOUT_MS } from '../../../../vitest.spawn-timeout.ts';
@@ -321,7 +321,7 @@ describe('the example application serving the reference with SSR', () => {
     // Then: the header the deployment served and the policy this project owns are one string,
     // for the nonce that is actually in the page. A transcribed copy on either side desyncs here.
     expect(nonce).not.toBe('');
-    expect(policy).toBe(contentSecurityPolicy(nonce));
+    expect(policy).toBe(buildContentSecurityPolicy(nonce));
     expect(policy).toContain("script-src 'self' 'nonce-");
     expect(policy).not.toContain('unsafe-inline');
   });
