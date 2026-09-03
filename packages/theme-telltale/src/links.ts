@@ -90,9 +90,54 @@ export function overviewHref(basePath: string): string {
   return basePath === '' ? '/' : basePath;
 }
 
+/**
+ * Every name a mounted reference claims under its mount point, transcribed from the renderer.
+ *
+ * A node whose segment is one of these has a page no router can reach, because every one of them is
+ * a route of the mount and every one of them is matched before the node parameter. The renderer
+ * escapes such a segment; this file must spell the same address or this theme links to a page the
+ * server does not serve.
+ *
+ * EXPORTED SO IT CAN BE RECONCILED, which is the whole difference between a transcription and a
+ * copy. `test/integration/theme-boundary.spec.ts` compares this list with the renderer's own and
+ * walks every name in it through both `nodeHref` implementations, so a name added to either side
+ * and not the other is red rather than a quiet disagreement about one address.
+ */
+export const RESERVED_MOUNT_SEGMENTS: readonly string[] = [
+  '_assets',
+  '_bridge',
+  '_federation',
+  '_health',
+  '_navigation',
+  '_oauth',
+  '_proxy',
+  '_search-index',
+  'asyncapi.json',
+  'asyncapi.yaml',
+  'bench',
+  'health',
+  'llms-full.txt',
+  'llms.txt',
+  'mcp',
+  'openapi.json',
+  'openapi.yaml',
+  'schema',
+  'service',
+  'shapes',
+  'states',
+];
+
+/** The path segment of one node id, transcribed from `nodeSegmentOf`: one more whole name rule. */
+export function nodeSegmentOf(nodeId: string): string {
+  const escaped = pathSegmentOf(nodeId);
+  if (!RESERVED_MOUNT_SEGMENTS.includes(escaped)) return escaped;
+
+  return `${escapeSegmentCharacter(escaped)}${escaped.slice(1)}`;
+}
+
 /** Path of one node's page. The id is escaped and encoded, since a document supplied it. */
 export function nodeHref(nodeId: string, basePath: string): string {
-  return `${basePath}/${encodeURIComponent(pathSegmentOf(nodeId))}`;
+  return `${basePath}/${encodeURIComponent(nodeSegmentOf(nodeId))}`;
 }
 
 /** Path of one named schema's page, under the segment that keeps the two id spaces apart. */

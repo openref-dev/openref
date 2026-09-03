@@ -29,6 +29,7 @@ import {
   healthPageHref,
   nodeHref,
   overviewHref,
+  nodeSegmentOf,
   pathSegmentOf,
   schemaHref,
   SEARCH_INDEX_SEGMENT,
@@ -193,7 +194,9 @@ export function planPages(document: IRDocument, basePath: string): readonly Plan
   }
 
   for (const [nodeId, node] of document.nodes) {
-    const segment = pathSegmentOf(nodeId);
+    // `nodeSegmentOf`, so the file this build writes is the file `nodeHref` links. A node id equal
+    // to a reserved mount name is escaped there and must be escaped here too.
+    const segment = nodeSegmentOf(nodeId);
     add('node', nodeHref(nodeId, basePath), [segment], node, nodeId, null);
 
     if (node.kind === 'operation') {

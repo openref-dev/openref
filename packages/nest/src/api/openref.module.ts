@@ -28,7 +28,11 @@ import { loadDefaultAssets } from '@openref/render';
 import { assertAgentOptions } from '../agent/domain/agent-mount';
 import { createReferenceAdapter } from '../http/infrastructure/adapters/reference-adapter.factory';
 import { ReferenceService } from '../reference/application/services/reference.service';
-import { normalizeRoute } from '../reference/domain/routes';
+import {
+  assertMountsDoNotCollide,
+  normalizeRoute,
+  type MountAddress,
+} from '../reference/domain/routes';
 import { admissionFor } from '../visibility/application/services/admission.service';
 import { mountRouteTable } from './route-table';
 import { isNestApplication } from '../shared/types/nest-surface';
@@ -87,12 +91,24 @@ export class OpenRefModule {
     }
 
     const basePath = normalizeRoute(route);
+    assertMountableAfterInit(route, app);
     // CHECKED BEFORE ANYTHING IS BUILT, per SPEC 18.1: an MCP endpoint with no guard in front of
     // it is refused at boot rather than served, and this entry point is where the ordinary NestJS
     // application mounts, so leaving the check to `forRoot` would leave it unchecked for most
     // hosts. `admissionFor` below refuses the visibility pair on the same principle.
     assertAgentOptions(`the reference mounted on "${route}"`, options);
     const references = referencesIn(app);
+    // REFUSED BEFORE ANYTHING IS BUILT, per SPEC 13.3 as amended at `T065`. A mount whose address
+    // is a named route of an enclosing mount cannot be ordered around: both sides are static, and
+    // the two routers disagree about which of them answers. The provider knows the `documents` a
+    // host configured; `mountedOn` knows what earlier `setup` calls on this same application
+    // claimed, which is the only registry available when `forRoot` was never imported.
+    const claimed = mountedOn(app);
+    // The same identity `record` files a `setup` mount under, so a refusal and the provider's own
+    // listing name one thing rather than two.
+    const candidate = { id: basePath === '' ? '/' : basePath, basePath };
+    assertMountsDoNotCollide([...claimed, candidate]);
+    references?.assertMountable(candidate);
     let pass: RuntimePassResult | undefined;
 
     // The theme's own `assets.css` and `bundle` are the defaults, per SPEC 10.4 consumed at
@@ -145,11 +161,23 @@ export class OpenRefModule {
       ...(options.onError === undefined ? {} : { onError: options.onError }),
     });
 
-    mountRouteTable(adapter, {
+    const registerNodeRoute = mountRouteTable(adapter, {
       basePath,
       health: true,
       handle: async (id, request) => service.handle(id, request),
     });
+
+    // THE NODE PAGE ROUTE GOES LAST FOR THE WHOLE PROCESS, per SPEC 13.3 as amended at `T065`.
+    // `setup` runs before `onModuleInit` by construction, so registering the bare parameter here
+    // put it ahead of every route a `documents` entry nested under this mount registers later, and
+    // on Express that is `/docs/events` answered by `/docs/:nodeId` with "no operation of that
+    // name is documented here" about an address that exists. When `forRoot` was imported, the
+    // provider takes the registration and drains its queue once every named route exists; with no
+    // provider, or with a host that called `app.init()` before this line, nothing comes later and
+    // the route is registered right here.
+    if (references?.deferNodeRoute(registerNodeRoute) !== true) registerNodeRoute();
+
+    claimed.push(candidate);
 
     // Recorded so a host that mounted through `setup` can still read the pass by document id,
     // and so `all()` answers for every reference this process serves rather than for the subset
@@ -253,6 +281,75 @@ export class OpenRefModule {
  */
 function asDynamicModule(dynamic: DynamicModuleLike): DynamicModule {
   return dynamic as unknown as DynamicModule;
+}
+
+/**
+ * What `setup` has already mounted on one application, keyed by that application.
+ *
+ * A `WeakMap` AND NOT A MODULE LEVEL LIST, because the list is a fact about one application and not
+ * about this process. Two applications in one test file, which this repository's own suites build
+ * constantly, must not see each other's mounts, and an application that is closed must not keep its
+ * entry alive. Without `forRoot` there is no provider to ask, so this is the only registry a second
+ * `setup` call on the same application can be compared against.
+ */
+const MOUNTED_BY_SETUP = new WeakMap<NestApplicationLike, MountAddress[]>();
+
+/**
+ * The mounts `setup` made on one application, as a list this function may append to.
+ *
+ * @param app - The application `setup` was given
+ * @returns The live list for that application
+ */
+function mountedOn(app: NestApplicationLike): MountAddress[] {
+  const existing = MOUNTED_BY_SETUP.get(app);
+  if (existing !== undefined) return existing;
+
+  const created: MountAddress[] = [];
+  MOUNTED_BY_SETUP.set(app, created);
+
+  return created;
+}
+
+/**
+ * Refuses a `setup` that comes after `app.init()` on the one platform where it cannot work.
+ *
+ * MEASURED ON BOTH ADAPTERS 2026-09-03 RATHER THAN REASONED FROM THE FRAMEWORK'S SOURCE. With
+ * `app.init()` awaited before `setup`, express answers 404 on the overview, on `openapi.json`, on
+ * the health page and on the node page alike: `init` registers NestJS's own not found handler, and
+ * express matches in registration order, so every route added afterwards sits behind it and the
+ * whole mount is unreachable with nothing anywhere saying so. Fastify answers 200 on all four,
+ * because it ranks routes rather than ordering them and accepts registrations until `listen`.
+ *
+ * SO THE ANSWER IS A REFUSAL ON ONE PLATFORM AND NOT A FIX ON BOTH. Getting ahead of that handler
+ * would mean reordering the host application's own middleware stack from inside a documentation
+ * mount, which is a larger promise than SPEC 13.1 makes; and SPEC 13.1 already says `setup` takes
+ * the application before `listen`. What was missing was the refusal, not the rule.
+ *
+ * IT FAILS OPEN WHEN THE FLAG CANNOT BE READ. `isInitialized` is NestJS's own property on the
+ * application context rather than a documented member, so a value that is not exactly `true` is
+ * treated as "not initialized" and nothing is refused. A test double is that case, and so is a
+ * NestJS whose internals moved; the cost of being wrong in that direction is the behaviour this
+ * package had yesterday.
+ *
+ * @param route - The mount point as the host wrote it, so the refusal names it
+ * @param app - The application `setup` was given
+ * @throws {InvalidOptionsError} When express is already initialized
+ */
+function assertMountableAfterInit(route: string, app: NestApplicationLike): void {
+  const initialized = (app as unknown as { readonly isInitialized?: unknown }).isInitialized;
+  if (initialized !== true) return;
+  if (app.getHttpAdapter().getType() !== 'express') return;
+
+  throw new InvalidOptionsError(
+    `the reference mounted on "${route}" was set up after the application was initialized, and ` +
+      'on express every route registered after `app.init()` sits behind the not found handler ' +
+      'NestJS registers there, so the whole mount would answer 404. Call OpenRefModule.setup ' +
+      'before `app.init()` and before `app.listen()`. Fastify ranks routes rather than ordering ' +
+      'them and accepts this, which is why the refusal names the platform',
+    ErrorCode.CONFIG_INVALID_OPTIONS,
+    undefined,
+    { route, platform: 'express' },
+  );
 }
 
 /**

@@ -18,7 +18,11 @@ import { loadDefaultAssets } from '@openref/render';
 import { createReferenceAdapter } from '../http/infrastructure/adapters/reference-adapter.factory';
 import { FederatedReferenceService } from '../reference/application/services/federated-reference.service';
 import { ReferenceService } from '../reference/application/services/reference.service';
-import { normalizeRoute } from '../reference/domain/routes';
+import {
+  assertMountsDoNotCollide,
+  normalizeRoute,
+  type MountAddress,
+} from '../reference/domain/routes';
 import { admissionFor } from '../visibility/application/services/admission.service';
 import { mountRouteTable } from './route-table';
 import {
@@ -99,6 +103,29 @@ export class MountedReferences {
   private federatedService: FederatedReferenceService | undefined;
 
   /**
+   * Whether {@link onModuleInit} has run, which is the idempotence this hook actually needs.
+   *
+   * IT WAS `this.mounted.size > 0` UNTIL `T065`, AND THAT READ THE WRONG FACT. The guard was
+   * written against a module imported twice; the map it read is also written by `setup`, through
+   * `record`, and `setup` runs before this hook by construction, because the document a host
+   * builds with `SwaggerModule` does not exist until `NestFactory.create` has returned. So an
+   * application calling `forRoot({ documents })` and `setup` mounted none of its `documents`
+   * entries at all: measured on the built `examples/events`, the container reported one mount,
+   * `/docs`, before and after `listen`. A capability built and unreachable by any shipped path,
+   * against SPEC 13.2's own sentence that the two entry points add up.
+   */
+  private initialized = false;
+
+  /**
+   * The node page routes of every mount in this process, held until the named routes all exist.
+   *
+   * WHY THEY ARE HELD AT ALL is in `route-table.ts`: the bare parameter of one mount matches the
+   * whole first segment under it, including the mount point of a reference nested inside it, and
+   * Express matches in registration order.
+   */
+  private readonly deferredNodeRoutes: (() => void)[] = [];
+
+  /**
    * @param options - The validated root options
    * @param dependencies - What NestJS resolved for the pass
    */
@@ -117,24 +144,123 @@ export class MountedReferences {
    * federation naming them as local services reads their augmented documents, runtime facts and
    * health included, from what was just mounted.
    *
+   * THE NODE PAGE ROUTES GO LAST AND THEY GO LAST FOR THE WHOLE PROCESS, per SPEC 13.3 as amended
+   * at `T065`. `setup`'s deferral lands in the same queue, so a mount nested inside another one,
+   * which is exactly `documents: [{ route: '/docs/events' }]` beside `setup('/docs')`, is
+   * registered before the parameter that would otherwise swallow it.
+   *
+   * THE QUEUE IS DRAINED EVEN WHEN THERE IS NOTHING TO MOUNT, which is the ordinary shape of SPEC
+   * 13.2: `forRoot({ runtime })` with no `documents` at all, beside a `setup` that deferred to
+   * this hook. Returning early there would leave that reference with no node page.
+   *
    * @throws {ConfigError} When the http adapter is not available or is neither supported platform
    */
   onModuleInit(): void {
+    if (this.initialized) return;
+    this.initialized = true;
+
     const entries = this.options.documents ?? [];
     const federation = this.options.federation;
-    if ((entries.length === 0 && federation === undefined) || this.mounted.size > 0) return;
-    if (entries.length === 0 && this.federatedService !== undefined) return;
 
-    const httpAdapter = this.dependencies.adapterHost.httpAdapter;
-    if (httpAdapter === undefined) {
-      throw new InvalidOptionsError(
-        'forRoot ran before the http adapter existed, so no route could be registered',
-        ErrorCode.CONFIG_INVALID_OPTIONS,
-      );
+    // BEFORE ANYTHING IS MOUNTED, per SPEC 13.3 as amended at `T065`: a mount whose address is a
+    // named route of an enclosing mount is refused by name rather than served differently by each
+    // adapter. This is the moment every mount of this process is known, `setup`'s recorded ones
+    // included, and it is the last moment a refusal costs nobody a registered route.
+    assertMountsDoNotCollide(this.addresses());
+
+    if (entries.length > 0 || federation !== undefined) {
+      const httpAdapter = this.dependencies.adapterHost.httpAdapter;
+      if (httpAdapter === undefined) {
+        throw new InvalidOptionsError(
+          'forRoot ran before the http adapter existed, so no route could be registered',
+          ErrorCode.CONFIG_INVALID_OPTIONS,
+        );
+      }
+
+      for (const entry of entries) this.mount(entry, httpAdapter);
+      if (federation !== undefined) this.mountFederation(federation, httpAdapter);
     }
 
-    for (const entry of entries) this.mount(entry, httpAdapter);
-    if (federation !== undefined) this.mountFederation(federation, httpAdapter);
+    for (const register of this.deferredNodeRoutes) register();
+    this.deferredNodeRoutes.length = 0;
+  }
+
+  /**
+   * Every mount this process knows about, once each: what `setup` recorded, and what is configured.
+   *
+   * THE CONFIGURED ONES ARE READ FROM THE OPTIONS RATHER THAN FROM THE MAP, because the check they
+   * feed runs before any of them is mounted, which is the only moment a refusal is free.
+   *
+   * AND EACH ID APPEARS ONCE, WHICH THE FIRST WRITING OF THIS GOT WRONG AND A BLIND REVIEW CAUGHT.
+   * `mount` files a configured entry into `this.mounted` under the same id the options carry, so
+   * after the hook every configured mount was in both lists and the pairwise check compared it with
+   * itself. The symptom was a `setup` on an already initialized fastify application being refused
+   * for colliding with a mount that was itself: "the reference `events` mounted on `/docs/events`
+   * answers `/docs/events`, which the reference `events` mounted on `/docs/events` also answers".
+   * The committed case for that path used `forRoot({ runtime })` with no `documents`, which is the
+   * one shape that could not reach it.
+   *
+   * @param candidate - A mount that is about to be added, when one is being asked about
+   * @returns The addresses, one per id, with the candidate last
+   */
+  private addresses(candidate?: MountAddress): readonly MountAddress[] {
+    const recorded = [...this.mounted.values()].map((mount) => ({
+      id: mount.id,
+      basePath: mount.basePath,
+    }));
+    const seen = new Set(recorded.map((mount) => mount.id));
+    const federation = this.options.federation;
+
+    return [
+      ...recorded,
+      ...(this.options.documents ?? [])
+        .filter((entry) => !seen.has(entry.id))
+        .map((entry) => ({ id: entry.id, basePath: normalizeRoute(entry.route) })),
+      // THE FEDERATED REFERENCE IS FILED NOWHERE IN `mounted`, SO IT IS READ OFF THE OPTIONS EVERY
+      // TIME AND UNCONDITIONALLY. A `federatedService !== undefined` guard stood here for one
+      // round, copied from the double counting fix beside it, and it prevented no double count
+      // because there was none to prevent: it only blinded the check once the hook had run.
+      // Measured on fastify, where `setup` after `app.init()` is supported:
+      // `setup('/federated/health')` was refused by name before `init` and passed the check after
+      // it, leaving fastify to throw its own "Method 'GET' already declared for route
+      // '/federated/health'" from inside `setup`. That is the adapter divergence this refusal
+      // exists to replace, reintroduced on the after init path the same round created.
+      ...(federation === undefined
+        ? []
+        : [{ id: federation.id, basePath: normalizeRoute(federation.route) }]),
+      ...(candidate === undefined ? [] : [candidate]),
+    ];
+  }
+
+  /**
+   * Refuses a mount `setup` is about to register, against everything this provider knows.
+   *
+   * IT IS ASKED BY `setup` RATHER THAN CHECKED BY IT, because the `documents` a host configured are
+   * this object's options and `setup` cannot see them. Without `forRoot` there is no provider and
+   * `setup` compares against the mounts it made on the same application instead.
+   *
+   * @param candidate - The mount `setup` is about to register
+   * @throws {InvalidOptionsError} When it collides with a configured or recorded mount
+   */
+  assertMountable(candidate: MountAddress): void {
+    assertMountsDoNotCollide(this.addresses(candidate));
+  }
+
+  /**
+   * Holds one mount's node page route until every named route of this process is registered.
+   *
+   * IT ANSWERS WITH A FACT RATHER THAN WITH SILENCE, because the caller has to register the route
+   * itself when the answer is no. `setup` may run after this hook, when a host calls `app.init()`
+   * before mounting, and a deferral accepted then would be a node page nobody ever registers.
+   *
+   * @param register - The registration `mountRouteTable` handed back
+   * @returns True when it was taken, false when this hook has already run
+   */
+  deferNodeRoute(register: () => void): boolean {
+    if (this.initialized) return false;
+    this.deferredNodeRoutes.push(register);
+
+    return true;
   }
 
   /**
@@ -290,11 +416,13 @@ export class MountedReferences {
       ...(entry.onError === undefined ? {} : { onError: entry.onError }),
     });
 
-    mountRouteTable(adapter, {
-      basePath,
-      health: this.options.runtime?.health ?? true,
-      handle: async (id, request) => service.handle(id, request),
-    });
+    this.deferredNodeRoutes.push(
+      mountRouteTable(adapter, {
+        basePath,
+        health: this.options.runtime?.health ?? true,
+        handle: async (id, request) => service.handle(id, request),
+      }),
+    );
 
     // `augment` is called by the constructor above, synchronously, so this is defined by the
     // time it is read. It is checked rather than asserted because the alternative is a cast.
@@ -443,11 +571,13 @@ export class MountedReferences {
       ...(federation.onError === undefined ? {} : { onError: federation.onError }),
     });
 
-    mountRouteTable(adapter, {
-      basePath,
-      health: this.options.runtime?.health ?? true,
-      handle: async (id, request) => service.handle(id, request),
-    });
+    this.deferredNodeRoutes.push(
+      mountRouteTable(adapter, {
+        basePath,
+        health: this.options.runtime?.health ?? true,
+        handle: async (id, request) => service.handle(id, request),
+      }),
+    );
 
     this.federatedService = service;
     void lifecycle.start();

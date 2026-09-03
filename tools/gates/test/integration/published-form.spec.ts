@@ -35,6 +35,13 @@ const REPO_ROOT = join(import.meta.dirname, '..', '..', '..', '..');
  * reach it changed. The names are re-read here rather than kept; the figures below are what the
  * file is about.
  *
+ * ONE OF THESE NAMES MOVED ON 2026-09-03 AND ITS SIZE MOVED WITH IT, which is the other case and
+ * the reason both are written down. `chunk-3BFRF6WF` became `chunk-FMGVZQY6` and grew from 1,093 to
+ * 1,418 bytes, because `T065` put `nodeSegmentOf` and the twenty one names a mount claims into
+ * `links.ts`, which that chunk holds. The list ships by necessity: a served page carries node ids
+ * and the browser builds the link, so a rule the bundle does not have is a theme linking to an
+ * address the server does not serve. SPEC 20 records the arrival and the cap did not move.
+ *
  * TWO OF THESE NAMES MOVED ON 2026-09-02 AND NOT ONE OF THE SIZES DID. A chunk's name is its
  * content digest, so renaming a published constant moves it and every chunk that imports it:
  * `chunk-TEAI3FZD` became `chunk-5LRQ4D6P` when `@openref/vue`'s `DEFAULT_THEME_NAME` became
@@ -45,7 +52,7 @@ const REPO_ROOT = join(import.meta.dirname, '..', '..', '..', '..');
 const INITIAL = [
   'openref.js',
   'chunk-EJ4XQ22A.js',
-  'chunk-3BFRF6WF.js',
+  'chunk-FMGVZQY6.js',
   'chunk-IF2D2VIE.js',
   'chunk-GKCAFBE4.js',
   'chunk-FYRWH3QL.js',
@@ -95,10 +102,13 @@ describe('the published form of this tree', () => {
     // When
     const total = INITIAL.reduce((sum, name) => sum + sizeOf(name), 0);
 
-    // Then, the figure `TX-SOCKET-CONSOLE` re-derived the cap from, 1,267 bytes over the 110,559
-    // the row carried before the socket console arrived
-    expect(total).toBe(111_826);
-    expect(total - 110_559).toBe(1_267);
+    // Then, the figure after `T065`'s node segment escape, 325 bytes over the 111,826 the row
+    // carried after the socket console arrived, which was itself 1,267 over the 110,559 before it.
+    // The cap did not move for either: 112,151 still fits under 110 KB and `sign-in-return`
+    // returning to the first load still fails the budget, which is the property SPEC 20 states.
+    expect(total).toBe(112_151);
+    expect(total - 111_826).toBe(325);
+    expect(111_826 - 110_559).toBe(1_267);
     expect(sizeOf('openref.js')).toBe(20_787);
     expect(sizeOf('chunk-IF2D2VIE.js')).toBe(5_089);
     expect(sizeOf('chunk-MPK3G3AA.js')).toBe(656);
@@ -142,7 +152,7 @@ describe('the published form of this tree', () => {
 
     // Then, the published totals rather than the 62,424 and 110,284 the disk holds
     expect(messageOf('theme-css-raw')).toContain(`${formatBytes(62_594)} raw`);
-    expect(messageOf('client-js-raw')).toContain(`${formatBytes(111_826)} raw`);
+    expect(messageOf('client-js-raw')).toContain(`${formatBytes(112_151)} raw`);
     expect(report.errors).toEqual([]);
   });
 
@@ -161,13 +171,28 @@ describe('the published form of this tree', () => {
     // breaking the rule STANDARDS and `CLAUDE.md` both state. Obeying the rule costs the subclass
     // plumbing in the first paint closure. Measured by building the tree twice, with and without
     // that one change: 110,539 against 110,559. THE CAP DID NOT MOVE and is asserted above.
-    // 814 SINCE `TX-SOCKET-CONSOLE` AND IT WAS 33. The socket console of SPEC 14.7 is the debt
-    // `T055` recorded and did not build, and it is a capability arriving rather than an artefact
-    // growing: the first paint gains the gate, the `loadSocket` seam and the bundler's regrouping,
-    // 1,267 bytes measured by building the tree twice. The cap moved by one step of its own
-    // recorded property, which still chooses exactly one: 109 KB does not hold the artefact and
-    // the cheapest deferred gesture returning reads 113,294 against 112,640 and fails.
-    expect(capOf('client-js-raw') - 111_826).toBe(814);
+    // 489 SINCE `T065`'s NODE SEGMENT ESCAPE, 814 SINCE `TX-SOCKET-CONSOLE`, AND 33 BEFORE THAT.
+    // The console was a capability arriving rather than an artefact growing, 1,267 bytes; the
+    // escape is 325, the twenty one names a mount claims and the rule that reads them, which ship
+    // because a served page carries node ids and the browser builds the link. The cap did not move
+    // for either and is asserted above.
+    //
+    // THE HEADROOM IS TAKEN OFF THE MEASUREMENT AND NOT OFF A COPY OF IT. This line read
+    // `capOf('client-js-raw') - 111_826` for one round after the artefact weighed 112,151, which is
+    // arithmetic on two stale literals in the file whose own header calls a literal describing a
+    // vanished artefact the class it exists to prevent. Both operands are now read from the tree.
+    const initial = INITIAL.reduce((sum, name) => sum + sizeOf(name), 0);
+    const signInReturn = sizeOf('oauth-landing-VRHHK533.js') + sizeOf('chunk-FI2DNV2T.js');
+
+    expect(capOf('client-js-raw') - initial).toBe(489);
+
+    // AND THE PROPERTY THE CAP IS DERIVED BY, CHECKED THE SAME WAY: the smallest whole KB step the
+    // artefact fits under, at which the cheapest deferred gesture returning to the first load still
+    // fails. Every figure here is measured, so this cannot go stale without going red.
+    expect(initial).toBeLessThanOrEqual(capOf('client-js-raw'));
+    expect(109 * 1024).toBeLessThan(initial);
+    expect(initial + signInReturn).toBeGreaterThan(capOf('client-js-raw'));
+
     expect(capOf('theme-entry-raw')).toBe(281 * 1024);
   });
 });

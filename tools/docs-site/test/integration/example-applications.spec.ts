@@ -140,6 +140,63 @@ describe('the example applications', () => {
     );
   }
 
+  /**
+   * The second mount of `examples/events`, which nothing above reaches.
+   *
+   * EVERY CASE ABOVE FETCHES `/docs` AND ONLY `/docs`, which is why `examples/events` was green
+   * for the whole of M5 and M6 while its events reference served nothing at all. Two defects of
+   * `@openref/nest`, both measured on this built example on 2026-09-03 and both fixed at `T065`:
+   * `MountedReferences.onModuleInit` returned early on a map `setup` had already written, so the
+   * `documents` entry never mounted; and `setup` registered `/docs/:nodeId` before `onModuleInit`
+   * registered `/docs/events`, so on Express the nested mount was answered by the parameter.
+   *
+   * THE ADDRESSES ARE THIS EXAMPLE'S OWN README, which is the point of asserting them here rather
+   * than only in `packages/nest`: the table in `examples/events/README.md` promises exactly these
+   * two, and until this case existed nothing compared the promise to the process.
+   *
+   * WHAT THIS CASE DOES NOT COVER, STATED SO IT CANNOT BE MISREAD AS COVERAGE. The synthesized
+   * document this example serves has an empty `channels` map, which is the state it is in today,
+   * and a case asserting only status and version would stay green on it. So the channel count is
+   * asserted here as the number it actually is, zero, with the reason: `@ApiChannel` on a plain
+   * `@Injectable()` provider is discovered by nothing, and `OrdersProjector` is one. That is a
+   * defect of SPEC 8.3's discovery rather than of this suite, it is filed as the open section
+   * `T065` "`@ApiChannel` on a plain provider is discovered by nothing" in
+   * `ai-docs/BUILD-AMENDMENTS.md`, and the day it is answered this expectation goes red and is
+   * changed to the channels the example declares, which is the point of writing the zero down. The
+   * `channels` key itself is asserted present first, so an empty map and an absent member stay
+   * distinguishable: only the first is the filed defect.
+   */
+  it(
+    'should serve the second mount of the events example, which is its whole subject',
+    async () => {
+      // Given
+      const booted = await boot('events');
+
+      // When
+      const page = await fetch(`${booted.url}/docs/events`);
+      const specification = await fetch(`${booted.url}/docs/events/asyncapi.json`);
+      const html = await page.text();
+      const document = (await specification.json()) as Record<string, unknown> & {
+        asyncapi?: string;
+      };
+
+      // Then the events reference answers, and not the HTTP mount's node page
+      expect(page.status).toBe(200);
+      expect(specification.status).toBe(200);
+      expect(html).not.toContain('No operation of that name is documented here.');
+      expect(html).toContain('Orders events');
+      expect(document.asyncapi).toMatch(/^3\./);
+
+      // And the channel count it really has, which is the filed defect rather than this suite's.
+      // The key is asserted present before it is asserted empty: `document.channels ?? {}` would
+      // read the same on a document that carries no `channels` member at all, and those are two
+      // different failures, one of them the synthesis not running.
+      expect(document).toHaveProperty('channels');
+      expect(Object.keys(document.channels as Record<string, unknown>)).toEqual([]);
+    },
+    TIMEOUT,
+  );
+
   it(
     'should build the static example, once per hosting target',
     async () => {

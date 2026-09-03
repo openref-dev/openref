@@ -35,6 +35,7 @@ import {
   buildNavigation,
   createMemoryRenderCache,
   createOpenRefHighlighter,
+  nodeSegmentOf,
   pathSegmentOf,
   plainHighlighter,
   OAUTH_MARKER,
@@ -338,7 +339,7 @@ export class ReferenceService {
       basePath: this.basePath,
       ...(options.agent === undefined ? {} : { agent: options.agent }),
     });
-    this.nodeIdBySegment = segmentIndex(this.document.nodes.keys());
+    this.nodeIdBySegment = segmentIndex(this.document.nodes.keys(), nodeSegmentOf);
     this.schemaIdBySegment = segmentIndex(this.document.schemas.keys());
     this.serviceIdBySegment = segmentIndex(
       (this.document.services ?? []).map((service) => service.id),
@@ -1139,12 +1140,21 @@ function notAFederation(absent: string): ReferenceReply {
 /**
  * Ids by the path segment their links carry.
  *
+ * NODES GO THROUGH `nodeSegmentOf` AND EVERYTHING ELSE THROUGH `pathSegmentOf`, which is the one
+ * asymmetry here. Only the node page is served on a bare segment under the mount, so only a node id
+ * can be a name this server has already claimed for a route; schemas and services live under a
+ * segment of their own and collide with nothing.
+ *
  * @param ids - Node or schema ids
+ * @param segmentOf - How a link spells this id space, defaulting to the ordinary rule
  * @returns Segment to id
  */
-function segmentIndex(ids: Iterable<string>): ReadonlyMap<string, string> {
+function segmentIndex(
+  ids: Iterable<string>,
+  segmentOf: (id: string) => string = pathSegmentOf,
+): ReadonlyMap<string, string> {
   const index = new Map<string, string>();
-  for (const id of ids) index.set(pathSegmentOf(id), id);
+  for (const id of ids) index.set(segmentOf(id), id);
   return index;
 }
 

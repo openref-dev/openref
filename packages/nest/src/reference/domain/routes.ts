@@ -16,6 +16,13 @@
  * pattern is a bare parameter, has to be registered after every static route it would
  * otherwise swallow. Fastify ranks static segments above parameters and does not care, which
  * is precisely why the order has to be right here rather than left to the router.
+ *
+ * AND ORDER WITHIN THE TABLE SETTLES ONE MOUNT AND NOTHING BETWEEN TWO, which `T065` measured. A
+ * reference nested inside another one, `documents: [{ route: '/docs/events' }]` beside
+ * `setup('/docs')`, is a static route this table never sees, and the outer mount's parameter was
+ * registered first because `setup` runs before `onModuleInit`. So `mountRouteTable` hands the node
+ * route back and `MountedReferences` registers every deferred one after the named routes of every
+ * mount in the process. SPEC 13.3 carries the rule; this file carries only the within mount half.
  */
 
 import { LLMS_FULL_SEGMENT, LLMS_SEGMENT, MCP_SEGMENT } from '@openref/agent';
@@ -295,7 +302,14 @@ export function referenceRoutes(basePath: string): readonly ReferenceRoute[] {
       pattern: at(`/${OAUTH_SEGMENT}/${OAUTH_CALLBACK_SEGMENT}`),
       method: 'get',
     },
+    // THE PROXY ADDRESS IS REGISTERED TWICE, AND THE `GET` IS THERE FOR THE REASON THE `MCP`
+    // ENTRY BELOW GIVES, one address to its left. The envelope arrives in a `POST`; without the
+    // `GET`, opening this address in a browser fell through to the node page route and was told
+    // that no operation of that name is documented, which is a false sentence about an address
+    // that exists. The `GET` reaches the same handler, finds no envelope and says what this
+    // endpoint takes, so no route of this table answers through `:nodeId` on a method it declares.
     { id: 'proxy', pattern: at(`/${PROXY_SEGMENT}`), method: 'post' },
+    { id: 'proxy', pattern: at(`/${PROXY_SEGMENT}`), method: 'get' },
     // The broker bridge of SPEC 14.8, registered on every mount by the `_proxy` precedent: with
     // the bridge off it answers 403 with the reason, so "off" is a fact a request can learn.
     { id: 'bridge', pattern: at(`/${BRIDGE_SEGMENT}`), method: 'get' },
@@ -312,6 +326,111 @@ export function referenceRoutes(basePath: string): readonly ReferenceRoute[] {
     { id: 'schema', pattern: at(`/schema/:${SCHEMA_PARAM}`), method: 'get' },
     { id: 'node', pattern: at(`/:${NODE_PARAM}`), method: 'get' },
   ];
+}
+
+/**
+ * Reports whether two patterns of this table's dialect can be matched by one request.
+ *
+ * A parameter is one segment and matches anything, so two patterns overlap when they have the same
+ * segment count and every position is either a parameter on one side or the same literal on both.
+ *
+ * @param left - A pattern of {@link referenceRoutes}
+ * @param right - Another pattern of {@link referenceRoutes}
+ * @returns True when one address exists that both would answer
+ */
+function patternsOverlap(left: string, right: string): boolean {
+  const ours = left.split('/');
+  const theirs = right.split('/');
+  if (ours.length !== theirs.length) return false;
+
+  return ours.every(
+    (part, index) =>
+      part.startsWith(':') || theirs[index]?.startsWith(':') === true || part === theirs[index],
+  );
+}
+
+/**
+ * The pair of routes, one from each mount, that a single address would reach on both.
+ *
+ * WHY THIS IS REFUSED RATHER THAN ORDERED AROUND, and it is the third direction of the shadowing
+ * rule rather than a fourth rule. A mount nested one bare segment under another one is legal and is
+ * what `documents: [{ route: '/docs/events' }]` beside `setup('/docs')` means: the enclosing node
+ * route is deferred so the nested overview wins. Any other overlap is not orderable at all, because
+ * the two routers disagree about which side answers. Measured 2026-09-03 with `route:
+ * '/docs/health'` beside `setup('/docs')`: express serves the enclosing Documentation Health page at
+ * `/docs/health` while `/docs/health/openapi.json` answers 200 from the nested mount, so that mount
+ * loses its overview and nothing says so; fastify throws `FastifyError: Method 'GET' already
+ * declared for route '/docs/health'` from inside `onModuleInit`. One configuration, two behaviours,
+ * neither of them a refusal, which is the adapter divergence SPEC 13.3 exists to prevent.
+ *
+ * WHOLE TABLES AND NOT JUST THE TWO MOUNT POINTS, which the first cut of this got wrong and the
+ * unit case below caught. A mount on `/docs/bench` has no overview collision at all, because
+ * `/docs/bench` is only reached through the enclosing node parameter; its `/docs/bench/openapi.json`
+ * collides with the enclosing `/docs/bench/:nodeId`, and that is the same divergence one segment
+ * deeper. Comparing mount points alone admitted seven of the twenty one reserved names.
+ *
+ * THE NODE ROUTE IS EXCLUDED ON BOTH SIDES ON PURPOSE. It is the one pattern the deferral of SPEC
+ * 13.3 puts behind every named route of every mount, so an overlap that involves only it is the
+ * supported case rather than a collision.
+ *
+ * @param left - Mount point of one reference, already normalized
+ * @param right - Mount point of the other, already normalized
+ * @returns The two colliding patterns, left first, or undefined when the two can coexist
+ */
+export function collidingMountRoutes(
+  left: string,
+  right: string,
+): readonly [string, string] | undefined {
+  const named = (basePath: string): readonly string[] =>
+    referenceRoutes(basePath)
+      .filter((route) => route.id !== 'node')
+      .map((route) => route.pattern);
+  const theirs = named(right);
+
+  for (const ours of named(left)) {
+    const hit = theirs.find((pattern) => patternsOverlap(ours, pattern));
+    if (hit !== undefined) return [ours, hit];
+  }
+
+  return undefined;
+}
+
+/** One mount, as far as the collision check is concerned. */
+export interface MountAddress {
+  /** How the host names it, so a refusal names something the host wrote. */
+  readonly id: string;
+  /** Mount point, already normalized. */
+  readonly basePath: string;
+}
+
+/**
+ * Refuses any pair of mounts whose route tables would both answer one address.
+ *
+ * The comparison is symmetric, so it is made once per pair: "enclosing" is a fact about the two
+ * paths rather than about the order a host wrote them in.
+ *
+ * @param mounts - Every mount this process knows about, in any order
+ * @throws {InvalidOptionsError} When one address would be answered by two mounts
+ */
+export function assertMountsDoNotCollide(mounts: readonly MountAddress[]): void {
+  for (const [index, mount] of mounts.entries()) {
+    for (const other of mounts.slice(index + 1)) {
+      const collision = collidingMountRoutes(mount.basePath, other.basePath);
+      if (collision === undefined) continue;
+
+      const [ours, theirs] = collision;
+      throw new InvalidOptionsError(
+        `the reference "${other.id}" mounted on "${other.basePath || '/'}" answers ` +
+          `${JSON.stringify(theirs)}, which the reference "${mount.id}" mounted on ` +
+          `"${mount.basePath || '/'}" also answers as ${JSON.stringify(ours)}. One address cannot ` +
+          'belong to two references: express would serve whichever registered first and fastify ' +
+          'refuses the second outright, so mount one of them somewhere the other does not reach',
+        ErrorCode.CONFIG_INVALID_OPTIONS,
+        undefined,
+        { mount: other.basePath, enclosing: mount.basePath, pattern: theirs, shadowedBy: ours },
+      );
+    }
+  }
 }
 
 /**

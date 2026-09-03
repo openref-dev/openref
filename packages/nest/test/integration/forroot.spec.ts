@@ -2,9 +2,12 @@ import 'reflect-metadata';
 import { afterEach, describe, expect, it } from 'vitest';
 import { Controller, Get, Module, Post } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
+import { InvalidOptionsError } from '@openref/core';
+import { nodeHref } from '@openref/render';
 import type { INestApplication } from '@nestjs/common';
 import { OpenRefModule } from '../../src/api/openref.module';
 import { MountedReferences } from '../../src/api/mounted-references';
+import { NODE_PARAM, referenceRoutes } from '../../src/reference/domain/routes';
 import { OPENREF_REFERENCES } from '../../src/shared/constants/tokens';
 import type { IRuntimeCollector } from '../../src/runtime/application/ports/collector.port';
 import { assetPlan, specification } from '../mocks/fixtures';
@@ -75,6 +78,28 @@ afterEach(async () => {
 });
 
 /**
+ * Creates an application on one adapter, not yet listening and not yet initialized.
+ *
+ * @param platform - Which adapter to boot on
+ * @param moduleClass - The host module, which imports whatever the test is about
+ * @returns The application
+ */
+async function create(
+  platform: (typeof PLATFORMS)[number],
+  moduleClass: unknown,
+): Promise<INestApplication> {
+  if (platform === 'fastify') {
+    const { FastifyAdapter } = await import('@nestjs/platform-fastify');
+    return NestFactory.create(moduleClass as never, new FastifyAdapter(), {
+      logger: false,
+      abortOnError: false,
+    });
+  }
+
+  return NestFactory.create(moduleClass as never, { logger: false, abortOnError: false });
+}
+
+/**
  * Boots an application, listening on a port the operating system picks.
  *
  * @param platform - Which adapter to boot on
@@ -82,21 +107,24 @@ afterEach(async () => {
  * @returns The base url
  */
 async function boot(platform: (typeof PLATFORMS)[number], moduleClass: unknown): Promise<string> {
-  const app =
-    platform === 'fastify'
-      ? await (async (): Promise<INestApplication> => {
-          const { FastifyAdapter } = await import('@nestjs/platform-fastify');
-          return NestFactory.create(moduleClass as never, new FastifyAdapter(), {
-            logger: false,
-            abortOnError: false,
-          });
-        })()
-      : await NestFactory.create(moduleClass as never, { logger: false, abortOnError: false });
+  const app = await create(platform, moduleClass);
 
   running = app;
   await app.listen(0, '127.0.0.1');
 
   return app.getUrl();
+}
+
+/**
+ * A second document, whose whole point is the mount point it is served on.
+ *
+ * @returns A document distinguishable from `document()` by its title
+ */
+function nestedDocument(): Record<string, unknown> {
+  const base = specification();
+  (base.info as Record<string, unknown>).title = 'Nested';
+
+  return base;
 }
 
 /**
@@ -221,6 +249,513 @@ for (const platform of PLATFORMS) {
           .all()
           .map((mounted) => mounted.id),
       ).toEqual(['/docs']);
+    });
+  });
+
+  /**
+   * SPEC 13.2's "the two entry points add up", which was a sentence and not a behaviour.
+   *
+   * TWO DEFECTS OF `@openref/nest`, BOTH MEASURED ON THE BUILT `examples/events` ON 2026-09-03 AND
+   * BOTH FIXED AT `T065`. `setup` records its mount through `MountedReferences.record`, and
+   * `onModuleInit` returned early on `this.mounted.size > 0`, an idempotence guard written against
+   * a module imported twice and reading a map the other entry point writes; so an application
+   * calling `forRoot({ documents })` and `setup` before `listen` mounted none of its `documents`.
+   * And with that guard defeated, `setup` still registered `/docs/:nodeId` before `onModuleInit`
+   * registered `/docs/events`, so on Express the nested mount was answered by the parameter with
+   * `No operation of that name is documented here.` about an address that exists.
+   *
+   * THE NESTED DOCUMENT IS HANDED RATHER THAN SYNTHESIZED, deliberately. `kind: 'events'` is the
+   * shape the example needed and this is about every route the module registers: what is under
+   * test is that a mount may nest inside another mount, whatever document it serves.
+   */
+  describe(`forRoot documents and setup on one application on ${platform}`, () => {
+    @Module({
+      controllers: [OrdersController],
+      imports: [
+        OpenRefModule.forRoot({
+          documents: [
+            {
+              id: 'events',
+              route: '/docs/events',
+              document: nestedDocument(),
+              assetPlan: assetPlan(),
+            },
+          ],
+          runtime: { collectors: [scopesCollector] },
+        }),
+      ],
+    })
+    // eslint-disable-next-line @typescript-eslint/no-extraneous-class
+    class BothEntryPointsModule {}
+
+    /**
+     * Boots the shape `examples/events` has: `forRoot` documents, then `setup`, then `listen`.
+     *
+     * @returns The base url
+     */
+    async function bootBoth(): Promise<string> {
+      const app = await create(platform, BothEntryPointsModule);
+
+      running = app;
+      OpenRefModule.setup('/docs', app, { document: document(), assetPlan: assetPlan() });
+      await app.listen(0, '127.0.0.1');
+
+      return app.getUrl();
+    }
+
+    it('should mount both documents rather than skipping the whole documents list', async () => {
+      // Given
+      await bootBoth();
+
+      // When
+      const mounted = references()
+        .all()
+        .map((entry) => entry.id)
+        .sort();
+
+      // Then
+      expect(mounted).toEqual(['/docs', 'events']);
+    });
+
+    it('should serve the nested mount rather than answering it with the node parameter', async () => {
+      // Given
+      const url = await bootBoth();
+
+      // When
+      const page = await fetch(`${url}/docs/events`);
+      const body = await page.text();
+
+      // Then, the nested reference's own overview and not the outer mount's 404 with words
+      expect(page.status).toBe(200);
+      expect(body).not.toContain('No operation of that name is documented here.');
+      expect(body).toContain('Nested');
+    });
+
+    it('should keep every address of both mounts reachable', async () => {
+      // Given
+      const url = await bootBoth();
+
+      // When
+      const statuses = await Promise.all(
+        [
+          '/docs',
+          '/docs/openapi.json',
+          '/docs/health',
+          '/docs/events',
+          '/docs/events/openapi.json',
+          '/docs/events/health',
+        ].map(async (path) => (await fetch(`${url}${path}`)).status),
+      );
+
+      // Then
+      expect(statuses).toEqual([200, 200, 200, 200, 200, 200]);
+    });
+
+    it('should answer the outer node page, which is what the deferral must not have cost', async () => {
+      // Given
+      const url = await bootBoth();
+
+      // When
+      const page = await fetch(`${url}/docs/post-orders`);
+      const absent = await fetch(`${url}/docs/no-such-node`);
+
+      // Then the parameter still answers, and still says so when the id names nothing
+      expect(page.status).toBe(200);
+      expect(absent.status).toBe(404);
+      expect(await absent.text()).toContain('No operation of that name is documented here.');
+    });
+
+    /**
+     * The committed sweep of every route of the table, which the six addresses above do not make.
+     *
+     * SIX ADDRESSES ARE NOT TWENTY FIVE. This walks every pattern `referenceRoutes` produces except
+     * the node page itself, on its declared method, on each of the two mounts: 50 addresses, and
+     * none of them may be answered by the node page. The patterns are read off the table rather
+     * than written again here, so a route added to SPEC 13.3 is swept the day it is registered.
+     *
+     * `:nodeId` IS FILLED WITH A REAL NODE OF THAT MOUNT AND THE OTHER PARAMETERS ARE NOT, and the
+     * difference is what the assertion can tell apart. The bench route answers a missing node with
+     * the same sentence the node page uses, so a made up id there would look exactly like the
+     * defect; every other route answers a name it does not know in its own words. So bench gets a
+     * node that exists and the rest get a literal.
+     */
+    it('should answer all 50 addresses of both mounts from their own routes', async () => {
+      // Given
+      const url = await bootBoth();
+      const nodeOf = (mountId: string): string =>
+        [...(references().get(mountId)?.service.document.nodes.keys() ?? [])][0] ?? 'none';
+
+      // When, every pattern of the table except the node page, on each mount, on its own method
+      const swept = await Promise.all(
+        (
+          [
+            ['/docs', nodeOf('/docs')],
+            ['/docs/events', nodeOf('events')],
+          ] as const
+        ).flatMap(([mount, node]) =>
+          referenceRoutes(mount)
+            .filter((route) => route.id !== 'node')
+            .map(async (route) => {
+              const at = route.pattern
+                .replace(`:${NODE_PARAM}`, node)
+                .replaceAll(/:[A-Za-z]+/g, 'a-name-this-mount-does-not-know');
+              const answered = await fetch(`${url}${at}`, { method: route.method.toUpperCase() });
+
+              return { at, id: route.id, body: await answered.text() };
+            }),
+        ),
+      );
+
+      // Then not one of the 50 is answered by the node page
+      const asNode = swept
+        .filter((row) => row.body.includes('No operation of that name is documented here.'))
+        .map((row) => `${row.id} ${row.at}`);
+      expect(asNode).toEqual([]);
+      expect(swept).toHaveLength(50);
+    });
+
+    /**
+     * The other half of SPEC 13.3's rule: no route of the table answers through `:nodeId`.
+     *
+     * `_proxy` is the one route whose method is not `GET`, so a `GET` to it matched nothing until
+     * the parameter and was told that no operation of that name is documented, about an address
+     * that exists. That is the sentence the second `mcp` registration exists to prevent.
+     */
+    it('should answer a GET on the proxy address as the proxy and not as a missing node', async () => {
+      // Given
+      const url = await bootBoth();
+
+      // When
+      const answered = await fetch(`${url}/docs/_proxy`);
+      const body = await answered.text();
+
+      // Then
+      expect(body).not.toContain('No operation of that name is documented here.');
+      expect(answered.status).not.toBe(404);
+    });
+  });
+
+  /**
+   * The third direction of SPEC 13.3's rule, and the one that is a refusal rather than an order.
+   *
+   * MEASURED BEFORE THE REFUSAL EXISTED, on both adapters, 2026-09-03. With `route: '/docs/health'`
+   * configured beside `setup('/docs')`, express answered 200 at `/docs/health` from the enclosing
+   * Documentation Health page and 200 at `/docs/health/openapi.json` from the nested mount, so that
+   * mount silently lost its overview; fastify threw `FastifyError: Method 'GET' already declared
+   * for route '/docs/health'` from inside `onModuleInit`. One configuration, two behaviours, and
+   * neither of them a refusal. Both sides are static, so no registration order fixes it.
+   *
+   * THE SUBJECT IS ASSERTED PRESENT BY THE DESCRIBE ABOVE, which mounts `/docs/events` beside
+   * `/docs` and serves both: a refusal that also swallowed the legal nesting would redden there.
+   */
+  describe(`a mount whose address is a named route of an enclosing mount on ${platform}`, () => {
+    @Module({
+      controllers: [OrdersController],
+      imports: [
+        OpenRefModule.forRoot({
+          documents: [
+            {
+              id: 'collides',
+              route: '/docs/health',
+              document: nestedDocument(),
+              assetPlan: assetPlan(),
+            },
+          ],
+        }),
+      ],
+    })
+    // eslint-disable-next-line @typescript-eslint/no-extraneous-class
+    class CollidingModule {}
+
+    it('should refuse at configuration, naming both mounts and the route', async () => {
+      // Given the shape that used to differ per adapter
+      const app = await create(platform, CollidingModule);
+      running = app;
+
+      // When, and the refusal lands here rather than at `listen`: `setup` asks the provider about
+      // the `documents` a host configured, so the pair is known before either is registered
+      const act = (): unknown =>
+        OpenRefModule.setup('/docs', app, { document: document(), assetPlan: assetPlan() });
+
+      // Then the same refusal on both adapters, naming both mounts and the colliding route
+      expect(act).toThrow(InvalidOptionsError);
+      expect(act).toThrow(/"collides"/);
+      expect(act).toThrow(/"\/docs\/health"/);
+      expect(act).toThrow(/"\/docs"/);
+    });
+
+    it('should refuse the same collision when setup is the second of the two', async () => {
+      // Given the other order: the enclosing mount configured, the nested one set up
+      @Module({
+        controllers: [OrdersController],
+        imports: [
+          OpenRefModule.forRoot({
+            documents: [
+              { id: 'outer', route: '/docs', document: document(), assetPlan: assetPlan() },
+            ],
+          }),
+        ],
+      })
+      // eslint-disable-next-line @typescript-eslint/no-extraneous-class
+      class OuterModule {}
+
+      const app = await create(platform, OuterModule);
+      running = app;
+
+      // When
+      const act = (): unknown =>
+        OpenRefModule.setup('/docs/health', app, {
+          document: nestedDocument(),
+          assetPlan: assetPlan(),
+        });
+
+      // Then it is refused before anything is built, rather than at the hook
+      expect(act).toThrow(InvalidOptionsError);
+      expect(act).toThrow(/"outer"/);
+    });
+  });
+
+  /**
+   * `setup` after `app.init()`, which one adapter supports and the other cannot.
+   *
+   * MEASURED ON BOTH, 2026-09-03, BEFORE ANYTHING WAS DECIDED. With `init` awaited first, express
+   * answered 404 on the overview, on `openapi.json`, on the health page and on the node page
+   * alike, because `init` registers NestJS's own not found handler and express matches in
+   * registration order; fastify answered 200 on all four, because it ranks routes and accepts
+   * registrations until `listen`. So the answer is a refusal naming express rather than a fix on
+   * both: getting ahead of that handler means reordering the host's own middleware stack, which is
+   * a larger promise than SPEC 13.1 makes.
+   *
+   * IT IS ALSO WHAT MAKES `deferNodeRoute`'s FALSE BRANCH REACHABLE AND TESTED. That branch is
+   * `setup` running after the hook, which is exactly this path, and until now nothing exercised it
+   * on either adapter while its documentation described it as working.
+   */
+  describe(`setup after app.init() on ${platform}`, () => {
+    @Module({
+      controllers: [OrdersController],
+      imports: [OpenRefModule.forRoot({ runtime: { collectors: [scopesCollector] } })],
+    })
+    // eslint-disable-next-line @typescript-eslint/no-extraneous-class
+    class RuntimeOnlyModule {}
+
+    @Module({
+      controllers: [OrdersController],
+      imports: [
+        OpenRefModule.forRoot({
+          documents: [
+            {
+              id: 'events',
+              route: '/docs/events',
+              document: nestedDocument(),
+              assetPlan: assetPlan(),
+            },
+          ],
+        }),
+      ],
+    })
+    // eslint-disable-next-line @typescript-eslint/no-extraneous-class
+    class WithDocumentsModule {}
+
+    it('should refuse on express by name, and mount and serve on fastify', async () => {
+      // Given an application that has already been initialized
+      const app = await create(platform, RuntimeOnlyModule);
+      running = app;
+      await app.init();
+
+      // When
+      const act = (): unknown =>
+        OpenRefModule.setup('/docs', app, { document: document(), assetPlan: assetPlan() });
+
+      // Then
+      if (platform === 'express') {
+        expect(act).toThrow(InvalidOptionsError);
+        expect(act).toThrow(/after the application was initialized/);
+        expect(act).toThrow(/express/);
+        return;
+      }
+
+      act();
+      await app.listen(0, '127.0.0.1');
+      const url = await app.getUrl();
+      const statuses = await Promise.all(
+        ['/docs', '/docs/openapi.json', '/docs/health', '/docs/get-orders-id'].map(
+          async (path) => (await fetch(`${url}${path}`)).status,
+        ),
+      );
+
+      // And the node page among them, which is the deferral's false branch having registered it
+      expect(statuses).toEqual([200, 200, 200, 200]);
+    });
+
+    /**
+     * The shape the case above cannot reach, and the regression it hid.
+     *
+     * `forRoot({ runtime })` CARRIES NO `documents`, so the collision check saw one mount and could
+     * not double count. With `documents` it did: `mount` files each configured entry into
+     * `MountedReferences.mounted` under the id the options carry, and `addresses` concatenated the
+     * map with the options mapped again, so after the hook every configured mount was compared with
+     * itself. A blind review measured it on this exact shape: `setup` on an initialized fastify
+     * application refused with "the reference `events` mounted on `/docs/events` answers
+     * `/docs/events`, which the reference `events` mounted on `/docs/events` also answers".
+     */
+    it('should not refuse a mount for colliding with itself when documents are configured', async () => {
+      // Given the shape with `documents`, which is the one the case above cannot express
+      const app = await create(platform, WithDocumentsModule);
+      running = app;
+      await app.init();
+
+      // When
+      const act = (): unknown =>
+        OpenRefModule.setup('/docs', app, { document: document(), assetPlan: assetPlan() });
+
+      // Then express still refuses for the reason it always did, and fastify mounts and serves
+      if (platform === 'express') {
+        expect(act).toThrow(/after the application was initialized/);
+        return;
+      }
+
+      act();
+      await app.listen(0, '127.0.0.1');
+      const url = await app.getUrl();
+      const statuses = await Promise.all(
+        ['/docs', '/docs/events', '/docs/events/openapi.json'].map(
+          async (path) => (await fetch(`${url}${path}`)).status,
+        ),
+      );
+      expect(statuses).toEqual([200, 200, 200]);
+    });
+
+    @Module({
+      controllers: [OrdersController],
+      imports: [
+        OpenRefModule.forRoot({
+          documents: [
+            { id: 'public', route: '/docs', document: document(), assetPlan: assetPlan() },
+          ],
+          federation: { id: 'all', route: '/federated', services: [{ id: 'public' }] },
+        }),
+      ],
+    })
+    // eslint-disable-next-line @typescript-eslint/no-extraneous-class
+    class FederatedRootModule {}
+
+    /**
+     * The federated mount, which the collision check went blind to for exactly one round.
+     *
+     * THE FEDERATION IS FILED NOWHERE IN `mounted`, so a `federatedService !== undefined` guard on
+     * reading it out of the options prevented no double count and only blinded the check once the
+     * hook had run. Measured on fastify, where `setup` after `app.init()` is supported:
+     * `setup('/federated/health')` was refused by name before `init` and passed after it, leaving
+     * fastify to throw its own "Method 'GET' already declared for route '/federated/health'" from
+     * inside `setup`. That is the divergence the refusal replaces, on the path this same round
+     * created, which is why the case runs on both sides of `init`.
+     */
+    it('should refuse a mount colliding with the federation, before and after init alike', async () => {
+      // Given
+      const app = await create(platform, FederatedRootModule);
+      running = app;
+      const mount = (): unknown =>
+        OpenRefModule.setup('/federated/health', app, {
+          document: nestedDocument(),
+          assetPlan: assetPlan(),
+        });
+
+      // Then before `init`, on both adapters, the refusal names the federation
+      expect(mount).toThrow(InvalidOptionsError);
+      expect(mount).toThrow(/"all"/);
+
+      // And after `init`, which is where fastify used to be left to throw its own error
+      await app.init();
+      expect(mount).toThrow(InvalidOptionsError);
+      if (platform === 'fastify') expect(mount).toThrow(/"all"/);
+    });
+  });
+
+  /**
+   * A node id equal to a reserved name, which OpenAPI 3.2 lets a document write.
+   *
+   * MEASURED BEFORE THE ESCAPE EXISTED, on both adapters: `/docs/_search-index` answered the search
+   * index JSON and the node's own page was unreachable, so a legal document lost a page in silence.
+   * `additionalOperations` is the member 3.2 added for methods outside the nine, so `_search` on
+   * `/index` is not an abuse of the format, it is the format.
+   */
+  describe(`a node id that collides with a reserved name on ${platform}`, () => {
+    /** The legal 3.2 document whose only operation is named `_search-index` by derivation. */
+    function collidingDocument(): Record<string, unknown> {
+      return {
+        openapi: '3.2.0',
+        info: { title: 'Colliding', version: '1.0.0' },
+        paths: {
+          '/index': {
+            additionalOperations: {
+              _search: {
+                summary: 'The node that wants a reserved name',
+                responses: { '200': { description: 'ok' } },
+              },
+            },
+          },
+        },
+      };
+    }
+
+    @Module({ controllers: [OrdersController] })
+    // eslint-disable-next-line @typescript-eslint/no-extraneous-class
+    class PlainModule {}
+
+    it('should keep both the route and the node page reachable', async () => {
+      // Given
+      const app = await create(platform, PlainModule);
+      running = app;
+      const service = OpenRefModule.setup('/docs', app, {
+        document: collidingDocument(),
+        assetPlan: assetPlan(),
+      });
+      await app.listen(0, '127.0.0.1');
+      const url = await app.getUrl();
+
+      // When, the subject asserted present first: the document really did claim the name
+      expect([...service.document.nodes.keys()]).toEqual(['_search-index']);
+
+      const route = await fetch(`${url}/docs/_search-index`);
+      const node = await fetch(`${url}/docs/_u005f_search-index`);
+      const [fromRoute, fromNode] = await Promise.all([route.text(), node.text()]);
+
+      // Then the route answers its own payload and the node answers its own page
+      expect(route.status).toBe(200);
+      expect(route.headers.get('content-type')).toContain('application/json');
+      expect(fromRoute).toContain('"documentHash"');
+      expect(node.status).toBe(200);
+      expect(fromNode).toContain('The node that wants a reserved name');
+    });
+
+    /**
+     * The half an escape can get wrong in the other direction: a link nobody serves.
+     *
+     * `nodeHref` IS THE FUNCTION THE BROWSER CALLS, not a transcription of it. The command palette
+     * and the navigation tree build every node link with it at runtime, and the served page carries
+     * ids rather than hrefs, so the escape has to be right in the shipped bundle and on the server
+     * at once. Fetching exactly what that function returns is the only assertion that ties the two.
+     */
+    it('should serve the address the renderer links a node at', async () => {
+      // Given, because a page that is reachable at an address nothing links is reachable by nobody
+      const app = await create(platform, PlainModule);
+      running = app;
+      const service = OpenRefModule.setup('/docs', app, {
+        document: collidingDocument(),
+        assetPlan: assetPlan(),
+      });
+      await app.listen(0, '127.0.0.1');
+      const url = await app.getUrl();
+
+      // When, the href the browser would build for that node
+      const [nodeId] = [...service.document.nodes.keys()];
+      const href = nodeHref(nodeId ?? '', '/docs');
+      const answered = await fetch(`${url}${href}`);
+
+      // Then it is the escaped address, and the server serves it
+      expect(href).toBe('/docs/_u005f_search-index');
+      expect(answered.status).toBe(200);
+      expect(await answered.text()).toContain('The node that wants a reserved name');
     });
   });
 }
@@ -401,17 +936,32 @@ describe('the route table forRoot registers, which used to drop the method', () 
   // eslint-disable-next-line @typescript-eslint/no-extraneous-class
   class ProxyModule {}
 
-  it('should answer the proxy on POST and not on GET', async () => {
+  /**
+   * THE `GET` ANSWERED 404 UNTIL `T065` AND THAT WAS THE PARAMETER, NOT THIS ROUTE. `_proxy` is
+   * registered on both methods now, per SPEC 13.3, by the `mcp` precedent: a `GET` fell through to
+   * `/docs/:nodeId` and was told that no operation of that name is documented, about an address
+   * that exists. The original subject of this case survives unchanged, because a path that drops
+   * `method` and registers everything as a `GET` leaves the `POST` matching no route at all, which
+   * is the framework's own 404 rather than the proxy's refusal.
+   */
+  it('should answer the proxy on both methods, each about what it was given', async () => {
     // Given
     const url = await boot('express', ProxyModule);
 
     // When
     const asGet = await fetch(`${url}/docs/_proxy`);
-    const asPost = await fetch(`${url}/docs/_proxy`, { method: 'POST', body: '{}' });
+    const asPost = await fetch(`${url}/docs/_proxy`, {
+      method: 'POST',
+      body: JSON.stringify({ method: 'GET', url: 'https://elsewhere.example.com/' }),
+    });
+    const [fromGet, fromPost] = await Promise.all([asGet.text(), asPost.text()]);
 
-    // Then
-    expect(asGet.status).toBe(404);
+    // Then both are the proxy's own refusal and neither is the node page's
+    expect(asGet.status).toBe(403);
     expect(asPost.status).toBe(403);
+    expect(fromGet).toContain('not a proxy envelope');
+    expect(fromPost).not.toContain('not a proxy envelope');
+    expect(fromGet).not.toContain('No operation of that name is documented here.');
   });
 
   it('should carry the proxy option a documents entry set, which nothing used to read', async () => {

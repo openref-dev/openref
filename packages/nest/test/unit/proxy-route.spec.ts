@@ -97,8 +97,13 @@ describe('the proxy route', () => {
     // When
     const proxy = routes.filter((route) => route.id === 'proxy');
 
-    // Then
-    expect(proxy).toEqual([{ id: 'proxy', pattern: '/docs/_proxy', method: 'post' }]);
+    // Then, both methods since T065: the envelope arrives in a POST, and the GET exists so the
+    // address is not answered by the node page route with "no operation of that name" about an
+    // address that exists, which is the `mcp` precedent SPEC 13.3 states one address over
+    expect(proxy).toEqual([
+      { id: 'proxy', pattern: '/docs/_proxy', method: 'post' },
+      { id: 'proxy', pattern: '/docs/_proxy', method: 'get' },
+    ]);
     // AND THE SET OF POST ROUTES IS PINNED BY ID RATHER THAN BY COUNT. This case read "the one
     // route that is not a GET" until T058 gave the MCP endpoint of SPEC 18.1 a JSON-RPC body,
     // which is the second. A count would have gone green again the moment somebody wrote the new

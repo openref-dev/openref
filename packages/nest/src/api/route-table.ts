@@ -10,6 +10,15 @@
  *
  * NOTHING DECIDES ANYTHING HERE. What is served comes from `referenceRoutes`, who may reach it
  * comes from the admission the adapter was built with, and this walks the two.
+ *
+ * THE NODE ROUTE IS RETURNED RATHER THAN REGISTERED, SINCE `T065`, AND THE REASON IS ANOTHER
+ * MOUNT. `referenceRoutes` orders the bare parameter last, which settles one mount and settles
+ * nothing between two: `setup('/docs')` runs before `onModuleInit` mounts `/docs/events`, so on
+ * Express, which matches in registration order, `/docs/:nodeId` answered `/docs/events` with "no
+ * operation of that name is documented here", about an address that exists. That is the sentence
+ * SPEC 13.3 registered the second `mcp` route to prevent, one mount over. So the caller decides
+ * when the parameter is registered, and `MountedReferences` registers every deferred one after
+ * the named routes of every mount in the process.
  */
 
 import { referenceRoutes } from '../reference/domain/routes';
@@ -37,15 +46,35 @@ export interface RouteTableMount {
 }
 
 /**
- * Registers every route of SPEC 13.3 for one mount.
+ * Registers every named route of SPEC 13.3 for one mount, and hands back the node route.
+ *
+ * THE RETURNED FUNCTION HAS TO BE CALLED, and calling it twice registers the route twice. Every
+ * caller in this package is in `openref.module.ts` or `mounted-references.ts`, and both call it
+ * exactly once; a host calling this directly owes the same, because a mount whose node page was
+ * never registered answers the framework's 404 on every operation.
  *
  * @param adapter - The platform adapter, already carrying this mount's admission
  * @param mount - The mount point, the health switch and what answers
+ * @returns Registers this mount's node page route, to be called once all named routes exist
  */
-export function mountRouteTable(adapter: IReferenceHttpAdapter, mount: RouteTableMount): void {
+export function mountRouteTable(
+  adapter: IReferenceHttpAdapter,
+  mount: RouteTableMount,
+): () => void {
+  const deferred: (() => void)[] = [];
+
   for (const { id, pattern, method } of referenceRoutes(mount.basePath)) {
     if (id === 'health' && !mount.health) continue;
 
-    adapter[method](pattern, async (request: ReferenceRequest) => mount.handle(id, request));
+    const register = (): void => {
+      adapter[method](pattern, async (request: ReferenceRequest) => mount.handle(id, request));
+    };
+
+    if (id === 'node') deferred.push(register);
+    else register();
   }
+
+  return (): void => {
+    for (const register of deferred) register();
+  };
 }

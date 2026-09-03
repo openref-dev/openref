@@ -394,7 +394,9 @@ export {
 export type { AgentOptions, AgentSurfaceOptions, AgentSurfaceReply } from '@openref/agent';
 
 export {
+  assertMountsDoNotCollide,
   assetHref,
+  collidingMountRoutes,
   ASSET_PARAM,
   ASSET_SEGMENT,
   BENCH_SEGMENT,
@@ -417,6 +419,7 @@ export {
   STATUS_SEGMENT,
 } from './reference/domain/routes';
 export type {
+  MountAddress,
   ReferenceRoute,
   ReferenceRouteId,
   ReferenceRouteMethod,

@@ -4,7 +4,13 @@ import { describe, expect, it } from 'vitest';
 import type { IRDocument } from '@openref/core';
 import type { PageKind } from '@openref/vue';
 import telltale from '../../src/theme';
-import { entryHref, nodeHref, overviewHref, schemaHref } from '../../src/links';
+import {
+  entryHref,
+  nodeHref,
+  overviewHref,
+  schemaHref,
+  RESERVED_MOUNT_SEGMENTS as THEME_RESERVED,
+} from '../../src/links';
 import {
   eventFile as themeEventFile,
   eventValue as themeEventValue,
@@ -28,6 +34,7 @@ import {
   nodeHref as referenceNodeHref,
   overviewHref as referenceOverviewHref,
   schemaHref as referenceSchemaHref,
+  RESERVED_MOUNT_SEGMENTS as REFERENCE_RESERVED,
 } from '../../../render/src/page/domain/links';
 import {
   eventFile as referenceEventFile,
@@ -716,6 +723,15 @@ describe('the markup a complete L2 theme does not own', () => {
     expect(referenceNodeHref('Order.', base), 'the trailing tail rule is not firing').toContain(
       '_u002e_',
     );
+    // AND THE FOURTH RULE, ADDED AT `T065`: a node segment equal to a name the mount claims for a
+    // route of its own is escaped, or the node's page is unreachable behind that route. Asserted
+    // live in the reference first, for the reason the three below it are: a table of ids proves
+    // nothing about a rule that has stopped firing, because both sides would agree on the identity.
+    expect(
+      referenceNodeHref('_search-index', base),
+      'the reserved mount name rule is not firing',
+    ).toContain('_u005f_');
+
     expect(referenceNodeHref('Order\u202eDto', base), 'the character rule is not firing').toContain(
       '_u202e_',
     );
@@ -757,6 +773,20 @@ describe('the markup a complete L2 theme does not own', () => {
       );
       expect(schemaHref(id, base), `schemaHref disagrees on ${JSON.stringify(id)}`).toBe(
         referenceSchemaHref(id, base),
+      );
+    }
+
+    // THE RESERVED NAMES ARE WALKED FROM THE REFERENCE'S OWN LIST AND NOT FROM A LIST WRITTEN HERE,
+    // which is what makes this a reconciliation rather than a third transcription. A name added to
+    // `links.ts` in `@openref/render` extends this loop by itself, and the theme fails it until the
+    // same name is added there too. The list equality below closes the other direction, where the
+    // theme escapes a name the reference does not.
+    expect([...THEME_RESERVED].sort()).toEqual([...REFERENCE_RESERVED].sort());
+    expect(REFERENCE_RESERVED.length).toBeGreaterThan(0);
+
+    for (const id of REFERENCE_RESERVED) {
+      expect(nodeHref(id, base), `nodeHref disagrees on the reserved name ${id}`).toBe(
+        referenceNodeHref(id, base),
       );
     }
 

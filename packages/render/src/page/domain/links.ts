@@ -99,10 +99,78 @@ export function pathSegmentOf(id: string): string {
 }
 
 /**
+ * Every name a mounted reference claims for itself directly under its mount point.
+ *
+ * WHY A NODE MAY NOT HAVE ONE, AND WHY THIS LIST LIVES HERE. The node page is served at
+ * `<mount>/<segment>`, and a server mounting the reference claims these twenty one addresses for
+ * its own routes, all of which are matched before the node parameter. So a node whose segment is
+ * one of them has a page nothing can open: the route answers first, on every router. The list is
+ * here rather than in the server for the reason `PROXY_SEGMENT` and `SEARCH_INDEX_SEGMENT` are,
+ * one direction further: what a page links, what a static build writes and what a server resolves
+ * have to be one string, and only this file is below all three.
+ *
+ * IT IS A LITERAL AND `packages/nest/test/unit/routes.spec.ts` IS WHAT KEEPS IT TRUE, comparing it
+ * with the first segment of every pattern the real route table produces. A route added to SPEC 13.3
+ * with a new name fails that case until it is added here.
+ */
+export const RESERVED_MOUNT_SEGMENTS: readonly string[] = [
+  '_assets',
+  '_bridge',
+  '_federation',
+  '_health',
+  '_navigation',
+  '_oauth',
+  '_proxy',
+  '_search-index',
+  'asyncapi.json',
+  'asyncapi.yaml',
+  'bench',
+  'health',
+  'llms-full.txt',
+  'llms.txt',
+  'mcp',
+  'openapi.json',
+  'openapi.yaml',
+  'schema',
+  'service',
+  'shapes',
+  'states',
+];
+
+/**
+ * The path segment of one node id, which is {@link pathSegmentOf} plus one whole name rule.
+ *
+ * THE RULE WAS WRITTEN THE DAY A PRODUCER FOR IT WAS FOUND, and not before. `T065` recorded that no
+ * node id could equal a reserved name, because `operationNodeId` writes `<method>-<slug>` and a
+ * method key outside the nine the specification enumerates is not read. A blind review measured the
+ * door that reasoning missed: OpenAPI 3.2's `additionalOperations` exists precisely to carry
+ * non-standard methods, so `paths: { '/index': { additionalOperations: { _search: ... } } }` is a
+ * legal document whose node id is `_search-index`. Booted, `<mount>/_search-index` answered the
+ * search index JSON and that node's page was unreachable, which is a document losing a page in
+ * silence.
+ *
+ * ESCAPED RATHER THAN REFUSED, AND THE CHOICE IS THE NORMALIZER'S POLICY RATHER THAN A PREFERENCE.
+ * The document is valid, so refusing it would refuse a specification this project's own corpus rule
+ * says must render; leaving it would lose a page. Escaping is what {@link pathSegmentOf} already
+ * does for a Windows device name, which is the same shape of problem: a whole name that some layer
+ * below has already claimed. Both addresses then answer, the route at its own name and the node one
+ * escape away.
+ *
+ * @param nodeId - Key into `IRDocument.nodes`
+ * @returns The segment, which no mounted reference claims for a route of its own
+ */
+export function nodeSegmentOf(nodeId: string): string {
+  const escaped = pathSegmentOf(nodeId);
+  if (!RESERVED_MOUNT_SEGMENTS.includes(escaped)) return escaped;
+
+  return `${escapeSegmentCharacter(escaped)}${escaped.slice(1)}`;
+}
+
+/**
  * Path of one node's page.
  *
  * The node id is already a slug produced by `operationNodeId`, but it goes through
- * {@link pathSegmentOf} and URL encoding anyway: the id is derived from a path template
+ * {@link nodeSegmentOf} and URL encoding anyway: the id is derived from a path template
  * written in a third party document, and treating it as safe because it usually is would be
  * the last assumption anyone checks.
  *
@@ -111,7 +179,7 @@ export function pathSegmentOf(id: string): string {
  * @returns Absolute path of the page
  */
 export function nodeHref(nodeId: string, basePath = ''): string {
-  return `${basePath}/${encodeURIComponent(pathSegmentOf(nodeId))}`;
+  return `${basePath}/${encodeURIComponent(nodeSegmentOf(nodeId))}`;
 }
 
 /**
@@ -223,7 +291,10 @@ export const FEDERATION_SEGMENT = '_federation';
  * @returns Absolute path of the page
  */
 export function benchHref(nodeId: string, basePath = ''): string {
-  return `${basePath}/${BENCH_SEGMENT}/${encodeURIComponent(pathSegmentOf(nodeId))}`;
+  // `nodeSegmentOf` AND NOT `pathSegmentOf`, because the server resolves this route through the
+  // same node segment index the node page uses. Two spellings would mean a node whose page opens
+  // and whose bench does not.
+  return `${basePath}/${BENCH_SEGMENT}/${encodeURIComponent(nodeSegmentOf(nodeId))}`;
 }
 
 /**

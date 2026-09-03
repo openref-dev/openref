@@ -956,12 +956,21 @@ export const SIZE_BUDGETS: readonly SizeBudget[] = [
     // gates' event lists became one `REACH_EVENTS`, worth 118 raw, and `provideSocket` became a
     // required member rather than an optional one, worth 26.
     //
-    // THE PROPERTY IS RE-CHECKED AND STILL HOLDS. 110 KB is 112,640: the artefact fits with 814
-    // bytes, and `sign-in-return` at 1,468 published raw returning to the first load reads 113,294
+    // AND 325 BYTES MORE SINCE 2026-09-03, WHICH IS THE ARTEFACT GROWING FOR A CORRECTNESS FIX.
+    // `T065` escapes a node segment equal to one of the twenty one names a mount claims for its own
+    // routes, because OpenAPI 3.2's `additionalOperations` lets a legal document name a node
+    // `_search-index`, whose page was then unreachable behind the search index route. The list and
+    // the rule ship to the browser by necessity: a served page carries node ids and the browser
+    // builds the link, so a rule the bundle lacks is a theme linking to an address the server does
+    // not serve. Measured on the published form by building the tree twice: 112,151 against
+    // 111,826.
+    //
+    // THE PROPERTY IS RE-CHECKED AND STILL HOLDS. 110 KB is 112,640: the artefact fits with 489
+    // bytes, and `sign-in-return` at 1,468 published raw returning to the first load reads 113,619
     // and fails it. 109 KB at 111,616 does not hold the artefact, so 110 is the one whole KB step
     // the property allows.
     //
-    // 814 BYTES IS THE NUMBER TO WATCH NOW. The next 815 bytes the first paint gains fail this
+    // 489 BYTES IS THE NUMBER TO WATCH NOW. The next 490 bytes the first paint gains fail this
     // budget, and the task that brings them comes to the maintainer with its own measurement.
     limitBytes: 110 * 1024,
     roots: CLIENT_JS_ROOTS,
