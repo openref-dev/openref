@@ -12,15 +12,20 @@
  * thing being refused cannot happen. Each case names the mode of the fake server it drives.
  */
 
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { benchHref, navigationHref } from '@openref/render';
 import {
   AUTHORIZATION_CLIENT_ID,
   bootAuthorizationServer,
   bootFixture,
+  buildContentSecurityPolicy,
   FIXTURE_BASE_PATH,
   launchChrome,
+  repositoryRoot,
   schemeIdFor,
+  TOKEN_PATH,
 } from '../../src/index';
 import type { AuthorizationMode, BootedAuthorizationServer } from '../../src/index';
 import type { BootedFixture, LaunchedChrome } from '../../src/index';
@@ -31,22 +36,66 @@ const TIMEOUT = 300_000;
 let chrome: LaunchedChrome;
 let fixture: BootedFixture;
 let authorization: BootedAuthorizationServer;
-/** Node id per mode, read off the served navigation rather than guessed. */
-const nodes = new Map<AuthorizationMode, string>();
+/** Node id per fixture and mode, read off the served navigation rather than guessed. */
+const nodes = new Map<string, string>();
+
+/**
+ * One violation as the document reported it.
+ *
+ * READ OFF THE EVENT BECAUSE THERE IS NOWHERE ELSE. A `fetch` a policy refuses never reaches the
+ * network, so no request, no response and no server log carries it; the browser fires
+ * `securitypolicyviolation` and writes a line to the developer console, and that is the whole
+ * record. This is also why the rule of SPEC 19 says the check lives in the browser suite: jsdom
+ * enforces no policy at all, so there the same case would pass whatever the header said.
+ */
+interface ViolationRecord {
+  readonly directive: string;
+  readonly blockedUri: string;
+}
+
+/** Installed before every navigation, so a violation on the returning document is still seen. */
+const VIOLATION_RECORDER = `
+  globalThis.__openrefCspViolations = [];
+  addEventListener('securitypolicyviolation', (event) => {
+    globalThis.__openrefCspViolations.push({
+      directive: event.effectiveDirective || event.violatedDirective,
+      blockedUri: event.blockedURI,
+    });
+  });
+`;
+
+/** What the document has recorded so far. */
+async function violationsOn(page: Page): Promise<readonly ViolationRecord[]> {
+  return page.evaluate<readonly ViolationRecord[]>('globalThis.__openrefCspViolations ?? []');
+}
+
+/** The `connect-src` directive of the policy one boot actually serves. */
+async function connectDirectiveOf(url: string): Promise<string> {
+  const response = await fetch(`${url}${FIXTURE_BASE_PATH}`);
+  await response.text();
+  const header = response.headers.get('content-security-policy') ?? '';
+
+  return (
+    header
+      .split(';')
+      .map((part) => part.trim())
+      .find((part) => part.startsWith('connect-src ')) ?? `no connect-src in "${header}"`
+  );
+}
 
 /** Finds the node id of one mode's operation, by the address the rail prints under its label. */
-async function nodeIdFor(mode: AuthorizationMode): Promise<string> {
-  const known = nodes.get(mode);
+async function nodeIdFor(mode: AuthorizationMode, at: string = fixture.url): Promise<string> {
+  const known = nodes.get(`${at}|${mode}`);
   if (known !== undefined) return known;
 
-  const overview = await (await fetch(`${fixture.url}${FIXTURE_BASE_PATH}`)).text();
+  const overview = await (await fetch(`${at}${FIXTURE_BASE_PATH}`)).text();
   const state = /<script type="application\/json" id="oref-state"[^>]*>([\s\S]*?)<\/script>/.exec(
     overview,
   )?.[1];
   const documentHash = (JSON.parse(state ?? '{}') as { documentHash?: string }).documentHash ?? '';
 
   const payload = (await (
-    await fetch(`${fixture.url}${navigationHref(documentHash, FIXTURE_BASE_PATH)}`)
+    await fetch(`${at}${navigationHref(documentHash, FIXTURE_BASE_PATH)}`)
   ).json()) as { navigation?: readonly unknown[] };
 
   // MATCHED ON THE SUMMARY THIS FIXTURE WROTE, not on a node id spelled out here. A node id is
@@ -63,7 +112,7 @@ async function nodeIdFor(mode: AuthorizationMode): Promise<string> {
   })(payload.navigation ?? []);
 
   if (found === null) throw new Error(`no navigation entry is labelled ${wanted}`);
-  nodes.set(mode, found);
+  nodes.set(`${at}|${mode}`, found);
 
   return found;
 }
@@ -71,14 +120,16 @@ async function nodeIdFor(mode: AuthorizationMode): Promise<string> {
 /** Opens the operation page of one mode, with the console reached for and mounted. */
 async function openConsole(
   mode: AuthorizationMode,
+  at: string = fixture.url,
 ): Promise<{ page: Page; close(): Promise<void> }> {
   const context = await chrome.browser.newContext();
   const page = await context.newPage();
-  const nodeId = await nodeIdFor(mode);
+  await page.addInitScript(VIOLATION_RECORDER);
+  const nodeId = await nodeIdFor(mode, at);
 
   // THE BENCH PAGE, because that is where the console lives since `TX-FRAME`: one address answers
   // one way, and the operation page carries the panel while the bench carries the console.
-  await page.goto(`${fixture.url}${benchHref(nodeId, FIXTURE_BASE_PATH)}`, {
+  await page.goto(`${at}${benchHref(nodeId, FIXTURE_BASE_PATH)}`, {
     waitUntil: 'load',
     timeout: 120_000,
   });
@@ -113,9 +164,13 @@ async function pressSignIn(page: Page, mode: AuthorizationMode): Promise<void> {
  * overview, which is the open redirector guard doing its job. The notice waits in `sessionStorage`
  * until a console is opened, so the walk is what a reader does rather than a workaround.
  */
-async function noticeAfterLanding(page: Page, mode: AuthorizationMode): Promise<string> {
+async function noticeAfterLanding(
+  page: Page,
+  mode: AuthorizationMode,
+  at: string = fixture.url,
+): Promise<string> {
   if ((await page.locator('.oref-section-tryit').count()) === 0) {
-    await page.goto(`${fixture.url}${benchHref(await nodeIdFor(mode), FIXTURE_BASE_PATH)}`, {
+    await page.goto(`${at}${benchHref(await nodeIdFor(mode, at), FIXTURE_BASE_PATH)}`, {
       waitUntil: 'load',
       timeout: 120_000,
     });
@@ -269,6 +324,112 @@ describe('the sign in return, in a browser', () => {
         expect(notice).toContain('control characters');
       } finally {
         await session.close();
+      }
+    },
+    TIMEOUT,
+  );
+
+  it(
+    'should serve a connect-src naming the authorization server as well as this origin',
+    async () => {
+      // Given the boot every case above runs against, which is a reference whose document
+      // declares an authorization code flow
+
+      // When
+      const directive = await connectDirectiveOf(fixture.url);
+
+      // Then both origins are in it, and this is the only assertion of a `connect-src` value in
+      // the repository that is about a document with a redirect flow in it. Until `T065` measured
+      // it, the only one anywhere was the single origin form over a static site with no flow at
+      // all, so the rule SPEC 19 states had no runner on the case it is about.
+      expect(directive).toBe(`connect-src 'self' ${authorization.url}`);
+    },
+    TIMEOUT,
+  );
+
+  it(
+    'should print in the guide exactly what the builder returns for that origin',
+    () => {
+      // Given the block a host copies out of the security chapter. It printed the single origin
+      // form until `T065`, which is worse than printing nothing: a host who followed it literally
+      // got a reference that cannot sign in, and nothing in this repository disagreed with it.
+      const guide = readFileSync(join(repositoryRoot(), 'docs', 'guide', '09-security.md'), 'utf8');
+      const block = /```\n(default-src[\s\S]*?)\n```/.exec(guide)?.[1];
+
+      // Then, presence first: there is a block, and it has the directive this case is about.
+      expect(block, 'the security chapter prints no policy block').toBeDefined();
+      expect(block).toContain('connect-src');
+
+      // When the two placeholders are filled the way the prose next to them says to fill them
+      const nonce = 'n0nceFromTheGuide';
+      const origin = 'https://login.example.com';
+      const filled = (block ?? '')
+        .replaceAll('<per response>', nonce)
+        .replace('<your authorization server origin>', origin)
+        .split('\n')
+        .map((line) => line.replace(/;$/, ''))
+        .join('; ');
+
+      // Then the printed policy is the built one, character for character, so the guidance and
+      // the function cannot drift apart again without a red case
+      expect(filled).toBe(buildContentSecurityPolicy(nonce, [origin]));
+    },
+    TIMEOUT,
+  );
+
+  it(
+    'should not sign in at all under the single origin form, blocked on connect-src',
+    async () => {
+      // Given a second reference, identical but for the one directive: this is the switch the
+      // fixture has carried since `T035` with its own JSDoc saying the property "is proved rather
+      // than assumed", and which no case had ever set.
+      const bare = await bootFixture('proof', {
+        authorizationServer: authorization.url,
+        allowAuthorizationConnect: false,
+      });
+
+      try {
+        // Then, before the browser: it really is serving the bare form, and the boot above really
+        // is serving the two origin one, so the two runs differ in this and in nothing else.
+        expect(await connectDirectiveOf(bare.url)).toBe("connect-src 'self'");
+        expect(await connectDirectiveOf(fixture.url)).toBe(
+          `connect-src 'self' ${authorization.url}`,
+        );
+
+        const session = await openConsole('ordinary', bare.url);
+
+        try {
+          // When the reader presses Sign in, is sent away, and comes back
+          await pressSignIn(session.page, 'ordinary');
+
+          // Then the browser refused the token exchange before it reached the network, and named
+          // the directive that refused it
+          await expect
+            .poll(async () => (await violationsOn(session.page)).length, { timeout: 60_000 })
+            .toBeGreaterThan(0);
+
+          const violations = await violationsOn(session.page);
+          expect(
+            violations.some((violation) => violation.directive.startsWith('connect-src')),
+            `the violations were ${JSON.stringify(violations)}`,
+          ).toBe(true);
+          expect(
+            violations.some(
+              (violation) => violation.blockedUri === `${authorization.url}${TOKEN_PATH}`,
+            ),
+            `the violations were ${JSON.stringify(violations)}`,
+          ).toBe(true);
+
+          // And the sign in did not happen, which is the sentence a host following the old
+          // guidance would have had to debug from a developer console
+          expect(await noticeAfterLanding(session.page, 'ordinary', bare.url)).not.toBe(
+            'signed in',
+          );
+        } finally {
+          await session.close();
+        }
+      } finally {
+        await bare.stop();
       }
     },
     TIMEOUT,

@@ -28,11 +28,13 @@ policy below counts violations and requires zero.
 
 What you have to do: send the header. The host sets the policy; the reference makes its output
 compatible with one and writes no `Content-Security-Policy` header of its own. This is the policy
-the output is built for, and `buildContentSecurityPolicy` returns exactly it, so a host does not
-have to transcribe it. It is exported from `@openref/nest`, which is the package a Nest host
-installs. A Nuxt host transcribes the block below for now, and the reason is written down rather
-than glossed: `@openref/nuxt` is not published, so there is no package a Nuxt application can
-install that exports the builder. The policy is this:
+the output is built for, and `buildContentSecurityPolicy` returns exactly it for the nonce and the
+origins you hand it, so a host does not have to transcribe it. A committed case holds the block
+below against what that function returns, so the two cannot drift apart again. It is exported
+from `@openref/nest`, which is the package a Nest host installs. A Nuxt host transcribes the
+block below for now, and the reason is written down rather than glossed: `@openref/nuxt` is not
+published, so there is no package a Nuxt application can install that exports the builder. The
+policy is this:
 
 ```
 default-src 'none';
@@ -40,11 +42,32 @@ script-src 'self' 'nonce-<per response>';
 style-src 'self' 'nonce-<per response>';
 font-src 'self';
 img-src 'self' data:;
-connect-src 'self';
+connect-src 'self' <your authorization server origin>;
 base-uri 'none';
 form-action 'none';
 frame-ancestors 'none'
 ```
+
+`connect-src` is the one directive with two origins in it, and the second one is yours to supply.
+The try-it console sends to your own application, which `'self'` covers. Signing in does not:
+exchanging an authorization code for a token is a browser `fetch` from the page to the
+authorization server, a third origin, and under a bare `connect-src 'self'` the browser refuses
+that request before it is made and reports it nowhere but the developer console. A reference
+served under `connect-src 'self'` alone cannot sign in at all. So the builder takes those origins
+rather than defaulting them, and the block above is what it returns when you pass one:
+
+```ts
+import { buildContentSecurityPolicy } from '@openref/nest';
+
+const policyFor = (nonce: string): string =>
+  buildContentSecurityPolicy(nonce, ['https://login.example.com']);
+```
+
+Pass nothing and drop the second token if no security scheme in your document declares an
+`authorizationCode` flow. Pass the authorization server's origin, and only that origin, if one
+does. Both halves run in a real browser: with the origin named the exchange completes and the
+console says it signed in, and with the bare form the browser blocks the exchange on `connect-src`
+and it does not.
 
 Note what is not in it: `unsafe-inline`. That is the distinction the whole design turns on. A
 nonce can authorize a `<style>` element and can never authorize a `style="..."` attribute, so a
