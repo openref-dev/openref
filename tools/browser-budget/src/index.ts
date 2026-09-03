@@ -46,6 +46,17 @@ export {
   encodeTextFrame,
 } from './fixture/socket-echo.js';
 export type { DecodedFrame, SocketEchoOptions } from './fixture/socket-echo.js';
+export {
+  objectEnd,
+  pageWithout,
+  readSampleArray,
+  readStateBlock,
+  sampleListsIn,
+  servedCodeBlockBytes,
+  tabRegion,
+  theSampleList,
+} from './language-cost.js';
+export type { LanguageCost, Region, SampleArray, StateBlock } from './language-cost.js';
 export { externalRequestsOf, measurePage } from './measure.js';
 export type {
   CspViolationRecord,
