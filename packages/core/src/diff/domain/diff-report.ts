@@ -48,7 +48,12 @@
  * renaming a template variable produces an empty diff instead of a phantom removed operation
  * with a phantom added required parameter.
  *
- * OUT OF SCOPE, SAID RATHER THAN DISCOVERED: channels (M5) and webhooks are not diffed yet.
+ * OUT OF SCOPE AT 1.0, SAID RATHER THAN DISCOVERED: channels and webhooks are not diffed.
+ * The event message payload is the whole of an event consumer's contract and nothing here reads
+ * one, which SPEC 17.1 states with the measurement rather than leaving as a consequence. The work
+ * itself is filed and owned (DEFER POST-1.0, `TX-EVENT-PAYLOAD-DIFF`); until 2026-09-02 this line
+ * said "(M5)" instead, naming a milestone that had closed at `T054` with ten tasks over it, which
+ * is the SPEC 0 class the `deferrals` gate now exists for.
  * CALLBACKS CAME INTO SCOPE AT `T052` WITHOUT THIS FUNCTION CHANGING, and that is worth saying
  * because it was not a decision made here: the OpenAPI normalizer now puts every callback
  * operation in `IRDocument.nodes` as a node of its own, per SPEC 9.3, so a callback added,
@@ -1126,7 +1131,14 @@ function operationKey(operation: IROperation): string {
   return `${operation.method} ${operation.path.replace(/\{[^}]*\}/g, '{}')}`;
 }
 
-/** Every HTTP operation of a document, channels left to M5. */
+/**
+ * Every HTTP operation of a document, channels dropped.
+ *
+ * THE FILTER IS THE WHOLE OF THE EVENTS GAP, and it is named here rather than in prose alone: it
+ * discards every channel of every events document before the first comparison, so no message
+ * payload can reach any rule below. Out of scope at 1.0 per SPEC 17.1, owned past it
+ * (DEFER POST-1.0, `TX-EVENT-PAYLOAD-DIFF`).
+ */
 function operationsOf(document: IRDocument): readonly IROperation[] {
   const operations: IROperation[] = [];
   for (const node of document.nodes.values()) {

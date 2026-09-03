@@ -7,6 +7,7 @@ import { clientRunnerGate } from './gates/client-runner.gate.js';
 import { claimsGate } from './gates/claims.gate.js';
 import { coverageGate } from './gates/coverage.gate.js';
 import { cspGate } from './gates/csp.gate.js';
+import { deferralsGate } from './gates/deferrals.gate.js';
 import { dependencyGraphGate } from './gates/dependency-graph.gate.js';
 import { enginesFloorGate } from './gates/engines-floor.gate.js';
 import { eventsSuitesGate } from './gates/events-suites.gate.js';
@@ -117,9 +118,18 @@ import type { Gate, GateResult } from './types.js';
  * One asks whether a file is formatted the way the project says; the other asks whether a text
  * tool can read the file at all, which is the condition every sweep this project has run silently
  * assumed. It runs before the gates that read artifacts because it needs none.
+ *
+ * The deferrals gate sits immediately after the build manifest, and the pair is one question asked
+ * of two registers. That one holds every entry filed against a task to the milestone it declares;
+ * this holds every deferral written into the documents and into the source to the milestone it
+ * names. The mechanism existed on 2026-08-13 and guarded only the first register, so SPEC 17.1
+ * deferred event channels with a parenthesis, the milestone closed at `T054`, ten tasks closed
+ * over it and nothing anywhere could see the marker. It needs nothing built, for the reason the
+ * two below it need nothing built.
  */
 export const GATES: readonly Gate[] = [
   buildManifestGate,
+  deferralsGate,
   formatGate,
   textSourceGate,
   dependencyGraphGate,

@@ -291,7 +291,21 @@ const OWNED_ENTRY_PATTERN = /^### \[([ x])\] `((?:T\d{3}-R\d*)|(?:TX-[A-Z-]+))`(
  * what a milestone is, with only one of them able to fail: the mechanism was silent about the
  * block by construction, which is exactly the class it exists to prevent one level down.
  */
-const MILESTONE_LINE_PATTERN = /^\*\*Milestone:\*\* (M\d+|RELEASE)\b/;
+/**
+ * The declared home of work scheduled past the plan's last milestone.
+ *
+ * DECLARED HERE BECAUSE THIS FILE OWNS THE MILESTONE VOCABULARY, and read by `lib/deferrals.ts`
+ * rather than spelled a second time there. `ai-docs/BUILD.md` ends at RELEASE and cannot gain a
+ * milestone without being regenerated, which is the maintainer's decision alone, so an entry
+ * scheduled after 1.0 has nothing in the plan to expire against. Admitting it is not the same as
+ * giving it no expiry, and the difference is written down in both places that enforce it: the
+ * regeneration itself changes {@link parseContents}'s task count and the line count beside it, so
+ * the session that regenerates the plan is the session that re-homes these entries, and until then
+ * the `deferrals` gate holds each one to a marker that names it and each marker to an open entry.
+ */
+export const POST_RELEASE_MILESTONE = 'POST-1.0';
+
+const MILESTONE_LINE_PATTERN = /^\*\*Milestone:\*\* (M\d+|RELEASE|POST-1\.0)\b/;
 
 /**
  * Reads every RETROFIT and TX entry, with the milestone line its body declares.
@@ -387,6 +401,13 @@ export function checkOwnedEntries(
       });
       continue;
     }
+
+    // THE ONE DECLARATION BUILD.md CANNOT CARRY, admitted rather than read as unknown. An entry
+    // homed after the release names no milestone of the plan, so nothing here can expire it; what
+    // holds it is the `deferrals` gate, which requires a marker naming this entry in the text a
+    // reader meets and fails when the entry is ticked while the marker stands. Passing it silently
+    // here would be the defect this function exists against, so the reason travels with the line.
+    if (entry.milestone === POST_RELEASE_MILESTONE) continue;
 
     const milestone = milestones.find((candidate) => candidate.id === entry.milestone);
 

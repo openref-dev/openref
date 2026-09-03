@@ -290,6 +290,49 @@ export const BUILD_TASK_COUNT = 65;
 export const STANDARDS_FILE = 'ai-docs/00-overview/PROJECT-STANDARDS.md';
 
 /**
+ * The documents a deferral can be written into, swept by the `deferrals` gate.
+ *
+ * SEVEN AND NOT FOUR, AND THE THREE EXTRA ARE THE POINT. `REQUIRED_DOCS` above lists what a
+ * session cannot start without; this lists where somebody can postpone scope to a milestone, which
+ * is a wider set: the claim map and the remediation notes both schedule work, and the conventions
+ * document states which milestone a package table entry arrived with.
+ *
+ * `ai-docs/PROJECT_STATE.md` IS ON THE LIST AND THAT IS DELIBERATE. Its own header says a question
+ * filed there is one the owning task can close over, which is SPEC 0's ninth class, so a deferral
+ * written there is misfiled by construction. Sweeping it is what makes that measurable rather than
+ * assumed: it carries no parenthesised milestone today, and one appearing is a finding.
+ *
+ * `ai-docs/BUILD.md` IS ON IT TOO, even though the file cannot be edited beyond a box: its task
+ * bodies defer scope in prose, and a marker arriving there on a regeneration would otherwise be
+ * the one place nothing looked.
+ */
+export const DEFERRAL_DOCUMENTS: readonly string[] = [
+  'ai-docs/SPEC.md',
+  BUILD_FILE,
+  BUILD_AMENDMENTS_FILE,
+  'ai-docs/PROJECT_STATE.md',
+  'ai-docs/CLAIM-MAP.md',
+  'ai-docs/REMEDIATION.md',
+  STANDARDS_FILE,
+];
+
+/**
+ * File kinds the deferral sweep opens under every project's `src`.
+ *
+ * The marker that carried had a twin in a doc comment, so source is swept as text rather than
+ * parsed: a deferral is prose wherever it is written, and a stylesheet comment can hold one as
+ * easily as a TypeScript one.
+ */
+export const DEFERRAL_SOURCE_EXTENSIONS: readonly string[] = [
+  '.ts',
+  '.tsx',
+  '.vue',
+  '.css',
+  '.mjs',
+  '.cjs',
+];
+
+/**
  * Coverage floors from STANDARDS 9.1, keyed by package directory.
  *
  * A package with no entry has no floor yet; adding one is a task, not a judgement call.

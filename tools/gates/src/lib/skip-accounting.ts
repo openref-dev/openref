@@ -148,6 +148,13 @@ export const SKIP_REASONS: readonly SkipReason[] = [
       // a skip here means the prose table alone went unread. It is not on `forced` for that
       // reason, and because a checkout with a violation must report `fail` rather than `skip`.
       'coverage',
+      // `deferrals` reads the seven documents and `BUILD.md`'s milestones to decide whether a
+      // deferral has outlived its owner, and without them it still answers the half that needs no
+      // document: whether a parenthesised milestone in any project's `src` says which of the two
+      // things it means. It skips only when that half is clean, which is the `capability-debts`
+      // condition, and it is on this list from the day the gate was written rather than after a
+      // red run, which is how `capability-debts` came to be here.
+      'deferrals',
     ],
     forced: ['build-manifest', 'claims', 'theme-motion'],
   },

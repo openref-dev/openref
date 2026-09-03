@@ -18,6 +18,7 @@ import {
   parseMilestones,
   parseOwnedEntries,
   planTaskIds,
+  POST_RELEASE_MILESTONE,
   splitLines,
 } from '../../src/lib/build-manifest';
 
@@ -721,6 +722,43 @@ describe('checkOwnedEntries', () => {
     // Then
     expect(issues.map((issue) => issue.rule)).toEqual(['entry-milestone-closed']);
     expect(issues[0]?.message).toContain('TX-SOCKET-CONSOLE');
+  });
+
+  it('should read a POST-1.0 milestone line and admit it rather than call it unknown', () => {
+    // Given, the one declaration BUILD.md cannot carry. The plan ends at RELEASE and gains a
+    // milestone only by being regenerated, so work that lands after 1.0 has nothing here to
+    // expire against; before T065 such an entry read as `entry-unknown-milestone` and there was
+    // nowhere at all to file it.
+    const entries = parseOwnedEntries(
+      splitLines(
+        [
+          '### [ ] `TX-SURFACE-REGISTER` Ten surfaces frozen by review',
+          '**Milestone:** POST-1.0. It does not block 1.0.',
+        ].join('\n'),
+      ),
+    );
+
+    // Then, the subject is present and it is not reported
+    expect(entries[0]?.milestone).toBe(POST_RELEASE_MILESTONE);
+    expect(checkOwnedEntries(entries, milestones)).toEqual([]);
+  });
+
+  it('should keep admitting a POST-1.0 entry once every milestone of the plan has closed', () => {
+    // Given, the state the day T065 is ticked: nothing in the plan is open, and a RELEASE homed
+    // entry expires exactly then. That is right for a forcing function and wrong for work that
+    // was deliberately scheduled after the release, which is why the two are different homes.
+    const finished = parseMilestones(
+      splitLines(['**RELEASE**', '', '- [x] `T065`  L1623-L1641  Final pass'].join('\n')),
+    );
+    const entries = parseOwnedEntries(
+      splitLines(
+        ['### [ ] `TX-EVENT-PAYLOAD-DIFF` The payload', '**Milestone:** POST-1.0.'].join('\n'),
+      ),
+    );
+
+    // Then, and what holds it instead is the `deferrals` gate, in both directions
+    expect(finished.every((milestone) => milestone.tasks.every((task) => task.done))).toBe(true);
+    expect(checkOwnedEntries(entries, finished)).toEqual([]);
   });
 
   it('should fail an open entry naming a milestone the plan does not carry', () => {
