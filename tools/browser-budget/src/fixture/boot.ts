@@ -17,6 +17,13 @@ export interface BootedFixture {
   readonly document: FixtureDocument;
   /** Whether this boot sends the strict policy. */
   readonly policy: boolean;
+  /**
+   * The socket address the channel document's console resolves to, absent on every other boot.
+   *
+   * Read off the ready line rather than rebuilt here, so the address a case asserts is the one
+   * the fixture actually answers on.
+   */
+  readonly socketAddress?: string;
   stop(): Promise<void>;
 }
 
@@ -56,5 +63,13 @@ export async function bootFixture(
     timeoutMs: 120_000,
   });
 
-  return { url: server.url, document, policy, stop: () => server.stop() };
+  const reported = server.ready.socketAddress;
+
+  return {
+    url: server.url,
+    document,
+    policy,
+    ...(typeof reported === 'string' ? { socketAddress: reported } : {}),
+    stop: () => server.stop(),
+  };
 }

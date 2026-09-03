@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { normalizeOpenApiDocument } from '@openref/core';
+import { normalizeAsyncApiDocument, normalizeOpenApiDocument } from '@openref/core';
 import { largeDocument } from '../../../../packages/render/test/mocks/documents';
-import { largeSpecification, TTI_NODE_COUNT } from '../../src/fixture/specification';
+import {
+  CHANNEL_ADDRESS,
+  CHANNEL_GREETING,
+  channelSpecification,
+  largeSpecification,
+  TTI_NODE_COUNT,
+} from '../../src/fixture/specification';
 import { TTI_PAGE, TTI_PAGE_MARKER } from '../../src/study';
 
 /**
@@ -72,5 +78,57 @@ describe('the page the study measures', () => {
 
     // Then
     expect(position).toBe(500);
+  });
+});
+
+/**
+ * The channel page the socket console is pressed on, held to the document it is read off.
+ *
+ * The same guard as the one above and for the same reason: `tx-socket-console.spec.ts` writes the
+ * route out by hand, the node id is the normalizer's, and two facts that can disagree should say
+ * so in the suite that runs on every push rather than in a browser run.
+ */
+describe('the channel page the socket console is proved on', () => {
+  it('should be one channel node, at the address the browser case navigates to', () => {
+    // Given
+    const document = normalizeAsyncApiDocument(channelSpecification('127.0.0.1:1234'));
+
+    // When
+    const node = document.nodes.get('channel-orders-created');
+
+    // Then
+    expect([...document.nodes.keys()]).toEqual(['channel-orders-created']);
+    expect(node?.kind).toBe('channel');
+    expect(node?.kind === 'channel' ? node.address : '').toBe(CHANNEL_ADDRESS);
+  });
+
+  it('should declare exactly one server, which a browser can open a socket to', () => {
+    // Given, because a channel whose only server speaks kafka draws a console whose Connect
+    // button opens nothing, and a press proved against that would be proving the refusal
+    const document = normalizeAsyncApiDocument(channelSpecification('127.0.0.1:1234'));
+
+    // When
+    const node = document.nodes.get('channel-orders-created');
+    const servers = node?.kind === 'channel' ? node.servers : [];
+
+    // Then
+    expect(node?.kind === 'channel' ? node.protocol : '').toBe('ws');
+    expect(servers.length).toBe(1);
+    expect(servers[0]?.url).toBe('ws://127.0.0.1:1234');
+  });
+
+  it('should push a greeting the channel declares a message for', () => {
+    // Given, because a pushed frame that matched nothing the document describes would be a shape
+    // the reference never claimed, which is not what the window is being read for
+    const payload: unknown = JSON.parse(CHANNEL_GREETING);
+
+    // When
+    const document = normalizeAsyncApiDocument(channelSpecification('127.0.0.1:1234'));
+    const node = document.nodes.get('channel-orders-created');
+    const messages = node?.kind === 'channel' ? node.messages : [];
+
+    // Then
+    expect(messages.length).toBe(1);
+    expect(payload).toEqual({ id: 'ord_1024', quantity: 2 });
   });
 });

@@ -29,12 +29,23 @@ export type {
 export { AUTHORIZATION_ENTRY, bootAuthorizationServer } from './fixture/authorization-boot.js';
 export type { BootedAuthorizationServer } from './fixture/authorization-boot.js';
 export {
+  CHANNEL_ADDRESS,
+  CHANNEL_GREETING,
+  CHANNEL_MESSAGE_NAME,
+  channelSpecification,
   largeSpecification,
   memorySpecification,
   MEMORY_DOCUMENT,
   PROOF_NODE_COUNT,
   TTI_NODE_COUNT,
 } from './fixture/specification.js';
+export {
+  acceptKeyFor,
+  attachSocketEcho,
+  decodeClientFrame,
+  encodeTextFrame,
+} from './fixture/socket-echo.js';
+export type { DecodedFrame, SocketEchoOptions } from './fixture/socket-echo.js';
 export { externalRequestsOf, measurePage } from './measure.js';
 export type {
   CspViolationRecord,

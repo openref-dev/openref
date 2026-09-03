@@ -22,6 +22,7 @@ import express from 'express';
 import { OpenRefModule } from '@openref/nest';
 import { authorizationDocumentSurface } from './authorization-server.js';
 import {
+  channelSpecification,
   largeSpecification,
   memorySpecification,
   PROOF_NODE_COUNT,
@@ -36,8 +37,13 @@ import { buildContentSecurityPolicy } from '@openref/render';
  * `proof` is the third and it is not a budget document. The security proofs need a page, not a
  * thousand nodes, and booting the budget fixture for them would spend a minute of every run
  * normalizing a document whose size none of them is about.
+ *
+ * `channel` is the fourth and it is not a budget document either. It exists because the socket
+ * console of SPEC 14.7 lives on a channel page and no document this harness served had a channel
+ * in it, so the one gesture that console has could not be pressed anywhere a browser was watching.
+ * Nothing measured reads it: `runStudy` boots `large` and `memory`, and both are untouched.
  */
-export type FixtureDocument = 'large' | 'memory' | 'proof';
+export type FixtureDocument = 'large' | 'memory' | 'proof' | 'channel';
 
 /** Where the fixture mounts the reference. */
 export const FIXTURE_BASE_PATH = '/docs';
@@ -71,6 +77,14 @@ export interface FixtureOptions {
    * project recommends rather than about this fixture, so it is proved rather than assumed.
    */
   readonly allowAuthorizationConnect?: boolean;
+  /**
+   * Host and port the `channel` document declares its socket server on.
+   *
+   * Required by that document and read by no other, because a channel page whose server names no
+   * host would draw a console whose address a browser cannot open, which is a different subject
+   * from the one the console is being proved on.
+   */
+  readonly socketHost?: string;
 }
 
 /**
@@ -93,8 +107,20 @@ export { buildContentSecurityPolicy };
 function specificationFor(
   document: FixtureDocument,
   authorizationServer?: string,
+  socketHost?: string,
 ): Record<string, unknown> | string {
   if (document === 'memory') return memorySpecification();
+
+  // THE HOST IS DEMANDED RATHER THAN DEFAULTED. A channel document built with no socket host would
+  // serve a console whose Connect button opens nothing, and the case pressing it would report the
+  // absence of a server as the absence of the gesture.
+  if (document === 'channel') {
+    if (socketHost === undefined || socketHost === '') {
+      throw new Error('the channel document needs the host its socket server listens on');
+    }
+
+    return channelSpecification(socketHost);
+  }
 
   const base = largeSpecification(document === 'large' ? TTI_NODE_COUNT : PROOF_NODE_COUNT);
   if (authorizationServer === undefined) return base;
@@ -153,7 +179,7 @@ export function createFixture(
           app.post(path, handler),
       }),
     },
-    { document: specificationFor(document, options.authorizationServer) },
+    { document: specificationFor(document, options.authorizationServer, options.socketHost) },
   );
 
   return app;

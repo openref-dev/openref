@@ -363,3 +363,91 @@ export function largeSpecification(count: number): Record<string, unknown> {
 export function memorySpecification(): string {
   return readFileSync(join(repositoryRoot(), MEMORY_DOCUMENT), 'utf8');
 }
+
+/** The address of the one channel the socket console is proved on. */
+export const CHANNEL_ADDRESS = 'orders.created';
+
+/** The name the channel's message carries, which is what a page prints beside it. */
+export const CHANNEL_MESSAGE_NAME = 'OrderAccepted';
+
+/**
+ * What the fixture's socket pushes the moment a session opens.
+ *
+ * PUSHED AS WELL AS ECHOED, so the receive half of the window is proved without the reader having
+ * to send first. It is the payload the channel's message declares, so nothing about it is a shape
+ * the document does not describe.
+ */
+export const CHANNEL_GREETING = '{"id":"ord_1024","quantity":2}';
+
+/**
+ * An events document of one channel, whose server is the fixture's own socket.
+ *
+ * WHY THERE IS A FOURTH DOCUMENT AND WHAT IT IS NOT. It is not a budget document and no figure is
+ * taken on it: `runStudy` boots `large` and `memory` and nothing else, so nothing measured moves
+ * because this exists. It is here because the deferred socket console of SPEC 14.7 is a channel
+ * page's, and no page this harness could open had a channel on it, which is the whole of what the
+ * `T065` section addressed to `TX-SOCKET-CONSOLE` recorded as unproved.
+ *
+ * THE SERVER IS THE PAGE'S OWN ORIGIN, AND THAT IS LOAD BEARING TWICE. Under the strict policy of
+ * SPEC 19.2 a `connect-src 'self'` admits a socket to the origin the page came from and refuses
+ * every other, so a cross origin fixture would either need the policy widened for a test or would
+ * prove that the recommended policy blocks the console. And an origin is only known once the
+ * server is listening, which is why the host is a parameter rather than a constant.
+ *
+ * @param socketHost - Host and port of the fixture, as `127.0.0.1:5173`
+ * @returns The document, unnormalized, as a host would hand it to `setup`
+ */
+export function channelSpecification(socketHost: string): Record<string, unknown> {
+  return {
+    asyncapi: '3.0.0',
+    info: {
+      title: 'Orders events',
+      version: '1.0.0',
+      description: 'One channel, so a reader has a console to press.',
+    },
+    servers: {
+      page: {
+        host: socketHost,
+        protocol: 'ws',
+        description: 'the socket this fixture answers on, at the origin serving this page',
+      },
+    },
+    channels: {
+      ordersCreated: {
+        address: CHANNEL_ADDRESS,
+        title: 'Order accepted',
+        summary: 'An order was accepted',
+        servers: [{ $ref: '#/servers/page' }],
+        messages: { accepted: { $ref: '#/components/messages/OrderAccepted' } },
+      },
+    },
+    operations: {
+      receiveOrderAccepted: {
+        action: 'receive',
+        channel: { $ref: '#/channels/ordersCreated' },
+        summary: 'Receive an accepted order',
+      },
+    },
+    components: {
+      messages: {
+        OrderAccepted: {
+          name: CHANNEL_MESSAGE_NAME,
+          title: 'Order accepted',
+          contentType: 'application/json',
+          payload: { $ref: '#/components/schemas/OrderAccepted' },
+        },
+      },
+      schemas: {
+        OrderAccepted: {
+          type: 'object',
+          title: CHANNEL_MESSAGE_NAME,
+          required: ['id'],
+          properties: {
+            id: { type: 'string' },
+            quantity: { type: 'integer' },
+          },
+        },
+      },
+    },
+  };
+}
