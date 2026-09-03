@@ -1,4 +1,4 @@
-import { ErrorCode, SlotNotFoundError } from '@openref/core';
+import { SlotNotFoundError } from '@openref/core';
 import type { Component } from 'vue';
 import type { SlotName } from './slot-props.types';
 import { SLOT_NAMES } from './slot-props.types';
@@ -37,7 +37,7 @@ function assertSlotName(name: string): asserts name is SlotName {
   if (KNOWN.has(name)) return;
   throw new SlotNotFoundError(
     `there is no slot named "${name}"; the registry is fixed and lists ${String(SLOT_NAMES.length)} slots`,
-    ErrorCode.THEME_SLOT_NOT_FOUND,
+    'THEME_SLOT_NOT_FOUND',
     undefined,
     { name, slots: [...SLOT_NAMES] },
   );
@@ -76,7 +76,7 @@ export function createSlotRegistry(
       `the theme registered slot "${name}" with nothing to render; a position is either left to ` +
         'the reference by omitting it or filled with a component, and handing over undefined is ' +
         'silently the first while reading as the second',
-      ErrorCode.THEME_SLOT_NOT_FOUND,
+      'THEME_SLOT_NOT_FOUND',
       undefined,
       { name },
     );

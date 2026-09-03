@@ -342,7 +342,18 @@ export interface RunnerSessionStatus {
   readonly renewable: boolean;
 }
 
-/** One send: which operation, against which server, with what typed into it. */
+/**
+ * One send: which operation, against which server, with what typed into it.
+ *
+ * THE ONLY TYPE OF THIS NAME SINCE 2026-09-02. `@openref/runner` published an interface called
+ * `RunnerSendInput` as well, taking its own `RunnableOperation` rather than the view below, and a
+ * consumer holding the runner's could not pass it to {@link IRunnerPort.send}. Measured with the
+ * compiler: `RunnableParameter` has no `valueKind`, `RunnerParameterView` requires one, so the
+ * runner's shape is the wider of the two and this one is a strict subtype. This side kept the
+ * name because this is the contract, what a console actually hands over; the runner renamed its
+ * to `RunnableSendInput`, which is what it always was, the least an operation must carry for a
+ * request plan to be built from it.
+ */
 export interface RunnerSendInput {
   readonly operation: RunnerOperationView;
   readonly serverUrl: string;

@@ -20,7 +20,7 @@
  * behaviour for the length of a task and every check there was stayed green.
  */
 
-import { ErrorCode, InvalidOptionsError } from '@openref/core';
+import { InvalidOptionsError } from '@openref/core';
 import { inject, type Component, type InjectionKey } from 'vue';
 
 /**
@@ -124,7 +124,7 @@ export function useDeferrable(): DeferrableComponents {
         'and hydrateReference provides the deferred one; a tree with neither would render ' +
         'without the schema viewer, the try-it console, the palette and the Health panel, and ' +
         'say nothing',
-      ErrorCode.CONFIG_INVALID_OPTIONS,
+      'CONFIG_INVALID_OPTIONS',
     );
   }
 

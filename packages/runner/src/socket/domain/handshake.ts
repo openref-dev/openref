@@ -19,7 +19,7 @@
  * socket is opened, so nothing broken is ever put on the wire.
  */
 
-import { AuthError, ErrorCode, handshakeBlockedCause } from '@openref/core';
+import { AuthError, handshakeBlockedCause } from '@openref/core';
 import type { HandshakeBlockedCause } from '@openref/core';
 import type { RunnableSecurityScheme } from '../../request/domain/request-plan';
 import type {
@@ -94,7 +94,7 @@ export function buildHandshake(input: SocketHandshakeInput): SocketHandshake {
     if (cause !== undefined) {
       throw new AuthError(
         `security scheme '${scheme.id}' holds a value that cannot reach a socket handshake: ${BLOCKED[cause]}`,
-        ErrorCode.RUN_AUTH_FAILED,
+        'RUN_AUTH_FAILED',
         undefined,
         { schemeId: scheme.id, type: scheme.type, cause },
       );
@@ -108,7 +108,7 @@ export function buildHandshake(input: SocketHandshakeInput): SocketHandshake {
       if (name === '') {
         throw new AuthError(
           `security scheme '${scheme.id}' puts its key in the query and names no parameter`,
-          ErrorCode.RUN_AUTH_FAILED,
+          'RUN_AUTH_FAILED',
           undefined,
           { schemeId: scheme.id },
         );

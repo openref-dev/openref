@@ -1,4 +1,5 @@
-import { CycleDepthError, ErrorCode, RefResolutionError } from '../../shared/errors/index';
+import { ErrorCode } from '../../shared/errors/codes';
+import { CycleDepthError, RefResolutionError } from '../../shared/errors/index';
 import { asString, isPlainObject, isUnknownArray } from './guards';
 
 /**

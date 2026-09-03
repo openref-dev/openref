@@ -210,7 +210,7 @@ export type { SlotRegistry } from './slots/domain/slot-registry';
 export { provideSlots, SLOT_REGISTRY_KEY, useSlotRegistry } from './slots/api/context';
 
 export { defineTheme } from './theme/api/define-theme';
-export { DEFAULT_THEME_NAME, resolveSlots, resolveTheme } from './theme/domain/theme';
+export { FALLBACK_THEME_NAME, resolveSlots, resolveTheme } from './theme/domain/theme';
 export type {
   ResolvedTheme,
   ThemeAssets,
@@ -239,3 +239,20 @@ export { useSocket } from './composables/useSocket';
 export type { UseSocket, UseSocketConnectArgs } from './composables/useSocket';
 export { useTheme } from './composables/useTheme';
 export type { UseTheme } from './composables/useTheme';
+
+// THE ERROR CLASSES A CONSUMER OF THIS PACKAGE CAN BE HANDED, RE-EXPORTED SO THEY CAN CATCH THEM.
+// ADDED 2026-09-02. Every composable in this package documents `@throws {ThemeContractError} When
+// no state was provided above`, and a theme author reading that could not import the name. The
+// registry raises `SlotNotFoundError` on a misspelled slot, which is the failure a theme author
+// meets most, and `useRunner` raises `RunnerError` when the host supplied no runner.
+//
+// THESE ARE `@openref/core`'s OWN CLASSES AND NOT COPIES. This package depends on it at runtime
+// and does not bundle it, so `instanceof` answers true for an error this package threw.
+export {
+  ErrorCode,
+  OpenRefError,
+  RunnerError,
+  SlotNotFoundError,
+  ThemeContractError,
+  ThemeError,
+} from '@openref/core';

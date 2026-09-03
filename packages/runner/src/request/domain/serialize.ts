@@ -19,7 +19,7 @@
  * field and the request carries `q=`.
  */
 
-import { ErrorCode, SerializationError } from '@openref/core';
+import { SerializationError } from '@openref/core';
 import type { IRParameterLocation, IRParameterStyle } from '@openref/core';
 
 /**
@@ -197,7 +197,7 @@ export function assertCellDefined(parameter: SerializableParameter, kind: Runner
       `define. It defines '${parameter.style}' at ${row.at.join(' and ')}, ` +
       `${explode === null ? 'with either explode' : `with explode ${String(explode)}`}, ` +
       `for ${row.kinds.join(' and ')} values`,
-    ErrorCode.RUN_SERIALIZATION_FAILED,
+    'RUN_SERIALIZATION_FAILED',
     undefined,
     { parameter: parameter.name, in: parameter.in, style: parameter.style, kind },
   );

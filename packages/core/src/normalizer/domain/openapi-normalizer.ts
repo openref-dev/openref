@@ -25,7 +25,8 @@ import type {
   IRSecurityRequirement,
   IRServerOverride,
 } from '../../ir/domain/node.types';
-import { ErrorCode, RefResolutionError, UnsupportedDialectError } from '../../shared/errors/index';
+import { ErrorCode } from '../../shared/errors/codes';
+import { RefResolutionError, UnsupportedDialectError } from '../../shared/errors/index';
 import {
   collectNamedSchemas,
   documentSlug,

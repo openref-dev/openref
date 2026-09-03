@@ -1,5 +1,6 @@
 import { parse as parseYaml } from 'yaml';
-import { ErrorCode, NormalizeError } from '../../shared/errors/index';
+import { ErrorCode } from '../../shared/errors/codes';
+import { NormalizeError } from '../../shared/errors/index';
 
 /**
  * Specification intake: JSON and YAML through the pinned `yaml` package.

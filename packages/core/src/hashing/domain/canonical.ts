@@ -1,4 +1,5 @@
-import { ErrorCode, NormalizeError } from '../../shared/errors/index';
+import { ErrorCode } from '../../shared/errors/codes';
+import { NormalizeError } from '../../shared/errors/index';
 import { canonicalVerdictOf } from './canonical-order';
 
 /**

@@ -1,4 +1,4 @@
-import { ErrorCode, ThemeContractError } from '@openref/core';
+import { ThemeContractError } from '@openref/core';
 import { defineAsyncComponent, type Component } from 'vue';
 import { createSlotRegistry, type SlotRegistry } from '../../slots/domain/slot-registry';
 import type { ResolvedTheme, ThemeDefinition, ThemeTokens } from './theme.types';
@@ -11,8 +11,25 @@ import type { ResolvedTheme, ThemeDefinition, ThemeTokens } from './theme.types'
  * half applies produces a reference that looks fine and is wrong.
  */
 
-/** Name of the theme in force when nobody supplied one. */
-export const DEFAULT_THEME_NAME = 'default';
+/**
+ * Name this package gives the empty theme it resolves when handed nothing.
+ *
+ * CALLED `DEFAULT_THEME_NAME` UNTIL 2026-09-02, AND THE OLD NAME WAS A SECOND ANSWER TO A
+ * QUESTION `@openref/theme` ALREADY ANSWERED. That package exports `DEFAULT_THEME_NAME` too, with
+ * the value `vernier`, and `@openref/nest` depends on both, so whichever a consumer imported the
+ * other one was wrong about the theme actually in force. Only one of the two was ever about the
+ * default theme: `@openref/theme` ships it and knows its name, and this package cannot know it,
+ * because STANDARDS 3.5 gives `theme` no upstream and the dependency graph forbids the edge in
+ * either direction. What this constant names is narrower and is now called what it is: the theme
+ * {@link resolveTheme} invents for a host that supplied none, which carries no tokens, no assets
+ * and an empty registry. In the shipped product `@openref/nest` always supplies `defaultTheme`, so
+ * the theme in force is `vernier` and this name is what a host reaches by wiring `createDocState`
+ * itself and passing no theme.
+ *
+ * The value is unchanged. Renaming the constant is the fix; changing what `useTheme().name`
+ * answers for a host that supplied no theme would be a second, unasked-for break.
+ */
+export const FALLBACK_THEME_NAME = 'default';
 
 /** Token names are `--oref-{group}-{name}`, per STANDARDS 11. */
 const TOKEN_NAME = /^--oref-[a-z0-9]+(?:-[a-z0-9]+)*$/;
@@ -22,7 +39,7 @@ function checkTokens(tokens: ThemeTokens, themeName: string): void {
     if (!TOKEN_NAME.test(name)) {
       throw new ThemeContractError(
         `theme "${themeName}" declares token "${name}", which is not of the form --oref-{group}-{name}`,
-        ErrorCode.THEME_CONTRACT_VIOLATED,
+        'THEME_CONTRACT_VIOLATED',
         undefined,
         { theme: themeName, token: name },
       );
@@ -30,7 +47,7 @@ function checkTokens(tokens: ThemeTokens, themeName: string): void {
     if (typeof value !== 'string') {
       throw new ThemeContractError(
         `theme "${themeName}" gives token "${name}" a value that is not a string`,
-        ErrorCode.THEME_CONTRACT_VIOLATED,
+        'THEME_CONTRACT_VIOLATED',
         undefined,
         { theme: themeName, token: name },
       );
@@ -52,7 +69,7 @@ function checkTokens(tokens: ThemeTokens, themeName: string): void {
 export function resolveTheme(definition?: ThemeDefinition): ResolvedTheme {
   if (definition === undefined) {
     return {
-      name: DEFAULT_THEME_NAME,
+      name: FALLBACK_THEME_NAME,
       slots: createSlotRegistry(),
       tokens: {},
       assets: {},
@@ -62,7 +79,7 @@ export function resolveTheme(definition?: ThemeDefinition): ResolvedTheme {
   if (typeof definition.name !== 'string' || definition.name.trim() === '') {
     throw new ThemeContractError(
       'a theme must declare a non empty name',
-      ErrorCode.THEME_CONTRACT_VIOLATED,
+      'THEME_CONTRACT_VIOLATED',
       undefined,
       { theme: definition.name },
     );
@@ -133,7 +150,7 @@ function layoutComponent(definition: ThemeDefinition): Component | undefined {
       `theme "${definition.name}" declares its page shell twice, as \`layout\` and as ` +
         '`components.AppShell`, and those are one position; keep the one that reads better and ' +
         'remove the other',
-      ErrorCode.THEME_CONTRACT_VIOLATED,
+      'THEME_CONTRACT_VIOLATED',
       undefined,
       { theme: definition.name, slot: 'AppShell' },
     );

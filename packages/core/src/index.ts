@@ -173,7 +173,6 @@ export {
   CollectorNotAvailableError,
   ConfigError,
   CycleDepthError,
-  ErrorCode,
   FederationError,
   InvalidOptionsError,
   MergeConflictError,
@@ -193,6 +192,12 @@ export {
   UnsupportedDialectError,
   UsageError,
 } from './shared/errors/index';
+// REACHED FROM HERE AND NOT THROUGH `shared/errors/index`, AND THE EDGE IS THE POINT. A re-export
+// there makes the codes module a dependency of the module that declares the error classes, which
+// every rendered page reaches, so the bundler puts the thirty member object in the chunk the first
+// paint downloads for the sake of one deferred reader. Named here, the module is reached only by
+// whoever reads a code. Measured: 111,921 raw with the edge against 110,559 without it.
+export { ErrorCode } from './shared/errors/codes';
 
 export { intersectTypes, mergeAllOf, mergeRequired } from './normalizer/domain/compose';
 export {

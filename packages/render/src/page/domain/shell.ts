@@ -11,7 +11,7 @@
  * state block, which is data rather than code and carries the nonce whenever one exists.
  */
 
-import { compareByCodePoint, ErrorCode, InvalidOptionsError } from '@openref/core';
+import { compareByCodePoint, InvalidOptionsError } from '@openref/core';
 import type { RenderedPage } from '../../cache/application/ports/render-cache.port';
 import { APP_ROOT_ID } from '../../components/ReferenceApp';
 import { escapeHtml, escapeJsonForScript } from '../../shared/html';
@@ -160,7 +160,7 @@ export function assertNonce(nonce: string): string {
   if (!NONCE_PATTERN.test(nonce)) {
     throw new InvalidOptionsError(
       'CSP nonce must be 8 to 256 base64 characters; refusing to write it into the document',
-      ErrorCode.CONFIG_INVALID_OPTIONS,
+      'CONFIG_INVALID_OPTIONS',
       undefined,
       { length: nonce.length },
     );
@@ -228,7 +228,7 @@ function tokenStyleElement(
       if (!TOKEN_NAME.test(name)) {
         throw new InvalidOptionsError(
           `theme token "${name}" is not of the form --oref-{group}-{name}; refusing to write it into the document`,
-          ErrorCode.CONFIG_INVALID_OPTIONS,
+          'CONFIG_INVALID_OPTIONS',
           undefined,
           { token: name },
         );
@@ -237,7 +237,7 @@ function tokenStyleElement(
       if (!TOKEN_VALUE.test(value)) {
         throw new InvalidOptionsError(
           `theme token "${name}" carries a value that cannot be written into a style element; refusing rather than escaping`,
-          ErrorCode.CONFIG_INVALID_OPTIONS,
+          'CONFIG_INVALID_OPTIONS',
           undefined,
           { token: name },
         );

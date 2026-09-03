@@ -12,7 +12,8 @@ import type {
   IRSchemaDialect,
   IRSchemaSlot,
 } from '../../ir/domain/schema.types';
-import { ErrorCode, NormalizeError } from '../../shared/errors/index';
+import { ErrorCode } from '../../shared/errors/codes';
+import { NormalizeError } from '../../shared/errors/index';
 import { buildSchema } from './dialect';
 import { asJsonValue, asString, asStringArray, isPlainObject, isUnknownArray } from './guards';
 import { schemaNameFromReference } from './json-pointer';

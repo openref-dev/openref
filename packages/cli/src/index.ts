@@ -40,3 +40,19 @@ export type {
   CommandOutcome,
 } from './cli/domain/command.types';
 export type { DocumentSource, LoadedDocument } from './cli/domain/loaded-document.types';
+
+// THE ERROR CLASSES A CONSUMER OF THIS PACKAGE CAN BE HANDED, RE-EXPORTED SO THEY CAN CATCH THEM.
+// ADDED 2026-09-02. `runCli` never throws, by design, and turns everything into an exit code; the
+// two other entry points do throw. `loadDocument` raises `UsageError` for a source it cannot read
+// and lets `NormalizeError` through from the parser, and `loadFromNestApplication` raises
+// `ApplicationBootError` and `ShutdownTimeoutError`. A consumer embedding either had no way to
+// tell a bad path from a broken document without a second dependency.
+export {
+  ApplicationBootError,
+  CliError,
+  ErrorCode,
+  NormalizeError,
+  OpenRefError,
+  ShutdownTimeoutError,
+  UsageError,
+} from '@openref/core';

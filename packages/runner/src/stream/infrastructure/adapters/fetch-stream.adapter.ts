@@ -14,7 +14,7 @@
  * bounded by the service above rather than here.
  */
 
-import { ErrorCode, RunnerError } from '@openref/core';
+import { RunnerError } from '@openref/core';
 import type { RequestPlan } from '../../../request/domain/request-plan';
 import type {
   FetchLike,
@@ -98,7 +98,7 @@ export class FetchStreamTransport implements IStreamTransport {
     if (send === null) {
       throw new RunnerError(
         'no fetch implementation is available, so the try-it console cannot open a stream',
-        ErrorCode.RUN_NOT_AVAILABLE,
+        'RUN_NOT_AVAILABLE',
       );
     }
 
@@ -117,7 +117,7 @@ export class FetchStreamTransport implements IStreamTransport {
       // arrives lands here, and the service above tells the two apart by asking the signal.
       throw new RunnerError(
         'the stream did not reach a server; the host may be unreachable or may refuse this origin',
-        ErrorCode.RUN_NOT_AVAILABLE,
+        'RUN_NOT_AVAILABLE',
         cause instanceof Error ? cause : undefined,
         { url: plan.url },
       );

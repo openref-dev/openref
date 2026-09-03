@@ -1,6 +1,7 @@
 import type { IRSchema, IRSchemaDialect } from '../../ir/domain/schema.types';
 import type { IRDiscoveryProblem } from '../../ir/domain/runtime.types';
-import { ErrorCode, UnsupportedDialectError } from '../../shared/errors/index';
+import { ErrorCode } from '../../shared/errors/codes';
+import { UnsupportedDialectError } from '../../shared/errors/index';
 import { isPlainObject } from './guards';
 import { normalizeSchema, type NormalizeSchemaOptions } from './schema-normalizer';
 

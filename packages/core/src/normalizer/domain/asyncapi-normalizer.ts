@@ -22,9 +22,9 @@ import type {
 } from '../../ir/domain/node.types';
 import type { IRRelationship } from '../../ir/domain/relationship.types';
 import type { IRJsonValue, IRSchema } from '../../ir/domain/schema.types';
+import { ErrorCode } from '../../shared/errors/codes';
 import {
   CycleDepthError,
-  ErrorCode,
   RefResolutionError,
   UnsupportedDialectError,
 } from '../../shared/errors/index';

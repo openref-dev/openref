@@ -1,6 +1,7 @@
 import { canonicalize } from '../../hashing/domain/canonical';
 import type { IRJsonSchema, IRJsonSchemaType, IRJsonValue } from '../../ir/domain/schema.types';
-import { ErrorCode, NormalizeError } from '../../shared/errors/index';
+import { ErrorCode } from '../../shared/errors/codes';
+import { NormalizeError } from '../../shared/errors/index';
 
 /**
  * Composition: `allOf` merge, per SPEC 5.4.

@@ -4,12 +4,8 @@ import type {
   IRJsonValue,
   IRSchemaVariant,
 } from '../../ir/domain/schema.types';
-import {
-  CycleDepthError,
-  ErrorCode,
-  NormalizeError,
-  RefResolutionError,
-} from '../../shared/errors/index';
+import { ErrorCode } from '../../shared/errors/codes';
+import { CycleDepthError, NormalizeError, RefResolutionError } from '../../shared/errors/index';
 import { mergeAllOf } from './compose';
 import {
   asBoolean,

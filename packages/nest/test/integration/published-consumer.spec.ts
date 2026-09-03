@@ -105,13 +105,22 @@ function publishedDirectories(): string[] {
     .sort();
 }
 
-/** Third party modules the packed packages import, linked from what this workspace resolved. */
+/**
+ * Third party modules the packed packages import, linked from what this workspace resolved.
+ *
+ * `ts-morph` ARRIVED ON 2026-09-02 WITH THE ERROR CLASS CASE, and it is the CLI's rather than the
+ * first minute's: `openref`'s barrel reaches a chunk that imports it, so importing that package
+ * inside this tree failed with `ERR_MODULE_NOT_FOUND` until it was here. It is a real dependency
+ * a consumer installing `openref` receives, 1.4 MB, and the tree is a poorer model of a consumer
+ * without it.
+ */
 const THIRD_PARTY = [
   '@noble/hashes',
   'isomorphic-dompurify',
   'marked',
   'minisearch',
   'shiki',
+  'ts-morph',
   'vue',
   'yaml',
 ] as const;
@@ -807,6 +816,111 @@ describe('a consumer holding only what npm pack produced', () => {
 
       // Then
       expect(JSON.parse(printed)).toEqual({ status: 200, ok: true });
+    },
+    SPAWNED_PROCESS_TIMEOUT_MS,
+  );
+  it(
+    'should hand a consumer every error class its packages can throw, as the class the throw site used',
+    () => {
+      // Given the five published packages that raise an `OpenRefError`, and every class each one
+      // exports. Until 2026-09-02 the three runtime packages exported ONE between them, while
+      // `noStreamTransport()` had `RunnerError` as its declared return type and dozens of `@throws`
+      // tags named classes a consumer could not import.
+      //
+      // IDENTITY IS WHAT THIS PROVES AND A WORKSPACE CANNOT. A re-export is worth nothing if
+      // `@openref/core` were bundled into the package's `dist`: the exported constructor and the
+      // constructor the throw site uses would be two functions, and `instanceof` would answer false
+      // for every error the package ever throws while every name check stayed green.
+      const packages = [
+        '@openref/nest',
+        '@openref/runner',
+        '@openref/vue',
+        'openref',
+        '@openref/theme-kit',
+      ];
+      const source = [
+        "import { OpenRefError, ErrorCode } from '@openref/core';",
+        `const names = ${JSON.stringify(packages)};`,
+        'const failures = [];',
+        'let checked = 0;',
+        'for (const name of names) {',
+        '  const loaded = await import(name);',
+        '  for (const [key, value] of Object.entries(loaded)) {',
+        '    if (!key.endsWith("Error") || typeof value !== "function") continue;',
+        '    checked += 1;',
+        '    const thrown = new value("probe", ErrorCode.CONFIG_INVALID_OPTIONS);',
+        '    if (!(thrown instanceof OpenRefError)) failures.push(`${name}: ${key} is not the core class`);',
+        '    if (!(thrown instanceof value)) failures.push(`${name}: ${key} is not an instance of itself`);',
+        // A class with a fixed code of its own, as `ElementTooLargeError` has, ignores the one
+        // handed in. What every one of them owes is a code from the published set, which is the
+        // rule STANDARDS states and the rule that class was breaking until it was fixed.
+        '    if (!Object.values(ErrorCode).includes(thrown.code)) failures.push(`${name}: ${key} carries no ErrorCode`);',
+        '  }',
+        '}',
+        'process.stdout.write(JSON.stringify({ failures, checked }));',
+      ].join('\n');
+
+      // When
+      const printed = JSON.parse(runInConsumer('module', source)) as {
+        failures: string[];
+        checked: number;
+      };
+
+      // Then, a proof of absence over nothing is worth nothing, so the count is asserted too
+      expect(printed.failures).toEqual([]);
+      expect(printed.checked).toBeGreaterThan(25);
+    },
+    SPAWNED_PROCESS_TIMEOUT_MS,
+  );
+
+  it(
+    'should let a consumer switch exhaustively over ErrorCode with no default branch',
+    () => {
+      // Given the thirty members read off the packed declaration rather than restated here. Under
+      // the `declare enum` this shipped as until 2026-09-02 the case labels below did not compile
+      // at all: the compiler reported the literal and the enum type as having no overlap, so the
+      // only `switch` a consumer could write carried a `default`, and a `default` is where a code
+      // added in a minor version goes to be handled as something else.
+      const declarations = readFileSync(
+        join(consumer, 'node_modules', '@openref', 'core', 'dist', 'index.d.ts'),
+        'utf8',
+      );
+      const block = /declare const ErrorCode:\s*\{([\s\S]*?)\n\};/.exec(declarations);
+      expect(block, 'the packed core does not declare ErrorCode as an object').not.toBeNull();
+      const members = [...(block?.[1] ?? '').matchAll(/^\s{4}readonly ([A-Z_]+):/gm)].map(
+        (match) => match[1] ?? '',
+      );
+      expect(members.length).toBe(30);
+
+      const arms = members.map((member) => `    case '${member}': return '${member}';`).join('\n');
+
+      // When, the same switch twice: over the union as published, and over the union plus one more
+      // member, which is what a minor version adding a code does to that consumer
+      const exhaustive = typecheckConsumer(
+        [
+          "import type { ErrorCode } from '@openref/core';",
+          'export function label(code: ErrorCode): string {',
+          '  switch (code) {',
+          arms,
+          '  }',
+          '}',
+          "export const literal: ErrorCode = 'NORM_REF_UNRESOLVED';",
+        ].join('\n'),
+      );
+      const grown = typecheckConsumer(
+        [
+          "import type { ErrorCode } from '@openref/core';",
+          "export function label(code: ErrorCode | 'NORM_A_THIRTY_FIRST_CODE'): string {",
+          '  switch (code) {',
+          arms,
+          '  }',
+          '}',
+        ].join('\n'),
+      );
+
+      // Then
+      expect(exhaustive).toBe('');
+      expect(grown).toContain('error TS');
     },
     SPAWNED_PROCESS_TIMEOUT_MS,
   );

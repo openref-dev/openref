@@ -1,4 +1,4 @@
-import { ErrorCode, ThemeContractError } from '@openref/core';
+import { ThemeContractError } from '@openref/core';
 import { computed, inject, provide } from 'vue';
 import type { InjectionKey } from 'vue';
 import { SLOT_REGISTRY_KEY } from '../../slots/api/context';
@@ -49,7 +49,7 @@ export function useDocState(): DocState {
   if (state === undefined) {
     throw new ThemeContractError(
       'no OPENREF document state was provided above this component; call provideDocState in an ancestor',
-      ErrorCode.THEME_CONTRACT_VIOLATED,
+      'THEME_CONTRACT_VIOLATED',
     );
   }
   return state;

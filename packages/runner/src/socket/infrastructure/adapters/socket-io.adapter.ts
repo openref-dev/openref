@@ -19,7 +19,7 @@
  * serialized once here rather than in three places downstream.
  */
 
-import { ErrorCode, RunnerError } from '@openref/core';
+import { RunnerError } from '@openref/core';
 import type {
   ISocketTransport,
   SocketConnection,
@@ -98,7 +98,7 @@ export class SocketIoTransport implements ISocketTransport {
     if (handshake.kind !== 'socket.io') {
       throw new RunnerError(
         `this handshake was built for a ${handshake.kind} socket, so opening it over Socket.IO would send a different set of credentials than the one it was planned with`,
-        ErrorCode.RUN_NOT_AVAILABLE,
+        'RUN_NOT_AVAILABLE',
         undefined,
         { kind: handshake.kind },
       );
@@ -182,7 +182,7 @@ function requireFactory(create: unknown): SocketIoFactory {
   if (typeof create !== 'function') {
     throw new RunnerError(
       'this Socket.IO transport was built with no io function; hand in the `io` export of the socket.io-client the host already ships',
-      ErrorCode.RUN_NOT_AVAILABLE,
+      'RUN_NOT_AVAILABLE',
       undefined,
       { given: create === undefined ? 'nothing' : typeof create },
     );

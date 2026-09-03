@@ -14,7 +14,7 @@
  * which no code on the page participates in, and nothing later removes that.
  */
 
-import { AuthError, ErrorCode, unsendableSchemeCause, type UnsendableCause } from '@openref/core';
+import { AuthError, unsendableSchemeCause, type UnsendableCause } from '@openref/core';
 import type { AuthContribution, RunnableSecurityScheme } from '../../request/domain/request-plan';
 import { base64Text } from './base64';
 
@@ -164,7 +164,7 @@ export function applyCredentials(
     if (unsendable !== undefined) {
       throw new AuthError(
         `security scheme '${scheme.id}' holds a value that cannot be sent: ${UNSENDABLE[unsendable]}`,
-        ErrorCode.RUN_AUTH_FAILED,
+        'RUN_AUTH_FAILED',
         undefined,
         { schemeId: scheme.id, type: scheme.type },
       );
@@ -201,7 +201,7 @@ function applyApiKey(
   if (name === '') {
     throw new AuthError(
       `security scheme '${scheme.id}' is an apiKey that names no header or query parameter`,
-      ErrorCode.RUN_AUTH_FAILED,
+      'RUN_AUTH_FAILED',
       undefined,
       { schemeId: scheme.id },
     );
@@ -223,7 +223,7 @@ function applyApiKey(
   throw new AuthError(
     `security scheme '${scheme.id}' carries its apiKey in '${scheme.in ?? ''}', which is neither ` +
       'a header nor a query parameter',
-    ErrorCode.RUN_AUTH_FAILED,
+    'RUN_AUTH_FAILED',
     undefined,
     { schemeId: scheme.id, in: scheme.in ?? '' },
   );

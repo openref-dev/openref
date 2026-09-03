@@ -1,7 +1,8 @@
 import { sha256Hex } from '../../hashing/domain/sha256';
 import type { IRJsonSchema } from '../../ir/domain/schema.types';
 import { compareByCodePoint } from '../../hashing/domain/canonical';
-import { ErrorCode, NormalizeError } from '../../shared/errors/index';
+import { ErrorCode } from '../../shared/errors/codes';
+import { NormalizeError } from '../../shared/errors/index';
 import { parseJsonPointer, parseReference, schemaNameFromReference } from './json-pointer';
 
 /**

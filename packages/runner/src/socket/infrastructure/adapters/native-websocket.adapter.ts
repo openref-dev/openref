@@ -16,7 +16,7 @@
  * of depending on a global type, and a test satisfies it with a plain object.
  */
 
-import { ErrorCode, RunnerError } from '@openref/core';
+import { RunnerError } from '@openref/core';
 import type {
   ISocketTransport,
   SocketConnection,
@@ -63,7 +63,7 @@ function globalWebSocket(url: string, protocols: readonly string[]): WebSocketLi
   if (typeof candidate !== 'function') {
     throw new RunnerError(
       'this runtime carries no WebSocket, so a native socket cannot be opened here',
-      ErrorCode.RUN_NOT_AVAILABLE,
+      'RUN_NOT_AVAILABLE',
     );
   }
 
@@ -95,7 +95,7 @@ export class NativeWebSocketTransport implements ISocketTransport {
     if (carried.length > 0) {
       throw new RunnerError(
         `a native WebSocket cannot send an auth payload, and this handshake carries ${carried.join(', ')}; open it over Socket.IO or through the server bridge`,
-        ErrorCode.RUN_NOT_AVAILABLE,
+        'RUN_NOT_AVAILABLE',
         undefined,
         { fields: carried },
       );

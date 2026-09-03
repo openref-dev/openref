@@ -22,7 +22,7 @@
  * is what makes the number honest.
  */
 
-import { ErrorCode, SerializationError } from '@openref/core';
+import { SerializationError } from '@openref/core';
 
 /**
  * Bytes a body is made of.
@@ -156,7 +156,7 @@ export interface BodySerializationOptions {
 }
 
 function refuse(message: string, context: Record<string, unknown>, cause?: Error): never {
-  throw new SerializationError(message, ErrorCode.RUN_SERIALIZATION_FAILED, cause, context);
+  throw new SerializationError(message, 'RUN_SERIALIZATION_FAILED', cause, context);
 }
 
 function tooLarge(measured: number, limit: number, mediaType: string): never {

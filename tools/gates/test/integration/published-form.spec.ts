@@ -25,14 +25,23 @@ import { forgetPublishedForm, readPublishedForm } from '../../src/lib/published-
 
 const REPO_ROOT = join(import.meta.dirname, '..', '..', '..', '..');
 
-/** The six files the first paint compiles, in the order the entry names them. */
+/**
+ * The six files the first paint compiles, in the order the entry names them.
+ *
+ * TWO OF THESE NAMES MOVED ON 2026-09-02 AND NOT ONE OF THE SIZES DID. A chunk's name is its
+ * content digest, so renaming a published constant moves it and every chunk that imports it:
+ * `chunk-TEAI3FZD` became `chunk-5LRQ4D6P` when `@openref/vue`'s `DEFAULT_THEME_NAME` became
+ * `FALLBACK_THEME_NAME`, and `chunk-KW7NTLUC` became `chunk-BV3VPU5E` because it imports the
+ * first. Both weigh exactly what they weighed, and so does the total, which is the property the
+ * figures below are actually about.
+ */
 const INITIAL = [
   'openref.js',
   'chunk-YKIET4FQ.js',
   'chunk-3BFRF6WF.js',
-  'chunk-TEAI3FZD.js',
+  'chunk-5LRQ4D6P.js',
   'chunk-6D5ZGNOV.js',
-  'chunk-KW7NTLUC.js',
+  'chunk-BV3VPU5E.js',
 ] as const;
 
 /** The three stylesheets of the default theme, by the name the catalog keys them under. */
@@ -81,7 +90,7 @@ describe('the published form of this tree', () => {
     // Then
     expect(total).toBe(110_559);
     expect(sizeOf('openref.js')).toBe(20_217);
-    expect(sizeOf('chunk-TEAI3FZD.js')).toBe(5_623);
+    expect(sizeOf('chunk-5LRQ4D6P.js')).toBe(5_623);
     expect(sizeOf('chunk-YKIET4FQ.js')).toBe(1_956);
   });
 

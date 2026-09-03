@@ -1,4 +1,4 @@
-import { ErrorCode, StreamError } from '@openref/core';
+import { StreamError } from '@openref/core';
 /**
  * Turning a byte stream into elements, one chunk at a time, per SPEC 14.6.
  *
@@ -61,7 +61,7 @@ export class ElementTooLargeError extends StreamError {
   constructor(public readonly limit: number) {
     super(
       `one element of the stream is longer than the ${String(limit)} characters this console will buffer`,
-      ErrorCode.RUN_STREAM_FAILED,
+      'RUN_STREAM_FAILED',
       undefined,
       { limit },
     );

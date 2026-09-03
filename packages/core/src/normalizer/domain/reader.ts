@@ -15,7 +15,8 @@
  */
 
 import type { IRDocument } from '../../ir/domain/document.types';
-import { ErrorCode, NormalizeError } from '../../shared/errors/index';
+import { ErrorCode } from '../../shared/errors/codes';
+import { NormalizeError } from '../../shared/errors/index';
 import { normalizeAsyncApiDocument } from './asyncapi-normalizer';
 import type { NormalizeAsyncApiOptions } from './asyncapi-normalizer';
 import { normalizeOpenApiDocument } from './openapi-normalizer';

@@ -154,7 +154,7 @@ export {
   type RunNotice,
   type RunResult,
   type RunnerOptions,
-  type RunnerSendInput,
+  type RunnableSendInput,
   type RunnerVisibility,
 } from './send/application/services/runner.service';
 
@@ -251,3 +251,29 @@ export {
   type SocketIoOptions,
   type SocketIoTransportOptions,
 } from './socket/infrastructure/adapters/socket-io.adapter';
+
+// THE ERROR CLASSES A CONSUMER OF THIS PACKAGE CAN BE HANDED, RE-EXPORTED SO THEY CAN CATCH THEM.
+// ADDED 2026-09-02. This was the package the finding named: `noStreamTransport()` has `RunnerError`
+// as its DECLARED RETURN TYPE, and `RunnerError` was not exported from here, so the signature told
+// a consumer the class exists and the package gave them no way to import it. `ElementTooLargeError`
+// above was the only error class any of `@openref/nest`, `@openref/runner` and `@openref/vue`
+// exported at all, and it was the one that had broken the error rule.
+//
+// THE SET IS EVERY CLASS A PUBLIC ENTRY POINT HERE CAN RAISE, PLUS EVERY BASE ABOVE ONE.
+// `AuthError` from the whole OAuth2 surface, `SerializationError` from the request builders,
+// `RunnerError` from every transport, `StreamError` because `ElementTooLargeError` extends it and
+// a consumer catching "a stream went wrong" should not have to name the leaf, and
+// `InvalidOptionsError` from the runner's own refusals.
+//
+// THESE ARE `@openref/core`'s OWN CLASSES AND NOT COPIES: it is a runtime dependency here and is
+// not bundled into `dist/index.js`, so `instanceof` answers true for an error thrown from here.
+export {
+  AuthError,
+  ConfigError,
+  ErrorCode,
+  InvalidOptionsError,
+  OpenRefError,
+  RunnerError,
+  SerializationError,
+  StreamError,
+} from '@openref/core';

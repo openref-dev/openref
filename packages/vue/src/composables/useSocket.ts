@@ -1,4 +1,4 @@
-import { ErrorCode, handshakeBlockedCause, RunnerError } from '@openref/core';
+import { handshakeBlockedCause, RunnerError } from '@openref/core';
 import { computed, ref, shallowRef } from 'vue';
 import type { IRSecurityRequirement, IRSecurityScheme } from '@openref/core';
 import type { ComputedRef, MaybeRefOrGetter } from 'vue';
@@ -174,7 +174,7 @@ export function useSocket(id?: MaybeRefOrGetter<string | undefined>): UseSocket 
           port === undefined
             ? 'no socket client was provided above this component, so nothing can be connected'
             : 'this node is not a channel, so there is no socket to open',
-          ErrorCode.RUN_NOT_AVAILABLE,
+          'RUN_NOT_AVAILABLE',
           undefined,
           { nodeId: resolvedId.value },
         ),
@@ -234,7 +234,7 @@ export function useSocket(id?: MaybeRefOrGetter<string | undefined>): UseSocket 
       if (open === undefined) {
         throw new RunnerError(
           'no socket session is open, so nothing can be sent',
-          ErrorCode.RUN_NOT_AVAILABLE,
+          'RUN_NOT_AVAILABLE',
           undefined,
           { nodeId: resolvedId.value },
         );

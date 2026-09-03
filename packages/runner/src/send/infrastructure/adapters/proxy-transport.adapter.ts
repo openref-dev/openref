@@ -21,7 +21,7 @@
  * default per SPEC 19.10.
  */
 
-import { ErrorCode, RunnerError } from '@openref/core';
+import { RunnerError } from '@openref/core';
 import type { RequestPlan } from '../../../request/domain/request-plan';
 import type {
   IHttpTransport,
@@ -65,7 +65,7 @@ export class ProxyHttpTransport implements IHttpTransport {
     if (!options.endpoint.startsWith('/') || options.endpoint.startsWith('//')) {
       throw new RunnerError(
         `the proxy endpoint must be an absolute path on this origin, received '${options.endpoint}'`,
-        ErrorCode.CONFIG_INVALID_OPTIONS,
+        'CONFIG_INVALID_OPTIONS',
         undefined,
         { endpoint: options.endpoint },
       );
@@ -80,7 +80,7 @@ export class ProxyHttpTransport implements IHttpTransport {
     if (call === null) {
       throw new RunnerError(
         'this runtime has no fetch, so the proxy transport has nothing to send with',
-        ErrorCode.RUN_NOT_AVAILABLE,
+        'RUN_NOT_AVAILABLE',
       );
     }
 
@@ -92,7 +92,7 @@ export class ProxyHttpTransport implements IHttpTransport {
       throw new RunnerError(
         'the proxy carries a text body, and this request carries bytes. Send it in direct mode, ' +
           'or upload through an endpoint the browser can reach',
-        ErrorCode.RUN_SERIALIZATION_FAILED,
+        'RUN_SERIALIZATION_FAILED',
       );
     }
 
@@ -176,7 +176,7 @@ function refusalOf(status: number, text: string): RunnerError {
 
   return new RunnerError(
     `the proxy did not send this request: ${reason}`,
-    ErrorCode.RUN_PROXY_HOST_BLOCKED,
+    'RUN_PROXY_HOST_BLOCKED',
     undefined,
     { status },
   );
@@ -227,6 +227,6 @@ function readEnvelope(text: string): TransportResponse {
 function malformed(): RunnerError {
   return new RunnerError(
     'the proxy answered with something that is not a proxy envelope',
-    ErrorCode.RUN_PROXY_HOST_BLOCKED,
+    'RUN_PROXY_HOST_BLOCKED',
   );
 }

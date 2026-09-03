@@ -21,7 +21,7 @@
  * the port requires every open to end in exactly one close.
  */
 
-import { ErrorCode, RunnerError } from '@openref/core';
+import { RunnerError } from '@openref/core';
 import { buildHandshake } from '../../domain/handshake';
 import { checkSocketMessage, type NamedMessageSchema } from '../../domain/message-check';
 import {
@@ -410,7 +410,7 @@ export function openSocket(
       if (session.status !== 'open' || session.connection === undefined) {
         throw new RunnerError(
           `the socket is ${session.status} rather than open, so nothing can be sent on it`,
-          ErrorCode.RUN_NOT_AVAILABLE,
+          'RUN_NOT_AVAILABLE',
           undefined,
           { status: session.status },
         );

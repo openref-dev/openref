@@ -6,7 +6,7 @@
  * that is required, and where is what they filled in kept.
  */
 
-import { ErrorCode, SerializationError } from '@openref/core';
+import { SerializationError } from '@openref/core';
 import type { IRParameter, IRParameterLocation } from '@openref/core';
 import type { RunnerValue, SerializableParameter } from './serialize';
 
@@ -50,7 +50,7 @@ export function assertRequired(parameter: RunnableParameter, value: RunnerValue 
   if (value === undefined) {
     throw new SerializationError(
       `parameter '${parameter.name}' is required and has no value`,
-      ErrorCode.RUN_SERIALIZATION_FAILED,
+      'RUN_SERIALIZATION_FAILED',
       undefined,
       { parameter: parameter.name, in: parameter.in },
     );
@@ -61,7 +61,7 @@ export function assertRequired(parameter: RunnableParameter, value: RunnerValue 
     throw new SerializationError(
       `parameter '${parameter.name}' is required and was left empty; the operation declares no ` +
         'allowEmptyValue for it',
-      ErrorCode.RUN_SERIALIZATION_FAILED,
+      'RUN_SERIALIZATION_FAILED',
       undefined,
       { parameter: parameter.name, in: parameter.in, kind: value.kind },
     );

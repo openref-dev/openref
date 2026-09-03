@@ -1,7 +1,7 @@
 import { ErrorCode, SlotNotFoundError, ThemeContractError } from '@openref/core';
 import { defineComponent, h } from 'vue';
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_THEME_NAME, defineTheme, resolveTheme } from '../../src/index';
+import { FALLBACK_THEME_NAME, defineTheme, resolveTheme } from '../../src/index';
 
 const Stub = defineComponent({ name: 'Stub', setup: () => () => h('span') });
 
@@ -26,7 +26,7 @@ describe('resolveTheme', () => {
     const theme = resolveTheme();
 
     // Then
-    expect(theme.name).toBe(DEFAULT_THEME_NAME);
+    expect(theme.name).toBe(FALLBACK_THEME_NAME);
     expect(theme.tokens).toEqual({});
     expect(theme.assets).toEqual({});
     expect(theme.slots.overridden()).toEqual([]);

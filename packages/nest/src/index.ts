@@ -615,3 +615,32 @@ export type {
   IRRuntimeMeta,
   IRServer,
 } from '@openref/core';
+
+// THE ERROR CLASSES A CONSUMER OF THIS PACKAGE CAN BE HANDED, RE-EXPORTED SO THEY CAN CATCH THEM.
+// ADDED 2026-09-02. Until then this package exported none, while dozens of `@throws` tags in this
+// same declaration file named them: a consumer read `@throws {InvalidOptionsError}` beside
+// `OpenRefModule.setup`, and could not import the name to write the `catch`. The workaround was a
+// second dependency on `@openref/core` for a class this package throws, which is a dependency the
+// error rule made necessary and nothing made discoverable.
+//
+// IDENTITY, WHICH IS THE HALF A RE-EXPORT COULD HAVE GOT WRONG. `@openref/core` is a real runtime
+// dependency here and is not bundled into `dist/index.js`, so these are the same constructors the
+// throw sites use and `instanceof` answers true. A bundled copy would have exported classes that
+// no thrown error is ever an instance of, which is worse than exporting none, and it is why the
+// pin packs the tarballs and checks a caught error rather than checking that a name exists.
+//
+// THE SET IS EVERY CLASS THIS PACKAGE OR ITS BUNDLED INTERNALS CAN RAISE, PLUS EVERY BASE ABOVE
+// ONE, so `catch (e) { if (e instanceof ConfigError) }` works as well as the leaf. `OpenRefError`
+// is here for the same reason: it is how a consumer catches anything this package raises.
+export {
+  ConfigError,
+  ErrorCode,
+  FederationError,
+  InvalidOptionsError,
+  MergeConflictError,
+  NormalizeError,
+  OpenRefError,
+  ProxyBlockedError,
+  RemoteUnavailableError,
+  RunnerError,
+} from '@openref/core';

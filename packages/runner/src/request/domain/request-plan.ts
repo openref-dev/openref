@@ -12,7 +12,7 @@
  * the response panel. The runner keeps it and hands back only status, headers, body and time.
  */
 
-import { ErrorCode, SerializationError } from '@openref/core';
+import { SerializationError } from '@openref/core';
 import { DEFAULT_MAX_BODY_BYTES, isMultipart, serializeBody } from './body';
 import type { BodyBytes, RunnerBody } from './body';
 import { assertRequired, parameterKey } from './parameters';
@@ -200,7 +200,7 @@ function assertCookieSendable(parameter: RunnableParameter): void {
   throw new SerializationError(
     `parameter '${parameter.name}' is a cookie parameter, which a browser will not let a ` +
       'script set; cookie parameters arrive with the same origin proxy of T029',
-    ErrorCode.RUN_SERIALIZATION_FAILED,
+    'RUN_SERIALIZATION_FAILED',
     undefined,
     { parameter: parameter.name, in: parameter.in },
   );
@@ -220,7 +220,7 @@ function textOf(parameter: RunnableParameter, value: RunnerValue): string {
   if (serialized.form !== 'text') {
     throw new SerializationError(
       `parameter '${parameter.name}' renders as query pieces at a ${parameter.in}`,
-      ErrorCode.RUN_SERIALIZATION_FAILED,
+      'RUN_SERIALIZATION_FAILED',
       undefined,
       { parameter: parameter.name, in: parameter.in, style: parameter.style },
     );
@@ -258,7 +258,7 @@ function fillPath(
       throw new SerializationError(
         `path parameter '${parameter.name}' renders as nothing, which would send the request to ` +
           'a different route than the one it is about',
-        ErrorCode.RUN_SERIALIZATION_FAILED,
+        'RUN_SERIALIZATION_FAILED',
         undefined,
         { parameter: parameter.name, in: 'path', style: parameter.style },
       );
@@ -271,7 +271,7 @@ function fillPath(
   if (leftover !== null) {
     throw new SerializationError(
       `path template holds '{${leftover[1] ?? ''}}', which the operation declares no parameter for`,
-      ErrorCode.RUN_SERIALIZATION_FAILED,
+      'RUN_SERIALIZATION_FAILED',
       undefined,
       { path, placeholder: leftover[1] ?? '' },
     );
@@ -309,7 +309,7 @@ export function buildRequest(
   if (!operation.servers.includes(inputs.serverUrl)) {
     throw new SerializationError(
       `server '${inputs.serverUrl}' is not one this operation declares`,
-      ErrorCode.RUN_SERIALIZATION_FAILED,
+      'RUN_SERIALIZATION_FAILED',
       undefined,
       { serverUrl: inputs.serverUrl, servers: [...operation.servers] },
     );
@@ -382,7 +382,7 @@ function resolveBody(
   if (declared.length > 0 && !declared.includes(mediaType)) {
     throw new SerializationError(
       `media type '${mediaType}' is not one this operation declares a body for`,
-      ErrorCode.RUN_SERIALIZATION_FAILED,
+      'RUN_SERIALIZATION_FAILED',
       undefined,
       { mediaType, declared: [...declared] },
     );

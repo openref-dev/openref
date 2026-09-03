@@ -1,4 +1,4 @@
-import { ErrorCode, OpenRefError, RunnerError } from '@openref/core';
+import { OpenRefError, RunnerError } from '@openref/core';
 import { computed, ref, toValue } from 'vue';
 import type { ComputedRef, MaybeRefOrGetter } from 'vue';
 import { useRunnerPort } from '../runner/api/context';
@@ -202,7 +202,7 @@ export function useRunnerFor(source: MaybeRefOrGetter<RunnerOperationView | unde
         port === undefined
           ? 'no runner was provided above this component, so nothing can be sent'
           : 'this node carries no operation to send',
-        ErrorCode.RUN_NOT_AVAILABLE,
+        'RUN_NOT_AVAILABLE',
         undefined,
         { nodeId: target?.nodeId },
       );
@@ -245,7 +245,7 @@ export function useRunnerFor(source: MaybeRefOrGetter<RunnerOperationView | unde
     if (port === undefined) {
       throw new RunnerError(
         'no runner was provided above this component, so nothing can be signed in',
-        ErrorCode.RUN_NOT_AVAILABLE,
+        'RUN_NOT_AVAILABLE',
         undefined,
         { schemeId },
       );
@@ -255,7 +255,7 @@ export function useRunnerFor(source: MaybeRefOrGetter<RunnerOperationView | unde
     if (signInAt === undefined) {
       throw new RunnerError(
         'the runner this reference was composed with does not run OAuth2 flows',
-        ErrorCode.RUN_NOT_AVAILABLE,
+        'RUN_NOT_AVAILABLE',
         undefined,
         { schemeId },
       );
@@ -294,7 +294,7 @@ export function useRunnerFor(source: MaybeRefOrGetter<RunnerOperationView | unde
       if (flow === undefined) {
         throw new RunnerError(
           'this scheme declares no flow that can be run from a browser',
-          ErrorCode.RUN_AUTH_FAILED,
+          'RUN_AUTH_FAILED',
           undefined,
           { schemeId: scheme.id },
         );

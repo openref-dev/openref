@@ -92,41 +92,41 @@ console does.
 
 ### The runner port
 
-| Name                        | Kind  | What it is                                                                                                                |
-| --------------------------- | ----- | ------------------------------------------------------------------------------------------------------------------------- |
-| `IRunnerPort`               | type  | How a request runner reaches this layer, with the OAuth2 and streaming halves optional                                    |
-| `RUNNER_KEY`                | value | The injection key a runner is provided under                                                                              |
-| `provideRunner`             | value | Provides a runner to everything below                                                                                     |
-| `useRunnerPort`             | value | The runner provided above, or nothing                                                                                     |
-| `runnerOperationOf`         | value | Projects an IR operation into what sending it requires                                                                    |
-| `RunnerOperationView`       | type  | That projection                                                                                                           |
-| `RunnerParameterView`       | type  | One parameter, reduced to what sending it requires                                                                        |
-| `RunnerValue`               | type  | One value a reader supplied, in one of the three kinds of SPEC 14.2                                                       |
-| `RunnerValueKind`           | type  | Which of those three a parameter's schema declares                                                                        |
-| `RunnerBody`                | type  | What a reader supplied for the body                                                                                       |
-| `RunnerBodyField`           | type  | One named field of a form body, as filled in                                                                              |
-| `RunnerBodyEditor`          | type  | Which of the three controls a media type is filled in with                                                                |
-| `RunnerBodyFieldView`       | type  | One field of a form body, as drawn                                                                                        |
-| `RunnerBodyMediaTypeView`   | type  | One declared media type and how it is filled in. Carries optional `exampleText` since `TX-PARITY-UI`, the bench's prefill |
-| `RunnerFile`                | type  | A file the reader chose, as bytes                                                                                         |
-| `RunnerSendInput`           | type  | One send: operation, server, values, body                                                                                 |
-| `RunnerResult`              | type  | What came back, and how long it took                                                                                      |
-| `RunnerResultHeader`        | type  | One response header                                                                                                       |
-| `RunnerNotice`              | type  | Something about the session the response alone does not say                                                               |
-| `RunnerSecuritySchemeView`  | type  | One security scheme, reduced to what signing in requires                                                                  |
-| `RunnerOAuthFlowKind`       | type  | The five OAuth2 flows, keyed as OpenAPI keys them                                                                         |
-| `RunnerOAuthFlowView`       | type  | One flow, reduced to the urls and scopes running it requires                                                              |
-| `RunnerOAuthClient`         | type  | What a reader supplied about an OAuth2 client                                                                             |
-| `RunnerDeviceAuthorization` | type  | What a device flow told the reader to do                                                                                  |
-| `RunnerSignInOutcome`       | type  | Signed in, redirect, or a device to approve                                                                               |
-| `RunnerSessionStatus`       | type  | What one scheme's session looks like to whatever draws it                                                                 |
-| `RunnerStreamView`          | type  | What it takes to watch a streaming operation                                                                              |
-| `StreamItemSchemaView`      | type  | The subset of a schema the bounded item check of SPEC 14.6 reads                                                          |
-| `RunnerStreamElement`       | type  | One element of a running stream                                                                                           |
-| `RunnerStreamEnd`           | type  | How a stream ended, and what it delivered                                                                                 |
-| `RunnerStreamEndReason`     | type  | Which of the six endings it was                                                                                           |
-| `RunnerStreamHandlers`      | type  | Where a running stream reports to                                                                                         |
-| `RunnerStreamHandle`        | type  | A stream that is running, and the one thing that can be done to it                                                        |
+| Name                        | Kind  | What it is                                                                                                                                                |
+| --------------------------- | ----- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `IRunnerPort`               | type  | How a request runner reaches this layer, with the OAuth2 and streaming halves optional                                                                    |
+| `RUNNER_KEY`                | value | The injection key a runner is provided under                                                                                                              |
+| `provideRunner`             | value | Provides a runner to everything below                                                                                                                     |
+| `useRunnerPort`             | value | The runner provided above, or nothing                                                                                                                     |
+| `runnerOperationOf`         | value | Projects an IR operation into what sending it requires                                                                                                    |
+| `RunnerOperationView`       | type  | That projection                                                                                                                                           |
+| `RunnerParameterView`       | type  | One parameter, reduced to what sending it requires                                                                                                        |
+| `RunnerValue`               | type  | One value a reader supplied, in one of the three kinds of SPEC 14.2                                                                                       |
+| `RunnerValueKind`           | type  | Which of those three a parameter's schema declares                                                                                                        |
+| `RunnerBody`                | type  | What a reader supplied for the body                                                                                                                       |
+| `RunnerBodyField`           | type  | One named field of a form body, as filled in                                                                                                              |
+| `RunnerBodyEditor`          | type  | Which of the three controls a media type is filled in with                                                                                                |
+| `RunnerBodyFieldView`       | type  | One field of a form body, as drawn                                                                                                                        |
+| `RunnerBodyMediaTypeView`   | type  | One declared media type and how it is filled in. Carries optional `exampleText` since `TX-PARITY-UI`, the bench's prefill                                 |
+| `RunnerFile`                | type  | A file the reader chose, as bytes                                                                                                                         |
+| `RunnerSendInput`           | type  | One send: operation, server, values, body. The only type of this name since 2026-09-02; `@openref/runner` calls its wider requirement `RunnableSendInput` |
+| `RunnerResult`              | type  | What came back, and how long it took                                                                                                                      |
+| `RunnerResultHeader`        | type  | One response header                                                                                                                                       |
+| `RunnerNotice`              | type  | Something about the session the response alone does not say                                                                                               |
+| `RunnerSecuritySchemeView`  | type  | One security scheme, reduced to what signing in requires                                                                                                  |
+| `RunnerOAuthFlowKind`       | type  | The five OAuth2 flows, keyed as OpenAPI keys them                                                                                                         |
+| `RunnerOAuthFlowView`       | type  | One flow, reduced to the urls and scopes running it requires                                                                                              |
+| `RunnerOAuthClient`         | type  | What a reader supplied about an OAuth2 client                                                                                                             |
+| `RunnerDeviceAuthorization` | type  | What a device flow told the reader to do                                                                                                                  |
+| `RunnerSignInOutcome`       | type  | Signed in, redirect, or a device to approve                                                                                                               |
+| `RunnerSessionStatus`       | type  | What one scheme's session looks like to whatever draws it                                                                                                 |
+| `RunnerStreamView`          | type  | What it takes to watch a streaming operation                                                                                                              |
+| `StreamItemSchemaView`      | type  | The subset of a schema the bounded item check of SPEC 14.6 reads                                                                                          |
+| `RunnerStreamElement`       | type  | One element of a running stream                                                                                                                           |
+| `RunnerStreamEnd`           | type  | How a stream ended, and what it delivered                                                                                                                 |
+| `RunnerStreamEndReason`     | type  | Which of the six endings it was                                                                                                                           |
+| `RunnerStreamHandlers`      | type  | Where a running stream reports to                                                                                                                         |
+| `RunnerStreamHandle`        | type  | A stream that is running, and the one thing that can be done to it                                                                                        |
 
 ### The socket port
 
@@ -249,6 +249,24 @@ here because it is the declared type of something a theme is handed.
 | `UnsendableCause`       | type | Why a scheme cannot be signed in from a browser, as `RunnerSecuritySchemeView` reports it                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | `HandshakeBlockedCause` | type | Why a browser cannot present a scheme when it opens a socket, as `SocketHandshakeBlockView.cause` carries one. Five causes, each with its own route, so a theme that draws the statement of SPEC 14.7 writes a total record over this union. Added at `T055`, minor                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 
+### The error classes this package can hand you
+
+Added 2026-09-02, minor. Every composable here documents `@throws {ThemeContractError} When no
+state was provided above`, and until this table existed a theme author could read that tag and
+not import the name: catching an error this package threw needed a second dependency on
+`@openref/core`, which nothing on this surface said. These are `@openref/core`'s own classes,
+re-exported rather than redeclared, and `@openref/core` is a runtime dependency of this package
+rather than something bundled into it, so `instanceof` answers true for an error thrown from here.
+
+| Name                 | Kind  | What it is                                                                                                                      |
+| -------------------- | ----- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `OpenRefError`       | value | Base of every error the project raises. Catch this to catch anything from here                                                  |
+| `ThemeError`         | value | Base of the two below, for a `catch` that does not care which                                                                   |
+| `ThemeContractError` | value | A theme, or the state above a composable, did not satisfy the contract                                                          |
+| `SlotNotFoundError`  | value | A theme named a position that is not one of the 21 slots, or registered one with nothing to render                              |
+| `RunnerError`        | value | A console asked a runner or a socket client for something the host never supplied                                               |
+| `ErrorCode`          | value | The code on every error, as an object of members and as the union of their literal types. `switch (error.code)` narrows over it |
+
 ### What is on a page and is not on this surface
 
 **The class names the reference leaves in the markup are not frozen, and a theme styles them.**
@@ -285,18 +303,18 @@ origin by a case in the file named above, because a wrong href is a string and r
 
 ### Theme
 
-| Name                 | Kind  | What it is                                                                        |
-| -------------------- | ----- | --------------------------------------------------------------------------------- |
-| `defineTheme`        | value | Declares a theme, which is data and runs nothing at import time                   |
-| `ThemeDefinition`    | type  | A theme as its author writes it                                                   |
-| `ThemeTokens`        | type  | Token defaults, as CSS custom properties                                          |
-| `ThemeAssets`        | type  | Stylesheets a theme brings with it                                                |
-| `resolveTheme`       | value | Validates a theme and resolves it into the form the state holds                   |
-| `ResolvedTheme`      | type  | That form                                                                         |
-| `resolveSlots`       | value | The registry half of it, with `layout` resolved into `AppShell` and no validation |
-| `DEFAULT_THEME_NAME` | value | The name in force when nobody supplied a theme                                    |
-| `useTheme`           | value | The theme in force, its tokens, its assets and what it overrides                  |
-| `UseTheme`           | type  | What that returns                                                                 |
+| Name                  | Kind  | What it is                                                                                                                                                               |
+| --------------------- | ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `defineTheme`         | value | Declares a theme, which is data and runs nothing at import time                                                                                                          |
+| `ThemeDefinition`     | type  | A theme as its author writes it                                                                                                                                          |
+| `ThemeTokens`         | type  | Token defaults, as CSS custom properties                                                                                                                                 |
+| `ThemeAssets`         | type  | Stylesheets a theme brings with it                                                                                                                                       |
+| `resolveTheme`        | value | Validates a theme and resolves it into the form the state holds                                                                                                          |
+| `ResolvedTheme`       | type  | That form                                                                                                                                                                |
+| `resolveSlots`        | value | The registry half of it, with `layout` resolved into `AppShell` and no validation                                                                                        |
+| `FALLBACK_THEME_NAME` | value | The name of the empty theme `resolveTheme` invents when handed none. NOT the default theme's name, which is `DEFAULT_THEME_NAME` in `@openref/theme` and reads `vernier` |
+| `useTheme`            | value | The theme in force, its tokens, its assets and what it overrides                                                                                                         |
+| `UseTheme`            | type  | What that returns                                                                                                                                                        |
 
 ### Composables
 

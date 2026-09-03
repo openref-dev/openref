@@ -18,7 +18,7 @@
  */
 
 import { createHash } from 'node:crypto';
-import { caseFoldForFilesystem, ErrorCode, InvalidOptionsError } from '@openref/core';
+import { caseFoldForFilesystem, InvalidOptionsError } from '@openref/core';
 
 /** Number of hexadecimal characters of the digest that appear in a served name. */
 export const DIGEST_LENGTH = 16;
@@ -78,7 +78,7 @@ export function contentTypeFor(name: string): string {
   if (contentType === undefined) {
     throw new InvalidOptionsError(
       `no content type is declared for the asset "${name}"`,
-      ErrorCode.CONFIG_INVALID_OPTIONS,
+      'CONFIG_INVALID_OPTIONS',
       undefined,
       { name, extension },
     );
@@ -182,7 +182,7 @@ export function rewriteCssUrls(
     if (served === undefined) {
       throw new InvalidOptionsError(
         `the stylesheet refers to "${reference}", which is not among the assets being served`,
-        ErrorCode.CONFIG_INVALID_OPTIONS,
+        'CONFIG_INVALID_OPTIONS',
         undefined,
         { reference },
       );
@@ -270,7 +270,7 @@ export function rewriteJsSpecifiers(
       throw new InvalidOptionsError(
         `the module refers to "./${name}", which is not among the assets being served. A chunk ` +
           'that is not served is a feature that fails when a reader reaches for it',
-        ErrorCode.CONFIG_INVALID_OPTIONS,
+        'CONFIG_INVALID_OPTIONS',
         undefined,
         { reference: name },
       );
@@ -335,7 +335,7 @@ export function buildAssetCatalog(sources: readonly AssetSource[]): AssetCatalog
     if (seen.has(source.name)) {
       throw new InvalidOptionsError(
         `the asset "${source.name}" is offered twice, so one copy would be unreachable`,
-        ErrorCode.CONFIG_INVALID_OPTIONS,
+        'CONFIG_INVALID_OPTIONS',
         undefined,
         { name: source.name },
       );
@@ -377,7 +377,7 @@ export function buildAssetCatalog(sources: readonly AssetSource[]): AssetCatalog
       throw new InvalidOptionsError(
         `these assets refer to each other in a cycle, so none of them can be named after its ` +
           `contents: ${pending.map((source) => source.name).join(', ')}`,
-        ErrorCode.CONFIG_INVALID_OPTIONS,
+        'CONFIG_INVALID_OPTIONS',
         undefined,
         { names: pending.map((source) => source.name) },
       );
@@ -444,7 +444,7 @@ function refuseCollidingServedNames(assets: readonly CatalogAsset[]): void {
         `the assets "${first.name}" and "${asset.name}" are both served as ` +
           `"${asset.servedName}" once case and unicode normalization are folded, so one would be ` +
           'served in place of the other under a name cached as immutable',
-        ErrorCode.CONFIG_INVALID_OPTIONS,
+        'CONFIG_INVALID_OPTIONS',
         undefined,
         { first: first.name, second: asset.name, servedName: asset.servedName },
       );

@@ -14,7 +14,7 @@
  * this tool is most useful.
  */
 
-import { AuthError, ErrorCode } from '@openref/core';
+import { AuthError } from '@openref/core';
 import { isHttpUrl, isSecureCredentialUrl } from '@openref/core/security';
 import { formEncode } from '../../request/domain/body';
 import type {
@@ -158,7 +158,7 @@ export function authorizationUrl(
   if (base === '') {
     throw new AuthError(
       `the ${flow.kind} flow declares no authorization url, so there is nowhere to send the reader`,
-      ErrorCode.RUN_AUTH_FAILED,
+      'RUN_AUTH_FAILED',
       undefined,
       { flow: flow.kind },
     );
@@ -176,7 +176,7 @@ export function authorizationUrl(
     throw new AuthError(
       'the authorization code flow was started without a PKCE challenge, which SPEC 14.4 makes ' +
         'mandatory; this is a defect in the caller rather than something to retry',
-      ErrorCode.RUN_AUTH_FAILED,
+      'RUN_AUTH_FAILED',
       undefined,
       { flow: flow.kind },
     );
@@ -265,7 +265,7 @@ export function readAuthorizationCode(
   if (code === '') {
     throw new AuthError(
       'the authorization server came back without a code, so there is nothing to exchange',
-      ErrorCode.RUN_AUTH_FAILED,
+      'RUN_AUTH_FAILED',
       undefined,
       { schemeId: pending.schemeId },
     );
@@ -277,7 +277,7 @@ export function readAuthorizationCode(
     throw new AuthError(
       'this authorization has no PKCE verifier, so the code cannot be exchanged; PKCE S256 is ' +
         'mandatory on the authorization code flow and an exchange without it is not attempted',
-      ErrorCode.RUN_AUTH_FAILED,
+      'RUN_AUTH_FAILED',
       undefined,
       { schemeId: pending.schemeId },
     );
@@ -309,7 +309,7 @@ export function readImplicitToken(
   if (accessToken === '') {
     throw new AuthError(
       'the authorization server came back without an access token',
-      ErrorCode.RUN_AUTH_FAILED,
+      'RUN_AUTH_FAILED',
       undefined,
       { schemeId: pending.schemeId },
     );
@@ -319,7 +319,7 @@ export function readImplicitToken(
   // not pass through `parseTokenResponse` and needs the same refusal of its own.
   const unsendable = unsendableTokenReason(accessToken);
   if (unsendable !== undefined) {
-    throw new AuthError(unsendable, ErrorCode.RUN_AUTH_FAILED, undefined, {
+    throw new AuthError(unsendable, 'RUN_AUTH_FAILED', undefined, {
       schemeId: pending.schemeId,
     });
   }
@@ -346,7 +346,7 @@ function assertNoError(params: CallbackParams, pending: PendingAuthorization): v
   throw new AuthError(
     `the authorization server refused the request with '${error}'` +
       (description === '' ? '' : `: ${description}`),
-    ErrorCode.RUN_AUTH_FAILED,
+    'RUN_AUTH_FAILED',
     undefined,
     { schemeId: pending.schemeId, error },
   );
@@ -358,7 +358,7 @@ function assertState(params: CallbackParams, pending: PendingAuthorization): voi
   throw new AuthError(
     'this authorization answer carries a state this page did not send, so it belongs to another ' +
       'request and is refused',
-    ErrorCode.RUN_AUTH_FAILED,
+    'RUN_AUTH_FAILED',
     undefined,
     { schemeId: pending.schemeId },
   );
@@ -422,7 +422,7 @@ export function passwordPlan(flow: RunnableOAuthFlow, client: OAuthClient): Requ
   if ((client.username ?? '') === '') {
     throw new AuthError(
       'the password grant needs the resource owner username and password, and none was supplied',
-      ErrorCode.RUN_AUTH_FAILED,
+      'RUN_AUTH_FAILED',
       undefined,
       { flow: flow.kind },
     );
@@ -457,7 +457,7 @@ export function refreshPlan(
   if (url === '') {
     throw new AuthError(
       `the ${flow.kind} flow declares no token url, so a session cannot be renewed`,
-      ErrorCode.RUN_AUTH_FAILED,
+      'RUN_AUTH_FAILED',
       undefined,
       { flow: flow.kind },
     );
@@ -486,7 +486,7 @@ export function deviceAuthorizationPlan(flow: RunnableOAuthFlow, client: OAuthCl
   if (url === '') {
     throw new AuthError(
       'the device flow declares no device authorization url, so it cannot be started',
-      ErrorCode.RUN_AUTH_FAILED,
+      'RUN_AUTH_FAILED',
       undefined,
       { flow: flow.kind },
     );
@@ -559,7 +559,7 @@ function assertVerificationUri(value: string, field: string, status: number): vo
   } catch {
     throw new AuthError(
       `the device authorization endpoint's ${field} is not an absolute url`,
-      ErrorCode.RUN_AUTH_FAILED,
+      'RUN_AUTH_FAILED',
       undefined,
       { status, field, value },
     );
@@ -569,7 +569,7 @@ function assertVerificationUri(value: string, field: string, status: number): vo
     throw new AuthError(
       `the device authorization endpoint's ${field} names the scheme ` +
         `${parsed.protocol.replace(':', '')}, and the reader is only ever sent to http or https`,
-      ErrorCode.RUN_AUTH_FAILED,
+      'RUN_AUTH_FAILED',
       undefined,
       { status, field, value },
     );
@@ -583,7 +583,7 @@ function secureFlowUrl(url: string, what: string, flow: string): string {
   } catch {
     throw new AuthError(
       `the ${flow} flow's ${what} is not an absolute url, so there is nowhere to send anything`,
-      ErrorCode.RUN_AUTH_FAILED,
+      'RUN_AUTH_FAILED',
       undefined,
       { flow, what, url },
     );
@@ -593,7 +593,7 @@ function secureFlowUrl(url: string, what: string, flow: string): string {
     throw new AuthError(
       `the ${flow} flow's ${what} is ${parsed.protocol.replace(':', '')} rather than https, and a ` +
         'credential is not sent over it. Only a loopback host is admitted without https',
-      ErrorCode.RUN_AUTH_FAILED,
+      'RUN_AUTH_FAILED',
       undefined,
       { flow, what, url },
     );
@@ -607,7 +607,7 @@ function tokenUrlOf(flow: RunnableOAuthFlow): string {
   if (url === '') {
     throw new AuthError(
       `the ${flow.kind} flow declares no token url, so there is nowhere to ask for a token`,
-      ErrorCode.RUN_AUTH_FAILED,
+      'RUN_AUTH_FAILED',
       undefined,
       { flow: flow.kind },
     );
@@ -816,7 +816,7 @@ export function parseDeviceAuthorization(status: number, body: string): DeviceAu
       refused === undefined
         ? `the device authorization endpoint answered ${String(status)} with no device code`
         : `the device authorization endpoint refused the request with '${refused}'`,
-      ErrorCode.RUN_AUTH_FAILED,
+      'RUN_AUTH_FAILED',
       undefined,
       { status },
     );
@@ -826,7 +826,7 @@ export function parseDeviceAuthorization(status: number, body: string): DeviceAu
     throw new AuthError(
       'the device authorization endpoint named no verification url, so the reader has nowhere ' +
         'to enter the code',
-      ErrorCode.RUN_AUTH_FAILED,
+      'RUN_AUTH_FAILED',
       undefined,
       { status },
     );

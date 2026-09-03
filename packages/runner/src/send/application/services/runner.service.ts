@@ -7,7 +7,7 @@
  * page, a log or a screenshot.
  */
 
-import { ErrorCode, InvalidOptionsError } from '@openref/core';
+import { InvalidOptionsError } from '@openref/core';
 import {
   OAuthSessionService,
   type RenewOutcome,
@@ -144,8 +144,28 @@ export interface RunResult {
   readonly notice?: RunNotice;
 }
 
-/** One send: which operation, against which server, with what typed into it. */
-export interface RunnerSendInput {
+/**
+ * One send: which operation, against which server, with what typed into it.
+ *
+ * NAMED `RunnableSendInput` AND NOT `RunnerSendInput` SINCE 2026-09-02, AND THE RENAME IS THE
+ * WHOLE POINT. `@openref/vue` publishes an interface called `RunnerSendInput` too, and the two
+ * were not the same type: this one takes a {@link RunnableOperation}, that one takes a
+ * `RunnerOperationView`, and the difference is not cosmetic. Measured with the compiler over both
+ * published `.d.ts` files: a value of this type handed to `IRunnerPort.send` is rejected, because
+ * `RunnableParameter` has no `valueKind` and `RunnerParameterView` requires one; a value of the
+ * vue type handed here is accepted, because the view is the narrower of the two. So one name
+ * covered a shape and a strict subtype of it, in two packages a consumer installs together, and
+ * the compiler error did not even print the same name on both sides: `@openref/vue` re-exports
+ * its copy through a content hashed chunk, so the message read `is not assignable to parameter of
+ * type 's'`.
+ *
+ * THE VUE ONE IS THE CONTRACT AND THIS ONE IS THE REQUIREMENT, which is why this side moved. What
+ * `IRunnerPort.send` names is what a console actually hands over; what this names is the least an
+ * operation must carry for a plan to be built from it. The `Runnable` prefix is this package's own
+ * family for that idea, `RunnableOperation`, `RunnableParameter`, `RunnableSecurityScheme`,
+ * `RunnableStream`, and this interface is made of them.
+ */
+export interface RunnableSendInput {
   readonly operation: RunnableOperation;
   readonly serverUrl: string;
   /** Parameter values keyed by `${location}:${name}`, absent when the reader filled nothing in. */
@@ -239,11 +259,11 @@ export class RequestRunner {
    * @example
    * const result = await runner.send({ operation, serverUrl, values: { 'path:id': '42' } });
    */
-  async send(input: RunnerSendInput): Promise<RunResult> {
+  async send(input: RunnableSendInput): Promise<RunResult> {
     if (input.operation.servers.length === 0) {
       throw new InvalidOptionsError(
         'the document declares no server, so there is nowhere to send this request',
-        ErrorCode.CONFIG_INVALID_OPTIONS,
+        'CONFIG_INVALID_OPTIONS',
         undefined,
         { nodeId: input.operation.nodeId },
       );
@@ -308,7 +328,7 @@ export class RequestRunner {
    * @example
    * const stream = runner.stream(input, { onElement: show });
    */
-  stream(input: RunnerSendInput, handlers: StreamHandlers): StreamHandle {
+  stream(input: RunnableSendInput, handlers: StreamHandlers): StreamHandle {
     const transport = this.streamTransport;
     if (transport === undefined) throw noStreamTransport();
 
@@ -316,7 +336,7 @@ export class RequestRunner {
     if (declared === undefined) {
       throw new InvalidOptionsError(
         'this operation is not declared as a stream, so there is nothing to watch',
-        ErrorCode.CONFIG_INVALID_OPTIONS,
+        'CONFIG_INVALID_OPTIONS',
         undefined,
         { nodeId: input.operation.nodeId },
       );
@@ -325,7 +345,7 @@ export class RequestRunner {
     if (input.operation.servers.length === 0) {
       throw new InvalidOptionsError(
         'the document declares no server, so there is nowhere to open this stream',
-        ErrorCode.CONFIG_INVALID_OPTIONS,
+        'CONFIG_INVALID_OPTIONS',
         undefined,
         { nodeId: input.operation.nodeId },
       );
@@ -453,7 +473,7 @@ export class RequestRunner {
     return this.sessions.renew(schemeId);
   }
 
-  private planFor(input: RunnerSendInput, boundary: string): RequestPlan {
+  private planFor(input: RunnableSendInput, boundary: string): RequestPlan {
     const credentials: Record<string, string> = {};
     for (const scheme of input.operation.security) {
       const value = this.store.read(scheme.id);

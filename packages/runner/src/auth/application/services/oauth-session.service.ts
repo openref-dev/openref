@@ -20,7 +20,7 @@
  * is asserted by a test rather than described here.
  */
 
-import { AuthError, ErrorCode } from '@openref/core';
+import { AuthError } from '@openref/core';
 import type { IHttpTransport } from '../../../send/application/ports/http-transport.port';
 import { base64UrlText } from '../../domain/base64';
 import type { CredentialStorageMode, CredentialStore } from '../../domain/credentials';
@@ -110,7 +110,7 @@ export interface OAuthSessionOptions {
 }
 
 function refuse(message: string, context: Record<string, unknown>): never {
-  throw new AuthError(message, ErrorCode.RUN_AUTH_FAILED, undefined, context);
+  throw new AuthError(message, 'RUN_AUTH_FAILED', undefined, context);
 }
 
 /**

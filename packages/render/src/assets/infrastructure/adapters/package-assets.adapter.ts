@@ -30,7 +30,7 @@
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
-import { ErrorCode, InvalidOptionsError } from '@openref/core';
+import { InvalidOptionsError } from '@openref/core';
 import { chunkReferences, siblingReferences, type AssetSource } from '../../domain/asset-catalog';
 
 /** Resolver used to find a file inside an installed package. */
@@ -73,7 +73,7 @@ function readAsset(path: string, specifier: string): Uint8Array {
   } catch (cause) {
     throw new InvalidOptionsError(
       `the asset "${specifier}" could not be read from ${path}`,
-      ErrorCode.CONFIG_INVALID_OPTIONS,
+      'CONFIG_INVALID_OPTIONS',
       cause instanceof Error ? cause : undefined,
       { path, specifier },
     );
@@ -112,7 +112,7 @@ export function resolveAssetPath(specifier: string, resolveFrom?: string): strin
 
   throw new InvalidOptionsError(
     `"${specifier}" could not be resolved from the caller, from this package or from the application; is the package installed?`,
-    ErrorCode.CONFIG_INVALID_OPTIONS,
+    'CONFIG_INVALID_OPTIONS',
     last instanceof Error ? last : undefined,
     { specifier },
   );

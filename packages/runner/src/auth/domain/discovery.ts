@@ -13,7 +13,7 @@
  * The one thing discovery is not allowed to do is negotiate SPEC 14.4's mandatory rule downwards.
  */
 
-import { AuthError, ErrorCode } from '@openref/core';
+import { AuthError } from '@openref/core';
 import { isSecureCredentialUrl } from '@openref/core/security';
 import type { RequestPlan, RunnableOAuthFlow } from '../../request/domain/request-plan';
 import type { IHttpTransport } from '../../send/application/ports/http-transport.port';
@@ -27,7 +27,7 @@ export interface DiscoveredProvider {
 }
 
 function refuse(message: string, context: Record<string, unknown>): never {
-  throw new AuthError(message, ErrorCode.RUN_AUTH_FAILED, undefined, context);
+  throw new AuthError(message, 'RUN_AUTH_FAILED', undefined, context);
 }
 
 /**

@@ -40,3 +40,10 @@ export type { AdoptedSlotProblem } from './harness/domain/probe-adopted';
 
 export { scaffoldTheme } from './scaffold/domain/scaffold-theme';
 export type { ScaffoldFile, ScaffoldOptions } from './scaffold/domain/scaffold-theme';
+
+// THE ERROR CLASSES A CONSUMER OF THIS PACKAGE CAN BE HANDED, RE-EXPORTED SO THEY CAN CATCH THEM.
+// ADDED 2026-09-02. `assertTheme` documents `@throws {ThemeContractError}` and is the one thing a
+// theme author runs in their own test suite, which is exactly the place the class has to be
+// importable: a `expect(() => assertTheme(theme)).toThrow(ThemeContractError)` needed a second
+// dependency on `@openref/core` to be written at all.
+export { ErrorCode, OpenRefError, ThemeContractError, ThemeError } from '@openref/core';

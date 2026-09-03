@@ -23,7 +23,7 @@
  * verifier that proves nothing, so this one has no fallback and says why.
  */
 
-import { AuthError, ErrorCode } from '@openref/core';
+import { AuthError } from '@openref/core';
 import { base64UrlBytes } from './base64';
 
 /** The one code challenge method this runner will use, per SPEC 14.4. */
@@ -69,7 +69,7 @@ export function randomBytes(random: RandomBytes | undefined, length: number): Ui
     throw new AuthError(
       'this runtime has no random source, and an authorization flow with a guessable verifier ' +
         'or state proves nothing; sign in from a browser that provides crypto.getRandomValues',
-      ErrorCode.RUN_AUTH_FAILED,
+      'RUN_AUTH_FAILED',
     );
   }
 
@@ -111,7 +111,7 @@ export async function pkceChallengeFor(verifier: string): Promise<string> {
     throw new AuthError(
       'this runtime exposes no SHA-256, so the mandatory PKCE challenge cannot be derived; a ' +
         'secure context is what provides it, and an authorization flow needs one anyway',
-      ErrorCode.RUN_AUTH_FAILED,
+      'RUN_AUTH_FAILED',
     );
   }
 

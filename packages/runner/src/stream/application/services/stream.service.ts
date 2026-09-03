@@ -18,7 +18,7 @@
  * count that agreed with the window would be a count of what has not scrolled away.
  */
 
-import { ErrorCode, RunnerError } from '@openref/core';
+import { RunnerError } from '@openref/core';
 import type { RequestPlan } from '../../../request/domain/request-plan';
 import { StreamDecoder, ElementTooLargeError, type StreamFormat } from '../../domain/decoder';
 import { checkStreamItem, type StreamItemSchema } from '../../domain/item-check';
@@ -293,6 +293,6 @@ export function runStream(
 export function noStreamTransport(): RunnerError {
   return new RunnerError(
     'this runner was built without a stream transport, so it cannot open a stream',
-    ErrorCode.RUN_NOT_AVAILABLE,
+    'RUN_NOT_AVAILABLE',
   );
 }

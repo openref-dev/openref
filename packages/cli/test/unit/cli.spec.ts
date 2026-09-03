@@ -16,14 +16,32 @@ import { PACKAGE_NAME, UPSTREAM_PACKAGES } from '../../src/index';
  * here, so this pins what the JavaScript surface is; SPEC 17.2 records the whole of it.
  */
 const PUBLISHED: readonly string[] = [
+  'ApplicationBootError',
+  'CliError',
   'DEFAULT_CLOSE_TIMEOUT_MS',
   'EXIT_CODE',
+  'ErrorCode',
+  'NormalizeError',
+  'OpenRefError',
   'PACKAGE_NAME',
+  'ShutdownTimeoutError',
   'UPSTREAM_PACKAGES',
+  'UsageError',
   'loadDocument',
   'loadFromNestApplication',
   'runCli',
 ];
+
+/*
+ * SEVEN ERROR NAMES ARRIVED ON 2026-09-02, AND THIS PIN IS WHY THEY ARE IN A LIST RATHER THAN A
+ * SURPRISE. They are not names added for a test's convenience, which is what the rule above is
+ * about: `loadDocument` raises `UsageError` and lets `NormalizeError` through, and
+ * `loadFromNestApplication` raises `ApplicationBootError` and `ShutdownTimeoutError`, all four
+ * named in `@throws` tags that shipped in `dist/index.d.ts` while the classes could not be
+ * imported from here. `CliError` and `OpenRefError` are the two bases above them, so a consumer
+ * can catch the family, and `ErrorCode` is what `error.code` is. `runCli` is unaffected: it still
+ * never throws.
+ */
 
 describe('openref package shell', () => {
   it('should export exactly the names it publishes, and gain none for a test', () => {

@@ -17,7 +17,7 @@
  * `text()` that buffers whatever arrives. Neither was a refusal. Both were a hang.
  */
 
-import { ErrorCode, RunnerError } from '@openref/core';
+import { RunnerError } from '@openref/core';
 import type { BodyBytes } from '../../../request/domain/body';
 import type { RequestPlan } from '../../../request/domain/request-plan';
 import type {
@@ -135,7 +135,7 @@ function isAbort(error: unknown): boolean {
 function tooLarge(limit: number, url: string): RunnerError {
   return new RunnerError(
     `the response is larger than the ${String(limit)} bytes this console will read`,
-    ErrorCode.RUN_RESPONSE_TOO_LARGE,
+    'RUN_RESPONSE_TOO_LARGE',
     undefined,
     { url, limit },
   );
@@ -211,7 +211,7 @@ export class FetchHttpTransport implements IHttpTransport {
     if (send === null) {
       throw new RunnerError(
         'no fetch implementation is available, so the try-it console cannot send anything',
-        ErrorCode.RUN_NOT_AVAILABLE,
+        'RUN_NOT_AVAILABLE',
       );
     }
 
@@ -238,7 +238,7 @@ export class FetchHttpTransport implements IHttpTransport {
       if (isAbort(cause)) {
         throw new RunnerError(
           `the server did not answer inside ${String(this.timeoutMs)} ms, so the request was cancelled`,
-          ErrorCode.RUN_TIMEOUT,
+          'RUN_TIMEOUT',
           cause instanceof Error ? cause : undefined,
           { url: plan.url, timeoutMs: this.timeoutMs },
         );
@@ -246,7 +246,7 @@ export class FetchHttpTransport implements IHttpTransport {
 
       throw new RunnerError(
         'the request did not reach a server; the host may be unreachable or may refuse this origin',
-        ErrorCode.RUN_NOT_AVAILABLE,
+        'RUN_NOT_AVAILABLE',
         cause instanceof Error ? cause : undefined,
         { url: plan.url },
       );
@@ -265,14 +265,14 @@ export class FetchHttpTransport implements IHttpTransport {
       if (isAbort(cause)) {
         throw new RunnerError(
           `the server stopped sending inside ${String(this.timeoutMs)} ms, so the request was cancelled`,
-          ErrorCode.RUN_TIMEOUT,
+          'RUN_TIMEOUT',
           cause instanceof Error ? cause : undefined,
           { url: plan.url, timeoutMs: this.timeoutMs },
         );
       }
       throw new RunnerError(
         'the response body could not be read to the end',
-        ErrorCode.RUN_STREAM_FAILED,
+        'RUN_STREAM_FAILED',
         cause instanceof Error ? cause : undefined,
         { url: plan.url },
       );

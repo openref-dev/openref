@@ -40,7 +40,7 @@
  * tested hardest.
  */
 
-import { ErrorCode, RunnerError } from '@openref/core';
+import { RunnerError } from '@openref/core';
 import { isHttpUrl, refusesPathSuffix } from '@openref/core/security';
 import type { RequestPlan } from '../../../request/domain/request-plan';
 import type {
@@ -185,7 +185,7 @@ export class PathRewriteHttpTransport implements IHttpTransport {
     if (!options.prefix.startsWith('/') || options.prefix.startsWith('//')) {
       throw new RunnerError(
         `the proxy prefix must be an absolute path on this origin, received '${options.prefix}'`,
-        ErrorCode.CONFIG_INVALID_OPTIONS,
+        'CONFIG_INVALID_OPTIONS',
         undefined,
         { prefix: options.prefix },
       );
@@ -211,7 +211,7 @@ export class PathRewriteHttpTransport implements IHttpTransport {
       throw new RunnerError(
         `the servers this page can reach are the ${String(this.upstreams.length)} its build ` +
           `pinned a proxy rule for; ${serverOf(plan.url)} is not one`,
-        ErrorCode.RUN_PROXY_HOST_BLOCKED,
+        'RUN_PROXY_HOST_BLOCKED',
         undefined,
         { upstreams: [...this.upstreams] },
       );
@@ -221,7 +221,7 @@ export class PathRewriteHttpTransport implements IHttpTransport {
       throw new RunnerError(
         'the proxy rules refuse a path with a dot segment or an ambiguous percent encoding, ' +
           'either of which can climb above the upstream the rule pinned',
-        ErrorCode.RUN_PROXY_HOST_BLOCKED,
+        'RUN_PROXY_HOST_BLOCKED',
         undefined,
         { rest: match.rest },
       );
