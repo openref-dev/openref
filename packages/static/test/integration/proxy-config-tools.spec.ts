@@ -192,19 +192,28 @@ describe('the nginx snippet through nginx -t, where a machine has nginx', () => 
       // The case had simply never executed: the workstation has no nginx, so it skipped on every
       // run for two milestones and first ran on the first push to CI. `-t` parses without
       // binding, so the port only has to be a port.
-      await writeFile(
-        conf,
+      //
+      // AND A PID PATH THIS USER CAN WRITE, WHICH IS THE SAME MISTAKE A THIRD TIME. `-t` does not
+      // only parse: having said `syntax is ok` it opens the pid file, and with none declared that
+      // is the path nginx was compiled with. Homebrew compiles `--pid-path=/opt/homebrew/var/run`,
+      // which the workstation user owns, and the distribution packages compile `/run/nginx.pid`,
+      // which root owns, so the runner failed on `open() ... (13: Permission denied)` after
+      // passing the check this case is about. Reproduced here by pointing `pid` at an unwritable
+      // path, which fails the same way on macOS. Every defect this case has had is the scaffold
+      // assuming an environment, which is what a wrapper nobody ever ran is made of.
+      const wrapper = (body: string): string =>
         [
           'events {}',
+          `pid ${join(directory, 'nginx.pid')};`,
           'http {',
           '  server {',
-          '    listen 127.0.0.1:8080;',
-          `    include ${snippet};`,
+          body,
           '  }',
           '}',
           '',
-        ].join('\n'),
-      );
+        ].join('\n');
+
+      await writeFile(conf, wrapper(`    listen 127.0.0.1:8080;\n    include ${snippet};`));
 
       // When, Then: -t parses without starting, and a planted broken include fails.
       await run('nginx', ['-t', '-c', conf, '-p', directory, '-e', join(directory, 'error.log')]);
@@ -212,13 +221,15 @@ describe('the nginx snippet through nginx -t, where a machine has nginx', () => 
       const brokenSnippet = join(directory, 'broken.nginx.conf');
       await writeFile(brokenSnippet, 'location { nonsense');
       const brokenConf = join(directory, 'nginx-broken.conf');
-      await writeFile(
-        brokenConf,
-        `events {}\nhttp {\n  server {\n    include ${brokenSnippet};\n  }\n}\n`,
-      );
+      await writeFile(brokenConf, wrapper(`    include ${brokenSnippet};`));
+      // THE CONTROL HAS TO FAIL ON THE PLANT AND NOT ON THE MACHINE, which is why the message is
+      // named rather than only the rejection. The pid defect above made this half throw for a
+      // reason that had nothing to do with the planted garbage, so a bare `toThrow` would have
+      // gone green on a scaffold that never validated anything at all, which is the failure the
+      // header of this file calls a green lie.
       await expect(
         run('nginx', ['-t', '-c', brokenConf, '-p', directory, '-e', join(directory, 'error.log')]),
-      ).rejects.toThrow();
+      ).rejects.toThrow(/"location" directive/);
     },
     SPAWNED_PROCESS_TIMEOUT_MS,
   );
