@@ -28,8 +28,27 @@ const OPTIONS = {
   forwardCookies: false,
 };
 
-function contentOf(target: Parameters<typeof generateProxyFiles>[0]): string {
-  const [file] = generateProxyFiles(target, OPTIONS);
+/**
+ * The same options with upstreams that resolve, for the one validator that resolves them.
+ *
+ * `nginx -t` RESOLVES EVERY LITERAL `proxy_pass` HOST WHILE IT PARSES, and fails the whole test
+ * with `host not found in upstream` when one does not exist. `api.example.com` does not: the
+ * reserved name is `example.com` itself and it carries no wildcard, so the check above was asking
+ * a DNS question it thought was a syntax question. `localhost` answers from the hosts file on
+ * every platform with no network at all. Which host stands in `proxy_pass` is not what this case
+ * asserts, and the two cases that do pin the host, netlify and vercel, keep `OPTIONS` unchanged.
+ */
+const RESOLVABLE_OPTIONS = {
+  upstreams: ['https://localhost/v1', 'http://localhost:8080'],
+  basePath: '/docs',
+  forwardCookies: false,
+};
+
+function contentOf(
+  target: Parameters<typeof generateProxyFiles>[0],
+  options: typeof OPTIONS = OPTIONS,
+): string {
+  const [file] = generateProxyFiles(target, options);
   if (file === undefined) throw new Error(`no file generated for ${target}`);
   return file.content;
 }
@@ -163,15 +182,23 @@ describe('the nginx snippet through nginx -t, where a machine has nginx', () => 
       }
 
       const snippet = join(directory, 'openref-proxy.nginx.conf');
-      await writeFile(snippet, contentOf('nginx'));
+      await writeFile(snippet, contentOf('nginx', RESOLVABLE_OPTIONS));
       const conf = join(directory, 'nginx.conf');
+      // A REAL PORT IN THE SCAFFOLD, BECAUSE PORT 0 IS NOT ONE TO nginx. This wrapper is the
+      // test's own, not the generated snippet, and it used to say `listen 127.0.0.1:0` on the
+      // assumption that zero reads as "any port" the way it does to bind(2). nginx parses the
+      // directive itself and refuses: `invalid port in "127.0.0.1:0"`, which is measured the same
+      // on nginx 1.31.5 on macOS and on the runner's, so this was never a platform difference.
+      // The case had simply never executed: the workstation has no nginx, so it skipped on every
+      // run for two milestones and first ran on the first push to CI. `-t` parses without
+      // binding, so the port only has to be a port.
       await writeFile(
         conf,
         [
           'events {}',
           'http {',
           '  server {',
-          '    listen 127.0.0.1:0;',
+          '    listen 127.0.0.1:8080;',
           `    include ${snippet};`,
           '  }',
           '}',

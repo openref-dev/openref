@@ -15,7 +15,7 @@ import { representativeInputs, representativeOperation } from '../mocks/operatio
  * `@openref/render` and this package cannot see it. The section states how they are reproduced,
  * from this same fixture.
  */
-const REPRESENTATIVE_RAW_BYTES = 7093;
+const REPRESENTATIVE_RAW_BYTES = 7164;
 
 describe('the representative operation the T059 section is measured from', () => {
   it('should produce fifteen samples weighing the bytes the specification states', () => {

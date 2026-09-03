@@ -48,6 +48,12 @@ describe('Swift', () => {
     // Then
     expect(source).toContain('import Foundation');
     expect(source).toContain('var request = URLRequest(url: URL(string: ');
+    // The URL loading system is a separate module on Linux, so a sample without this block is a
+    // sample that does not compile for most of the readers of this tab. Pinned because the only
+    // machine that ran the generated program for two milestones was a Mac, where it cannot fail.
+    expect(source).toContain(
+      'import Foundation\n#if canImport(FoundationNetworking)\nimport FoundationNetworking\n#endif\n',
+    );
     expect(source).toContain('request.httpMethod = "POST"');
     expect(source).toContain(
       'request.setValue("application/json", forHTTPHeaderField: "Content-Type")',
