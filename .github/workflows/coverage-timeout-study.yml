@@ -22,9 +22,14 @@ name: Coverage timeout study
 # and this repository has three studies on record measuring the same page on three different ones.
 # A duration with no machine beside it is not a measurement.
 
+# THE PATH FILTER IS WHAT KEEPS THIS FROM BEING A TAX ON ORDINARY WORK. Twelve instrumented
+# coverage runs is about three hours of runner time, and none of it is caused by a commit to the
+# product: the study re-runs when the study itself changes, and `workflow_dispatch` is here for the
+# day this file is on the default branch, exactly as `page-language-bytes.yml` explains.
 on:
   push:
     branches: ['coverage-timeouts/**']
+    paths: ['.github/workflows/coverage-timeout-study.yml']
   workflow_dispatch:
 
 jobs:

@@ -269,6 +269,37 @@ function assignmentProbe(name: string, from: Exported, to: Exported, index: numb
   );
 }
 
+/**
+ * The hang catcher the compiling case declares, because its cost is the compiler.
+ *
+ * F25, AND THE CLASS IS THE ONE `vitest.spawn-timeout.ts` NAMES rather than the class vitest's
+ * five second default was chosen for. The case below writes 186 assignment probes and asks a
+ * TypeScript program to check every one of them against thirteen declaration entry points of
+ * eleven published packages. What that costs is set by the compiler and by the size of the
+ * declaration graph, and neither is a property of the agreement being asserted; the assertion
+ * itself is a comparison of two arrays.
+ *
+ * MEASURED ON THE RUNNER, WHICH IS THE ONLY INSTRUMENT THAT COUNTS HERE. Nine coverage runs on
+ * 2026-09-03, on the four vCPU `ubuntu-latest` runner under V8 instrumentation, over Node 22.22.2
+ * and Node 24, spread across an AMD EPYC 7763, an EPYC 9V45 and an EPYC 9V74 as the pool handed
+ * them out: 2,987 ms at the low end and 6,620 ms at the high end, against 2,580 ms on an Apple M3
+ * Ultra workstation. The workstation figure is inside vitest's default and the runner's is not,
+ * which is the whole reason this case was green everywhere it had ever run and red the first time
+ * it ran here. It is recorded for contrast and is not what this number is derived from.
+ *
+ * THE MARGIN IS THE ONE THE PROJECT ALREADY USES, an order of magnitude over the measured maximum,
+ * rounded to the value this repository already carries for this class. 6,620 ms times ten is
+ * 66,200, and `tools/docs-site/test/integration/documentation-examples.spec.ts` carries 120,000 on
+ * both of its `ts.createProgram` cases. Adopting it lowers no bound anybody had already found they
+ * needed, which is the property `vitest.spawn-timeout.ts` asks of one number for a whole class.
+ *
+ * NOTHING HERE IS TUNED AGAINST THIS NUMBER AND NOTHING SHOULD BE. It is a hang catcher, not a
+ * budget, and it is declared on the one case that compiles rather than on the file, so an ordinary
+ * case in this file timing out still means exactly what it always meant. The global default does
+ * not move.
+ */
+const COMPILER_HANG_CATCHER_MS = 120_000;
+
 describe('a name published by two packages', () => {
   it('should be a set this tree actually has, so neither assertion below passes over nothing', () => {
     // Given, a proof that two published packages never disagree is worth nothing until the
@@ -288,36 +319,40 @@ describe('a name published by two packages', () => {
     expect(unresolved).toEqual([]);
   });
 
-  it('should mean one type in every package that publishes it', () => {
-    // Given every ordered pair of holders of every shared name that has a type meaning
-    const probes: string[] = [];
-    const subjects: string[] = [];
+  it(
+    'should mean one type in every package that publishes it',
+    () => {
+      // Given every ordered pair of holders of every shared name that has a type meaning
+      const probes: string[] = [];
+      const subjects: string[] = [];
 
-    for (const [name, holders] of SHARED) {
-      if (!holders.every((held) => held.hasTypeMeaning)) continue;
+      for (const [name, holders] of SHARED) {
+        if (!holders.every((held) => held.hasTypeMeaning)) continue;
 
-      for (const from of holders) {
-        for (const to of holders) {
-          if (from === to) continue;
-          probes.push(assignmentProbe(name, from, to, probes.length));
-          subjects.push(`${name}: ${from.entry.specifier} -> ${to.entry.specifier}`);
+        for (const from of holders) {
+          for (const to of holders) {
+            if (from === to) continue;
+            probes.push(assignmentProbe(name, from, to, probes.length));
+            subjects.push(`${name}: ${from.entry.specifier} -> ${to.entry.specifier}`);
+          }
         }
       }
-    }
 
-    // When, the compiler is asked whether each hand over would build
-    const failures = diagnosticsOf(probes.join(''), 'types').map((diagnostic) => {
-      const line = Number(diagnostic.split(':')[0]) - 1;
+      // When, the compiler is asked whether each hand over would build
+      const failures = diagnosticsOf(probes.join(''), 'types').map((diagnostic) => {
+        const line = Number(diagnostic.split(':')[0]) - 1;
 
-      return `${subjects[line] ?? 'unknown pair'} (${diagnostic})`;
-    });
+        return `${subjects[line] ?? 'unknown pair'} (${diagnostic})`;
+      });
 
-    // Then, 186 ordered pairs on this tree, measured 2026-09-02. A floor rather than the figure,
-    // because a re-export added anywhere raises it, and a collapse to nothing is what a broken
-    // read looks like.
-    expect(subjects.length).toBeGreaterThan(150);
-    expect(failures).toEqual([]);
-  });
+      // Then, 186 ordered pairs on this tree, measured 2026-09-02. A floor rather than the figure,
+      // because a re-export added anywhere raises it, and a collapse to nothing is what a broken
+      // read looks like.
+      expect(subjects.length).toBeGreaterThan(150);
+      expect(failures).toEqual([]);
+    },
+    COMPILER_HANG_CATCHER_MS,
+  );
 
   it('should mean one value in every package that publishes it', () => {
     // Given every shared name with a value meaning, other than the ones that name their own
