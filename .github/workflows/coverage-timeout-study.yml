@@ -29,9 +29,25 @@ on:
 
 jobs:
   identify:
-    name: which cases go red under the gate's own command
+    name: red set, sample ${{ matrix.sample }} on Node ${{ matrix.node }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
+
+    # SAMPLED RATHER THAN RUN ONCE, BECAUSE THE ANSWER MOVES. F25 recorded the red set moving
+    # between runs on one machine, and it moved again here: the coverage gate reported seven cases
+    # on 2026-09-03 and the first run of this job reported three. One run names a sample of the
+    # population, and the population is what a bound has to cover, so the union across samples is
+    # the reading and a single run is not.
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ['22.22.2', '^24.15.0']
+        sample: [1, 2, 3]
+        include:
+          - node: '22.22.2'
+            label: '22'
+          - node: '^24.15.0'
+            label: '24'
 
     steps:
       - name: Checkout
@@ -43,7 +59,7 @@ jobs:
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
-          node-version: '22.22.2'
+          node-version: ${{ matrix.node }}
           cache: pnpm
 
       - name: Install
@@ -70,7 +86,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: coverage-default-timeout-log
+          name: red-set-node${{ matrix.label }}-sample${{ matrix.sample }}
           path: coverage-default-timeout.log
 
   measure:
@@ -88,7 +104,7 @@ jobs:
       fail-fast: false
       matrix:
         node: ['22.22.2', '^24.15.0']
-        sample: [1, 2, 3]
+        sample: [4, 5]
         include:
           - node: '22.22.2'
             label: '22'
