@@ -25,6 +25,13 @@
  * where addressing a rule that is not there fails the same way. Deciding it here in writing beats
  * whichever branch happened to be first.
  *
+ * IT IMPORTS `@openref/runner/http` AND NOT THE BARREL SINCE `TX-SOCKET-CONSOLE`, and that is a
+ * measurement rather than tidiness. A bundler assigns a module to the chunk shared by every entry
+ * point that can reach it, and the barrel re-exports the socket engine, so while this file named
+ * the barrel a reader who pressed Send downloaded 8,010 raw bytes of socket engine they had no use
+ * for and `client-js-send-raw` read 74,297 against a cap of 73,200. The narrow entry is the
+ * `@openref/vue/runner` precedent one package down.
+ *
  * VISIBILITY IS THE LITERAL `'public'`, unchanged from `entry.ts`, where the reason lives: a
  * page served by this module can hold no prefilled credential at all, and `credentials` is of
  * type `never` under this literal, so the guarantee is a compile error rather than a review
@@ -38,7 +45,7 @@ import {
   ProxyHttpTransport,
   type IHttpTransport,
   type RequestRunner,
-} from '@openref/runner';
+} from '@openref/runner/http';
 
 /**
  * The two facts this factory reads off the page model.

@@ -21,6 +21,7 @@ import { proxyServers, sha256Hex, type IRDocument } from '@openref/core';
 import {
   APP_ROOT_ID,
   buildAssetCatalog,
+  runnerOperationOf,
   type AssetCatalog,
   type AssetSource,
   type IHighlighter,
@@ -29,6 +30,7 @@ import {
   type StaticProxyModel,
   type ThemeDefinition,
 } from '@openref/render';
+import { withGeneratedSamples } from '@openref/samples';
 import { buildSearchIndex } from '@openref/search';
 import {
   BUILD_MANIFEST_FILE,
@@ -149,7 +151,26 @@ export interface BuildReport {
  * @param options - Document, output, assets and the base
  * @returns What was written
  */
-export async function buildSite(options: BuildSiteOptions): Promise<BuildReport> {
+export async function buildSite(input: BuildSiteOptions): Promise<BuildReport> {
+  // THE GENERATED SAMPLES OF SPEC 18, COMPOSED HERE AND IN `createSiteServer` AND NOWHERE ELSE IN
+  // THIS PACKAGE, per `TX-PAGE-SAMPLES`. These two are the entry points into page rendering, and
+  // `served-equals-built.spec.ts` compares one against the other file by file, so a transform on
+  // one side alone is thirteen differing files. It is here rather than in `renderStaticSite`
+  // because that is one caller of this and this is what the served side is compared with.
+  //
+  // AND IT IS IN THIS PACKAGE RATHER THAN IN ITS CALLERS because `openref build` composed them and
+  // `nuxt generate` did not: one document built two ways wrote two different sets of pages and two
+  // different hashes, measured as two cases of `packages/nuxt/test/integration/nuxt-parity.spec.ts`.
+  //
+  // THE WHOLE OPTIONS OBJECT IS REBOUND AND NOT ONLY A LOCAL, which is measured rather than
+  // stylistic: `writeSiteFiles` takes `options` and destructures the document out of it again, so
+  // a local alone left the navigation payload written under the untransformed hash while every
+  // page pointed at the transformed one, and the served site had no address for the file the
+  // build wrote. One document per build, named once.
+  const options: BuildSiteOptions = {
+    ...input,
+    document: withGeneratedSamples(input.document, runnerOperationOf),
+  };
   const { document, store } = options;
   const base = resolveSiteBase(options.base);
 

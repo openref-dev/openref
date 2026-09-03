@@ -42,6 +42,7 @@ import {
   RENDER_VERSION,
   renderHtmlDocument,
   renderPage,
+  runnerOperationOf,
   type AssetCatalog,
   type AssetPlan,
   type IHighlighter,
@@ -49,6 +50,7 @@ import {
   type PageKind,
   type ThemeDefinition,
 } from '@openref/render';
+import { withGeneratedSamples } from '@openref/samples';
 import { buildSearchIndex } from '@openref/search';
 import { stringify as stringifyYaml } from 'yaml';
 import {
@@ -267,11 +269,13 @@ export class ReferenceService {
     this.options = options;
     this.basePath = options.basePath;
 
+    let settled: IRDocument;
+
     if (options.ir !== undefined) {
       // The federated path of SPEC 15.3: the document arrives complete, there is no source
       // file, and the runtime pass already ran per service inside its own process.
       this.source = null;
-      this.document = options.ir;
+      settled = options.ir;
     } else {
       // WHICH SPECIFICATION THIS IS COMES FROM THE DOCUMENT AND NOT FROM AN OPTION, per SPEC 8.1
       // and SPEC 13.3. Both formats declare their own version in a member named after themselves,
@@ -294,8 +298,22 @@ export class ReferenceService {
       // put a schema in the reference that nothing refers to.
       this.source = events ? parsed : mergeSyntheticSchemas(parsed);
       const normalized = normalizeSpecification(this.source);
-      this.document = options.augment === undefined ? normalized : options.augment(normalized);
+      settled = options.augment === undefined ? normalized : options.augment(normalized);
     }
+
+    // THE GENERATED SAMPLES OF SPEC 18 GO ON HERE, AFTER EVERY OTHER PRODUCER AND BEFORE EVERY
+    // READER, per `TX-PAGE-SAMPLES`. After, because a sample is written from the servers, the
+    // parameters and the security this document ended up with, and running before the runtime
+    // pass would write samples for an operation the collectors had not finished describing.
+    // Before, because the page cache, the search index, the agent surface and the navigation
+    // route are all keyed by or derived from the document this line settles on.
+    //
+    // IT IS COMPOSED HERE BECAUSE HERE IS WHERE BOTH HALVES ARE VISIBLE, which is the constraint
+    // SPEC 18 names. `@openref/render` draws the tab strip and may not see `@openref/runner`;
+    // `@openref/samples` writes the text from what the runner would send and may not see the
+    // renderer. This package sees both, so the two meet once, at the document, and every page of
+    // this mount draws what the console beside it would send.
+    this.document = withGeneratedSamples(settled, runnerOperationOf);
     this.catalog = buildAssetCatalog(options.assets.sources);
     this.cache = options.cache ?? createMemoryRenderCache();
 

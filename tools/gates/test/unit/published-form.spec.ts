@@ -48,6 +48,24 @@ const PUBLISHED = {
   themeEntryRawBytes: 248_936,
 } as const;
 
+/**
+ * The same quantities after `TX-SOCKET-CONSOLE`, which is the arrival two of the caps moved for.
+ *
+ * KEPT BESIDE THE FIGURES ABOVE RATHER THAN REPLACING THEM. Those are what the two rulings
+ * re-derived from, and a test that overwrote them would stop being able to say that the caps did
+ * not move at the moment the subject did. These are what the caps are checked against now.
+ */
+const AFTER_CONSOLE = {
+  /** The published initial closure with the socket console's gate and seam in it. */
+  clientJsBytes: 111_826,
+  /** The same closure on disk, which is what the cap used to be taken on. */
+  clientJsOnDiskBytes: 111_503,
+  /** The telltale entry on disk, which is the form its raw row weighs. */
+  themeEntryRawBytes: 260_847,
+  /** The telltale entry published, which is the form its gzip row weighs. */
+  themeEntryGzipBytes: 96_355,
+} as const;
+
 /** The same quantities in the form the caps used to be taken on. */
 const ON_DISK = {
   themeCssBytes: 62_424,
@@ -93,7 +111,7 @@ describe('which budgets weigh the published form', () => {
     // Then, each is the figure SPEC 20's re-derivation states, and two of the four are `transfer`
     expect(published.filter((entry) => entry.quantity === 'transfer')).toHaveLength(2);
     expect(caps).toEqual({
-      'client-js-raw': 108 * 1024,
+      'client-js-raw': 110 * 1024,
       'client-js-schema': 2_300,
       'theme-css-raw': 62 * 1024,
       'theme-entry': 97 * 1024,
@@ -159,26 +177,43 @@ describe('the client-js-raw cap, re-checked against the published form', () => {
 
   it('should still be the one whole KB step the property allows', () => {
     // Given the recorded property: the artefact fits, and the cheapest deferred gesture returning
-    // to the first load still fails the budget.
-    const returning = PUBLISHED.clientJsBytes + PUBLISHED.signInReturnBytes;
+    // to the first load still fails the budget. Checked against the artefact `TX-SOCKET-CONSOLE`
+    // left, because a property re-checked against the artefact it was derived from is a property
+    // nobody re-checked.
+    const returning = AFTER_CONSOLE.clientJsBytes + PUBLISHED.signInReturnBytes;
 
     // Then
-    expect(PUBLISHED.clientJsBytes).toBeLessThanOrEqual(cap);
-    expect(returning).toBe(112_007);
+    expect(AFTER_CONSOLE.clientJsBytes).toBeLessThanOrEqual(cap);
+    expect(returning).toBe(113_294);
     expect(returning).toBeGreaterThan(cap);
-    // One step down does not hold the artefact at all, so 108 KB is not a choice among several
-    expect(PUBLISHED.clientJsBytes).toBeGreaterThan(107 * 1024);
-    expect(cap).toBe(108 * 1024);
+    // One step down does not hold the artefact at all, so 110 KB is not a choice among several
+    expect(AFTER_CONSOLE.clientJsBytes).toBeGreaterThan(109 * 1024);
+    expect(cap).toBe(110 * 1024);
   });
 
-  it('should state 53 bytes of headroom, which is the number the entry says to watch', () => {
-    // Given, the margin under the published form rather than the 308 the form on disk read
+  it('should have moved by one step for the console and not by more, which is the whole rule', () => {
+    // Given the cap before the arrival and the artefact before it, so the move is measured rather
+    // than asserted: 108 KB held 110,559 with 33 bytes, and 111,826 does not fit it at all
     // When
-    const headroom = cap - PUBLISHED.clientJsBytes;
+    const previous = 108 * 1024;
 
     // Then
-    expect(headroom).toBe(53);
-    expect(cap - ON_DISK.clientJsBytes).toBe(308);
+    // 110,559 rather than the 110,539 above: `T065` spent 20 bytes bringing `ElementTooLargeError`
+    // to the project's error rule, which SPEC 20 records beside the row.
+    expect(previous - 110_559).toBe(33);
+    expect(AFTER_CONSOLE.clientJsBytes).toBeGreaterThan(previous);
+    expect(AFTER_CONSOLE.clientJsBytes - 110_559).toBe(1_267);
+    expect(cap - previous).toBe(2 * 1024);
+  });
+
+  it('should state 814 bytes of headroom, which is the number the entry says to watch', () => {
+    // Given, the margin under the published form rather than the 1,137 the form on disk reads
+    // When
+    const headroom = cap - AFTER_CONSOLE.clientJsBytes;
+
+    // Then
+    expect(headroom).toBe(814);
+    expect(cap - AFTER_CONSOLE.clientJsOnDiskBytes).toBe(1_137);
   });
 
   it('should not have moved, because the published artefact still fits the cap it had', () => {
@@ -295,17 +330,35 @@ describe('the theme-entry cap, re-derived from the published form', () => {
     expect(published.overBy).toBe(172);
   });
 
-  it('should leave the twin binding the pair here too, by a much wider margin', () => {
-    // Given
+  it('should have left the twin binding the pair at the moment of that derivation', () => {
+    // Given the state on 2026-09-02 before `TX-SOCKET-CONSOLE`, which is what SPEC 20 recorded
+    // and what the case below is a reversal of. The caps are written out rather than read off the
+    // configuration, because this is a historical reading and the raw one has moved since.
     // When
-    const headroom = cap - PUBLISHED.themeEntryGzipBytes;
-    const twinHeadroom = twin - PUBLISHED.themeEntryRawBytes;
+    const headroom = 97 * 1024 - PUBLISHED.themeEntryGzipBytes;
+    const twinHeadroom = 244 * 1024 - PUBLISHED.themeEntryRawBytes;
 
     // Then
     expect(headroom).toBe(9_044);
     expect(twinHeadroom).toBe(920);
     expect(twinHeadroom).toBeLessThan(headroom);
-    expect(twin).toBe(244 * 1024);
+    expect(cap).toBe(97 * 1024);
+  });
+
+  it('should have the pair bound by the gzip row after `TX-SOCKET-CONSOLE`, which is a reversal', () => {
+    // Given the arrival the raw row was re-derived for: this directory carries a chunk per
+    // gesture by construction, so the socket console arrives in it whole. The gzip row was not
+    // re-derived, because 96,355 still fits 99,328.
+    // When
+    const gzipHeadroom = cap - AFTER_CONSOLE.themeEntryGzipBytes;
+    const rawHeadroom = twin - AFTER_CONSOLE.themeEntryRawBytes;
+
+    // Then the tighter of the two has changed sides, which is what having two caps is for
+    expect(gzipHeadroom).toBe(2_973);
+    expect(rawHeadroom).toBe(26_897);
+    expect(gzipHeadroom).toBeLessThan(rawHeadroom);
+    expect(cap).toBe(97 * 1024);
+    expect(twin).toBe(281 * 1024);
   });
 });
 

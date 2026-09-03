@@ -20,7 +20,8 @@ import { tmpdir } from 'node:os';
 import { join, normalize, sep } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { normalizeOpenApiDocument, type IRDocument } from '@openref/core';
-import { buildNavigation, nodeHref, loadDefaultAssets } from '@openref/render';
+import { buildNavigation, nodeHref, loadDefaultAssets, runnerOperationOf } from '@openref/render';
+import { withGeneratedSamples } from '@openref/samples';
 import type { NavEntryModel } from '@openref/render';
 import { buildSite, FsOutputStore, navigationFileOf } from '@openref/static';
 import { largeSpecification, launchChrome, PROOF_NODE_COUNT } from '../../src/index';
@@ -174,8 +175,10 @@ describe('a page served from the static output, with no server running', () => {
       expect(farNodeId).not.toBe('');
       const farLink = nodeHref(farNodeId, '');
 
-      // And the payload the gesture will need is a file of the build, holding the far row.
-      const payloadFile = navigationFileOf(document_.hash);
+      // And the payload the gesture will need is a file of the build, holding the far row. The
+      // build's document is this one plus the generated samples of SPEC 18 since
+      // `TX-PAGE-SAMPLES`, so the hash the file is named by is the built one, not the handed one.
+      const payloadFile = navigationFileOf(withGeneratedSamples(document_, runnerOperationOf).hash);
       const payload = await readFile(join(output, payloadFile), 'utf8');
       expect(payload).toContain(`"${farNodeId}"`);
 

@@ -281,6 +281,9 @@ importers:
       '@openref/nest':
         specifier: workspace:*
         version: link:../nest
+      '@openref/runner':
+        specifier: workspace:*
+        version: link:../runner
       '@openref/theme':
         specifier: workspace:*
         version: link:../theme
@@ -309,6 +312,9 @@ importers:
       '@openref/render':
         specifier: workspace:*
         version: link:../render
+      '@openref/samples':
+        specifier: workspace:*
+        version: link:../samples
       '@openref/search':
         specifier: workspace:*
         version: link:../search
@@ -474,6 +480,9 @@ importers:
       '@openref/render':
         specifier: workspace:*
         version: link:../render
+      '@openref/samples':
+        specifier: workspace:*
+        version: link:../samples
       '@openref/search':
         specifier: workspace:*
         version: link:../search
@@ -617,6 +626,9 @@ importers:
       '@openref/render':
         specifier: workspace:*
         version: link:../render
+      '@openref/samples':
+        specifier: workspace:*
+        version: link:../samples
       '@openref/search':
         specifier: workspace:*
         version: link:../search
@@ -731,6 +743,9 @@ importers:
       '@openref/render':
         specifier: workspace:*
         version: link:../../packages/render
+      '@openref/samples':
+        specifier: workspace:*
+        version: link:../../packages/samples
       '@openref/static':
         specifier: workspace:*
         version: link:../../packages/static

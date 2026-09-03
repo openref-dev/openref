@@ -23,6 +23,18 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
       "require": "./dist/index.cjs"
+    },
+    "./http": {
+      "source": "./src/http.ts",
+      "types": "./dist/http.d.ts",
+      "import": "./dist/http.js",
+      "require": "./dist/http.cjs"
+    },
+    "./socket": {
+      "source": "./src/socket.ts",
+      "types": "./dist/socket.d.ts",
+      "import": "./dist/socket.js",
+      "require": "./dist/socket.cjs"
     }
   },
   "files": [

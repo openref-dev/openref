@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { normalizeAsyncApiDocument, parseSpecification } from '@openref/core';
 import telltale from '../../src/theme';
@@ -23,6 +26,8 @@ import { renderPage } from '../../../render/src/render/application/services/rend
  * boundary sweep renders, and giving it security would move what that sweep measures for a reason
  * that has nothing to do with the boundary. This one is local to the question.
  */
+
+const here = dirname(fileURLToPath(import.meta.url));
 
 const markdown = await createMarkdownRenderer();
 
@@ -162,6 +167,24 @@ describe('the telltale channel page and the socket handshake limitation', () => 
     // Then the rows carry names this theme already styles and no name of their own
     expect(markup).toContain('<span class="oref-fact-label">not from a browser</span>');
     expect(markup).not.toContain('oref-handshake');
-    expect(markup).not.toContain('oref-socket');
+  });
+
+  it('should style every name the console beside those rows does emit, since TX-SOCKET-CONSOLE', async () => {
+    // Given the console of SPEC 14.7 drawn on the same page as the rows above, which is the
+    // arrival the rows were written before: until it, no page opened a socket and this
+    // assertion could be spelled as an absence
+    const markup = await channelPage(blockedChannelDocument());
+    const css = readFileSync(join(here, '../../src/styles/theme.css'), 'utf8');
+
+    // Then the subject is present before anything is said about what styles it
+    const emitted = [...new Set(markup.match(/oref-socket-[a-z-]+/g) ?? [])].sort();
+    expect(emitted).toEqual(['oref-socket-log']);
+
+    // And every one of them has a rule in this theme, so the console is not an unstyled region
+    for (const name of emitted) expect(css).toContain(`.${name}`);
+
+    // And the entry name, which no server render emits because the window is empty until a
+    // session has received something, is styled all the same
+    expect(css).toContain('.oref-socket-entry');
   });
 });

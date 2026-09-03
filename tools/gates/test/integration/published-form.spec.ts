@@ -28,6 +28,13 @@ const REPO_ROOT = join(import.meta.dirname, '..', '..', '..', '..');
 /**
  * The six files the first paint compiles, in the order the entry names them.
  *
+ * SIX OF THESE NAMES MOVED AND A SEVENTH FILE APPEARED AT `TX-SOCKET-CONSOLE`, and the reason is
+ * the same mechanism one level down. A chunk's name is its content digest, so one more deferred
+ * entry point changes which modules each initial chunk holds and every name with it, and the
+ * region the notice kinds live in became a chunk of its own because the set of entry points that
+ * reach it changed. The names are re-read here rather than kept; the figures below are what the
+ * file is about.
+ *
  * TWO OF THESE NAMES MOVED ON 2026-09-02 AND NOT ONE OF THE SIZES DID. A chunk's name is its
  * content digest, so renaming a published constant moves it and every chunk that imports it:
  * `chunk-TEAI3FZD` became `chunk-5LRQ4D6P` when `@openref/vue`'s `DEFAULT_THEME_NAME` became
@@ -37,11 +44,12 @@ const REPO_ROOT = join(import.meta.dirname, '..', '..', '..', '..');
  */
 const INITIAL = [
   'openref.js',
-  'chunk-YKIET4FQ.js',
+  'chunk-EJ4XQ22A.js',
   'chunk-3BFRF6WF.js',
-  'chunk-5LRQ4D6P.js',
-  'chunk-6D5ZGNOV.js',
-  'chunk-BV3VPU5E.js',
+  'chunk-IF2D2VIE.js',
+  'chunk-GKCAFBE4.js',
+  'chunk-FYRWH3QL.js',
+  'chunk-MPK3G3AA.js',
 ] as const;
 
 /** The three stylesheets of the default theme, by the name the catalog keys them under. */
@@ -87,11 +95,13 @@ describe('the published form of this tree', () => {
     // When
     const total = INITIAL.reduce((sum, name) => sum + sizeOf(name), 0);
 
-    // Then
-    expect(total).toBe(110_559);
-    expect(sizeOf('openref.js')).toBe(20_217);
-    expect(sizeOf('chunk-5LRQ4D6P.js')).toBe(5_623);
-    expect(sizeOf('chunk-YKIET4FQ.js')).toBe(1_956);
+    // Then, the figure `TX-SOCKET-CONSOLE` re-derived the cap from, 1,267 bytes over the 110,559
+    // the row carried before the socket console arrived
+    expect(total).toBe(111_826);
+    expect(total - 110_559).toBe(1_267);
+    expect(sizeOf('openref.js')).toBe(20_787);
+    expect(sizeOf('chunk-IF2D2VIE.js')).toBe(5_089);
+    expect(sizeOf('chunk-MPK3G3AA.js')).toBe(656);
   });
 
   it('should account for every byte of both deltas as a rewritten reference', () => {
@@ -110,7 +120,7 @@ describe('the published form of this tree', () => {
     // Then, a dot and the digest, ten times over on one side and fifteen on the other
     expect(DIGEST_LENGTH + 1).toBe(17);
     expect(cssDelta).toBe(10 * (DIGEST_LENGTH + 1));
-    expect(jsDelta).toBe(15 * (DIGEST_LENGTH + 1));
+    expect(jsDelta).toBe(19 * (DIGEST_LENGTH + 1));
     expect(onDisk('packages/theme/dist/styles/theme.css')).toBe(sizeOf('theme.css'));
     expect(onDisk('packages/theme/dist/styles/tokens.css')).toBe(sizeOf('tokens.css'));
   });
@@ -132,7 +142,7 @@ describe('the published form of this tree', () => {
 
     // Then, the published totals rather than the 62,424 and 110,284 the disk holds
     expect(messageOf('theme-css-raw')).toContain(`${formatBytes(62_594)} raw`);
-    expect(messageOf('client-js-raw')).toContain(`${formatBytes(110_559)} raw`);
+    expect(messageOf('client-js-raw')).toContain(`${formatBytes(111_826)} raw`);
     expect(report.errors).toEqual([]);
   });
 
@@ -143,7 +153,7 @@ describe('the published form of this tree', () => {
 
     // Then
     expect(capOf('theme-css-raw')).toBe(62 * 1024);
-    expect(capOf('client-js-raw')).toBe(108 * 1024);
+    expect(capOf('client-js-raw')).toBe(110 * 1024);
     expect(capOf('theme-css-raw') - 62_594).toBe(894);
     // 33 SINCE 2026-09-02 AND IT WAS 53, AND THE TWENTY BYTES ARE NAMED RATHER THAN ABSORBED.
     // `T065` made `ElementTooLargeError` extend `StreamError` with an `ErrorCode`, because it is
@@ -151,6 +161,13 @@ describe('the published form of this tree', () => {
     // breaking the rule STANDARDS and `CLAUDE.md` both state. Obeying the rule costs the subclass
     // plumbing in the first paint closure. Measured by building the tree twice, with and without
     // that one change: 110,539 against 110,559. THE CAP DID NOT MOVE and is asserted above.
-    expect(capOf('client-js-raw') - 110_559).toBe(33);
+    // 814 SINCE `TX-SOCKET-CONSOLE` AND IT WAS 33. The socket console of SPEC 14.7 is the debt
+    // `T055` recorded and did not build, and it is a capability arriving rather than an artefact
+    // growing: the first paint gains the gate, the `loadSocket` seam and the bundler's regrouping,
+    // 1,267 bytes measured by building the tree twice. The cap moved by one step of its own
+    // recorded property, which still chooses exactly one: 109 KB does not hold the artefact and
+    // the cheapest deferred gesture returning reads 113,294 against 112,640 and fails.
+    expect(capOf('client-js-raw') - 111_826).toBe(814);
+    expect(capOf('theme-entry-raw')).toBe(281 * 1024);
   });
 });

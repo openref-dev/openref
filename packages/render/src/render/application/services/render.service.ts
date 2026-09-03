@@ -37,6 +37,11 @@ import type { NodeModel, StaticProxyModel } from '@openref/vue';
  * Bumped by hand when a change to a component changes the bytes of an unchanged document.
  * It is part of the cache key, so bumping it invalidates every stored page at once.
  *
+ * 11 to 12 with `TX-SOCKET-CONSOLE`: a channel page draws the interactive socket console of
+ * SPEC 14.7 beside its facts, and the client model keeps the servers the console connects
+ * through instead of emptying the channel entirely. Same document, different bytes on every
+ * channel page, and a cached page from before it draws no console at all.
+ *
  * 10 to 11 with `TX-ADOPT`: the error contracts grid is a section inside the responses
  * section rather than its sibling, because the position is server resolved now and a fragment
  * cannot be adopted by a childless element. Same document, different bytes on every operation
@@ -73,7 +78,7 @@ import type { NodeModel, StaticProxyModel } from '@openref/vue';
  * media type example now wins over the generated one, zero denominator health checks stopped
  * rendering a row, and the rule heading gained its separator. Same document, different bytes.
  */
-export const RENDER_VERSION = 11;
+export const RENDER_VERSION = 12;
 
 /** How one page is rendered. */
 export interface RenderPageOptions {
@@ -330,10 +335,37 @@ function clientNodeModel(node: NodeModel | null, kind: PageModel['kind']): NodeM
     responses: [],
     security: [],
     run: null,
-    // THE CHANNEL LEAVES ENTIRELY, per `T050` and the rule above: its three sections are adopted
-    // positions, so the reading rows, the bindings and the highlighted source of an Avro payload
-    // are markup the reader is already looking at. `drawn` beside it is what the client walks.
-    channel: null,
+    // THE CHANNEL KEEPS WHAT THE CONSOLE CONNECTS THROUGH AND NOTHING ELSE, per
+    // `TX-SOCKET-CONSOLE`. Until it, the whole channel left, because its three sections are
+    // adopted positions and their reading rows, bindings and highlighted Avro source are markup
+    // the reader is already looking at. That is still true of all three. What is not markup is
+    // the socket console beside them: it picks a server, joins its url to the channel address
+    // and offers a box for a key the address can carry, so those three fields per server are
+    // live state and travel. Everything else on the model, the parameters, the bindings, the
+    // operations and the messages, stays emptied for the reason it always was.
+    channel:
+      node.channel === null
+        ? null
+        : {
+            protocol: node.channel.protocol,
+            parameters: [],
+            servers: node.channel.servers.map((server) => ({
+              url: server.url,
+              protocol: server.protocol,
+              protocolVersion: '',
+              description: '',
+              security: server.security.map((scheme) => ({
+                schemeId: scheme.schemeId,
+                type: scheme.type,
+                in: scheme.in,
+                name: scheme.name,
+                scopes: [],
+              })),
+            })),
+            bindings: [],
+            operations: [],
+            messages: [],
+          },
     runtime: null,
     requestBody: node.requestBody.map((media) => ({ ...media, exampleHtml: '' })),
   };

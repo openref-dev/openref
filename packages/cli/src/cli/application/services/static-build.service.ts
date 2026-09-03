@@ -11,6 +11,14 @@ import type { CommandIo } from '../../domain/command.types';
  * CLI; the wiring therefore lives at the floor both can reach and its own header says why. What
  * cannot move is the anchor: `@openref/nest/browser` is a dependency of THIS package, so
  * `resolveFrom` has to be this module's url, per `resolveAssetPath`'s third anchor.
+ *
+ * THE GENERATED SAMPLES OF SPEC 18 ARE NOT COMPOSED HERE, AND THAT WAS THE FIRST ANSWER RATHER
+ * THAN THE LAST, per `TX-PAGE-SAMPLES`. Composing them in this function gave `openref build` pages
+ * the Nuxt module's `nuxt generate` did not write, because that module reaches `@openref/static`
+ * and never this file: measured, two cases of `packages/nuxt/test/integration/nuxt-parity.spec.ts`,
+ * which are the committed claims that one tree built twice is one tree. So the transform moved down
+ * to `renderStaticSite`, the floor both callers reach, exactly as the wiring above it did, and
+ * `@openref/samples` joined that package's boundary.
  */
 
 /** One build, as a command asks for it. */

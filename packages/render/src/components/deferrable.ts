@@ -90,6 +90,16 @@ export interface DeferrableComponents {
   readonly channelOperations: Component;
   /** The channel's messages: payloads read as rows, headers, correlation ids and examples. */
   readonly messageList: Component;
+  /**
+   * The interactive socket console of SPEC 14.7, per `TX-SOCKET-CONSOLE`.
+   *
+   * IT IS DEFERRED AND THE THREE SECTIONS BESIDE IT ARE ADOPTED, which is the difference between
+   * markup a reader reads and controls a reader presses. The facts, the operations and the
+   * messages have no state and no handler; this has a session, a composer and a window that
+   * changes on every frame, so it fails the adoption question of SPEC 12 the way the try-it
+   * console and the language tab do.
+   */
+  readonly socketConsole: Component;
   /** The responses section, error contracts grid inside it, single root per SPEC 10.4. */
   readonly responseList: Component;
   /** The document overview article, which is the page a reader lands on. */

@@ -647,6 +647,17 @@ export const CLIENT_JS_GESTURES: readonly DeferredGesture[] = [
     roots: ['ShapesFillPanel'],
   },
   {
+    // THE SIXTH GESTURE IS THE SOCKET CONSOLE OF SPEC 14.7, added at `TX-SOCKET-CONSOLE`: a
+    // reader who reaches into the console on a channel page downloads it and the engine behind
+    // it, and nobody else does. `socket-factory` is on this side for the reason `runner-factory`
+    // is on the Send side: it is the only thing the console's loader calls, one line before it
+    // returns the panel, so one reader action downloads both chunks and no other action
+    // downloads either. The three channel sections beside it are adopted server markup with no
+    // chunk at all, the Health panel precedent, so they are deliberately not here.
+    id: 'socket',
+    roots: ['SocketConsole', 'socket-factory'],
+  },
+  {
     // THE FOURTH GESTURE IS THE ONE A READER MAKES ON A DIFFERENT PAGE LOAD, added at T028. An
     // authorization server returns the reader to the callback route, which sends them back to the
     // page they started from; that load carries a marker in its url, and the entry fetches this
@@ -702,6 +713,10 @@ export const BUDGET_SPEC_ROWS: Readonly<Record<string, string>> = {
   'client-js-shapes-raw':
     'Клиентский JS, который скачивает обращение к форме страницы форм, сырые байты',
   'theme-css': 'CSS дефолтной темы, gzip',
+  'client-js-socket':
+    'Клиентский JS, который скачивает обращение к консоли сокета на странице канала, gzip',
+  'client-js-socket-raw':
+    'Клиентский JS, который скачивает обращение к консоли сокета на странице канала, сырые байты',
   'theme-css-raw': 'CSS дефолтной темы, сырые байты',
   'client-wc': 'Выходы Web Component, оба формата, gzip',
   'client-wc-raw': 'Выходы Web Component, оба формата, сырые байты',
@@ -884,8 +899,28 @@ export const SIZE_BUDGETS: readonly SizeBudget[] = [
     //
     // 53 BYTES IS THE NUMBER TO WATCH, AND IT IS WRITTEN HERE RATHER THAN LEFT AS A MARGIN. The
     // next fifty four bytes the first paint gains fail this budget, so the task that brings them
-    // comes to the maintainer with its own measurement rather than with a raise.
-    limitBytes: 108 * 1024,
+    // comes to the maintainer with its own measurement rather than with a raise. It became 33 at
+    // `T065` and the twenty bytes are named on the row above.
+    //
+    // 110 KB SINCE `TX-SOCKET-CONSOLE`, AND THE ARRIVAL IS A CAPABILITY RATHER THAN AN ARTEFACT
+    // GROWING. The socket console of SPEC 14.7 is the debt `T055` recorded and did not build: the
+    // engine, the port and the composable shipped and no page opened a socket. What the first
+    // paint gains is the gate that listens for a reader reaching into `.oref-section-socket`, the
+    // `loadSocket` seam and the port key, and the bundler's regrouping around one more deferred
+    // entry point; the engine itself is behind the gesture and costs the first paint nothing.
+    // Measured on the published form by building the tree twice, with the console and without:
+    // 111,826 against 110,559, so 1,267 bytes. What was tried before the number moved: the four
+    // gates' event lists became one `REACH_EVENTS`, worth 118 raw, and `provideSocket` became a
+    // required member rather than an optional one, worth 26.
+    //
+    // THE PROPERTY IS RE-CHECKED AND STILL HOLDS. 110 KB is 112,640: the artefact fits with 814
+    // bytes, and `sign-in-return` at 1,468 published raw returning to the first load reads 113,294
+    // and fails it. 109 KB at 111,616 does not hold the artefact, so 110 is the one whole KB step
+    // the property allows.
+    //
+    // 814 BYTES IS THE NUMBER TO WATCH NOW. The next 815 bytes the first paint gains fail this
+    // budget, and the task that brings them comes to the maintainer with its own measurement.
+    limitBytes: 110 * 1024,
     roots: CLIENT_JS_ROOTS,
     extensions: ['.js', '.mjs'],
     quantity: 'parse',
@@ -1182,6 +1217,50 @@ export const SIZE_BUDGETS: readonly SizeBudget[] = [
     partition: { entry: CLIENT_JS_ENTRY, side: 'deferred', gesture: 'shapes' },
   },
   {
+    id: 'client-js-socket',
+    label: 'Client JS reaching into the socket console downloads, gzip',
+    // 5,803 MEASURED AT `TX-SOCKET-CONSOLE`, plus ten percent, rounded down to a hundred bytes,
+    // the T011-R derivation every gesture cap uses. The gesture is the socket console of SPEC 14.7
+    // arriving: `T055` built the engine, the port and the composable, and no page opened a socket,
+    // so what this bounds did not exist to be bounded until now.
+    //
+    // ON THE FORM BEFORE PUBLICATION, like the ten gesture rows beside it and unlike the four
+    // rows that moved onto the published form. Both figures were taken and both are recorded so
+    // the choice is a choice: published this gesture reads 5,933 gzip and 13,179 raw, and the
+    // difference is the rewritten chunk specifiers its five files name. The pair moves onto the
+    // published form when the rest of the gesture rows do, and not one row ahead of them.
+    limitBytes: 6_300,
+    roots: CLIENT_JS_ROOTS,
+    extensions: ['.js', '.mjs'],
+    quantity: 'transfer',
+    producedBy: 'TX-SOCKET-CONSOLE',
+    partition: { entry: CLIENT_JS_ENTRY, side: 'deferred', gesture: 'socket' },
+  },
+  {
+    id: 'client-js-socket-raw',
+    label: 'Client JS reaching into the socket console downloads, raw bytes',
+    // 13,043 measured at `TX-SOCKET-CONSOLE`, plus ten percent, rounded down to a hundred bytes.
+    // Itemised, because a gesture cap is derived rather than chosen: the console component, the
+    // port factory, the socket engine behind `@openref/runner/socket`, and this gesture's share of
+    // the field chunk the try-it console also reaches.
+    //
+    // WHAT WAS DONE BEFORE THIS NUMBER WAS WRITTEN, and it is about a different budget. While both
+    // browser factories imported the `@openref/runner` barrel, esbuild put the whole barrel in a
+    // chunk they shared, because a bundler assigns a module to the chunk shared by every entry
+    // point that can REACH it and the barrel re-exports both engines. Measured on the published
+    // form: this gesture read 56,876 raw and `client-js-send-raw` read 74,366 against its cap of
+    // 73,200, so a reader who pressed Send downloaded a socket engine they had no use for. Two
+    // narrow entries, `@openref/runner/http` and `@openref/runner/socket`, put each factory on its
+    // own door: this gesture falls to 13,043 and Send to 67,571 on disk, inside its unchanged cap.
+    // The Send cap did not move and did not need to.
+    limitBytes: 14_300,
+    roots: CLIENT_JS_ROOTS,
+    extensions: ['.js', '.mjs'],
+    quantity: 'parse',
+    producedBy: 'TX-SOCKET-CONSOLE',
+    partition: { entry: CLIENT_JS_ENTRY, side: 'deferred', gesture: 'socket' },
+  },
+  {
     id: 'theme-css',
     label: 'Default theme CSS, gzip',
     limitBytes: 15 * 1024,
@@ -1413,11 +1492,24 @@ export const SIZE_BUDGETS: readonly SizeBudget[] = [
   {
     id: 'theme-entry-raw',
     label: 'telltale themed entry, whole directory, raw',
-    limitBytes: 244 * 1024,
+    // 281 KB SINCE `TX-SOCKET-CONSOLE`, BY THIS ROW'S OWN PROPERTY: measured, plus ten percent,
+    // rounded up to the whole KiB, the one that gave 213 KB at T033 and 244 KB at TX-SHAPES from
+    // 226,778. This directory carries a chunk per gesture by construction, so a sixth gesture
+    // arrives in it whole: measured 260,847 on disk against 248,205, and the 12,642 are the
+    // console component, the port factory and the socket engine. 260,847 plus ten percent is
+    // 286,931.7, up to the whole KiB is 281, so 287,744, headroom 26,897.
+    //
+    // THE TWIN DID NOT MOVE, AND WHICH OF THE PAIR BINDS HAS REVERSED. `theme-entry` reads 96,355
+    // published against its 99,328 and needs no re-derivation at all, so it keeps 2,973 bytes of
+    // headroom while this row, re-derived, has 26,897. Until this arrival the raw row was the
+    // tighter of the two and SPEC 20 said so; after it the gzip row is, by a factor of nine. That
+    // is what having two caps on one artefact is for, and it is written down because the sentence
+    // it replaces was true when it was written.
+    limitBytes: 281 * 1024,
     quantity: 'parse',
     roots: ['packages/theme-telltale/dist/entry'],
     extensions: ['.js'],
-    producedBy: 'T033, re-derived at TX-SHAPES',
+    producedBy: 'T033, re-derived at TX-SHAPES and TX-SOCKET-CONSOLE',
   },
 ];
 

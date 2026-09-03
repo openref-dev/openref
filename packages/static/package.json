@@ -39,6 +39,7 @@
   "dependencies": {
     "@openref/core": "workspace:*",
     "@openref/render": "workspace:*",
+    "@openref/samples": "workspace:*",
     "@openref/search": "workspace:*"
   },
   "devDependencies": {

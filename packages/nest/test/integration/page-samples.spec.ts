@@ -1,0 +1,232 @@
+import { describe, expect, it } from 'vitest';
+import { loadDefaultAssets, runnerOperationOf } from '@openref/render';
+import { withGeneratedSamples } from '@openref/samples';
+import { finalizeDocument, normalizeOpenApiDocument } from '@openref/core';
+import type { IROperation } from '@openref/core';
+import { replyText } from '../../src/http/domain/reply';
+import { ReferenceService } from '../../src/reference/application/services/reference.service';
+import { NODE_PARAM } from '../../src/reference/domain/routes';
+
+/**
+ * The page draws the samples the generator writes, which is the whole of `TX-PAGE-SAMPLES`.
+ *
+ * WHY IT IS AN INTEGRATION TEST AND NOT A UNIT ONE. `T057` built the generator and every unit of
+ * it has been green since; what was missing was that no page drew any of it, and no unit test can
+ * fail for that. The subject here is the served bytes: a real `ReferenceService` over a real
+ * specification, the page it answers with, and the cURL a reader would copy out of it.
+ *
+ * THE EXPECTED TEXT IS NOT WRITTEN OUT HERE. It comes from `withGeneratedSamples` over the same
+ * document, so what is asserted is that the page and the transform agree rather than that the page
+ * matches a string somebody typed. A string typed here would have to be edited whenever an emitter
+ * changes, which is how a check comes to assert its own last output.
+ */
+
+/** The document the page is served from: one operation with a body, a scheme and two parameters. */
+function specification(
+  declared?: readonly Readonly<Record<string, string>>[],
+): Record<string, unknown> {
+  return {
+    openapi: '3.1.0',
+    info: { title: 'Orders', version: '1.0.0' },
+    servers: [{ url: 'https://api.example.com/v1' }],
+    components: {
+      securitySchemes: { bearer: { type: 'http', scheme: 'bearer' } },
+      schemas: {
+        Item: {
+          type: 'object',
+          required: ['sku'],
+          properties: { sku: { type: 'string' }, quantity: { type: 'integer' } },
+        },
+      },
+    },
+    security: [{ bearer: [] }],
+    paths: {
+      '/orders/{orderId}/items': {
+        post: {
+          operationId: 'addItem',
+          ...(declared === undefined ? {} : { 'x-codeSamples': declared }),
+          parameters: [
+            {
+              name: 'orderId',
+              in: 'path',
+              required: true,
+              schema: { type: 'string' },
+              example: 'ord_42',
+            },
+          ],
+          requestBody: {
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/Item' } } },
+          },
+          responses: { '200': { description: 'ok' } },
+        },
+      },
+    },
+  };
+}
+
+function service(declared?: readonly Readonly<Record<string, string>>[]): ReferenceService {
+  return new ReferenceService({
+    document: specification(declared),
+    basePath: '/docs',
+    assets: loadDefaultAssets(),
+  });
+}
+
+/** The operation page of the one operation this document has. */
+async function page(reference: ReferenceService): Promise<string> {
+  const nodeId = [...reference.document.nodes.keys()][0] ?? '';
+  const reply = await reference.handle('node', { params: { [NODE_PARAM]: nodeId }, headers: {} });
+
+  expect(reply.status).toBe(200);
+
+  return replyText(reply);
+}
+
+/**
+ * The text inside a fragment of served markup, tags removed and entities put back.
+ *
+ * THE SAMPLE ON THE PAGE IS HIGHLIGHTED AND THEREFORE IS NOT THE SOURCE, per SPEC 12: the
+ * highlighter runs on the server and what travels is the markup it produced, one span per token.
+ * Comparing against the generator's output means undoing exactly that and nothing else.
+ */
+function textOf(html: string): string {
+  return html
+    .replace(/<[^>]*>/g, '')
+    .replaceAll('&#39;', "'")
+    .replaceAll('&quot;', '"')
+    .replaceAll('&lt;', '<')
+    .replaceAll('&gt;', '>')
+    .replaceAll('&amp;', '&');
+}
+
+/** The samples section of an operation page, or the empty string when it draws none. */
+function samplesSection(html: string): string {
+  const start = html.indexOf('<section class="oref-section oref-section-samples">');
+  if (start === -1) return '';
+
+  return html.slice(start, html.indexOf('</section>', start) + '</section>'.length);
+}
+
+/** The source the transform produces for one language of the same document. */
+function expectedSource(reference: ReferenceService, lang: string): string {
+  // THE SERVICE'S OWN DOCUMENT ALREADY CARRIES THE SAMPLES, so the transform is re-run over a
+  // freshly normalized copy instead: comparing the page against the field the page was built
+  // from would compare a value with itself.
+  const fresh = new ReferenceService({
+    document: specification(),
+    basePath: '/docs',
+    assets: loadDefaultAssets(),
+  });
+  const node = [...fresh.document.nodes.values()][0] as IROperation;
+  const source = node.codeSamples?.find((sample) => sample.lang === lang)?.source;
+
+  expect(source, `no ${lang} sample was generated at all`).toBeDefined();
+  expect(reference.document.hash).toBe(fresh.document.hash);
+
+  return source ?? '';
+}
+
+describe('an operation page of a served reference', () => {
+  it('should draw the samples section, which no page drew before TX-PAGE-SAMPLES', async () => {
+    // Given, When
+    const html = await page(service());
+
+    // Then
+    expect(html).toContain('<section class="oref-section oref-section-samples">');
+    expect(html).toContain('Call it');
+  });
+
+  it('should offer a tab for every language SPEC 18 writes', async () => {
+    // Given, When
+    const section = samplesSection(await page(service()));
+
+    // Then
+    for (const label of [
+      'cURL',
+      'TypeScript',
+      'Python',
+      'Go',
+      'PHP',
+      'Java',
+      'C#',
+      'Ruby',
+      'Rust',
+    ]) {
+      expect(textOf(section), label).toContain(label);
+    }
+  });
+
+  it('should carry the generated cURL the transform wrote, character for character', async () => {
+    // Given
+    const reference = service();
+    const expected = expectedSource(reference, 'shell');
+
+    // When
+    const drawn = textOf(samplesSection(await page(reference)));
+
+    // Then: every line of the sample is on the page, in the page's own order.
+    expect(expected).toContain('curl -X POST');
+    for (const line of expected.split('\n')) expect(drawn).toContain(line.trim());
+    expect(drawn).toContain('https://api.example.com/v1/orders/ord_42/items');
+  });
+
+  it('should show a placeholder credential and never a real one, per SPEC 19.7', async () => {
+    // Given, When
+    const drawn = textOf(samplesSection(await page(service())));
+
+    // Then
+    expect(drawn).toContain('Authorization: Bearer <bearer>');
+  });
+
+  it('should put a sample the document wrote by hand ahead of the generated ones', async () => {
+    // Given a document declaring its own shell sample, which is level 3 and outranks the generator
+    const declared = [{ lang: 'shell', label: 'Ours', source: 'curl -sS https://ours.example' }];
+
+    // When
+    const section = samplesSection(await page(service(declared)));
+    const drawn = textOf(section);
+
+    // Then the hand written one is the tab that is showing and the generated shell is not there
+    expect(drawn).toContain('curl -sS https://ours.example');
+    expect(drawn).not.toContain('curl -X POST');
+    expect(section.indexOf('Ours')).toBeLessThan(section.indexOf('TypeScript'));
+  });
+
+  it('should draw no section at all for an operation with nowhere to send', async () => {
+    // Given a document with no server, which a written OpenAPI file cannot be, because the
+    // specification's own default supplies `/`. It reaches a mount through the federated `ir`
+    // path of SPEC 15.3, where the document arrives already normalized.
+    const base = normalizeOpenApiDocument({
+      openapi: '3.1.0',
+      info: { title: 'Nowhere', version: '1.0.0' },
+      paths: {
+        '/ping': { get: { operationId: 'ping', responses: { '200': { description: 'ok' } } } },
+      },
+    });
+    const reference = new ReferenceService({
+      ir: finalizeDocument({ ...base, servers: [], hash: '' }),
+      basePath: '/docs',
+      assets: loadDefaultAssets(),
+    });
+
+    // When
+    const html = await page(reference);
+
+    // Then: an empty tab strip is worse than no section, and `drawnOf` already says so.
+    expect(html).not.toContain('oref-section-samples');
+  });
+});
+
+describe('the transform the page and the static build share', () => {
+  it('should be the one the served document went through, and applying it again change nothing', () => {
+    // Given the document the service settled on, samples included
+    const reference = service();
+
+    // When the same transform is applied to it a second time
+    const again = withGeneratedSamples(reference.document, runnerOperationOf);
+
+    // Then it is idempotent, which is what lets the CLI and the module share it without either
+    // having to know whether the other ran first.
+    expect(again.hash).toBe(reference.document.hash);
+  });
+});

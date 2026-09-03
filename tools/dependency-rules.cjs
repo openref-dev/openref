@@ -12,8 +12,9 @@
  *   agent      ->  core, render
  *   theme      ->  nothing
  *   federation ->  core
- *   nest       ->  core, render, runner, search, federation, agent
- *   cli        ->  core, render, runner, search, static
+ *   nest       ->  core, render, runner, samples, search, federation, agent
+ *   static     ->  core, render, samples, search
+ *   cli        ->  core, render, runner, samples, search, static
  *   action     ->  nothing
  *
  * A violation fails the build. Never relax a rule to make a build pass.
@@ -88,7 +89,15 @@ const BOUNDARIES = {
   // place allowed to see both a document source and a route table, so serving them composes there.
   // The edges the other way stay forbidden: `federation` still reaches `core` and nothing else,
   // and `agent` reaches `core` and `render`.
-  nest: ['core', 'render', 'runner', 'search', 'federation', 'agent'],
+  //
+  // AND IT REACHES SAMPLES SINCE `TX-PAGE-SAMPLES`, FOR THE REASON SPEC 18 STATES AS A CONSTRAINT
+  // RATHER THAN AS A PREFERENCE. A generated sample is written from what `@openref/runner` would
+  // send and drawn by `@openref/render`, and those two may not see each other: the renderer is
+  // forbidden the runner by the `render` line above, and `samples` is forbidden the renderer by
+  // its own. So the composition has to live in a package that sees both, and this is the first
+  // one. The alternative was a sample generator inside the renderer, which is the second style
+  // matrix the `samples` entry exists to make impossible.
+  nest: ['core', 'render', 'runner', 'samples', 'search', 'federation', 'agent'],
   theme: [],
 
   // THEME-KIT REACHES THE CONTRACT AND NOTHING BELOW IT. It reads the slot registry, the theme
@@ -111,7 +120,15 @@ const BOUNDARIES = {
   // `search`; what it deliberately cannot see is the server. The one thing it needs from the
   // Nest side, the browser bundle, arrives as a file path a caller resolved, not as an import,
   // for the reason `package-assets.adapter.ts` gives about resolving a theme as files.
-  static: ['core', 'render', 'search'],
+  // AND `samples` SINCE `TX-PAGE-SAMPLES`, for the reason SPEC 18 gives and at the only place that
+  // gives every static host the same answer. The generated samples of SPEC 18 are composed where
+  // `@openref/render` and `@openref/runner` are both visible; the CLI is one such place and the
+  // Nuxt module is not, and a transform applied by the CLI alone gives `openref build` and
+  // `nuxt generate` two different pages for one document, which is measured: two cases of
+  // `nuxt-parity.spec.ts` are exactly that claim. So it is applied here, once, where both of them
+  // already arrive, and `samples` brings `runner` with it: both are pure and neither reaches a
+  // network. What this package still cannot see is the server, which is what its rule was about.
+  static: ['core', 'render', 'samples', 'search'],
 
   // THE MERGE ENGINE OF SPEC 15 REACHES THE IR AND NOTHING ELSE. It takes documents that are
   // already normalized and returns one, so `core` is the whole of what it needs: the IR types,
@@ -121,7 +138,13 @@ const BOUNDARIES = {
   // merged document is data and drawing it is T046.
   federation: ['core'],
 
-  cli: ['core', 'render', 'runner', 'search', 'static'],
+  // THE CLI REACHES SAMPLES SINCE `TX-PAGE-SAMPLES`, AND IT IS THE SAME EDGE AS THE ONE ON `nest`
+  // FOR THE SAME SENTENCE OF SPEC 18. `@openref/static` renders the built pages and sees the
+  // renderer without the runner, so it cannot compose the generator itself; what it can do is
+  // render a document that already carries the samples, and this package is the second of the two
+  // that see both halves. One transform, two hosts, and a built page draws what a served page
+  // draws because the two hand the same function the same document.
+  cli: ['core', 'render', 'runner', 'samples', 'search', 'static'],
 
   // THE NUXT MODULE OF SPEC 16.4 REACHES THE STATIC BUILD AND WHAT THE STATIC BUILD REACHES. It
   // mounts a site rather than making one: `static` produces every artefact, `render` owns the

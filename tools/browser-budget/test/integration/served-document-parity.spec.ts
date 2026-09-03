@@ -4,8 +4,11 @@ import {
   createOpenRefHighlighter,
   renderHtmlDocument,
   renderPage,
+  runnerOperationOf,
   STATE_ELEMENT_ID,
 } from '@openref/render';
+import { withGeneratedSamples } from '@openref/samples';
+import type { IRDocument } from '@openref/core';
 import { largeDocument } from '../../../../packages/render/test/mocks/documents';
 import { createFixture, FIXTURE_BASE_PATH } from '../../src/fixture/app';
 import type { Express } from 'express';
@@ -36,6 +39,22 @@ import type { Express } from 'express';
 
 /** Nodes the thousand node budgets are taken on. */
 const NODE_COUNT = 1000;
+
+/**
+ * The document the host serves, which is the mock plus the generated samples of SPEC 18.
+ *
+ * ADDED AT `TX-PAGE-SAMPLES`, AND IT IS THE DOCUMENT RATHER THAN A FOURTH TERM. `ReferenceService`
+ * puts the samples on before anything reads the document, so the fixture serves pages of a
+ * document that carries them; a bare render of the mock would be a render of a different document,
+ * and the second case below is exactly the one that says a byte comparison of two documents
+ * attributes nothing. The three host terms this file is about are unchanged by it: the base path,
+ * the asset catalogue and the nonce are what the host adds to a page, whichever document it is of.
+ *
+ * @returns The document both halves render
+ */
+function servedDocument(): IRDocument {
+  return withGeneratedSamples(largeDocument(NODE_COUNT), runnerOperationOf);
+}
 
 /** Assets `client-cost.spec.ts` passes, which stand in for a host's catalogue. */
 const PLACEHOLDER_ASSETS = { stylesheets: ['/s.css'], modules: ['/m.js'] } as const;
@@ -73,10 +92,17 @@ describe('the two served document figures', () => {
   it('should differ by the host base path, the host asset catalogue and the host nonce, and by nothing else', async () => {
     // Given the page both budgets are written about, rendered exactly as `client-cost.spec.ts`
     // renders it: the fifth hundredth node, the same markdown renderer, the same placeholders.
-    const document_ = largeDocument(NODE_COUNT);
+    const document_ = servedDocument();
     const nodeId = [...document_.nodes.keys()][500] ?? '';
     const markdown = await createMarkdownRenderer({
-      highlighter: await createOpenRefHighlighter(['json', 'yaml', 'bash', 'http']),
+      // THE HOST'S OWN LANGUAGE SET AND NOT THE FOUR `client-cost.spec.ts` LOADS, since
+      // `TX-PAGE-SAMPLES`. `ReferenceService` calls `createOpenRefHighlighter()` with no argument,
+      // which is all of `HIGHLIGHT_LANGUAGES`, and until a page carried a block in a language
+      // outside those four the two sets produced identical bytes. A samples section carries nine,
+      // so the difference became visible as six blocks the harness rendered plain and the host
+      // highlighted: a fourth cause, exactly as the header says one would arrive, and it is the
+      // harness that was wrong about the host rather than a new thing the host does.
+      highlighter: await createOpenRefHighlighter(),
     });
 
     const bare = renderHtmlDocument(await renderPage(document_, { nodeId, markdown }), {
@@ -135,7 +161,7 @@ describe('the two served document figures', () => {
     // Given, because a byte comparison of two different documents attributes nothing. The hash
     // equality of the two generators is held in `test/unit/specification.spec.ts`; what is
     // checked here is that the two pages carry the same document identity on the wire.
-    const document_ = largeDocument(NODE_COUNT);
+    const document_ = servedDocument();
     const nodeId = [...document_.nodes.keys()][500] ?? '';
     const markdown = await createMarkdownRenderer();
     const bare = renderHtmlDocument(await renderPage(document_, { nodeId, markdown }), {});

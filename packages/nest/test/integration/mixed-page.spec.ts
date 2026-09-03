@@ -168,7 +168,7 @@ describe('a page over a mixed HTTP and events document', () => {
     ).toBeLessThan(SERVED_DOCUMENT);
   });
 
-  it('should carry no channel into the state block, on a mixed document as on an events one', async () => {
+  it('should carry only the console servers into the state block, on a mixed document as on an events one', async () => {
     // Given the merged document's channel page
     const document = mixedDocument();
     const channelId = [...document.nodes.entries()].find(
@@ -177,14 +177,22 @@ describe('a page over a mixed HTTP and events document', () => {
     const model = buildPageModel(document, { nodeId: channelId ?? '', markdown });
     const rendered = await renderPage(document, { nodeId: channelId ?? '', markdown });
     expect(model.node?.channel).not.toBeNull();
+    expect(model.node?.channel?.messages.length).toBeGreaterThan(0);
 
     // When the state block the browser receives is read
     const state = JSON.parse(rendered.stateJson) as {
-      node: { channel: unknown; drawn: readonly string[] } | null;
+      node: {
+        channel: { messages: unknown[]; operations: unknown[]; servers: unknown[] } | null;
+        drawn: readonly string[];
+      } | null;
     };
 
-    // Then the channel is gone and the walk survives, per SPEC 12's redaction rule
-    expect(state.node?.channel).toBeNull();
+    // Then everything the three adopted sections read is gone and the walk survives, per SPEC
+    // 12's redaction rule, and what the socket console of `TX-SOCKET-CONSOLE` connects through
+    // survives beside it, because that is live state rather than markup
+    expect(state.node?.channel?.messages).toEqual([]);
+    expect(state.node?.channel?.operations).toEqual([]);
+    expect(state.node?.channel?.servers.length).toBeGreaterThan(0);
     expect(state.node?.drawn).toEqual(model.node?.drawn);
   });
 });

@@ -23,7 +23,11 @@ import { eventsDocument } from '../mocks/documents';
 describe('the browser stubs, pinned against the server resolved list', () => {
   it('should fill every stubbed position with a childless element of the contract root', async () => {
     // Given the browser's registry
-    const components = deferredComponents({ document, provideRunner: () => undefined });
+    const components = deferredComponents({
+      document,
+      provideRunner: () => undefined,
+      provideSocket: () => undefined,
+    });
 
     // The slot names of SPEC 10.4 mapped to the registry entries that fill their positions.
     // DriftCard and ProvenanceTag have no entry deliberately: they resolve inside the stubbed
@@ -73,7 +77,11 @@ describe('the browser stubs, pinned against the server resolved list', () => {
       markdown,
     });
     const channel = page.node?.channel ?? null;
-    const browser = deferredComponents({ document, provideRunner: () => undefined });
+    const browser = deferredComponents({
+      document,
+      provideRunner: () => undefined,
+      provideSocket: () => undefined,
+    });
 
     // The three positions of `T050`. They are positions and not slots, so `SERVER_RESOLVED_ROOTS`
     // does not name them; the property is the same one it exists for, and it is checked against

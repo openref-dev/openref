@@ -1184,6 +1184,71 @@
   font-size: var(--oref-font-size-100);
 }
 
+/* TX-SOCKET-CONSOLE widened it by six, 2026-09-02: the interactive socket console of SPEC 14.7,
+ * which the reference draws on a channel page outside every position. Five of the six are names
+ * the reference already emitted and this theme had never met, because the position that emitted
+ * them is `TryItPanel`, which this theme overrides: the console's own `oref-send`, its
+ * `oref-tryit-actions` row, its `oref-tryit-notice` line and the `oref-run-result` list of
+ * bodies. The sixth is the section modifier. This is the same finding the service card and the
+ * channel page rows above record, for the fifth time, and it is the reason the sweep pins a
+ * count rather than a shape.
+ *
+ * `oref-socket-entry` AND `oref-run-body` ARE STYLED HERE AND ARE NOT IN THE SWEEP'S SIX, which
+ * is written down rather than left to be found. The sweep reads server markup, the window is
+ * empty until a session has received something, so no entry is ever rendered on a server and no
+ * entry name can survive to be a boundary name. A reader sees them within a second of pressing
+ * Connect. That is the fourth failure class THEME-BOUNDARY.md names, in its own words: a name
+ * only a client render emits is invisible to a sweep of server markup. */
+.oref-section-socket {
+  border-top: var(--oref-border-hair) solid var(--oref-color-line);
+  padding-top: var(--oref-space-300);
+}
+
+.oref-tryit-notice {
+  margin: 0 0 var(--oref-space-200);
+  color: var(--oref-color-fg-muted);
+  font-size: var(--oref-font-size-100);
+}
+
+.oref-tryit-actions {
+  display: flex;
+  gap: var(--oref-space-200);
+  align-items: center;
+  min-height: var(--oref-layout-row);
+}
+
+.oref-send {
+  border: var(--oref-border-hair) solid var(--oref-color-line);
+  padding: var(--oref-space-100) var(--oref-space-300);
+  background: var(--oref-color-surface);
+  color: var(--oref-color-fg);
+  font-family: var(--oref-font-family-display);
+  font-size: var(--oref-font-size-100);
+  letter-spacing: var(--oref-font-tracking-wide);
+  text-transform: uppercase;
+}
+
+.oref-run-result {
+  margin: var(--oref-space-300) 0 0;
+  padding: 0;
+  border-top: var(--oref-border-hair) solid var(--oref-color-line);
+  list-style: none;
+}
+
+/* The window is a ledger in this theme, which is what the whole direction is: one row per frame,
+   a hairline under each, the direction badge and the frame on one line. */
+.oref-socket-log .oref-run-body,
+.oref-socket-entry {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--oref-space-200);
+  align-items: baseline;
+  padding: var(--oref-space-100) 0;
+  border-bottom: var(--oref-border-hair) solid var(--oref-color-line);
+  font-size: var(--oref-font-size-200);
+  line-height: var(--oref-font-leading-row);
+}
+
 /* THE FEDERATED SERVICE CARD, per SPEC 15.3, named by the pre-M5 cleanup, 2026-08-28: the card
  * shipped with T046 outside the measuring sweep, so this theme styled none of its eleven names
  * and the page rendered on the generic section rules, which looked deliberate and was not.

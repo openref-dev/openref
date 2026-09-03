@@ -34,6 +34,12 @@ import { hydrateReference, type ThemeDefinition } from '@openref/render/browser'
  * so each travels in the chunk that gesture fetches. Writing either call inline here would put
  * it in the first paint chunk of every page.
  *
+ * THE SOCKET HALF IS WHAT `TX-SOCKET-CONSOLE` PAID, and it is a third dynamic import for the
+ * first two's reason. `T055` built the engine, the port and `useSocket`, and no page opened a
+ * socket; the console of SPEC 14.7 is a channel page's, and the engine travels in the chunk that
+ * console fetches rather than in the first paint of every page. It takes no model, because the
+ * address is the channel's and the console reads it off the page it is on.
+ *
  * THE SEARCH HALF IS WHAT T042 PAID. The index has been built, budgeted and served at
  * `<mount>/_search-index` since T007, and until this line no file this module shipped ever asked
  * for it: `useSearch` answered `available: false` on every page, and the palette matched
@@ -47,5 +53,6 @@ export function mountReference(theme?: ThemeDefinition): void {
     ...(theme === undefined ? {} : { theme }),
     loadRunner: async (model) => (await import('./runner-factory')).createPageRunner(model),
     loadSearch: async (model) => (await import('./search-factory')).createPageSearch(model),
+    loadSocket: async () => (await import('./socket-factory')).createPageSocket(),
   });
 }

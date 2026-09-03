@@ -29,6 +29,7 @@ import { SchemaView } from './SchemaView';
 import { ServiceCard } from './ServiceCard';
 import { ShapesFillPanel } from './ShapesFillPanel';
 import { ShapesReader } from './ShapesReader';
+import { SocketConsole } from './SocketConsole';
 import { StatesPanel } from './StatesPanel';
 import { TryItPanel } from './TryItPanel';
 import type { DeferrableComponents } from './deferrable';
@@ -140,6 +141,7 @@ export const EAGER_COMPONENTS: DeferrableComponents = {
   channelFacts: ChannelFacts as Component,
   channelOperations: ChannelOperations as Component,
   messageList: MessageList as Component,
+  socketConsole: SocketConsole,
   responseList: ResponsesPosition,
   overviewPage: OverviewPosition,
   statesPage: StatesPanel,

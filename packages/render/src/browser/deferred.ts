@@ -50,7 +50,7 @@ import {
   type VNode,
 } from 'vue';
 import type { DeferrableComponents } from '../components/deferrable';
-import type { IRunnerPort } from '@openref/vue';
+import type { IRunnerPort, ISocketPort } from '@openref/vue';
 
 /** What makes one feature arrive. */
 interface ReachSpec {
@@ -133,6 +133,18 @@ interface Reached {
    */
   readonly replay: () => void;
 }
+
+/**
+ * The interaction every gate listens for, named once because all five listen for the same one.
+ *
+ * ONE LIST RATHER THAN FIVE COPIES, and it is a byte measurement as well as a naming one. The
+ * five gates were written one at a time and each spelled the same four events out; hoisting
+ * them took 168 raw bytes out of the first paint, measured by building the tree twice, which is
+ * the same reason `THEME_CSS_ROOTS` is one list. `pointerdown` opens a gate soonest, `click` is
+ * what most of these components listen to, `focusin` is the reader who arrives on the keyboard,
+ * and `keydown` is the keystroke that would otherwise be lost into markup with no listeners.
+ */
+const REACH_EVENTS: readonly string[] = ['pointerdown', 'click', 'focusin', 'keydown'];
 
 /** The palette shortcut, which is a key rather than a place on the page. */
 function isPaletteShortcut(event: KeyboardEvent): boolean {
@@ -377,6 +389,17 @@ export interface DeferredOptions {
   readonly loadRunner?: () => Promise<IRunnerPort>;
   /** Hands a runner to the application once there is one. */
   readonly provideRunner: (runner: IRunnerPort) => void;
+  /**
+   * Builds the socket client, when the console on a channel page is first reached.
+   *
+   * A FUNCTION FOR THE REASON `loadRunner` IS ONE, per SPEC 14.7 and STANDARDS 3.5: the engine
+   * lives in `@openref/runner`, this package has no edge to it, and a dynamic import would not
+   * change that. `@openref/nest` supplies it, and a page whose host supplied none draws the
+   * console saying so rather than a control that promises a connection nothing can open.
+   */
+  readonly loadSocket?: () => Promise<ISocketPort>;
+  /** Hands a socket client to the application once there is one. */
+  readonly provideSocket: (socket: ISocketPort) => void;
 }
 
 /**
@@ -395,7 +418,7 @@ export function deferredComponents(options: DeferredOptions): DeferrableComponen
         selector: '.oref-schema-tree',
         // `keydown` as well as the pointer, because the tree is a `role="tree"` with roving
         // focus and arrow keys, and a reader who is on the keyboard never clicks it.
-        events: ['pointerdown', 'click', 'focusin', 'keydown'],
+        events: REACH_EVENTS,
         // The view segment lives in the page head and narrows this tree, so its press opens
         // the gate; its own listener is live, so the press is not replayed. Without this, a
         // re-render of the pending async component evicts the adopted server markup and the
@@ -422,7 +445,7 @@ export function deferredComponents(options: DeferredOptions): DeferrableComponen
         // `keydown` as well, since TX-PARITY-UI: `Ctrl Enter` sends, so the chord pressed
         // into a console that has not mounted must open the gate and be replayed, or the
         // hint beside Send names a gesture the first press of loses.
-        events: ['pointerdown', 'click', 'focusin', 'keydown'],
+        events: REACH_EVENTS,
         // The one deferred feature whose served markup is a working control rather than
         // readable content, so it is the one whose failed load must say so, per SPEC 11.
         failure: 'The console failed to load. Reload the page to try again.',
@@ -445,7 +468,7 @@ export function deferredComponents(options: DeferredOptions): DeferrableComponen
       {
         name: 'CommandPalette',
         selector: '.oref-palette-open',
-        events: ['pointerdown', 'click', 'focusin', 'keydown'],
+        events: REACH_EVENTS,
         shortcut: isPaletteShortcut,
       },
       root,
@@ -464,6 +487,33 @@ export function deferredComponents(options: DeferredOptions): DeferrableComponen
     channelFacts: adoptChannelFacts,
     channelOperations: adoptChannelOperations,
     messageList: adoptMessageList,
+
+    socketConsole: deferUntilReached(
+      {
+        name: 'SocketConsole',
+        // `focusin` AND `keydown` FOR THE READER ON THE KEYBOARD, the console's own reasoning:
+        // the server picker is ahead of Connect, so the first Tab into the region arms the
+        // loader, and a keystroke into the composer before the chunk lands is recorded and
+        // dispatched again rather than lost.
+        selector: '.oref-section-socket',
+        events: REACH_EVENTS,
+        // The served markup is three working controls rather than readable content, so a chunk
+        // that never arrives has to say so, per SPEC 11's second half.
+        failure: 'The socket console failed to load. Reload the page to try again.',
+      },
+      root,
+      async () => {
+        const { SocketConsole } = await import('../components/SocketConsole');
+
+        // BEFORE THE COMPONENT IS RETURNED, the console's rule: `app.provide` reaches a component
+        // that has not been created yet, so the port is in the application by the time the
+        // console's `setup` injects it.
+        if (options.loadSocket !== undefined) options.provideSocket(await options.loadSocket());
+
+        return SocketConsole;
+      },
+    ),
+
     responseList: adoptResponseList,
     overviewPage: adoptOverviewPage,
     statesPage: adoptStatesPage,
@@ -476,7 +526,7 @@ export function deferredComponents(options: DeferredOptions): DeferrableComponen
         // reasoning: the first Tab into the form arms the loader, and a keystroke into an
         // unmounted field is recorded and replayed rather than lost.
         selector: '.oref-shapes-fill',
-        events: ['pointerdown', 'click', 'focusin', 'keydown'],
+        events: REACH_EVENTS,
         // The served controls are real enabled buttons, so a chunk that never arrives must
         // say so and stop them promising, per SPEC 11's second half.
         failure: 'The form failed to load. Reload the page to try again.',

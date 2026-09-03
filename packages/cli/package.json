@@ -44,6 +44,7 @@
   "dependencies": {
     "@openref/core": "workspace:*",
     "@openref/nest": "workspace:*",
+    "@openref/runner": "workspace:*",
     "@openref/theme": "workspace:*",
     "@openref/vue": "workspace:*",
     "isomorphic-dompurify": "3.22.0",
@@ -55,6 +56,7 @@
   },
   "devDependencies": {
     "@openref/render": "workspace:*",
+    "@openref/samples": "workspace:*",
     "@openref/search": "workspace:*",
     "@openref/static": "workspace:*",
     "tsup": "8.5.1",

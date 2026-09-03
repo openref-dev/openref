@@ -73,7 +73,7 @@ export default defineConfig([
     // the install fail instead of the typecheck, and moving these types into a published package
     // would publish a surface nobody asked for. `resolve` makes the declaration carry the type
     // text, which is what the bundle already does with the code.
-    dts: { resolve: [/^@openref\/(render|search|federation|agent)$/] },
+    dts: { resolve: [/^@openref\/(render|search|federation|agent|samples)$/] },
     sourcemap: true,
     clean: true,
     treeshake: true,
@@ -93,7 +93,12 @@ export default defineConfig([
     //
     // The browser build below is unaffected and deliberately so: `BROWSER_NO_EXTERNAL` inlines
     // every `@openref/*` because an embed has no installer, so first paint bytes do not move.
-    noExternal: [/^@openref\/(render|search|federation|agent)$/],
+    // `samples` JOINED AT `TX-PAGE-SAMPLES`, and it joined by the same rule the two above did:
+    // the generator of SPEC 18 is internal, it is a `devDependency` here precisely because it is
+    // inlined, and a host reaches it through nothing at all, because every operation page draws
+    // what it writes. Leaving it external would put `@openref/samples` in the built output's
+    // import list, and a consumer cannot install a private package.
+    noExternal: [/^@openref\/(render|search|federation|agent|samples)$/],
     outExtension: ({ format }) => ({ js: format === 'cjs' ? '.cjs' : '.js' }),
   },
   {

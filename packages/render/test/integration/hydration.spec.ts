@@ -196,7 +196,7 @@ describe('hydrateReference', () => {
    * other adopted section. Vue patches a mismatch in silence, so a torn channel page looks right
    * and is built from markup the server never wrote.
    */
-  it('should keep the three channel sections after hydrating from a channel-less block', async () => {
+  it('should keep the three adopted channel sections and the console after hydrating', async () => {
     // Given a served channel page, drawn by the server from a model the client is not given
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
@@ -210,17 +210,26 @@ describe('hydrateReference', () => {
     const operationsBefore = document.querySelectorAll('.oref-channel-op').length;
     const messagesBefore = document.querySelectorAll('.oref-message').length;
     const rowsBefore = document.querySelectorAll('.oref-shape-row').length;
+    const consoleBefore = document.querySelectorAll('.oref-section-socket').length;
+    const controlsBefore = document.querySelectorAll('.oref-section-socket .oref-send').length;
     expect(factsBefore).toBeGreaterThan(0);
     expect(operationsBefore).toBeGreaterThan(0);
     expect(messagesBefore).toBeGreaterThan(0);
     expect(rowsBefore).toBeGreaterThan(0);
+    // The console of `TX-SOCKET-CONSOLE` is the one live position among the four, so it is
+    // asserted present before anything is said about it surviving.
+    expect(consoleBefore).toBe(1);
+    expect(controlsBefore).toBe(3);
 
-    // And the state block carries the walk and none of the channel the server drew from
+    // And the state block carries the walk and, of the channel, only what the console connects
+    // through: the adopted sections read the rest off the markup they are already looking at
     const state = readPageState(document);
     expect(state?.node?.drawn).toContain('channel');
     expect(state?.node?.drawn).toContain('channel-operations');
     expect(state?.node?.drawn).toContain('messages');
-    expect(state?.node?.channel).toBeNull();
+    expect(state?.node?.channel?.messages).toEqual([]);
+    expect(state?.node?.channel?.operations).toEqual([]);
+    expect(state?.node?.channel?.servers.length).toBeGreaterThan(0);
 
     // When
     const hydrated = hydrateReference();
@@ -231,6 +240,10 @@ describe('hydrateReference', () => {
     expect(document.querySelectorAll('.oref-channel-op')).toHaveLength(operationsBefore);
     expect(document.querySelectorAll('.oref-message')).toHaveLength(messagesBefore);
     expect(document.querySelectorAll('.oref-shape-row')).toHaveLength(rowsBefore);
+    expect(document.querySelectorAll('.oref-section-socket')).toHaveLength(consoleBefore);
+    expect(document.querySelectorAll('.oref-section-socket .oref-send')).toHaveLength(
+      controlsBefore,
+    );
     const messages = [...warn.mock.calls, ...error.mock.calls].map((call) => String(call[0]));
     expect(messages.filter((message) => message.includes('Hydration'))).toEqual([]);
   });

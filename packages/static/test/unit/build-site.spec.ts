@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import type { IRDocument } from '@openref/core';
-import { APP_ROOT_ID, searchIndexHref, SEARCH_INDEX_SEGMENT } from '@openref/render';
+import {
+  APP_ROOT_ID,
+  runnerOperationOf,
+  searchIndexHref,
+  SEARCH_INDEX_SEGMENT,
+} from '@openref/render';
+import { withGeneratedSamples } from '@openref/samples';
 import {
   buildSite,
   BUILD_MANIFEST_FILE,
@@ -82,16 +88,21 @@ describe('buildSite, determinism', () => {
   });
 
   it('should write the navigation payload where a page fetches it from', async () => {
-    // Given
+    // Given the document a caller hands over, and the document the build actually writes, which
+    // are two hashes since `TX-PAGE-SAMPLES`: this package composes the generated samples of
+    // SPEC 18 into the IR, so the built site is the caller's document plus its samples and the
+    // hash moves with the content, exactly as it does on the served side.
     const document = miniDocument();
+    const built = withGeneratedSamples(document, runnerOperationOf);
+    expect(built.hash).not.toBe(document.hash);
 
     // When
     const { store } = await build({ document });
-    const payload = store.files.get(`_navigation/${document.hash}`);
+    const payload = store.files.get(`_navigation/${built.hash}`);
 
     // Then: the amendment's own requirement, at the path `navigationHref` produces.
     expect(typeof payload).toBe('string');
-    expect(JSON.parse(String(payload))).toMatchObject({ documentHash: document.hash });
+    expect(JSON.parse(String(payload))).toMatchObject({ documentHash: built.hash });
   });
 
   it('should write the search index as one file, at the address the page fetches', async () => {
@@ -319,9 +330,9 @@ describe('buildSite, the manifest', () => {
     const { store } = await build({ document, base: 'https://docs.example.com/api' });
     const manifest = readManifest(String(store.files.get(BUILD_MANIFEST_FILE)));
 
-    // Then
+    // Then, the hash of what was built rather than of what was handed over, per the case above
     expect(manifest).not.toBeNull();
-    expect(manifest?.documentHash).toBe(document.hash);
+    expect(manifest?.documentHash).toBe(withGeneratedSamples(document, runnerOperationOf).hash);
     expect(manifest?.basePath).toBe('/api');
     expect(manifest?.siteUrl).toBe('https://docs.example.com/api');
     expect(manifest?.pages).toHaveLength(9);

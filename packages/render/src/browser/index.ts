@@ -17,7 +17,9 @@ import {
   provideSlots,
   resolveSlots,
   RUNNER_KEY,
+  SOCKET_KEY,
   type IRunnerPort,
+  type ISocketPort,
   type ThemeDefinition,
 } from '@openref/vue';
 import { createSSRApp, h } from 'vue';
@@ -107,6 +109,16 @@ export interface HydrateOptions {
    * and was the only one until T042.
    */
   readonly loadSearch?: SearchIndexLoader;
+  /**
+   * The socket client the console on a channel page connects through, built only if it is reached.
+   *
+   * `loadRunner`'S SHAPE, FOR `loadRunner`'S REASON, per SPEC 14.7 and STANDARDS 3.5: the engine
+   * is `@openref/runner` and this package has no edge to it, so whoever composes the entry
+   * supplies it and the engine travels in the console's own chunk. Absent leaves the console
+   * saying it has no client, which is a published read only reference and is a supported build
+   * rather than a degraded one, the same sentence `runner` carries above.
+   */
+  readonly loadSocket?: () => Promise<ISocketPort>;
   /**
    * The theme in force, whose slot overrides this page resolves.
    *
@@ -321,6 +333,10 @@ export function hydrateReference(options: HydrateOptions = {}): boolean {
       ...(buildRunner === undefined ? {} : { loadRunner: buildRunner }),
       provideRunner: (runner) => {
         app.provide(RUNNER_KEY, runner);
+      },
+      ...(options.loadSocket === undefined ? {} : { loadSocket: options.loadSocket }),
+      provideSocket: (socket) => {
+        app.provide(SOCKET_KEY, socket);
       },
     }),
   );

@@ -194,6 +194,21 @@ const MODIFIERS_WITHOUT_RULES = new Set([
   'oref-media-example',
   'oref-direction-send',
   'oref-direction-receive',
+  // THE THREE OF `TX-SOCKET-CONSOLE`, THE SOCKET CONSOLE OF SPEC 14.7, and every one is a member
+  // by the rule above rather than an exemption from it. The section modifier sits on
+  // `.oref-section`, which draws it, exactly as the eight channel ones do. The log sits on
+  // `.oref-run-result`, which is what a list of bodies a run produced already is, and one entry
+  // sits on `.oref-run-body`, which draws it; the pair are the stream log's two names applied to
+  // a window of frames, and they are hooks for a theme that wants to tell a socket window from a
+  // single response rather than rules repeating what the family already says. The console emits
+  // no other name of its own: its controls are `.oref-send`, its fields are the `.oref-field`
+  // family, its counters are `.oref-facts`, its notice is `.oref-tryit-notice` and its direction
+  // marks are `.oref-badge` with the two channel modifiers already listed above. That is what
+  // makes this arrival cost the default stylesheet nothing at all, which SPEC 20 records with
+  // the measurement rather than with a claim.
+  'oref-section-socket',
+  'oref-socket-log',
+  'oref-socket-entry',
   // THE ONE OF T052, THE TOPOLOGY SECTION, a member by the rule above rather than an exemption
   // from it: the section modifier sits on `.oref-section`, which draws it, exactly as the eight
   // above do. Every other name the section emits has a rule, and five of the six are selectors

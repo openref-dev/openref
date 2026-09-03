@@ -15,7 +15,11 @@ const mocks = vi.hoisted(() => ({
   createRunner: vi.fn((options: Record<string, unknown>) => ({ options })),
 }));
 
-vi.mock('@openref/runner', () => ({
+// THE NARROW ENTRY AND NOT THE BARREL, since `TX-SOCKET-CONSOLE`. `runner-factory.ts` imports
+// `@openref/runner/http` so that the socket engine the barrel re-exports is not reachable from the
+// chunk a reader downloads when they press Send; a mock of the barrel would replace a module this
+// file's subject no longer imports, and every assertion below would run against the real runner.
+vi.mock('@openref/runner/http', () => ({
   createRunner: mocks.createRunner,
   FetchStreamTransport: class FetchStreamTransport {
     readonly kind = 'stream';
@@ -28,7 +32,7 @@ vi.mock('@openref/runner', () => ({
 describe('createPageRunner', () => {
   it('should choose the proxy transport when the page carries the proxy path', async () => {
     // Given
-    const { ProxyHttpTransport } = await import('@openref/runner');
+    const { ProxyHttpTransport } = await import('@openref/runner/http');
 
     // When
     createPageRunner({ proxyPath: '/docs/_proxy' });

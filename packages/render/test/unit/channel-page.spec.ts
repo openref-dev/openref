@@ -432,18 +432,35 @@ describe('the channel model', () => {
     expect(page.frame.tabs.map((tab) => tab.kind)).not.toContain('bench');
   });
 
-  it('should leave the whole channel behind when the model crosses to the client', () => {
-    // Given the served page, whose three channel sections are adopted positions
+  it('should leave everything but the console servers behind when the model crosses to the client', () => {
+    // Given the served page, whose three channel sections are adopted positions and whose
+    // fourth, the socket console of `TX-SOCKET-CONSOLE`, is not
     const page = pageOf(REQUESTS);
     expect(page.node?.channel).not.toBeNull();
+    expect(page.node?.channel?.messages.length).toBeGreaterThan(0);
+    expect(page.node?.channel?.operations.length).toBeGreaterThan(0);
 
     // When it is serialized for the browser
     const state = JSON.parse(serializePageModel(page)) as PageModel;
 
-    // Then the channel is gone and `drawn` is what the client walks, so the two sides draw the
-    // same tree without the highlighted source crossing twice
-    expect(state.node?.channel).toBeNull();
+    // Then everything the three adopted sections read is gone, so the highlighted source of a
+    // payload does not cross twice, and `drawn` beside it is what the client walks
+    expect(state.node?.channel?.messages).toEqual([]);
+    expect(state.node?.channel?.operations).toEqual([]);
+    expect(state.node?.channel?.parameters).toEqual([]);
+    expect(state.node?.channel?.bindings).toEqual([]);
     expect(state.node?.drawn).toEqual(page.node?.drawn);
+
+    // And what the console connects through survives, because it is live state rather than
+    // markup: the server it addresses, the protocol that picks the transport, and the schemes
+    // whose credential the address can carry
+    expect(state.node?.channel?.servers.map((server) => server.url)).toEqual(
+      page.node?.channel?.servers.map((server) => server.url),
+    );
+    expect(state.node?.channel?.servers[0]?.protocol).toBe(
+      page.node?.channel?.servers[0]?.protocol,
+    );
+    expect(state.node?.channel?.servers[0]?.description).toBe('');
   });
 });
 

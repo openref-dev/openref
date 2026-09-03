@@ -1,7 +1,7 @@
 {
   "name": "@openref/samples",
   "version": "0.0.0",
-  "description": "OPENREF code sample generator. Internal, not published; no package imports it yet, and its first consumer arrives with the sample reader question boxed to T059",
+  "description": "OPENREF code sample generator. Internal, not published; bundled into @openref/nest and openref, which are the two packages that see both the renderer and the runner and therefore the two that can compose it",
   "license": "MIT",
   "repository": {
     "type": "git",

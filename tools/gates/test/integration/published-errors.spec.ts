@@ -29,7 +29,7 @@
  * is asserted non-empty and asserted to hold the three packages the finding named.
  */
 
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
@@ -91,7 +91,22 @@ const unresolved: string[] = [];
  * @returns Every class in that file whose base chain reaches `OpenRefError`
  */
 function errorClassesIn(declarations: string, known: ReadonlySet<string> = new Set()): Set<string> {
-  const text = readFileSync(declarations, 'utf8');
+  return errorClassesFrom(readFileSync(declarations, 'utf8'), known);
+}
+
+/**
+ * The same read over declaration text rather than one file.
+ *
+ * A PACKAGE WITH MORE THAN ONE ENTRY POINT DECLARES ITS CLASSES IN A CHUNK, since
+ * `TX-SOCKET-CONSOLE` gave `@openref/runner` three doors: `ElementTooLargeError` left
+ * `index.d.ts` for a content hashed file, and reading one file reported it as a name the package
+ * promised and did not own.
+ *
+ * @param text - Declaration text, one file's or a whole `dist`'s
+ * @param known - Classes already known to reach `OpenRefError`
+ * @returns The class names that reach `OpenRefError`
+ */
+function errorClassesFrom(text: string, known: ReadonlySet<string> = new Set()): Set<string> {
   const parents = new Map<string, string>();
   for (const match of text.matchAll(/declare class ([A-Za-z]+) extends ([A-Za-z]+)/g)) {
     parents.set(match[1] ?? '', match[2] ?? '');
@@ -109,6 +124,25 @@ function errorClassesIn(declarations: string, known: ReadonlySet<string> = new S
   };
 
   return new Set([...parents.keys()].filter((name) => reaches(name) || name === 'OpenRefError'));
+}
+
+/**
+ * Every declaration file a package's `dist` holds, as one text.
+ *
+ * A package with one entry point has one; a package with more has one per entry plus the chunks
+ * they share, and what it promises is spread over all of them.
+ *
+ * @param directory - Absolute path to the package directory
+ * @returns The concatenated declarations, ESM only so a `.d.cts` twin is not counted twice
+ */
+function declarationsOf(directory: string): string {
+  const dist = join(directory, 'dist');
+
+  return readdirSync(dist)
+    .filter((name) => name.endsWith('.d.ts'))
+    .sort()
+    .map((name) => readFileSync(join(dist, name), 'utf8'))
+    .join('\n');
 }
 
 /** The `OpenRefError` hierarchy, as `@openref/core`'s own declarations state it. */
@@ -172,7 +206,15 @@ function readSubjects(): Subject[] {
       );
     }
 
-    const text = readFileSync(declarations, 'utf8');
+    // THE WHOLE DECLARATION SURFACE AND NOT ONLY `index.d.ts`, since `TX-SOCKET-CONSOLE`. That
+    // file was the whole of a package's declarations while every published package had exactly
+    // one entry point. `@openref/runner` has three since the socket console, so `tsup` lifts what
+    // the entries share into content hashed chunk files and `index.d.ts` re-exports them:
+    // measured, 79.9 KB to 9.2 KB, with every `@throws` tag in a chunk. Reading one file after
+    // that is reading a tenth of what the package promises, and it read as a package that
+    // promised nothing. Every `.d.ts` under `dist` is the same question asked over all of it,
+    // which is what a consumer's editor resolves.
+    const text = declarationsOf(directory);
     const named = new Set<string>();
     for (const match of text.matchAll(THROWS_TAG)) named.add(match[1] ?? '');
     for (const match of text.matchAll(DECLARED_TYPE)) named.add(match[1] ?? '');
@@ -180,10 +222,7 @@ function readSubjects(): Subject[] {
 
     // Its own classes count too: `ElementTooLargeError` is declared in `@openref/runner` and
     // extends `StreamError`, so it is a class a consumer catches and is not in core's own file.
-    const classes = new Set([
-      ...CORE_ERROR_CLASSES,
-      ...errorClassesIn(declarations, CORE_ERROR_CLASSES),
-    ]);
+    const classes = new Set([...CORE_ERROR_CLASSES, ...errorClassesFrom(text, CORE_ERROR_CLASSES)]);
     const byOrder = (left: string, right: string): number => left.localeCompare(right);
 
     found.push({
@@ -242,7 +281,10 @@ describe('the error classes the published packages promise', () => {
     // required is asked to be one of two things a package genuinely owes no export for: a global
     // JavaScript already gives the consumer, or a record declared in that same file.
     const unexplained = SUBJECTS.flatMap((subject) => {
-      const text = readFileSync(join(subject.directory, 'dist', 'index.d.ts'), 'utf8');
+      // THE WHOLE SURFACE HERE TOO, for the reason `declarationsOf` gives: a package with more
+      // than one entry point declares a record in a chunk file, and reading `index.d.ts` alone
+      // reports it as unexplained.
+      const text = declarationsOf(subject.directory);
 
       return subject.notClasses
         .filter(

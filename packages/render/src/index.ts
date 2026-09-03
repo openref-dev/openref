@@ -150,6 +150,14 @@ export type { ThemeAssets, ThemeDefinition, ThemeTokens } from '@openref/vue';
 // `llms.txt` exactly as the page does. A second spelling of a title is two titles.
 export { materializeNode } from '@openref/vue';
 export type { NodeView } from '@openref/vue';
+// AND `runnerOperationOf` RIDES IT SINCE `TX-PAGE-SAMPLES`, for a third variation of the same
+// reason. It is the one answer to which server an operation uses, how each parameter serializes,
+// which schemes it requires and what its body editor arrives prefilled with, and the generated
+// samples of SPEC 18 have to be written from that answer rather than from a second one. The two
+// hosts that compose the generator, `@openref/nest` and the CLI, both name this package as their
+// upstream for renderer shapes and neither names `@openref/vue`, exactly as the note above says.
+export { runnerOperationOf } from '@openref/vue';
+export type { RunnerOperationView } from '@openref/vue';
 export type { PageModelOptions } from './page/domain/page-model';
 export {
   buildHealthModel,

@@ -13,6 +13,15 @@
  * package, so the wiring lives at the floor both of them can reach, the same rule
  * `package-assets.adapter.ts` follows for the client bundle specifier.
  *
+ * THE GENERATED SAMPLES OF SPEC 18 ARE COMPOSED IN THIS PACKAGE SINCE `TX-PAGE-SAMPLES`, and one
+ * level below this file: `buildSite` and `createSiteServer` each apply the transform, because they
+ * are the two entry points into page rendering and `served-equals-built.spec.ts` compares exactly
+ * those two. Applying it here instead left the served side transformed and the built side not, and
+ * thirteen files differed. `openref build` composed them and `nuxt generate` did not before that,
+ * which is what moved them into this package at all: measured, two cases of
+ * `packages/nuxt/test/integration/nuxt-parity.spec.ts`, the committed claims that one tree built
+ * twice is one tree.
+ *
  * THE ANCHOR IS THE CALLER'S AND THAT IS DELIBERATE. `@openref/nest/browser` is the default client
  * bundle and is a dependency of the callers rather than of this package, so `resolveFrom` carries
  * the module url of whoever asked for the build. `resolveAssetPath` states the same rule where it

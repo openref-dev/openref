@@ -27,6 +27,7 @@ import { proxyServers, type IRDocument } from '@openref/core';
 import {
   buildAssetCatalog,
   contentTypeFor,
+  runnerOperationOf,
   type AssetCatalog,
   type AssetSource,
   type IHighlighter,
@@ -35,6 +36,7 @@ import {
   type StaticProxyModel,
   type ThemeDefinition,
 } from '@openref/render';
+import { withGeneratedSamples } from '@openref/samples';
 import { buildSearchIndex } from '@openref/search';
 import { proxyPathPrefix } from '../../../proxy/domain/proxy-files';
 import type { BuildTarget } from '../../../proxy/domain/proxy-target';
@@ -167,7 +169,17 @@ const TEXT_CONTENT_TYPES: Readonly<Record<string, string>> = {
  * @param options - The document, its assets and the base
  * @returns The server
  */
-export function createSiteServer(options: SiteServerOptions): ISiteServer {
+export function createSiteServer(input: SiteServerOptions): ISiteServer {
+  // THE SAME TRANSFORM `buildSite` APPLIES, AND IT IS HERE FOR THE REASON THAT FILE STATES. The
+  // served page and the built page are one page by the claim `served-equals-built.spec.ts` holds
+  // file by file, so the generated samples of SPEC 18 cannot be composed on one side and not the
+  // other; a runtime that served sample-less pages for a build that wrote them would be the same
+  // divergence one level down. The whole options object is rebound rather than a local, for the
+  // reason `buildSite` states: one document per server, named once.
+  const options: SiteServerOptions = {
+    ...input,
+    document: withGeneratedSamples(input.document, runnerOperationOf),
+  };
   const { document } = options;
   const base = resolveSiteBase(options.base);
 

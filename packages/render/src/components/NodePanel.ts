@@ -21,7 +21,7 @@
  */
 
 import { useSlot } from '@openref/vue';
-import { defineComponent, h, ref, type PropType, type VNode } from 'vue';
+import { defineComponent, Fragment, h, ref, type PropType, type VNode } from 'vue';
 import { CodeSample } from './CodeSample';
 import { mediaTypeBlock, type SchemaContext } from './MediaTypeBlock';
 import { useDeferrable } from './deferrable';
@@ -114,7 +114,18 @@ export const NodePanel = defineComponent({
           // for one more: a schema tree inside an adopted position would be a row of buttons
           // nothing hydrates, so the payload is read rather than expanded. See `ChannelSections`.
           case 'channel':
-            return h(deferrable.channelFacts, { channel: node.channel });
+            // TWO POSITIONS UNDER ONE MARK, per `TX-SOCKET-CONSOLE`, and the mark does not grow.
+            // `NodeSectionMark` is frozen by `ai-docs/design/CONTRACT.md` and a twelfth member
+            // would be a breaking change to say what this one already says: this node is a
+            // channel and the server drew its channel section. The facts are adopted and the
+            // console is deferred, which is the whole difference between them.
+            return h(Fragment, [
+              h(deferrable.channelFacts, { channel: node.channel }),
+              h(deferrable.socketConsole, {
+                channel: node.channel,
+                address: node.address ?? '',
+              }),
+            ]);
           case 'channel-operations':
             return h(deferrable.channelOperations, { channel: node.channel });
           case 'messages':

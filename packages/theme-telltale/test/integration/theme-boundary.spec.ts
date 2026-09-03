@@ -357,6 +357,7 @@ describe('the markup a complete L2 theme does not own', () => {
       'oref-operation-header',
       'oref-path',
       'oref-root',
+      'oref-run-result',
       'oref-schema-link',
       'oref-section',
       'oref-section-channel',
@@ -368,12 +369,14 @@ describe('the markup a complete L2 theme does not own', () => {
       'oref-section-request',
       'oref-section-security',
       'oref-section-service',
+      'oref-section-socket',
       'oref-section-title',
       'oref-section-tryit',
       'oref-security-item',
       'oref-security-list',
       'oref-security-type',
       'oref-security-where',
+      'oref-send',
       'oref-server',
       'oref-service-fact',
       'oref-service-fact-label',
@@ -411,13 +414,16 @@ describe('the markup a complete L2 theme does not own', () => {
       'oref-shapes-fill',
       'oref-shapes-page',
       'oref-shapes-read',
+      'oref-socket-log',
       'oref-states-item',
       'oref-states-lead',
       'oref-states-list',
       'oref-states-page',
       'oref-subtitle',
       'oref-title',
+      'oref-tryit-actions',
       'oref-tryit-form',
+      'oref-tryit-notice',
       'oref-tryit-reset',
     ]);
   });
@@ -454,10 +460,10 @@ describe('the markup a complete L2 theme does not own', () => {
 
     // Then the subject is present before anything is said about absence: the renderer emits names,
     // the sweep reaches names, and the sweep reaches fewer.
-    expect(emitted.files).toBe(78);
-    expect(emitted.literals).toHaveLength(352);
+    expect(emitted.files).toBe(79);
+    expect(emitted.literals).toHaveLength(355);
     expect(emitted.prefixes).toHaveLength(11);
-    expect(emitted.names).toHaveLength(341);
+    expect(emitted.names).toHaveLength(344);
     expect(surviving.length).toBeLessThan(emitted.names.length);
 
     // And the partition is pinned, both ways. 245 emitted names no fixture provokes is the number
@@ -465,7 +471,7 @@ describe('the markup a complete L2 theme does not own', () => {
     // either side moves one of these and is read rather than absorbed.
     const emittedNotSwept = emitted.names.filter((name) => !surviving.includes(name));
     const sweptNotEmitted = surviving.filter((name) => !emitted.names.includes(name));
-    expect(emittedNotSwept).toHaveLength(245);
+    expect(emittedNotSwept).toHaveLength(242);
     expect(sweptNotEmitted).toEqual([
       'oref-method-get',
       'oref-method-post',

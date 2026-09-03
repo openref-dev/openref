@@ -268,10 +268,16 @@ describe('licensesGate', () => {
     // build's `tsup.config` inlines it by name, so a consumer of the module receives the agent
     // surface of SPEC 18.1 as bytes. Its own dependency closure is `core` and `render`, both
     // already in this list or published, so the production zone gains no third party licence.
+    // `@openref/samples` JOINED THE SET AT `TX-PAGE-SAMPLES`, the ordinary case a fourth time and
+    // by the same three facts: it is private, `@openref/nest` and `openref` both name it in
+    // `devDependencies`, and both builds' `tsup.config` inline it by name, so a consumer of either
+    // receives the sample generator of SPEC 18 as bytes. Its own dependency closure is `core` and
+    // `runner`, both already published, so the production zone gains no third party licence.
     expect(result.bundled).toEqual([
       '@openref/agent',
       '@openref/federation',
       '@openref/render',
+      '@openref/samples',
       '@openref/search',
       '@openref/static',
     ]);
