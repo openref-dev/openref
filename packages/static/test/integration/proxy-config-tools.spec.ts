@@ -193,19 +193,29 @@ describe('the nginx snippet through nginx -t, where a machine has nginx', () => 
       // run for two milestones and first ran on the first push to CI. `-t` parses without
       // binding, so the port only has to be a port.
       //
-      // AND A PID PATH THIS USER CAN WRITE, WHICH IS THE SAME MISTAKE A THIRD TIME. `-t` does not
-      // only parse: having said `syntax is ok` it opens the pid file, and with none declared that
-      // is the path nginx was compiled with. Homebrew compiles `--pid-path=/opt/homebrew/var/run`,
-      // which the workstation user owns, and the distribution packages compile `/run/nginx.pid`,
-      // which root owns, so the runner failed on `open() ... (13: Permission denied)` after
-      // passing the check this case is about. Reproduced here by pointing `pid` at an unwritable
-      // path, which fails the same way on macOS. Every defect this case has had is the scaffold
-      // assuming an environment, which is what a wrapper nobody ever ran is made of.
+      // AND EVERY PATH nginx WOULD OTHERWISE TAKE FROM ITS COMPILE TIME DEFAULTS. `-t` does not
+      // only parse. Having said `syntax is ok` it runs the same cycle init a start does, minus
+      // the listening sockets: it opens the pid file, opens every log, and creates every temp
+      // path. Undeclared, those are the paths the binary was built with, and the two builds
+      // disagree about who owns them. Homebrew puts them under its own prefix, which this user
+      // owns; the distribution packages use `/run/nginx.pid`, `/var/log/nginx` and `/var/lib/nginx`,
+      // which root owns. So the runner failed on `Permission denied` twice in a row, each time
+      // after passing the check this case is actually about, and each time one layer further in.
+      // Declaring all of them into the test's own directory ends the class rather than the top
+      // layer of it: measured here, `-t` creates all five temp directories, so the distribution
+      // defaults for those were next. This is the fourth environment assumption in one wrapper,
+      // which is what a scaffold nobody ever ran is made of.
       const wrapper = (body: string): string =>
         [
           'events {}',
           `pid ${join(directory, 'nginx.pid')};`,
           'http {',
+          '  access_log off;',
+          `  client_body_temp_path ${join(directory, 'client-body')};`,
+          `  proxy_temp_path ${join(directory, 'proxy')};`,
+          `  fastcgi_temp_path ${join(directory, 'fastcgi')};`,
+          `  uwsgi_temp_path ${join(directory, 'uwsgi')};`,
+          `  scgi_temp_path ${join(directory, 'scgi')};`,
           '  server {',
           body,
           '  }',
