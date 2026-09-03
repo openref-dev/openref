@@ -4,7 +4,7 @@
  * `httpx.request(method, url, ...)` RATHER THAN `httpx.post(...)`, because the plan's method is a
  * string and OpenAPI 3.2 lets a document declare a method httpx has no helper for. A generator
  * that picked a helper per method would need a fallback nobody tests; the generic call has one
- * shape for all nine.
+ * shape for all of them.
  *
  * MULTIPART GOES THROUGH `files` EVEN FOR THE TEXT PARTS. httpx's `data` cannot give a part its
  * own content type, and a text part that declares one is a part the runner sends with it, so the

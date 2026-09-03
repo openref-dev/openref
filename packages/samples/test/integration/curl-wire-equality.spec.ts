@@ -8,14 +8,12 @@
  * quoting under test: a body carrying a quote, a dollar sign or a backtick reaches the server as
  * the reader wrote it, or the case fails.
  *
- * THE SERVER RECORDS BYTES AND NOT MEANINGS. It keeps the request target as the request line
- * carried it, the header field values as they arrived, and the body as a buffer, so the comparison
- * is between two wires and not between two interpretations of them.
+ * THE SERVER RECORDS BYTES AND NOT MEANINGS, and it is the harness `test/mocks/wire.ts` holds,
+ * shared with the suite that drives wget, HTTPie, PowerShell, Swift and Ruby. What is shared is the
+ * mechanism; the verdict below is this suite's own, because multipart equality is a question only
+ * cURL answers here.
  */
 
-import { spawn } from 'node:child_process';
-import { createServer } from 'node:http';
-import type { IncomingMessage, Server } from 'node:http';
 import { mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -26,14 +24,8 @@ import { SPAWNED_PROCESS_TIMEOUT_MS } from '../../../../vitest.spawn-timeout';
 import { buildSampleRequest, generateCodeSamples } from '../../src/index';
 import type { SampleRequest } from '../../src/index';
 import { pngFile } from '../mocks/operations';
-
-/** One request as the server saw it. */
-interface Wire {
-  readonly method: string;
-  readonly target: string;
-  readonly headers: Readonly<Record<string, string>>;
-  readonly body: Buffer;
-}
+import { comparableHeaders, runShell, startWireServer } from '../mocks/wire';
+import type { Wire, WireServer } from '../mocks/wire';
 
 /** One part of a multipart body, as the framing carried it. */
 interface Part {
@@ -42,22 +34,14 @@ interface Part {
   readonly body: Buffer;
 }
 
-let server: Server;
+let wire: WireServer;
 let origin = '';
 let workDirectory = '';
-const seen: Wire[] = [];
-
-/** Reads the whole request body. */
-async function bodyOf(request: IncomingMessage): Promise<Buffer> {
-  const chunks: Buffer[] = [];
-  for await (const chunk of request) chunks.push(chunk as Buffer);
-
-  return Buffer.concat(chunks);
-}
 
 beforeAll(async () => {
   // A PROOF OF PRESENCE BEFORE ANY PROOF OF EQUALITY: without the binary this suite proves
-  // nothing, and a suite that cannot determine its fact says so rather than passing.
+  // nothing, and a suite that cannot determine its fact says so rather than passing. cURL is
+  // required outright rather than skipped, because every machine this project builds on has it.
   const version = await runShell('curl --version', process.cwd());
   expect(version.code, `curl is not runnable here: ${version.stderr}`).toBe(0);
   expect(version.stdout.startsWith('curl ')).toBe(true);
@@ -65,56 +49,13 @@ beforeAll(async () => {
   workDirectory = await mkdtemp(join(tmpdir(), 'openref-samples-'));
   await writeFile(join(workDirectory, pngFile().fileName), pngFile().bytes);
 
-  server = createServer((request, response) => {
-    void (async () => {
-      const headers: Record<string, string> = {};
-      for (const [name, value] of Object.entries(request.headers)) {
-        if (typeof value === 'string') headers[name] = value;
-      }
-
-      seen.push({
-        method: request.method ?? '',
-        target: request.url ?? '',
-        headers,
-        body: await bodyOf(request),
-      });
-
-      response.writeHead(204).end();
-    })();
-  });
-
-  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
-  const address = server.address();
-  if (address === null || typeof address === 'string') throw new Error('no port');
-  origin = `http://127.0.0.1:${String(address.port)}`;
+  wire = await startWireServer();
+  origin = wire.origin;
 }, SPAWNED_PROCESS_TIMEOUT_MS);
 
 afterAll(async () => {
-  await new Promise<void>((resolve) =>
-    server.close(() => {
-      resolve();
-    }),
-  );
+  await wire.close();
 });
-
-/** Runs one shell command and waits for it. */
-function runShell(
-  command: string,
-  cwd: string,
-): Promise<{ code: number; stdout: string; stderr: string }> {
-  return new Promise((resolve, reject) => {
-    const child = spawn('sh', ['-c', command], { cwd });
-    let stdout = '';
-    let stderr = '';
-
-    child.stdout.on('data', (chunk: Buffer) => (stdout += chunk.toString('utf8')));
-    child.stderr.on('data', (chunk: Buffer) => (stderr += chunk.toString('utf8')));
-    child.on('error', reject);
-    child.on('close', (code) => {
-      resolve({ code: code ?? -1, stdout, stderr });
-    });
-  });
-}
 
 /** The cURL sample of a request. */
 function curlOf(request: SampleRequest): string {
@@ -131,16 +72,16 @@ function curlOf(request: SampleRequest): string {
  * @returns What the server saw, runner first
  */
 async function bothWays(request: SampleRequest): Promise<readonly [Wire, Wire]> {
-  seen.length = 0;
+  wire.reset();
 
   await new FetchHttpTransport().send(request.plan);
   const command = curlOf(request);
   const run = await runShell(command, workDirectory);
   expect(run.code, `curl failed: ${run.stderr}\n${command}`).toBe(0);
 
-  expect(seen).toHaveLength(2);
+  expect(wire.seen).toHaveLength(2);
 
-  return [seen[0]!, seen[1]!];
+  return [wire.seen[0]!, wire.seen[1]!];
 }
 
 /** The boundary a multipart content type declares. */
@@ -184,6 +125,20 @@ function expectSameWire(request: SampleRequest, runner: Wire, curl: Wire): void 
   expect(`${origin}${curl.target}`).toBe(request.plan.url);
 
   const multipart = isMultipart(request.contentType ?? '');
+
+  // THE WHOLE REQUEST, MINUS CLIENT IDENTITY, for the reason `comparableHeaders` states: comparing
+  // only the fields the plan names made a header the client added invisible by construction. The
+  // content type of a multipart body is the one field this suite has always excused, because
+  // whoever frames the body picks the boundary, and the parts are compared instead.
+  // The boundary is curl's to pick, so both the content type that declares it and the length that
+  // follows from it are excused; the parts are compared instead. A request with no body at all is
+  // excused its content length for the reason `comparableHeaders` gives.
+  const exempt = multipart
+    ? ['content-type', 'content-length']
+    : request.plan.body === null
+      ? ['content-length']
+      : [];
+  expect(comparableHeaders(curl, exempt)).toEqual(comparableHeaders(runner, exempt));
 
   for (const [name, value] of Object.entries(request.plan.headers)) {
     const field = name.toLowerCase();

@@ -25,9 +25,21 @@ import type { EmitOutcome } from './languages';
 /** How the arguments of one command are separated: a continuation and two spaces. */
 const CONTINUE = ' \\\n  ';
 
-/** One `-H` argument per header, in the order `headersOf` fixed. */
+/**
+ * One `-H` argument per header, in the order `headersOf` fixed.
+ *
+ * AN EMPTY VALUE TAKES THE OTHER SPELLING, AND THE OBVIOUS ONE DROPS THE HEADER. Measured against
+ * the real binary on 2026-09-03: `-H 'X-Empty: '` reaches the server with no such field at all, and
+ * a value of nothing but spaces does the same, while the runner sends the header with an empty
+ * value. `-H 'X-Empty;'` is curl's own spelling for "send this field empty" and was measured
+ * arriving as one. HTTPie was given this fix when it was added; curl is the default tab and had
+ * carried the defect since T057, which is why a blind review found it here rather than in a new
+ * language.
+ */
 function headerArguments(headers: readonly HeaderPair[]): readonly string[] {
-  return headers.map(([name, value]) => `-H ${quoteShell(`${name}: ${value}`)}`);
+  return headers.map(([name, value]) =>
+    value.trim() === '' ? `-H ${quoteShell(`${name};`)}` : `-H ${quoteShell(`${name}: ${value}`)}`,
+  );
 }
 
 /**

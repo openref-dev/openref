@@ -55,6 +55,9 @@ describe('composeCodeSamples', () => {
     expect(langs).toEqual([
       'shell',
       'kotlin',
+      'bash',
+      'sh',
+      'powershell',
       'typescript',
       'python',
       'go',
@@ -63,6 +66,8 @@ describe('composeCodeSamples', () => {
       'csharp',
       'ruby',
       'rust',
+      'swift',
+      'dart',
     ]);
   });
 

@@ -106,7 +106,13 @@ describe('a sample regenerated after a specification change', () => {
 
     // Then
     expect([...second]).toEqual([...first]);
-    expect(first.size).toBe(9);
+
+    // Fourteen and not fifteen, which is the Kotlin refusal doing its job on this very fixture: the
+    // base document is a POST that declares no request body, and OkHttp's request builder rejects a
+    // null body on a method `HttpMethod.requiresRequestBody` names. The case below that gives the
+    // operation a body gets its fifteenth tab back.
+    expect(first.size).toBe(14);
+    expect([...first.keys()]).not.toContain('kotlin');
   });
 
   it('should follow the server url into every language', () => {
@@ -165,5 +171,10 @@ describe('a sample regenerated after a specification change', () => {
     expect(after.get('shell')).toContain(`--data-raw '{"name":"Fido"}'`);
     expect(after.get('shell')).toContain(`-H 'Content-Type: application/json'`);
     expect(after.get('typescript')).toContain('body: "{\\"name\\":\\"Fido\\"}"');
+
+    // And the tab the bodyless version could not have: OkHttp requires a body on a POST, so the
+    // fifteenth language arrives with the request body rather than with the specification edit.
+    expect(before.has('kotlin')).toBe(false);
+    expect(after.get('kotlin')).toContain('.toRequestBody("application/json".toMediaType())');
   });
 });

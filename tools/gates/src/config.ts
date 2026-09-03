@@ -2594,7 +2594,14 @@ export const M6_SUITE_COVERAGE: readonly StaticCoverage[] = [
   {
     id: 'wire-equality',
     spec: 'равенство на проводе',
-    files: ['packages/samples/test/integration/curl-wire-equality.spec.ts'],
+    files: [
+      'packages/samples/test/integration/curl-wire-equality.spec.ts',
+      // THE SECOND FILE ARRIVED WITH THE SPEC 18 LANGUAGE SET OF 2026-09-03, and it is listed here
+      // rather than left to itself for the reason this whole table exists: a suite nothing names is
+      // a suite that can be deleted without a gate noticing. It drives wget, HTTPie, PowerShell and
+      // a compiled Swift program the same way the first drives curl.
+      'packages/samples/test/integration/tool-wire-equality.spec.ts',
+    ],
     cases: [
       // SPEC 18's whole claim, checked against the real binary rather than against a string.
       'should agree on a GET carrying query parameters, a header parameter and an apiKey',
@@ -2602,6 +2609,31 @@ export const M6_SUITE_COVERAGE: readonly StaticCoverage[] = [
       'should agree on a form urlencoded body, which the encoder writes and neither client does',
       'should agree on a multipart body part for part, boundary aside',
       'should agree on a binary body, byte for byte',
+      // And the four the second file adds, each naming the thing its tool was measured to do or to
+      // get wrong: a redirect for HTTPie's body, a file read for PowerShell's, the empty header
+      // spelling HTTPie drops under the obvious one, and the method its enumeration refuses.
+      'should agree on a binary body sent from the file, byte for byte',
+      'should agree on a binary body redirected into it, byte for byte',
+      'should send an empty header value rather than dropping the header',
+      'should agree on a method the WebRequestMethod enumeration does not name',
+      // Ruby came off the not-proved list on 2026-09-03 by being run, so the case that took it off
+      // is named here: a list shortened by a suite nothing pins can lengthen again in silence.
+      'should agree on a method Net::HTTP ships no request class for',
+      // And the two measurements the SPEC 18 refusals rest on, which are invisible anywhere else:
+      // Node decodes a field value as Latin-1, so the two encodings compare equal as text.
+      'should be one octet from the runner, which is the rule its own platform states',
+      'should be the UTF-8 pair from a shell command, which is why the form is refused',
+      'should be three behaviours across four clients, and the note names the two that differ',
+      // THE FOUR THE WIDENED COMPARISON EXPOSED, named here because the method change that found
+      // them is worth more than any one of them: until 2026-09-03 both suites compared only the
+      // headers the plan states, so a header a client added of its own could not fail a case.
+      'should stop PowerShell inventing a content type on a bodyless request',
+      'should stop Ruby inventing a content type on a bodyless request',
+      'should send an empty header value from cURL, which the obvious spelling drops',
+      'should refuse the HTTPie tab for a header value that would become a body field',
+      // What keeps the exemption list from being a hole of its own: a document naming one of the
+      // seven is still held to the value it states, on both sides.
+      'should still be compared on both sides, since the exemption is only client against client',
     ],
   },
   {
@@ -2621,6 +2653,9 @@ export const M6_SUITE_COVERAGE: readonly StaticCoverage[] = [
     files: [
       'packages/samples/test/unit/matrix-coverage.spec.ts',
       'packages/samples/test/unit/adversarial-m6.spec.ts',
+      // THE TWO REFUSALS THAT BELONG TO THE REQUEST AND NOT TO A CLIENT, added 2026-09-03 after a
+      // blind review found fourteen emitters writing a sample for a plan the runner will not send.
+      'packages/samples/test/unit/plan-refusals.spec.ts',
     ],
     cases: [
       'should carry every cell the runner defines and refuse the same ones it refuses',
@@ -2629,6 +2664,10 @@ export const M6_SUITE_COVERAGE: readonly StaticCoverage[] = [
       // And what a sample may never do, which is show a command that sends something else.
       'should keep a hostile query value inside one argument of a real shell',
       'should refuse the whole sample when a multipart field name carries the character curl reads as the end of a name',
+      'should refuse every one of the fifteen, with the runner reason and not a client one',
+      'should be the transport that refuses it, which is what makes the reason the runner own',
+      'should be written only by the two clients measured to send the runner octets',
+      'should let through a method the transport does support but has never heard of',
     ],
   },
   {
@@ -2636,7 +2675,7 @@ export const M6_SUITE_COVERAGE: readonly StaticCoverage[] = [
     spec: 'правило пустого тела',
     files: ['packages/samples/test/unit/empty-body-argument.spec.ts'],
     cases: [
-      'should emit no body argument in any of the nine languages',
+      'should emit no body argument in any of the fifteen languages',
       'should say the request has no body where the language insists on saying something',
       'should emit one in every language for an operation that does carry a body',
     ],

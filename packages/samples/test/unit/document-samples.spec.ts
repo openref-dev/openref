@@ -106,9 +106,12 @@ describe('withGeneratedSamples, what it puts on an operation', () => {
     const samples = samplesOf();
 
     // Then
-    expect(samples).toHaveLength(9);
+    expect(samples).toHaveLength(15);
     expect(samples.map((entry) => entry.lang)).toEqual([
       'shell',
+      'bash',
+      'sh',
+      'powershell',
       'typescript',
       'python',
       'go',
@@ -117,6 +120,9 @@ describe('withGeneratedSamples, what it puts on an operation', () => {
       'csharp',
       'ruby',
       'rust',
+      'swift',
+      'kotlin',
+      'dart',
     ]);
   });
 
@@ -176,8 +182,8 @@ describe('withGeneratedSamples, against what the document already wrote', () => 
     // When
     const samples = samplesOf({ declared });
 
-    // Then: nine languages, one of them the document's, and never two tabs called `shell`.
-    expect(samples).toHaveLength(9);
+    // Then: fifteen languages, one of them the document's, and never two tabs named `shell`.
+    expect(samples).toHaveLength(15);
     expect(samples.filter((entry) => entry.lang === 'shell')).toHaveLength(1);
     expect(sample(samples, 'typescript')?.source).toContain('https://api.example.com/v1');
   });
@@ -190,7 +196,7 @@ describe('withGeneratedSamples, against what the document already wrote', () => 
     const samples = samplesOf({ declared });
 
     // Then
-    expect(samples).toHaveLength(10);
+    expect(samples).toHaveLength(16);
     expect(samples[0]?.lang).toBe('elixir');
   });
 });

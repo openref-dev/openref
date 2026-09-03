@@ -31,7 +31,7 @@
  * cookie parameter a browser will not let a script set: each is a request `buildRequest` will not
  * build, and a sample written past that refusal would be code that does not run. The operation
  * ends up as an operation nobody wrote a sample for, which is a state the page already draws
- * correctly, rather than as a boot failure or as nine samples of a request the console rejects.
+ * correctly, rather than as a boot failure or as fifteen samples of a request the console rejects.
  */
 
 import { compareByCodePoint, finalizeDocument, generateExample, OpenRefError } from '@openref/core';
@@ -108,7 +108,7 @@ export type SampleOperationOf = (operation: IROperation, document: IRDocument) =
  *
  * @param document - The normalized document
  * @param operationOf - The projection, `runnerOperationOf` from `@openref/vue`
- * @param languages - Languages to write, defaulting to all nine of SPEC 18 in their order
+ * @param languages - Languages to write, defaulting to all fifteen of SPEC 18 in their order
  * @returns A new document, hashed and frozen, whose operations carry their samples
  *
  * @example

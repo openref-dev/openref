@@ -3,7 +3,7 @@ import { buildSampleRequest, generateCodeSamples, placeholderCredentials } from 
 import { representativeInputs, representativeOperation } from '../mocks/operations';
 
 /**
- * The figure the `T059` amendment section quotes for what nine samples weigh.
+ * The figure SPEC 18 quotes for what the fifteen samples of one operation weigh.
  *
  * IT HAS A RUNNER BECAUSE IT IS A RECORD SOMEBODY WILL ACT ON. The section argues that reaching a
  * page is a decision with a price, and the price is a number; a number in a document with nothing
@@ -15,10 +15,10 @@ import { representativeInputs, representativeOperation } from '../mocks/operatio
  * `@openref/render` and this package cannot see it. The section states how they are reproduced,
  * from this same fixture.
  */
-const REPRESENTATIVE_RAW_BYTES = 4309;
+const REPRESENTATIVE_RAW_BYTES = 7093;
 
 describe('the representative operation the T059 section is measured from', () => {
-  it('should produce nine samples weighing the bytes that section states', () => {
+  it('should produce fifteen samples weighing the bytes the specification states', () => {
     // Given
     const operation = representativeOperation();
     const { values } = placeholderCredentials(operation.security);
@@ -33,7 +33,7 @@ describe('the representative operation the T059 section is measured from', () =>
 
     // Then
     expect(omitted).toEqual([]);
-    expect(samples).toHaveLength(9);
+    expect(samples).toHaveLength(15);
     expect(raw).toBe(REPRESENTATIVE_RAW_BYTES);
   });
 

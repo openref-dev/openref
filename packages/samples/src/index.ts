@@ -29,8 +29,22 @@ export type {
   SampleParameter,
 } from './generate/domain/document-samples';
 export { generateCodeSamples } from './generate/domain/generate';
-export type { GeneratedSamples, SampleOmission } from './generate/domain/generate';
-export { BYTE_BODY_REFUSAL, SAMPLE_LANGUAGES } from './generate/domain/languages';
+export type { GeneratedSamples, SampleNote, SampleOmission } from './generate/domain/generate';
+export {
+  BYTE_BODY_REFUSAL,
+  HTTPIE_MULTIPART_REFUSAL,
+  HTTPIE_SEPARATOR_REFUSAL,
+  NON_ASCII_HEADER_REFUSAL,
+  OKHTTP_MISSING_BODY_REFUSAL,
+  POWERSHELL_MULTIPART_REFUSAL,
+  POWERSHELL_TYPED_EMPTY_REFUSAL,
+  REDIRECT_CREDENTIAL_DROPPED_NOTE,
+  REDIRECT_NOT_FOLLOWED_NOTE,
+  SAMPLE_LANGUAGES,
+  UNSENDABLE_PLAN_REFUSAL,
+  UNTYPED_BODY_REFUSAL,
+  WGET_MULTIPART_REFUSAL,
+} from './generate/domain/languages';
 export type {
   EmitOutcome,
   SampleLanguage,

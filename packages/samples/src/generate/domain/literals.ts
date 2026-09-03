@@ -76,6 +76,11 @@ export function quoteUnicode(text: string): string {
   return quoteDouble(text, (code) => `\\u${hex4(code)}`);
 }
 
+/** Braced hex, which is what Rust demands and what Swift also reads. */
+function braced(code: number): string {
+  return `\\u{${code.toString(16)}}`;
+}
+
 /**
  * A Rust literal.
  *
@@ -86,7 +91,67 @@ export function quoteUnicode(text: string): string {
  * @returns The literal, quotes included
  */
 export function quoteRust(text: string): string {
-  return quoteDouble(text, (code) => `\\u{${code.toString(16)}}`);
+  return quoteDouble(text, braced);
+}
+
+/**
+ * A Swift literal.
+ *
+ * TWO NAMES FOR ONE FORM RATHER THAN ONE NAME FOR TWO LANGUAGES. Swift spells a code point escape
+ * with braces exactly as Rust does, so both call {@link braced}; they are separate exports because
+ * the day either language's escaping has to move, it moves without touching the other, and a caller
+ * reading `quoteRust` inside the Swift emitter would have to check whether that was deliberate.
+ *
+ * @param text - The text to quote
+ * @returns The literal, quotes included
+ */
+export function quoteSwift(text: string): string {
+  return quoteDouble(text, braced);
+}
+
+/** What Kotlin and Dart escape beyond the common set: the character that opens a template. */
+const DOLLAR_EXTRA: ReadonlyMap<string, string> = new Map([['$', '\\$']]);
+
+/**
+ * A Kotlin literal.
+ *
+ * A dollar sign inside a Kotlin string opens a template expression, which is the same failure Ruby
+ * has with an interpolation opener: an unescaped one is a sample that sends something the reader
+ * never wrote, or does not compile at all. A JSON body carrying a price in dollars reaches this
+ * every day.
+ *
+ * @param text - The text to quote
+ * @returns The literal, quotes included
+ */
+export function quoteKotlin(text: string): string {
+  return quoteDouble(text, (code) => `\\u${hex4(code)}`, DOLLAR_EXTRA);
+}
+
+/**
+ * A Dart literal.
+ *
+ * Dart interpolates on a dollar sign for the same reason Kotlin does, and reads the four digit code
+ * point escape, so it shares the extra map and not the escaper's brace form.
+ *
+ * @param text - The text to quote
+ * @returns The literal, quotes included
+ */
+export function quoteDart(text: string): string {
+  return quoteDouble(text, (code) => `\\u${hex4(code)}`, DOLLAR_EXTRA);
+}
+
+/**
+ * A PowerShell single quoted literal.
+ *
+ * SINGLE QUOTED FOR THE REASON PHP IS. A double quoted PowerShell string expands `$name` and
+ * `$(...)`, and a subexpression inside an argument is a command the reader did not ask to run. A
+ * single quoted string expands nothing at all and has exactly one escape, the doubled quote.
+ *
+ * @param text - The text to quote
+ * @returns The literal, quotes included
+ */
+export function quotePowerShell(text: string): string {
+  return `'${text.replace(/'/g, "''")}'`;
 }
 
 /** What Ruby escapes beyond the common set: the character that opens an interpolation. */

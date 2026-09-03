@@ -128,3 +128,46 @@ describe('emitCurl', () => {
     expect(source).toContain(`--data-binary '@cover.png'`);
   });
 });
+
+describe('a header curl would otherwise drop', () => {
+  it('should spell an empty value with the form curl sends rather than the one it removes', () => {
+    // Given, measured against the real binary: `-H 'X-Empty: '` reaches the server with no such
+    // field at all, and a value of nothing but spaces does the same
+    const request = buildSampleRequest(
+      {
+        ...listPets(),
+        parameters: [
+          { name: 'X-Empty', in: 'header', required: false, style: 'simple', explode: false },
+        ],
+      },
+      { values: { 'header:X-Empty': { kind: 'primitive', value: '' } }, serverUrl: SERVER },
+    );
+    expect(request.plan.headers['X-Empty']).toBe('');
+
+    // When
+    const command = curlFor(request);
+
+    // Then
+    expect(command).toContain(`-H 'X-Empty;'`);
+    expect(command).not.toContain(`-H 'X-Empty: '`);
+  });
+
+  it('should keep the ordinary spelling for a value that is not empty', () => {
+    // Given, the control
+    const request = buildSampleRequest(
+      {
+        ...listPets(),
+        parameters: [
+          { name: 'X-Trace', in: 'header', required: false, style: 'simple', explode: false },
+        ],
+      },
+      { values: { 'header:X-Trace': { kind: 'primitive', value: 'abc' } }, serverUrl: SERVER },
+    );
+
+    // When
+    const command = curlFor(request);
+
+    // Then
+    expect(command).toContain(`-H 'X-Trace: abc'`);
+  });
+});
