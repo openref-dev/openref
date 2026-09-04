@@ -574,10 +574,10 @@ const THRESHOLD_BOUND: Extent = { chars: 24, segments: 5, perToken: 2, capitals:
 /**
  * The figures one claim map row states, separated by `" ; "`.
  *
- * The fullest row today reads 574 characters over 115 segments, and the bound is a table about two
- * fifths longer again, 800 over 160. THE SEGMENT COUNT IS NOT THE FIGURE COUNT and this comment
+ * The fullest row today reads 629 characters over 126 segments, and the bound is a table about a
+ * quarter longer again, 800 over 160. THE SEGMENT COUNT IS NOT THE FIGURE COUNT and this comment
  * used to say it was:
- * `156,672 bytes` is one figure of three segments, so the 115 is 68 figures. What bounds the
+ * `156,672 bytes` is one figure of three segments, so the 126 is 75 figures. What bounds the
  * figures is {@link FIGURES_IN_A_ROW} and what bounds the digits inside one is {@link FIGURE},
  * because a character bound of 800 over a run of digits is not a bound on a figure at all.
  */
@@ -1088,8 +1088,8 @@ export const CITED_READINGS: readonly {
     reading: 6,
     cited: 'ACKNOWLEDGED_RESIDUE, the claim id entry',
   },
-  { path: 'data.claimMap[].text', measure: 'chars', reading: 574, cited: 'FIGURES_BOUND' },
-  { path: 'data.claimMap[].text', measure: 'segments', reading: 115, cited: 'FIGURES_BOUND' },
+  { path: 'data.claimMap[].text', measure: 'chars', reading: 629, cited: 'FIGURES_BOUND' },
+  { path: 'data.claimMap[].text', measure: 'segments', reading: 126, cited: 'FIGURES_BOUND' },
   { path: 'data.claimMap[].proofs[]', measure: 'chars', reading: 68, cited: 'PATH_BOUND' },
   { path: 'data.claimMap[].proofs[]', measure: 'segments', reading: 10, cited: 'PATH_BOUND' },
   {

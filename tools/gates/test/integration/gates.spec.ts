@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import {
   BROWSER_BASELINE_FILE,
   BUDGET_EXCEPTIONS,
+  BROWSER_CEILINGS,
   BUDGET_EXCEPTION_HISTORY,
   BUILD_AMENDMENTS_FILE,
   BUILD_FILE,
@@ -939,21 +940,26 @@ describe('budgetExceptionsGate', () => {
       // caps on a study taken on the runner, both true on 2026-08-11 when T016 was ticked. The
       // second spent M2 over its cap under a filed entry, which the T016 clause allows, and is
       // inside again at the close of M2 on the study that close required: TX-ADOPT paid the page
-      // down and the cap was re-derived for the sanctioned stylesheet arrivals. What this pins is
-      // that the figures are still read from the record and printed on every run, which is what
-      // the exit rested on, and that the baseline's freshness is named beside them.
+      // down and the cap was re-derived for the sanctioned stylesheet arrivals. It was re-derived
+      // again on 2026-09-04 against a measurement taken afresh, which is when this case stopped
+      // being able to hold the count as a literal. What this pins is that the figures are still
+      // read from the record and printed on every run, which is what the exit rested on, and that
+      // the baseline's freshness is named beside them.
       const context = { repoRoot };
 
       // When
       const result = await budgetsGate.run(context);
       const lines = result.findings.map((finding) => finding.message);
 
-      // Then the count is inside its cap: every study of the close-of-M2 dispatch reads 1.
-      expect(
-        lines.some((line) =>
-          line.startsWith('MEASURED long-tasks: 1 of 2, as a median of 25 navigations'),
-        ),
-      ).toBe(true);
+      // Then the count is printed and inside its cap, WHICH IS READ OFF THE RECORD RATHER THAN
+      // WRITTEN DOWN. A literal here would fail the build for a page that got better: the runner
+      // record read 1 and the workstation record reads 0, and both are inside a cap of 2.
+      const longTasks = lines.find((line) => line.startsWith('MEASURED long-tasks: '));
+      const median = Number(/^MEASURED long-tasks: (\d+) of (\d+)/.exec(longTasks ?? '')?.[1]);
+      const cap = Number(/^MEASURED long-tasks: (\d+) of (\d+)/.exec(longTasks ?? '')?.[2]);
+      expect(longTasks).toContain('as a median of 25 navigations');
+      expect(cap).toBe(BROWSER_CEILINGS.longTaskCount);
+      expect(median).toBeLessThanOrEqual(cap);
 
       // And the bytes are inside and printed as measured, not silently absent.
       expect(lines.some((line) => line.startsWith('MEASURED page-bytes'))).toBe(true);

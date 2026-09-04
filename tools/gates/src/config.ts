@@ -1063,11 +1063,37 @@ export const SIZE_BUDGETS: readonly SizeBudget[] = [
     // carry draws samples that will not authenticate, and a document that wrote two samples under
     // one language has one of them shown. All three were computed before and reached no reader.
     // Measured on the published form by building the tree twice: 112,644 against 112,587, so 57
-    // bytes against 53 of headroom. THE CAP IS NOT MOVED HERE AND THE ROW IS RED BY FOUR BYTES.
-    // The property that derives this cap is broken in its first half, since the artefact no longer
-    // fits under 110 KB, and re-deriving it is the maintainer's decision rather than this file's:
-    // a gate edited to make something pass is the one rule this project protects hardest.
-    limitBytes: 110 * 1024,
+    // bytes against 53 of headroom. THE CAP WAS NOT MOVED BY THE SLICE THAT SPENT THEM AND THE ROW
+    // STOOD RED BY FOUR BYTES. The property that derives this cap was broken in its first half,
+    // since the artefact no longer fitted under 110 KB, and re-deriving it is the maintainer's
+    // decision rather than this file's: a gate edited to make something pass is the one rule this
+    // project protects hardest.
+    //
+    // 111 KB SINCE 2026-09-04, BY THE MAINTAINER'S RULING, AND BY THIS ROW'S OWN PROPERTY RATHER
+    // THAN BY A RULE SHARED WITH ANY OTHER ROW. The three rows nearest this one are derived three
+    // different ways on purpose: `client-js-schema` is its measurement plus ten percent rounded
+    // down to a hundred bytes, `theme-entry-raw` is plus ten percent rounded up to a whole KiB, and
+    // `theme-css-raw` is the smallest whole KB step the artefact fits under. This row's property
+    // has not changed since T011-R: the smallest whole KB step the artefact fits under, at which
+    // the cheapest deferred gesture returning to the first load still fails the budget.
+    //
+    // THE ARITHMETIC, EVERY OPERAND OFF THE TREE. The published first paint weighs 112,644 across
+    // seven files. 110 KB is 112,640 and does not hold it; 109 KB at 111,616 holds it less. 111 KB
+    // is 113,664: the artefact fits with 1,020 bytes. The second half is checked with the same
+    // measurement: `sign-in-return` published is 1,468 raw, 112,644 plus 1,468 is 114,112 against
+    // 113,664, and the budget fails, so the property holds. 112 KB is 114,688 and would let that
+    // same return in without a word, so 112 is what the property forbids and 111 is the one step it
+    // allows. THE PAYER AND THE ARRIVAL ARE RECORDED AND NOT ONLY THE NUMBER: all 57 bytes are in
+    // `openref.js`, which weighs 21,280 while the six files beside it weigh 91,364 before the change
+    // and after it, and the arrival is the third sentence under the tabs, which delivers
+    // `GeneratedSamples.notes` and `placeholderCredentials(...).unsendable`. Both were computed from
+    // the generator's first day and reached no reader. WHAT WAS REFUSED, IN THE MAINTAINER'S OWN
+    // WORDS: shaving a sentence that tells a reader the samples cannot carry required credentials is
+    // trimming the fix under the budget, which is the move this project forbids.
+    //
+    // 1,020 BYTES IS THE NUMBER TO WATCH NOW. The next 1,021 bytes the first paint gains fail this
+    // budget, and the task that brings them comes to the maintainer with its own measurement.
+    limitBytes: 111 * 1024,
     roots: CLIENT_JS_ROOTS,
     extensions: ['.js', '.mjs'],
     quantity: 'parse',
@@ -1812,8 +1838,8 @@ export const MEASURED_BUDGETS: readonly MeasuredBudget[] = [
   {
     id: 'page-bytes',
     label: 'Document, CSS and JS the 1000 node page hands the main thread, raw',
-    limit: '203 KB',
-    enforcedBy: 'T015-R1, re-derived at the close of M2',
+    limit: '221 KB',
+    enforcedBy: 'T015-R1, re-derived at the close of M2 and again on 2026-09-04',
   },
   {
     id: 'client-memory',
@@ -1957,21 +1983,37 @@ export const BROWSER_STUDY_WORKFLOW = '.github/workflows/browser-budget-study.ym
  * THERE IS NO `ttiMs` HERE ANY MORE, and its absence is the decision of 2026-08-10 rather than
  * an omission. SPEC 20 keeps the 150 ms as what the product is for and stops checking it,
  * because six studies of one commit across five processors of a pool that swaps them silently
- * measured it between 163.7 and 216.1 ms. Everything below is either a count or a byte count,
- * and no processor moved any of them.
+ * measured it between 163.7 and 216.1 ms. Everything below is either a count or a byte count.
  *
- * `longTaskCount` is 2 because 2 is what all six studies measured, as a median of 25
+ * AND THE SENTENCE THAT USED TO FOLLOW, THAT NO PROCESSOR MOVED ANY OF THEM, IS TRUE OF THE BYTE
+ * COUNTS AND NOT OF THE COUNT. It is corrected here rather than dropped, because a claim that was
+ * measured for one quantity and extended by wording to another is a defect of the kind this file
+ * keeps a list of. THE BYTE COLUMNS HAVE EARNED IT: identical to the byte across five processors
+ * in the studies of 2026-08-10, and again on 2026-09-04 across two browser majors and a different
+ * architecture, where 62,594 and 112,644 came back equal to the published `theme-css-raw` and
+ * `client-js-raw` of the same tree. `longTaskCount` has not: the three records this repository has
+ * kept read 2, then 1, then 0, on three machines and three trees, and no study has ever separated
+ * the machine from the tree for it. What it is safe to say is that the count is coarse and that
+ * its reading is not established to be machine independent; what is NOT safe is to read a fall
+ * from 1 to 0 as the page improving.
+ *
+ * `longTaskCount` is 2 because 2 is what all six studies of 2026-08-10 measured, as a median of 25
  * navigations, and 3 is the smallest step an integer count has. A change that adds one stall to
  * the load fails it. It is a coarse instrument and it says so: it cannot see an existing long
- * task getting worse without splitting.
+ * task getting worse without splitting, and by the paragraph above it cannot tell a faster machine
+ * from a lighter page either.
  *
- * `pageBytes` is 203 KB against 204,818 measured on the runner over the committed tree at
+ * `pageBytes` is 221 KB since 2026-09-04, and the property it is derived by is stated once here
+ * and applied to every measurement below: another region of `theme.css` the size of the page
+ * frame, 3,287 bytes, or of the try-it console, 3,669, has to fail it, and a navigation sized
+ * addition of 2,520 has to fit. The paragraph on the re-derivation carries today's arithmetic.
+ *
+ * IT WAS 203 KB against 204,818 measured on the runner over the committed tree at
  * commit 74510c5, three studies of one dispatch and the workstation identical to the byte:
- * 37,894 document, 59,582 CSS, 107,342 JS. The headroom is 3,054 bytes, and it is derived the
- * way `theme-css-raw` was: another region of `theme.css` the size of the page frame, 3,287
- * bytes, or of the try-it console, 3,669, has to fail it, and a navigation sized addition of
- * 2,520 has to fit; 203 KB is the one whole KB step that keeps the property, 207,338 under
- * 207,872 and 208,105 over it. THIS IS THE TIGHTEST ROW IN THE TABLE AND IT IS MEANT TO BE. It
+ * 37,894 document, 59,582 CSS, 107,342 JS. The headroom was 3,054 bytes, derived the
+ * way `theme-css-raw` was, by the same property: 203 KB was the one whole KB step that kept it,
+ * 207,338 under 207,872 and 208,105 over it. THIS IS THE TIGHTEST ROW IN THE TABLE AND IT IS
+ * MEANT TO BE. It
  * is the only budget measured over what the page actually loads rather than over what the build
  * produced, so it is the only one that can see a resource nobody weighed, and a cap with the
  * usual ten percent of room would let a whole stylesheet in without a word.
@@ -2014,6 +2056,36 @@ export const BROWSER_STUDY_WORKFLOW = '.github/workflows/browser-budget-study.ym
  * re-derived one. The exception is closed into the history below as paid by its payer and
  * closed by this re-derivation.
  *
+ * RE-DERIVED ON 2026-09-04, 203 TO 221 KB, BY THE MAINTAINER'S RULING, AND THE MOVE IS THE ONE
+ * `T062` MADE FOR THE SUBJECT: the row's own property, applied to a measurement taken again rather
+ * than reused. What made the re-derivation necessary is not the samples section. A page drawing NO
+ * sample at all measures 214,243 stripped and 214,997 with the section chrome, so the 6,371 byte
+ * overrun exists at zero languages and no choice of language count saves this budget; the same page
+ * with all fifteen read 229,935. The property is unchanged and is this row's own: the whole KB step
+ * under which a navigation sized addition of 2,520 still fits while a `theme.css` region the size
+ * of the page frame, 3,287, or of the try-it console, 3,669, goes over.
+ *
+ * THE MEASUREMENT, AND WHAT IT REPLACES. Taken 2026-09-04 on an Apple M3 Ultra workstation under
+ * Chrome 152, throttle 4x measured between 4.10x and 4.29x over twenty navigations: 223,327 bytes,
+ * 48,089 document, 62,594 CSS and 112,644 JS, every one of the three columns identical to the byte
+ * across all twenty runs at a standard deviation of zero. It replaces the record of 2026-08-14,
+ * 204,818 taken on an AMD EPYC 7763 runner under Chrome 151 at commit 74510c5, which 69 commits
+ * touching `packages/` or `tools/browser-budget/src` had gone past: the budgets gate printed FROM A
+ * STALE RECORD beside every browser row, and a cap decided on that figure would have been decided
+ * on a page that no longer exists. The difference is itemised rather than asserted: the document
+ * grew 10,195, the stylesheet 3,012 and the JS 5,302, which is 18,509, and 204,818 plus 18,509 is
+ * 223,327 with no unnamed term. TWO OF THE THREE COLUMNS AGREE WITH THE PUBLISHED FORM TO THE BYTE,
+ * MEASURED RATHER THAN ARGUED FROM THE PARAGRAPH THAT SAYS A BROWSER DOWNLOADS IT: the CSS column
+ * is 62,594, which is `theme-css-raw` on this tree, and the JS column is 112,644, which is
+ * `client-js-raw` on it.
+ *
+ * THE ARITHMETIC. 220 KB is 225,280 and 223,327 plus 2,520 is 225,847, so a navigation sized
+ * addition does not fit under it and the property breaks in its first half. 221 KB is 226,304:
+ * 225,847 fits, 223,327 plus 3,287 is 226,614 and fails, 223,327 plus 3,669 is 226,996 and fails.
+ * 222 KB is 227,328, under which 226,614 would pass unremarked, so a whole page frame region would
+ * enter the budget in silence. 221 KB is the one whole KB step the property keeps, and the headroom
+ * is 2,977 bytes.
+ *
  * `longTaskCount` STAYS AT 2 AND HAS NO ROOM LEFT, recorded here because a count with no
  * headroom is one change away from a red build and nothing else in this file would say so. The
  * six studies of 2026-08-12 read 2, 2, 2, 0, 1 and 2 against a cap of 2, where the same page
@@ -2026,7 +2098,7 @@ export const BROWSER_CEILINGS = {
   cspViolations: 0,
   servedDocumentBytes: 72 * 1024,
   longTaskCount: 2,
-  pageBytes: 203 * 1024,
+  pageBytes: 221 * 1024,
 } as const;
 
 /**

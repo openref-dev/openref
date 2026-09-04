@@ -66,6 +66,45 @@ const AFTER_CONSOLE = {
   themeEntryGzipBytes: 96_355,
 } as const;
 
+/**
+ * The published initial closure as this tree leaves it, which is what the 111 KB cap was derived
+ * from on 2026-09-04.
+ *
+ * KEPT BESIDE THE TWO SETS ABOVE FOR THE REASON THEY ARE KEPT BESIDE EACH OTHER. Each is the
+ * artefact one derivation was taken against, and the property below has to choose the recorded cap
+ * from each of them in turn; a file that overwrote the earlier figures could assert the current cap
+ * and nothing about whether the rule that produced it is the same rule. The figure itself is read
+ * off the tree by `test/integration/published-form.spec.ts`, so it cannot go stale here without
+ * going red there.
+ */
+const TODAY = {
+  /** 57 bytes over `AFTER_CONSOLE` plus the three arrivals between, per SPEC 20. */
+  clientJsBytes: 112_644,
+} as const;
+
+/**
+ * The property `client-js-raw`'s cap is derived by, as SPEC 20 has recorded it since `T011-R`.
+ *
+ * IT IS THIS ROW'S OWN AND IS NOT SHARED WITH ITS NEIGHBOURS, which is why it is written as a
+ * function rather than as a constant beside them: `client-js-schema` is its measurement plus ten
+ * percent rounded down to a hundred bytes, `theme-entry-raw` is plus ten percent rounded up to a
+ * whole KiB, and `theme-css-raw` is the smallest whole KB step the artefact fits under with no
+ * second clause at all. Refusing a general rule for the three was deliberate.
+ *
+ * @param artefact - What the first paint publishes
+ * @param cheapestGesture - What the cheapest deferred gesture publishes
+ * @returns The smallest whole KB step the artefact fits under at which that gesture returning to
+ *   the first load still fails the budget
+ */
+function smallestStepKeepingTheProperty(artefact: number, cheapestGesture: number): number {
+  for (let kilobytes = 1; kilobytes <= 1024; kilobytes += 1) {
+    const step = kilobytes * 1024;
+    if (artefact <= step && artefact + cheapestGesture > step) return step;
+  }
+
+  throw new Error('no whole KB step keeps the property');
+}
+
 /** The same quantities in the form the caps used to be taken on. */
 const ON_DISK = {
   themeCssBytes: 62_424,
@@ -111,7 +150,7 @@ describe('which budgets weigh the published form', () => {
     // Then, each is the figure SPEC 20's re-derivation states, and two of the four are `transfer`
     expect(published.filter((entry) => entry.quantity === 'transfer')).toHaveLength(2);
     expect(caps).toEqual({
-      'client-js-raw': 110 * 1024,
+      'client-js-raw': 111 * 1024,
       'client-js-schema': 2_300,
       'theme-css-raw': 62 * 1024,
       'theme-entry': 97 * 1024,
@@ -175,59 +214,95 @@ describe('the theme-css-raw cap, re-derived from the published form', () => {
 describe('the client-js-raw cap, re-checked against the published form', () => {
   const cap = budget('client-js-raw').limitBytes;
 
-  it('should still be the one whole KB step the property allows', () => {
+  it('should be the one whole KB step the property allows on the artefact this tree publishes', () => {
     // Given the recorded property: the artefact fits, and the cheapest deferred gesture returning
-    // to the first load still fails the budget. Checked against the artefact `TX-SOCKET-CONSOLE`
-    // left, because a property re-checked against the artefact it was derived from is a property
-    // nobody re-checked.
-    const returning = AFTER_CONSOLE.clientJsBytes + PUBLISHED.signInReturnBytes;
+    // to the first load still fails the budget. Applied to today's artefact, because a property
+    // re-checked only against the artefact it was derived from is a property nobody re-checked.
+    const returning = TODAY.clientJsBytes + PUBLISHED.signInReturnBytes;
 
-    // Then
-    expect(AFTER_CONSOLE.clientJsBytes).toBeLessThanOrEqual(cap);
-    expect(returning).toBe(113_294);
-    expect(returning).toBeGreaterThan(cap);
-    // One step down does not hold the artefact at all, so 110 KB is not a choice among several
-    expect(AFTER_CONSOLE.clientJsBytes).toBeGreaterThan(109 * 1024);
-    expect(cap).toBe(110 * 1024);
+    // When
+    const derived = smallestStepKeepingTheProperty(
+      TODAY.clientJsBytes,
+      PUBLISHED.signInReturnBytes,
+    );
+
+    // Then, 111 KB is 113,664: the artefact fits and 114,112 does not, so a return of the cheapest
+    // gesture still fails. 110 KB at 112,640 no longer holds the artefact at all and 112 KB at
+    // 114,688 would let that return in unremarked, so neither neighbour is available.
+    expect(returning).toBe(114_112);
+    expect(TODAY.clientJsBytes).toBeGreaterThan(110 * 1024);
+    expect(returning).toBeLessThanOrEqual(112 * 1024);
+    expect(derived).toBe(111 * 1024);
+    expect(cap).toBe(111 * 1024);
   });
 
-  it('should have moved by one step for the console and not by more, which is the whole rule', () => {
+  it('should be the same property that chose every cap this row has carried', () => {
+    // Given the three earlier artefacts, each with the cap SPEC 20 records against it. THIS IS THE
+    // FALSIFICATION THE CASE ABOVE CANNOT MAKE: one artefact and one cap agree with any rule that
+    // happens to hit that number once, and what the maintainer ruled was that this row re-derives by
+    // ITS OWN property rather than by a shared one. A rule that chose 111 KB today and disagreed
+    // with any of these is not the rule this row has been derived by.
+    const gesture = PUBLISHED.signInReturnBytes;
+
+    // When
+    const chosen = [110_539, 110_559, AFTER_CONSOLE.clientJsBytes, TODAY.clientJsBytes].map(
+      (artefact) => smallestStepKeepingTheProperty(artefact, gesture) / 1024,
+    );
+
+    // Then, 108 for the two readings before the socket console, 110 for the console's own, 111 now
+    expect(chosen).toEqual([108, 108, 110, 111]);
+  });
+
+  it('should have moved by one step for the sentence and not by more, which is the whole rule', () => {
     // Given the cap before the arrival and the artefact before it, so the move is measured rather
-    // than asserted: 108 KB held 110,559 with 33 bytes, and 111,826 does not fit it at all
+    // than asserted: 110 KB held 112,587 with 53 bytes, and 112,644 does not fit it at all
     // When
-    const previous = 108 * 1024;
+    const previous = 110 * 1024;
 
-    // Then
-    // 110,559 rather than the 110,539 above: `T065` spent 20 bytes bringing `ElementTooLargeError`
-    // to the project's error rule, which SPEC 20 records beside the row.
-    expect(previous - 110_559).toBe(33);
-    expect(AFTER_CONSOLE.clientJsBytes).toBeGreaterThan(previous);
-    expect(AFTER_CONSOLE.clientJsBytes - 110_559).toBe(1_267);
-    expect(cap - previous).toBe(2 * 1024);
+    // Then, the 57 bytes of the third sentence under the tabs against 53 of headroom, which is the
+    // four byte overrun the row stood red at until the maintainer ruled on the cap.
+    expect(previous - 112_587).toBe(53);
+    expect(TODAY.clientJsBytes - 112_587).toBe(57);
+    expect(TODAY.clientJsBytes).toBeGreaterThan(previous);
+    expect(TODAY.clientJsBytes - previous).toBe(4);
+    expect(cap - previous).toBe(1024);
   });
 
-  it('should state 814 bytes of headroom, which is the number the entry says to watch', () => {
-    // Given, the margin under the published form rather than the 1,137 the form on disk reads
+  it('should state 1,020 bytes of headroom, which is the number the entry says to watch', () => {
+    // Given, the margin under the published form
     // When
-    const headroom = cap - AFTER_CONSOLE.clientJsBytes;
+    const headroom = cap - TODAY.clientJsBytes;
 
-    // Then
-    expect(headroom).toBe(814);
-    expect(cap - AFTER_CONSOLE.clientJsOnDiskBytes).toBe(1_137);
+    // Then, and the payer beside it: all 57 bytes are in the entry, so the six files beside it
+    // weigh the same 91,364 they weighed before the sentence arrived
+    expect(headroom).toBe(1_020);
+    expect(TODAY.clientJsBytes - 91_364).toBe(21_280);
   });
 
-  it('should not have moved, because the published artefact still fits the cap it had', () => {
-    // Given, the direction matters: this row's subject moved and its cap did not, and a test that
-    // only checked the property would pass on a cap that had been raised to keep it.
-    const published = evaluateBudget(
+  it('should have been red on the cap it moved from, which is why the cap moved', () => {
+    // Given, the direction matters: a cap moved to make a build pass is the one move this project
+    // forbids, so what makes this one legal has to be visible. The row was reported over by four
+    // bytes with the cap untouched, the fix was not trimmed to fit, and only then was the cap
+    // re-derived by the row's own property.
+    const previous = 110 * 1024;
+
+    // When
+    const onTheOldCap = evaluateBudget(
+      previous,
+      [{ path: 'entry', rawBytes: TODAY.clientJsBytes, gzipBytes: 0 }],
+      'parse',
+    );
+    const onTheNewCap = evaluateBudget(
       cap,
-      [{ path: 'entry', rawBytes: PUBLISHED.clientJsBytes, gzipBytes: 0 }],
+      [{ path: 'entry', rawBytes: TODAY.clientJsBytes, gzipBytes: 0 }],
       'parse',
     );
 
     // Then
-    expect(published.ok).toBe(true);
-    expect(published.overBy).toBe(0);
+    expect(onTheOldCap.ok).toBe(false);
+    expect(onTheOldCap.overBy).toBe(4);
+    expect(onTheNewCap.ok).toBe(true);
+    expect(onTheNewCap.overBy).toBe(0);
   });
 });
 

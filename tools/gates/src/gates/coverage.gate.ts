@@ -1,12 +1,11 @@
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { COVERAGE_FLOORS, PUBLISHED_PACKAGES, STANDARDS_FILE } from '../config.js';
 import { AI_DOCS_DIR, aiDocsPresent } from '../lib/ai-docs.js';
 import {
-  aggregateByPackage,
-  checkCoverageFloors,
   checkFloorTable,
   parseFloorTable,
+  reportCoverageRun,
   type CoverageSummary,
 } from '../lib/coverage.js';
 import { runCommand } from '../lib/exec.js';
@@ -71,7 +70,17 @@ function reconcileWithStandards(repoRoot: string): {
  * Runs the suite with coverage and checks the per package floors from STANDARDS 9.1.
  *
  * Coverage is produced here rather than reused from a previous run so that the gate can
- * never pass on stale data.
+ * never pass on stale data. Since the maintainer's ruling of 2026-09-04 it is also produced when
+ * the run is red, and reported beside the failure.
+ *
+ * A RED CASE USED TO BLIND EVERY FLOOR IN THE REPOSITORY AT ONCE, and the maintainer called that
+ * worse than any of the seven defects the same pass found, because it is a gate that goes quiet
+ * exactly when something is wrong. One failing case anywhere returned here with the suite's output
+ * and nothing else: no summary was read, no percentage was printed and no floor was compared with
+ * anything, so `core` at 40 percent and `core` at 95 read identically for as long as one unrelated
+ * case stayed red. THE CAUSE WAS IN TWO PLACES AND BOTH ARE FIXED HERE. The early return is one.
+ * The other is that `coverage.reportOnFailure` defaults to false in Vitest, so the summary did not
+ * exist to be read: a control flow fix alone would have printed that the file was missing.
  *
  * THE FLOORS ARE ENFORCED WHEREVER THIS RUNS AND RECONCILED ONLY WHERE THE DOCUMENT IS. The
  * measurement, the floors and every violation need no `ai-docs/`, so they happen on a clone and
@@ -142,54 +151,52 @@ export const coverageGate: Gate = {
       findings,
     });
 
+    // THE SUMMARY GOES BEFORE THE RUN SO THAT ITS PRESENCE AFTERWARDS IS A PROOF AND NOT A GUESS.
+    // The file is derived output and this gate produces it rather than reusing it, for the reason
+    // the header states: a summary left by an earlier run reads exactly like one this run wrote,
+    // and a gate that reported an older tree's percentages beside this tree's failure would be
+    // worse than the one that reported nothing.
+    const summaryPath = join(context.repoRoot, SUMMARY_PATH);
+    rmSync(summaryPath, { force: true });
+
+    // `--coverage.reportOnFailure` IS THE HALF OF THIS DEFECT THAT NO CONTROL FLOW COULD HAVE
+    // FIXED. Vitest defaults it to false, so a run with one red case writes no summary at all: the
+    // gate's early return threw away a measurement that had, in fact, never been taken. Passing it
+    // here rather than in `vitest.config.ts` keeps it where the command that needs it lives, and it
+    // relaxes nothing: it makes the report exist on exactly the runs that used to have none.
     const run = runCommand(
       'pnpm',
-      ['exec', 'vitest', 'run', '--coverage', '--silent', '--reporter=dot'],
+      [
+        'exec',
+        'vitest',
+        'run',
+        '--coverage',
+        '--coverage.reportOnFailure',
+        '--silent',
+        '--reporter=dot',
+      ],
       context.repoRoot,
     );
 
-    if (!run.ok) {
-      findings.push({
-        level: 'error',
-        message: `test run with coverage failed: ${`${run.stdout}${run.stderr}`.trim().slice(-4000)}`,
-      });
+    // AND THE COVERAGE HALF NOW RUNS WHICHEVER WAY THE SUITE ENDED. A red case and a floor under
+    // water are two facts, one run can carry both, and reporting only the first is a gate going
+    // quiet at the moment something is wrong.
+    const verdict = reportCoverageRun(
+      {
+        suitePassed: run.ok,
+        output: `${run.stdout}${run.stderr}`.trim().slice(-4000),
+        summary: existsSync(summaryPath)
+          ? (JSON.parse(readFileSync(summaryPath, 'utf8')) as CoverageSummary)
+          : null,
+      },
+      readPackageDirs(context.repoRoot),
+      COVERAGE_FLOORS,
+      SUMMARY_PATH,
+    );
 
-      return Promise.resolve(resultOf(true));
-    }
+    for (const message of verdict.notes) findings.push({ level: 'info', message });
+    for (const message of verdict.errors) findings.push({ level: 'error', message });
 
-    const summaryPath = join(context.repoRoot, SUMMARY_PATH);
-    if (!existsSync(summaryPath)) {
-      findings.push({
-        level: 'error',
-        message: `${SUMMARY_PATH} was not produced; the json-summary reporter is not configured`,
-      });
-
-      return Promise.resolve(resultOf(true));
-    }
-
-    const summary = JSON.parse(readFileSync(summaryPath, 'utf8')) as CoverageSummary;
-    const perPackage = aggregateByPackage(summary, readPackageDirs(context.repoRoot));
-    const violations = checkCoverageFloors(perPackage, COVERAGE_FLOORS);
-
-    for (const entry of perPackage) {
-      const floor = COVERAGE_FLOORS[entry.packageDir];
-      const floorText = floor === undefined ? 'no floor yet' : `floor ${String(floor)}%`;
-      findings.push({
-        level: 'info',
-        message: `${entry.packageDir}: lines ${entry.linesPct.toFixed(2)}%, statements ${entry.statementsPct.toFixed(2)}%, ${String(entry.fileCount)} file(s), ${floorText}`,
-      });
-    }
-
-    for (const violation of violations) {
-      findings.push({
-        level: 'error',
-        message:
-          violation.metric === 'files'
-            ? `${violation.packageDir}: no file was measured at all, so its floor of ${String(violation.floorPct)}% was met by measuring none of it`
-            : `${violation.packageDir}: ${violation.metric} ${violation.actualPct.toFixed(2)}% is below the floor of ${String(violation.floorPct)}%`,
-      });
-    }
-
-    return Promise.resolve(resultOf(violations.length > 0));
+    return Promise.resolve(resultOf(verdict.failed));
   },
 };

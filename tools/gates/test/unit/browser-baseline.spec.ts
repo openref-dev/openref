@@ -18,6 +18,42 @@ import { join } from 'node:path';
 
 const repoRoot = join(import.meta.dirname, '..', '..', '..', '..');
 
+/**
+ * The three regions the `page-bytes` property is stated in, as SPEC 20 has written them since the
+ * cap was first derived.
+ *
+ * THEY ARE THE PROPERTY AND NOT AN ILLUSTRATION OF IT. The cap is not the measurement plus a
+ * percentage: it is the whole KB step under which an addition the size of the navigation region
+ * still fits while one the size of the page frame or of the try-it console goes over. Every
+ * derivation this row has had was taken that way, which `derivesTheRecordedCaps` below checks by
+ * reproducing all four of them from their own measurements.
+ */
+const NAVIGATION_REGION_BYTES = 2_520;
+const PAGE_FRAME_REGION_BYTES = 3_287;
+const TRY_IT_CONSOLE_REGION_BYTES = 3_669;
+
+/**
+ * The whole KB step the `page-bytes` property picks for one measurement.
+ *
+ * @param measuredBytes - What the page handed the main thread
+ * @returns The cap in whole kilobytes
+ * @throws {Error} When no whole KB step keeps both halves of the property
+ */
+function pageBytesStepFor(measuredBytes: number): number {
+  for (let kilobytes = 1; kilobytes <= 4096; kilobytes += 1) {
+    const step = kilobytes * 1024;
+    if (
+      measuredBytes + NAVIGATION_REGION_BYTES <= step &&
+      measuredBytes + PAGE_FRAME_REGION_BYTES > step &&
+      measuredBytes + TRY_IT_CONSOLE_REGION_BYTES > step
+    ) {
+      return kilobytes;
+    }
+  }
+
+  throw new Error('no whole KB step keeps the property');
+}
+
 const spread = (median: number, standardDeviation = 10) => ({
   samples: 25,
   median,
@@ -131,11 +167,15 @@ describe('checkCeilings', () => {
   });
 
   it('should sum the three byte columns and refuse a page frame sized addition', () => {
-    // Given the derivation the cap was chosen by, re-derived at the close of M2 from the runner
-    // measurement of 204,818: another region of `theme.css` the size of the page frame, 3,287
+    // Given the derivation the cap was chosen by, re-derived 2026-09-04 from the workstation
+    // measurement of 223,327: another region of `theme.css` the size of the page frame, 3,287
     // bytes, has to fail
     const record = baseline({
-      parsedBytes: { documentBytes: 37_894, cssBytes: 59_582 + 3_287, jsBytes: 107_342 },
+      parsedBytes: {
+        documentBytes: 48_089,
+        cssBytes: 62_594 + PAGE_FRAME_REGION_BYTES,
+        jsBytes: 112_644,
+      },
     });
 
     // When
@@ -146,10 +186,30 @@ describe('checkCeilings', () => {
     expect(issues[0]?.message).toContain('document');
   });
 
+  it('should refuse a try-it console sized addition, which is the other half of the property', () => {
+    // Given the second region the derivation names, larger than the first and asserted separately
+    // so that a cap keeping only the cheaper half could not read as keeping the property
+    const record = baseline({
+      parsedBytes: {
+        documentBytes: 48_089,
+        cssBytes: 62_594 + TRY_IT_CONSOLE_REGION_BYTES,
+        jsBytes: 112_644,
+      },
+    });
+
+    // When
+    // Then
+    expect(checkCeilings(record).map((issue) => issue.budget)).toEqual(['page-bytes']);
+  });
+
   it('should let a navigation sized addition through, which is the room ordinary work gets', () => {
     // Given, the same allowance `theme-css-raw` was derived with, over the same re-derived base
     const record = baseline({
-      parsedBytes: { documentBytes: 37_894, cssBytes: 59_582 + 2_520, jsBytes: 107_342 },
+      parsedBytes: {
+        documentBytes: 48_089,
+        cssBytes: 62_594 + NAVIGATION_REGION_BYTES,
+        jsBytes: 112_644,
+      },
     });
 
     // When
@@ -226,10 +286,16 @@ describe('compareToBaseline', () => {
 
   it('should fail a fresh study on the two counts, which do not move with the machine', () => {
     // Given, the half of the pair that gates: these are what a regression has to trip
+    // The JS column is taken off the ceiling rather than written down, so this case says one byte
+    // over whatever the cap is instead of one byte over whatever it was when the case was written.
     const study = {
       ...measured,
       longTaskMedian: 3,
-      parsedBytes: { documentBytes: 65_326, cssBytes: 32_264, jsBytes: 120_000 },
+      parsedBytes: {
+        documentBytes: 65_326,
+        cssBytes: 32_264,
+        jsBytes: BROWSER_CEILINGS.pageBytes - 65_326 - 32_264 + 1,
+      },
     };
 
     // When
@@ -482,37 +548,57 @@ describe('the committed baseline', () => {
   });
 
   it('should hold the figures the three gated caps are judged against', () => {
-    // Given, so the derivation in `config.ts` is checked against the record rather than
-    // remembered. The record is the close-of-M2 study over the committed tree at 74510c5, and
-    // the cap is 203 KB, re-derived at that close for the sanctioned stylesheet arrivals of the
-    // TX chain after TX-ADOPT paid what adoption can reach. The deficit era, 2026-08-11 to the
-    // close of M2 with the cap standing at 194 KB, is recorded in the closed `page-bytes` entry
-    // of `BUDGET_EXCEPTION_HISTORY`.
+    // Given, so the derivation in `config.ts` is checked against the record rather than remembered.
+    // The record is the workstation study of 2026-09-04 at commit df41de0, and the cap is 221 KB,
+    // re-derived by the maintainer's ruling from a measurement taken again rather than reused. IT
+    // REPLACES THE RECORD OF 2026-08-14, the close-of-M2 study at 74510c5 whose 204,818 stood while
+    // 69 commits touching `packages/` or `tools/browser-budget/src` landed past it and the gate
+    // printed FROM A STALE RECORD beside every browser row. The deficit era, 2026-08-11 to the close
+    // of M2 with the cap standing at 194 KB, is recorded in the closed `page-bytes` entry of
+    // `BUDGET_EXCEPTION_HISTORY`.
     const { baseline: record } = readBrowserBaseline(repoRoot);
     if (record === null) throw new Error('no baseline');
 
     // When
     const bytes = pageBytesOf(record.parsedBytes);
 
-    // Then, 204,818 against 207,872 with 3,054 of headroom: enough for a navigation sized
-    // addition of 2,520, not enough for a page frame sized region of 3,287, which is the
-    // property both prior derivations of this cap kept and the ceiling cases above hold.
-    expect(bytes).toBe(204_818);
-    expect(BROWSER_CEILINGS.pageBytes - bytes).toBe(3_054);
+    // Then, 223,327 against 226,304 with 2,977 of headroom: enough for a navigation sized addition
+    // of 2,520, not enough for a page frame sized region of 3,287 nor a console sized one of 3,669,
+    // which is the property every derivation of this cap has kept and the ceiling cases above hold.
+    expect(bytes).toBe(223_327);
+    expect(BROWSER_CEILINGS.pageBytes - bytes).toBe(2_977);
+    expect(record.recordedAt).toBe('2026-09-04');
 
-    // And the served document, 37,894 with 35,834 of headroom, DOWN 26,847 from the record this
-    // replaced: the compact response index and the state block redaction of TX-ADOPT. It is
-    // derived loosely on purpose: the regression it exists to catch is the navigation blob
-    // returning, and this document's is 546,162 bytes, so a fifth of it fails this cap twice
-    // over.
-    expect(record.parsedBytes.documentBytes).toBe(37_894);
-    expect(BROWSER_CEILINGS.servedDocumentBytes - record.parsedBytes.documentBytes).toBe(35_834);
+    // And the served document, 48,089 with 25,639 of headroom. It is derived loosely on purpose:
+    // the regression it exists to catch is the navigation blob returning, and this document's is
+    // 546,162 bytes, so a fifth of it fails this cap twice over.
+    expect(record.parsedBytes.documentBytes).toBe(48_089);
+    expect(BROWSER_CEILINGS.servedDocumentBytes - record.parsedBytes.documentBytes).toBe(25_639);
 
-    // And the count that has run out of room without going over. It is pinned to what the record
-    // says and checked against the cap, rather than asserted equal to it: the two have been the
-    // same number and have been different, and reading either as the contract would fail the
-    // build for a page that got better. Every study of this dispatch read a median of 1.
-    expect(record.longTaskCount.median).toBe(1);
+    // And the count, pinned to what the record says and checked against the cap rather than
+    // asserted equal to it: the two have been the same number and have been different, and reading
+    // either as the contract would fail the build for a page that got better. This study read a
+    // median of 0 over twenty navigations on a workstation, where the runner record read 1.
+    expect(record.longTaskCount.median).toBe(0);
     expect(record.longTaskCount.max).toBeLessThanOrEqual(BROWSER_CEILINGS.longTaskCount);
+  });
+
+  it('should be the cap this row own property picks, on this record and on every earlier one', () => {
+    // Given the record and the three measurements the earlier derivations of this cap were taken
+    // from. ONE MEASUREMENT AND ONE CAP AGREE WITH ANY RULE THAT HAPPENS TO HIT THAT NUMBER ONCE,
+    // which is why the earlier three are here: what the maintainer ruled was that this row
+    // re-derives by ITS OWN property, so a rule that chose 221 today and disagreed with any of the
+    // recorded three would not be the rule this row has ever been derived by.
+    const { baseline: record } = readBrowserBaseline(repoRoot);
+    if (record === null) throw new Error('no baseline');
+
+    // When
+    const fromTheRecord = pageBytesStepFor(pageBytesOf(record.parsedBytes));
+
+    // Then, 159 KB from the T011-R measurement of 160,070, 194 from T016's 195,783 on the input it
+    // replaced the fixture with, 203 from the close-of-M2 runner figure of 204,818, and 221 now
+    expect([160_070, 195_783, 204_818].map(pageBytesStepFor)).toEqual([159, 194, 203]);
+    expect(fromTheRecord).toBe(221);
+    expect(BROWSER_CEILINGS.pageBytes).toBe(221 * 1024);
   });
 });

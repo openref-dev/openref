@@ -146,6 +146,100 @@ export function checkCoverageFloors(
   return findings;
 }
 
+/** What one run of the suite under coverage left behind. */
+export interface CoverageRun {
+  /** Whether every case passed. */
+  readonly suitePassed: boolean;
+  /** What the suite printed, for the line that reports a failure. */
+  readonly output: string;
+  /** The summary this run wrote, or null when this run wrote none. */
+  readonly summary: CoverageSummary | null;
+}
+
+/** What the coverage half of the gate has to say about one run. */
+export interface CoverageVerdict {
+  /** Lines that report a measurement, printed whether or not anything failed. */
+  readonly notes: readonly string[];
+  /** Lines that fail the gate. */
+  readonly errors: readonly string[];
+  /** Whether this half found anything. */
+  readonly failed: boolean;
+}
+
+/**
+ * Everything one coverage run establishes: the failure if there was one, the coverage it measured,
+ * and every floor that is under.
+ *
+ * THIS FUNCTION EXISTS BECAUSE THE GATE USED TO RETURN BEFORE ANY OF THE SECOND AND THIRD. A run
+ * with one red case reported that one red case and nothing else: the summary was never read, the
+ * per package percentages were never printed, and no floor was compared with anything. So one red
+ * budget case blinded every coverage floor in the repository at once, and the gate went quiet at
+ * exactly the moment something was wrong, which is this project's own worst defect class. A red
+ * suite and a floor under water are two different facts and a run can carry both.
+ *
+ * THE SUITE WAS ALSO WITHHOLDING THE DATA, WHICH IS THE HALF AN EARLY RETURN HID. Vitest's
+ * `coverage.reportOnFailure` defaults to false, so a failing run writes no `coverage-summary.json`
+ * at all: even a gate that read the file after a failure would have found the previous run's
+ * numbers or none. The caller passes the flag that turns that off, and this function is given the
+ * summary or null rather than a path, so a caller that cannot prove the file belongs to this run
+ * hands over null instead of reading whatever is on disk.
+ *
+ * @param run - What the run did and what it wrote
+ * @param packageDirs - Package directory names to roll coverage up by
+ * @param floors - Floor percentage per package directory
+ * @param summaryPath - Repository relative path of the summary, named in the message when absent
+ * @returns The measurement, the violations and the failure, all three of them
+ */
+export function reportCoverageRun(
+  run: CoverageRun,
+  packageDirs: readonly string[],
+  floors: Readonly<Record<string, number>>,
+  summaryPath: string,
+): CoverageVerdict {
+  const notes: string[] = [];
+  const errors: string[] = [];
+
+  if (!run.suitePassed) {
+    errors.push(`test run with coverage failed: ${run.output}`);
+  }
+
+  if (run.summary === null) {
+    errors.push(
+      `${summaryPath} was not written by this run, so NO FLOOR WAS CHECKED AGAINST THIS TREE. ` +
+        (run.suitePassed
+          ? 'The suite passed, so the json-summary reporter is not configured'
+          : 'The suite failed before the reporter ran, so the failure above is the only thing ' +
+            'this run establishes and the coverage of every package is unknown rather than met'),
+    );
+
+    return { notes, errors, failed: true };
+  }
+
+  const perPackage = aggregateByPackage(run.summary, packageDirs);
+  const violations = checkCoverageFloors(perPackage, floors);
+
+  for (const entry of perPackage) {
+    const floor = floors[entry.packageDir];
+    const floorText = floor === undefined ? 'no floor yet' : `floor ${String(floor)}%`;
+    notes.push(
+      `${entry.packageDir}: lines ${entry.linesPct.toFixed(2)}%, statements ` +
+        `${entry.statementsPct.toFixed(2)}%, ${String(entry.fileCount)} file(s), ${floorText}`,
+    );
+  }
+
+  for (const violation of violations) {
+    errors.push(
+      violation.metric === 'files'
+        ? `${violation.packageDir}: no file was measured at all, so its floor of ` +
+            `${String(violation.floorPct)}% was met by measuring none of it`
+        : `${violation.packageDir}: ${violation.metric} ${violation.actualPct.toFixed(2)}% is ` +
+            `below the floor of ${String(violation.floorPct)}%`,
+    );
+  }
+
+  return { notes, errors, failed: !run.suitePassed || violations.length > 0 };
+}
+
 /**
  * The floors STANDARDS 9.1 states in prose, read out of its own table.
  *

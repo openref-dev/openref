@@ -267,7 +267,7 @@ describe('the published form of this tree', () => {
 
     // Then
     expect(capOf('theme-css-raw')).toBe(62 * 1024);
-    expect(capOf('client-js-raw')).toBe(110 * 1024);
+    expect(capOf('client-js-raw')).toBe(111 * 1024);
     expect(capOf('theme-css-raw') - 62_594).toBe(894);
     // 33 SINCE 2026-09-02 AND IT WAS 53, AND THE TWENTY BYTES ARE NAMED RATHER THAN ABSORBED.
     // `T065` made `ElementTooLargeError` extend `StreamError` with an `ErrorCode`, because it is
@@ -288,13 +288,17 @@ describe('the published form of this tree', () => {
     const initial = INITIAL.reduce((sum, name) => sum + sizeOf(name), 0);
     const signInReturn = sizeOf('oauth-landing-VRHHK533.js') + sizeOf('chunk-FI2DNV2T.js');
 
-    // FOUR BYTES OVER SINCE 2026-09-04, AND THAT IS REPORTED RED RATHER THAN PAID FOR. The third
+    // FOUR BYTES OVER ON 2026-09-04, REPORTED RED RATHER THAN PAID FOR, AND THEN RULED ON. The third
     // sentence under the tabs delivers two results the generator had always computed and the
     // transform had always discarded, and it costs 57 raw bytes of the first paint against 53 of
-    // headroom. THE CAP DID NOT MOVE, no other row was raided for the difference and no part of the
-    // fix was trimmed to fit: a page that silently drops what it worked out is the defect this
-    // whole slice is about, and shrinking the sentence to buy four bytes would be the same trade
-    // one layer down. What the row needs is a decision about the cap, and that is the maintainer's.
+    // headroom. The slice that spent them did not move the cap, raided no other row for the
+    // difference and trimmed no part of the fix to fit: a page that silently drops what it worked
+    // out is the defect that slice was about, and shrinking the sentence to buy four bytes would be
+    // the same trade one layer down. The maintainer then ruled the cap to 111 KB by this row's own
+    // recorded property, which is the smallest whole KB step the artefact fits under at which the
+    // cheapest deferred gesture returning to the first load still fails: 113,664 holds 112,644 with
+    // 1,020, 112,644 plus the published 1,468 is 114,112 and fails it, and 112 KB at 114,688 would
+    // not, so 111 is the one step available. Both halves are asserted below off this tree.
     //
     // 53 SINCE 2026-09-03 AND IT WAS 79, AND THE 26 ARE NAMED RATHER THAN ABSORBED. The samples
     // section element moved out of the `CodeSample` position and into `NodePanel`, so the two
@@ -313,17 +317,17 @@ describe('the published form of this tree', () => {
     // 260 SINCE 2026-09-03 AND IT WAS 489, AND THE 229 WERE NAMED THE SAME WAY. The operation page
     // began naming the three SPEC 18 languages it does not draw, so a reader can tell a language
     // this reference does not have from one it can produce.
-    expect(capOf('client-js-raw') - initial).toBe(-4);
+    expect(capOf('client-js-raw') - initial).toBe(1_020);
 
     // AND THE PROPERTY THE CAP IS DERIVED BY, CHECKED THE SAME WAY: the smallest whole KB step the
     // artefact fits under, at which the cheapest deferred gesture returning to the first load still
-    // fails. Every figure here is measured, so this cannot go stale without going red. THE FIRST
-    // HALF NO LONGER HOLDS, AND IT IS WRITTEN AS THE FAILURE IT IS RATHER THAN DELETED: the
-    // artefact does not fit under 110 KB, so the property that derived this cap is broken and the
-    // cap is the one thing this file may not move to mend it.
-    expect(initial).toBeGreaterThan(capOf('client-js-raw'));
-    expect(109 * 1024).toBeLessThan(initial);
+    // fails. Every figure here is measured, so this cannot go stale without going red. BOTH HALVES
+    // HOLD AGAIN AFTER THE RULING, and the two neighbouring steps are asserted unavailable so that
+    // the cap reads as the one the property picks rather than as one of several that would fit.
+    expect(initial).toBeLessThanOrEqual(capOf('client-js-raw'));
+    expect(110 * 1024).toBeLessThan(initial);
     expect(initial + signInReturn).toBeGreaterThan(capOf('client-js-raw'));
+    expect(initial + signInReturn).toBeLessThanOrEqual(112 * 1024);
 
     expect(capOf('theme-entry-raw')).toBe(281 * 1024);
   });

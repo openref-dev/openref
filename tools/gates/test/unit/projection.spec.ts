@@ -1977,9 +1977,9 @@ describe('the figures this code states about this repository', () => {
   });
 
   it('should derive the file budget from the artefact rather than from a round number', () => {
-    // Given the arithmetic PROJECTION_ARTEFACT_BUDGET states: the artefact weighs 128,068 bytes
+    // Given the arithmetic PROJECTION_ARTEFACT_BUDGET states: the artefact weighs 128,322 bytes
     // over 625 leaves, an amendment heading costs 429 bytes, a plan task 126 and a claim map row
-    // 219, so a milestone of eight tasks, five owned entries and seven rows is 8,118 bytes and the
+    // 224, so a milestone of eight tasks, five owned entries and seven rows is 8,153 bytes and the
     // headroom is two of them. EACH TASK COSTS A PLAN ENTRY AND A HEADING BOTH, which is why the
     // eight is multiplied by the sum of two costs and not by one of them, and which the comment
     // beside the budget used to leave for a reader to work out from a total that did not add up.
@@ -1999,9 +1999,9 @@ describe('the figures this code states about this repository', () => {
 
     // Then each figure the budget's derivation states is the one the artefact gives, and the
     // headroom really is two milestones of it
-    expect([scan.bytes, scan.leaves]).toEqual([128_068, 625]);
-    expect([perHeading, perTask, perRow]).toEqual([429, 126, 219]);
-    expect(milestone).toBe(8_118);
+    expect([scan.bytes, scan.leaves]).toEqual([128_322, 625]);
+    expect([perHeading, perTask, perRow]).toEqual([429, 126, 224]);
+    expect(milestone).toBe(8_153);
     expect(PROJECTION_ARTEFACT_BUDGET.limitBytes - scan.bytes).toBeGreaterThanOrEqual(
       2 * milestone,
     );
