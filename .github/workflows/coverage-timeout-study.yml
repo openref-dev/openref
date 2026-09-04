@@ -105,11 +105,18 @@ jobs:
     #
     # `fail-fast: false` because a sample that goes over is the reading, not a reason to throw away
     # the other samples.
+    #
+    # SIX SAMPLES PER ROUND, AND EVERY ARTIFACT OF THE ROUND IS READ. The first derivation ran this
+    # job twice, three samples and then two, and read six artifacts from the first run and four from
+    # the second while calling the total nine. The sample it dropped, `durations-node22-sample3`,
+    # was the one carrying every maximum, so every bound came out low and the margin the files
+    # claimed did not hold. One round with one artifact naming convention is harder to miscount, and
+    # the count is now checked in the files themselves rather than stated in their comments.
     strategy:
       fail-fast: false
       matrix:
         node: ['22.22.2', '^24.15.0']
-        sample: [4, 5]
+        sample: [1, 2, 3]
         include:
           - node: '22.22.2'
             label: '22'

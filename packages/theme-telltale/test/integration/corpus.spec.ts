@@ -1,4 +1,4 @@
-import { readdirSync, readFileSync } from 'node:fs';
+import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { normalizeOpenApiDocument, parseSpecification, type IRDocument } from '@openref/core';
 import { describe, expect, it } from 'vitest';
@@ -31,6 +31,9 @@ const FILES = readdirSync(CORPUS)
   .filter((name) => /\.(json|ya?ml)$/.test(name))
   .sort();
 
+/** Themed pages carrying this theme's frame, per document, recorded by the loop that drew them. */
+const framed = new Map<string, number>();
+
 function documentOf(file: string): IRDocument {
   return normalizeOpenApiDocument(
     parseSpecification(readFileSync(join(CORPUS, file), 'utf8'), { source: file }),
@@ -61,37 +64,83 @@ async function pagesOf(document: IRDocument, themed: boolean): Promise<readonly 
 }
 
 /**
- * The hang catcher the rendering cases declare, because their cost is the corpus.
+ * The margin every bound in this file clears over what was measured, and the checked one.
  *
- * F25, AND THE CLASS IS THE ONE `vitest.spawn-timeout.ts` NAMES rather than the class vitest's
- * five second default was chosen for. What these cases spend is reading, parsing and normalizing
- * real published specifications, `stripe.yaml` at 6 MB among them, before this theme draws
- * anything at all. That is the subject's input and not the subject: `packages/core` records the
- * seventeen HTTP corpus documents at 3,275 ms of instrumented normalization on their own, and the
- * assertion each case then makes is a substring test over the markup.
+ * AN ORDER OF MAGNITUDE, WHICH IS WHAT THE REPOSITORY ALREADY USES FOR THIS CLASS, and it is a
+ * constant here rather than a sentence because a sentence cannot go red. The first draft of this
+ * file stated the margin in prose over a maximum taken from nine of the ten samples that existed,
+ * and the arithmetic on all ten came out at 9.14, under the number the prose claimed. A margin the
+ * file asserts about itself moves the bound or changes the claim; a margin in a comment does
+ * neither.
+ */
+const MARGIN = 10;
+
+/**
+ * The heaviest reading any case in this file produced on the runner, and where it came from.
  *
- * MEASURED ON THE RUNNER, WHICH IS THE ONLY INSTRUMENT THAT COUNTS HERE. Nine coverage runs on
+ * MEASURED ON THE RUNNER, WHICH IS THE ONLY INSTRUMENT THAT COUNTS HERE. Ten coverage runs on
  * 2026-09-03, on the four vCPU `ubuntu-latest` runner under V8 instrumentation, over Node 22.22.2
  * and Node 24, spread across an AMD EPYC 7763, an EPYC 9V45 and an EPYC 9V74 as the pool handed
- * them out. `should draw this theme own frame` measured 8,309 to 13,557 ms and the `stripe.yaml`
- * member of the loop measured 4,835 to 9,223 ms. The same two cases measure 3,508 and 2,383 ms on
- * an Apple M3 Ultra workstation, comfortably inside the default, which is why this suite was green
- * for a whole run of commits that never reached CI and red the first time it did. The workstation
- * figures are here for contrast and are not what this number is derived from.
+ * them out. Ten and not nine: the first derivation read six artifacts from one study run and four
+ * from a second, called the total nine, and dropped the sample that carried every maximum.
  *
- * THE MARGIN IS THE ONE THE PROJECT ALREADY USES, an order of magnitude over the measured maximum,
- * rounded to the value this repository already carries for this class. 13,557 ms times ten is
- * 135,570, and `packages/render/test/integration/corpus-navigation.spec.ts` carries 180,000 for
- * the same corpus, under the same instrumentation, after the same failure. Adopting it lowers no
- * bound anybody had already found they needed, which is the property `vitest.spawn-timeout.ts`
- * asks of one number for a whole class.
- *
- * NOTHING HERE IS TUNED AGAINST THIS NUMBER AND NOTHING SHOULD BE. It is a hang catcher, not a
- * budget: what has to fail against it is a render that never returned. An ordinary case timing out
- * still means exactly what it always meant, which is the property a raised global default would
- * have destroyed, so the global default does not move.
+ * WHAT THESE CASES SPEND IS THE CORPUS AND NOT THIS THEME. Reading, parsing and normalizing real
+ * published specifications, `stripe.yaml` at 6 MB among them, happens before this theme draws
+ * anything at all. SPEC 15.1 records the seventeen HTTP corpus documents at 3,275 ms of
+ * instrumented normalization on their own, cited from that record by
+ * `packages/federation/test/integration/mixed-corpus.spec.ts` and
+ * `packages/nest/test/integration/overview-budget.spec.ts`; the first draft of this file credited
+ * `packages/core`, which holds no such figure. The assertion each case then makes is a substring
+ * test over the markup.
  */
-const CORPUS_HANG_CATCHER_MS = 180_000;
+const MEASURED = {
+  /** `stripe.yaml`, the heaviest member of the loop, at 6,364,174 bytes. */
+  heaviestMemberMs: 12_425,
+  /** `stripe.yaml`'s size, so the bound below is derived from the same member it is checked on. */
+  heaviestMemberBytes: 6_364_174,
+  /** `oai-webhook-example.yaml` at 947 bytes, the reading the fixed term has to clear. */
+  lightestMemberMs: 15,
+} as const;
+
+/**
+ * What one loop member is allowed, sized to the member rather than to the class.
+ *
+ * A BOUND SIZED FOR THE HEAVIEST MEMBER IS NOT A BOUND ON THE LIGHTEST ONE. Every member used to
+ * carry one number taken from the whole class, so `oai-webhook-example.yaml` at 947 bytes and a 15
+ * ms maximum sat behind 180,000 ms, which is 12,857 times its own reading, and a member that hung
+ * took three minutes to say so. A hang catcher that cannot catch a hang inside the job it runs in
+ * is a hang catcher on paper: the Node 22 verify job absorbed exactly one 180,000 ms timeout on
+ * this tip and finished 65 seconds inside its own wall.
+ *
+ * DERIVED FROM SIZE, WHICH IS WHY IT IS STILL A RULE ABOUT THE CLASS. The objection the first draft
+ * raised against declaring on `stripe.yaml` alone was right: which member is heavy is a property of
+ * the corpus and moves when a document is added. Size is the property that makes a member heavy, so
+ * evaluating it per member answers that objection instead of ignoring it, and a document added
+ * tomorrow is sized on arrival with nothing to edit here.
+ *
+ * THE TWO TERMS ARE READ OFF THE TEN SAMPLES. Across the seventeen members the cost is a fixed
+ * per case cost plus a term proportional to the bytes parsed: the five members over 900 KB ran
+ * between 0.72 and 1.95 microseconds per byte, and the twelve small ones are almost all fixed cost.
+ * The terms below are the top of each range, and {@link MARGIN} is applied on top.
+ *
+ * @param file - The corpus document the member renders
+ * @returns The member's timeout, in milliseconds
+ */
+function memberHangCatcherMs(file: string): number {
+  const FIXED_MS = 100;
+  const MS_PER_BYTE = 0.002;
+  const bytes = statSync(join(CORPUS, file)).size;
+
+  return Math.ceil(MARGIN * (FIXED_MS + MS_PER_BYTE * bytes));
+}
+
+/*
+ * NOTHING HERE IS TUNED AGAINST THESE NUMBERS AND NOTHING SHOULD BE. They are hang catchers, not
+ * budgets: what has to fail against one is a render that never returned. The three cases in this
+ * file that render nothing declare nothing and keep vitest's five second default, because they are
+ * the class the default was chosen for, and an ordinary case timing out still means exactly what it
+ * always meant. The global default does not move.
+ */
 
 describe('the whole corpus, under both themes', () => {
   it('should have found the corpus at all, before anything is asserted about it', () => {
@@ -112,6 +161,10 @@ describe('the whole corpus, under both themes', () => {
         const reference = await pagesOf(document, false);
         const themed = await pagesOf(document, true);
 
+        // The count the case below reads, recorded where the pages were actually drawn rather
+        // than by drawing them a second time.
+        framed.set(file, themed.filter((page) => page.includes('tt-shell')).length);
+
         // Then every page of both is a page, and telltale's is telltale's
         for (const page of reference) {
           expect(page).toContain('oref-root');
@@ -125,31 +178,56 @@ describe('the whole corpus, under both themes', () => {
           expect(page.length).toBeGreaterThan(200);
         }
       },
-      // EVERY MEMBER OF THE LOOP AND NOT ONLY THE HEAVY ONE, which is how the file beside it
-      // declares the same thing: `corpus-navigation.spec.ts` puts one number on an `it.each` over
-      // the same documents. Which member is heavy is a property of the corpus and moves when a
-      // document is added, so a declaration on `stripe.yaml` alone would be a bound aimed at
-      // today's largest file rather than at the class.
-      CORPUS_HANG_CATCHER_MS,
+      // EVERY MEMBER OF THE LOOP DECLARES ONE, AND EACH DECLARES ITS OWN. Which member is heavy is
+      // a property of the corpus and moves when a document is added, so a declaration on
+      // `stripe.yaml` alone would be a bound aimed at today's largest file; a declaration of
+      // `stripe.yaml`'s number on all seventeen is that same bound wearing a loop.
+      // {@link memberHangCatcherMs} is the rule about the class, evaluated per member.
+      memberHangCatcherMs(file),
     );
   }
 
-  it(
-    'should draw this theme own frame on every page of every document',
-    async () => {
-      // Given, the count is asserted from the other end so that a document skipped by the loop
-      // above is a failure here rather than a smaller green run.
-      let pages = 0;
+  it('should draw this theme own frame on every page of every document', () => {
+    // Given, the count is asserted from the other end so that a document skipped by the loop above
+    // is a failure here rather than a smaller green run. IT IS READ OFF THE LOOP AND NOT
+    // RE-RENDERED: this case used to render the whole corpus under telltale a second time to
+    // arrive at a number the loop had already produced, which on the runner made it the single
+    // most expensive case in the file at 19,691 ms, for no assertion the loop does not already
+    // make. The property that mattered is kept whole, because `FILES` is the directory listing and
+    // not the loop's own output: a document the loop never reached contributes nothing to the map
+    // and the total comes up short. Counting a map is not rendering, so this case declares no
+    // bound and keeps vitest's default.
 
-      // When
-      for (const file of FILES) {
-        const themed = await pagesOf(documentOf(file), true);
-        pages += themed.filter((page) => page.includes('tt-shell')).length;
-      }
+    // When
+    const pages = [...framed.values()].reduce((total, count) => total + count, 0);
 
-      // Then three pages per document, every one of them this theme's
-      expect(pages).toBe(FILES.length * 3);
-    },
-    CORPUS_HANG_CATCHER_MS,
-  );
+    // Then three pages per document, every one of them this theme's
+    expect([...framed.keys()].sort()).toEqual([...FILES]);
+    expect(pages).toBe(FILES.length * 3);
+  });
+
+  it('should hold a bound over every reading that was taken, by the margin it claims', () => {
+    // Given, the margin used to be a sentence, and a sentence cannot go red. It was written over
+    // nine of the ten samples that existed, and on all ten the arithmetic it claimed came out at
+    // 9.14 rather than an order of magnitude. Both numbers live in this file now, so the next
+    // reading that overruns moves a bound or changes the claim.
+
+    // When, Then the heaviest member's own bound clears the heaviest reading by the margin
+    expect(memberHangCatcherMs('stripe.yaml')).toBeGreaterThanOrEqual(
+      MEASURED.heaviestMemberMs * MARGIN,
+    );
+
+    // And the fixed term clears the lightest reading, which is what a per member bound is for:
+    // 947 bytes behind the class's number was 12,857 times its own maximum.
+    expect(memberHangCatcherMs('oai-webhook-example.yaml')).toBeGreaterThanOrEqual(
+      MEASURED.lightestMemberMs * MARGIN,
+    );
+    expect(memberHangCatcherMs('oai-webhook-example.yaml')).toBeLessThan(
+      MEASURED.lightestMemberMs * 200,
+    );
+
+    // And the size the bound is derived from is the size on disk, so a re-vendored document that
+    // grew is sized on arrival rather than at the figure recorded here.
+    expect(statSync(join(CORPUS, 'stripe.yaml')).size).toBe(MEASURED.heaviestMemberBytes);
+  });
 });
