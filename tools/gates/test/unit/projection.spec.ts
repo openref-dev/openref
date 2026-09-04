@@ -1977,14 +1977,16 @@ describe('the figures this code states about this repository', () => {
   });
 
   it('should derive the file budget from the artefact rather than from a round number', () => {
-    // Given the arithmetic PROJECTION_ARTEFACT_BUDGET states: the artefact weighs 128,590 bytes
+    // Given the arithmetic PROJECTION_ARTEFACT_BUDGET states: the artefact weighs 128,714 bytes
     // over 625 leaves, an amendment heading costs 431 bytes, a plan task 126 and a claim map row
     // 224, so a milestone of eight tasks, five owned entries and seven rows is 8,179 bytes and the
     // headroom is two of them. EACH TASK COSTS A PLAN ENTRY AND A HEADING BOTH, which is why the
     // eight is multiplied by the sum of two costs and not by one of them, and which the comment
     // beside the budget used to leave for a reader to work out from a total that did not add up.
     // The reading was 128,322 until 2026-09-04; `T065` added prose to four amendment sections and
-    // to SPEC 8.3, 13.3, 14.7 and 18, which is 268 bytes of artefact and no new leaf.
+    // to SPEC 8.3, 13.3, 14.7 and 18, which is 268 bytes of artefact and no new leaf. It moved
+    // again the same day, to 128,714, when two of those sections were closed on their done-when
+    // and the closures were written into them: 124 bytes, and no new leaf either.
     const read = readProjection(repoRoot);
     expect(read.ok).toBe(true);
     const data = read.ok ? read.projection.data : undefined;
@@ -2001,7 +2003,7 @@ describe('the figures this code states about this repository', () => {
 
     // Then each figure the budget's derivation states is the one the artefact gives, and the
     // headroom really is two milestones of it
-    expect([scan.bytes, scan.leaves]).toEqual([128_590, 625]);
+    expect([scan.bytes, scan.leaves]).toEqual([128_714, 625]);
     expect([perHeading, perTask, perRow]).toEqual([431, 126, 224]);
     expect(milestone).toBe(8_179);
     expect(PROJECTION_ARTEFACT_BUDGET.limitBytes - scan.bytes).toBeGreaterThanOrEqual(
