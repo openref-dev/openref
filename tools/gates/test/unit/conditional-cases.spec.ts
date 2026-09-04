@@ -1,3 +1,4 @@
+import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
@@ -28,9 +29,81 @@ import type {
  *
  * EVERY RULE HERE IS SHOWN RED ON A PLANT rather than only green on the tree, because a
  * reconciliation that agrees with everything is the same green lie the register exists to end.
+ *
+ * ONE CASE IN THIS FILE DECLARES A TIMEOUT AND NO OTHER ONE DOES, which is
+ * {@link REGISTER_HANG_CATCHER_MS} and the readings under it. The register's own case is the class
+ * `vitest.spawn-timeout.ts` names: it spawns twelve processes on a machine that has just been
+ * checked out, and none of that is a property of the two assertions it ends with.
  */
 
 const repoRoot = join(import.meta.dirname, '..', '..', '..', '..');
+
+/**
+ * The margin the bound below clears over what was measured, and the checked one.
+ *
+ * AN ORDER OF MAGNITUDE, WHICH IS THE MARGIN THIS REPOSITORY ALREADY USES FOR THIS CLASS, and it is
+ * a constant here rather than a sentence because a sentence cannot go red.
+ * `packages/vue/test/integration/public-surface.spec.ts`,
+ * `tools/gates/test/integration/published-surface-agreement.spec.ts`,
+ * `tools/browser-budget/test/unit/specification.spec.ts` and
+ * `packages/theme-telltale/test/integration/corpus.spec.ts` all name it, check it and derive from
+ * it.
+ */
+const MARGIN = 10;
+
+/**
+ * The heaviest reading the probing case below produced on the runner, which is the only instrument.
+ *
+ * TWELVE SAMPLES ON THE RUNNER, run 33895596043 of `runner-column-study.yml`, four vCPU
+ * `ubuntu-latest` on image ubuntu24 20260831.293.1, six with V8 coverage instrumentation on and six
+ * without, over Node 22.22.2 and Node 24, with the machine beside every reading. Uninstrumented:
+ * 61,722 ms on an AMD EPYC 7763, 54,685 and 44,486 ms on EPYC 9V74s, 30,790 ms on an EPYC 7763,
+ * 30,036 ms on an Intel Xeon 6973P-C, 15,877 ms on an EPYC 9V74. Instrumented: 56,319 and 30,682 ms
+ * on EPYC 7763s, 43,171 and 21,367 ms on EPYC 9V74s, 24,885 ms on an EPYC 7763, 14,370 ms on an
+ * Intel Xeon Platinum 8573C. Every one of the twelve passed.
+ *
+ * THE INSTRUMENTATION IS NOT WHAT THIS CASE COSTS AND THE TWO SETS SAY SO. The spread is 14,370 to
+ * 61,722 with coverage on and off interleaved through it, because what the case pays for is a cold
+ * disk and which processor the pool handed out, not V8.
+ *
+ * WHAT IT WAS BEFORE THE PROBE WAS FIXED, and it is not comparable, which is why it is here rather
+ * than in the list above: in run 33884072380 the case read 15,990 ms on Node 22 and 38,616 ms on
+ * Node 24 with a `swift --version` being killed at 30,000 ms inside it, so those two numbers are
+ * partly the old wait and not the case.
+ *
+ * THE WORKSTATION IS NOT THE INSTRUMENT. The same case reads 1,641 ms on an Apple M3 Ultra with 28
+ * cores and a warm local disk, which is 2.7 percent of the runner's maximum, and that is the whole
+ * reason a case that had never met the runner met it by going red.
+ */
+const MEASURED_MAXIMUM_MS = 61_722;
+
+/**
+ * The hang catcher the register's own case declares, because its cost is twelve spawned processes.
+ *
+ * F25, AND THE CLASS IS THE ONE `vitest.spawn-timeout.ts` NAMES rather than the class vitest's five
+ * second default was chosen for. The case walks every `.spec.ts` in the repository and then runs
+ * {@link probeDependency} twelve times, which on a runner that has just been checked out means
+ * twelve binaries coming off a cold disk: `swift --version` alone measured 18,451 to 57,992 ms
+ * there for its first call and 90 to 171 ms for every call after it. What the case asserts is one
+ * array comparison and one boolean.
+ *
+ * THE MARGIN IS CHECKED AND NOT ASSERTED IN PROSE, in the last case of this file: {@link MARGIN}
+ * over {@link MEASURED_MAXIMUM_MS} is 617,220, and the value adopted is rounded up past that floor
+ * for a second reason that is also checked. {@link PROBE_HANG_CATCHER_MS} is 580,000, so a single
+ * binary that never returns costs 580,000 plus the rest of the case, and 580,000 + 61,722 is
+ * 641,722. Below that, a hung binary would be reported as a bare five word timeout on this case
+ * instead of the sentence the probe was given to say, which names the dependency and says that
+ * nothing was measured. 650,000 clears both, at 10.53 times the reading.
+ *
+ * NOTHING HERE IS TUNED AGAINST THIS NUMBER AND NOTHING SHOULD BE. It is a hang catcher, not a
+ * budget. THE OTHER THREE CASES THAT WALK THE TREE DECLARE NOTHING and keep vitest's default: over
+ * the same twelve samples they measure 79, 78 and 72 ms at their worst, because the scan is warm by
+ * the time they run and they spawn nothing at all, so they are exactly the class the default was
+ * chosen for. The global default in `vitest.config.ts` does not move, and the last case of this
+ * file holds every vitest configuration in the repository to declaring no `testTimeout` at all, so
+ * that this bound cannot quietly become everybody's.
+ */
+const REGISTER_HANG_CATCHER_MS = 650_000;
 
 /** A dependency present on both machines, for cases about something other than coverage. */
 function bothMachines(id: string): ConditionalDependency {
@@ -78,25 +151,29 @@ function onDarwinWithEverything(
 }
 
 describe('the register against the tree', () => {
-  it('should account for every conditional group in the repository, in both directions', () => {
-    // Given the sources as they are
-    const found = scanConditionalCases(repoRoot);
+  it(
+    'should account for every conditional group in the repository, in both directions',
+    () => {
+      // Given the sources as they are
+      const found = scanConditionalCases(repoRoot);
 
-    // When they are compared with the committed register
-    const issues = reconcileConditionalCases(found, {
-      machine: machineOf(process.platform),
-      present: new Map(
-        CONDITIONAL_DEPENDENCIES.map((dependency) => [
-          dependency.id,
-          probeDependency(dependency, repoRoot),
-        ]),
-      ),
-    });
+      // When they are compared with the committed register
+      const issues = reconcileConditionalCases(found, {
+        machine: machineOf(process.platform),
+        present: new Map(
+          CONDITIONAL_DEPENDENCIES.map((dependency) => [
+            dependency.id,
+            probeDependency(dependency, repoRoot),
+          ]),
+        ),
+      });
 
-    // Then nothing is unregistered, stale, miscounted or contradicted by this machine
-    expect(issues.filter((issue) => issue.level === 'error')).toEqual([]);
-    expect(conditionalCasesFailed(issues)).toBe(false);
-  });
+      // Then nothing is unregistered, stale, miscounted or contradicted by this machine
+      expect(issues.filter((issue) => issue.level === 'error')).toEqual([]);
+      expect(conditionalCasesFailed(issues)).toBe(false);
+    },
+    REGISTER_HANG_CATCHER_MS,
+  );
 
   it('should find the nginx case this register exists for, still guarded and still registered', () => {
     // Given: the proof of absence asserts its subject is present first. The case is real, it is
@@ -583,7 +660,62 @@ describe('a probe that was killed before it answered', () => {
     // the reading it was supposed to cover.
 
     // When, Then: an order of magnitude, which is what this repository uses for a hang catcher
-    expect(PROBE_HANG_CATCHER_MS / PROBE_MEASURED_MAXIMUM_MS).toBeGreaterThanOrEqual(10);
+    expect(PROBE_HANG_CATCHER_MS / PROBE_MEASURED_MAXIMUM_MS).toBeGreaterThanOrEqual(MARGIN);
+  });
+});
+
+describe('the bound the register case declares, and the default it did not move', () => {
+  it('should hold the bound over the reading that was taken, by the margin it claims', () => {
+    // Given, the margin used to be nothing at all: the case carried vitest's five second default
+    // while measuring 14,370 to 61,722 ms on the runner, which is a bound set for a class this
+    // case is not in.
+
+    // When, Then
+    expect(REGISTER_HANG_CATCHER_MS / MEASURED_MAXIMUM_MS).toBeGreaterThanOrEqual(MARGIN);
+  });
+
+  it('should leave room for a hung binary to report its own reason rather than a bare timeout', () => {
+    // Given: the second half of the derivation, which is why 650,000 and not 617,220. A probe that
+    // never returns is stopped at PROBE_HANG_CATCHER_MS and the reconciliation then says which
+    // dependency measured nothing; that sentence only reaches a reader if the case is still alive
+    // to print it.
+
+    // When, Then
+    expect(REGISTER_HANG_CATCHER_MS).toBeGreaterThanOrEqual(
+      PROBE_HANG_CATCHER_MS + MEASURED_MAXIMUM_MS,
+    );
+  });
+
+  it('should be the only bound moved, with no vitest configuration declaring a testTimeout', () => {
+    // Given every vitest configuration in the repository. The claim "the global default does not
+    // move" is a rule with no runner unless something reads the files it is about, and a bound
+    // that quietly became everybody's would look exactly like this one being local.
+    const configurations = ['vitest.config.ts', 'vitest.shared.ts'];
+    for (const workspace of ['packages', 'tools']) {
+      for (const entry of readdirSync(join(repoRoot, workspace), { withFileTypes: true })) {
+        if (entry.isDirectory()) configurations.push(`${workspace}/${entry.name}/vitest.config.ts`);
+      }
+    }
+
+    // When: the subject is asserted present before anything is claimed about its contents
+    const read = configurations
+      .map((file) => {
+        try {
+          return { file, source: readFileSync(join(repoRoot, file), 'utf8') };
+        } catch {
+          return undefined;
+        }
+      })
+      .filter((entry) => entry !== undefined);
+    expect(read.length).toBeGreaterThanOrEqual(20);
+    expect(read.map((entry) => entry.file)).toContain('vitest.config.ts');
+
+    // Then not one of them raises the default for everybody
+    expect(
+      read
+        .filter((entry) => /\b(testTimeout|hookTimeout)\b/u.test(entry.source))
+        .map((e) => e.file),
+    ).toEqual([]);
   });
 });
 

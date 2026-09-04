@@ -633,12 +633,15 @@ export type ProbeOutcome = 'present' | 'absent' | 'undetermined';
  * How long a version probe waits before what it has is a hang rather than an answer.
  *
  * IT WAS 30,000 AND 30,000 WAS INSIDE THE SPREAD OF A REAL ANSWER, WHICH IS THE DEFECT. Measured
- * by `runner-column-study.yml`, four vCPU `ubuntu-latest`, the FIRST `swift --version` after a
- * checkout, an install and a build costs 18,451, 32,662, 38,434 and 57,992 ms on four runners: the
- * Swift toolchain comes off a cold disk. Every call after it costs 90 to 171 ms even with the whole
- * unit suite running beside it, 343 rounds. So a wait of 30,000 was answering a question about the
- * disk, and the same unchanged code was green on one runner and red on the next, which is exactly
- * what happened on 2026-09-04 between CI run 33884072380 and the `columns` job an hour later.
+ * by the `under-load` job of `runner-column-study.yml` in run 33893701335, four vCPU
+ * `ubuntu-latest` on image ubuntu24 20260831.293.1, with the machine beside every reading: the
+ * FIRST `swift --version` after a checkout, an install and a build costs 57,992 ms on an AMD EPYC
+ * 7763, 38,434 ms on another EPYC 7763, 32,662 ms on an EPYC 9V74 and 18,451 ms on another EPYC
+ * 9V74. The Swift toolchain comes off a cold disk. Every call after that one costs 90 to 171 ms
+ * even with the whole unit suite running beside it on the same four vCPU, 343 rounds over the four
+ * runners, so what the wait was measuring was the disk and not contention and not the machine. The
+ * same unchanged code was therefore green on one runner and red on the next, which is exactly what
+ * happened on 2026-09-04 between CI run 33884072380 and the `columns` job an hour later.
  *
  * THE MARGIN IS THE ONE THIS REPOSITORY USES, an order of magnitude over the measured maximum,
  * which is what `packages/vue/test/integration/public-surface.spec.ts`,
