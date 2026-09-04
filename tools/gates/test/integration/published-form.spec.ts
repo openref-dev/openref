@@ -113,8 +113,16 @@ describe('the published form of this tree', () => {
     // When
     const total = INITIAL.reduce((sum, name) => sum + sizeOf(name), 0);
 
-    // Then, the figure this tree publishes, after the operation page began stating the refusal of
-    // a language that could not write the request.
+    // Then, the figure this tree publishes, after the samples section element moved out of the
+    // `CodeSample` position so that the two notices could stand inside it.
+    //
+    // 26 BYTES ON 2026-09-03, AND THEY BUY A MARKUP CORRECTION RATHER THAN A CAPABILITY. Measured
+    // by building the tree twice, with the move and without it: 112,587 against 112,561. Both
+    // sentences used to render as siblings after the slot's own closing tag, so a reader met them
+    // outside the section the heading opened, and an operation whose every language refused
+    // mounted an empty `role="tablist"` under that heading. The element the three now share is
+    // `NodePanel`'s and the strip is drawn only when there is a tab to put in it. THE CAP DID NOT
+    // MOVE and the headroom is 53 bytes, asserted below.
     //
     // THE DELTA CHAIN THAT STOOD HERE WAS ARITHMETIC OVER A MEASUREMENT AND A LITERAL PRIOR, AND
     // IT IS RECORDED RATHER THAN ASSERTED NOW. `expect(total - 112_151).toBe(229)` could not fail
@@ -126,13 +134,13 @@ describe('the published form of this tree', () => {
     // the 112,380 the row carried once the page named the three languages it does not draw, which
     // was 229 over the 112,151 left by `T065`'s node segment escape, itself 325 over the 111,826
     // left by the socket console, itself 1,267 over 110,559. The cap did not move for any of them.
-    expect(total).toBe(112_561);
+    expect(total).toBe(112_587);
 
-    // AND ALL 181 ARE IN THE ENTRY, WHICH IS DERIVED HERE RATHER THAN RESTATED. The six files
-    // beside the entry weighed 91,364 before the change and weigh 91,364 after it, both operands
-    // off this tree, so the renamed chunk is a digest moving rather than content arriving and the
-    // entry is where the whole of the change went.
-    expect(sizeOf('openref.js')).toBe(21_197);
+    // AND ALL 26 ARE IN THE ENTRY, WHICH IS DERIVED HERE RATHER THAN RESTATED, exactly as the 181
+    // before them were. The six files beside the entry weighed 91,364 before the change and weigh
+    // 91,364 after it, both operands off this tree, and no chunk name moved at all this time, so
+    // the entry is where the whole of the change went.
+    expect(sizeOf('openref.js')).toBe(21_223);
     expect(total - sizeOf('openref.js')).toBe(91_364);
     expect(sizeOf('chunk-DC7HAQCY.js')).toBe(5_089);
     expect(sizeOf('chunk-MPK3G3AA.js')).toBe(656);
@@ -208,18 +216,24 @@ describe('the published form of this tree', () => {
     const initial = INITIAL.reduce((sum, name) => sum + sizeOf(name), 0);
     const signInReturn = sizeOf('oauth-landing-VRHHK533.js') + sizeOf('chunk-FI2DNV2T.js');
 
-    // 79 SINCE 2026-09-03 AND IT WAS 260, AND THE 181 ARE NAMED RATHER THAN ABSORBED. The
+    // 53 SINCE 2026-09-03 AND IT WAS 79, AND THE 26 ARE NAMED RATHER THAN ABSORBED. The samples
+    // section element moved out of the `CodeSample` position and into `NodePanel`, so the two
+    // sentences it draws stand inside the block they are about rather than after its closing tag,
+    // and the tab strip is drawn only where there is a tab to put in it. THE CAP DID NOT MOVE and
+    // is asserted above; 53 bytes is what is left of it, and the next arrival of 54 meets it.
+    //
+    // 79 SINCE 2026-09-03 AND IT WAS 260, AND THE 181 WERE NAMED RATHER THAN ABSORBED. The
     // operation page now states the refusal of a language whose emitter could not write this
     // request, so a vanished tab is told apart from a language the reference never had, which is
     // the same guarantee the sentence below it makes for the three the page holds back. The bytes
     // reach the first paint because the samples section is the one part of the article that fails
     // the adoption question of SPEC 12: its tab is client state, so the whole section is composed
-    // in the browser. THE CAP DID NOT MOVE and is asserted above; 79 bytes is what is left of it.
+    // in the browser.
     //
     // 260 SINCE 2026-09-03 AND IT WAS 489, AND THE 229 WERE NAMED THE SAME WAY. The operation page
     // began naming the three SPEC 18 languages it does not draw, so a reader can tell a language
     // this reference does not have from one it can produce.
-    expect(capOf('client-js-raw') - initial).toBe(79);
+    expect(capOf('client-js-raw') - initial).toBe(53);
 
     // AND THE PROPERTY THE CAP IS DERIVED BY, CHECKED THE SAME WAY: the smallest whole KB step the
     // artefact fits under, at which the cheapest deferred gesture returning to the first load still

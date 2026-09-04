@@ -68,6 +68,29 @@ function specification(
   };
 }
 
+/**
+ * The same specification with one required cookie parameter added.
+ *
+ * A DOCUMENT ANY AUTHOR MAY WRITE. `buildRequest` throws a `SerializationError` for it by name,
+ * because `Cookie` is a forbidden header and a browser will not let a script set one, so every one
+ * of the fifteen emitters is unreachable for this operation.
+ */
+function cookieSpecification(): Record<string, unknown> {
+  const withCookie = specification();
+  const paths = withCookie.paths as Record<string, Record<string, Record<string, unknown>>>;
+  const post = paths['/orders/{orderId}/items']?.post;
+  expect(post).toBeDefined();
+  (post!.parameters as Record<string, unknown>[]).push({
+    name: 'session',
+    in: 'cookie',
+    required: true,
+    schema: { type: 'string' },
+    example: 'abc',
+  });
+
+  return withCookie;
+}
+
 function service(declared?: readonly Readonly<Record<string, string>>[]): ReferenceService {
   return new ReferenceService({
     document: specification(declared),
@@ -235,7 +258,7 @@ describe('an operation page of a served reference', () => {
     expect(section.indexOf('Ours')).toBeLessThan(section.indexOf('TypeScript'));
   });
 
-  it('should draw no section at all for an operation with nowhere to send', async () => {
+  it('should state the refusal for an operation with nowhere to send, rather than say nothing', async () => {
     // Given a document with no server, which a written OpenAPI file cannot be, because the
     // specification's own default supplies `/`. It reaches a mount through the federated `ir`
     // path of SPEC 15.3, where the document arrives already normalized.
@@ -254,9 +277,94 @@ describe('an operation page of a served reference', () => {
 
     // When
     const html = await page(reference);
+    const section = samplesSection(html);
 
-    // Then: an empty tab strip is worse than no section, and `drawnOf` already says so.
-    expect(html).not.toContain('oref-section-samples');
+    // Then. WHAT THIS CASE ASSERTED BEFORE, AND WHY IT WAS WRONG: it asserted the page carried no
+    // `oref-section-samples` at all, on the grounds that an empty tab strip is worse than no
+    // section. The first half is right and is a case of its own below; the conclusion drawn from
+    // it was that fifteen languages may vanish with nothing said, which is precisely the silence
+    // SPEC 18's standing rule forbids. The section is drawn, it carries no strip, and it says why.
+    expect(section).toContain('Call it');
+    expect(section).not.toContain('role="tablist"');
+    expect(section).toContain('No sample for this request in cURL, HTTPie, wget');
+    expect(section).toContain('no server');
+  });
+
+  it('should say so on an ordinary document the runner refuses to build a request from', async () => {
+    // Given a plain OpenAPI document with one required cookie parameter, nothing federated and
+    // nothing hand built: `buildRequest` refuses it by name, because `Cookie` is a header a browser
+    // will not let a script set. Until this the whole refusal was swallowed and the page carried no
+    // samples section at all.
+    const reference = new ReferenceService({
+      document: cookieSpecification(),
+      basePath: '/docs',
+      assets: loadDefaultAssets(),
+    });
+
+    // When
+    const html = await page(reference);
+    const section = samplesSection(html);
+
+    // Then: all fifteen named under the one reason, and the reason is the runner's own words
+    for (const language of [...PAGE_SAMPLE_LANGUAGES, ...OFF_PAGE_SAMPLE_LANGUAGES]) {
+      expect(section, language.label).toContain(language.label);
+      expect(section, language.label).not.toContain(`>${language.label}</button>`);
+    }
+    expect(section).toContain('cookie parameter');
+  });
+
+  it('should draw no empty tab strip, which the page model calls worse than no section', async () => {
+    // Given the same document, whose every language refused
+    // When
+    const section = samplesSection(
+      await page(
+        new ReferenceService({
+          document: cookieSpecification(),
+          basePath: '/docs',
+          assets: loadDefaultAssets(),
+        }),
+      ),
+    );
+
+    // Then, the subject first: this is the samples section, and it says what it is
+    expect(section).toContain('Call it');
+
+    // And it carries no strip, empty or otherwise, because there is not one tab to put in it
+    expect(section).not.toContain('role="tablist"');
+    expect(section).not.toContain('oref-sample-tabs');
+  });
+
+  it('should cost the state block 24 bytes on a page with no refusal at all', async () => {
+    // Given the ordinary page, whose request all fifteen languages can write. SPEC 20 recorded
+    // this arrival as costing the page "zero where there are no refusals"; measured, it costs the
+    // empty list, on every node page, and the figure is pinned here so the sentence has a runner.
+    const html = await page(service());
+
+    // Then, the subject first: this really is a page with nothing refused on it
+    expect(html).not.toContain('No sample for this request in');
+
+    // And the member still crosses, because the samples section is the one part of the article the
+    // client redraws, so it reads the list rather than the markup. It cannot be left out: the
+    // member is required on `NodeModel` on purpose, and `readPageState` is a bare `JSON.parse`
+    // with no defaults, so an absent key is an exception during hydration rather than an empty
+    // list. What that costs is this, and it is 24 bytes rather than nothing.
+    expect(html).toContain(',"codeSamplesRefused":[]');
+    expect(Buffer.byteLength(',"codeSamplesRefused":[]', 'utf8')).toBe(24);
+  });
+
+  it('should keep both notices inside the section they belong to', async () => {
+    // Given the ordinary page, which draws twelve tabs and names three languages beside them
+    const html = await page(service());
+
+    // When
+    const section = samplesSection(html);
+
+    // Then, the subject first: the sentence is on the page at all
+    expect(html).toContain('Generated for this operation and not drawn here: PHP, Java, Ruby.');
+
+    // And it is inside the samples section rather than a sibling after its closing tag, which is
+    // where a reader looking at the tab strip reads it and where a theme's section styling reaches.
+    expect(section).toContain('Generated for this operation and not drawn here: PHP, Java, Ruby.');
   });
 
   it('should say a language refused this request rather than let its tab vanish', async () => {

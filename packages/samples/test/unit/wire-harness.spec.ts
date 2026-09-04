@@ -15,9 +15,23 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { withoutBoundary } from '../mocks/wire';
+import { partHeader, partsOf, withoutBoundary } from '../mocks/wire';
+import type { Wire } from '../mocks/wire';
 
 const INTEGRATION = join(import.meta.dirname, '..', 'integration');
+
+/** A recorded request carrying one multipart body, built here rather than taken off a server. */
+function multipartWire(head: string): Wire {
+  const body = `--abc\r\n${head}\r\n\r\nfront\r\n--abc--\r\n`;
+
+  return {
+    method: 'POST',
+    target: '/pets/photo',
+    headers: { 'content-type': 'multipart/form-data; boundary=abc' },
+    rawHeaders: {},
+    body: Buffer.from(body, 'binary'),
+  };
+}
 
 /**
  * The wire cases one suite declares, counted rather than remembered.
@@ -67,6 +81,65 @@ describe('the multipart substitution the wire comparison makes', () => {
     expect(withoutBoundary('multipart/form-data;boundary=3; charset=utf-8')).toBe(
       'multipart/form-data; charset=utf-8',
     );
+  });
+});
+
+describe('the part reader the multipart comparison uses', () => {
+  it('should tell apart two parts that the two field rule it replaces could not', () => {
+    // Given one part as the runner frames it, and the same part with a header a client added of
+    // its own. This is the difference a blind review put on a part by hand on 2026-09-03.
+    const plan = 'Content-Disposition: form-data; name="note"';
+    const invented = `${plan}\r\nContent-Transfer-Encoding: binary`;
+
+    // When the rule this reader used until that day is applied, the one that read two named fields
+    // off the head and discarded the rest
+    const twoFieldRule = (head: string): readonly [string, string] => [
+      /content-disposition: ([^\r\n]+)/i.exec(head)?.[1] ?? '',
+      /content-type: ([^\r\n]+)/i.exec(head)?.[1] ?? '',
+    ];
+
+    // Then it says the two agree, which is the blindness: the invented field is in neither name it
+    // reads, so a body carrying it compared equal to one that did not.
+    expect(twoFieldRule(invented)).toEqual(twoFieldRule(plan));
+
+    // And the reader that keeps every header does not
+    expect(partsOf(multipartWire(invented))).not.toEqual(partsOf(multipartWire(plan)));
+    expect(partHeader(partsOf(multipartWire(invented))[0], 'content-transfer-encoding')).toBe(
+      'binary',
+    );
+    expect(partHeader(partsOf(multipartWire(plan))[0], 'content-transfer-encoding')).toBe('');
+  });
+
+  it('should hold the two sides to one order and still keep a repeated field', () => {
+    // Given the same two headers written in the two orders a client may write them in
+    const first = 'Content-Disposition: form-data; name="note"\r\nContent-Type: text/plain';
+    const second = 'Content-Type: text/plain\r\nContent-Disposition: form-data; name="note"';
+
+    // When, Then: the order of two differently named fields carries no meaning in HTTP, and both
+    // sides are normalized the same way, so this is a normalization rather than an exemption.
+    expect(partsOf(multipartWire(first))).toEqual(partsOf(multipartWire(second)));
+
+    // And a field written twice keeps both values, so nothing is merged away by the sort
+    const twice = partsOf(multipartWire(`${first}\r\nContent-Type: text/html`))[0];
+    expect(twice?.headers).toEqual([
+      'content-disposition: form-data; name="note"',
+      'content-type: text/html',
+      'content-type: text/plain',
+    ]);
+  });
+
+  it('should refuse to read a body whose framing it cannot find, rather than report agreement', () => {
+    // Given a recorded request whose content type declares no boundary
+    const wire: Wire = {
+      method: 'POST',
+      target: '/pets/photo',
+      headers: { 'content-type': 'multipart/form-data' },
+      rawHeaders: {},
+      body: Buffer.from('--abc\r\n\r\nfront\r\n--abc--\r\n', 'binary'),
+    };
+
+    // When, Then: a harness that cannot locate the framing must not call the two sides equal
+    expect(() => partsOf(wire)).toThrow('no boundary');
   });
 });
 

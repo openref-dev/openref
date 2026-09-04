@@ -979,10 +979,18 @@ function drawnOf(node: Omit<NodeModel, 'drawn'>): NodeModel['drawn'] {
       : []),
     // THE SAMPLES SECTION MOUNTS ON THERE BEING SOMETHING TO SAY, AND A TAB IS ONLY ONE OF THE
     // THREE THINGS IT CAN SAY. It used to mount on `codeSamples` alone, so a node carrying nothing
-    // but the languages it names, which is what the `languages` parameter of `withGeneratedSamples`
-    // produces and SPEC 18 names as the supported lever, drew no tab, no sentence and no section:
-    // the languages went silently absent again, which is the one thing the sentence exists to stop.
-    // A refusal is the same case: no tab and a reason nobody would ever read.
+    // but the languages it names drew no tab, no sentence and no section: the languages went
+    // silently absent again, which is the one thing the sentence exists to stop.
+    //
+    // THE `languages` PARAMETER IS NOT WHAT MAKES THAT STATE REACHABLE, AND SAYING SO WAS WRONG.
+    // The first edition of this comment justified the fix by naming that parameter as SPEC 18's
+    // supported lever. Measured 2026-09-03: `ReferenceService` and both `@openref/static` entry
+    // points call `withGeneratedSamples` with two arguments, so every shipped surface takes the
+    // default twelve, and a host that transforms a document itself and passes it as `ir:` has it
+    // transformed again over the top. No shipped surface reaches it, which is a finding recorded in
+    // SPEC 18 rather than a claim softened here. What does reach this condition on every surface is
+    // the third list: an operation the runner refuses to build a request for has no tab, no held
+    // back language and one reason, and that reason is the whole of what the page has to say.
     ...(node.codeSamples.length > 0 ||
     node.codeSamplesElsewhere.length > 0 ||
     node.codeSamplesRefused.length > 0

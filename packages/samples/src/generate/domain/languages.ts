@@ -266,6 +266,38 @@ export const UNSENDABLE_PLAN_REFUSAL =
   'the runner refuses to send this request at all, so no sample can show it being sent.';
 
 /**
+ * Why no language may write a sample for this request: the runner will not build it either.
+ *
+ * THE SIBLING OF {@link UNSENDABLE_PLAN_REFUSAL} ONE STEP EARLIER IN THE SAME CHAIN, and it exists
+ * because that step was silent. `buildRequest` refuses shapes an ordinary document may declare: a
+ * cookie parameter, which `Cookie` being a forbidden header makes unsendable from a script, a
+ * required parameter with nothing to seed it, a path template naming a parameter the operation does
+ * not declare. Until 2026-09-03 the transform caught that refusal and returned nothing at all, so
+ * the page drew no samples section, all fifteen languages vanished and no reason reached the
+ * reader: exactly the silence SPEC 18's standing rule forbids, arrived at by a `catch`.
+ *
+ * THE SENTENCE THE RUNNER GAVE IS APPENDED TO THIS ONE, for the reason the constant above states.
+ * The refusals differ per document and naming them here would be a second list of them, kept by
+ * hand, beside the one `@openref/runner` already throws by name.
+ */
+export const UNBUILDABLE_REQUEST_REFUSAL =
+  'the runner refuses to build this request at all, so no sample can show it being made.';
+
+/**
+ * Why no language may write a sample for an operation with nowhere to send.
+ *
+ * A REFUSAL RATHER THAN AN ABSENCE, SINCE 2026-09-03. A normalized OpenAPI document always carries
+ * the specification's own default server, so this is the hand built document and the merged one
+ * whose service declared none; writing a sample against an invented origin is the guess this
+ * package exists not to make. What was wrong until that day was the other half: the operation was
+ * handed back untouched, so the page said nothing, which is indistinguishable from a reference that
+ * has no samples at all.
+ */
+export const NO_SERVER_REFUSAL =
+  'this operation declares no server to send to, so there is no address a sample could be written ' +
+  'against';
+
+/**
  * Why a client that does not put the runner's octets on the wire may not write a non-ASCII header.
  *
  * THE HTTP SPECIFICATION PUTS THIS FORM OUTSIDE WHAT IS INTEROPERABLE, WHICH IS WHY NOBODY IS

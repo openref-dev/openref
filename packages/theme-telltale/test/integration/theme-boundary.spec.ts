@@ -325,6 +325,15 @@ describe('the markup a complete L2 theme does not own', () => {
     // modifiers on families the reference already had, the three `oref-section` ones, the three
     // `oref-media` ones and the two directions on `oref-badge`, which are the same eight the
     // default theme records as modifiers without rules of their own.
+    // ONE ARRIVED ON 2026-09-03 AND IT IS THE SIXTH INSTANCE OF THIS FINDING WITH ONE DIFFERENCE:
+    // `oref-section-samples` did not arrive because a feature was built outside a position, it
+    // arrived because an element moved out of one. The call samples section used to be drawn by
+    // the `CodeSample` position, so a theme replacing that position replaced the element too and
+    // no name survived. The two sentences that name a language the page holds back and a language
+    // whose emitter refused belong inside that element and may not be a slot's to drop, so the
+    // element is `NodePanel`'s now and the slot draws its contents. The price is exactly this one
+    // name, measured here rather than argued: a page cannot both put a guarantee inside a block and
+    // leave the block replaceable.
     expect(surviving).toEqual([
       'oref-badge',
       'oref-bench-actions',
@@ -374,6 +383,7 @@ describe('the markup a complete L2 theme does not own', () => {
       'oref-section-health',
       'oref-section-messages',
       'oref-section-request',
+      'oref-section-samples',
       'oref-section-security',
       'oref-section-service',
       'oref-section-socket',
@@ -475,10 +485,13 @@ describe('the markup a complete L2 theme does not own', () => {
 
     // And the partition is pinned, both ways. 245 emitted names no fixture provokes is the number
     // the `T062` amendment section carries with the reason for each family; a name arriving on
-    // either side moves one of these and is read rather than absorbed.
+    // either side moves one of these and is read rather than absorbed. It went from 242 to 241 on
+    // 2026-09-03 with no name arriving or leaving the renderer: `oref-section-samples` moved from
+    // inside the `CodeSample` position to `NodePanel`, so the sweep now reaches a name it emitted
+    // all along.
     const emittedNotSwept = emitted.names.filter((name) => !surviving.includes(name));
     const sweptNotEmitted = surviving.filter((name) => !emitted.names.includes(name));
-    expect(emittedNotSwept).toHaveLength(242);
+    expect(emittedNotSwept).toHaveLength(241);
     expect(sweptNotEmitted).toEqual([
       'oref-method-get',
       'oref-method-post',

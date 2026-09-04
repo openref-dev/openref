@@ -81,10 +81,12 @@ describe('drawnOf, through buildPageModel', () => {
   });
 
   it('should mount the samples section for a node that only names languages, per SPEC 18', async () => {
-    // Given an operation with no sample of its own and two languages named beside it. This is what
-    // `withGeneratedSamples` writes when a host passes a `languages` set that leaves both of them
-    // off the page, which SPEC 18 names as the supported lever, and the sentence naming them is the
-    // whole reason the member exists.
+    // Given an operation with no sample of its own and two languages named beside it, which is what
+    // `withGeneratedSamples` writes when a caller passes a `languages` set that leaves both of them
+    // off the page. NO SHIPPED SURFACE PASSES ONE, measured 2026-09-03: `ReferenceService` and both
+    // `@openref/static` entry points call the transform with two arguments and take the default
+    // twelve. So this is a guard on a state the model must draw correctly rather than a reproduction
+    // of one a reader can reach today, and the case below it is the one that reaches every surface.
     const { document, nodeId } = sampleFactsDocument({
       codeSamplesElsewhere: [
         { lang: 'typescript', label: 'TypeScript' },

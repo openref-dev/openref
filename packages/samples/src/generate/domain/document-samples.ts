@@ -26,12 +26,20 @@
  * placeholders, per SPEC 19.7: a rendered reference is cached, served and statically built, and a
  * real credential in one is a credential published.
  *
- * AN OPERATION THE RUNNER REFUSES KEEPS THE SAMPLES THE DOCUMENT WROTE AND GAINS NONE. A required
- * parameter with nothing to seed it, a path template the operation declares no parameter for, a
- * cookie parameter a browser will not let a script set: each is a request `buildRequest` will not
- * build, and a sample written past that refusal would be code that does not run. The operation
- * ends up as an operation nobody wrote a sample for, which is a state the page already draws
- * correctly, rather than as a boot failure or as fifteen samples of a request the console rejects.
+ * AN OPERATION THE RUNNER REFUSES KEEPS THE SAMPLES THE DOCUMENT WROTE, GAINS NONE, AND SAYS SO. A
+ * required parameter with nothing to seed it, a path template the operation declares no parameter
+ * for, a cookie parameter a browser will not let a script set: each is a request `buildRequest`
+ * will not build, and a sample written past that refusal would be code that does not run.
+ *
+ * WHAT THE FIRST EDITION DID WITH THAT REFUSAL WAS SWALLOW IT, and this paragraph is where the
+ * defect lived. The `catch` returned an empty result, so the operation reached the page with no
+ * sample, no named language and no reason, `drawnOf` mounted no section, and all fifteen languages
+ * vanished with nothing said. That is the fail-open shape this project forbids for anything a
+ * reader depends on, and it was reachable from an ordinary OpenAPI document with one cookie
+ * parameter in it. The mechanism to say it already existed one line above, as
+ * `UNSENDABLE_PLAN_REFUSAL`: a refusal is data, so both the runner's refusal to build and an
+ * operation with nowhere to send now travel as `codeSamplesRefused` over every language the caller
+ * asked about, and the page prints the reason exactly as it prints every other refusal.
  */
 
 import { compareByCodePoint, finalizeDocument, generateExample, OpenRefError } from '@openref/core';
@@ -57,7 +65,12 @@ import type {
 } from '@openref/runner';
 import { composeCodeSamples } from './compose';
 import { generateCodeSamples } from './generate';
-import { PAGE_SAMPLE_LANGUAGES, SAMPLE_LANGUAGES } from './languages';
+import {
+  NO_SERVER_REFUSAL,
+  PAGE_SAMPLE_LANGUAGES,
+  SAMPLE_LANGUAGES,
+  UNBUILDABLE_REQUEST_REFUSAL,
+} from './languages';
 import type { SampleLanguage } from './languages';
 import { buildSampleRequest, placeholderCredentials } from './sample-request';
 
@@ -173,9 +186,14 @@ export function withGeneratedSamples(
     const sameRefusals = refusalListsAgree(node.codeSamplesRefused ?? [], unable);
     if (sameSamples && sameNames && sameRefusals) continue;
 
+    // ALL THREE MEMBERS ARE WRITTEN ONLY WHEN THEY SAY SOMETHING, and `codeSamples` joined the
+    // other two when the refusal path started producing nodes with nothing drawn on them.
+    // `IROperation.codeSamples` is documented as absent when nobody wrote one, and an empty list
+    // written in its place is a member that says "none" where the type says "nothing to say",
+    // moved into every document a refused operation appears in.
     nodes.set(id, {
       ...node,
-      codeSamples: composed,
+      ...(composed.length === 0 ? {} : { codeSamples: composed }),
       ...(missing.length === 0 ? {} : { codeSamplesElsewhere: missing }),
       ...(unable.length === 0 ? {} : { codeSamplesRefused: unable }),
     });
@@ -296,11 +314,40 @@ interface OperationSamples {
   readonly refused: readonly SampleRefusal[];
 }
 
-/** Nothing at all: no sample to draw, no language to name and no refusal to report. */
-const NO_SAMPLES: OperationSamples = { drawn: [], named: [], refused: [] };
+/**
+ * Every language the caller asked about, refused for the one reason they all share.
+ *
+ * ONE REASON OVER FIFTEEN NAMES RATHER THAN NOTHING AT ALL. Neither of the two refusals this
+ * answers is a language's: one is the runner declining to build the request and the other is an
+ * operation with nowhere to send, so every emitter is unreachable for the same reason and
+ * `groupByReason` folds them into the one sentence the page prints.
+ *
+ * THE DRAWN SET COMES FIRST, which is the order the page would have met the languages in and the
+ * order every other refusal is listed in.
+ *
+ * @param languages - Languages the page draws
+ * @param elsewhere - Languages the page names rather than draws
+ * @param reason - Why none of them could write anything
+ * @returns Nothing drawn, nothing held back, and all fifteen accounted for
+ */
+function allRefused(
+  languages: readonly SampleLanguage[],
+  elsewhere: readonly SampleLanguage[],
+  reason: string,
+): OperationSamples {
+  return {
+    drawn: [],
+    named: [],
+    refused: [...languages, ...elsewhere].map((language) => ({
+      lang: language.id,
+      label: language.label,
+      reason,
+    })),
+  };
+}
 
 /**
- * The samples one operation gets, or none when the request cannot be built.
+ * The samples one operation gets, or a refusal over every language when the request cannot be built.
  *
  * @param operation - The operation as the IR carries it
  * @param document - The document it belongs to
@@ -308,7 +355,7 @@ const NO_SAMPLES: OperationSamples = { drawn: [], named: [], refused: [] };
  * @param bodies - Normalized named schemas, for `generateExample`
  * @param languages - Languages to write onto the page
  * @param elsewhere - Languages to generate and name rather than draw
- * @returns The generated samples and the named languages, both empty when no request can be built
+ * @returns The generated samples and the named languages, or every language refused with the reason
  */
 function operationSamples(
   operation: IROperation,
@@ -320,13 +367,15 @@ function operationSamples(
 ): OperationSamples {
   const run = operationOf(operation, document);
 
-  // AN OPERATION WITH NOWHERE TO SEND HAS NO SAMPLE, and the refusal is here rather than at
-  // `buildRequest` so the reason is nameable. A normalized OpenAPI document always has at least
-  // the specification's own default server, so this is the hand built document and the merged one
-  // whose service declared none; writing a sample against an invented origin would be the class
-  // of guess CLAUDE.md's fifth lesson forbids.
+  // AN OPERATION WITH NOWHERE TO SEND HAS NO SAMPLE AND SAYS WHY, and the refusal is here rather
+  // than at `buildRequest` so the reason is nameable. A normalized OpenAPI document always has at
+  // least the specification's own default server, so this is the hand built document and the merged
+  // one whose service declared none; writing a sample against an invented origin would be the class
+  // of guess CLAUDE.md's fifth lesson forbids. Returning nothing at all, which is what this line
+  // did until 2026-09-03, is the other forbidden answer: it makes the page silent about fifteen
+  // languages, and a silence is what a reader cannot tell from a reference that has no samples.
   const serverUrl = run.servers[0];
-  if (serverUrl === undefined) return NO_SAMPLES;
+  if (serverUrl === undefined) return allRefused(languages, elsewhere, NO_SERVER_REFUSAL);
 
   try {
     const { values } = placeholderCredentials(run.security);
@@ -358,11 +407,22 @@ function operationSamples(
       })),
     };
   } catch (cause) {
-    // ONLY THE RUNNER'S OWN REFUSALS ARE ABSORBED. `SerializationError` and `AuthError` both
+    // ONLY THE RUNNER'S OWN REFUSALS ARE ANSWERED HERE. `SerializationError` and `AuthError` both
     // extend `OpenRefError` and both mean "this request cannot be built", which is an answer.
     // Anything else is a defect in this file or below it and travels, because a transform that
     // swallowed a `TypeError` would serve a reference silently missing every sample.
-    if (cause instanceof OpenRefError) return NO_SAMPLES;
+    //
+    // AND AN ANSWER IS CARRIED RATHER THAN ABSORBED, WHICH IS THE HALF THIS LINE USED TO GET WRONG.
+    // Returning an empty result turned a refusal with a sentence on it into no section, no tab and
+    // no reason. The runner's own message is appended, so the page states the refusal the runner
+    // actually made rather than a paraphrase kept in this file and drifting from it.
+    if (cause instanceof OpenRefError) {
+      return allRefused(
+        languages,
+        elsewhere,
+        `${UNBUILDABLE_REQUEST_REFUSAL} The runner said: ${cause.message}`,
+      );
+    }
 
     throw cause;
   }

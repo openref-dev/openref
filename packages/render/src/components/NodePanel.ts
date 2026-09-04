@@ -127,13 +127,19 @@ export const NodePanel = defineComponent({
             // something that looks right and sends something else; before this the reason reached
             // the caller as `GeneratedSamples.omitted` and reached the reader not at all.
             //
+            // THE SECTION ELEMENT IS DRAWN HERE AND ITS CONTENTS ARE THE SLOT'S, since
+            // 2026-09-03, and that is what puts the two sentences inside the block they are about.
+            // They used to be siblings after the slot's own closing tag, so a reader met them
+            // outside the section the heading opened and a theme's section rule did not reach
+            // them. The element cannot be the slot's, because then the sentences would be too.
+            //
             // WHAT BOUNDS BOTH, SAID HERE BECAUSE THIS IS WHERE THE GUARANTEE IS MADE. The
             // paragraph carries `oref-description` and nothing of its own, so a theme stylesheet
             // setting `display: none` on that class removes both sentences and no gate would see
             // it; and a theme replacing `AppShell` with a composition that drops its children
             // removes them along with the whole article. Neither is reachable by replacing the
-            // `CodeSample` slot, which is what moving the sentences out of the slot bought.
-            return h(Fragment, [
+            // `CodeSample` slot, which is what keeping the sentences out of the slot bought.
+            return h('section', { class: 'oref-section oref-section-samples' }, [
               h(samples.value, {
                 samples: node.codeSamples,
                 activeLang: activeLang.value,

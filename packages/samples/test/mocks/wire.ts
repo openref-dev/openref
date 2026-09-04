@@ -233,6 +233,92 @@ export function withoutBoundary(contentType: string): string {
 }
 
 /**
+ * The boundary a multipart content type declares, or the empty string when it declares none.
+ *
+ * @param contentType - The field as one side sent it
+ * @returns The boundary, without quotes stripped, since no client here writes a quoted one
+ */
+export function boundaryOf(contentType: string): string {
+  return /boundary=(?<boundary>[^;]+)/u.exec(contentType)?.groups?.boundary ?? '';
+}
+
+/** One part of a multipart body, as the framing carried it. */
+export interface Part {
+  /**
+   * Every header of the part head, `name: value` with the name lowercased, sorted by field name.
+   *
+   * EVERY ONE OF THEM, WHICH IS THE WHOLE OF THE FIX AND THE REASON THIS TYPE HAS NO OTHER MEMBER.
+   * Until 2026-09-03 this carried `disposition` and `contentType` and nothing else, so a header a
+   * client put on a part of its own was outside what any case could see, one level below the same
+   * blindness `comparableHeaders` was rewritten to end. Measured by putting
+   * `Content-Transfer-Encoding: binary` on one part of one side: the two bodies compared equal.
+   * Naming two fields and dropping the rest is an exemption, and an exemption this harness does not
+   * state is one it cannot bound, so there is no list here to keep.
+   *
+   * SORTED BY NAME, WHICH IS A NORMALIZATION AND NOT AN EXEMPTION. HTTP gives no meaning to the
+   * order of two differently named fields, both sides are held to the same order, and a field
+   * repeated with two values keeps both entries, so nothing is dropped or merged by the sort.
+   */
+  readonly headers: readonly string[];
+  readonly body: Buffer;
+}
+
+/** One part head, as a sorted list of normalized field lines. */
+function headLines(head: string): readonly string[] {
+  return head
+    .split('\r\n')
+    .map((line) => line.trim())
+    .filter((line) => line !== '')
+    .map((line) => {
+      const at = line.indexOf(':');
+      if (at === -1) return line.toLowerCase();
+
+      return `${line.slice(0, at).trim().toLowerCase()}: ${line.slice(at + 1).trim()}`;
+    })
+    .sort((left, right) => (left < right ? -1 : left > right ? 1 : 0));
+}
+
+/**
+ * Splits a multipart body into its parts, by the boundary its content type declares.
+ *
+ * @param wire - One recorded request whose body is multipart
+ * @returns One entry per part, head and body both
+ * @throws Error when the content type declares no boundary, because a harness that cannot find the
+ *   framing must not report the two sides equal
+ */
+export function partsOf(wire: Wire): readonly Part[] {
+  const boundary = boundaryOf(wire.headers['content-type'] ?? '');
+  if (boundary === '') {
+    throw new Error(`no boundary in ${wire.headers['content-type'] ?? '(no content type)'}`);
+  }
+
+  return wire.body
+    .toString('binary')
+    .split(`--${boundary}`)
+    .filter((section) => section !== '' && section !== '--\r\n' && section !== '--')
+    .map((section) => {
+      const cut = section.indexOf('\r\n\r\n');
+      const head = section.slice(0, cut);
+      const body = section.slice(cut + 4, section.length - 2);
+
+      return { headers: headLines(head), body: Buffer.from(body, 'binary') };
+    });
+}
+
+/**
+ * One header of one part, by name, for a case that is about that field.
+ *
+ * @param part - The part
+ * @param name - Field name, in any case
+ * @returns Its value, or the empty string when the part carries no such field
+ */
+export function partHeader(part: Part | undefined, name: string): string {
+  const prefix = `${name.toLowerCase()}: `;
+
+  return (part?.headers ?? []).find((line) => line.startsWith(prefix))?.slice(prefix.length) ?? '';
+}
+
+/**
  * Every header of one request that is the request rather than the client that sent it.
  *
  * @param wire - One recorded request

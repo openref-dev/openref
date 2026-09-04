@@ -8,7 +8,14 @@ import type {
   IROperation,
 } from '@openref/core';
 import { runnerOperationOf } from '@openref/vue';
-import { OFF_PAGE_SAMPLE_LANGUAGES, SAMPLE_LANGUAGES, withGeneratedSamples } from '../../src/index';
+import {
+  NO_SERVER_REFUSAL,
+  OFF_PAGE_SAMPLE_LANGUAGES,
+  PAGE_SAMPLE_LANGUAGES,
+  SAMPLE_LANGUAGES,
+  UNBUILDABLE_REQUEST_REFUSAL,
+  withGeneratedSamples,
+} from '../../src/index';
 
 /**
  * The transform `TX-PAGE-SAMPLES` adds, which is what finally puts SPEC 18's generator on a page.
@@ -119,6 +126,31 @@ function refusedOf(edits: Edits = {}): readonly IRCodeSampleRefusal[] {
 /** One sample by language, so a case can name the tab it is about. */
 function sample(samples: readonly IRCodeSample[], lang: string): IRCodeSample | undefined {
   return samples.find((entry) => entry.lang === lang);
+}
+
+/**
+ * The specification with a required cookie parameter, which the runner will not build a request
+ * from at all.
+ *
+ * AN ORDINARY OPENAPI DOCUMENT AND NOTHING FEDERATED. `trace`, a body on `GET` and a cookie
+ * parameter are all things a written document may declare, and `buildRequest` throws a
+ * `SerializationError` on the third by name: `Cookie` is a forbidden header and a browser will not
+ * let a script set it.
+ */
+function cookieParameterSpecification(): Record<string, unknown> {
+  const refusing = specification();
+  const paths = refusing.paths as Record<string, Record<string, Record<string, unknown>>>;
+  const post = paths['/orders/{orderId}/items']?.post;
+  expect(post).toBeDefined();
+  (post!.parameters as Record<string, unknown>[]).push({
+    name: 'session',
+    in: 'cookie',
+    required: true,
+    schema: { type: 'string' },
+    example: 'abc',
+  });
+
+  return refusing;
 }
 
 /** The specification with a header parameter whose example carries a character outside US-ASCII. */
@@ -383,7 +415,34 @@ describe('withGeneratedSamples, against what the document already wrote', () => 
   });
 });
 
-describe('withGeneratedSamples, an operation with nowhere to send', () => {
+describe('withGeneratedSamples, an operation the runner will not build a request for', () => {
+  it('should name all fifteen as refused rather than hand back an operation nobody decided about', () => {
+    // Given an ordinary OpenAPI document, written by hand, with one required cookie parameter.
+    // `buildRequest` refuses it by name, and until this the whole refusal was swallowed: no sample,
+    // no name, no reason, and a page with no samples section at all.
+    const refusing = cookieParameterSpecification();
+
+    // When
+    const result = withGeneratedSamples(normalizeOpenApiDocument(refusing), runnerOperationOf);
+    const operation = onlyOperation(result);
+
+    // Then, the subject first: nothing was drawn and nothing was held back, which is exactly the
+    // state in which the third answer has to speak or nobody does.
+    expect(operation.codeSamples).toBeUndefined();
+    expect(operation.codeSamplesElsewhere).toBeUndefined();
+
+    // And every one of the fifteen is accounted for, under the one reason they all share, carrying
+    // the runner's own sentence rather than a phrase invented here.
+    expect(operation.codeSamplesRefused).toHaveLength(1);
+    const refused = operation.codeSamplesRefused?.[0]?.languages.map((entry) => entry.lang) ?? [];
+    expect(refused).toEqual(
+      [...PAGE_SAMPLE_LANGUAGES, ...OFF_PAGE_SAMPLE_LANGUAGES].map((language) => language.id),
+    );
+    expect([...refused].sort()).toEqual(SAMPLE_LANGUAGES.map((language) => language.id).sort());
+    expect(operation.codeSamplesRefused?.[0]?.reason).toContain(UNBUILDABLE_REQUEST_REFUSAL);
+    expect(operation.codeSamplesRefused?.[0]?.reason).toContain('cookie parameter');
+  });
+
   it('should write no sample rather than one against an invented origin', () => {
     // Given a document with no server at all, which the OpenAPI default rules out but a merged
     // document and a hand built one do not.
@@ -393,9 +452,30 @@ describe('withGeneratedSamples, an operation with nowhere to send', () => {
     // When
     const result = withGeneratedSamples(nowhere, runnerOperationOf);
 
-    // Then
+    // Then, no sample, because there is nowhere to send. WHAT THIS CASE ASSERTED BEFORE, AND WHY
+    // IT WAS WRONG: it asserted `result` was the very same object, that is, that the transform had
+    // said nothing at all about the operation. That is the silence SPEC 18's standing rule forbids,
+    // pinned as correct. The refusal now reaches the page like every other one.
     expect(onlyOperation(result).codeSamples).toBeUndefined();
-    expect(result).toBe(nowhere);
+    expect(onlyOperation(result).codeSamplesRefused).toHaveLength(1);
+    expect(onlyOperation(result).codeSamplesRefused?.[0]?.languages).toHaveLength(15);
+    expect(onlyOperation(result).codeSamplesRefused?.[0]?.reason).toBe(NO_SERVER_REFUSAL);
+    expect(result).not.toBe(nowhere);
+  });
+
+  it('should be idempotent over a refusal, because both hosts apply it without asking the other', () => {
+    // Given a document whose one operation the runner refuses, already transformed once
+    const once = withGeneratedSamples(
+      normalizeOpenApiDocument(cookieParameterSpecification()),
+      runnerOperationOf,
+    );
+
+    // When
+    const twice = withGeneratedSamples(once, runnerOperationOf);
+
+    // Then, the subject first: there is a refusal on it to re-derive
+    expect(onlyOperation(once).codeSamplesRefused).toHaveLength(1);
+    expect(twice).toBe(once);
   });
 
   it('should still keep the samples the document wrote by hand', () => {

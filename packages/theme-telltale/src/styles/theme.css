@@ -1564,6 +1564,15 @@
   display: block;
 }
 
+/* The call samples wrapper, named for the same reason the three above are. The reference draws it
+   around this theme's own `CodeSample`, because the two sentences that name a held back language
+   and a refused one live inside it and are not a position's to drop. The block itself is
+   `tt-samples`, so what is left for this rule is the base section spacing, which `oref-section`
+   already gives it. */
+.oref-section-samples {
+  display: block;
+}
+
 .oref-facts {
   margin: var(--oref-space-300) 0 0;
   padding: 0;
