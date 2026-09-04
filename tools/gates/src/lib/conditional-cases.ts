@@ -99,13 +99,13 @@ export interface ConditionalDependency {
   /**
    * The machines whose column nobody has established, which is neither a yes nor a no.
    *
-   * A THIRD STATE, ADDED 2026-09-04, AND IT EXISTS TO KEEP A GUESS OUT OF THE REGISTER. Every
-   * `linux-runner` column here is read off the runner image manifest, and a slice that cannot read
-   * that document has two dishonest options and no honest one: claiming the runner has it invents
-   * evidence, and leaving it out of `runsOn` claims the runner does NOT have it, which is a
-   * statement with the same standing and prints a GAP naming a machine nobody asked. So the column
-   * is recorded as undetermined, the gap is printed as undetermined rather than as an absence, and
-   * the first run on that machine measures it and says what it found.
+   * A THIRD STATE, ADDED 2026-09-04, AND IT EXISTS TO KEEP A GUESS OUT OF THE REGISTER. A slice
+   * writing a dependency from one of the two machines cannot ask the other one, and it has two
+   * dishonest options and no honest one: claiming the machine has it invents evidence, and leaving
+   * it out of `runsOn` claims the machine does NOT have it, which is a statement with the same
+   * standing and prints a GAP naming a machine nobody asked. So the column is recorded as
+   * undetermined, the gap is printed as undetermined rather than as an absence, and the first run
+   * on that machine measures it and says what it found.
    *
    * IT NEVER SUBSTITUTES FOR `runsOn`. A dependency with an empty `runsOn` is still the error this
    * file exists for, undetermined or not: a check nothing has ever been shown to run is a check
@@ -227,10 +227,10 @@ export const CONDITIONAL_DEPENDENCIES: readonly ConditionalDependency[] = [
     runsOn: ['darwin-workstation'],
     evidence:
       'HTTPie is the only one of its four the runner does not have, measured 2026-09-04, so this ' +
-      'group is exactly as covered as `httpie` and is probed by the same binary. The sentence ' +
-      'this replaces called HTTPie "the weakest of its four" when Swift was believed absent too, ' +
-      'and it is now one rather than two. It is the sixth case skipped in ' +
-      '`tool-wire-equality.spec.ts` in CI run 33874798247',
+      'group is exactly as covered as `httpie` and is probed by the same binary. wget, PowerShell ' +
+      'and Swift were all measured present there the same day, which is what makes HTTPie the one ' +
+      'that decides this group rather than the one the manifest happened to be read about. It is ' +
+      'the sixth case skipped in `tool-wire-equality.spec.ts` in CI run 33874798247',
   },
   {
     id: 'nginx',
