@@ -32,13 +32,24 @@ name: Coverage timeout study
 # a per class one here, and the reason `format-allowlist.spec.ts` cannot be given an order of
 # magnitude over its own maximum: ten times its worst reading is 40.6 minutes, past the wall itself.
 
+# AND SINCE 2026-09-04 THE WALL IS MEASURED HERE RATHER THAN ONLY DISCUSSED, because the maintainer
+# ruled that it be set by the same rule as everything else, above the observed maximum, and that
+# needed a reading of the whole job rather than three durations copied off three different commits.
+# The `wall` job below runs the `verify` job of `ci.yml` step for step and times it. The one
+# difference is `continue-on-error` on the steps that can fail, and it exists because a job that
+# stops at its seventh step reports the duration of seven steps: on 2026-09-04 the Node 24 verify job
+# stopped in `Integration tests` at 9m48s on a budget four bytes over, and the `Gates` step, which is
+# the most expensive one in the job, was skipped. A wall derived from that number would be a wall
+# derived from a truncated run. Nothing is skipped and no assertion is weakened; a failure is
+# recorded and the run keeps going so the clock reaches the end.
+
 # THE PATH FILTER IS WHAT KEEPS THIS FROM BEING A TAX ON ORDINARY WORK. Twelve instrumented
 # coverage runs is about three hours of runner time, and none of it is caused by a commit to the
 # product: the study re-runs when the study itself changes, and `workflow_dispatch` is here for the
 # day this file is on the default branch, exactly as `page-language-bytes.yml` explains.
 on:
   push:
-    branches: ['coverage-timeouts/**']
+    branches: ['coverage-timeouts/**', 'page-bytes/**']
     paths: ['.github/workflows/coverage-timeout-study.yml']
   workflow_dispatch:
 
@@ -177,3 +188,82 @@ jobs:
           path: |
             durations.json
             coverage-raised-timeout.log
+
+  wall:
+    name: whole job, sample ${{ matrix.sample }} on Node ${{ matrix.node }}
+    runs-on: ubuntu-latest
+
+    # THE CEILING HERE IS THE INSTRUMENT AND NOT THE SUBJECT, which is why it is nowhere near the
+    # wall it is measuring. A study whose own timeout can fire returns the study's number instead of
+    # the job's, exactly as a case killed at 5,000 ms reports 5,000 ms. Sixty is far above anything
+    # `verify` has ever read and its only job is to stop a hung sample from burning an hour.
+    timeout-minutes: 60
+
+    # BOTH NODE VERSIONS AND THREE SAMPLES, BECAUSE THE THING BEING MEASURED IS VARIANCE. The same
+    # code has read 21m32s, 28m13s and 28m55s on this runner pool, which is 6m41s of spread with
+    # nothing changed, so one reading names a sample and not the population. `fail-fast: false`
+    # because a slow sample is the reading.
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ['22.22.2', '^24.15.0']
+        sample: [1, 2, 3]
+
+    steps:
+      - name: Report the machine
+        run: |
+          echo "nproc $(nproc)"
+          grep -m1 'model name' /proc/cpuinfo || true
+          echo "image ${ImageOS:-unknown} version ${ImageVersion:-unknown} arch ${RUNNER_ARCH:-unknown}"
+
+      # FROM HERE DOWN THIS IS THE `verify` JOB OF `ci.yml`, STEP FOR STEP AND IN ITS ORDER, because
+      # a wall is a property of that job and a rearranged copy would be measuring something else.
+      # The only edit is `continue-on-error` on the four steps that can fail, so the clock reaches
+      # the end of the job even when one of them is red. Nothing is skipped and no assertion moves.
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Format check
+        continue-on-error: true
+        run: pnpm run format:check
+
+      - name: Build
+        run: pnpm run build
+
+      - name: Lint
+        continue-on-error: true
+        run: pnpm run lint
+
+      - name: Test
+        continue-on-error: true
+        run: pnpm run test
+
+      - name: Integration tests
+        continue-on-error: true
+        run: pnpm run test:integration
+
+      - name: Gates
+        continue-on-error: true
+        run: pnpm run gates
+
+      - name: No suite rewrote a recorded reading
+        continue-on-error: true
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "The working tree changed while the suites ran. A recorded reading was rewritten:"
+            git status --porcelain
+            git diff --stat
+            exit 1
+          fi
