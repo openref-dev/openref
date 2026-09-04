@@ -137,6 +137,119 @@ jobs:
           name: runner-columns
           path: test-skips.log
 
+  under-load:
+    name: probe elapsed under the suite, sample ${{ matrix.sample }} on Node ${{ matrix.node }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    # THE JOB THAT SETTLES WHICH OF TWO STORIES IS TRUE, and it was added because round one
+    # produced both. On an idle runner the gate's probe reported `swift=yes`; in the same run, in
+    # every sample of the suite, it reported the Swift cases as not runnable and took the register
+    # red. Two readings of one machine an hour apart, so either the pool is inconsistent or the
+    # probe is answering a question about load rather than about the machine.
+    #
+    # `probeDependency` waits 30,000 ms and calls anything else absence. This job runs the same
+    # probes WITH NO WAIT AT ALL, in a loop, while the whole unit suite runs beside them on the same
+    # four vCPU, and prints the elapsed and the failure class of each. A binary that is not there
+    # answers ENOENT in single digit milliseconds whatever the load; a binary that is there and slow
+    # answers late. The two are told apart by the reading rather than by argument.
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ['22.22.2', '^24.15.0']
+        sample: [1, 2]
+        include:
+          - node: '22.22.2'
+            label: '22'
+          - node: '^24.15.0'
+            label: '24'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm run build
+
+      - name: Report the machine
+        run: |
+          echo "nproc $(nproc)"
+          grep -m1 'model name' /proc/cpuinfo || true
+          echo "image ${ImageOS:-unknown} version ${ImageVersion:-unknown} arch ${RUNNER_ARCH:-unknown}"
+          free -m || true
+          node --version
+
+      - name: Probe every tool while the suite runs
+        run: |
+          cat > probe-under-load.mjs <<'PROBE'
+          import { execFileSync } from 'node:child_process';
+
+          const probes = [
+            ['wget', 'wget', ['--version']],
+            ['httpie', 'http', ['--version']],
+            ['powershell', 'pwsh', ['-NoProfile', '-Command', 'exit 0']],
+            ['swift', 'swift', ['--version']],
+            ['ruby', 'ruby', ['--version']],
+            ['dotnet', 'sh', ['-c', 'DOTNET_CLI_TELEMETRY_OPTOUT=1 dotnet --version']],
+            ['nginx', 'nginx', ['-v']],
+            ['caddy', 'caddy', ['version']],
+          ];
+
+          const round = process.argv[2] ?? '0';
+          for (const [id, command, args] of probes) {
+            const started = Date.now();
+            let outcome = 'PRESENT';
+            try {
+              execFileSync(command, args, { stdio: 'ignore' });
+            } catch (error) {
+              outcome =
+                'FAILED code=' + String(error.code) +
+                ' signal=' + String(error.signal) +
+                ' status=' + String(error.status);
+            }
+            console.log('round ' + round + ' ' + id + ' ' + String(Date.now() - started) + ' ms ' + outcome);
+          }
+          PROBE
+          echo "--- idle, before the suite starts ---"
+          node probe-under-load.mjs idle | tee -a probe-under-load.log
+          pnpm exec vitest run --exclude "**/test/integration/**" --testTimeout=180000 \
+            --hookTimeout=180000 > suite.log 2>&1 &
+          suite=$!
+          round=0
+          while kill -0 "$suite" 2>/dev/null; do
+            round=$((round + 1))
+            node probe-under-load.mjs "$round" | tee -a probe-under-load.log
+            sleep 1
+          done
+          wait "$suite" || echo "the suite exited non zero, which is expected while the register is red"
+          echo "--- idle, after the suite ends ---"
+          node probe-under-load.mjs after | tee -a probe-under-load.log
+          echo "--- what the register case read in that run ---"
+          grep -n "conditional-cases" suite.log || true
+
+      - name: Upload the probe readings
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: under-load-node${{ matrix.label }}-sample${{ matrix.sample }}
+          path: |
+            probe-under-load.log
+            suite.log
+
   plain:
     name: uninstrumented durations, sample ${{ matrix.sample }} on Node ${{ matrix.node }}
     runs-on: ubuntu-latest
