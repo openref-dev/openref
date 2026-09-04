@@ -50,14 +50,24 @@ export interface IRServerVariable {
 
 /** A server the API is served from. Also a broker, for an event document. */
 export interface IRServer {
+  /**
+   * The address, and empty when there is none to state, per SPEC 8.2.
+   *
+   * EMPTY IS A STATE AND NOT A SHORTHAND FOR ABSENT. An AsyncAPI server carries `host` rather than
+   * a url, and SPEC 8.3 keeps a broker whose host nothing configured, because dropping it would
+   * drop the one fact the discovery does know, which is the protocol. Such a server reaches here
+   * with its protocol and with this member empty, and the url is not assembled from a host that is
+   * not there: `kafka://` reads as a broker address and is not one. A page draws no address for it
+   * and `doctor` names it, per SPEC 8.3.
+   */
   readonly url: string;
   readonly description?: string;
   /**
    * The protocol a connection to this server speaks, per SPEC 8.2 and SPEC 5.4.
    *
    * REQUIRED ON AN ASYNCAPI SERVER AND READ ANYWAY ON AN OPENAPI ONE, WHICH IS A DELIBERATE
-   * READING BEYOND THE OPENAPI SPECIFICATION. AsyncAPI 3 writes `protocol` as a member and
-   * `IRServer.url` is assembled out of it, so on an events document it is always there. OpenAPI's
+   * READING BEYOND THE OPENAPI SPECIFICATION. AsyncAPI 3 writes `protocol` as a member, so on an
+   * events document it is always there, and it is there even when {@link url} is empty. OpenAPI's
    * Server Object declares `url`, `description` and `variables` and no such member, and this IR
    * reads it off the entry regardless when a document writes one: a reader whose author named the
    * protocol should see it, and deriving one from the url scheme would be a guess. The rule is one

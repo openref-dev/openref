@@ -283,6 +283,15 @@ function messageOf(
  * server out, and a channel with no server is a channel with no protocol, which would have thrown
  * away the one fact the discovery does know.
  *
+ * A CONFIGURED ENTRY THAT MATCHES NO CHANNEL IS THE SEVENTH FINDING OF SPEC 8.3, AND IT WAS
+ * SILENT. The walk over `protocols` reads the configured entries and never reads the ones nothing
+ * asked for, so `{ protocol: 'ws', host: 'kafka.example.com:9092' }` contributed no member of the
+ * document and no word anywhere: measured on the built `examples/events` on 2026-09-04, the
+ * served document read `"kafka":{"host":"","protocol":"kafka"}` and the page printed `kafka://`
+ * and `kafka://orders.created` to a reader, while the mount's own problem list named only the
+ * kafka broker. The host who wrote that entry believes it is in force, and the one thing this can
+ * say about it is that nothing answered it, so it says that and names the host the entry carries.
+ *
  * @param protocols - Every protocol the discovered channels speak
  * @param options - The synthesis options, for the hosts the host configured
  * @param problems - Accumulator
@@ -295,6 +304,20 @@ function serversOf(
 ): Record<string, unknown> {
   const configured = new Map((options.servers ?? []).map((server) => [server.protocol, server]));
   const servers: Record<string, unknown> = {};
+
+  // In code point order of the protocol, so the report does not depend on the order the host
+  // happened to write its entries in, which is the rule the rest of this file is built to.
+  for (const protocol of [...configured.keys()].sort(compareByCodePoint)) {
+    if (protocols.has(protocol)) continue;
+
+    problems.push({
+      subject: `the configured ${protocol} server`,
+      reason:
+        `it names the host ${configured.get(protocol)?.host ?? ''} and no channel of this ` +
+        `application speaks ${protocol}, so nothing is bound to it and the reference leaves it ` +
+        'out of the document entirely. Give it the protocol its channels declare, per SPEC 8.3',
+    });
+  }
 
   for (const protocol of [...protocols].sort(compareByCodePoint)) {
     const declared = configured.get(protocol);

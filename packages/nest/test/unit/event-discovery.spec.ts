@@ -565,6 +565,33 @@ describe('synthesizeEventsDocument, per SPEC 8.3', () => {
     );
   });
 
+  it('should name a configured server no channel answers to, and the host that entry carries', () => {
+    // Given an application whose channels speak `ws` alone, and a host who configured a broker
+    // under a protocol nothing speaks, which is what a copied entry with one half edited looks
+    // like. The two halves of SPEC 8.3's broker state are both present here on purpose: the `ws`
+    // protocol has no host and the `kafka` entry has no channel.
+    const { channels } = discoverChannels(discoveryOf([], [ChatGateway]));
+
+    // When
+    const { document, problems } = synthesizeEventsDocument(channels, {
+      title: 'Chat',
+      version: 'runtime',
+      servers: [{ protocol: 'kafka', host: 'kafka.example.com:9092' }],
+    });
+
+    // Then the entry is named, with the host it carries, so the reader who wrote it can find it.
+    // WHAT USED TO HAPPEN: `serversOf` walked the protocols the channels speak and never read a
+    // configured entry nothing asked for, so this said nothing at all, and the only trace of the
+    // mistake was the `ws` broker's empty host, which reads as a different problem.
+    const orphan = problems.find((problem) => problem.subject === 'the configured kafka server');
+    expect(orphan).toBeDefined();
+    expect(orphan?.reason).toContain('kafka.example.com:9092');
+    expect(orphan?.reason).toContain('no channel of this application speaks kafka');
+
+    // And the document really did leave it out, which is what the finding says about it
+    expect(Object.keys(document.servers as Record<string, unknown>)).toEqual(['ws']);
+  });
+
   it('should refer a declared payload class to a schema and report a name nothing answers to', () => {
     // Given two `@ApiMessage` payloads, one class the host supplied a schema for and one not
     const { channels } = discoverChannels(discoveryOf([DeclaredController]));

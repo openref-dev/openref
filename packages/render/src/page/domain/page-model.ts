@@ -703,21 +703,33 @@ function channelParameterModels(
  * url and a description, and the protocol, the protocol version and the bindings live on the
  * document's own entry for the same url. A url the document does not declare keeps an empty
  * protocol rather than borrowing one, which is the absence rule of SPEC 6.3 applied here.
+ *
+ * A SERVER WITH NO ADDRESS IS NOT ONE OF THEM, per SPEC 8.3, AND THE IR IS LEFT ALONE. A broker
+ * whose host nothing configured reaches the IR with its protocol and an empty url, because the
+ * document really does bind the channel to it; what a reader must not be given is a row that
+ * looks like an address and is not one, and that is a decision about the page, so it lives here.
+ * The channel keeps saying which protocol it speaks on its own `protocol` field, which is built
+ * from the bound servers rather than from their urls, so nothing about the channel is lost. It
+ * also removes the join this function would otherwise have to make on an empty key: two protocols
+ * nobody configured are two servers whose url is the same empty string, and `declared` would hand
+ * both rows whichever of the two it kept.
  */
 function channelServerModels(channel: IRChannel, document: IRDocument): ChannelServerModel[] {
   const declared = new Map(document.servers.map((server) => [server.url, server]));
 
-  return channel.servers.map((override) => {
-    const server = declared.get(override.url);
+  return channel.servers
+    .filter((override) => override.url !== '')
+    .map((override) => {
+      const server = declared.get(override.url);
 
-    return {
-      url: override.url,
-      protocol: server?.protocol ?? '',
-      protocolVersion: server?.protocolVersion ?? '',
-      description: override.description ?? server?.description ?? '',
-      security: securityModels(server?.security ?? [], document),
-    };
-  });
+      return {
+        url: override.url,
+        protocol: server?.protocol ?? '',
+        protocolVersion: server?.protocolVersion ?? '',
+        description: override.description ?? server?.description ?? '',
+        security: securityModels(server?.security ?? [], document),
+      };
+    });
 }
 
 /**
@@ -922,7 +934,8 @@ function servicePageModel(context: ModelContext, serviceId: string): ServicePage
     descriptionHtml: context.markdown.render(service.info.description),
     kind: service.kind,
     prefix: service.prefix ?? '',
-    servers: service.servers.map((server) => server.url),
+    // On the same rule as the document's own list below: a list of addresses lists addresses.
+    servers: service.servers.flatMap((server) => (server.url === '' ? [] : [server.url])),
     documentId: service.documentId,
     documentHash: service.documentHash,
     operations,
@@ -1481,7 +1494,12 @@ export function buildPageModel(document: IRDocument, options: PageModelOptions):
     ...(options.proxyPath === undefined ? {} : { proxyPath: options.proxyPath }),
     ...(options.directTarget === undefined ? {} : { directTarget: options.directTarget }),
     ...(options.staticProxy === undefined ? {} : { staticProxy: options.staticProxy }),
-    servers: document.servers.map((server) => server.url),
+    // A BROKER WITH NO ADDRESS IS NOT LISTED HERE, per SPEC 8.3: what this member carries is a
+    // list of addresses, a server whose host nothing configured has none, and an empty entry drew
+    // an empty `<code>` in the overview and an empty option in every server select. The fact that
+    // the protocol exists is not lost by this, it is carried by the channel's own `protocol` row
+    // and named by `doctor` under `RT070`.
+    servers: document.servers.flatMap((server) => (server.url === '' ? [] : [server.url])),
     navigation: navigation.entries,
     navigationComplete: navigation.complete,
     navigationRows: navigation.total,

@@ -490,6 +490,37 @@ describe('normalizeAsyncApiDocument servers', () => {
     expect(urls).toEqual(['kafka://broker.example.com']);
   });
 
+  it('should build no url at all from an empty host, and keep the protocol beside it', () => {
+    // Given a server whose host is present and empty, which is what SPEC 8.3's synthesis writes
+    // for a protocol the host configured nothing for
+    const document = normalizeAsyncApiDocument(
+      minimalDocument({
+        servers: {
+          kafka: { host: '', protocol: 'kafka' },
+          good: { host: 'broker.example.com', protocol: 'amqp' },
+        },
+      }),
+    );
+
+    // The subject is asserted present before anything is claimed about it: the server really is
+    // kept, which is what SPEC 8.3 requires, so the empty url below is a statement and not a
+    // server that quietly went missing.
+    expect(document.servers).toHaveLength(2);
+
+    // When
+    const kafka = document.servers.find((server) => server.protocol === 'kafka');
+
+    // Then no address is assembled out of a host that is not there. WHAT USED TO HAPPEN: the
+    // presence guard was satisfied by an empty string, the url read `kafka://`, and every surface
+    // that prints a url printed it as a broker address, per CLAUDE.md rule 5.
+    expect(kafka?.url).toBe('');
+    expect(kafka?.protocol).toBe('kafka');
+    expect(document.servers.map((server) => server.url).sort()).toEqual([
+      '',
+      'amqp://broker.example.com',
+    ]);
+  });
+
   it('should produce broker urls the SPEC 14.5 proxy cannot mistake for an http upstream', () => {
     // Given
     const document = normalizeAsyncApiDocument(createAsyncApi30());

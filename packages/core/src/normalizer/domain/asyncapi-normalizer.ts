@@ -306,6 +306,16 @@ function readBindings(raw: unknown): Record<string, IRJsonValue> | undefined {
  * skipped on the OpenAPI side. Both are required members, and a declaration that carries neither
  * an address nor a way to speak to it names nothing.
  *
+ * AN EMPTY HOST BUILDS NO URL AT ALL, per SPEC 8.2, AND THAT IS A FIX RATHER THAN A REFINEMENT.
+ * The presence guard above is satisfied by an empty string, because an empty string is a string,
+ * so `{ host: '', protocol: 'kafka' }` assembled `kafka://` and every surface that prints a url
+ * printed it: the overview's server list, the channel's server row, and the socket console, which
+ * joined it to the address and offered `kafka://orders.created` as a target. That is the class
+ * CLAUDE.md rule 5 names, a fact that could not be obtained replaced by a guess, and the guess
+ * reached a reader as a broker address. The server itself stays, with its protocol, because SPEC
+ * 8.3 keeps it: a channel with no server is a channel with no protocol. What it loses is the url
+ * it never had.
+ *
  * @param context - The document being normalized, with an empty server map
  * @param raw - The `servers` member, untrusted
  * @returns The servers by declared name, in code point order of that name
@@ -323,7 +333,7 @@ function readAsyncApiServers(context: Context, raw: unknown): Map<string, IRServ
     if (host === undefined || protocol === undefined) continue;
 
     const server: Draft<IRServer> = {
-      url: `${protocol}://${host}${asString(source.pathname) ?? ''}`,
+      url: host === '' ? '' : `${protocol}://${host}${asString(source.pathname) ?? ''}`,
       protocol,
     };
 

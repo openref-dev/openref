@@ -110,6 +110,13 @@ class ShippingController {
           servers: [
             { protocol: 'kafka', host: 'kafka.example.com:9092' },
             { protocol: 'amqp', host: 'rabbit.example.com:5672' },
+            // THE THIRD ENTRY MATCHES NO CHANNEL, AND IT IS HERE ON PURPOSE. No handler in this
+            // module speaks `ws`, so this entry contributes no member of the document, and until
+            // 2026-09-04 it contributed no word anywhere either: the protocol list below stayed
+            // `['amqp','kafka']` and said nothing, which is exactly how a host's edited copy of
+            // one entry goes unnoticed until a reader is shown a broker address with no host in
+            // it. It is now SPEC 8.3's seventh finding, and the case below is what reads it.
+            { protocol: 'ws', host: 'chat.example.com:8080' },
           ],
         },
       ],
@@ -341,6 +348,45 @@ for (const platform of PLATFORMS) {
       const ambiguity = printed.filter((finding) => finding.subject.includes('shipping.updated'));
       expect(ambiguity).toHaveLength(1);
       expect(ambiguity[0]?.suggestion).toContain('2 handlers serve it');
+    });
+
+    it('should print the configured server no channel answers to, with the host it carries', async () => {
+      // Given the application above, whose `servers` list holds one entry for a protocol none of
+      // its handlers speaks
+      const url = await boot(platform);
+      const mounted = references().get('events');
+      const document = mounted?.service.document;
+
+      // The subject is asserted present before anything is claimed about where it reaches: the
+      // entry really is configured, and the document really does leave it out, which is the pair
+      // that made the old silence invisible. `['amqp','kafka']` is the assertion that stayed
+      // green through the whole defect and it is repeated here for that reason.
+      expect(document?.servers.map((server) => server.protocol).sort()).toEqual(['amqp', 'kafka']);
+
+      // When the document is read the way the CLI reads it
+      expect(document).toBeDefined();
+      const printed = buildDoctorReport(document!).findings.filter(
+        (finding) => finding.subject === 'the configured ws server',
+      );
+
+      // Then the entry is a printed finding under SPEC 7.1's display code, naming the host it
+      // carries, so the reader who wrote it can find the line to fix
+      expect(printed).toHaveLength(1);
+      expect(printed[0]?.code).toBe('RT070');
+      expect(printed[0]?.severity).toBe('warning');
+      expect(printed[0]?.suggestion).toContain('chat.example.com:8080');
+      expect(printed[0]?.suggestion).toContain('no channel of this application speaks ws');
+
+      // And no page of this reference shows a broker address with no host in it, which is the
+      // half of the defect a reader actually met
+      const overview = await fetch(`${url}/docs/events`);
+      const channel = await fetch(`${url}/docs/events/channel-orders-get`);
+      const overviewHtml = await overview.text();
+      const channelHtml = await channel.text();
+      expect(overview.status).toBe(200);
+      expect(channel.status).toBe(200);
+      expect(overviewHtml).toContain('kafka://kafka.example.com:9092');
+      expect(channelHtml).not.toContain('ws://');
     });
 
     it('should carry the ambiguity of a channel two handlers serve into the problems', async () => {
