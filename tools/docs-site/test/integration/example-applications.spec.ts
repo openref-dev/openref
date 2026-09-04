@@ -174,6 +174,21 @@ const SUBJECTS: Readonly<Record<string, (booted: Booted) => Promise<void>>> = {
     expect(node.text).not.toContain('No operation of that name is documented here.');
     expect(node.text).toContain('Create an order');
 
+    // One named schema page, at `/docs/schema/:id`, which was the last row of that table nothing
+    // fetched and was recorded as a residue rather than as an unmet clause. The subject is not the
+    // status: SPEC 1 promises that a named schema is a page a reader can link to instead of an
+    // anonymous shape drawn inline, so what is asserted is that the page is `CustomerDto`, carries
+    // the three fields the document declares for it, and draws `billingAddress` as the name
+    // `AddressDto` with its own address rather than as an unnamed object.
+    const schema = await get(`${booted.url}/docs/schema/CustomerDto`);
+    expect(schema.status).toBe(200);
+    expect(schema.text).not.toContain('No schema of that name is documented here.');
+    expect(schema.text).toMatch(/<h1[^>]*>CustomerDto<\/h1>/u);
+    expect(schema.text).toContain('Where receipts are sent.');
+    expect(schema.text).toContain('The address the invoice carries.');
+    expect(schema.text).toContain('AddressDto');
+    expect(schema.text).toContain('/docs/schema/AddressDto');
+
     // The health page, which is a page and not the liveness JSON, and the liveness JSON, which
     // reports a reference that has nodes in it
     expect(health.status).toBe(200);
@@ -413,6 +428,34 @@ describe('the example applications', () => {
       // And the liveness answer, which reported `ok` for this mount while it described nothing
       expect(liveness.status).toBe('ok');
       expect(liveness.document?.nodes).toBe(2);
+
+      // And the two channel pages themselves, which nothing above reaches and which are the
+      // subject SPEC 14.7 now rests its fixture choice on. That section said in the present tense
+      // that this example serves no channel page at all, because `@ApiChannel` was read only on a
+      // controller and on a gateway; both halves stopped being true on 2026-09-04, and the reason
+      // the section gives now is the address each console is pointed at rather than a defect in
+      // discovery. What is asserted here is that address, because it is the part of the reason a
+      // repository can measure: that no browser opens `kafka://` or `amqp://` is a fact about the
+      // platform, and the fixture's counterpart, one `ws` server at the page's own origin, is held
+      // next door by `tools/browser-budget/test/unit/specification.spec.ts`.
+      //
+      // THE SERVERS MAP ABOVE DOES NOT COVER THIS, WHICH IS WHY IT IS FETCHED. Measured by planting
+      // a configured server whose protocol matches no channel: the synthesis kept `['amqp',
+      // 'kafka']` and the page printed `kafka://` with no host at all, so the equality above stayed
+      // green while the address a reader is shown had lost its host.
+      const created = await fetch(`${booted.url}/docs/events/channel-orders-created`);
+      const shipped = await fetch(`${booted.url}/docs/events/channel-orders-shipped`);
+      const createdHtml = await created.text();
+      const shippedHtml = await shipped.text();
+
+      // The pages are asserted present before anything is read off them: a 404 body carries no
+      // broker address either, and the console this section is about is drawn on neither.
+      expect(created.status).toBe(200);
+      expect(shipped.status).toBe(200);
+      expect(createdHtml).not.toContain('No operation of that name is documented here.');
+      expect(shippedHtml).not.toContain('No operation of that name is documented here.');
+      expect(createdHtml).toContain('kafka://kafka.example.com:9092');
+      expect(shippedHtml).toContain('amqp://rabbit.example.com:5672');
     },
     TIMEOUT,
   );

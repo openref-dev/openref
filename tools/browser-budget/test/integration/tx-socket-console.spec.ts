@@ -19,11 +19,19 @@ import type { Locator, Page, Route } from 'playwright-core';
  * proved on nothing, and a count of zero would pass every later assertion by absence.
  *
  * THE DOCUMENT IS THE HARNESS'S OWN AND NOT `examples/events`, WHICH IS MEASURED RATHER THAN
- * PREFERRED. That example mounts its events reference through `forRoot({ documents })` beside an
- * HTTP reference mounted through `setup`, and as of this tree it serves no channel page at all: the
- * findings are written into the `T065` section this file closes. So the channel document is the
- * fixture's fourth, built and served the way the other three are, and the socket on the other end
- * of the handshake is the fixture's own so that `connect-src 'self'` admits it.
+ * PREFERRED, AND THE MEASUREMENT IS NOT THE ONE THIS COMMENT USED TO CARRY. Until 2026-09-04 that
+ * example served no channel page at all, for three defects written into the `T065` section this
+ * file closes, and all three are fixed: it now serves `orders.created` and `orders.shipped`. The
+ * reason it still cannot host this proof is a fact about the browser rather than a defect. Its two
+ * channels speak `kafka://kafka.example.com:9092` and `amqp://rabbit.example.com:5672`, which no
+ * browser opens and which `connect-src 'self'` refuses in any case, so a press on the console drawn
+ * there would prove the refusal. The channel document is therefore the fixture's fourth, built and
+ * served the way the other three are, declaring one `ws` server at the page's own origin so that
+ * `connect-src 'self'` admits it. What can be measured is held by suites rather than by this
+ * paragraph: `tools/docs-site/test/integration/example-applications.spec.ts` for the example's two
+ * pages and the broker address each console is pointed at, and `test/unit/specification.spec.ts`
+ * beside this file for the fixture's single browser-openable server. That no browser opens
+ * `kafka://` or `amqp://` is a fact about the platform and nothing here measures it.
  */
 
 const TIMEOUT = 300_000;
