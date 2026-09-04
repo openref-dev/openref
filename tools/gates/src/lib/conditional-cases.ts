@@ -1,0 +1,747 @@
+/**
+ * Where every case that can silence itself actually runs, and the rule that none may run nowhere.
+ *
+ * THIS EXISTS BECAUSE OF ONE CASE THAT NEVER EXECUTED ANYWHERE FOR TWO MILESTONES. The nginx
+ * snippet in `packages/static/test/integration/proxy-config-tools.spec.ts` is guarded by a probe
+ * for the binary. The workstation had no nginx, so it skipped there on every run; CI had nginx and
+ * ran it, but no CI run had ever happened on the branch the work was on, so nobody looked. The
+ * case first executed on the first push to CI and failed four times in a row on environment
+ * assumptions nothing had ever exercised. Between the two machines a green suite was reporting on
+ * a scaffold that had validated nothing.
+ *
+ * THE DEFECT IS NOT THE SKIP. A case that cannot determine its fact must say so, and `skipIf` is
+ * the right idiom for that. The defect is that NOTHING ANYWHERE RECORDED WHERE THE CASE RAN, so a
+ * guard covering neither machine was indistinguishable from one covering both. `skip-accounting.ts`
+ * asks this question of the gates; this file asks it of the suites, which is where the nginx case
+ * lived.
+ *
+ * WHAT THE REGISTER HOLDS AND WHAT IS PROBED, because the two halves have different lifetimes.
+ * {@link CONDITIONAL_CASES} is a dated, evidenced statement about two machines, and only one of
+ * them is ever running this code. So:
+ *
+ * - the set of guards is RE-DERIVED from the suites by {@link scanConditionalCases}, so a new
+ *   conditional case that no one registered fails rather than joining the silence
+ * - the column for the machine this run is on is PROBED, so a register claiming a dependency this
+ *   machine does not have goes red here rather than being believed
+ * - the column for the other machine is a committed fact with its evidence beside it, because
+ *   nothing running here can read that machine
+ * - a group whose two columns are both false is an ERROR: it is a check that exists only as text
+ *
+ * A GROUP THAT RUNS ON EXACTLY ONE MACHINE IS A LISTED GAP AND NOT A FAILURE, and the distinction
+ * is the one T065 was told to make. Such a case has run somewhere, so it is not the nginx class;
+ * but the machine it runs on is a single laptop nothing else checks, so it is printed by name and
+ * counted on every run rather than left to be rediscovered.
+ */
+
+import { execFileSync } from 'node:child_process';
+import {
+  existsSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join, relative } from 'node:path';
+
+/** A machine this project's suites are known to run on. */
+export type MachineId = 'darwin-workstation' | 'linux-runner';
+
+/** Both of them, which is the set a group's coverage is measured against. */
+export const MACHINES: readonly MachineId[] = ['darwin-workstation', 'linux-runner'];
+
+/** How the presence of a dependency is established on the machine this code is running on. */
+export type DependencyProbe =
+  | { readonly kind: 'binary'; readonly command: string; readonly args: readonly string[] }
+  | { readonly kind: 'path'; readonly path: string }
+  | { readonly kind: 'case-insensitive-volume' };
+
+/** Something a guarded case needs before it can execute. */
+export interface ConditionalDependency {
+  readonly id: string;
+
+  /** What it is, printed beside the group. */
+  readonly description: string;
+
+  /** How this machine is asked whether it has it. */
+  readonly probe: DependencyProbe;
+
+  /**
+   * The machines that have it.
+   *
+   * The entry for the machine a run is on is checked against {@link probeDependency}; the other
+   * is a committed fact and carries its evidence in {@link ConditionalDependency.evidence}.
+   */
+  readonly runsOn: readonly MachineId[];
+
+  /** Where the claim about the machine this code is not running on comes from. */
+  readonly evidence: string;
+}
+
+/**
+ * The dependencies every guarded case in this repository waits on.
+ *
+ * THE LINUX COLUMN IS READ OFF THE RUNNER IMAGE MANIFEST AND DATED, because it is the half no
+ * run here can measure. `ubuntu-latest` resolved to Ubuntu 24.04 image 20260823.283.1 on
+ * 2026-09-04, and its published software list is the source for every `linux-runner` entry below.
+ * A tool absent from that list is absent from the runner: the list is what states nginx, wget,
+ * PowerShell, Swift and Ruby are there, so it is the same document for both answers rather than
+ * a presence list read as an absence list.
+ */
+export const CONDITIONAL_DEPENDENCIES: readonly ConditionalDependency[] = [
+  {
+    id: 'wget',
+    description: 'the wget binary, which sends one of the SPEC 18 samples for real',
+    probe: { kind: 'binary', command: 'wget', args: ['--version'] },
+    runsOn: ['darwin-workstation', 'linux-runner'],
+    evidence: 'Ubuntu 24.04 runner image lists apt package wget 1.21.4-1ubuntu4.5',
+  },
+  {
+    id: 'httpie',
+    description: 'the HTTPie binary `http`, which sends one of the SPEC 18 samples for real',
+    probe: { kind: 'binary', command: 'http', args: ['--version'] },
+    runsOn: ['darwin-workstation'],
+    evidence:
+      'Ubuntu 24.04 runner image names no HTTPie anywhere, in the tool list or the apt list, ' +
+      'while naming wget, nginx, Ruby, Swift and PowerShell, so this is an absence in a ' +
+      'document that states the presences',
+  },
+  {
+    id: 'powershell',
+    description: 'the PowerShell binary `pwsh`, which sends one of the SPEC 18 samples for real',
+    probe: { kind: 'binary', command: 'pwsh', args: ['-NoProfile', '-Command', 'exit 0'] },
+    runsOn: ['darwin-workstation', 'linux-runner'],
+    evidence: 'Ubuntu 24.04 runner image lists PowerShell 7.6.5',
+  },
+  {
+    id: 'swift',
+    description: 'the Swift toolchain, which compiles and runs one of the SPEC 18 samples',
+    probe: { kind: 'binary', command: 'swift', args: ['--version'] },
+    runsOn: ['darwin-workstation', 'linux-runner'],
+    evidence: 'Ubuntu 24.04 runner image lists Swift 6.3.3',
+  },
+  {
+    id: 'ruby',
+    description: 'the Ruby interpreter, which runs one of the SPEC 18 samples',
+    probe: { kind: 'binary', command: 'ruby', args: ['--version'] },
+    runsOn: ['darwin-workstation', 'linux-runner'],
+    evidence: 'Ubuntu 24.04 runner image lists Ruby 3.2.3',
+  },
+  {
+    id: 'four-tools-together',
+    description:
+      'wget, HTTPie, PowerShell and Swift at once, for the one case that compares all four',
+    probe: { kind: 'binary', command: 'http', args: ['--version'] },
+    runsOn: ['darwin-workstation'],
+    evidence:
+      'the weakest of its four is HTTPie, so this group is exactly as covered as `httpie` and ' +
+      'is probed by the same binary',
+  },
+  {
+    id: 'nginx',
+    description: 'the nginx binary, which validates the generated snippet with `nginx -t`',
+    probe: { kind: 'binary', command: 'nginx', args: ['-v'] },
+    runsOn: ['darwin-workstation', 'linux-runner'],
+    evidence:
+      'Ubuntu 24.04 runner image lists nginx 1.24.0 as an installed service. THIS IS THE CASE ' +
+      'THIS FILE EXISTS FOR: it ran on neither machine for two milestones and reported nothing',
+  },
+  {
+    id: 'caddy',
+    description: 'the caddy binary, which validates the generated snippet with `caddy adapt`',
+    probe: { kind: 'binary', command: 'caddy', args: ['version'] },
+    runsOn: ['darwin-workstation'],
+    evidence:
+      'Ubuntu 24.04 runner image names no caddy anywhere, while naming nginx as an installed ' +
+      'service, so the two halves of this suite are not equally covered',
+  },
+  {
+    id: 'case-insensitive-volume',
+    description:
+      'a volume that folds case, which is the only thing that can answer whether two names are ' +
+      'one directory entry',
+    probe: { kind: 'case-insensitive-volume' },
+    runsOn: ['darwin-workstation'],
+    evidence:
+      'the runner checkout is on ext4, which is case sensitive, and mounting a folding volume ' +
+      'is not something a checkout can do',
+  },
+  {
+    id: 'demo-application-built',
+    description: 'the nest-minimal example compiled to `dist/main.js` by `pnpm build`',
+    probe: { kind: 'path', path: 'examples/nest-minimal/dist/main.js' },
+    runsOn: ['darwin-workstation', 'linux-runner'],
+    evidence:
+      'ci.yml runs `pnpm run build` before both suite steps, and `examples/*` is in the pnpm ' +
+      'workspace with its own `build` script, so the runner has it',
+  },
+  {
+    id: 'ai-docs',
+    description: "the maintainer's private documents, which no clone restores",
+    probe: { kind: 'path', path: 'ai-docs/SPEC.md' },
+    runsOn: ['darwin-workstation'],
+    evidence:
+      'ai-docs/ is not tracked by this repository and ci.yml adds no step that fetches it, so ' +
+      'every runner checkout is without it. This is the largest group in the register and the ' +
+      'reason the committed projection of tools/gates/ai-docs-projection.json exists',
+  },
+];
+
+/** One place in the suites where cases are silenced by a condition. */
+export interface ConditionalGroup {
+  /** Repository relative path of the suite. */
+  readonly file: string;
+
+  /** `it.skipIf`, `describe.skipIf`, `context.skip` and so on. */
+  readonly mechanism: string;
+
+  /** The guard expression, verbatim, or the opening of the skip reason for a context skip. */
+  readonly guard: string;
+
+  /** Which entry of {@link CONDITIONAL_DEPENDENCIES} decides whether it runs. */
+  readonly dependency: string;
+
+  /** How many cases this guard silences, held so that a new one under an old guard is seen. */
+  readonly cases: number;
+}
+
+/**
+ * Every conditional group in the suites, with the dependency each one waits on.
+ *
+ * DERIVED FROM THE TREE ON 2026-09-04 AND RE-DERIVED ON EVERY RUN. 59 cases over 21 groups over
+ * 7 files. `scanConditionalCases` produces the same list from the sources, and the gate compares
+ * the two in both directions, so this is a record that cannot go stale in silence.
+ */
+export const CONDITIONAL_CASES: readonly ConditionalGroup[] = [
+  {
+    file: 'packages/cli/test/integration/cli-binary.spec.ts',
+    mechanism: 'it.skipIf',
+    guard: '!existsSync(DEMO_ENTRY)',
+    dependency: 'demo-application-built',
+    cases: 1,
+  },
+  {
+    file: 'packages/cli/test/integration/nest-application-adapter.spec.ts',
+    mechanism: 'describe.skipIf',
+    guard: '!existsSync(DEMO_ENTRY)',
+    dependency: 'demo-application-built',
+    cases: 1,
+  },
+  {
+    file: 'packages/core/test/unit/rule-codes.spec.ts',
+    mechanism: 'it.skipIf',
+    guard: '!HAVE_SPEC',
+    dependency: 'ai-docs',
+    cases: 1,
+  },
+  {
+    file: 'packages/samples/test/integration/tool-wire-equality.spec.ts',
+    mechanism: 'it.skipIf',
+    guard: '!present.httpie',
+    dependency: 'httpie',
+    cases: 5,
+  },
+  {
+    file: 'packages/samples/test/integration/tool-wire-equality.spec.ts',
+    mechanism: 'it.skipIf',
+    guard: '!present.powershell',
+    dependency: 'powershell',
+    cases: 6,
+  },
+  {
+    file: 'packages/samples/test/integration/tool-wire-equality.spec.ts',
+    mechanism: 'it.skipIf',
+    guard: '!present.ruby',
+    dependency: 'ruby',
+    cases: 4,
+  },
+  {
+    file: 'packages/samples/test/integration/tool-wire-equality.spec.ts',
+    mechanism: 'it.skipIf',
+    guard: '!present.swift',
+    dependency: 'swift',
+    cases: 2,
+  },
+  {
+    file: 'packages/samples/test/integration/tool-wire-equality.spec.ts',
+    mechanism: 'it.skipIf',
+    guard: '!present.wget',
+    dependency: 'wget',
+    cases: 6,
+  },
+  {
+    file: 'packages/samples/test/integration/tool-wire-equality.spec.ts',
+    mechanism: 'it.skipIf',
+    guard: '!present.wget || !present.httpie || !present.powershell || !present.swift',
+    dependency: 'four-tools-together',
+    cases: 1,
+  },
+  {
+    file: 'packages/static/test/integration/fold-on-disk.spec.ts',
+    mechanism: 'context.skip',
+    guard: 'this volume is case sensitive',
+    dependency: 'case-insensitive-volume',
+    cases: 1,
+  },
+  {
+    file: 'packages/static/test/integration/proxy-config-tools.spec.ts',
+    mechanism: 'context.skip',
+    guard: 'caddy is not installed on this machine',
+    dependency: 'caddy',
+    cases: 1,
+  },
+  {
+    file: 'packages/static/test/integration/proxy-config-tools.spec.ts',
+    mechanism: 'context.skip',
+    guard: 'nginx is not installed on this machine',
+    dependency: 'nginx',
+    cases: 1,
+  },
+  {
+    file: 'tools/gates/test/integration/gates.spec.ts',
+    mechanism: 'it.skipIf',
+    guard: '!HAVE_AI_DOCS',
+    dependency: 'ai-docs',
+    cases: 2,
+  },
+  {
+    file: 'tools/gates/test/unit/build-manifest.spec.ts',
+    mechanism: 'it.skipIf',
+    guard: '!HAVE_AI_DOCS',
+    dependency: 'ai-docs',
+    cases: 3,
+  },
+  {
+    file: 'tools/gates/test/unit/claims.spec.ts',
+    mechanism: 'it.skipIf',
+    guard: '!HAVE_AI_DOCS',
+    dependency: 'ai-docs',
+    cases: 5,
+  },
+  {
+    file: 'tools/gates/test/unit/events-suites.spec.ts',
+    mechanism: 'it.skipIf',
+    guard: '!aiDocsPresent(repoRoot)',
+    dependency: 'ai-docs',
+    cases: 2,
+  },
+  {
+    file: 'tools/gates/test/unit/federation-suites.spec.ts',
+    mechanism: 'it.skipIf',
+    guard: '!aiDocsPresent(repoRoot)',
+    dependency: 'ai-docs',
+    cases: 2,
+  },
+  {
+    file: 'tools/gates/test/unit/m6-suites.spec.ts',
+    mechanism: 'it.skipIf',
+    guard: '!aiDocsPresent(repoRoot)',
+    dependency: 'ai-docs',
+    cases: 3,
+  },
+  {
+    file: 'tools/gates/test/unit/m7-suites.spec.ts',
+    mechanism: 'it.skipIf',
+    guard: '!aiDocsPresent(repoRoot)',
+    dependency: 'ai-docs',
+    cases: 5,
+  },
+  {
+    file: 'tools/gates/test/unit/projection.spec.ts',
+    mechanism: 'it.skipIf',
+    guard: '!HAVE_AI_DOCS',
+    dependency: 'ai-docs',
+    cases: 5,
+  },
+  {
+    file: 'tools/gates/test/unit/static-suites.spec.ts',
+    mechanism: 'it.skipIf',
+    guard: '!aiDocsPresent(repoRoot)',
+    dependency: 'ai-docs',
+    cases: 2,
+  },
+];
+
+/** The modifiers that stop a case from running or from being believed. */
+const SILENCING_MODIFIERS = ['skip', 'only', 'todo', 'skipIf', 'runIf', 'fails'] as const;
+
+/** What a scan found in the sources, before it is compared with the register. */
+export interface FoundGroup {
+  readonly file: string;
+  readonly mechanism: string;
+  readonly guard: string;
+  readonly cases: number;
+  readonly lines: readonly number[];
+}
+
+/**
+ * The substring of a context skip's message that identifies it, which is its first clause.
+ *
+ * A CONTEXT SKIP HAS NO GUARD EXPRESSION TO QUOTE. The condition is an `if` several lines above
+ * the call, so what identifies the group is the reason it prints. Taking the opening rather than
+ * the whole message keeps the register readable and still fails when a reason is rewritten, which
+ * is the point: a changed reason is a changed decision.
+ *
+ * @param message - The full argument of the `skip(...)` call
+ * @returns Its first clause, without quotes
+ */
+function skipReasonOpening(message: string): string {
+  return (
+    message
+      .replace(/\s+/gu, ' ')
+      .trim()
+      .replace(/^['"`]/u, '')
+      .split(/,|['"`]/u)[0]
+      ?.trim()
+      .slice(0, 60) ?? ''
+  );
+}
+
+/**
+ * The text between one `(` and the `)` that closes it.
+ *
+ * @param source - The file
+ * @param openIndex - Index of the opening parenthesis
+ * @returns The enclosed text, or undefined when nothing closes it
+ */
+function balancedArgument(source: string, openIndex: number): string | undefined {
+  let depth = 0;
+
+  for (let index = openIndex; index < source.length; index += 1) {
+    if (source[index] === '(') depth += 1;
+    else if (source[index] === ')') {
+      depth -= 1;
+      if (depth === 0) return source.slice(openIndex + 1, index);
+    }
+  }
+
+  return undefined;
+}
+
+/** Spec files under a directory, ignoring build output and dependencies. */
+function specFilesUnder(root: string, repoRoot: string, found: string[] = []): string[] {
+  let entries: readonly { name: string; isDirectory: () => boolean }[];
+  try {
+    entries = readdirSync(root, { withFileTypes: true });
+  } catch {
+    return found;
+  }
+
+  for (const entry of entries) {
+    if (entry.name === 'node_modules' || entry.name === 'dist') continue;
+
+    const absolute = join(root, entry.name);
+    if (entry.isDirectory()) specFilesUnder(absolute, repoRoot, found);
+    else if (entry.name.endsWith('.spec.ts')) {
+      found.push(relative(repoRoot, absolute).replace(/\\/gu, '/'));
+    }
+  }
+
+  return found.sort();
+}
+
+/**
+ * Every conditional group in the suites, read off the sources.
+ *
+ * IT MATCHES AT THE START OF A LINE ON PURPOSE. `tools/gates/test/unit/static-suites.spec.ts`
+ * carries `"it.skipIf(!HAVE_AI_DOCS)(...)"` inside a string literal as a fixture for another
+ * check, and a scan that matched anywhere would register a case that does not exist. A real call
+ * begins its line after indentation; the fixture has a quote in front of it.
+ *
+ * @param repoRoot - Absolute repository root
+ * @returns One entry per file and guard, sorted by file then guard
+ */
+export function scanConditionalCases(repoRoot: string): FoundGroup[] {
+  const groups = new Map<
+    string,
+    { file: string; mechanism: string; guard: string; lines: number[] }
+  >();
+
+  const record = (file: string, mechanism: string, guard: string, line: number): void => {
+    const key = `${file} | ${mechanism} | ${guard}`;
+    const existing = groups.get(key) ?? { file, mechanism, guard, lines: [] };
+    existing.lines.push(line);
+    groups.set(key, existing);
+  };
+
+  const files = [
+    ...specFilesUnder(join(repoRoot, 'packages'), repoRoot),
+    ...specFilesUnder(join(repoRoot, 'tools'), repoRoot),
+  ];
+
+  for (const file of files) {
+    let source: string;
+    try {
+      source = readFileSync(join(repoRoot, file), 'utf8');
+    } catch {
+      continue;
+    }
+
+    const chain = new RegExp(
+      String.raw`^[ \t]*(it|test|describe|suite)\.(${SILENCING_MODIFIERS.join('|')})\b`,
+      'gmu',
+    );
+
+    let match = chain.exec(source);
+    while (match !== null) {
+      const line = source.slice(0, match.index).split('\n').length;
+      const modifier = match[2] ?? '';
+      let guard = modifier;
+
+      if (modifier === 'skipIf' || modifier === 'runIf') {
+        const open = source.indexOf('(', match.index + match[0].length - 1);
+        guard = balancedArgument(source, open)?.trim() ?? modifier;
+      }
+
+      record(file, `${match[1] ?? ''}.${modifier}`, guard, line);
+      match = chain.exec(source);
+    }
+
+    const contextSkip = /^[ \t]*skip\(/gmu;
+    match = contextSkip.exec(source);
+    while (match !== null) {
+      const line = source.slice(0, match.index).split('\n').length;
+      const open = source.indexOf('(', match.index);
+      record(file, 'context.skip', skipReasonOpening(balancedArgument(source, open) ?? ''), line);
+      match = contextSkip.exec(source);
+    }
+  }
+
+  return [...groups.values()]
+    .map((group) => ({ ...group, cases: group.lines.length, lines: [...group.lines] }))
+    .sort(
+      (left, right) => left.file.localeCompare(right.file) || left.guard.localeCompare(right.guard),
+    );
+}
+
+/**
+ * Whether this machine has what a dependency names.
+ *
+ * IT NEVER ANSWERS TRUE WHEN IT COULD NOT TELL. A probe that throws for any reason other than a
+ * successful run reports absence, because the guard in the suite behaves the same way: what a
+ * suite does on a failed probe is skip, so that is what "does not have it" means here.
+ *
+ * @param dependency - The dependency to look for
+ * @param repoRoot - Absolute repository root, for path probes
+ * @returns True when a guarded case would run on this machine
+ */
+export function probeDependency(dependency: ConditionalDependency, repoRoot: string): boolean {
+  const probe = dependency.probe;
+
+  if (probe.kind === 'path') return existsSync(join(repoRoot, probe.path));
+
+  if (probe.kind === 'binary') {
+    try {
+      execFileSync(probe.command, [...probe.args], { stdio: 'ignore', timeout: 30_000 });
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  let directory = '';
+  try {
+    directory = mkdtempSync(join(tmpdir(), 'openref-fold-'));
+    writeFileSync(join(directory, 'a'), '');
+    return statSync(join(directory, 'A'), { throwIfNoEntry: false }) !== undefined;
+  } catch {
+    return false;
+  } finally {
+    if (directory !== '') rmSync(directory, { recursive: true, force: true });
+  }
+}
+
+/**
+ * Which of the two machines this run is on, or undefined when it is neither.
+ *
+ * A THIRD PLATFORM IS NOT AN ERROR AND IS NOT A PASS EITHER. On Windows or anywhere else the
+ * probe half of the check cannot be attributed to a column, so it is not run, and the gate says
+ * that it did not run rather than reporting the register as verified.
+ *
+ * @param platform - `process.platform`
+ * @returns The machine id, or undefined
+ */
+export function machineOf(platform: string): MachineId | undefined {
+  if (platform === 'darwin') return 'darwin-workstation';
+  if (platform === 'linux') return 'linux-runner';
+
+  return undefined;
+}
+
+/** One thing wrong with, or worth saying about, the register. */
+export interface ConditionalIssue {
+  readonly level: 'error' | 'warning' | 'info';
+  readonly message: string;
+}
+
+/** What the reconciliation is told about the machine it is on. */
+export interface ConditionalConditions {
+  /** Which machine, or undefined when the probe half cannot be attributed. */
+  readonly machine: MachineId | undefined;
+
+  /** Whether each dependency id is present here. Absent ids are treated as unprobed. */
+  readonly present: ReadonlyMap<string, boolean>;
+}
+
+/**
+ * Compares the register with the tree and with this machine.
+ *
+ * @param found - What `scanConditionalCases` read off the sources
+ * @param conditions - Which machine this is and what it has
+ * @param register - The committed groups, defaulting to the committed ones
+ * @param dependencies - The committed dependencies, defaulting to the committed ones
+ * @returns Findings, errors first in severity but in register order
+ */
+export function reconcileConditionalCases(
+  found: readonly FoundGroup[],
+  conditions: ConditionalConditions,
+  register: readonly ConditionalGroup[] = CONDITIONAL_CASES,
+  dependencies: readonly ConditionalDependency[] = CONDITIONAL_DEPENDENCIES,
+): ConditionalIssue[] {
+  const issues: ConditionalIssue[] = [];
+  const byId = new Map(dependencies.map((entry) => [entry.id, entry]));
+  const keyOf = (group: { file: string; mechanism: string; guard: string }): string =>
+    `${group.file} | ${group.mechanism} | ${group.guard}`;
+
+  const registered = new Map(register.map((group) => [keyOf(group), group]));
+  const scanned = new Map(found.map((group) => [keyOf(group), group]));
+
+  for (const group of found) {
+    if (registered.has(keyOf(group))) continue;
+
+    issues.push({
+      level: 'error',
+      message:
+        `${group.file}:${group.lines.join(',')} silences ${String(group.cases)} case(s) with ` +
+        `${group.mechanism} on \`${group.guard}\`, and no entry of CONDITIONAL_CASES names it. ` +
+        'A case that can stop running has to say where it runs instead, because a guard covering ' +
+        'neither machine looks exactly like one covering both',
+    });
+  }
+
+  for (const group of register) {
+    const match = scanned.get(keyOf(group));
+
+    if (match === undefined) {
+      issues.push({
+        level: 'error',
+        message:
+          `CONDITIONAL_CASES names ${group.mechanism} on \`${group.guard}\` in ${group.file} ` +
+          'and the tree has no such group. The register is describing a case that is not there',
+      });
+      continue;
+    }
+
+    if (match.cases !== group.cases) {
+      issues.push({
+        level: 'error',
+        message:
+          `${group.file} silences ${String(match.cases)} case(s) on \`${group.guard}\` and the ` +
+          `register says ${String(group.cases)}. Lines ${match.lines.join(',')}`,
+      });
+    }
+  }
+
+  for (const dependency of dependencies) {
+    const groups = register.filter((group) => group.dependency === dependency.id);
+    const cases = groups.reduce((total, group) => total + group.cases, 0);
+
+    if (groups.length === 0) {
+      issues.push({
+        level: 'error',
+        message: `dependency ${dependency.id} is declared and no group waits on it`,
+      });
+      continue;
+    }
+
+    // THE RULE THIS FILE EXISTS FOR. Both columns false is a check nothing anywhere executes.
+    if (dependency.runsOn.length === 0) {
+      issues.push({
+        level: 'error',
+        message:
+          `${String(cases)} case(s) wait on ${dependency.id} and it is on NEITHER machine, so ` +
+          'they have never run anywhere. A check that exists only as text is a failure or a ' +
+          'listed gap, never a quiet pass',
+      });
+      continue;
+    }
+
+    const missing = MACHINES.filter((machine) => !dependency.runsOn.includes(machine));
+    issues.push({
+      level: missing.length === 0 ? 'info' : 'warning',
+      message:
+        missing.length === 0
+          ? `${dependency.id}: ${String(cases)} case(s) over ${String(groups.length)} group(s), on both machines`
+          : `GAP ${dependency.id}: ${String(cases)} case(s) over ${String(groups.length)} group(s) ` +
+            `run on ${dependency.runsOn.join(' and ')} ONLY, never on ${missing.join(' and ')}. ` +
+            `${dependency.description}. Evidence: ${dependency.evidence}`,
+    });
+  }
+
+  for (const group of register) {
+    if (byId.has(group.dependency)) continue;
+
+    issues.push({
+      level: 'error',
+      message: `${group.file} waits on ${group.dependency}, which no dependency declares`,
+    });
+  }
+
+  // THE HALF THE OTHER MACHINE CANNOT BE ASKED FOR. Whichever machine this is, its own column is
+  // measured now, so a register that has gone stale about the machine in front of it goes red
+  // here rather than being taken on trust.
+  if (conditions.machine === undefined) {
+    issues.push({
+      level: 'warning',
+      message:
+        'this platform is neither of the two machines in the register, so no column was ' +
+        'verified by probe here. The comparison with the tree above still holds',
+    });
+
+    return issues;
+  }
+
+  const machine = conditions.machine;
+  for (const dependency of dependencies) {
+    const claimed = dependency.runsOn.includes(machine);
+    const actual = conditions.present.get(dependency.id);
+
+    if (actual === undefined) {
+      issues.push({
+        level: 'error',
+        message: `${dependency.id} was not probed on ${machine}, so its column is unverified`,
+      });
+      continue;
+    }
+
+    if (claimed && !actual) {
+      issues.push({
+        level: 'error',
+        message:
+          `the register says ${machine} runs the case(s) waiting on ${dependency.id} and this ` +
+          'machine does not have it. Either it went away here, in which case those cases are ' +
+          'now silent on this machine and the register has to say so, or the claim was never ' +
+          `true. ${dependency.description}`,
+      });
+    }
+
+    if (!claimed && actual) {
+      issues.push({
+        level: 'error',
+        message:
+          `the register says ${machine} does NOT run the case(s) waiting on ${dependency.id} ` +
+          'and this machine has it. The gap recorded against this dependency is narrower than ' +
+          'the register claims, and a gap wider than the truth is still a wrong record',
+      });
+    }
+  }
+
+  return issues;
+}
+
+/** Whether the reconciliation found something that has to go red. */
+export function conditionalCasesFailed(issues: readonly ConditionalIssue[]): boolean {
+  return issues.some((issue) => issue.level === 'error');
+}

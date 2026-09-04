@@ -105,6 +105,21 @@ const NODES = 1000;
 /** How the runner declares the size SPEC 20 states the budget for. */
 const CORES_VARIABLE = 'OPENREF_STATIC_BUDGET_CORES';
 
+/**
+ * The size SPEC 20 states the budget for, and the half of the question that was never asked.
+ *
+ * FOUND AT `T065` BY RUNNING THE SUITE RATHER THAN READING IT. `certificationOf` compared the
+ * declared size with this machine's size and never compared either with the number SPEC 20 states,
+ * so ANY machine that declared its own size certified. Measured on an Apple M3 Ultra with
+ * `OPENREF_STATIC_BUDGET_CORES=28`: the run certified, enforced the 60,000 ms ceiling as the
+ * product budget, and printed "28 cores, the size SPEC 20 states the budget for", which is false.
+ * The whole point of the split the maintainer ruled on 2026-09-04 is that a reading from a machine
+ * the budget does not describe may not be reported as the SPEC 20 figure, and the equality check
+ * alone could not stop it: it establishes that the declaration is honest, not that it is the right
+ * declaration. Both are now required, and the `ci.yml` job that pins four still certifies.
+ */
+const SPEC_20_CORES = 4;
+
 /** What one run is allowed to conclude about the SPEC 20 figure. */
 interface Certification {
   /** True when this machine is the one the budget is stated for. */
@@ -147,6 +162,20 @@ export function certificationOf(declared: string | undefined, actual: number): C
         `${CORES_VARIABLE} declares ${String(expected)} core(s) and this machine has ` +
         `${String(actual)}. The runner changed size, so the figure is from a machine the budget ` +
         'is not stated for',
+    };
+  }
+
+  // AN HONEST DECLARATION IS NOT THE SAME AS THE RIGHT ONE, and until `T065` only honesty was
+  // checked. A machine declaring its own 28 cores agreed with itself and certified the SPEC 20
+  // figure against hardware SPEC 20 says nothing about.
+  if (expected !== SPEC_20_CORES) {
+    return {
+      certifies: false,
+      reason:
+        `${CORES_VARIABLE} declares ${String(expected)} core(s) and this machine has as many, so ` +
+        `the declaration is honest, but SPEC 20 states the budget for ${String(SPEC_20_CORES)}. A ` +
+        'reading taken here is a reading from another machine and may not be quoted as the SPEC ' +
+        '20 figure',
     };
   }
 
@@ -251,6 +280,20 @@ describe('certificationOf, which decides whether a figure is the SPEC 20 figure'
     // Then
     expect(verdict.certifies).toBe(true);
     expect(verdict.reason).toContain('SPEC 20 states the budget for');
+  });
+
+  it('should refuse to certify a machine that honestly declares a size SPEC 20 does not state', () => {
+    // Given a workstation that declares its own 28 cores, which is a true statement about it. The
+    // equality check this file carried until T065 passed here, the run certified, and it printed
+    // "28 cores, the size SPEC 20 states the budget for" while enforcing the 60,000 ms product
+    // ceiling against hardware SPEC 20 says nothing about. Measured, not imagined.
+    // When
+    const verdict = certificationOf('28', 28);
+
+    // Then the declaration is honest and the figure is still not the SPEC 20 figure
+    expect(verdict.certifies).toBe(false);
+    expect(verdict.reason).toContain('the declaration is honest');
+    expect(verdict.reason).toContain('SPEC 20 states the budget for 4');
   });
 
   it('should refuse to certify on a machine of another size, naming both counts', () => {
@@ -371,18 +414,24 @@ describe('the static build budget of SPEC 20', () => {
     ENFORCED.timeoutMs,
   );
 
-  it('should refuse to run at all where the job declared a size this machine is not', () => {
-    // Given the one case a printed sentence is not enough for: the job pins a runner, the runner
-    // is a different size, and the elapsed assertion above would still pass and would still be
-    // reported as the SPEC 20 figure. That is the state this whole mechanism exists to refuse, so
-    // it is a failure rather than a note.
+  it('should refuse to run at all where a declared size is not the size the budget is stated for', () => {
+    // Given the one case a printed sentence is not enough for: something declared a runner size,
+    // and the elapsed assertion above would still pass and would still be reported as the SPEC 20
+    // figure. That is the state this whole mechanism exists to refuse, so it is a failure rather
+    // than a note.
+    //
+    // IT NOW COVERS TWO WAYS OF BEING WRONG AND USED TO COVER ONE. Until `T065` the only cause was
+    // a declaration the machine contradicts. The second is a declaration the machine agrees with
+    // that is not four: `OPENREF_STATIC_BUDGET_CORES=28` on a 28 core workstation certified, and
+    // this case was silent about it because the verdict it reads said the run was fine. Both are a
+    // job measuring something other than what it says, so both come through the same door.
     const declared = process.env[CORES_VARIABLE];
 
     // When
     const verdict = certificationOf(declared, cpus().length);
 
-    // Then, a machine with no declaration is a workstation and is allowed; a machine with a
-    // declaration that does not match it is a job measuring something other than what it says
+    // Then, a machine with no declaration is a workstation and is allowed; any declaration at all
+    // has to be the one the CI job makes, on the machine the budget is stated for
     expect(declared === undefined || declared.trim() === '' || verdict.certifies).toBe(true);
   });
 

@@ -76,8 +76,19 @@ jobs:
         node: ['22.22.2', '^24.15.0']
 
     steps:
+      # THE HISTORY IS FETCHED BECAUSE TWO CHECKS COUNT COMMITS AND ONE OF THEM HAD NEVER RUN HERE.
+      # `actions/checkout@v4` with no `fetch-depth` is depth one, so `git rev-list --count
+      # <commit>..HEAD` answers `fatal: Invalid revision range` for every recorded commit. Measured
+      # at T065: `published-form.spec.ts` compares the two published columns with the browser
+      # record only when that count is zero, and an unanswerable count took the same early return a
+      # stale record does, so the comparison had executed on this runner exactly never while the
+      # case reported green on every push. The same path degrades the `budgets` gate's staleness
+      # notice. The fix is to give the count its input rather than to widen the check, and the case
+      # now fails on an undetermined count so this line cannot be removed in silence.
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up pnpm
         uses: pnpm/action-setup@v4

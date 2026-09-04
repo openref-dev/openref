@@ -14,7 +14,9 @@
  * per reference. The cap is not re-derived here; that is the maintainer's, and the entry says so.
  */
 
-import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { gzipSync } from 'node:zlib';
 import { DIGEST_LENGTH } from '@openref/render';
@@ -360,11 +362,28 @@ describe('the published form of this tree', () => {
     // fact went unchecked is named instead of passed over.
     const distance = countCommitsSince(REPO_ROOT, record.commit, BASELINE_INPUT_PATHS);
 
+    // A COUNT GIT COULD NOT TAKE IS NOT A STALE RECORD, AND THE TWO USED TO LEAVE BY ONE DOOR.
+    // `baselineFreshness` answers `unknown` when git refused and `stale` when it counted, and
+    // `.not.toBe('current')` is satisfied by both, so an instrument that could not run read
+    // exactly like a decision that it need not. MEASURED AT T065 AND IT WAS NOT HYPOTHETICAL:
+    // `ci.yml` checks out with `actions/checkout@v4` and no `fetch-depth`, which is depth one, so
+    // `git rev-list --count <commit>..HEAD` answers `fatal: Invalid revision range` on every CI
+    // run this repository has ever had. The two comparisons below had therefore executed on the
+    // runner exactly never, while the case reported green there on every push. The workstation
+    // reaches them only at the one commit a re-record is made on. So an undetermined count fails
+    // here, and `ci.yml` fetches the history the count needs rather than the check being widened
+    // to accept not having it.
+    expect(
+      distance.reason,
+      'git could not count the distance to the recorded commit, so whether the two columns ' +
+        'describe this tree is undetermined. An undetermined check is not a passing one',
+    ).toBeUndefined();
+
     if (distance.count !== 0) {
       expect(
         baselineFreshness(record, distance.count, distance.reason).state,
         'the record still describes this tree, so the two columns should have been compared',
-      ).not.toBe('current');
+      ).toBe('stale');
       return;
     }
 
@@ -382,5 +401,48 @@ describe('the published form of this tree', () => {
 
     expect(figure('the document column')).toBe(record.parsedBytes.documentBytes);
     expect(figure('the page total')).toBe(record.parsedBytes.documentBytes + stylesheets + initial);
+  });
+
+  it('should be undetermined on a checkout too shallow to hold the recorded commit', () => {
+    // Given a repository with a history of one commit, which is the shape `actions/checkout@v4`
+    // produces with no `fetch-depth`, and a recorded commit that is not in it. The subject is
+    // asserted present first: the repository is real, git answers about it, and the count over its
+    // own HEAD is a number.
+    const directory = mkdtempSync(join(tmpdir(), 'openref-shallow-'));
+
+    try {
+      execFileSync('git', ['init', '--quiet', '-b', 'main'], { cwd: directory });
+      execFileSync('git', ['config', 'user.email', 'case@example.com'], { cwd: directory });
+      execFileSync('git', ['config', 'user.name', 'case'], { cwd: directory });
+      writeFileSync(join(directory, 'file.txt'), 'one\n');
+      execFileSync('git', ['add', '.'], { cwd: directory });
+      execFileSync('git', ['commit', '--quiet', '-m', 'one'], { cwd: directory });
+
+      const head = execFileSync('git', ['rev-parse', 'HEAD'], {
+        cwd: directory,
+        encoding: 'utf8',
+      }).trim();
+      expect(countCommitsSince(directory, head, ['.']).count).toBe(0);
+
+      // When the recorded commit is one this checkout does not have
+      const absent = 'df41de06e7e153ac0c840cee483995daf9f48894';
+      const distance = countCommitsSince(directory, absent, ['.']);
+
+      // Then git refuses and the count is undetermined rather than a number, which is exactly the
+      // branch the case above now fails on. IT IS THE CI CONDITION AND NOT A CONTRIVANCE: with a
+      // depth one checkout every recorded commit is absent, so the two byte comparisons above had
+      // never run on the runner at all while the case reported green there.
+      expect(distance.count).toBeNull();
+      expect(distance.reason).toContain('Invalid revision range');
+
+      // And an undetermined count is `unknown` rather than `stale`, which is the distinction the
+      // old `.not.toBe('current')` could not make: both satisfied it.
+      const { baseline: record } = readBrowserBaseline(REPO_ROOT);
+      if (record === null) throw new Error('no baseline');
+      expect(baselineFreshness(record, distance.count, distance.reason).state).toBe('unknown');
+      expect(baselineFreshness(record, 1, undefined).state).toBe('stale');
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
   });
 });

@@ -21,6 +21,7 @@ import { formatGate } from './gates/format.gate.js';
 import { licensesGate } from './gates/licenses.gate.js';
 import { publishListGate } from './gates/publish-list.gate.js';
 import { staticSuitesGate } from './gates/static-suites.gate.js';
+import { testSkipsGate } from './gates/test-skips.gate.js';
 import { themeFontsGate } from './gates/theme-fonts.gate.js';
 import { themeMotionGate } from './gates/theme-motion.gate.js';
 import { textSourceGate } from './gates/text-source.gate.js';
@@ -135,6 +136,13 @@ import type { Gate, GateResult } from './types.js';
  * verdict on a clone as on the maintainer's machine. It is here at all because the scan was a unit
  * case only, and `pnpm gates` is the command every session is told to run before declaring a slice
  * done, so that command proved nothing about the guarantee the artefact exists for.
+ *
+ * The test skip gate runs after every gate that asks whether a named suite exists and is green,
+ * because it asks the question none of them can: whether a case that is present, named and green
+ * ever executed on any machine at all. `skip-accounting.ts` asks it of the gates below the summary;
+ * this asks it of the suites, which is where the nginx case that ran nowhere for two milestones
+ * lived. It sits before `coverage` and not after it, because four committed cases hold coverage to
+ * being the last gate in this list and that decision is not this gate's to move.
  */
 export const GATES: readonly Gate[] = [
   buildManifestGate,
@@ -163,6 +171,7 @@ export const GATES: readonly Gate[] = [
   m6SuitesGate,
   m7SuitesGate,
   readerPagesGate,
+  testSkipsGate,
   coverageGate,
 ];
 
