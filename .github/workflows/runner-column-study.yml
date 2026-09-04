@@ -1,0 +1,265 @@
+name: Runner column study
+
+# WHAT THIS IS FOR. Two figures the workstation cannot produce, both of them about the machine
+# rather than about the code, and both of them wanted by the same defect.
+#
+# THE FIRST IS THE `linux-runner` COLUMN OF `tools/gates/src/lib/conditional-cases.ts`. Every entry
+# in that register was dated from the published software list of the Ubuntu 24.04 runner image and
+# not from the runner. The first CI run that reached the register found the list wrong about Swift:
+# the register said `linux-runner` runs the Swift wire cases and the machine had no Swift. A
+# manifest wrong about one tool may be wrong about others, so the `columns` job below asks the
+# machine itself about all of them, prints `command -v` and the version beside each answer, and
+# then runs the gate's own probe so the two agree or visibly do not.
+#
+# THE SECOND IS WHAT THE REGISTER'S OWN CASE COSTS. It scans every `.spec.ts` in the repository and
+# then probes this machine twelve times, so its duration is set by the file count and the process
+# spawns and not by the two assertions at the end of it. It read 16,183 ms on Node 22 and 38,753 ms
+# on Node 24 in run 33884072380 against vitest's five second default, which is the class
+# `vitest.spawn-timeout.ts` names. A bound for it has to be derived the way every other bound in
+# this repository was derived, from readings taken on the runner across samples, so the `plain` and
+# `covered` jobs take them.
+#
+# BOTH MODES, BECAUSE THE CASE RUNS IN BOTH. `ci.yml` runs `pnpm run test` and then `pnpm run
+# gates`, and the coverage gate runs the whole suite again under V8 instrumentation. A bound taken
+# only from the uninstrumented run would be a bound derived from half the runs it has to survive.
+#
+# THE WHOLE SUITE RUNS, NOT THE ONE FILE. On Node 24 that file read 38.7 s inside a run whose own
+# total was 104 s, which is contention between 354 files on four vCPU. Timing the file on its own
+# would measure a machine no CI step ever runs, and would read low by an order of magnitude.
+#
+# THE TIMEOUT IS RAISED ON THE COMMAND LINE AND NOWHERE ELSE. A case killed at 5,000 ms reports the
+# instrument's number, not its own. No committed default moves; the raise lives on a measurement
+# run, exactly as `coverage-timeout-study.yml` explains for the same reason.
+#
+# THE PATH FILTER KEEPS THIS OFF ORDINARY WORK, the same arrangement `coverage-timeout-study.yml`
+# and `page-language-bytes.yml` carry: the study re-runs when the study changes, and
+# `workflow_dispatch` is here for the day this file is on the default branch.
+on:
+  push:
+    branches: ['page-bytes/**', 'skip-register/**']
+    paths: ['.github/workflows/runner-column-study.yml']
+  workflow_dispatch:
+
+jobs:
+  columns:
+    name: what the runner actually has
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '^24.15.0'
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm run build
+
+      - name: Report the machine
+        run: |
+          echo "nproc $(nproc)"
+          grep -m1 'model name' /proc/cpuinfo || true
+          echo "image ${ImageOS:-unknown} version ${ImageVersion:-unknown} arch ${RUNNER_ARCH:-unknown}"
+          node --version
+          cat /etc/os-release | head -3
+
+      # EVERY TOOL THE REGISTER NAMES, ASKED OF THE MACHINE. `command -v` and the version are
+      # printed separately on purpose: "no such binary" and "the binary is here and would not
+      # answer" are different facts, and a probe that reports absence for both would hide the
+      # second. The exit status is echoed for each so a reader is not left inferring it from
+      # whether a line appeared.
+      - name: Ask the machine about every tool in the register
+        env:
+          DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+        run: |
+          probe() {
+            name=$1
+            shift
+            printf '\n=== %s ===\n' "$name"
+            if location=$(command -v "$1" 2>/dev/null); then
+              echo "on PATH at $location"
+            else
+              echo "NOT on PATH"
+            fi
+            if out=$("$@" 2>&1); then
+              echo "ran, status 0"
+            else
+              echo "ran, status $?"
+            fi
+            echo "$out" | head -5
+          }
+          probe wget wget --version
+          probe httpie http --version
+          probe powershell pwsh -NoProfile -Command 'exit 0'
+          probe swift swift --version
+          probe ruby ruby --version
+          probe nginx nginx -v
+          probe caddy caddy version
+          probe dotnet dotnet --version
+          printf '\n=== swift, looked for off PATH ===\n'
+          ls -d /usr/share/swift 2>&1 || true
+          ls /usr/share/swift/usr/bin 2>&1 | head -20 || true
+          dpkg -l 2>/dev/null | grep -i -E 'swift|nginx|powershell|ruby|caddy|httpie' || echo "no matching apt package"
+          printf '\n=== the checkout ===\n'
+          ls -l examples/nest-minimal/dist/main.js 2>&1 || true
+          ls -d ai-docs 2>&1 || true
+          printf '\n=== does this volume fold case ===\n'
+          d=$(mktemp -d)
+          : >"$d/a"
+          if [ -e "$d/A" ]; then echo "folds"; else echo "case sensitive"; fi
+          rm -rf "$d"
+
+      # THE GATE'S OWN PROBE, WHICH IS THE INSTRUMENT THE REGISTER IS WRITTEN AGAINST. The step
+      # above answers what a shell sees; this answers what `probeDependency` sees, and the register
+      # is a record of the second. `|| true` because the gate is expected to be red here until the
+      # column it prints is written down.
+      - name: The test-skips gate, whole output kept
+        run: |
+          set -o pipefail
+          pnpm gates test-skips 2>&1 | tee test-skips.log || true
+
+      - name: Upload the probe log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: runner-columns
+          path: test-skips.log
+
+  plain:
+    name: uninstrumented durations, sample ${{ matrix.sample }} on Node ${{ matrix.node }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    # THREE SAMPLES PER NODE VERSION, BECAUSE THE ANSWER MOVES BY WHICH PROCESSOR THE POOL HANDS
+    # OUT. `ci.yml` records 9m05s of spread on identical code across twelve whole job samples, so
+    # one reading names a sample and not the population. `fail-fast: false` because a slow sample is
+    # the reading.
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ['22.22.2', '^24.15.0']
+        sample: [1, 2, 3]
+        include:
+          - node: '22.22.2'
+            label: '22'
+          - node: '^24.15.0'
+            label: '24'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm run build
+
+      - name: Report the machine
+        run: |
+          echo "nproc $(nproc)"
+          grep -m1 'model name' /proc/cpuinfo || true
+          echo "image ${ImageOS:-unknown} version ${ImageVersion:-unknown} arch ${RUNNER_ARCH:-unknown}"
+          node --version
+
+      # `pnpm run test` is `vitest run --exclude "**/test/integration/**"`, which is the step of
+      # `ci.yml` the case went red in, reproduced here with the reporters that record a duration.
+      - name: The Test step, with durations
+        run: |
+          set -o pipefail
+          pnpm exec vitest run --exclude "**/test/integration/**" --testTimeout=180000 \
+            --hookTimeout=180000 --reporter=default --reporter=json \
+            --outputFile.json=durations.json 2>&1 | tee plain.log || true
+
+      - name: Upload the durations
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: plain-node${{ matrix.label }}-sample${{ matrix.sample }}
+          path: |
+            durations.json
+            plain.log
+
+  covered:
+    name: instrumented durations, sample ${{ matrix.sample }} on Node ${{ matrix.node }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ['22.22.2', '^24.15.0']
+        sample: [1, 2, 3]
+        include:
+          - node: '22.22.2'
+            label: '22'
+          - node: '^24.15.0'
+            label: '24'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm run build
+
+      - name: Report the machine
+        run: |
+          echo "nproc $(nproc)"
+          grep -m1 'model name' /proc/cpuinfo || true
+          echo "image ${ImageOS:-unknown} version ${ImageVersion:-unknown} arch ${RUNNER_ARCH:-unknown}"
+          node --version
+
+      # The coverage gate's command, which is the heaviest condition this case has to survive.
+      - name: The coverage gate's command, with durations
+        run: |
+          set -o pipefail
+          pnpm exec vitest run --coverage --testTimeout=180000 --hookTimeout=180000 \
+            --reporter=default --reporter=json --outputFile.json=durations.json 2>&1 \
+            | tee covered.log || true
+
+      - name: Upload the durations
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: covered-node${{ matrix.label }}-sample${{ matrix.sample }}
+          path: |
+            durations.json
+            covered.log
