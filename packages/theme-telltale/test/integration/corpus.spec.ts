@@ -78,11 +78,16 @@ const MARGIN = 10;
 /**
  * The heaviest reading any case in this file produced on the runner, and where it came from.
  *
- * MEASURED ON THE RUNNER, WHICH IS THE ONLY INSTRUMENT THAT COUNTS HERE. Ten coverage runs on
- * 2026-09-03, on the four vCPU `ubuntu-latest` runner under V8 instrumentation, over Node 22.22.2
- * and Node 24, spread across an AMD EPYC 7763, an EPYC 9V45 and an EPYC 9V74 as the pool handed
- * them out. Ten and not nine: the first derivation read six artifacts from one study run and four
- * from a second, called the total nine, and dropped the sample that carried every maximum.
+ * MEASURED ON THE RUNNER, WHICH IS THE ONLY INSTRUMENT THAT COUNTS HERE. Six coverage runs on
+ * 2026-09-04, on the four vCPU `ubuntu-latest` runner under V8 instrumentation, over Node 22.22.2
+ * and Node 24, spread across the AMD EPYC models the pool handed out.
+ *
+ * WHAT THE SAME CASES SAID BEFORE THE SECOND CORPUS PASS WAS REMOVED, over ten samples on
+ * 2026-09-03: 12,424 ms for this member and 19,691 ms for the counting case, with the file total at
+ * 38,291 ms against 15,008 ms now. Ten samples and not nine, which is what the first derivation
+ * counted: it read six artifacts from one study run and four from a second, and dropped
+ * `durations-node22-sample3`, which carried every maximum in this file. Reading nine of ten put the
+ * counting case at 13,557 ms and the claimed order of magnitude at 9.14.
  *
  * WHAT THESE CASES SPEND IS THE CORPUS AND NOT THIS THEME. Reading, parsing and normalizing real
  * published specifications, `stripe.yaml` at 6 MB among them, happens before this theme draws
@@ -94,23 +99,23 @@ const MARGIN = 10;
  * test over the markup.
  */
 const MEASURED = {
-  /** `stripe.yaml`, the heaviest member of the loop, at 6,364,174 bytes. */
-  heaviestMemberMs: 12_425,
+  /** `stripe.yaml`, the heaviest member of the loop, at 6,364,174 bytes: 3,506 to 9,521 ms. */
+  heaviestMemberMs: 9_521,
   /** `stripe.yaml`'s size, so the bound below is derived from the same member it is checked on. */
   heaviestMemberBytes: 6_364_174,
   /** `oai-webhook-example.yaml` at 947 bytes, the reading the fixed term has to clear. */
-  lightestMemberMs: 15,
+  lightestMemberMs: 19,
 } as const;
 
 /**
  * What one loop member is allowed, sized to the member rather than to the class.
  *
  * A BOUND SIZED FOR THE HEAVIEST MEMBER IS NOT A BOUND ON THE LIGHTEST ONE. Every member used to
- * carry one number taken from the whole class, so `oai-webhook-example.yaml` at 947 bytes and a 15
+ * carry one number taken from the whole class, so `oai-webhook-example.yaml` at 947 bytes and a 14
  * ms maximum sat behind 180,000 ms, which is 12,857 times its own reading, and a member that hung
- * took three minutes to say so. A hang catcher that cannot catch a hang inside the job it runs in
- * is a hang catcher on paper: the Node 22 verify job absorbed exactly one 180,000 ms timeout on
- * this tip and finished 65 seconds inside its own wall.
+ * took three minutes to say so. It carries 1,019 ms now. A hang catcher that cannot catch a hang
+ * inside the job it runs in is a hang catcher on paper: the Node 22 verify job absorbed exactly one
+ * 180,000 ms timeout on the first tip of this branch and finished 65 seconds inside its own wall.
  *
  * DERIVED FROM SIZE, WHICH IS WHY IT IS STILL A RULE ABOUT THE CLASS. The objection the first draft
  * raised against declaring on `stripe.yaml` alone was right: which member is heavy is a property of
@@ -118,10 +123,11 @@ const MEASURED = {
  * evaluating it per member answers that objection instead of ignoring it, and a document added
  * tomorrow is sized on arrival with nothing to edit here.
  *
- * THE TWO TERMS ARE READ OFF THE TEN SAMPLES. Across the seventeen members the cost is a fixed
- * per case cost plus a term proportional to the bytes parsed: the five members over 900 KB ran
- * between 0.72 and 1.95 microseconds per byte, and the twelve small ones are almost all fixed cost.
- * The terms below are the top of each range, and {@link MARGIN} is applied on top.
+ * THE TWO TERMS ARE READ OFF THE SAMPLES. Across the seventeen members the cost is a fixed per case
+ * cost plus a term proportional to the bytes parsed: the six members over 180 KB ran between 0.64
+ * and 1.66 microseconds per byte, and the eleven small ones are almost all fixed cost at 75 ms or
+ * under. The terms below are rounded up past the top of each range, and {@link MARGIN} is applied
+ * on top, which lands every member between 12.4 and 68.2 times its own measured maximum.
  *
  * @param file - The corpus document the member renders
  * @returns The member's timeout, in milliseconds
@@ -217,13 +223,17 @@ describe('the whole corpus, under both themes', () => {
       MEASURED.heaviestMemberMs * MARGIN,
     );
 
-    // And the fixed term clears the lightest reading, which is what a per member bound is for:
-    // 947 bytes behind the class's number was 12,857 times its own maximum.
+    // And the fixed term clears the lightest reading too, so sizing the bound to the member did
+    // not size it under the member.
     expect(memberHangCatcherMs('oai-webhook-example.yaml')).toBeGreaterThanOrEqual(
       MEASURED.lightestMemberMs * MARGIN,
     );
+
+    // And the two are genuinely different numbers, which is the whole of defect three: 947 bytes
+    // carried the 6 MB document's bound at 12,857 times its own maximum, and a hang there took
+    // three minutes to surface rather than one second.
     expect(memberHangCatcherMs('oai-webhook-example.yaml')).toBeLessThan(
-      MEASURED.lightestMemberMs * 200,
+      memberHangCatcherMs('stripe.yaml') / 100,
     );
 
     // And the size the bound is derived from is the size on disk, so a re-vendored document that

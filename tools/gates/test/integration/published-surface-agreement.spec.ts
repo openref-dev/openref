@@ -283,12 +283,15 @@ const MARGIN = 10;
 /**
  * The heaviest reading the compiling case produced on the runner.
  *
- * MEASURED ON THE RUNNER, WHICH IS THE ONLY INSTRUMENT THAT COUNTS HERE. Ten coverage runs on
- * 2026-09-03, on the four vCPU `ubuntu-latest` runner under V8 instrumentation, over Node 22.22.2
- * and Node 24, spread across an AMD EPYC 7763, an EPYC 9V45 and an EPYC 9V74 as the pool handed
- * them out: 2,987 ms at the low end and 7,850 ms at the high end, on `durations-node22-sample3`,
- * which is the artifact the first derivation dropped when it counted ten samples as nine and read
- * the maximum off the other nine as 6,620 ms.
+ * MEASURED ON THE RUNNER, WHICH IS THE ONLY INSTRUMENT THAT COUNTS HERE. Sixteen coverage runs on
+ * 2026-09-03 and 2026-09-04, on the four vCPU `ubuntu-latest` runner under V8 instrumentation, over
+ * Node 22.22.2 and Node 24, spread across an AMD EPYC 7763, an EPYC 9V45 and an EPYC 9V74 as the
+ * pool handed them out: 2,987 ms at the low end and 7,850 ms at the high end, on
+ * `durations-node22-sample3` of 2026-09-03, which is the artifact the first derivation dropped when
+ * it counted ten samples as nine and read the maximum off the other nine as 6,620 ms.
+ *
+ * ALL SIXTEEN MEASURE ONE THING, because nothing in this file changed between the rounds. The six
+ * later samples ran 3,461 to 6,810 ms, inside the range the first ten already covered.
  *
  * THE WORKSTATION IS NOT THE INSTRUMENT. The same case measured 2,580 ms on an Apple M3 Ultra,
  * inside vitest's default where the runner's reading is not, which is the whole reason this case

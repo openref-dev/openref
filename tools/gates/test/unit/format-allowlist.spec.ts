@@ -98,6 +98,41 @@ describe('the format allowlist', () => {
     SPAWNED_PROCESS_TIMEOUT_MS,
   );
 
+  /**
+   * THIS CASE IS OVER ITS BOUND AND THE DOCTRINE CANNOT COVER IT. Left for the maintainer.
+   *
+   * WHAT IT COSTS, ON THE RUNNER, WHICH IS THE ONLY INSTRUMENT THAT COUNTS. Sixteen instrumented
+   * coverage runs on 2026-09-03 and 2026-09-04, four vCPU `ubuntu-latest`, Node 22.22.2 and Node
+   * 24: 93,869 ms at the low end and 243,730 ms at the high end, against the shared
+   * {@link SPAWNED_PROCESS_TIMEOUT_MS} of 180,000 it declares. It is not near the bound, it is past
+   * it: the 2026-09-03 Node 22 verify job failed on this case, timed out in 180000ms. An order of
+   * magnitude over 243,730 ms would be 2,437,300, which is 40.6 minutes and past the whole 30
+   * minute job wall, so the margin this repository uses for the class cannot be applied here.
+   *
+   * WHAT DOMINATES IT is the first of the two scans, `prettier .` with the ignore file taken away.
+   * The second scan is measured on its own by the case below at 16,874 to 38,412 ms, which puts the
+   * repository wide scan at roughly 90,000 to 205,000 ms, 84 to 85 percent of the case. On an Apple
+   * M3 Ultra workstation, recorded for shape and not as a bound, that scan is 15,425 ms and lists
+   * 382 differing files, 237 of them inside a `dist/` directory: the case's duration is set by how
+   * much build output the tree happens to be carrying.
+   *
+   * THREE OPTIONS, WITH WHAT EACH MEASURED, AND THE CHOICE IS NOT MADE HERE BECAUSE IT IS A CHOICE
+   * ABOUT WHAT THIS CASE ASSERTS.
+   *
+   * 1. Leave it. The case stays past its bound on the worst sample and reddens a verify job that
+   *    has 65 seconds of wall left after absorbing one timeout.
+   * 2. Substitute an ignore file naming only build output, `**\/dist\/**` and `**\/coverage\/**`,
+   *    which says nothing about the corpus and so leaves the property under test whole. Workstation:
+   *    the dominant scan goes 15,425 to 10,952 ms, a 29 percent cut on that half and roughly 12
+   *    percent off the case. It does not bring the case inside the bound with any margin.
+   * 3. Ask reachability rather than difference, through `prettier.getFileInfo` over `git ls-files`,
+   *    which is the method the partition case at the bottom of this file already uses for the same
+   *    question. Workstation: 15,425 to 217 ms, a 98.6 percent cut, and it finds seventeen corpus
+   *    documents reached where `--list-different` lists fourteen, because three are already
+   *    prettier formatted and a formatted file is invisible to `--list-different`. That gap is the
+   *    defect this file names in the partition case. It changes the instrument: `--list-different`
+   *    proves prettier would rewrite the corpus, `getFileInfo` proves prettier would act on it.
+   */
   it(
     'should hold the corpus out on its own, with the ignore file taken away',
     () => {

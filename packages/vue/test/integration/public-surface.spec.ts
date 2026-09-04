@@ -170,34 +170,28 @@ function declarationText(declarations: string, name: string): string {
 const MARGIN = 10;
 
 /**
- * The heaviest reading each compiling case produced on the runner.
+ * The heaviest reading any compiling case in this file produced on the runner.
  *
- * MEASURED ON THE RUNNER, WHICH IS THE ONLY INSTRUMENT THAT COUNTS HERE. Ten coverage runs on
- * 2026-09-03, on the four vCPU `ubuntu-latest` runner under V8 instrumentation, over Node 22.22.2
- * and Node 24, spread across an AMD EPYC 7763, an EPYC 9V45 and an EPYC 9V74 as the pool handed
- * them out. Ten and not nine: the first derivation read six artifacts from one study run and four
- * from a second, called the total nine, and dropped `durations-node22-sample3`, which carried every
- * maximum in this file.
+ * MEASURED ON THE RUNNER, WHICH IS THE ONLY INSTRUMENT THAT COUNTS HERE. Six coverage runs on
+ * 2026-09-04, on the four vCPU `ubuntu-latest` runner under V8 instrumentation, over Node 22.22.2
+ * and Node 24, spread across the AMD EPYC models the pool handed out.
  *
- * THESE ARE THE READINGS BEFORE THE CACHE, WHICH IS WHY THEY ARE THE ONES HELD TO. Six programs
- * over two declaration files is what produced them; one program each is what the file does now, and
- * the re-measurement is recorded beside them. Holding the bound to the larger, older figures is the
- * conservative direction: a bound that clears the expensive shape clears the cheap one.
+ * IT IS ONE FIGURE BECAUSE THE PROGRAMS ARE PAID ONCE, by whichever compiling case runs first.
+ * That case measured 3,483 to 8,802 ms; the other three measured 1 to 2 ms behind it, and they
+ * declare the bound anyway, because which of the four pays is an ordering accident and not a
+ * property of any of them.
  *
- * THE WORKSTATION IS NOT THE INSTRUMENT. The same four cases ran at roughly a third of these
+ * WHAT IT WAS BEFORE THE CACHE, over ten samples on 2026-09-03: 9,875, 9,086, 8,766 and 4,309 ms,
+ * four cases each building its own programs. The file total went from 31,655 ms to 8,810 ms at
+ * their maxima. Ten samples and not nine, which is what the first derivation counted: it read six
+ * artifacts from one study run and four from a second, and dropped `durations-node22-sample3`,
+ * which carried every maximum in this file.
+ *
+ * THE WORKSTATION IS NOT THE INSTRUMENT. The same cases ran at roughly a third of the runner's
  * figures on an Apple M3 Ultra, which is the whole reason this file was green for a run of commits
  * that never reached CI and red the first time one did.
  */
-const MEASURED = {
-  /** `should export nothing beyond what PUBLIC-API.md documents`. */
-  exportsNothingBeyondMs: 9_875,
-  /** `should export everything PUBLIC-API.md documents`. */
-  exportsEverythingMs: 8_766,
-  /** `should keep the try-it surface off the entry point`. */
-  tryItOffEntryPointMs: 9_086,
-  /** `should carry the milestone on the unavailable search`. */
-  milestoneInArtefactMs: 4_309,
-} as const;
+const MEASURED_MAXIMUM_MS = 8_802;
 
 /**
  * The hang catcher the compiling cases declare, because their cost is the compiler.
@@ -214,11 +208,11 @@ const MEASURED = {
  * file, and leaving it out would be leaving the next red run in place rather than fixing the one
  * that happened.
  *
- * THE MARGIN IS CHECKED AND NOT ASSERTED IN PROSE. `MARGIN` over the largest figure in
- * {@link MEASURED} is what the last case in this file holds this number to, and the value is the
- * one `tools/docs-site/test/integration/documentation-examples.spec.ts` already carries on both of
- * its `ts.createProgram` cases. That file is where the number is borrowed from and not evidence for
- * the doctrine: it carries 120,000 as two bare literals with no comment, no recorded maximum and no
+ * THE MARGIN IS CHECKED AND NOT ASSERTED IN PROSE. The last case in this file holds this number to
+ * {@link MARGIN} over {@link MEASURED_MAXIMUM_MS}, and the value is the one
+ * `tools/docs-site/test/integration/documentation-examples.spec.ts` already carries on both of its
+ * `ts.createProgram` cases. That file is where the number is borrowed from and not evidence for the
+ * doctrine: it carries 120,000 as two bare literals with no comment, no recorded maximum and no
  * margin claimed. `packages/render/test/integration/corpus-navigation.spec.ts` is the one file that
  * genuinely states the doctrine, and what it states is the rule rather than a measurement.
  *
@@ -336,26 +330,19 @@ describe('the published surface of @openref/vue', () => {
     COMPILER_HANG_CATCHER_MS,
   );
 
-  it('should hold the bound over every reading that was taken, by the margin it claims', () => {
+  it('should hold the bound over the reading that was taken, by the margin it claims', () => {
     // Given, the margin used to be a sentence, and a sentence cannot go red. It was written over
     // nine of the ten samples that existed, and the tenth carried every maximum in this file, so
     // the arithmetic the prose claimed was not the arithmetic the readings supported. Both the
-    // bound and the readings live here now: a case that gets slower than a tenth of the bound
-    // reddens this, and whoever finds it moves the number or changes the claim.
+    // bound and the reading live here now: a case that grows past a tenth of the bound reddens
+    // this, and whoever finds it moves the number or changes the claim.
 
-    // When
-    const readings = Object.values(MEASURED);
+    // When, Then
+    expect(COMPILER_HANG_CATCHER_MS / MEASURED_MAXIMUM_MS).toBeGreaterThanOrEqual(MARGIN);
 
-    // Then, no reading is inside a tenth of the bound, and the set is present so an empty read
-    // cannot pass by having nothing to compare.
-    expect(readings).toHaveLength(4);
-    for (const reading of readings) {
-      expect(COMPILER_HANG_CATCHER_MS / reading).toBeGreaterThanOrEqual(MARGIN);
-    }
-
-    // And the cache is what keeps it there, asserted as the property rather than as a count so it
-    // does not depend on which cases ran first: asking twice reaches one program, and no more
-    // programs exist than there are entry points to build them over.
+    // And the cache is what keeps the reading where it is, asserted as the property rather than as
+    // a count so it does not depend on which cases ran first: asking twice reaches one program,
+    // and no more programs exist than there are entry points to build them over.
     expect(compile(built('dist/index.d.ts'))).toBe(compile(built('dist/index.d.ts')));
     expect(compiled.size).toBeLessThanOrEqual(ENTRY_POINTS.length);
   });

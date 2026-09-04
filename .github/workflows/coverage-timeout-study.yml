@@ -21,6 +21,16 @@ name: Coverage timeout study
 # THE PROCESSOR IS RECORDED. The runner pool hands out a processor per job and does not say which,
 # and this repository has three studies on record measuring the same page on three different ones.
 # A duration with no machine beside it is not a measurement.
+#
+# THE JOB WALL IS THE BINDING CONSTRAINT AND NOTHING HERE CHANGES IT. Measured, and reported rather
+# than fixed, because raising a CI job timeout so a job passes is what CLAUDE.md rule 3 forbids and
+# this is the maintainer's call. On 2026-09-03 the Node 22 verify job of `ci.yml` ran 28m55s against
+# its own `timeout-minutes: 30` while absorbing exactly one 180,000 ms test timeout, which leaves 65
+# seconds. Node 24 ran 23m58s in the same run. A second timeout in one job therefore kills the job
+# before any bound in it can report, so every bound in the suite is capped in practice by what one
+# job can absorb, not by what it declares. That is the reason a per member bound is worth more than
+# a per class one here, and the reason `format-allowlist.spec.ts` cannot be given an order of
+# magnitude over its own maximum: ten times its worst reading is 40.6 minutes, past the wall itself.
 
 # THE PATH FILTER IS WHAT KEEPS THIS FROM BEING A TAX ON ORDINARY WORK. Twelve instrumented
 # coverage runs is about three hours of runner time, and none of it is caused by a commit to the
