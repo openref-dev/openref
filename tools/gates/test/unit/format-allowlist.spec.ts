@@ -98,18 +98,55 @@ describe('the format allowlist', () => {
     SPAWNED_PROCESS_TIMEOUT_MS,
   );
 
+  /**
+   * THIS CASE IS OVER ITS BOUND AND THE DOCTRINE CANNOT COVER IT. Left for the maintainer.
+   *
+   * WHAT IT COSTS, ON THE RUNNER, WHICH IS THE ONLY INSTRUMENT THAT COUNTS. Twenty two instrumented
+   * coverage runs on 2026-09-03 and 2026-09-04, four vCPU `ubuntu-latest`, Node 22.22.2 and Node
+   * 24: 93,869 ms at the low end and 243,730 ms at the high end, against the shared
+   * {@link SPAWNED_PROCESS_TIMEOUT_MS} of 180,000 it declares. It is not near the bound, it is past
+   * it: the 2026-09-03 Node 22 verify job failed on this case, timed out in 180000ms. An order of
+   * magnitude over 243,730 ms would be 2,437,300, which is 40.6 minutes and past the whole 30
+   * minute job wall, so the margin this repository uses for the class cannot be applied here.
+   *
+   * ONE SIBLING SCAN CAME OUT AND THAT IS ALL THAT CAME OUT. The file went from 321,840 to 199,966
+   * ms at its maximum, and this case still reads 132,573 to 172,850 ms on the twelve later samples,
+   * which is 96 percent of its bound on the worst of them.
+   *
+   * WHAT DOMINATES IT is the first of the two scans, `prettier .` with the ignore file taken away.
+   * The second scan is measured on its own by the case below at 16,874 to 38,412 ms, which puts the
+   * repository wide scan at roughly 90,000 to 205,000 ms, 84 to 85 percent of the case. On an Apple
+   * M3 Ultra workstation, recorded for shape and not as a bound, that scan is 15,425 ms and lists
+   * 382 differing files, 237 of them inside a `dist/` directory: the case's duration is set by how
+   * much build output the tree happens to be carrying.
+   *
+   * THREE OPTIONS, WITH WHAT EACH MEASURED, AND THE CHOICE IS NOT MADE HERE BECAUSE IT IS A CHOICE
+   * ABOUT WHAT THIS CASE ASSERTS.
+   *
+   * 1. Leave it. The case stays past its bound on the worst sample and reddens a verify job that
+   *    has 65 seconds of wall left after absorbing one timeout.
+   * 2. Substitute an ignore file naming only build output, `**\/dist\/**` and `**\/coverage\/**`,
+   *    which says nothing about the corpus and so leaves the property under test whole. Workstation:
+   *    the dominant scan goes 15,425 to 10,952 ms, a 29 percent cut on that half and roughly 12
+   *    percent off the case. It does not bring the case inside the bound with any margin.
+   * 3. Ask reachability rather than difference, through `prettier.getFileInfo` over `git ls-files`,
+   *    which is the method the partition case at the bottom of this file already uses for the same
+   *    question. Workstation: 15,425 to 217 ms, a 98.6 percent cut, and it finds seventeen corpus
+   *    documents reached where `--list-different` lists fourteen, because three are already
+   *    prettier formatted and a formatted file is invisible to `--list-different`. That gap is the
+   *    defect this file names in the partition case. It changes the instrument: `--list-different`
+   *    proves prettier would rewrite the corpus, `getFileInfo` proves prettier would act on it.
+   */
   it(
     'should hold the corpus out on its own, with the ignore file taken away',
     () => {
       // Given, an empty ignore file, so only the allowlist is doing any work. This is the
       // property under test: .prettierignore already excludes the corpus, and an ignore list
       // that happens to be right today is exactly what failed twice before.
-      const emptyIgnore = join(mkdtempSync(join(tmpdir(), 'oref-fmt-')), 'ignore');
-      writeFileSync(emptyIgnore, '', 'utf8');
 
       // When
-      const everything = prettierFileList(['.'], emptyIgnore);
-      const allowed = prettierFileList(pathsOf(scripts()['format:check'] ?? ''), emptyIgnore);
+      const everything = prettierFileList(['.'], emptyIgnore());
+      const allowed = prettierFileList(pathsOf(scripts()['format:check'] ?? ''), emptyIgnore());
 
       // Then, prettier reaches the corpus when nothing but the allowlist stands in its way,
       // and the allowlist is what keeps it out
@@ -123,11 +160,10 @@ describe('the format allowlist', () => {
     'should leave the specification and the instructions alone without the ignore file',
     () => {
       // Given
-      const emptyIgnore = join(mkdtempSync(join(tmpdir(), 'oref-fmt-')), 'ignore');
-      writeFileSync(emptyIgnore, '', 'utf8');
 
-      // When
-      const allowed = prettierFileList(pathsOf(scripts()['format:check'] ?? ''), emptyIgnore);
+      // When, the identical scan the case above ran, answered from the cache rather than by
+      // spawning prettier over the whole allowlist a second time
+      const allowed = prettierFileList(pathsOf(scripts()['format:check'] ?? ''), emptyIgnore());
 
       // Then, BUILD.md addresses tasks by absolute line number and prettier reflows markdown
       expect(allowed.some((file) => file.includes('ai-docs/'))).toBe(false);
@@ -190,8 +226,49 @@ describe('the format allowlist', () => {
   );
 });
 
-/** Files prettier would act on for a set of patterns, one per line. */
+/** One empty ignore file for the whole suite, written on first use. */
+let emptyIgnorePath = '';
+
+/**
+ * An ignore file with nothing in it, so only the allowlist is doing any work.
+ *
+ * @returns Path to the file
+ */
+function emptyIgnore(): string {
+  if (emptyIgnorePath === '') {
+    emptyIgnorePath = join(mkdtempSync(join(tmpdir(), 'oref-fmt-')), 'ignore');
+    writeFileSync(emptyIgnorePath, '', 'utf8');
+  }
+
+  return emptyIgnorePath;
+}
+
+/** Every scan already run, keyed by the patterns and the ignore file they were run with. */
+const scans = new Map<string, string[]>();
+
+/**
+ * Files prettier would act on for a set of patterns, one per line.
+ *
+ * ANSWERED ONCE PER QUESTION. Two cases below ask prettier the identical question, the allowlist
+ * against an empty ignore file, and each used to spawn its own prettier over the whole list. On the
+ * runner that is one of the more expensive things this suite does, and the second answer was never
+ * going to differ from the first: same patterns, same ignore file, same tree, no case here writes
+ * to any of them.
+ *
+ * IT DOES NOT MAKE THE CASE THAT IS OVER ITS BOUND ANY CHEAPER, and it is not offered as if it
+ * did. `should hold the corpus out on its own` asks this question first and pays for it in full,
+ * plus a scan of the whole repository that dominates it. What that costs, and what could be done
+ * about it, is measured and left to the maintainer rather than settled here.
+ *
+ * @param patterns - Path patterns, as the format script writes them
+ * @param ignorePath - The ignore file to run against
+ * @returns The files prettier reports as different, one per entry
+ */
 function prettierFileList(patterns: readonly string[], ignorePath: string): string[] {
+  const key = JSON.stringify([ignorePath, ...patterns]);
+  const cached = scans.get(key);
+  if (cached !== undefined) return cached;
+
   let output: string;
   try {
     output = execFileSync(
@@ -211,8 +288,12 @@ function prettierFileList(patterns: readonly string[], ignorePath: string): stri
     output = (error as { stdout?: string }).stdout ?? '';
   }
 
-  return output
+  const listed = output
     .split('\n')
     .map((line) => line.trim())
     .filter((line) => line.length > 0);
+
+  scans.set(key, listed);
+
+  return listed;
 }
