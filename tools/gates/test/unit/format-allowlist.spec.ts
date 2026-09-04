@@ -154,8 +154,9 @@ describe('the format allowlist', () => {
    * 24: 93,869 ms at the low end and 243,730 ms at the high end, against the shared
    * {@link SPAWNED_PROCESS_TIMEOUT_MS} of 180,000 it declares. It was not near the bound, it was
    * past it: the 2026-09-03 Node 22 verify job failed on this case, timed out in 180000ms. An order
-   * of magnitude over 243,730 ms is 2,437,300, which is 40.6 minutes and past the whole job wall,
-   * so the margin this repository uses for the class could not be applied to it.
+   * of magnitude over 243,730 ms is 2,437,300, which is 40.6 minutes, longer than the whole verify
+   * job takes and far past what that job could absorb on top of its own work under any wall it has
+   * had, so the margin this repository uses for the class could not be applied to it.
    *
    * THE RULING WAS THE REACHABILITY VARIANT, AND THE ARGUMENT FOR IT WAS THE THREE DOCUMENTS RATHER
    * THAN THE MILLISECONDS: more thorough rather than weaker. The file header names the three and

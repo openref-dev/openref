@@ -16,7 +16,45 @@ jobs:
   verify:
     name: install, lint, build, test, gates on Node ${{ matrix.node }}
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+
+    # THE WALL, SET BY MEASUREMENT ON 2026-09-04 AND NOT BY A ROUND NUMBER.
+    #
+    # WHAT IT WAS AND WHY IT MOVED. It was 30, chosen by nobody in particular, and the same code ran
+    # 21m32s, 28m13s and 28m55s against it, which is 6m41s of pure runner variance with 65 seconds
+    # left over. A job that absorbed one 180,000 ms test timeout finished 65 seconds inside its own
+    # wall, so a second timeout anywhere in the suite killed the job before any bound in it could
+    # report. That made every declared bound in the whole suite capped in practice by what one job
+    # could absorb rather than by what it declared.
+    #
+    # RE-MEASURED AFTER THE THREE FIXES, BECAUSE THEY CHANGE THE NUMBER, and measured on the runner
+    # with the machine beside every reading. Six samples of one commit through the `wall` job of
+    # `coverage-timeout-study.yml`, which runs this job step for step: 22m07s on an AMD EPYC 9V74,
+    # 22m04s and 22m27s on an EPYC 7763 for Node 24; 24m57s and 25m23s on an EPYC 7763 and 16m18s on
+    # an Intel Xeon 6973P-C for Node 22. Zero test timeouts in all six. The observed maximum is
+    # 25m23s and the observed minimum is 16m18s, and the 9m05s between them is which processor the
+    # pool handed out and not which Node version ran: the same Node 22 gives both ends.
+    #
+    # THE MARGIN THIS REPOSITORY USES FOR A BOUND CANNOT BE USED HERE AND THAT IS SAID RATHER THAN
+    # QUIETLY SWAPPED. A test bound gets an order of magnitude over its measured maximum. Ten times
+    # 25m23s is 4h13m50s. GitHub would accept it, since its own ceiling is six hours, and it would
+    # mean a hung job burning four hours before anything said so, which is the one thing a wall
+    # exists to prevent. So the doctrine is named, refused with its arithmetic, and a smaller margin
+    # is chosen and defended.
+    #
+    # THE MARGIN USED IS 1.77 TIMES THE OBSERVED MAXIMUM, AND IT IS DERIVED FROM TWO THINGS. First,
+    # the pool's own variance: the maximum is 1.56 times the minimum on identical code, and the next
+    # processor may be slower than any of the three seen, so the floor is 25m23s times 1.56, which is
+    # 39m31s. Second, the value is rounded up past that floor to the one a sibling file already
+    # carries, exactly as a test bound is: `coverage-timeout-study.yml` runs both of its own jobs at
+    # `timeout-minutes: 45`. That gives 45.
+    #
+    # WHAT IT PROTECTS, WHICH IS THE PART THE NUMBER IS FOR. A wall must not redden a healthy run,
+    # and it must leave room for a bound inside the job to fire and say what hung, because a bound
+    # converted into a job kill reports nothing. The largest bound in this job is the uncertified
+    # static build trap, whose case timeout is 863,580 ms, 14m24s. On the worst observed run that
+    # case cost 21 s in the integration step, so a hang there reads about 26m11s and a hang in the
+    # coverage step reads about 38m27s, both inside 45 with room. At 30 neither would have reported.
+    timeout-minutes: 45
 
     # THE FLOOR IS THE VERSION THAT MATTERS AND IS THE ONE THAT HAD NEVER BEEN TESTED. The
     # manifests promise `^22.22.2 || ^24.15.0 || >=26.0.0`, the maintainer's machine is on
