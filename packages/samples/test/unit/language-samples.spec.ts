@@ -3,6 +3,8 @@ import {
   BYTE_BODY_REFUSAL,
   buildSampleRequest,
   generateCodeSamples,
+  OFF_PAGE_SAMPLE_LANGUAGES,
+  PAGE_SAMPLE_LANGUAGES,
   SAMPLE_LANGUAGES,
 } from '../../src/index';
 import type { SampleLanguageId } from '../../src/index';
@@ -310,5 +312,65 @@ describe('the level 2 templates', () => {
     expect(samples.find((sample) => sample.lang === 'rust')?.source).toContain(
       'reqwest::Method::from_bytes("QUERY".as_bytes())?',
     );
+  });
+});
+
+/**
+ * The twelve and the three, per SPEC 18 and the maintainer's ruling of 2026-09-03.
+ *
+ * WHAT THIS PINS IS THE PARTITION AND THE MEMBERSHIP, and both halves matter for different
+ * reasons. The partition is what the page's sentence rests on: a language is drawn or it is named,
+ * never both and never neither, so no language can go missing between the two lists. The
+ * membership is the ruling itself, written down so that moving a language between the two is a red
+ * test rather than a diff nobody reads.
+ */
+describe('where SPEC 18 draws each language', () => {
+  it('should partition the fifteen into the twelve drawn and the three named', () => {
+    // Given, When
+    const drawn = PAGE_SAMPLE_LANGUAGES.map((language) => language.id);
+    const named = OFF_PAGE_SAMPLE_LANGUAGES.map((language) => language.id);
+
+    // Then
+    expect(drawn).toHaveLength(12);
+    expect(named).toHaveLength(3);
+    expect([...drawn, ...named].sort()).toEqual([...ALL_IDS].sort());
+    expect(drawn.filter((id) => named.includes(id))).toEqual([]);
+  });
+
+  it('should name Ruby, Java and PHP as the three the page does not carry', () => {
+    // Given, When, Then: the ruling, and the three most expensive positions of the SPEC 18 table.
+    expect(OFF_PAGE_SAMPLE_LANGUAGES).toEqual([
+      { id: 'php', label: 'PHP', level: 2, placement: 'elsewhere' },
+      { id: 'java', label: 'Java', level: 2, placement: 'elsewhere' },
+      { id: 'ruby', label: 'Ruby', level: 2, placement: 'elsewhere' },
+    ]);
+  });
+
+  it('should keep both lists in the order SPEC 18 writes the fifteen in', () => {
+    // Given the declared order
+    const order = SAMPLE_LANGUAGES.map((language) => language.id);
+
+    // When, Then: each list is the declared order filtered, not an order of its own, because the
+    // order of the list is the order of the tabs and SPEC 18 states exactly one.
+    expect(PAGE_SAMPLE_LANGUAGES.map((it) => it.id)).toEqual(
+      order.filter((id) => !OFF_PAGE_SAMPLE_LANGUAGES.some((it) => it.id === id)),
+    );
+    expect(OFF_PAGE_SAMPLE_LANGUAGES.map((it) => it.id)).toEqual(
+      order.filter((id) => !PAGE_SAMPLE_LANGUAGES.some((it) => it.id === id)),
+    );
+  });
+
+  it('should still generate a sample for each of the three, which is what named means', () => {
+    // Given a request every language can write
+    const request = buildSampleRequest(listPets(), { values: {}, serverUrl: SERVER }, {});
+
+    // When the three are asked for on their own
+    const { samples, omitted } = generateCodeSamples(request, OFF_PAGE_SAMPLE_LANGUAGES);
+
+    // Then: three samples with real source. Not drawn on a page is not the same as not written,
+    // and the difference is the whole of what the page's sentence promises a reader.
+    expect(omitted).toEqual([]);
+    expect(samples.map((sample) => sample.lang)).toEqual(['php', 'java', 'ruby']);
+    for (const sample of samples) expect(sample.source.length).toBeGreaterThan(0);
   });
 });

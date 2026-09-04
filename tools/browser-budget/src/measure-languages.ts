@@ -1,8 +1,13 @@
 /**
  * `node tools/browser-budget/dist/measure-languages.js [--out=FILE]`
  *
- * The page the `page-bytes` budget is written about, measured with all fifteen sample languages on
- * it and again with each one taken off, in one browser on one machine.
+ * The page the `page-bytes` budget is written about, measured with the sample languages SPEC 18
+ * draws on it and again with each one taken off, in one browser on one machine.
+ *
+ * TWELVE ARE DRAWN AND THREE ARE NAMED, per the maintainer's ruling of 2026-09-03, so this reports
+ * a per language cost for twelve and asserts that the three the page holds back are named on it.
+ * A page that dropped them would read here as the cheapest possible page, which is why the second
+ * assertion exists beside the first.
  *
  * IT REPORTS AND IT GATES NOTHING. The ceilings are the study's to check and the record is the
  * maintainer's to write; this prints two numbers that a decision needs and nothing else. Where it
@@ -13,14 +18,14 @@
  * through, because a route that refilled a response would move the reported byte count for every
  * variant and leave the deltas looking clean. The two have to agree before any delta is believed.
  *
- * THE SUM IS CHECKED AGAINST THE WHOLE. The page with all fifteen taken off is measured as well,
- * and the fifteen individual costs have to add up to it. Fifteen deltas that do not sum to the one
- * measurement of removing all fifteen would mean the regions overlap or that something else on the
+ * THE SUM IS CHECKED AGAINST THE WHOLE. The page with every drawn language taken off is measured
+ * as well, and the individual costs have to add up to it. Deltas that do not sum to the one
+ * measurement of removing them all would mean the regions overlap or that something else on the
  * page moved with them, and either way the table would be attributing bytes it had not measured.
  */
 
 import { writeFileSync } from 'node:fs';
-import { SAMPLE_LANGUAGES } from '@openref/samples';
+import { OFF_PAGE_SAMPLE_LANGUAGES, PAGE_SAMPLE_LANGUAGES } from '@openref/samples';
 import { launchChrome, CHROME_ARGS } from './chrome.js';
 import { currentEnvironment, type MeasurementEnvironment } from './environment.js';
 import { bootFixture } from './fixture/boot.js';
@@ -44,10 +49,12 @@ interface LanguageReport {
   readonly parsedBytes: ParsedBytes;
   /** Their sum, which is the quantity the budget names. */
   readonly pageBytes: number;
-  /** What the fifteen cost one at a time. */
+  /** What the languages the page draws cost one at a time. */
   readonly languages: readonly LanguageCost[];
+  /** The languages SPEC 18 generates and the page names instead of drawing. */
+  readonly namedNotDrawn: readonly { readonly id: string; readonly label: string }[];
   /** What they cost together, measured rather than summed. */
-  readonly allFifteenBytes: number;
+  readonly allDrawnBytes: number;
   /** The one server drawn code block, which belongs to no language. */
   readonly servedCodeBlockBytes: number | null;
 }
@@ -75,13 +82,29 @@ const report = await (async (): Promise<LanguageReport> => {
       );
     }
 
+    // THE ASSERTION IS THE PAGE SET AND NOT THE WHOLE FIFTEEN, since the maintainer's ruling of
+    // 2026-09-03 put twelve on a page and named three. It is not a weaker check: it still fails on
+    // any drift between what SPEC 18 says a page draws and what this page drew, and it now also
+    // fails if a language that was supposed to be held back turns up drawn.
     const onThePage = theSampleList(readStateBlock(served).json);
-    const expected = SAMPLE_LANGUAGES.map((language) => language.id);
+    const expected = PAGE_SAMPLE_LANGUAGES.map((language) => language.id);
     if (onThePage.join(',') !== expected.join(',')) {
       throw new Error(
-        `the page carries [${onThePage.join(', ')}] where the declared set is ` +
+        `the page carries [${onThePage.join(', ')}] where the page set is ` +
           `[${expected.join(', ')}], so the table would not be about the page language set`,
       );
+    }
+
+    // AND THE THREE THAT ARE NOT DRAWN ARE ASSERTED PRESENT AS NAMES, because a page that dropped
+    // them silently is exactly the state the ruling forbids and it would look, from the byte
+    // columns alone, like the cheapest possible page.
+    for (const language of OFF_PAGE_SAMPLE_LANGUAGES) {
+      if (!served.includes(`>${language.label}<`)) {
+        throw new Error(
+          `the page never says the word "${language.label}", so it is not naming the languages ` +
+            'it holds back and the figure below would be the price of dropping them',
+        );
+      }
     }
 
     const withAll = await measurePage(chrome.browser, { url, throttleRate: 1 });
@@ -112,7 +135,7 @@ const report = await (async (): Promise<LanguageReport> => {
     }
 
     const languages: LanguageCost[] = [];
-    for (const language of SAMPLE_LANGUAGES) {
+    for (const language of PAGE_SAMPLE_LANGUAGES) {
       const variant = await measurePage(chrome.browser, {
         url,
         throttleRate: 1,
@@ -144,20 +167,21 @@ const report = await (async (): Promise<LanguageReport> => {
     const none = await measurePage(chrome.browser, {
       url,
       throttleRate: 1,
-      transformHtml: (html) => pageWithout(html, SAMPLE_LANGUAGES),
+      transformHtml: (html) => pageWithout(html, PAGE_SAMPLE_LANGUAGES),
     });
 
-    const allFifteenBytes = withAll.parsedBytes.documentBytes - none.parsedBytes.documentBytes;
+    const allDrawnBytes = withAll.parsedBytes.documentBytes - none.parsedBytes.documentBytes;
     const summed = languages.reduce((total, language) => total + language.bytes, 0);
 
     // ONE BYTE APART, AND WHICH BYTE IS KNOWN. A list of n entries carries n-1 separators, so the
     // n costs taken one at a time charge n commas between them and taking all n off at once
     // charges n-1. Anything other than that one byte means the regions are not what they were
     // taken to be, and the table would be attributing bytes nothing measured.
-    if (summed - 1 !== allFifteenBytes) {
+    if (summed - 1 !== allDrawnBytes) {
       throw new Error(
-        `the fifteen costs add up to ${String(summed)} bytes and taking all fifteen off measured ` +
-          `${String(allFifteenBytes)}, which is not the one separator the two accounts differ by`,
+        `the ${String(languages.length)} costs add up to ${String(summed)} bytes and taking them ` +
+          `all off measured ${String(allDrawnBytes)}, which is not the one separator the two ` +
+          'accounts differ by',
       );
     }
 
@@ -172,7 +196,11 @@ const report = await (async (): Promise<LanguageReport> => {
         withAll.parsedBytes.cssBytes +
         withAll.parsedBytes.jsBytes,
       languages,
-      allFifteenBytes,
+      namedNotDrawn: OFF_PAGE_SAMPLE_LANGUAGES.map((language) => ({
+        id: language.id,
+        label: language.label,
+      })),
+      allDrawnBytes,
       servedCodeBlockBytes: servedCodeBlockBytes(served),
     };
   } finally {
@@ -193,15 +221,18 @@ const lines = [
     `${String(report.parsedBytes.cssBytes)} CSS, ${String(report.parsedBytes.jsBytes)} JS`,
   `               fonts and the rest, which page-bytes does not count: ${String(report.parsedBytes.otherBytes)}`,
   '',
-  'per language   the page with all fifteen, less the page with that one taken off',
+  `per language   the page with all ${String(report.languages.length)} drawn, less the page with ` +
+    'that one taken off',
   ...report.languages.map(
     (language) =>
       `               ${language.label.padEnd(12)} level ${String(language.level)}  ` +
       `${String(language.bytes).padStart(6)} bytes   ` +
       `page without it ${String(language.without)}`,
   ),
-  `               ${'all fifteen'.padEnd(12)}          ${String(report.allFifteenBytes).padStart(6)} bytes   ` +
-    `page without them ${String(report.parsedBytes.documentBytes - report.allFifteenBytes)}`,
+  `               ${'all drawn'.padEnd(12)}          ${String(report.allDrawnBytes).padStart(6)} bytes   ` +
+    `page without them ${String(report.parsedBytes.documentBytes - report.allDrawnBytes)}`,
+  `               named and not drawn, generated all the same: ` +
+    report.namedNotDrawn.map((language) => language.label).join(', '),
   report.servedCodeBlockBytes === null
     ? '               the page draws no code block of its own'
     : `               the one server drawn code block, charged to no language: ` +

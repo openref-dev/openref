@@ -127,6 +127,28 @@ export interface IRCodeSample {
   readonly source: string;
 }
 
+/**
+ * A language whose sample this operation has, where the page is not carrying it.
+ *
+ * WHY THE SOURCE IS ABSENT AND THAT IS THE POINT. The whole reason a language lands here rather
+ * than in {@link IRCodeSample} is that its source is what costs the page, so carrying the source
+ * would be carrying the cost and naming it as saved. What travels is a name and a label, which is
+ * everything a reader needs to know the language exists and everything a caller needs to ask for
+ * it.
+ *
+ * IT IS WRITTEN PER OPERATION AND NOT PER DOCUMENT, WHICH IS THE HONEST HALF. A language is named
+ * here only where its emitter actually produced a sample for this request. An operation whose body
+ * is multipart gets no entry for the nine templates that refuse it, because for that operation
+ * they produce nothing and telling a reader otherwise would be the failure SPEC 18 exists to
+ * prevent, moved one level out from the samples to the list of them.
+ */
+export interface IRCodeSampleLanguage {
+  /** Language identifier, as {@link IRCodeSample.lang} spells it. */
+  readonly lang: string;
+  /** What a tab would have said. */
+  readonly label: string;
+}
+
 /** An HTTP operation. */
 export interface IROperation {
   readonly kind: 'operation';
@@ -152,6 +174,15 @@ export interface IROperation {
   readonly callbacks?: Readonly<Record<string, readonly string[]>>;
   /** Call samples the document wrote, in the order it wrote them. Absent when it wrote none. */
   readonly codeSamples?: readonly IRCodeSample[];
+  /**
+   * Languages this operation has a sample in that the page is not carrying, per SPEC 18.
+   *
+   * ADDITIVE AND OPTIONAL, and absent on every document a normalizer produces. It is written by
+   * `withGeneratedSamples` in `@openref/samples` and by nothing else, because it is the only place
+   * that knows both which languages were asked onto the page and which of the rest actually
+   * produced a sample for this request.
+   */
+  readonly codeSamplesElsewhere?: readonly IRCodeSampleLanguage[];
   readonly runtime?: IRNodeRuntime;
   readonly extensions?: Readonly<Record<string, IRJsonValue>>;
   /**

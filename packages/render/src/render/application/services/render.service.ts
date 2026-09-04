@@ -293,6 +293,10 @@ function clientNodeModel(node: NodeModel | null, kind: PageModel['kind']): NodeM
       descriptionHtml: '',
       security: [],
       codeSamples: [],
+      // THE BENCH DRAWS NO SAMPLES SECTION AT ALL, `drawn` below is empty, so the languages the
+      // page did not carry have nobody to tell. Redacted with the samples themselves rather than
+      // left to ride the spread, for the bytes and for the same reason they are.
+      codeSamplesElsewhere: [],
       requestBody: [],
       channel: null,
       runtime: null,

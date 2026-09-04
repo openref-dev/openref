@@ -42,6 +42,12 @@ const REPO_ROOT = join(import.meta.dirname, '..', '..', '..', '..');
  * and the browser builds the link, so a rule the bundle does not have is a theme linking to an
  * address the server does not serve. SPEC 20 records the arrival and the cap did not move.
  *
+ * ONE OF THESE NAMES MOVED ON 2026-09-03 AND ITS SIZE DID NOT, which is the plain form of the
+ * mechanism. `chunk-IF2D2VIE` became `chunk-CRGLGLGA` when the operation article gained the
+ * sentence naming the three SPEC 18 languages the page does not draw: the chunk imports the module
+ * that changed, so its digest moved while its content did not, and it weighs 5,089 bytes either
+ * way. Every byte of that change is in `openref.js`, and the figure below says how many.
+ *
  * TWO OF THESE NAMES MOVED ON 2026-09-02 AND NOT ONE OF THE SIZES DID. A chunk's name is its
  * content digest, so renaming a published constant moves it and every chunk that imports it:
  * `chunk-TEAI3FZD` became `chunk-5LRQ4D6P` when `@openref/vue`'s `DEFAULT_THEME_NAME` became
@@ -53,7 +59,7 @@ const INITIAL = [
   'openref.js',
   'chunk-EJ4XQ22A.js',
   'chunk-FMGVZQY6.js',
-  'chunk-IF2D2VIE.js',
+  'chunk-CRGLGLGA.js',
   'chunk-GKCAFBE4.js',
   'chunk-FYRWH3QL.js',
   'chunk-MPK3G3AA.js',
@@ -102,15 +108,21 @@ describe('the published form of this tree', () => {
     // When
     const total = INITIAL.reduce((sum, name) => sum + sizeOf(name), 0);
 
-    // Then, the figure after `T065`'s node segment escape, 325 bytes over the 111,826 the row
-    // carried after the socket console arrived, which was itself 1,267 over the 110,559 before it.
-    // The cap did not move for either: 112,151 still fits under 110 KB and `sign-in-return`
+    // Then, the figure after the operation page began naming the three SPEC 18 languages it does
+    // not draw, 229 bytes over the 112,151 the row carried after `T065`'s node segment escape,
+    // which was itself 325 over the 111,826 the socket console left, which was 1,267 over 110,559.
+    // The cap did not move for any of them: 112,380 still fits under 110 KB and `sign-in-return`
     // returning to the first load still fails the budget, which is the property SPEC 20 states.
-    expect(total).toBe(112_151);
-    expect(total - 111_826).toBe(325);
+    expect(total).toBe(112_380);
+    expect(total - 112_151).toBe(229);
+    expect(112_151 - 111_826).toBe(325);
     expect(111_826 - 110_559).toBe(1_267);
-    expect(sizeOf('openref.js')).toBe(20_787);
-    expect(sizeOf('chunk-IF2D2VIE.js')).toBe(5_089);
+
+    // AND ALL 229 ARE IN THE ENTRY, which is what says the sentence is the whole of the change and
+    // that the renamed chunk is a digest moving rather than content arriving.
+    expect(sizeOf('openref.js')).toBe(21_016);
+    expect(sizeOf('openref.js') - 20_787).toBe(229);
+    expect(sizeOf('chunk-CRGLGLGA.js')).toBe(5_089);
     expect(sizeOf('chunk-MPK3G3AA.js')).toBe(656);
   });
 
@@ -152,7 +164,7 @@ describe('the published form of this tree', () => {
 
     // Then, the published totals rather than the 62,424 and 110,284 the disk holds
     expect(messageOf('theme-css-raw')).toContain(`${formatBytes(62_594)} raw`);
-    expect(messageOf('client-js-raw')).toContain(`${formatBytes(112_151)} raw`);
+    expect(messageOf('client-js-raw')).toContain(`${formatBytes(112_380)} raw`);
     expect(report.errors).toEqual([]);
   });
 
@@ -184,7 +196,13 @@ describe('the published form of this tree', () => {
     const initial = INITIAL.reduce((sum, name) => sum + sizeOf(name), 0);
     const signInReturn = sizeOf('oauth-landing-VRHHK533.js') + sizeOf('chunk-FI2DNV2T.js');
 
-    expect(capOf('client-js-raw') - initial).toBe(489);
+    // 260 SINCE 2026-09-03 AND IT WAS 489, AND THE 229 ARE NAMED RATHER THAN ABSORBED. The
+    // operation page now names the three SPEC 18 languages it does not draw, so a reader can tell
+    // a language this reference does not have from one it can produce. The bytes reach the first
+    // paint because the samples section is the one part of the article that fails the adoption
+    // question of SPEC 12: its tab is client state, so the whole section is composed in the
+    // browser. THE CAP DID NOT MOVE and is asserted above.
+    expect(capOf('client-js-raw') - initial).toBe(260);
 
     // AND THE PROPERTY THE CAP IS DERIVED BY, CHECKED THE SAME WAY: the smallest whole KB step the
     // artefact fits under, at which the cheapest deferred gesture returning to the first load still

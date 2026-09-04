@@ -161,6 +161,12 @@ import { reasonPhrase } from '../../shared/status';
  * where it does not. A page cached before this serves a console that sends directly on a host
  * whose proxy is up, which is the defence existing and not being offered.
  *
+ * 20 SINCE THE MAINTAINER'S TWELVE. A node carries `codeSamplesElsewhere`, the languages SPEC 18
+ * generates for this operation that the page did not draw. A page cached before this hydrates
+ * against a client that reads the member, and a client reading `undefined` where a list belongs
+ * draws no notice at all, so the three languages the page is not carrying would go back to being
+ * silently absent, which is the exact state this member exists to end.
+ *
  * 8 SINCE `TX-SLOTWIRE`. Two changes, and both are about what a slot can be handed. A runtime
  * value carries `confidence` and `collector` where it carried `code`, `markClass` and
  * `markTitle`, because `ProvenanceTag` is declared in terms of the two facts and not of the three
@@ -176,7 +182,7 @@ import { reasonPhrase } from '../../shared/status';
  * 6 was T027: `run.bodyMediaTypes`, a list of strings, became `run.body`, a list of media types
  * each carrying the editor its schema asks for and the fields it is made of.
  */
-export const PAGE_MODEL_VERSION = 19;
+export const PAGE_MODEL_VERSION = 20;
 
 /** Media types an example is generated for. */
 const JSON_MEDIA_TYPE = /^application\/(?:[\w.+-]+\+)?json$/i;
@@ -1022,6 +1028,7 @@ function nodeModel(context: ModelContext, nodeId: string): NodeModel | null {
       responses: [],
       security: [],
       codeSamples: [],
+      codeSamplesElsewhere: [],
       run: null,
       channel: channelModel(view.node, context),
       runtime,
@@ -1067,6 +1074,10 @@ function nodeModel(context: ModelContext, nodeId: string): NodeModel | null {
       scopes: requirement.scopes,
     })),
     codeSamples: codeSampleModels(view.node, context),
+    codeSamplesElsewhere: (view.node.codeSamplesElsewhere ?? []).map((language) => ({
+      lang: language.lang,
+      label: language.label,
+    })),
     run: runnerOperationOf(view.node, document),
     channel: null,
     runtime,

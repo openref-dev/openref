@@ -103,13 +103,33 @@ export const NodePanel = defineComponent({
           case 'samples':
             // LIVE: the language tab is client state with a handler, the one section of the
             // article that fails the adoption question, named in SPEC 12.
-            return h(samples.value, {
-              samples: node.codeSamples,
-              activeLang: activeLang.value,
-              onSelect: (lang: string): void => {
-                activeLang.value = lang;
-              },
-            });
+            //
+            // THE NOTICE IS DRAWN HERE AND NOT INSIDE THE SLOT, AND THAT IS THE DESIGN. SPEC 18's
+            // fifteen languages reach a page as twelve, and the three the page does not carry are
+            // named rather than dropped, so a reader can tell a language this reference does not
+            // have from one it can produce. `SlotProps<'CodeSample'>` is frozen at three members,
+            // so a fourth prop is a major version; but the statement should not have been a slot's
+            // to make in the first place. A theme replacing `CodeSample` replaces how a sample
+            // looks, and a theme that could drop this sentence could drop the difference between
+            // "no Ruby here" and "no Ruby at all", which is a product guarantee and not a style.
+            return h(Fragment, [
+              h(samples.value, {
+                samples: node.codeSamples,
+                activeLang: activeLang.value,
+                onSelect: (lang: string): void => {
+                  activeLang.value = lang;
+                },
+              }),
+              node.codeSamplesElsewhere.length === 0
+                ? null
+                : h(
+                    'p',
+                    { class: 'oref-description' },
+                    'Generated for this operation and not drawn here: ' +
+                      node.codeSamplesElsewhere.map((language) => language.label).join(', ') +
+                      '. A build that asks for them draws them.',
+                  ),
+            ]);
           // THE THREE CHANNEL SECTIONS OF `T050`, adopted for the same reason the rest are, and
           // for one more: a schema tree inside an adopted position would be a row of buttons
           // nothing hydrates, so the payload is read rather than expanded. See `ChannelSections`.

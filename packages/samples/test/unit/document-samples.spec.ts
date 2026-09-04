@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { normalizeOpenApiDocument } from '@openref/core';
-import type { IRCodeSample, IRDocument, IROperation } from '@openref/core';
+import type { IRCodeSample, IRCodeSampleLanguage, IRDocument, IROperation } from '@openref/core';
 import { runnerOperationOf } from '@openref/vue';
-import { withGeneratedSamples } from '../../src/index';
+import { OFF_PAGE_SAMPLE_LANGUAGES, SAMPLE_LANGUAGES, withGeneratedSamples } from '../../src/index';
 
 /**
  * The transform `TX-PAGE-SAMPLES` adds, which is what finally puts SPEC 18's generator on a page.
@@ -95,18 +95,27 @@ function samplesOf(edits: Edits = {}): readonly IRCodeSample[] {
   return onlyOperation(withGeneratedSamples(document(edits), runnerOperationOf)).codeSamples ?? [];
 }
 
+/** The languages one version of the document names without drawing. */
+function elsewhereOf(edits: Edits = {}): readonly IRCodeSampleLanguage[] {
+  return (
+    onlyOperation(withGeneratedSamples(document(edits), runnerOperationOf)).codeSamplesElsewhere ??
+    []
+  );
+}
+
 /** One sample by language, so a case can name the tab it is about. */
 function sample(samples: readonly IRCodeSample[], lang: string): IRCodeSample | undefined {
   return samples.find((entry) => entry.lang === lang);
 }
 
 describe('withGeneratedSamples, what it puts on an operation', () => {
-  it('should give every language of SPEC 18 a sample when the document wrote none', () => {
+  it('should draw the twelve of SPEC 18 and name the three it holds back', () => {
     // Given, When
     const samples = samplesOf();
 
-    // Then
-    expect(samples).toHaveLength(15);
+    // Then: twelve tabs, in the order SPEC 18 lists them with the three taken out, and the three
+    // named beside them rather than dropped.
+    expect(samples).toHaveLength(12);
     expect(samples.map((entry) => entry.lang)).toEqual([
       'shell',
       'bash',
@@ -115,15 +124,67 @@ describe('withGeneratedSamples, what it puts on an operation', () => {
       'typescript',
       'python',
       'go',
-      'php',
-      'java',
       'csharp',
-      'ruby',
       'rust',
       'swift',
       'kotlin',
       'dart',
     ]);
+    expect(elsewhereOf()).toEqual([
+      { lang: 'php', label: 'PHP' },
+      { lang: 'java', label: 'Java' },
+      { lang: 'ruby', label: 'Ruby' },
+    ]);
+  });
+
+  it('should draw and name a partition of the fifteen, never a language twice and never none', () => {
+    // Given, When
+    const drawn = samplesOf().map((entry) => entry.lang);
+    const named = elsewhereOf().map((entry) => entry.lang);
+
+    // Then: the two lists together are the fifteen, with no overlap. This is the property the
+    // page's sentence rests on, and it is asserted rather than read off the two lists above.
+    expect([...drawn, ...named].sort()).toEqual(SAMPLE_LANGUAGES.map((it) => it.id).sort());
+    expect(drawn.filter((lang) => named.includes(lang))).toEqual([]);
+  });
+
+  it('should name nothing at all when the caller asks for every language on the page', () => {
+    // Given a caller that wants all fifteen drawn, which is the lever SPEC 18 names
+    const all = withGeneratedSamples(document(), runnerOperationOf, SAMPLE_LANGUAGES);
+
+    // When
+    const operation = onlyOperation(all);
+
+    // Then: fifteen tabs and no sentence, because there is nothing the page is holding back.
+    expect(operation.codeSamples).toHaveLength(15);
+    expect(operation.codeSamplesElsewhere).toBeUndefined();
+  });
+
+  it('should name no language whose emitter refused this request', () => {
+    // Given a request only two languages may write: a header value outside US-ASCII, which SPEC 18
+    // refuses everywhere except the two clients measured putting the runner's own octets on the
+    // wire. All three held back languages are among the thirteen that refuse.
+    const refusing = specification();
+    const post = (refusing.paths as Record<string, Record<string, Record<string, unknown>>>)[
+      '/orders/{orderId}/items'
+    ]?.['post'];
+    expect(post).toBeDefined();
+    (post!['parameters'] as Record<string, unknown>[]).push({
+      name: 'X-Note',
+      in: 'header',
+      schema: { type: 'string' },
+      example: 'caf\u00e9',
+    });
+
+    // When
+    const result = withGeneratedSamples(normalizeOpenApiDocument(refusing), runnerOperationOf);
+    const operation = onlyOperation(result);
+
+    // Then: two tabs, and nothing named, because for this request the three produce nothing and a
+    // page telling a reader to go and ask for a Ruby sample would be sending them after a refusal.
+    expect(operation.codeSamples?.map((entry) => entry.lang)).toEqual(['typescript', 'swift']);
+    expect(operation.codeSamplesElsewhere).toBeUndefined();
+    expect(OFF_PAGE_SAMPLE_LANGUAGES.map((it) => it.id)).toEqual(['php', 'java', 'ruby']);
   });
 
   it('should write the sample from the values the console would send, not from invention', () => {
@@ -182,8 +243,8 @@ describe('withGeneratedSamples, against what the document already wrote', () => 
     // When
     const samples = samplesOf({ declared });
 
-    // Then: fifteen languages, one of them the document's, and never two tabs named `shell`.
-    expect(samples).toHaveLength(15);
+    // Then: twelve languages, one of them the document's, and never two tabs named `shell`.
+    expect(samples).toHaveLength(12);
     expect(samples.filter((entry) => entry.lang === 'shell')).toHaveLength(1);
     expect(sample(samples, 'typescript')?.source).toContain('https://api.example.com/v1');
   });
@@ -196,8 +257,21 @@ describe('withGeneratedSamples, against what the document already wrote', () => 
     const samples = samplesOf({ declared });
 
     // Then
-    expect(samples).toHaveLength(16);
+    expect(samples).toHaveLength(13);
     expect(samples[0]?.lang).toBe('elixir');
+  });
+
+  it('should not name a held back language the document wrote itself', () => {
+    // Given a document that writes its own Ruby, which is level 3 and outranks the generator
+    const declared = [{ lang: 'ruby', label: 'Ruby', source: 'Net::HTTP.post(uri, body)' }];
+
+    // When
+    const samples = samplesOf({ declared });
+
+    // Then: the Ruby tab is on the page, so the page does not say Ruby is missing from it. The
+    // other two are still named.
+    expect(sample(samples, 'ruby')?.source).toBe('Net::HTTP.post(uri, body)');
+    expect(elsewhereOf({ declared }).map((entry) => entry.lang)).toEqual(['php', 'java']);
   });
 });
 

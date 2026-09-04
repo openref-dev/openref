@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { loadDefaultAssets, runnerOperationOf } from '@openref/render';
-import { withGeneratedSamples } from '@openref/samples';
+import {
+  OFF_PAGE_SAMPLE_LANGUAGES,
+  PAGE_SAMPLE_LANGUAGES,
+  withGeneratedSamples,
+} from '@openref/samples';
 import { finalizeDocument, normalizeOpenApiDocument } from '@openref/core';
 import type { IROperation } from '@openref/core';
 import { replyText } from '../../src/http/domain/reply';
@@ -136,24 +140,63 @@ describe('an operation page of a served reference', () => {
     expect(html).toContain('Call it');
   });
 
-  it('should offer a tab for every language SPEC 18 writes', async () => {
+  it('should offer a tab for each of the twelve SPEC 18 draws', async () => {
     // Given, When
     const section = samplesSection(await page(service()));
 
-    // Then
-    for (const label of [
-      'cURL',
-      'TypeScript',
-      'Python',
-      'Go',
+    // Then: the tab strip is the twelve, read off the declared set rather than off a list typed
+    // here, so moving a language between the two placements reddens this and nothing has to be
+    // remembered.
+    for (const language of PAGE_SAMPLE_LANGUAGES) {
+      expect(section, language.label).toContain(`>${language.label}</button>`);
+    }
+  });
+
+  it('should draw no tab for the three it holds back', async () => {
+    // Given, When
+    const section = samplesSection(await page(service()));
+
+    // Then: no button, which is the byte saving, and it is asserted rather than assumed.
+    for (const language of OFF_PAGE_SAMPLE_LANGUAGES) {
+      expect(section, language.label).not.toContain(`>${language.label}</button>`);
+    }
+  });
+
+  it('should name the three it holds back, so a reader can tell absent from unavailable', async () => {
+    // Given, When
+    const html = await page(service());
+
+    // Then: the sentence, on the page, naming all three. The maintainer's requirement is exactly
+    // this: a reader must be able to tell a language this page does not have from one it can
+    // produce, and silence cannot say that.
+    expect(html).toContain('Generated for this operation and not drawn here: PHP, Java, Ruby.');
+    expect(html).toContain('A build that asks for them draws them.');
+    expect(OFF_PAGE_SAMPLE_LANGUAGES.map((language) => language.label)).toEqual([
       'PHP',
       'Java',
-      'C#',
       'Ruby',
-      'Rust',
-    ]) {
-      expect(textOf(section), label).toContain(label);
+    ]);
+  });
+
+  it('should say nothing once the three are on the page', async () => {
+    // Given a document that writes its own PHP, Java and Ruby. Level 3 outranks the generator, so
+    // all three get a tab, and this is one of the two ways SPEC 18 says a held back language
+    // reaches a page. The presence half is the case above: on the default page the sentence is
+    // there and names all three.
+    const declared = [
+      { lang: 'php', label: 'PHP', source: '<?php $r = curl_init();' },
+      { lang: 'java', label: 'Java', source: 'HttpClient client = HttpClient.newHttpClient();' },
+      { lang: 'ruby', label: 'Ruby', source: 'Net::HTTP.post(uri, body)' },
+    ];
+
+    // When
+    const html = await page(service(declared));
+
+    // Then: three tabs and no sentence, because nothing is being held back from this page.
+    for (const language of OFF_PAGE_SAMPLE_LANGUAGES) {
+      expect(html, language.label).toContain(`>${language.label}</button>`);
     }
+    expect(html).not.toContain('Generated for this operation and not drawn here');
   });
 
   it('should carry the generated cURL the transform wrote, character for character', async () => {

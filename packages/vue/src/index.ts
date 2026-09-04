@@ -112,6 +112,7 @@ export type {
   ChannelParameterModel,
   ChannelReplyModel,
   ChannelServerModel,
+  CodeSampleLanguageModel,
   CodeSampleModel,
   DriftModel,
   ErrorContractGroupModel,

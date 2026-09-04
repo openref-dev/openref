@@ -37,6 +37,7 @@
 import { compareByCodePoint, finalizeDocument, generateExample, OpenRefError } from '@openref/core';
 import type {
   IRCodeSample,
+  IRCodeSampleLanguage,
   IRDocument,
   IRJsonSchema,
   IRJsonValue,
@@ -55,7 +56,7 @@ import type {
 } from '@openref/runner';
 import { composeCodeSamples } from './compose';
 import { generateCodeSamples } from './generate';
-import { SAMPLE_LANGUAGES } from './languages';
+import { PAGE_SAMPLE_LANGUAGES, SAMPLE_LANGUAGES } from './languages';
 import type { SampleLanguage } from './languages';
 import { buildSampleRequest, placeholderCredentials } from './sample-request';
 
@@ -108,7 +109,8 @@ export type SampleOperationOf = (operation: IROperation, document: IRDocument) =
  *
  * @param document - The normalized document
  * @param operationOf - The projection, `runnerOperationOf` from `@openref/vue`
- * @param languages - Languages to write, defaulting to all fifteen of SPEC 18 in their order
+ * @param languages - Languages the page draws, defaulting to the twelve of SPEC 18 in their
+ *   order; the rest of the fifteen are generated and named rather than drawn
  * @returns A new document, hashed and frozen, whose operations carry their samples
  *
  * @example
@@ -117,25 +119,61 @@ export type SampleOperationOf = (operation: IROperation, document: IRDocument) =
 export function withGeneratedSamples(
   document: IRDocument,
   operationOf: SampleOperationOf,
-  languages: readonly SampleLanguage[] = SAMPLE_LANGUAGES,
+  languages: readonly SampleLanguage[] = PAGE_SAMPLE_LANGUAGES,
 ): IRDocument {
   const bodies = schemaBodies(document);
   const nodes = new Map(document.nodes);
   let changed = false;
 
+  // WHAT IS NOT ON THE PAGE IS DERIVED FROM WHAT IS, AND NEVER WRITTEN OUT BESIDE IT. The caller
+  // names one set, the languages the page draws, and the other set is the rest of SPEC 18's
+  // fifteen. Two parameters would have let a caller name a page set and a notice set that do not
+  // partition the fifteen, and the page would then be able to promise a language nothing writes or
+  // to stay silent about one it holds back.
+  const elsewhere = SAMPLE_LANGUAGES.filter(
+    (language) => !languages.some((drawn) => drawn.id === language.id),
+  );
+
   for (const [id, node] of document.nodes) {
     if (node.kind !== 'operation') continue;
 
-    const generated = operationSamples(node, document, operationOf, bodies, languages);
-    const composed = composeCodeSamples(node.codeSamples, generated);
+    const { drawn, named } = operationSamples(
+      node,
+      document,
+      operationOf,
+      bodies,
+      languages,
+      elsewhere,
+    );
+    const composed = composeCodeSamples(node.codeSamples, drawn);
 
-    // THE TEST IS WHETHER ANYTHING WAS ADDED, AND A LENGTH IS EXACTLY THAT TEST because
-    // `composeCodeSamples` only ever appends to what the document wrote. Two operations reach
-    // this line having gained nothing: one the generator refused, and one whose document already
-    // wrote every language the generator would have. Both keep the node they had.
-    if (composed.length === (node.codeSamples?.length ?? 0)) continue;
+    // A LANGUAGE THE DOCUMENT WROTE ITSELF IS ON THE PAGE, so it is not named as absent from it.
+    // Level 3 outranks the generator, and a document that wrote its own Ruby sample has a Ruby tab
+    // whichever set this call was given.
+    const spoken = new Set(composed.map((sample) => sample.lang));
+    const missing = named.filter((language) => !spoken.has(language.lang));
 
-    nodes.set(id, { ...node, codeSamples: composed });
+    // THE TEST IS WHETHER ANYTHING WAS ADDED, AND A LENGTH IS EXACTLY THAT TEST for the samples,
+    // because `composeCodeSamples` only ever appends to what the document wrote. Two operations
+    // reach this line having gained nothing: one the generator refused, and one whose document
+    // already wrote every language the generator would have. Both keep the node they had.
+    //
+    // THE SECOND HALF IS NOT A LENGTH AND THE FIRST EDITION OF IT WAS, WHICH BROKE IDEMPOTENCE.
+    // The named languages are recomputed from the request every pass rather than appended to what
+    // is there, so `missing.length > 0` is true on the second application as much as on the first,
+    // and the transform re-finalized a document it had not changed. A caller applying it twice got
+    // two equal documents that are not the same object, which is exactly the property the two
+    // hosts rely on to call it without knowing whether the other ran first. The test is therefore
+    // whether the names moved, not whether there are any.
+    const sameSamples = composed.length === (node.codeSamples?.length ?? 0);
+    const sameNames = languageListsAgree(node.codeSamplesElsewhere ?? [], missing);
+    if (sameSamples && sameNames) continue;
+
+    nodes.set(id, {
+      ...node,
+      codeSamples: composed,
+      ...(missing.length === 0 ? {} : { codeSamplesElsewhere: missing }),
+    });
     changed = true;
   }
 
@@ -153,14 +191,56 @@ export function withGeneratedSamples(
 }
 
 /**
+ * Whether two lists of named languages say the same thing, in the same order.
+ *
+ * ORDER INCLUDED, BECAUSE THE PAGE PRINTS THEM IN IT. Two lists of the same three names in two
+ * orders are two sentences, and a transform that called them equal would leave the first order on
+ * a document whose second pass produced another.
+ *
+ * @param left - The list the node already carries
+ * @param right - The list this pass produced
+ * @returns True when the two are the same names with the same labels in the same order
+ */
+function languageListsAgree(
+  left: readonly IRCodeSampleLanguage[],
+  right: readonly IRCodeSampleLanguage[],
+): boolean {
+  return (
+    left.length === right.length &&
+    left.every(
+      (language, index) =>
+        language.lang === right[index]?.lang && language.label === right[index]?.label,
+    )
+  );
+}
+
+/** What one operation gets: the samples the page draws, and the languages it names instead. */
+interface OperationSamples {
+  readonly drawn: readonly IRCodeSample[];
+  /**
+   * Languages that produced a sample for this request and are not being drawn.
+   *
+   * ONLY LANGUAGES WHOSE EMITTER ACTUALLY WROTE SOMETHING, which is what makes the page's sentence
+   * true of this operation rather than of the product. An operation with a multipart body gets no
+   * entry for the templates that refuse it, because for that request they produce nothing, and a
+   * page telling a reader to go and ask for one would be sending them after a refusal.
+   */
+  readonly named: readonly IRCodeSampleLanguage[];
+}
+
+/** Nothing at all: no sample to draw and no language to name. */
+const NO_SAMPLES: OperationSamples = { drawn: [], named: [] };
+
+/**
  * The samples one operation gets, or none when the request cannot be built.
  *
  * @param operation - The operation as the IR carries it
  * @param document - The document it belongs to
  * @param operationOf - The caller's projection
  * @param bodies - Normalized named schemas, for `generateExample`
- * @param languages - Languages to write
- * @returns The generated samples, empty when this operation cannot produce a request
+ * @param languages - Languages to write onto the page
+ * @param elsewhere - Languages to generate and name rather than draw
+ * @returns The generated samples and the named languages, both empty when no request can be built
  */
 function operationSamples(
   operation: IROperation,
@@ -168,7 +248,8 @@ function operationSamples(
   operationOf: SampleOperationOf,
   bodies: ReadonlyMap<string, IRJsonSchema>,
   languages: readonly SampleLanguage[],
-): readonly IRCodeSample[] {
+  elsewhere: readonly SampleLanguage[],
+): OperationSamples {
   const run = operationOf(operation, document);
 
   // AN OPERATION WITH NOWHERE TO SEND HAS NO SAMPLE, and the refusal is here rather than at
@@ -177,7 +258,7 @@ function operationSamples(
   // whose service declared none; writing a sample against an invented origin would be the class
   // of guess CLAUDE.md's fifth lesson forbids.
   const serverUrl = run.servers[0];
-  if (serverUrl === undefined) return [];
+  if (serverUrl === undefined) return NO_SAMPLES;
 
   try {
     const { values } = placeholderCredentials(run.security);
@@ -187,13 +268,25 @@ function operationSamples(
       values,
     );
 
-    return generateCodeSamples(request, languages).samples;
+    // ONE GENERATOR CALL OVER BOTH SETS, so the two answers come from one pass over one request.
+    // Asking twice would run the shared refusals of `generateCodeSamples`, the unsendable plan and
+    // the non-ASCII header, twice over one plan, and would let the two answers be taken from two
+    // builds of it the day anything above became less than deterministic.
+    const produced = generateCodeSamples(request, [...languages, ...elsewhere]).samples;
+    const held = new Set<string>(elsewhere.map((language) => language.id));
+
+    return {
+      drawn: produced.filter((sample) => !held.has(sample.lang)),
+      named: produced
+        .filter((sample) => held.has(sample.lang))
+        .map((sample) => ({ lang: sample.lang, label: sample.label })),
+    };
   } catch (cause) {
     // ONLY THE RUNNER'S OWN REFUSALS ARE ABSORBED. `SerializationError` and `AuthError` both
     // extend `OpenRefError` and both mean "this request cannot be built", which is an answer.
     // Anything else is a defect in this file or below it and travels, because a transform that
     // swallowed a `TypeError` would serve a reference silently missing every sample.
-    if (cause instanceof OpenRefError) return [];
+    if (cause instanceof OpenRefError) return NO_SAMPLES;
 
     throw cause;
   }

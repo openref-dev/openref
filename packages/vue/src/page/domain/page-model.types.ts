@@ -455,6 +455,21 @@ export interface CodeSampleModel {
 }
 
 /**
+ * One language this operation has a sample in that the page is not carrying, per SPEC 18.
+ *
+ * A NAME WITHOUT A SOURCE, WHICH IS THE WHOLE OF IT. SPEC 18 keeps fifteen languages and the page
+ * draws twelve of them; the three it does not draw are named here rather than dropped, so that a
+ * reader can tell a language this reference does not have from a language it can produce. The
+ * source is exactly what was not carried, so it is not in this shape.
+ */
+export interface CodeSampleLanguageModel {
+  /** Language identifier, as {@link CodeSampleModel.lang} spells it. */
+  readonly lang: string;
+  /** What a tab would have said, for example `Ruby`. */
+  readonly label: string;
+}
+
+/**
  * The head of a node page: what the operation is, and nothing about what it carries.
  *
  * SEPARATE FROM {@link NodeModel} BECAUSE THE HEADER POSITION IS HANDED THIS AND NOT THAT. The
@@ -548,6 +563,16 @@ export interface NodeModel extends NodeHeaderModel {
   readonly security: readonly SecurityModel[];
   /** Call samples the document wrote, per SPEC 18. Empty when it wrote none. */
   readonly codeSamples: readonly CodeSampleModel[];
+  /**
+   * Languages this operation has a sample in that the page did not draw, per SPEC 18.
+   *
+   * REQUIRED RATHER THAN OPTIONAL, for the reason `NodeModel.channel` states: a member a producer
+   * may leave out is a member whose absence means both "there are none" and "nobody looked", and
+   * the difference here is the whole point of the member. The producer set is the one function
+   * `nodeModel`, and the empty list is the ordinary answer, on every channel and on every page
+   * whose document was never put through `withGeneratedSamples`.
+   */
+  readonly codeSamplesElsewhere: readonly CodeSampleLanguageModel[];
   /**
    * What the try-it console needs to send this operation, or null for a channel.
    *

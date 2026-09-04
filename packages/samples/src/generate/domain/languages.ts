@@ -48,12 +48,37 @@ export type SampleLanguageId =
 /** Which of the two generators of SPEC 18 produces a language. */
 export type SampleLevel = 1 | 2;
 
+/**
+ * Where a language's sample is carried, per the maintainer's ruling of 2026-09-03.
+ *
+ * TWO PLACEMENTS AND NOT TWO QUALITIES. Every one of the fifteen is generated, tested and
+ * reachable; what the placement decides is whether the reference page carries the tab inline or
+ * whether a caller asks for it. `page` is the twelve the page draws; `elsewhere` is the three it
+ * names instead, and the page says their names rather than dropping them, because a reader has to
+ * be able to tell a language this reference does not have from a language it can produce.
+ *
+ * THE THREE ARE THE THREE MOST EXPENSIVE AND THAT IS THE WHOLE CRITERION. Measured on the runner,
+ * Ruby 3,122, Java 2,726 and PHP 2,374 bytes of one page against 15,435 for all fifteen: 53 percent
+ * of the sample cost in three of the fifteen tabs. They are expensive by highlighting rather than
+ * by source length, since `HIGHLIGHT_LANGUAGES` carries all three grammars and their source
+ * therefore travels as markup. The figures are in SPEC 18 beside the list, with the machine.
+ */
+export type SamplePlacement = 'page' | 'elsewhere';
+
 /** One language a sample can be written in. */
 export interface SampleLanguage {
   readonly id: SampleLanguageId;
   /** What the tab says. */
   readonly label: string;
   readonly level: SampleLevel;
+  /**
+   * Whether the reference page carries this tab inline.
+   *
+   * REQUIRED RATHER THAN OPTIONAL, so a sixteenth language cannot be added without somebody
+   * deciding what a page does with it. An optional member defaulting to `page` would have made
+   * "nobody decided" and "the page carries it" the same state.
+   */
+  readonly placement: SamplePlacement;
 }
 
 /**
@@ -64,24 +89,53 @@ export interface SampleLanguage {
  * looks like reads a command; the two scripting languages follow; the templates come last, because
  * a reader who wants their own language goes looking for its name rather than reading down. cURL
  * stays at the head of the list, so the tab a page opens on has not moved.
+ *
+ * THE ORDER IS NOT DISTURBED BY THE PLACEMENT, WHICH IS WHY THE THREE ARE LEFT WHERE THEY WERE.
+ * PHP, Java and Ruby sit among the templates in the position SPEC 18 gives them, and
+ * {@link PAGE_SAMPLE_LANGUAGES} is this list with three entries taken out rather than a list of
+ * twelve written in some order of its own. Moving them to the end would have made two orders where
+ * the section states one.
  */
 export const SAMPLE_LANGUAGES: readonly SampleLanguage[] = [
-  { id: 'shell', label: 'cURL', level: 1 },
-  { id: 'bash', label: 'HTTPie', level: 1 },
-  { id: 'sh', label: 'wget', level: 1 },
-  { id: 'powershell', label: 'PowerShell', level: 1 },
-  { id: 'typescript', label: 'TypeScript', level: 1 },
-  { id: 'python', label: 'Python', level: 1 },
-  { id: 'go', label: 'Go', level: 2 },
-  { id: 'php', label: 'PHP', level: 2 },
-  { id: 'java', label: 'Java', level: 2 },
-  { id: 'csharp', label: 'C#', level: 2 },
-  { id: 'ruby', label: 'Ruby', level: 2 },
-  { id: 'rust', label: 'Rust', level: 2 },
-  { id: 'swift', label: 'Swift', level: 2 },
-  { id: 'kotlin', label: 'Kotlin', level: 2 },
-  { id: 'dart', label: 'Dart', level: 2 },
+  { id: 'shell', label: 'cURL', level: 1, placement: 'page' },
+  { id: 'bash', label: 'HTTPie', level: 1, placement: 'page' },
+  { id: 'sh', label: 'wget', level: 1, placement: 'page' },
+  { id: 'powershell', label: 'PowerShell', level: 1, placement: 'page' },
+  { id: 'typescript', label: 'TypeScript', level: 1, placement: 'page' },
+  { id: 'python', label: 'Python', level: 1, placement: 'page' },
+  { id: 'go', label: 'Go', level: 2, placement: 'page' },
+  { id: 'php', label: 'PHP', level: 2, placement: 'elsewhere' },
+  { id: 'java', label: 'Java', level: 2, placement: 'elsewhere' },
+  { id: 'csharp', label: 'C#', level: 2, placement: 'page' },
+  { id: 'ruby', label: 'Ruby', level: 2, placement: 'elsewhere' },
+  { id: 'rust', label: 'Rust', level: 2, placement: 'page' },
+  { id: 'swift', label: 'Swift', level: 2, placement: 'page' },
+  { id: 'kotlin', label: 'Kotlin', level: 2, placement: 'page' },
+  { id: 'dart', label: 'Dart', level: 2, placement: 'page' },
 ];
+
+/**
+ * The twelve tabs the reference page draws, in the order of {@link SAMPLE_LANGUAGES}.
+ *
+ * DERIVED AND NOT WRITTEN OUT, because two hand written lists that have to agree are the shape
+ * this project has now been caught by more than once. There is one list of languages and one
+ * member on each that decides where it is drawn; these two are that member read twice.
+ */
+export const PAGE_SAMPLE_LANGUAGES: readonly SampleLanguage[] = SAMPLE_LANGUAGES.filter(
+  (language) => language.placement === 'page',
+);
+
+/**
+ * The three the page names instead of carrying, in the order of {@link SAMPLE_LANGUAGES}.
+ *
+ * NOT "UNSUPPORTED" AND NOT "OMITTED". The generator writes them, the emitters are the same
+ * emitters, and `withGeneratedSamples` produces them for any caller that asks for them by passing
+ * them in. What this list is, is the answer the page gives a reader looking for Ruby: this
+ * reference writes Ruby, and this page is not carrying it.
+ */
+export const OFF_PAGE_SAMPLE_LANGUAGES: readonly SampleLanguage[] = SAMPLE_LANGUAGES.filter(
+  (language) => language.placement === 'elsewhere',
+);
 
 /**
  * What an emitter answers with: the sample, or the reason there is none.
