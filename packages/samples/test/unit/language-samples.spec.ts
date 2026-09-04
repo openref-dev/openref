@@ -318,23 +318,43 @@ describe('the level 2 templates', () => {
 /**
  * The twelve and the three, per SPEC 18 and the maintainer's ruling of 2026-09-03.
  *
- * WHAT THIS PINS IS THE PARTITION AND THE MEMBERSHIP, and both halves matter for different
- * reasons. The partition is what the page's sentence rests on: a language is drawn or it is named,
- * never both and never neither, so no language can go missing between the two lists. The
- * membership is the ruling itself, written down so that moving a language between the two is a red
- * test rather than a diff nobody reads.
+ * WHAT THIS PINS IS THE MEMBERSHIP AND WHAT THE GENERATOR DOES WITH IT. The membership is the
+ * ruling itself, written down so that moving a language between the two is a red test rather than
+ * a diff nobody reads. What the generator does with it is the property the page's sentence rests
+ * on: asked for the two sets, it answers with fifteen samples and no language twice.
+ *
+ * TWO CASES WERE REMOVED HERE RATHER THAN REPAIRED, AND THE REASON IS THIS PROJECT'S OWN RULE THAT
+ * A TEST COMPARING ONE ARTEFACT AGAINST ITSELF PROVES THE COMPARISON AND NOT THE CONSTRUCTION.
+ * `PAGE_SAMPLE_LANGUAGES` and `OFF_PAGE_SAMPLE_LANGUAGES` are one `filter` each over one required
+ * two valued member, so "the drawn list is the declared order minus the named list" and "the two
+ * lists partition the fifteen with no overlap" are both true of any such pair by construction and
+ * cannot fail. What the first of them was really about, the order the tabs come out in, has a real
+ * subject one file away: `document-samples.spec.ts` reads the twelve tab ids off a document the
+ * transform actually ran over. What the second was really about is the case below.
  */
 describe('where SPEC 18 draws each language', () => {
-  it('should partition the fifteen into the twelve drawn and the three named', () => {
-    // Given, When
-    const drawn = PAGE_SAMPLE_LANGUAGES.map((language) => language.id);
-    const named = OFF_PAGE_SAMPLE_LANGUAGES.map((language) => language.id);
+  it('should give the generator fifteen languages between the two sets, and no language twice', () => {
+    // Given a request every language can write, and the two sets the page actually asks for
+    const request = buildSampleRequest(listPets(), { values: {}, serverUrl: SERVER }, {});
 
-    // Then
-    expect(drawn).toHaveLength(12);
-    expect(named).toHaveLength(3);
-    expect([...drawn, ...named].sort()).toEqual([...ALL_IDS].sort());
-    expect(drawn.filter((id) => named.includes(id))).toEqual([]);
+    // When each set is asked for on its own, which is how the transform asks for them
+    const drawn = generateCodeSamples(request, PAGE_SAMPLE_LANGUAGES);
+    const named = generateCodeSamples(request, OFF_PAGE_SAMPLE_LANGUAGES);
+
+    // Then: fifteen samples, one per language of SPEC 18, every one with an emitter behind it.
+    // A language in neither set would be a language nothing generates and nothing names, which is
+    // what the page's sentence promises cannot happen, and it is read off the generator here
+    // rather than off the two lists compared with each other.
+    expect(drawn.omitted).toEqual([]);
+    expect(named.omitted).toEqual([]);
+
+    const ids = [...drawn.samples, ...named.samples].map((sample) => sample.lang);
+    expect(ids).toHaveLength(15);
+    expect(new Set(ids).size).toBe(15);
+    expect([...ids].sort()).toEqual([...ALL_IDS].sort());
+    for (const sample of [...drawn.samples, ...named.samples]) {
+      expect(sample.source, sample.lang).toContain(request.plan.url);
+    }
   });
 
   it('should name Ruby, Java and PHP as the three the page does not carry', () => {
@@ -344,20 +364,6 @@ describe('where SPEC 18 draws each language', () => {
       { id: 'java', label: 'Java', level: 2, placement: 'elsewhere' },
       { id: 'ruby', label: 'Ruby', level: 2, placement: 'elsewhere' },
     ]);
-  });
-
-  it('should keep both lists in the order SPEC 18 writes the fifteen in', () => {
-    // Given the declared order
-    const order = SAMPLE_LANGUAGES.map((language) => language.id);
-
-    // When, Then: each list is the declared order filtered, not an order of its own, because the
-    // order of the list is the order of the tabs and SPEC 18 states exactly one.
-    expect(PAGE_SAMPLE_LANGUAGES.map((it) => it.id)).toEqual(
-      order.filter((id) => !OFF_PAGE_SAMPLE_LANGUAGES.some((it) => it.id === id)),
-    );
-    expect(OFF_PAGE_SAMPLE_LANGUAGES.map((it) => it.id)).toEqual(
-      order.filter((id) => !PAGE_SAMPLE_LANGUAGES.some((it) => it.id === id)),
-    );
   });
 
   it('should still generate a sample for each of the three, which is what named means', () => {

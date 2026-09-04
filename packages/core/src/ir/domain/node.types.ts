@@ -149,6 +149,28 @@ export interface IRCodeSampleLanguage {
   readonly label: string;
 }
 
+/**
+ * Languages that could not write this request at all, and the one reason they gave.
+ *
+ * A VANISHED TAB AND A LANGUAGE THE PAGE NEVER HAD ARE THE SAME SILENCE, AND THIS ENDS IT. SPEC 18
+ * holds a standing rule: where a request cannot be expressed faithfully, the sample says so rather
+ * than emitting something that looks right and sends something else. Until this member the rule
+ * was kept for the languages the page holds back and broken for the ones it draws: a language whose
+ * emitter refused simply had no tab, and the reason travelled to the caller as
+ * `GeneratedSamples.omitted` and to nobody else.
+ *
+ * GROUPED BY REASON RATHER THAN LISTED PER LANGUAGE, AND THE REASON IS BYTES. One refusal is
+ * usually shared, a multipart body being refused by nine templates in the same words, and a reason
+ * repeated per language would carry that sentence nine times into a page state block that SPEC 20
+ * already reports over its cap. The group is one sentence and the names that gave it.
+ */
+export interface IRCodeSampleRefusal {
+  /** Why none of these languages could write this request, in the emitter's own words. */
+  readonly reason: string;
+  /** The languages that gave this reason, in the order the page would have met them. */
+  readonly languages: readonly IRCodeSampleLanguage[];
+}
+
 /** An HTTP operation. */
 export interface IROperation {
   readonly kind: 'operation';
@@ -183,6 +205,16 @@ export interface IROperation {
    * produced a sample for this request.
    */
   readonly codeSamplesElsewhere?: readonly IRCodeSampleLanguage[];
+  /**
+   * Languages that produced no sample for this request, with the reason, per SPEC 18.
+   *
+   * ADDITIVE AND OPTIONAL, AND WRITTEN BY THE SAME ONE PLACE `codeSamplesElsewhere` IS. Together
+   * the three members account for every language a caller asked for: drawn in
+   * {@link IROperation.codeSamples}, named here as held back, or named there as unable. A language
+   * missing from all three would be a language nobody decided about, which is the state the two
+   * lists exist to end.
+   */
+  readonly codeSamplesRefused?: readonly IRCodeSampleRefusal[];
   readonly runtime?: IRNodeRuntime;
   readonly extensions?: Readonly<Record<string, IRJsonValue>>;
   /**

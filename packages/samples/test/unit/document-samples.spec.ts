@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { normalizeOpenApiDocument } from '@openref/core';
-import type { IRCodeSample, IRCodeSampleLanguage, IRDocument, IROperation } from '@openref/core';
+import type {
+  IRCodeSample,
+  IRCodeSampleLanguage,
+  IRCodeSampleRefusal,
+  IRDocument,
+  IROperation,
+} from '@openref/core';
 import { runnerOperationOf } from '@openref/vue';
 import { OFF_PAGE_SAMPLE_LANGUAGES, SAMPLE_LANGUAGES, withGeneratedSamples } from '../../src/index';
 
@@ -103,9 +109,32 @@ function elsewhereOf(edits: Edits = {}): readonly IRCodeSampleLanguage[] {
   );
 }
 
+/** The refusals one version of the document ends up carrying, grouped as the page states them. */
+function refusedOf(edits: Edits = {}): readonly IRCodeSampleRefusal[] {
+  return (
+    onlyOperation(withGeneratedSamples(document(edits), runnerOperationOf)).codeSamplesRefused ?? []
+  );
+}
+
 /** One sample by language, so a case can name the tab it is about. */
 function sample(samples: readonly IRCodeSample[], lang: string): IRCodeSample | undefined {
   return samples.find((entry) => entry.lang === lang);
+}
+
+/** The specification with a header parameter whose example carries a character outside US-ASCII. */
+function nonAsciiHeaderSpecification(): Record<string, unknown> {
+  const refusing = specification();
+  const paths = refusing.paths as Record<string, Record<string, Record<string, unknown>>>;
+  const post = paths['/orders/{orderId}/items']?.post;
+  expect(post).toBeDefined();
+  (post!.parameters as Record<string, unknown>[]).push({
+    name: 'X-Note',
+    in: 'header',
+    schema: { type: 'string' },
+    example: 'caf\u00e9',
+  });
+
+  return refusing;
 }
 
 describe('withGeneratedSamples, what it puts on an operation', () => {
@@ -164,16 +193,7 @@ describe('withGeneratedSamples, what it puts on an operation', () => {
     // Given a request only two languages may write: a header value outside US-ASCII, which SPEC 18
     // refuses everywhere except the two clients measured putting the runner's own octets on the
     // wire. All three held back languages are among the thirteen that refuse.
-    const refusing = specification();
-    const paths = refusing.paths as Record<string, Record<string, Record<string, unknown>>>;
-    const post = paths['/orders/{orderId}/items']?.post;
-    expect(post).toBeDefined();
-    (post!.parameters as Record<string, unknown>[]).push({
-      name: 'X-Note',
-      in: 'header',
-      schema: { type: 'string' },
-      example: 'caf\u00e9',
-    });
+    const refusing = nonAsciiHeaderSpecification();
 
     // When
     const result = withGeneratedSamples(normalizeOpenApiDocument(refusing), runnerOperationOf);
@@ -184,6 +204,95 @@ describe('withGeneratedSamples, what it puts on an operation', () => {
     expect(operation.codeSamples?.map((entry) => entry.lang)).toEqual(['typescript', 'swift']);
     expect(operation.codeSamplesElsewhere).toBeUndefined();
     expect(OFF_PAGE_SAMPLE_LANGUAGES.map((it) => it.id)).toEqual(['php', 'java', 'ruby']);
+  });
+
+  it('should state the refusal of every language that could not write this request', () => {
+    // Given the same request, whose thirteen refusals used to reach the caller as
+    // `GeneratedSamples.omitted` and nobody else. A vanished tab and a language the page never had
+    // are indistinguishable, and telling them apart is what SPEC 18's standing rule asks for.
+    const refusing = nonAsciiHeaderSpecification();
+
+    // When
+    const result = withGeneratedSamples(normalizeOpenApiDocument(refusing), runnerOperationOf);
+    const operation = onlyOperation(result);
+
+    // Then: the subject first, two tabs and thirteen languages with nothing to show
+    expect(operation.codeSamples?.map((entry) => entry.lang)).toEqual(['typescript', 'swift']);
+
+    // And one group, because all thirteen refused for one reason, in the order the page would have
+    // met them: the set it draws first, then the set it names.
+    expect(operation.codeSamplesRefused).toHaveLength(1);
+    expect(operation.codeSamplesRefused?.[0]?.languages.map((entry) => entry.lang)).toEqual([
+      'shell',
+      'bash',
+      'sh',
+      'powershell',
+      'python',
+      'go',
+      'csharp',
+      'rust',
+      'kotlin',
+      'dart',
+      'php',
+      'java',
+      'ruby',
+    ]);
+    expect(operation.codeSamplesRefused?.[0]?.reason).toContain('outside US-ASCII');
+  });
+
+  it('should account for all fifteen between what it draws, names and refuses', () => {
+    // Given the same request, where the three answers are all non empty at once
+    const refusing = nonAsciiHeaderSpecification();
+    const drawnAll = withGeneratedSamples(
+      normalizeOpenApiDocument(refusing),
+      runnerOperationOf,
+      SAMPLE_LANGUAGES.filter((language) => language.id !== 'swift'),
+    );
+    const operation = onlyOperation(drawnAll);
+
+    // When
+    const drawn = (operation.codeSamples ?? []).map((entry) => entry.lang);
+    const named = (operation.codeSamplesElsewhere ?? []).map((entry) => entry.lang);
+    const refused = (operation.codeSamplesRefused ?? []).flatMap((group) =>
+      group.languages.map((entry) => entry.lang),
+    );
+
+    // Then: every one of the fifteen is in exactly one of the three, which is what lets a reader
+    // read the page's silence about a language as a statement rather than as an omission.
+    expect(named).toEqual(['swift']);
+    expect(drawn).toEqual(['typescript']);
+    expect([...drawn, ...named, ...refused].sort()).toEqual(
+      SAMPLE_LANGUAGES.map((language) => language.id).sort(),
+    );
+  });
+
+  it('should refuse nothing for a request every language can write', () => {
+    // Given, When: the ordinary page, where the whole of the answer is twelve tabs and three names
+    // Then, a proof of absence that first asserts the subject was present
+    expect(samplesOf()).toHaveLength(12);
+    expect(elsewhereOf()).toHaveLength(3);
+    expect(refusedOf()).toEqual([]);
+  });
+
+  it('should say nothing about a refusal in a language the document wrote itself', () => {
+    // Given a document that writes its own Ruby for a request no language may write, which is
+    // level 3 and outranks the generator
+    const refusing = nonAsciiHeaderSpecification();
+    const paths = refusing.paths as Record<string, Record<string, Record<string, unknown>>>;
+    const post = paths['/orders/{orderId}/items']?.post;
+    post!['x-codeSamples'] = [{ lang: 'ruby', label: 'Ruby', source: 'Net::HTTP.post(uri, body)' }];
+
+    // When
+    const result = withGeneratedSamples(normalizeOpenApiDocument(refusing), runnerOperationOf);
+    const operation = onlyOperation(result);
+
+    // Then: the Ruby tab is on the page, so the page does not say Ruby refused it
+    expect(operation.codeSamples?.map((entry) => entry.lang)).toContain('ruby');
+    const refused = (operation.codeSamplesRefused ?? []).flatMap((group) =>
+      group.languages.map((entry) => entry.lang),
+    );
+    expect(refused).not.toContain('ruby');
+    expect(refused).toContain('shell');
   });
 
   it('should write the sample from the values the console would send, not from invention', () => {

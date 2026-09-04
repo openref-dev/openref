@@ -258,6 +258,43 @@ describe('an operation page of a served reference', () => {
     // Then: an empty tab strip is worse than no section, and `drawnOf` already says so.
     expect(html).not.toContain('oref-section-samples');
   });
+
+  it('should say a language refused this request rather than let its tab vanish', async () => {
+    // Given a request thirteen of the fifteen refuse: a header value outside US-ASCII, which
+    // SPEC 18 allows only the two clients measured putting the runner's own octets on the wire.
+    // Before this, ten of the twelve drawn languages simply had no tab, and a missing tab is
+    // indistinguishable from a language this page never had.
+    const withHeader = specification();
+    const paths = withHeader.paths as Record<string, Record<string, Record<string, unknown>>>;
+    const post = paths['/orders/{orderId}/items']?.post;
+    expect(post).toBeDefined();
+    (post!.parameters as Record<string, unknown>[]).push({
+      name: 'X-Note',
+      in: 'header',
+      schema: { type: 'string' },
+      example: 'caf\u00e9',
+    });
+    const reference = new ReferenceService({
+      document: withHeader,
+      basePath: '/docs',
+      assets: loadDefaultAssets(),
+    });
+
+    // When
+    const html = await page(reference);
+    const section = samplesSection(html);
+
+    // Then, the subject first: the two that can write it have their tabs
+    expect(section).toContain('>TypeScript</button>');
+    expect(section).toContain('>Swift</button>');
+
+    // And the ten drawn languages that refused are named with the reason, rather than absent
+    for (const label of ['cURL', 'HTTPie', 'wget', 'PowerShell', 'Python', 'Go', 'C#', 'Rust']) {
+      expect(section, label).not.toContain(`>${label}</button>`);
+    }
+    expect(html).toContain('No sample for this request in cURL, HTTPie, wget, PowerShell');
+    expect(html).toContain('outside US-ASCII');
+  });
 });
 
 describe('the transform the page and the static build share', () => {

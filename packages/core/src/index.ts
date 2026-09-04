@@ -52,6 +52,7 @@ export type {
   IRChannelReply,
   IRCodeSample,
   IRCodeSampleLanguage,
+  IRCodeSampleRefusal,
   IREncoding,
   IRExample,
   IRHeader,

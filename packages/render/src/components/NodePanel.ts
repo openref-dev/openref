@@ -27,7 +27,12 @@ import { mediaTypeBlock, type SchemaContext } from './MediaTypeBlock';
 import { useDeferrable } from './deferrable';
 import { benchHref } from '../page/domain/links';
 import type { IRSchema } from '@openref/core';
-import type { NodeModel } from '@openref/vue';
+import type { CodeSampleLanguageModel, NodeModel } from '@openref/vue';
+
+/** The tab names of a list of languages, as a sentence names them. */
+function labelsOf(languages: readonly CodeSampleLanguageModel[]): string {
+  return languages.map((language) => language.label).join(', ');
+}
 
 /** Renders one operation or channel. */
 export const NodePanel = defineComponent({
@@ -104,14 +109,30 @@ export const NodePanel = defineComponent({
             // LIVE: the language tab is client state with a handler, the one section of the
             // article that fails the adoption question, named in SPEC 12.
             //
-            // THE NOTICE IS DRAWN HERE AND NOT INSIDE THE SLOT, AND THAT IS THE DESIGN. SPEC 18's
-            // fifteen languages reach a page as twelve, and the three the page does not carry are
-            // named rather than dropped, so a reader can tell a language this reference does not
-            // have from one it can produce. `SlotProps<'CodeSample'>` is frozen at three members,
-            // so a fourth prop is a major version; but the statement should not have been a slot's
-            // to make in the first place. A theme replacing `CodeSample` replaces how a sample
-            // looks, and a theme that could drop this sentence could drop the difference between
-            // "no Ruby here" and "no Ruby at all", which is a product guarantee and not a style.
+            // THE TWO NOTICES ARE DRAWN HERE AND NOT INSIDE THE SLOT, AND THAT IS THE DESIGN. SPEC
+            // 18's fifteen languages reach a page as twelve, and the three the page does not carry
+            // are named rather than dropped, so a reader can tell a language this reference does
+            // not have from one it can produce. `SlotProps<'CodeSample'>` is frozen at three
+            // members, so a fourth prop is a major version; but the statement should not have been
+            // a slot's to make in the first place. A theme replacing `CodeSample` replaces how a
+            // sample looks, and a theme that could drop this sentence could drop the difference
+            // between "no Ruby here" and "no Ruby at all", which is a product guarantee and not a
+            // style.
+            //
+            // THE SECOND NOTICE IS THE SAME GUARANTEE FOR THE TWELVE THE PAGE DOES DRAW. A language
+            // whose emitter refuses this request leaves no tab, and a vanished tab is
+            // indistinguishable from a language the page never had, which is precisely the
+            // distinction the first notice exists to preserve. SPEC 18's standing rule is that
+            // where a request cannot be expressed faithfully the page says so rather than emitting
+            // something that looks right and sends something else; before this the reason reached
+            // the caller as `GeneratedSamples.omitted` and reached the reader not at all.
+            //
+            // WHAT BOUNDS BOTH, SAID HERE BECAUSE THIS IS WHERE THE GUARANTEE IS MADE. The
+            // paragraph carries `oref-description` and nothing of its own, so a theme stylesheet
+            // setting `display: none` on that class removes both sentences and no gate would see
+            // it; and a theme replacing `AppShell` with a composition that drops its children
+            // removes them along with the whole article. Neither is reachable by replacing the
+            // `CodeSample` slot, which is what moving the sentences out of the slot bought.
             return h(Fragment, [
               h(samples.value, {
                 samples: node.codeSamples,
@@ -125,10 +146,17 @@ export const NodePanel = defineComponent({
                 : h(
                     'p',
                     { class: 'oref-description' },
-                    'Generated for this operation and not drawn here: ' +
-                      node.codeSamplesElsewhere.map((language) => language.label).join(', ') +
-                      '. A build that asks for them draws them.',
+                    `Generated for this operation and not drawn here: ${labelsOf(
+                      node.codeSamplesElsewhere,
+                    )}. A build that asks for them draws them.`,
                   ),
+              ...node.codeSamplesRefused.map((refusal) =>
+                h(
+                  'p',
+                  { class: 'oref-description' },
+                  `No sample for this request in ${labelsOf(refusal.languages)}: ${refusal.reason}`,
+                ),
+              ),
             ]);
           // THE THREE CHANNEL SECTIONS OF `T050`, adopted for the same reason the rest are, and
           // for one more: a schema tree inside an adopted position would be a row of buttons

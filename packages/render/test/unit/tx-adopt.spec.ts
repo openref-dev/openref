@@ -7,10 +7,12 @@
  */
 
 import { describe, expect, it } from 'vitest';
+import { finalizeDocument } from '@openref/core';
 import { buildPageModel } from '../../src/page/domain/page-model';
 import { serializePageModel } from '../../src/render/application/services/render.service';
 import { createMarkdownRenderer } from '../../src/markdown/domain/markdown';
 import { runtimeDocument, runtimeNodeId, smallDocument } from '../mocks/documents';
+import type { IRDocument, IROperation } from '@openref/core';
 import type { PageKind, PageModel } from '@openref/vue';
 
 async function modelFor(kind?: PageKind, nodeId?: string): Promise<PageModel> {
@@ -26,6 +28,30 @@ async function modelFor(kind?: PageKind, nodeId?: string): Promise<PageModel> {
 /** The client model as `readPageState` would produce it. */
 function redacted(model: PageModel): PageModel {
   return JSON.parse(serializePageModel(model)) as PageModel;
+}
+
+/**
+ * The small document with one operation given the sample facts a caller's transform would write.
+ *
+ * BUILT HERE RATHER THAN TAKEN FROM `withGeneratedSamples`, because `@openref/render` may not see
+ * `@openref/samples` and the dependency linter says so. What is copied in is the shape of that
+ * transform's output and nothing about how it decides the shape.
+ *
+ * @param facts - The two sample lists a page can carry without carrying a sample
+ * @returns The document and the node id the facts were written onto
+ */
+function sampleFactsDocument(
+  facts: Pick<IROperation, 'codeSamplesElsewhere' | 'codeSamplesRefused'>,
+): { readonly document: IRDocument; readonly nodeId: string } {
+  const document = smallDocument();
+  const nodeId = runtimeNodeId(document);
+  const node = document.nodes.get(nodeId);
+  expect(node?.kind, 'the fixture no longer has the operation these facts go on').toBe('operation');
+
+  const nodes = new Map(document.nodes);
+  nodes.set(nodeId, { ...(node as IROperation), ...facts });
+
+  return { document: finalizeDocument({ ...document, nodes, hash: '' }), nodeId };
 }
 
 describe('drawnOf, through buildPageModel', () => {
@@ -52,6 +78,55 @@ describe('drawnOf, through buildPageModel', () => {
     // Then security stands as its own section, per the TX-GUTTER rule
     expect(model.node?.drawn).toContain('security');
     expect(model.node?.drawn).not.toContain('runtime');
+  });
+
+  it('should mount the samples section for a node that only names languages, per SPEC 18', async () => {
+    // Given an operation with no sample of its own and two languages named beside it. This is what
+    // `withGeneratedSamples` writes when a host passes a `languages` set that leaves both of them
+    // off the page, which SPEC 18 names as the supported lever, and the sentence naming them is the
+    // whole reason the member exists.
+    const { document, nodeId } = sampleFactsDocument({
+      codeSamplesElsewhere: [
+        { lang: 'typescript', label: 'TypeScript' },
+        { lang: 'swift', label: 'Swift' },
+      ],
+    });
+
+    // When
+    const model = buildPageModel(document, { nodeId, markdown: await createMarkdownRenderer() });
+
+    // Then, the subject first: there is nothing to draw and two languages to name.
+    expect(model.node?.codeSamples).toEqual([]);
+    expect(model.node?.codeSamplesElsewhere.map((language) => language.lang)).toEqual([
+      'typescript',
+      'swift',
+    ]);
+
+    // And the section mounts on there being something to state rather than on the other list.
+    expect(model.node?.drawn).toContain('samples');
+  });
+
+  it('should mount the samples section for a node that only carries a refusal, per SPEC 18', async () => {
+    // Given an operation every language refused, which is what a plan the runner will not send
+    // produces: no tab, and a reason that used to reach the caller alone.
+    const { document, nodeId } = sampleFactsDocument({
+      codeSamplesRefused: [
+        {
+          reason: 'the runner refuses to send this request at all',
+          languages: [{ lang: 'shell', label: 'cURL' }],
+        },
+      ],
+    });
+
+    // When
+    const model = buildPageModel(document, { nodeId, markdown: await createMarkdownRenderer() });
+
+    // Then, the subject first
+    expect(model.node?.codeSamples).toEqual([]);
+    expect(model.node?.codeSamplesRefused).toHaveLength(1);
+
+    // And a vanished tab is told apart from a language the page never had
+    expect(model.node?.drawn).toContain('samples');
   });
 });
 

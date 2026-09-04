@@ -359,8 +359,12 @@ describe('readPageState', () => {
     // maintainer's twelve added `codeSamplesElsewhere`, the SPEC 18 languages generated for an
     // operation and not drawn on its page, and that is 20: a page cached before it hydrates an
     // article whose client walk reads no list where the server named three languages, so the
-    // three go back to being silently absent, which is the state the member exists to end.
-    expect(state?.pageModelVersion).toBe(20);
+    // three go back to being silently absent, which is the state the member exists to end. The
+    // same slice added `codeSamplesRefused`, the languages that wrote nothing for this request
+    // and the reason they gave, and that is 21: a page cached before it hydrates an article whose
+    // client walk reads no list where the server stated a refusal, so a vanished tab goes back to
+    // looking like a language the reference never had.
+    expect(state?.pageModelVersion).toBe(21);
   });
 });
 

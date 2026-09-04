@@ -38,6 +38,7 @@ import { compareByCodePoint, finalizeDocument, generateExample, OpenRefError } f
 import type {
   IRCodeSample,
   IRCodeSampleLanguage,
+  IRCodeSampleRefusal,
   IRDocument,
   IRJsonSchema,
   IRJsonValue,
@@ -137,7 +138,7 @@ export function withGeneratedSamples(
   for (const [id, node] of document.nodes) {
     if (node.kind !== 'operation') continue;
 
-    const { drawn, named } = operationSamples(
+    const { drawn, named, refused } = operationSamples(
       node,
       document,
       operationOf,
@@ -149,9 +150,11 @@ export function withGeneratedSamples(
 
     // A LANGUAGE THE DOCUMENT WROTE ITSELF IS ON THE PAGE, so it is not named as absent from it.
     // Level 3 outranks the generator, and a document that wrote its own Ruby sample has a Ruby tab
-    // whichever set this call was given.
+    // whichever set this call was given. The same rule governs a refusal: the emitter declining to
+    // write a sample says nothing about the one the author wrote by hand.
     const spoken = new Set(composed.map((sample) => sample.lang));
     const missing = named.filter((language) => !spoken.has(language.lang));
+    const unable = groupByReason(refused.filter((entry) => !spoken.has(entry.lang)));
 
     // THE TEST IS WHETHER ANYTHING WAS ADDED, AND A LENGTH IS EXACTLY THAT TEST for the samples,
     // because `composeCodeSamples` only ever appends to what the document wrote. Two operations
@@ -167,12 +170,14 @@ export function withGeneratedSamples(
     // whether the names moved, not whether there are any.
     const sameSamples = composed.length === (node.codeSamples?.length ?? 0);
     const sameNames = languageListsAgree(node.codeSamplesElsewhere ?? [], missing);
-    if (sameSamples && sameNames) continue;
+    const sameRefusals = refusalListsAgree(node.codeSamplesRefused ?? [], unable);
+    if (sameSamples && sameNames && sameRefusals) continue;
 
     nodes.set(id, {
       ...node,
       codeSamples: composed,
       ...(missing.length === 0 ? {} : { codeSamplesElsewhere: missing }),
+      ...(unable.length === 0 ? {} : { codeSamplesRefused: unable }),
     });
     changed = true;
   }
@@ -214,6 +219,60 @@ function languageListsAgree(
   });
 }
 
+/**
+ * Whether two grouped refusal lists say the same thing, in the same order.
+ *
+ * ORDER AND GROUPING BOTH, FOR THE REASON {@link languageListsAgree} STATES ABOUT ORDER ALONE. The
+ * page prints one sentence per group and the names inside it in order, so two groupings of the
+ * same names are two pages, and a transform calling them equal would leave the first on a document
+ * whose second pass produced the other.
+ *
+ * @param left - The list the node already carries
+ * @param right - The list this pass produced
+ * @returns True when the two are the same reasons over the same languages in the same order
+ */
+function refusalListsAgree(
+  left: readonly IRCodeSampleRefusal[],
+  right: readonly IRCodeSampleRefusal[],
+): boolean {
+  if (left.length !== right.length) return false;
+
+  return left.every((group, index) => {
+    const other = right[index];
+
+    return other?.reason === group.reason && languageListsAgree(group.languages, other.languages);
+  });
+}
+
+/**
+ * The refusals of one operation, gathered into one entry per reason.
+ *
+ * FIRST APPEARANCE DECIDES THE ORDER OF THE GROUPS, and the order inside a group is the order the
+ * languages were asked in. Both are the order the page would have met the language in, which is
+ * what makes the output deterministic without sorting anything into an order nobody chose.
+ *
+ * @param refused - One entry per language, in the order the generator answered
+ * @returns One entry per distinct reason
+ */
+function groupByReason(refused: readonly SampleRefusal[]): readonly IRCodeSampleRefusal[] {
+  const groups = new Map<string, IRCodeSampleLanguage[]>();
+
+  for (const entry of refused) {
+    const held = groups.get(entry.reason);
+    const language = { lang: entry.lang, label: entry.label };
+
+    if (held === undefined) groups.set(entry.reason, [language]);
+    else held.push(language);
+  }
+
+  return [...groups].map(([reason, languages]) => ({ reason, languages }));
+}
+
+/** One language that wrote nothing for this request, as this file carries it before grouping. */
+interface SampleRefusal extends IRCodeSampleLanguage {
+  readonly reason: string;
+}
+
 /** What one operation gets: the samples the page draws, and the languages it names instead. */
 interface OperationSamples {
   readonly drawn: readonly IRCodeSample[];
@@ -226,10 +285,19 @@ interface OperationSamples {
    * page telling a reader to go and ask for one would be sending them after a refusal.
    */
   readonly named: readonly IRCodeSampleLanguage[];
+  /**
+   * Languages that wrote nothing for this request, whether the page draws them or not.
+   *
+   * BOTH SETS AND NOT ONLY THE DRAWN ONE. A language of the three is absent from the page's first
+   * sentence exactly when it refused, and that absence reads the same as never having existed; so
+   * the refusal is stated for the three as it is for the twelve, and the three answers together
+   * account for every language the caller asked about.
+   */
+  readonly refused: readonly SampleRefusal[];
 }
 
-/** Nothing at all: no sample to draw and no language to name. */
-const NO_SAMPLES: OperationSamples = { drawn: [], named: [] };
+/** Nothing at all: no sample to draw, no language to name and no refusal to report. */
+const NO_SAMPLES: OperationSamples = { drawn: [], named: [], refused: [] };
 
 /**
  * The samples one operation gets, or none when the request cannot be built.
@@ -272,7 +340,10 @@ function operationSamples(
     // Asking twice would run the shared refusals of `generateCodeSamples`, the unsendable plan and
     // the non-ASCII header, twice over one plan, and would let the two answers be taken from two
     // builds of it the day anything above became less than deterministic.
-    const produced = generateCodeSamples(request, [...languages, ...elsewhere]).samples;
+    const { samples: produced, omitted } = generateCodeSamples(request, [
+      ...languages,
+      ...elsewhere,
+    ]);
     const held = new Set<string>(elsewhere.map((language) => language.id));
 
     return {
@@ -280,6 +351,11 @@ function operationSamples(
       named: produced
         .filter((sample) => held.has(sample.lang))
         .map((sample) => ({ lang: sample.lang, label: sample.label })),
+      refused: omitted.map((entry) => ({
+        lang: entry.lang,
+        label: entry.label,
+        reason: entry.reason,
+      })),
     };
   } catch (cause) {
     // ONLY THE RUNNER'S OWN REFUSALS ARE ABSORBED. `SerializationError` and `AuthError` both

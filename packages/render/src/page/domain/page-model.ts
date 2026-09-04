@@ -161,6 +161,13 @@ import { reasonPhrase } from '../../shared/status';
  * where it does not. A page cached before this serves a console that sends directly on a host
  * whose proxy is up, which is the defence existing and not being offered.
  *
+ * 21 SINCE THE REFUSAL WAS GIVEN SOMEWHERE TO STAND. A node carries `codeSamplesRefused`, the
+ * languages that produced no sample for this request and the reason they gave. It is the same
+ * mechanism as the member below and the same failure it prevents, applied to the other silence: a
+ * page cached before this hydrates against a client that walks the list, and a client reading
+ * `undefined` where a list belongs draws nothing, so a language whose emitter refused would go back
+ * to looking like a language the reference never had.
+ *
  * 20 SINCE THE MAINTAINER'S TWELVE. A node carries `codeSamplesElsewhere`, the languages SPEC 18
  * generates for this operation that the page did not draw. A page cached before this hydrates
  * against a client that reads the member, and a client reading `undefined` where a list belongs
@@ -182,7 +189,7 @@ import { reasonPhrase } from '../../shared/status';
  * 6 was T027: `run.bodyMediaTypes`, a list of strings, became `run.body`, a list of media types
  * each carrying the editor its schema asks for and the fields it is made of.
  */
-export const PAGE_MODEL_VERSION = 20;
+export const PAGE_MODEL_VERSION = 21;
 
 /** Media types an example is generated for. */
 const JSON_MEDIA_TYPE = /^application\/(?:[\w.+-]+\+)?json$/i;
@@ -970,7 +977,17 @@ function drawnOf(node: Omit<NodeModel, 'drawn'>): NodeModel['drawn'] {
     ...(node.responses.length > 0 || marks.length > 0 || contracts.length > 0
       ? ['responses' as const]
       : []),
-    ...(node.codeSamples.length > 0 ? ['samples' as const] : []),
+    // THE SAMPLES SECTION MOUNTS ON THERE BEING SOMETHING TO SAY, AND A TAB IS ONLY ONE OF THE
+    // THREE THINGS IT CAN SAY. It used to mount on `codeSamples` alone, so a node carrying nothing
+    // but the languages it names, which is what the `languages` parameter of `withGeneratedSamples`
+    // produces and SPEC 18 names as the supported lever, drew no tab, no sentence and no section:
+    // the languages went silently absent again, which is the one thing the sentence exists to stop.
+    // A refusal is the same case: no tab and a reason nobody would ever read.
+    ...(node.codeSamples.length > 0 ||
+    node.codeSamplesElsewhere.length > 0 ||
+    node.codeSamplesRefused.length > 0
+      ? ['samples' as const]
+      : []),
     // THE THREE CHANNEL SECTIONS OF `T050`, drawn from the same list for the same reason: the
     // client walks `drawn` and never recomputes a condition over a `channel` that arrives null.
     // The facts section draws when the channel says anything about itself beyond its address,
@@ -1029,6 +1046,7 @@ function nodeModel(context: ModelContext, nodeId: string): NodeModel | null {
       security: [],
       codeSamples: [],
       codeSamplesElsewhere: [],
+      codeSamplesRefused: [],
       run: null,
       channel: channelModel(view.node, context),
       runtime,
@@ -1077,6 +1095,13 @@ function nodeModel(context: ModelContext, nodeId: string): NodeModel | null {
     codeSamplesElsewhere: (view.node.codeSamplesElsewhere ?? []).map((language) => ({
       lang: language.lang,
       label: language.label,
+    })),
+    codeSamplesRefused: (view.node.codeSamplesRefused ?? []).map((group) => ({
+      reason: group.reason,
+      languages: group.languages.map((language) => ({
+        lang: language.lang,
+        label: language.label,
+      })),
     })),
     run: runnerOperationOf(view.node, document),
     channel: null,

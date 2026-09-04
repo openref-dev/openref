@@ -178,7 +178,16 @@ export function runShell(command: string, cwd: string): Promise<ShellRun> {
  * to the value the plan states, so a header parameter called `Accept-Language` is compared on both
  * sides exactly as any other is. A case pins that.
  *
- * A `content-type` is never exempt here, which is what catches a client inventing one.
+ * `content-type` IS EXEMPT IN EXACTLY ONE PLACE, A MULTIPART BODY, AND THE CALLER HAS TO ASK FOR
+ * IT. Everywhere else it is compared, which is what catches a client inventing one. The earlier
+ * sentence here said it was never exempt; that was false of this harness on the day it was written,
+ * because `curl-wire-equality.spec.ts` already passed it in for the multipart case. What the
+ * exemption buys is that the field is not compared as a string, since the boundary inside it is
+ * chosen by whoever frames the body and cannot match; what stands in its place is stronger than the
+ * comparison it replaces on everything except the boundary: {@link withoutBoundary} holds the media
+ * type and every other parameter of the field to the plan's, and the body is then compared part by
+ * part. So a client adding `charset` to a multipart content type is caught, which the `startsWith`
+ * form this replaced could not see.
  *
  * `content-length` IS EXEMPT IN EXACTLY TWO PLACES AND THE CALLER HAS TO ASK FOR IT, which is why it
  * is a parameter rather than a member of this list. It is framing rather than content, and it is
@@ -197,6 +206,31 @@ export const CLIENT_IDENTITY_HEADERS: readonly string[] = [
   'sec-fetch-mode',
   'user-agent',
 ];
+
+/**
+ * One content type with its `boundary` parameter taken off, so two framings can be compared.
+ *
+ * THE BOUNDARY IS THE WHOLE OF WHAT IS EXCUSED, AND THIS IS WHAT MAKES THAT TRUE RATHER THAN
+ * CLAIMED. Whoever frames a multipart body picks its boundary, so the runner's and the tool's
+ * differ by construction and no comparison of the field as a string can pass. Everything else in
+ * the field is a fact about the content and is compared: the media type, and any parameter a client
+ * added of its own.
+ *
+ * IT SPLITS ON `;` LIKE `boundaryOf` DOES, and the limit is the same one. A boundary written as a
+ * quoted string containing a semicolon would be cut in the wrong place; no client here writes one,
+ * and inventing a parameter parser for a form nothing produces would be a second implementation of
+ * the grammar with nothing holding it to the first.
+ *
+ * @param contentType - The field as one side sent it
+ * @returns The field with the boundary parameter removed, parameters otherwise in their order
+ */
+export function withoutBoundary(contentType: string): string {
+  return contentType
+    .split(';')
+    .map((part) => part.trim())
+    .filter((part) => part !== '' && !/^boundary=/iu.test(part))
+    .join('; ');
+}
 
 /**
  * Every header of one request that is the request rather than the client that sent it.

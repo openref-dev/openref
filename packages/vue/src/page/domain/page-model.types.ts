@@ -470,6 +470,26 @@ export interface CodeSampleLanguageModel {
 }
 
 /**
+ * Languages that could not write this request at all, and the one reason they gave, per SPEC 18.
+ *
+ * THE OTHER HALF OF {@link CodeSampleLanguageModel}, AND THE HALF THAT WAS MISSING. A language the
+ * page holds back is named beside the tabs; a language whose emitter refused this request simply
+ * had no tab, so a reader met the same silence for two different facts. SPEC 18's standing rule is
+ * that where a request cannot be expressed faithfully the page says so, and this is what it says
+ * it with.
+ *
+ * GROUPED BY REASON, BECAUSE A REFUSAL IS USUALLY SHARED. Nine templates decline a multipart body
+ * in the same words, and repeating that sentence nine times would put it nine times into a page
+ * state block whose size SPEC 20 already reports over its cap.
+ */
+export interface CodeSampleRefusalModel {
+  /** Why none of these languages could write this request, in the emitter's own words. */
+  readonly reason: string;
+  /** The languages that gave this reason, in the order the page would have met them. */
+  readonly languages: readonly CodeSampleLanguageModel[];
+}
+
+/**
  * The head of a node page: what the operation is, and nothing about what it carries.
  *
  * SEPARATE FROM {@link NodeModel} BECAUSE THE HEADER POSITION IS HANDED THIS AND NOT THAT. The
@@ -573,6 +593,16 @@ export interface NodeModel extends NodeHeaderModel {
    * whose document was never put through `withGeneratedSamples`.
    */
   readonly codeSamplesElsewhere: readonly CodeSampleLanguageModel[];
+  /**
+   * Languages that wrote no sample for this request, with the reason, per SPEC 18.
+   *
+   * REQUIRED FOR THE REASON THE MEMBER ABOVE IS, AND ANSWERING THE OTHER HALF OF ONE QUESTION.
+   * Together with `codeSamples` and `codeSamplesElsewhere` it accounts for every language the
+   * generator was asked about: drawn, held back, or unable. The empty list is the ordinary answer,
+   * on every channel, on every page whose document never went through `withGeneratedSamples`, and
+   * on every operation whose request all fifteen can express.
+   */
+  readonly codeSamplesRefused: readonly CodeSampleRefusalModel[];
   /**
    * What the try-it console needs to send this operation, or null for a channel.
    *

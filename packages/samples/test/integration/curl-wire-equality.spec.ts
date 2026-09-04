@@ -24,7 +24,7 @@ import { SPAWNED_PROCESS_TIMEOUT_MS } from '../../../../vitest.spawn-timeout';
 import { buildSampleRequest, generateCodeSamples } from '../../src/index';
 import type { SampleRequest } from '../../src/index';
 import { pngFile } from '../mocks/operations';
-import { comparableHeaders, runShell, startWireServer } from '../mocks/wire';
+import { comparableHeaders, runShell, startWireServer, withoutBoundary } from '../mocks/wire';
 import type { Wire, WireServer } from '../mocks/wire';
 
 /** One part of a multipart body, as the framing carried it. */
@@ -113,10 +113,10 @@ function partsOf(wire: Wire): readonly Part[] {
 /**
  * Compares two wires over everything the request declares.
  *
- * A MULTIPART CONTENT TYPE IS COMPARED AS A MEDIA TYPE AND ITS PARTS, not as a string, and that
- * is the one difference this suite accepts. The boundary is chosen by whoever frames the body,
- * so the runner's and curl's differ by construction; what has to match is every part the reader
- * supplied, byte for byte.
+ * A MULTIPART CONTENT TYPE IS COMPARED WITHOUT ITS BOUNDARY, not as a string and not as a prefix,
+ * and that is the one difference this suite accepts. The boundary is chosen by whoever frames the
+ * body, so the runner's and curl's differ by construction; the rest of the field is held to the
+ * plan's and every part the reader supplied has to match byte for byte.
  */
 function expectSameWire(request: SampleRequest, runner: Wire, curl: Wire): void {
   expect(curl.method).toBe(runner.method);
@@ -145,7 +145,13 @@ function expectSameWire(request: SampleRequest, runner: Wire, curl: Wire): void 
     expect(runner.headers[field], `runner dropped ${name}`).toBeDefined();
 
     if (multipart && field === 'content-type') {
-      expect(curl.headers[field]?.startsWith('multipart/form-data;')).toBe(true);
+      // THE BOUNDARY IS EXCUSED AND NOTHING ELSE IN THE FIELD IS, which is what the corrected
+      // SPEC 18 sentence states. Reading the field as a prefix left everything after
+      // `multipart/form-data;` unlooked at, so a client adding a `charset` of its own would have
+      // passed: the exemption is narrow enough to name, and this is it named.
+      expect(withoutBoundary(curl.headers[field] ?? '')).toBe(withoutBoundary(value));
+      expect(withoutBoundary(runner.headers[field] ?? '')).toBe(withoutBoundary(value));
+      expect(boundaryOf(curl.headers[field] ?? '')).not.toBe('');
       continue;
     }
 

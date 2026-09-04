@@ -42,6 +42,11 @@ const REPO_ROOT = join(import.meta.dirname, '..', '..', '..', '..');
  * and the browser builds the link, so a rule the bundle does not have is a theme linking to an
  * address the server does not serve. SPEC 20 records the arrival and the cap did not move.
  *
+ * THAT SAME NAME MOVED AGAIN ON 2026-09-03 AND ITS SIZE STILL DID NOT. `chunk-CRGLGLGA` became
+ * `chunk-DC7HAQCY` when the operation article began stating the refusal of a language that could
+ * not write the request, so a reader can tell a vanished tab from a language the page never had.
+ * Same mechanism, same 5,089 bytes, and the whole of the change is again in `openref.js`.
+ *
  * ONE OF THESE NAMES MOVED ON 2026-09-03 AND ITS SIZE DID NOT, which is the plain form of the
  * mechanism. `chunk-IF2D2VIE` became `chunk-CRGLGLGA` when the operation article gained the
  * sentence naming the three SPEC 18 languages the page does not draw: the chunk imports the module
@@ -59,7 +64,7 @@ const INITIAL = [
   'openref.js',
   'chunk-EJ4XQ22A.js',
   'chunk-FMGVZQY6.js',
-  'chunk-CRGLGLGA.js',
+  'chunk-DC7HAQCY.js',
   'chunk-GKCAFBE4.js',
   'chunk-FYRWH3QL.js',
   'chunk-MPK3G3AA.js',
@@ -108,21 +113,28 @@ describe('the published form of this tree', () => {
     // When
     const total = INITIAL.reduce((sum, name) => sum + sizeOf(name), 0);
 
-    // Then, the figure after the operation page began naming the three SPEC 18 languages it does
-    // not draw, 229 bytes over the 112,151 the row carried after `T065`'s node segment escape,
-    // which was itself 325 over the 111,826 the socket console left, which was 1,267 over 110,559.
-    // The cap did not move for any of them: 112,380 still fits under 110 KB and `sign-in-return`
-    // returning to the first load still fails the budget, which is the property SPEC 20 states.
-    expect(total).toBe(112_380);
-    expect(total - 112_151).toBe(229);
-    expect(112_151 - 111_826).toBe(325);
-    expect(111_826 - 110_559).toBe(1_267);
+    // Then, the figure this tree publishes, after the operation page began stating the refusal of
+    // a language that could not write the request.
+    //
+    // THE DELTA CHAIN THAT STOOD HERE WAS ARITHMETIC OVER A MEASUREMENT AND A LITERAL PRIOR, AND
+    // IT IS RECORDED RATHER THAN ASSERTED NOW. `expect(total - 112_151).toBe(229)` could not fail
+    // unless the line above it failed first, and `expect(112_151 - 111_826).toBe(325)` could not
+    // fail at all: each prior belongs to a tree that no longer exists, so the pair held a number
+    // and not a fact, which is the class this file's own header exists to prevent. Every one of
+    // them was measured the way SPEC 20 requires of an arrival, by building the tree twice with
+    // the change and without it, and that is what they are written down as: 112,561 is 181 over
+    // the 112,380 the row carried once the page named the three languages it does not draw, which
+    // was 229 over the 112,151 left by `T065`'s node segment escape, itself 325 over the 111,826
+    // left by the socket console, itself 1,267 over 110,559. The cap did not move for any of them.
+    expect(total).toBe(112_561);
 
-    // AND ALL 229 ARE IN THE ENTRY, which is what says the sentence is the whole of the change and
-    // that the renamed chunk is a digest moving rather than content arriving.
-    expect(sizeOf('openref.js')).toBe(21_016);
-    expect(sizeOf('openref.js') - 20_787).toBe(229);
-    expect(sizeOf('chunk-CRGLGLGA.js')).toBe(5_089);
+    // AND ALL 181 ARE IN THE ENTRY, WHICH IS DERIVED HERE RATHER THAN RESTATED. The six files
+    // beside the entry weighed 91,364 before the change and weigh 91,364 after it, both operands
+    // off this tree, so the renamed chunk is a digest moving rather than content arriving and the
+    // entry is where the whole of the change went.
+    expect(sizeOf('openref.js')).toBe(21_197);
+    expect(total - sizeOf('openref.js')).toBe(91_364);
+    expect(sizeOf('chunk-DC7HAQCY.js')).toBe(5_089);
     expect(sizeOf('chunk-MPK3G3AA.js')).toBe(656);
   });
 
@@ -164,7 +176,7 @@ describe('the published form of this tree', () => {
 
     // Then, the published totals rather than the 62,424 and 110,284 the disk holds
     expect(messageOf('theme-css-raw')).toContain(`${formatBytes(62_594)} raw`);
-    expect(messageOf('client-js-raw')).toContain(`${formatBytes(112_380)} raw`);
+    expect(messageOf('client-js-raw')).toContain(`${formatBytes(112_561)} raw`);
     expect(report.errors).toEqual([]);
   });
 
@@ -196,13 +208,18 @@ describe('the published form of this tree', () => {
     const initial = INITIAL.reduce((sum, name) => sum + sizeOf(name), 0);
     const signInReturn = sizeOf('oauth-landing-VRHHK533.js') + sizeOf('chunk-FI2DNV2T.js');
 
-    // 260 SINCE 2026-09-03 AND IT WAS 489, AND THE 229 ARE NAMED RATHER THAN ABSORBED. The
-    // operation page now names the three SPEC 18 languages it does not draw, so a reader can tell
-    // a language this reference does not have from one it can produce. The bytes reach the first
-    // paint because the samples section is the one part of the article that fails the adoption
-    // question of SPEC 12: its tab is client state, so the whole section is composed in the
-    // browser. THE CAP DID NOT MOVE and is asserted above.
-    expect(capOf('client-js-raw') - initial).toBe(260);
+    // 79 SINCE 2026-09-03 AND IT WAS 260, AND THE 181 ARE NAMED RATHER THAN ABSORBED. The
+    // operation page now states the refusal of a language whose emitter could not write this
+    // request, so a vanished tab is told apart from a language the reference never had, which is
+    // the same guarantee the sentence below it makes for the three the page holds back. The bytes
+    // reach the first paint because the samples section is the one part of the article that fails
+    // the adoption question of SPEC 12: its tab is client state, so the whole section is composed
+    // in the browser. THE CAP DID NOT MOVE and is asserted above; 79 bytes is what is left of it.
+    //
+    // 260 SINCE 2026-09-03 AND IT WAS 489, AND THE 229 WERE NAMED THE SAME WAY. The operation page
+    // began naming the three SPEC 18 languages it does not draw, so a reader can tell a language
+    // this reference does not have from one it can produce.
+    expect(capOf('client-js-raw') - initial).toBe(79);
 
     // AND THE PROPERTY THE CAP IS DERIVED BY, CHECKED THE SAME WAY: the smallest whole KB step the
     // artefact fits under, at which the cheapest deferred gesture returning to the first load still
