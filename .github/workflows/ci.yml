@@ -27,12 +27,18 @@ jobs:
     # could absorb rather than by what it declared.
     #
     # RE-MEASURED AFTER THE THREE FIXES, BECAUSE THEY CHANGE THE NUMBER, and measured on the runner
-    # with the machine beside every reading. Six samples of one commit through the `wall` job of
-    # `coverage-timeout-study.yml`, which runs this job step for step: 22m07s on an AMD EPYC 9V74,
-    # 22m04s and 22m27s on an EPYC 7763 for Node 24; 24m57s and 25m23s on an EPYC 7763 and 16m18s on
-    # an Intel Xeon 6973P-C for Node 22. Zero test timeouts in all six. The observed maximum is
-    # 25m23s and the observed minimum is 16m18s, and the 9m05s between them is which processor the
-    # pool handed out and not which Node version ran: the same Node 22 gives both ends.
+    # with the machine beside every reading. Twelve samples over two rounds, through the `wall` job
+    # of `coverage-timeout-study.yml`, which runs this job step for step. Node 24: 22m07s on an AMD
+    # EPYC 9V74, 22m04s and 22m27s on an EPYC 7763, 16m23s on an Intel Xeon 6973P-C, 17m36s and
+    # 18m25s on an EPYC 9V74. Node 22: 24m57s, 25m23s and 25m01s on an EPYC 7763, 16m18s on an Intel
+    # Xeon 6973P-C, 19m08s on an Intel Xeon Platinum 8573C, 20m12s on an EPYC 9V74. Zero test
+    # timeouts in all twelve.
+    #
+    # THE OBSERVED MAXIMUM IS 25m23s AND THE OBSERVED MINIMUM IS 16m18s, and the 9m05s between them
+    # is which processor the pool handed out rather than which Node version ran: the same Node 22
+    # gives both ends, every reading over 24m is on an EPYC 7763 and every reading under 19m is on
+    # an Intel Xeon. The second round reproduced the first without exceeding it, 25m01s against
+    # 25m23s, which is what makes 25m23s a maximum rather than one sample's high reading.
     #
     # THE MARGIN THIS REPOSITORY USES FOR A BOUND CANNOT BE USED HERE AND THAT IS SAID RATHER THAN
     # QUIETLY SWAPPED. A test bound gets an order of magnitude over its measured maximum. Ten times

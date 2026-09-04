@@ -32,9 +32,9 @@ name: Coverage timeout study
 # class one here, and the reason `format-allowlist.spec.ts` could not be given an order of magnitude
 # over its own maximum: ten times its worst reading is 40.6 minutes, past the wall itself.
 #
-# THE MAINTAINER RULED ON IT ON 2026-09-04 AND THE WALL IS NOW 45, set from the six samples the
-# `wall` job below takes, with the derivation and its refusal of the order of magnitude margin
-# written where the number lives, in `ci.yml`. The paragraph above is kept as the history it is. The
+# THE MAINTAINER RULED ON IT ON 2026-09-04 AND THE WALL IS NOW 45, set from the samples the `wall`
+# job below takes, with every reading, the derivation and its refusal of the order of magnitude
+# margin written where the number lives, in `ci.yml`. The paragraph above is kept as history. The
 # `format-allowlist.spec.ts` sentence in it is history too: that case now reads about 2.3 seconds,
 # because the ruling changed its instrument rather than its bound.
 
