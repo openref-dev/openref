@@ -353,8 +353,10 @@ describe('the published surface of @openref/vue', () => {
       expect(COMPILER_HANG_CATCHER_MS / reading).toBeGreaterThanOrEqual(MARGIN);
     }
 
-    // And the cache is what keeps it there: two declaration files, one program each, however many
-    // questions the cases above ask of them.
-    expect(compiled.size).toBe(2);
+    // And the cache is what keeps it there, asserted as the property rather than as a count so it
+    // does not depend on which cases ran first: asking twice reaches one program, and no more
+    // programs exist than there are entry points to build them over.
+    expect(compile(built('dist/index.d.ts'))).toBe(compile(built('dist/index.d.ts')));
+    expect(compiled.size).toBeLessThanOrEqual(ENTRY_POINTS.length);
   });
 });

@@ -226,7 +226,7 @@ const scans = new Map<string, string[]>();
  * @returns The files prettier reports as different, one per entry
  */
 function prettierFileList(patterns: readonly string[], ignorePath: string): string[] {
-  const key = `${ignorePath} ${patterns.join(' ')}`;
+  const key = JSON.stringify([ignorePath, ...patterns]);
   const cached = scans.get(key);
   if (cached !== undefined) return cached;
 
