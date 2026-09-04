@@ -6,6 +6,8 @@ import {
   conditionalCasesFailed,
   MACHINES,
   machineOf,
+  PROBE_HANG_CATCHER_MS,
+  PROBE_MEASURED_MAXIMUM_MS,
   probeDependency,
   reconcileConditionalCases,
   scanConditionalCases,
@@ -71,7 +73,7 @@ function onDarwinWithEverything(
 ): Parameters<typeof reconcileConditionalCases>[1] {
   return {
     machine: 'darwin-workstation',
-    present: new Map(dependencies.map((dependency) => [dependency.id, true])),
+    present: new Map(dependencies.map((dependency) => [dependency.id, 'present'])),
   };
 }
 
@@ -197,7 +199,7 @@ describe('the register against the machine it is running on', () => {
     // When
     const issues = reconcileConditionalCases(
       [seen()],
-      { machine: 'darwin-workstation', present: new Map([['thing', false]]) },
+      { machine: 'darwin-workstation', present: new Map([['thing', 'absent']]) },
       [group()],
       [claimed],
     );
@@ -219,7 +221,7 @@ describe('the register against the machine it is running on', () => {
     // When
     const issues = reconcileConditionalCases(
       [seen()],
-      { machine: 'darwin-workstation', present: new Map([['thing', true]]) },
+      { machine: 'darwin-workstation', present: new Map([['thing', 'present']]) },
       [group()],
       [understated],
     );
@@ -405,7 +407,7 @@ describe('a column nobody established', () => {
     // When
     const issues = reconcileConditionalCases(
       [seen()],
-      { machine: 'linux-runner', present: new Map([['thing', true]]) },
+      { machine: 'linux-runner', present: new Map([['thing', 'present']]) },
       [group()],
       [dependency],
     );
@@ -462,25 +464,126 @@ describe('a column nobody established', () => {
     expect(issues.map((issue) => issue.message).join('\n')).toContain('it is on NEITHER machine');
   });
 
-  it('should be the record the C# wire cases carry, and the only one that carries it', () => {
-    // Given the committed register
+  it('should have been settled on the C# cases by the first run that could measure it', () => {
+    // Given the committed register. `dotnet` is the one dependency that ever carried the third
+    // state: it was written on 2026-09-04 from a machine that could not read the runner's software
+    // list, and the `columns` job of run 33893185806 measured that column on the runner the same
+    // day as SDK 10.0.400 at /usr/bin/dotnet.
     const dotnet = CONDITIONAL_DEPENDENCIES.find((entry) => entry.id === 'dotnet');
 
-    // Then the subject is present before anything is claimed about the shape of the register
-    expect(dotnet?.runsOn).toEqual(['darwin-workstation']);
-    expect(dotnet?.undetermined).toEqual(['linux-runner']);
+    // Then the subject is present before anything is claimed about the shape of the register, and
+    // the column is written down rather than still being asked
+    expect(dotnet).toBeDefined();
+    expect([...(dotnet?.runsOn ?? [])].sort()).toEqual([...MACHINES].sort());
+    expect(dotnet?.undetermined).toBeUndefined();
+
+    // And nothing in the committed register is undetermined any more, which is this state working
+    // rather than this state being unused: every rule about it below is held on a planted register
     expect(
       CONDITIONAL_DEPENDENCIES.filter((entry) => (entry.undetermined ?? []).length > 0).map(
         (entry) => entry.id,
       ),
-    ).toEqual(['dotnet']);
+    ).toEqual([]);
 
-    // And the group it guards is the C# half of the wire suite
+    // And the group it guards is still the C# half of the wire suite
     const guarded = CONDITIONAL_CASES.filter((entry) => entry.dependency === 'dotnet');
     expect(guarded.map((entry) => entry.file)).toEqual([
       'packages/samples/test/integration/tool-wire-equality.spec.ts',
     ]);
     expect(guarded[0]?.guard).toBe('!present.dotnet');
+  });
+});
+
+describe('a probe that was killed before it answered', () => {
+  /** A dependency whose binary is there and will not answer inside the wait it is given. */
+  function sleeps(): ConditionalDependency {
+    return {
+      ...bothMachines('sleeper'),
+      probe: { kind: 'binary', command: 'sh', args: ['-c', 'sleep 30'] },
+    };
+  }
+
+  it('should be told apart from an absence, because one of the two measured nothing', () => {
+    // Given: the proof of absence asserts its subject is present first. `sh` is on both machines
+    // and answers when it is allowed to, so what the short wait changes is the answer and not the
+    // machine.
+    const runnable: ConditionalDependency = {
+      ...bothMachines('sleeper'),
+      probe: { kind: 'binary', command: 'sh', args: ['-c', 'exit 0'] },
+    };
+    expect(probeDependency(runnable, repoRoot, 30_000)).toBe('present');
+
+    // When the same shell is asked for something it cannot finish inside the wait
+    const killed = probeDependency(sleeps(), repoRoot, 250);
+
+    // Then it is undetermined and not absent, because nothing about this machine was learned
+    expect(killed).toBe('undetermined');
+  });
+
+  it('should still call a missing binary absent however short the wait is', () => {
+    // Given a command no machine has, and the same 250 ms that turned the sleeper undetermined
+    const gone: ConditionalDependency = {
+      ...bothMachines('gone'),
+      probe: { kind: 'binary', command: 'openref-no-such-binary', args: ['--version'] },
+    };
+
+    // When, Then: an absence is ENOENT and immediate, so a short wait cannot manufacture one
+    expect(probeDependency(gone, repoRoot, 250)).toBe('absent');
+  });
+
+  it('should take the run red rather than agree with whatever the register says', () => {
+    // Given a register that says this machine does NOT have it, and a probe that could not tell.
+    // Before 2026-09-04 the probe reported absence here and this run went green on a column
+    // nobody measured, which is the silent half of the defect that took CI red on Swift.
+    const claimsAbsent: ConditionalDependency = {
+      ...bothMachines('thing'),
+      runsOn: ['linux-runner'],
+    };
+
+    // When
+    const issues = reconcileConditionalCases(
+      [seen()],
+      { machine: 'darwin-workstation', present: new Map([['thing', 'undetermined']]) },
+      [group()],
+      [claimsAbsent],
+    );
+
+    // Then
+    expect(conditionalCasesFailed(issues)).toBe(true);
+    expect(issues.map((issue) => issue.message).join('\n')).toContain(
+      'was killed before it answered',
+    );
+  });
+
+  it('should report what it measured when the register already says nobody knows', () => {
+    // Given a column recorded as unestablished and a probe that also could not establish it
+    const dependency: ConditionalDependency = {
+      ...bothMachines('thing'),
+      runsOn: ['darwin-workstation'],
+      undetermined: ['linux-runner'],
+    };
+
+    // When
+    const issues = reconcileConditionalCases(
+      [seen()],
+      { machine: 'linux-runner', present: new Map([['thing', 'undetermined']]) },
+      [group()],
+      [dependency],
+    );
+
+    // Then the measurement is printed as what it was, which is nothing
+    expect(issues.map((issue) => issue.message).join('\n')).toContain(
+      'measured it as UNDETERMINED',
+    );
+  });
+
+  it('should hold the wait it gives a binary to the margin it claims over what was measured', () => {
+    // Given, the margin used to be a sentence, and a sentence cannot go red. The wait was 30,000
+    // against a first `swift --version` measured at 57,992 ms on the runner, which is under half
+    // the reading it was supposed to cover.
+
+    // When, Then: an order of magnitude, which is what this repository uses for a hang catcher
+    expect(PROBE_HANG_CATCHER_MS / PROBE_MEASURED_MAXIMUM_MS).toBeGreaterThanOrEqual(10);
   });
 });
 
@@ -492,13 +595,13 @@ describe('the probe', () => {
       probe: { kind: 'binary', command: 'openref-no-such-binary', args: ['--version'] },
     };
 
-    // When, Then: a probe that cannot answer reports absence, which is what the guard does
-    expect(probeDependency(absent, repoRoot)).toBe(false);
+    // When, Then: a binary that is not installed is an absence, which is what the guard does
+    expect(probeDependency(absent, repoRoot)).toBe('absent');
   });
 
   it('should report presence for a path that is in the checkout', () => {
     // Given, When, Then
-    expect(probeDependency(bothMachines('here'), repoRoot)).toBe(true);
+    expect(probeDependency(bothMachines('here'), repoRoot)).toBe('present');
   });
 
   it('should report absence for a path that is not', () => {
@@ -509,6 +612,6 @@ describe('the probe', () => {
     };
 
     // When, Then
-    expect(probeDependency(missing, repoRoot)).toBe(false);
+    expect(probeDependency(missing, repoRoot)).toBe('absent');
   });
 });

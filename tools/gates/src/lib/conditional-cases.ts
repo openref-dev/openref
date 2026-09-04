@@ -37,6 +37,20 @@
  * machine out of `runsOn` is not neutral: it prints a GAP asserting the case never runs there, and
  * a wrong absence is as much a false record as a wrong presence. See
  * {@link ConditionalDependency.undetermined}.
+ *
+ * AND THE SAME THIRD STATE BELONGS TO THE PROBE, WHICH IS WHAT THE FIRST RUN ON THE RUNNER FOUND.
+ * `probeDependency` used to wait 30,000 ms and call everything else absence, and on 2026-09-04 it
+ * reported the Swift toolchain missing from a machine that has it and had run the Swift wire cases
+ * green ninety minutes earlier. The reading that settles it is in {@link PROBE_HANG_CATCHER_MS}:
+ * the FIRST `swift --version` on a fresh runner costs between 18,451 and 57,992 ms because the
+ * toolchain comes off a cold disk, and every call after it costs about 90 ms under the full load of
+ * the suite. A wait of 30,000 sat inside that spread, so the same code was green on one runner and
+ * red on the next. THE DEFECT WAS NOT THE WAIT ON ITS OWN. It was that a probe which had measured
+ * nothing returned the same answer as a probe that had measured an absence, which is this file's
+ * own rule turned on itself. A binary that is not installed answers ENOENT in 11 ms at worst,
+ * measured 686 times over four runners under every load those runs produced; so absence is cheap
+ * and certain, and anything killed before it answered is now {@link ProbeOutcome} `undetermined`
+ * and goes red saying so.
  */
 
 import { execFileSync } from 'node:child_process';
@@ -96,6 +110,14 @@ export interface ConditionalDependency {
    * IT NEVER SUBSTITUTES FOR `runsOn`. A dependency with an empty `runsOn` is still the error this
    * file exists for, undetermined or not: a check nothing has ever been shown to run is a check
    * that exists as text. A machine may not appear in both lists.
+   *
+   * NOTHING CARRIES IT TODAY, AND THAT IS THE STATE WORKING RATHER THAN THE STATE BEING UNUSED.
+   * `dotnet` was written with it on 2026-09-04 because the image software list was the only source
+   * for a runner column and that document was not readable from here; the first run on the runner
+   * measured the column the same day and it was written down, which is the sentence this field was
+   * always going to end in. The state stays because the next dependency written from a machine
+   * that cannot see the other one needs it, and `conditional-cases.spec.ts` holds every rule about
+   * it on planted registers so that the absence of a carrier costs no coverage.
    */
   readonly undetermined?: readonly MachineId[];
 
@@ -106,12 +128,27 @@ export interface ConditionalDependency {
 /**
  * The dependencies every guarded case in this repository waits on.
  *
- * THE LINUX COLUMN IS READ OFF THE RUNNER IMAGE MANIFEST AND DATED, because it is the half no
- * run here can measure. `ubuntu-latest` resolved to Ubuntu 24.04 image 20260823.283.1 on
- * 2026-09-04, and its published software list is the source for every `linux-runner` entry below.
- * A tool absent from that list is absent from the runner: the list is what states nginx, wget,
- * PowerShell, Swift and Ruby are there, so it is the same document for both answers rather than
- * a presence list read as an absence list.
+ * THE LINUX COLUMN IS MEASURED ON THE RUNNER SINCE 2026-09-04, AND IT USED TO BE READ OFF THE
+ * IMAGE MANIFEST. The old note said `ubuntu-latest` resolved to Ubuntu 24.04 image 20260823.283.1
+ * and that its published software list was the source for every `linux-runner` entry. That
+ * document was right about all twelve, which is the least interesting way this could have come
+ * out and is still worth writing down; what was wrong was the standing of the claim, because a
+ * list read once is not a measurement and nothing here could tell the two apart.
+ *
+ * WHAT MEASURED IT. `runner-column-study.yml`, run 33893185806 and run 33893701335 on branch
+ * `page-bytes/slice-3-measurement`, four vCPU `ubuntu-latest`: the `columns` job runs this file's
+ * own probe through `pnpm gates test-skips` and prints every column, and the `under-load` job runs
+ * the same probes with no wait at all, first on a cold machine and then in a loop beside the whole
+ * unit suite, 343 rounds over four runners. Both answers agree, and every version below was read
+ * off that machine rather than off a web page.
+ *
+ * A SECOND INSTRUMENT AGREES AND IS NAMED, because a column measured by one probe is a column
+ * measured by one probe. CI run 33874798247, the last green run before the register existed, ran
+ * `pnpm run test:integration` on the runner and reported `tool-wire-equality.spec.ts` as 27 tests
+ * with 6 skipped, and 10 skipped over the whole integration suite. Those two counts are only
+ * possible with exactly this column: 5 for HTTPie plus 1 for the four tool case make the six, and
+ * caddy, the folding volume and the two `ai-docs` cases make the other four. The wget, PowerShell,
+ * Ruby, Swift and .NET cases ran there, on the runner, and sent their requests.
  */
 export const CONDITIONAL_DEPENDENCIES: readonly ConditionalDependency[] = [
   {
@@ -119,7 +156,9 @@ export const CONDITIONAL_DEPENDENCIES: readonly ConditionalDependency[] = [
     description: 'the wget binary, which sends one of the SPEC 18 samples for real',
     probe: { kind: 'binary', command: 'wget', args: ['--version'] },
     runsOn: ['darwin-workstation', 'linux-runner'],
-    evidence: 'Ubuntu 24.04 runner image lists apt package wget 1.21.4-1ubuntu4.5',
+    evidence:
+      'measured on the runner 2026-09-04 as GNU Wget 1.21.4 at /usr/bin/wget, and here the same ' +
+      'day. Six wire cases ran on the runner in CI run 33874798247',
   },
   {
     id: 'httpie',
@@ -127,30 +166,41 @@ export const CONDITIONAL_DEPENDENCIES: readonly ConditionalDependency[] = [
     probe: { kind: 'binary', command: 'http', args: ['--version'] },
     runsOn: ['darwin-workstation'],
     evidence:
-      'Ubuntu 24.04 runner image names no HTTPie anywhere, in the tool list or the apt list, ' +
-      'while naming wget, nginx, Ruby, Swift and PowerShell, so this is an absence in a ' +
-      'document that states the presences',
+      'measured absent on the runner 2026-09-04: not on PATH, and the probe answers ENOENT in ' +
+      '11 ms at worst over 343 rounds beside a full suite, which is what an absence costs when it ' +
+      'is real. Five of the six cases skipped in `tool-wire-equality.spec.ts` in CI run ' +
+      '33874798247 are these',
   },
   {
     id: 'powershell',
     description: 'the PowerShell binary `pwsh`, which sends one of the SPEC 18 samples for real',
     probe: { kind: 'binary', command: 'pwsh', args: ['-NoProfile', '-Command', 'exit 0'] },
     runsOn: ['darwin-workstation', 'linux-runner'],
-    evidence: 'Ubuntu 24.04 runner image lists PowerShell 7.6.5',
+    evidence:
+      'measured on the runner 2026-09-04 at /usr/bin/pwsh, apt package powershell 7.6.5-1.deb. ' +
+      'Its first call costs 2,507 to 3,863 ms cold and about 180 ms warm',
   },
   {
     id: 'swift',
     description: 'the Swift toolchain, which compiles and runs one of the SPEC 18 samples',
     probe: { kind: 'binary', command: 'swift', args: ['--version'] },
     runsOn: ['darwin-workstation', 'linux-runner'],
-    evidence: 'Ubuntu 24.04 runner image lists Swift 6.3.3',
+    evidence:
+      'measured on the runner 2026-09-04 as Swift 6.3.3 (swift-6.3.3-RELEASE), target ' +
+      'x86_64-unknown-linux-gnu, at /usr/local/bin/swift. THIS COLUMN IS THE ONE THE FIRST CI RUN ' +
+      'CALLED FALSE AND IT WAS NOT: the probe waited 30,000 ms and the first `swift --version` on ' +
+      'a fresh runner costs 18,451 to 57,992 ms off a cold disk, so what was measured was the ' +
+      'wait and not the machine. Its two wire cases ran on the runner in CI run 33874798247',
   },
   {
     id: 'ruby',
     description: 'the Ruby interpreter, which runs one of the SPEC 18 samples',
     probe: { kind: 'binary', command: 'ruby', args: ['--version'] },
     runsOn: ['darwin-workstation', 'linux-runner'],
-    evidence: 'Ubuntu 24.04 runner image lists Ruby 3.2.3',
+    evidence:
+      'measured on the runner 2026-09-04 as ruby 3.2.3 (2024-01-18 revision 52bb2ac0a6) ' +
+      '[x86_64-linux-gnu] at /usr/bin/ruby. Its four wire cases ran on the runner in CI run ' +
+      '33874798247',
   },
   {
     id: 'dotnet',
@@ -160,15 +210,14 @@ export const CONDITIONAL_DEPENDENCIES: readonly ConditionalDependency[] = [
       command: 'sh',
       args: ['-c', 'DOTNET_CLI_TELEMETRY_OPTOUT=1 dotnet --version'],
     },
-    runsOn: ['darwin-workstation'],
-    undetermined: ['linux-runner'],
+    runsOn: ['darwin-workstation', 'linux-runner'],
     evidence:
-      'measured here 2026-09-04 as SDK 10.0.400, which is what puts darwin-workstation in ' +
-      'runsOn. THE RUNNER COLUMN IS UNDETERMINED AND THAT IS THE RECORD RATHER THAN A GAP: every ' +
-      'other linux-runner entry in this file is read off the Ubuntu 24.04 image software list, ' +
-      'that document was not readable from the machine this entry was written on, and both a yes ' +
-      'and a no would have been invented. `ci.yml` adds no setup-dotnet step, so nothing in this ' +
-      'repository settles it either. The first run on linux measures it and says so',
+      'measured here 2026-09-04 as SDK 10.0.400 and measured on the runner the same day as SDK ' +
+      '10.0.400 at /usr/bin/dotnet. THIS COLUMN WAS RECORDED UNDETERMINED AND IS NOW MEASURED, ' +
+      'which is the whole of what that state is for: it was written when the image software list ' +
+      'was the only source and that document was not readable from here, `ci.yml` still adds no ' +
+      'setup-dotnet step, and the first run on linux settled it rather than a guess doing so. Its ' +
+      'two wire cases ran on the runner in CI run 33874798247',
   },
   {
     id: 'four-tools-together',
@@ -177,8 +226,11 @@ export const CONDITIONAL_DEPENDENCIES: readonly ConditionalDependency[] = [
     probe: { kind: 'binary', command: 'http', args: ['--version'] },
     runsOn: ['darwin-workstation'],
     evidence:
-      'the weakest of its four is HTTPie, so this group is exactly as covered as `httpie` and ' +
-      'is probed by the same binary',
+      'HTTPie is the only one of its four the runner does not have, measured 2026-09-04, so this ' +
+      'group is exactly as covered as `httpie` and is probed by the same binary. The sentence ' +
+      'this replaces called HTTPie "the weakest of its four" when Swift was believed absent too, ' +
+      'and it is now one rather than two. It is the sixth case skipped in ' +
+      '`tool-wire-equality.spec.ts` in CI run 33874798247',
   },
   {
     id: 'nginx',
@@ -186,8 +238,9 @@ export const CONDITIONAL_DEPENDENCIES: readonly ConditionalDependency[] = [
     probe: { kind: 'binary', command: 'nginx', args: ['-v'] },
     runsOn: ['darwin-workstation', 'linux-runner'],
     evidence:
-      'Ubuntu 24.04 runner image lists nginx 1.24.0 as an installed service. THIS IS THE CASE ' +
-      'THIS FILE EXISTS FOR: it ran on neither machine for two milestones and reported nothing',
+      'measured on the runner 2026-09-04 as nginx/1.24.0 (Ubuntu) at /usr/sbin/nginx, apt ' +
+      'package nginx 1.24.0-2ubuntu7.17. THIS IS THE CASE THIS FILE EXISTS FOR: it ran on ' +
+      'neither machine for two milestones and reported nothing',
   },
   {
     id: 'caddy',
@@ -195,8 +248,8 @@ export const CONDITIONAL_DEPENDENCIES: readonly ConditionalDependency[] = [
     probe: { kind: 'binary', command: 'caddy', args: ['version'] },
     runsOn: ['darwin-workstation'],
     evidence:
-      'Ubuntu 24.04 runner image names no caddy anywhere, while naming nginx as an installed ' +
-      'service, so the two halves of this suite are not equally covered',
+      'measured absent on the runner 2026-09-04: not on PATH, ENOENT in 9 ms at worst over 343 ' +
+      'rounds, while nginx is there, so the two halves of this suite are not equally covered',
   },
   {
     id: 'case-insensitive-volume',
@@ -206,8 +259,8 @@ export const CONDITIONAL_DEPENDENCIES: readonly ConditionalDependency[] = [
     probe: { kind: 'case-insensitive-volume' },
     runsOn: ['darwin-workstation'],
     evidence:
-      'the runner checkout is on ext4, which is case sensitive, and mounting a folding volume ' +
-      'is not something a checkout can do',
+      'measured on the runner 2026-09-04 by writing `a` into a temporary directory and asking ' +
+      'for `A`, which was not there. Mounting a folding volume is not something a checkout can do',
   },
   {
     id: 'demo-application-built',
@@ -215,8 +268,8 @@ export const CONDITIONAL_DEPENDENCIES: readonly ConditionalDependency[] = [
     probe: { kind: 'path', path: 'examples/nest-minimal/dist/main.js' },
     runsOn: ['darwin-workstation', 'linux-runner'],
     evidence:
-      'ci.yml runs `pnpm run build` before both suite steps, and `examples/*` is in the pnpm ' +
-      'workspace with its own `build` script, so the runner has it',
+      'measured on the runner 2026-09-04: 3,717 bytes at examples/nest-minimal/dist/main.js ' +
+      'after the `pnpm run build` step ci.yml runs before both suite steps',
   },
   {
     id: 'ai-docs',
@@ -224,7 +277,9 @@ export const CONDITIONAL_DEPENDENCIES: readonly ConditionalDependency[] = [
     probe: { kind: 'path', path: 'ai-docs/SPEC.md' },
     runsOn: ['darwin-workstation'],
     evidence:
-      'ai-docs/ is not tracked by this repository and ci.yml adds no step that fetches it, so ' +
+      'measured absent on the runner 2026-09-04: `ls -d ai-docs` answers no such file or ' +
+      'directory there. ai-docs/ is not tracked by this repository and ci.yml adds no step that ' +
+      'fetches it, so ' +
       'every runner checkout is without it. This is the largest group in the register and the ' +
       'reason the committed projection of tools/gates/ai-docs-projection.json exists',
   },
@@ -565,27 +620,99 @@ export function scanConditionalCases(repoRoot: string): FoundGroup[] {
 }
 
 /**
- * Whether this machine has what a dependency names.
+ * What one probe found out about the machine it ran on, including that it found nothing out.
  *
- * IT NEVER ANSWERS TRUE WHEN IT COULD NOT TELL. A probe that throws for any reason other than a
- * successful run reports absence, because the guard in the suite behaves the same way: what a
- * suite does on a failed probe is skip, so that is what "does not have it" means here.
+ * THE THIRD MEMBER IS THE WHOLE POINT AND IT IS NOT A CONVENIENCE. `absent` is a measurement: the
+ * machine was asked and said no. `undetermined` is the absence of a measurement, and folding it
+ * into `absent` is how this file's own rule gets broken from the inside, because a register that
+ * cannot tell a measured no from an unanswered question is the state the nginx case was in.
+ */
+export type ProbeOutcome = 'present' | 'absent' | 'undetermined';
+
+/**
+ * How long a version probe waits before what it has is a hang rather than an answer.
+ *
+ * IT WAS 30,000 AND 30,000 WAS INSIDE THE SPREAD OF A REAL ANSWER, WHICH IS THE DEFECT. Measured
+ * by `runner-column-study.yml`, four vCPU `ubuntu-latest`, the FIRST `swift --version` after a
+ * checkout, an install and a build costs 18,451, 32,662, 38,434 and 57,992 ms on four runners: the
+ * Swift toolchain comes off a cold disk. Every call after it costs 90 to 171 ms even with the whole
+ * unit suite running beside it, 343 rounds. So a wait of 30,000 was answering a question about the
+ * disk, and the same unchanged code was green on one runner and red on the next, which is exactly
+ * what happened on 2026-09-04 between CI run 33884072380 and the `columns` job an hour later.
+ *
+ * THE MARGIN IS THE ONE THIS REPOSITORY USES, an order of magnitude over the measured maximum,
+ * which is what `packages/vue/test/integration/public-surface.spec.ts`,
+ * `tools/gates/test/integration/published-surface-agreement.spec.ts`,
+ * `tools/browser-budget/test/unit/specification.spec.ts` and
+ * `packages/theme-telltale/test/integration/corpus.spec.ts` all name and derive from. Ten times
+ * 57,992 is 579,920, rounded up to the next whole ten seconds. `conditional-cases.spec.ts` holds
+ * this number to that margin over that reading, so the two cannot drift apart in a comment.
+ *
+ * IT IS A HANG CATCHER AND NOT A BUDGET, and nothing should be tuned against it. Reaching it means
+ * a binary that never returns, and what the reconciliation then says is that the column is
+ * unverified. THE OTHER DIRECTION COSTS NOTHING, which is why a number this large is affordable: a
+ * binary that is not installed answers ENOENT in 11 ms at worst under any load, measured 686 times,
+ * so an absence never waits and only a hang does.
+ *
+ * `SPAWNED_PROCESS_TIMEOUT_MS` IS NOT REUSED HERE AND THE REASON IS ARITHMETIC. It is 180,000, and
+ * against this measured maximum that is 3.1 times rather than ten, so adopting it would be adopting
+ * a number derived from a different measurement and quietly claiming this one's margin.
+ */
+export const PROBE_HANG_CATCHER_MS = 580_000;
+
+/** The heaviest reading a probe that answered has produced on the runner, per the constant above. */
+export const PROBE_MEASURED_MAXIMUM_MS = 57_992;
+
+/**
+ * Whether a failed spawn was killed rather than answered.
+ *
+ * A KILLED CHILD MEASURED NOTHING. `execFileSync` reports its own timeout as `ETIMEDOUT` with
+ * `signal` set to SIGTERM, and the kernel's out of memory killer arrives the same way with
+ * SIGKILL; in both cases the process was stopped from outside before it could say anything about
+ * itself. A missing binary is the opposite: `ENOENT` with no signal at all, and immediately.
+ *
+ * @param error - Whatever `execFileSync` threw
+ * @returns True when the child was stopped by a signal instead of exiting
+ */
+function killedBeforeAnswering(error: unknown): boolean {
+  if (typeof error !== 'object' || error === null) return false;
+
+  const signal: unknown = (error as { signal?: unknown }).signal;
+
+  return typeof signal === 'string' && signal.length > 0;
+}
+
+/**
+ * What this machine says about what a dependency names.
+ *
+ * IT NEVER ANSWERS `present` WHEN IT COULD NOT TELL, AND SINCE 2026-09-04 IT NEVER ANSWERS
+ * `absent` EITHER. A probe that ran and exited non zero, or found nothing to run, reports
+ * `absent`, because the guard in the suite behaves the same way: what a suite does on a failed
+ * probe is skip, so that is what "does not have it" means here. A probe that was killed before it
+ * could answer reports `undetermined`, because the suite's guard has no wait at all and would have
+ * kept waiting, so the two would have disagreed about a machine while looking like agreement.
  *
  * @param dependency - The dependency to look for
  * @param repoRoot - Absolute repository root, for path probes
- * @returns True when a guarded case would run on this machine
+ * @param waitMs - How long a binary probe may take, for the cases that plant a hang
+ * @returns What was found, or that nothing was
  */
-export function probeDependency(dependency: ConditionalDependency, repoRoot: string): boolean {
+export function probeDependency(
+  dependency: ConditionalDependency,
+  repoRoot: string,
+  waitMs: number = PROBE_HANG_CATCHER_MS,
+): ProbeOutcome {
   const probe = dependency.probe;
 
-  if (probe.kind === 'path') return existsSync(join(repoRoot, probe.path));
+  if (probe.kind === 'path') return existsSync(join(repoRoot, probe.path)) ? 'present' : 'absent';
 
   if (probe.kind === 'binary') {
     try {
-      execFileSync(probe.command, [...probe.args], { stdio: 'ignore', timeout: 30_000 });
-      return true;
-    } catch {
-      return false;
+      execFileSync(probe.command, [...probe.args], { stdio: 'ignore', timeout: waitMs });
+
+      return 'present';
+    } catch (error) {
+      return killedBeforeAnswering(error) ? 'undetermined' : 'absent';
     }
   }
 
@@ -593,9 +720,13 @@ export function probeDependency(dependency: ConditionalDependency, repoRoot: str
   try {
     directory = mkdtempSync(join(tmpdir(), 'openref-fold-'));
     writeFileSync(join(directory, 'a'), '');
-    return statSync(join(directory, 'A'), { throwIfNoEntry: false }) !== undefined;
+
+    return statSync(join(directory, 'A'), { throwIfNoEntry: false }) === undefined
+      ? 'absent'
+      : 'present';
   } catch {
-    return false;
+    // A TEMPORARY DIRECTORY THAT COULD NOT BE MADE OR WRITTEN ANSWERS NOTHING ABOUT CASE FOLDING.
+    return 'undetermined';
   } finally {
     if (directory !== '') rmSync(directory, { recursive: true, force: true });
   }
@@ -629,8 +760,8 @@ export interface ConditionalConditions {
   /** Which machine, or undefined when the probe half cannot be attributed. */
   readonly machine: MachineId | undefined;
 
-  /** Whether each dependency id is present here. Absent ids are treated as unprobed. */
-  readonly present: ReadonlyMap<string, boolean>;
+  /** What the probe said about each dependency id here. Missing ids are treated as unprobed. */
+  readonly present: ReadonlyMap<string, ProbeOutcome>;
 }
 
 /**
@@ -809,13 +940,31 @@ export function reconcileConditionalCases(
         level: 'warning',
         message:
           `${dependency.id} is recorded UNDETERMINED on ${machine} and this run measured it as ` +
-          `${actual ? 'PRESENT' : 'ABSENT'}. Record that column in CONDITIONAL_DEPENDENCIES and ` +
-          'take the machine out of `undetermined`',
+          `${actual.toUpperCase()}. Record that column in CONDITIONAL_DEPENDENCIES and take the ` +
+          'machine out of `undetermined`',
       });
       continue;
     }
 
-    if (claimed && !actual) {
+    // A PROBE THAT WAS KILLED MEASURED NOTHING, AND SAYING SO IS THE POINT OF THE WHOLE FILE. This
+    // is the branch that did not exist on 2026-09-04, when a `swift --version` stopped at 30,000 ms
+    // was reported as an absence and took the register red about a machine that has Swift. The
+    // error is loud in this direction and would have been SILENT in the other: a dependency the
+    // register already records as absent would have been agreed with by a probe that never ran to
+    // completion, and the run would have gone green on a column nobody measured.
+    if (actual === 'undetermined') {
+      issues.push({
+        level: 'error',
+        message:
+          `the probe for ${dependency.id} on ${machine} was killed before it answered, so this ` +
+          'run measured nothing about that column. It is not an absence: a binary that is not ' +
+          'installed answers ENOENT immediately under any load, so a probe that had to be stopped ' +
+          'found something and could not finish asking it',
+      });
+      continue;
+    }
+
+    if (claimed && actual === 'absent') {
       issues.push({
         level: 'error',
         message:
@@ -826,7 +975,7 @@ export function reconcileConditionalCases(
       });
     }
 
-    if (!claimed && actual) {
+    if (!claimed && actual === 'present') {
       issues.push({
         level: 'error',
         message:

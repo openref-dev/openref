@@ -153,11 +153,18 @@ jobs:
     # four vCPU, and prints the elapsed and the failure class of each. A binary that is not there
     # answers ENOENT in single digit milliseconds whatever the load; a binary that is there and slow
     # answers late. The two are told apart by the reading rather than by argument.
+    #
+    # ROUND ONE ANSWERED IT AND ROUND THREE IS CONFIRMING THE MAXIMUM. Every reading over 18 s is
+    # the FIRST call of the job, before the suite starts, and every call after it is 90 to 171 ms
+    # with the whole suite running: the cost is a cold disk and not contention. The four cold Swift
+    # readings were 18,451, 32,662, 38,434 and 57,992 ms, and 57,992 is what
+    # `PROBE_HANG_CATCHER_MS` is derived from, so it is worth a second round that does not exceed it
+    # rather than one sample's high reading. Six samples here rather than four for that reason.
     strategy:
       fail-fast: false
       matrix:
         node: ['22.22.2', '^24.15.0']
-        sample: [1, 2]
+        sample: [1, 2, 3]
         include:
           - node: '22.22.2'
             label: '22'

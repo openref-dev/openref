@@ -18,6 +18,11 @@ import type { Gate, GateContext, GateFinding, GateResult } from '../types.js';
  * recorded anywhere at all. That is the whole of how one nginx case went two milestones without
  * executing on either machine while the suite stayed green.
  *
+ * WHAT IT PRINTS PER DEPENDENCY IS THE PROBE'S OWN WORD AND NOT A YES OR A NO. It used to fold
+ * three answers into two, `yes` when the probe succeeded and `no` for everything else, which is
+ * the same conflation that took the register red about a machine that has Swift. `present`,
+ * `absent` and `undetermined` are printed as they were found, and `unprobed` when nothing asked.
+ *
  * IT IS A GATE RATHER THAN A UNIT CASE FOR THE REASON THE PROJECTION PRIVACY SCAN IS. `pnpm gates`
  * is the command every session is told to run before declaring a slice done, so a rule that lives
  * only in a spec file is a rule that half the run never consults. It also needs to probe the
@@ -63,8 +68,7 @@ export function runTestSkipsGate(context: GateContext): GateResult {
         ? `this platform is ${process.platform}, which is neither machine, so no column was probed`
         : `probed on ${machine}: ` +
           CONDITIONAL_DEPENDENCIES.map(
-            (dependency) =>
-              `${dependency.id}=${present.get(dependency.id) === true ? 'yes' : 'no'}`,
+            (dependency) => `${dependency.id}=${present.get(dependency.id) ?? 'unprobed'}`,
           ).join(', '),
   });
 
