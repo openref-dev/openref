@@ -35,7 +35,14 @@ export interface PackageCoverage {
 /** A package whose coverage is below its floor, or whose coverage was never measured. */
 export interface CoverageFinding {
   readonly packageDir: string;
-  readonly metric: 'lines' | 'statements' | 'files';
+  /**
+   * Which fact this finding is about.
+   *
+   * `lines` and `statements` are measurements under a floor. `files` is a package that was rolled
+   * up and contributed no file. `undetermined` is a floor with no roll up at all, which is a fact
+   * the run could not establish rather than a measurement.
+   */
+  readonly metric: 'lines' | 'statements' | 'files' | 'undetermined';
   readonly actualPct: number;
   readonly floorPct: number;
 }
@@ -101,15 +108,42 @@ export function aggregateByPackage(
 /**
  * Compares rolled up coverage against the floors.
  *
+ * THE LOOP OVER THE ROLL UP IS NOT THE WHOLE COMPARISON AND USED TO BE. `aggregateByPackage` maps
+ * over the package directories it is handed, which the gate reads off the disk, so a floor naming a
+ * directory that is not there produced no roll up entry and this function iterated past it: the
+ * floor was compared with nothing and the run went green. Executed against the real library, floors
+ * of `{core, ghost}` over directories of `['core']` returned `failed: false` on a green suite and
+ * named `ghost` nowhere. The STANDARDS 9.1 reconciliation would have caught it in the other
+ * direction, but that half needs `ai-docs/`, which is git excluded and no clone restores, so on a
+ * clone nothing anywhere named it. It is the same class as the zero over zero reading below and one
+ * step earlier: a package with no files at least reached a comparison.
+ *
+ * A FLOOR WITH NOTHING TO MEASURE IS UNDETERMINED AND UNDETERMINED FAILS. The two are reported
+ * separately because they have two causes: `files` is a directory that was rolled up and gave
+ * nothing, `undetermined` is a directory that was never rolled up at all, and a message naming the
+ * wrong one sends a reader to the wrong place.
+ *
  * @param coverage - Per package coverage
  * @param floors - Floor percentage per package directory
- * @returns One finding per metric below its floor
+ * @returns One finding per metric below its floor, and one per floor nothing measured
  */
 export function checkCoverageFloors(
   coverage: readonly PackageCoverage[],
   floors: Readonly<Record<string, number>>,
 ): CoverageFinding[] {
   const findings: CoverageFinding[] = [];
+  const rolledUp = new Set(coverage.map((entry) => entry.packageDir));
+
+  for (const packageDir of Object.keys(floors).sort()) {
+    if (rolledUp.has(packageDir)) continue;
+
+    findings.push({
+      packageDir,
+      metric: 'undetermined',
+      actualPct: 0,
+      floorPct: floors[packageDir] ?? 0,
+    });
+  }
 
   for (const entry of coverage) {
     const floorPct = floors[entry.packageDir];
@@ -144,6 +178,38 @@ export function checkCoverageFloors(
   }
 
   return findings;
+}
+
+/**
+ * One finding as the line a reader gets, with the three causes told apart.
+ *
+ * THE THIRD LINE IS THE ONE THAT DID NOT EXIST. A floor over a directory nothing rolled up says so
+ * in the word the rule uses: a check that cannot determine a fact reports it as undetermined and
+ * never defaults to the answer that means success.
+ *
+ * @param violation - The finding
+ * @returns The line
+ */
+function messageFor(violation: CoverageFinding): string {
+  if (violation.metric === 'undetermined') {
+    return (
+      `${violation.packageDir}: its floor of ${String(violation.floorPct)}% is UNDETERMINED, not ` +
+      `met: no packages/${violation.packageDir}/ directory was rolled up by this run, so nothing ` +
+      `was compared with the floor at all`
+    );
+  }
+
+  if (violation.metric === 'files') {
+    return (
+      `${violation.packageDir}: no file was measured at all, so its floor of ` +
+      `${String(violation.floorPct)}% was met by measuring none of it`
+    );
+  }
+
+  return (
+    `${violation.packageDir}: ${violation.metric} ${violation.actualPct.toFixed(2)}% is ` +
+    `below the floor of ${String(violation.floorPct)}%`
+  );
 }
 
 /** What one run of the suite under coverage left behind. */
@@ -228,13 +294,7 @@ export function reportCoverageRun(
   }
 
   for (const violation of violations) {
-    errors.push(
-      violation.metric === 'files'
-        ? `${violation.packageDir}: no file was measured at all, so its floor of ` +
-            `${String(violation.floorPct)}% was met by measuring none of it`
-        : `${violation.packageDir}: ${violation.metric} ${violation.actualPct.toFixed(2)}% is ` +
-            `below the floor of ${String(violation.floorPct)}%`,
-    );
+    errors.push(messageFor(violation));
   }
 
   return { notes, errors, failed: !run.suitePassed || violations.length > 0 };

@@ -35,7 +35,11 @@
 
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { BROWSER_BASELINE_FILE, BROWSER_CEILINGS } from '../config.js';
+import {
+  BROWSER_BASELINE_FILE,
+  BROWSER_CEILINGS,
+  PAGE_SAMPLE_LANGUAGE_MEASUREMENT,
+} from '../config.js';
 
 /** What one figure looked like across the runs of a study. */
 export interface BaselineSpread {
@@ -614,4 +618,147 @@ export function recordedFigure(baseline: BrowserBaseline, budgetId: string): str
     default:
       return null;
   }
+}
+
+/**
+ * The zero language reading of the measured page, derived rather than recorded.
+ *
+ * Every field is arithmetic over the committed record and `PAGE_SAMPLE_LANGUAGE_MEASUREMENT`.
+ * Nothing here is typed by hand anywhere, which is the point of the shape.
+ */
+export interface ZeroSamplePage {
+  /** Document bytes with every drawn language off, section and server drawn block still there. */
+  readonly documentBytes: number;
+  /** That document plus the recorded stylesheet and bundle, which is what `page-bytes` counts. */
+  readonly pageBytes: number;
+  /** The ceiling the current one replaced, which the overrun is stated against. */
+  readonly replacedCapBytes: number;
+  /** How far the zero language page is over that ceiling. */
+  readonly overrunBytes: number;
+  /**
+   * The same page with the one server drawn code block off as well.
+   *
+   * A LOWER BOUND AND LABELLED AS ONE. The harness has no instrument for taking the section chrome
+   * off, so this is as light as the page can be shown to get rather than a second measurement, and
+   * a figure presented as measured when it is bounded is the class of defect this file is full of.
+   */
+  readonly withoutServedBlockPageBytes: number;
+  /** How far even that page is over the replaced ceiling. */
+  readonly withoutServedBlockOverrunBytes: number;
+}
+
+/** The derivation, or the reason it could not be made. */
+export type ZeroSampleDerivation =
+  | { readonly determined: true; readonly figures: ZeroSamplePage }
+  | { readonly determined: false; readonly reason: string };
+
+/**
+ * The zero language reading, derived from the committed record and the recorded language cost.
+ *
+ * IT REFUSES RATHER THAN ANSWERING ACROSS TWO TREES. The language costs were measured on one
+ * commit and the three columns on another, and subtracting one from the other would produce a
+ * confident number about a page that never existed. That is exactly how the reading this replaces
+ * went stale: it was taken when the JS column stood at 112,151 and was still being quoted after the
+ * column moved to 112,644. A check that cannot determine a fact says so and never defaults to the
+ * answer that means success.
+ *
+ * @param baseline - The committed browser record
+ * @returns The derived figures, or why they could not be derived
+ */
+export function zeroSamplePage(baseline: BrowserBaseline): ZeroSampleDerivation {
+  const measurement = PAGE_SAMPLE_LANGUAGE_MEASUREMENT;
+
+  if (baseline.commit !== measurement.commit) {
+    return {
+      determined: false,
+      reason:
+        `the browser record was taken at ${baseline.commit} and the language costs in ` +
+        `PAGE_SAMPLE_LANGUAGE_MEASUREMENT at ${measurement.commit}, so the zero language reading ` +
+        `is UNDETERMINED rather than stale: re-run tools/browser-budget/dist/measure-languages.js ` +
+        `on the recorded tree and put its two figures in the constant`,
+    };
+  }
+
+  const documentBytes = baseline.parsedBytes.documentBytes - measurement.allDrawnDocumentBytes;
+  const pageBytes = documentBytes + baseline.parsedBytes.cssBytes + baseline.parsedBytes.jsBytes;
+  const withoutServedBlockPageBytes = pageBytes - measurement.servedCodeBlockBytes;
+
+  return {
+    determined: true,
+    figures: {
+      documentBytes,
+      pageBytes,
+      replacedCapBytes: measurement.replacedPageBytesCap,
+      overrunBytes: pageBytes - measurement.replacedPageBytesCap,
+      withoutServedBlockPageBytes,
+      withoutServedBlockOverrunBytes:
+        withoutServedBlockPageBytes - measurement.replacedPageBytesCap,
+    },
+  };
+}
+
+/**
+ * Whether a text states one whole number, whichever way it separates thousands.
+ *
+ * THREE SPELLINGS AND ONE REFUSAL. The two documents this reads write thousands differently, so
+ * `216,114`, `216 114` and `216114` all count. What does not count is a digit group that touches
+ * another one: `40 876 216 114` could be read as two numbers or as one, and a check that guessed
+ * would either miss a stale figure or invent a present one. It matches neither, so an ambiguous
+ * run reports the figure as unstated, which fails loudly instead of passing quietly.
+ *
+ * MY OWN CASE CAUGHT THIS. The first edition matched every separated run greedily and read
+ * `40 876 216 114` as one eleven digit number, which is the same class of defect as the figures
+ * this file exists to keep honest: an instrument that reports confidently on input it cannot parse.
+ *
+ * @param text - The prose to read
+ * @param value - The number to look for
+ * @returns Whether the text states it unambiguously
+ */
+export function statesNumber(text: string, value: number): boolean {
+  const digits = String(value);
+  const grouped = digits.replace(/\B(?=(\d{3})+(?!\d))/gu, '#');
+  const spellings = [digits, grouped.replace(/#/gu, ','), grouped.replace(/#/gu, ' ')];
+
+  return [...new Set(spellings)].some((spelling) =>
+    new RegExp(`(?<!\\d)(?<!\\d[,. ])${spelling}(?!\\d)(?![,. ]\\d)`, 'u').test(text),
+  );
+}
+
+/**
+ * The derived figures a text is supposed to state, checked against what it actually states.
+ *
+ * PRESENCE IS THE WHOLE CHECK AND IT IS ENOUGH FOR THE DEFECT. A copy that has gone stale states
+ * the old figure and not the new one, so the new one is missing and this reports it. It does not
+ * complain about a superseded figure that a paragraph deliberately keeps beside the correction,
+ * which is what the two files here both do.
+ *
+ * @param label - Which text this is, for the message
+ * @param text - The text
+ * @param figures - What the derivation produced
+ * @returns One message per derived figure the text does not state
+ */
+export function zeroSampleFigureIssues(
+  label: string,
+  text: string,
+  figures: ZeroSamplePage,
+): string[] {
+  const required: readonly (readonly [string, number])[] = [
+    ['the zero language document column', figures.documentBytes],
+    ['the zero language page total', figures.pageBytes],
+    ['the replaced ceiling', figures.replacedCapBytes],
+    ['the overrun over it', figures.overrunBytes],
+    ['the bound with the server drawn block off', figures.withoutServedBlockPageBytes],
+    ['the overrun of that bound', figures.withoutServedBlockOverrunBytes],
+    ['the cost of the drawn languages', PAGE_SAMPLE_LANGUAGE_MEASUREMENT.allDrawnDocumentBytes],
+    ['the server drawn code block', PAGE_SAMPLE_LANGUAGE_MEASUREMENT.servedCodeBlockBytes],
+  ];
+
+  return required
+    .filter(([, value]) => !statesNumber(text, value))
+    .map(
+      ([what, value]) =>
+        `${label} does not state ${what}, ${String(value)}, which the derivation over ` +
+        `${BROWSER_BASELINE_FILE} and PAGE_SAMPLE_LANGUAGE_MEASUREMENT produces. A figure written ` +
+        `by hand that the derivation no longer agrees with is the defect this check exists for`,
+    );
 }

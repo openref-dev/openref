@@ -2058,12 +2058,31 @@ export const BROWSER_STUDY_WORKFLOW = '.github/workflows/browser-budget-study.ym
  *
  * RE-DERIVED ON 2026-09-04, 203 TO 221 KB, BY THE MAINTAINER'S RULING, AND THE MOVE IS THE ONE
  * `T062` MADE FOR THE SUBJECT: the row's own property, applied to a measurement taken again rather
- * than reused. What made the re-derivation necessary is not the samples section. A page drawing NO
- * sample at all measures 214,243 stripped and 214,997 with the section chrome, so the 6,371 byte
- * overrun exists at zero languages and no choice of language count saves this budget; the same page
- * with all fifteen read 229,935. The property is unchanged and is this row's own: the whole KB step
- * under which a navigation sized addition of 2,520 still fits while a `theme.css` region the size
- * of the page frame, 3,287, or of the try-it console, 3,669, goes over.
+ * than reused. What made the re-derivation necessary is not the samples section. THE ZERO LANGUAGE
+ * READING IS DERIVED AND NOT TAKEN, for the reason the paragraph after next gives, and
+ * `zeroSamplePage` in `lib/browser-baseline.ts` is what derives it: the recorded document column
+ * less the 7,213 bytes the twelve drawn languages were measured to cost together. It reads 40,876
+ * document and 216,114 in total, which is 8,242 over the 207,872 this cap replaced, so the overrun
+ * exists at zero languages and no choice of language count saves this budget. The one code block
+ * the server draws itself is 310 bytes and is charged to no language, so a page with the samples
+ * section gone entirely is at most that much lighter: 215,804 and still 7,932 over. That is a bound
+ * rather than a second measurement, since nothing here has an instrument for taking the section
+ * chrome off, and it is written as a bound. The property is unchanged and is this row's own: the
+ * whole KB step under which a navigation sized addition of 2,520 still fits while a `theme.css`
+ * region the size of the page frame, 3,287, or of the try-it console, 3,669, goes over.
+ *
+ * THE FIGURE ABOVE WAS WRONG WHEN IT WAS FIRST WRITTEN HERE, AND IT WAS THE NINTH HAND WRITTEN
+ * NUMBER IN A ROW TO BE. It said 214,243 stripped, 214,997 with the section chrome and an overrun
+ * of 6,371, all taken on 2026-09-03 against a JS column of 112,151 and 112,380. The column moved to
+ * 112,644 and the three readings stopped holding: the page is over the replaced cap with no code
+ * sample on it at all, and by more than was recorded. The conclusion did not change and got
+ * stronger, which is why this is a correction and not a re-opened argument. WHAT CHANGED IS THAT
+ * NOBODY TYPES IT AGAIN. The three columns live in `tools/browser-budget/baseline.json`, the two
+ * measured costs live in `PAGE_SAMPLE_LANGUAGE_MEASUREMENT` below, everything else is arithmetic
+ * over the two, and a test compares every derived figure against the text of this comment and of
+ * SPEC 20 and fails when they part. The derivation refuses to answer at all when the two records
+ * were taken at different commits, so a re-record that leaves the language cost behind reports an
+ * undetermined figure rather than a confident stale one.
  *
  * THE MEASUREMENT, AND WHAT IT REPLACES. Taken 2026-09-04 on an Apple M3 Ultra workstation under
  * Chrome 152, throttle 4x measured between 4.10x and 4.29x over twenty navigations: 223,327 bytes,
@@ -2099,6 +2118,52 @@ export const BROWSER_CEILINGS = {
   servedDocumentBytes: 72 * 1024,
   longTaskCount: 2,
   pageBytes: 221 * 1024,
+} as const;
+
+/**
+ * What the sample languages cost the measured page, which is the one input to the zero language
+ * reading that `tools/browser-budget/baseline.json` does not carry.
+ *
+ * IT IS HERE BECAUSE IT HAD NO HOME AND THAT IS HOW IT WENT STALE. The zero language reading was
+ * written into the `page-bytes` comment above, into SPEC 20 and into the baseline note as three
+ * hand copies of one arithmetic, and when the JS column moved all three were wrong at once with
+ * nothing able to notice. The rule this repository already had for that, and did not apply here,
+ * is T031's: a value written in more than one place has exactly one home, and the other places are
+ * either generated from it or compared with it by something that can fail. This is the home of the
+ * two measured costs; `zeroSamplePage` in `lib/browser-baseline.ts` is the generator, and
+ * `browser-baseline.spec.ts` is the comparison.
+ *
+ * HOW TO RE-TAKE IT, because a record nobody can reproduce is a record nobody can correct. Build
+ * the tree, then `node tools/browser-budget/dist/measure-languages.js`. The `all drawn` row of its
+ * table is `allDrawnDocumentBytes` and the line beneath it is `servedCodeBlockBytes`. It boots the
+ * fixture, serves the same page the study measures, and takes each language off the served text
+ * before the browser sees it, so the costs are measured rather than divided out of a total.
+ *
+ * `commit` IS THE HALF THAT MAKES STALENESS LOUD. It is the tree these two figures were taken on,
+ * and it has to be the tree the baseline record was taken on: a page whose document column moved is
+ * a page whose language costs may have moved too, and deriving across the two would be the same
+ * defect one layer down. The derivation compares them and refuses rather than answering.
+ */
+export const PAGE_SAMPLE_LANGUAGE_MEASUREMENT = {
+  /** Date of the run, as `YYYY-MM-DD`. */
+  measuredAt: '2026-09-04',
+  /** The tree it was taken on, which must be the tree the baseline record was taken on. */
+  commit: 'df41de06e7e153ac0c840cee483995daf9f48894',
+  /** How many languages the page draws, per the maintainer's ruling of 2026-09-03. */
+  languageCount: 12,
+  /** Document bytes the drawn languages cost together, measured by taking all of them off. */
+  allDrawnDocumentBytes: 7213,
+  /**
+   * The one code block the server draws, which the harness charges to no language.
+   *
+   * It is what is left of the samples section's own content once every language is off, so the
+   * page with the section gone entirely is at most this much lighter than the zero language
+   * reading. That makes it a lower bound on the overrun rather than a second measurement, and the
+   * derivation labels it as one.
+   */
+  servedCodeBlockBytes: 310,
+  /** The `page-bytes` ceiling this one replaced, which the overrun is stated against. */
+  replacedPageBytesCap: 203 * 1024,
 } as const;
 
 /**

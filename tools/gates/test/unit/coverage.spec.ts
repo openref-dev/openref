@@ -135,8 +135,12 @@ describe('checkCoverageFloors', () => {
   });
 
   it('should leave a package with no floor and no files alone', () => {
-    // Given a package the floors do not name, which is not this gate's business either way
-    const coverage = [{ packageDir: 'theme', fileCount: 0, linesPct: 100, statementsPct: 100 }];
+    // Given a package the floors do not name, which is not this gate's business either way. The
+    // floored package is rolled up and clear, so this case is about `theme` and nothing else.
+    const coverage = [
+      { packageDir: 'core', fileCount: 1, linesPct: 100, statementsPct: 100 },
+      { packageDir: 'theme', fileCount: 0, linesPct: 100, statementsPct: 100 },
+    ];
 
     // When
     const findings = checkCoverageFloors(coverage, { core: 90 });
@@ -146,14 +150,47 @@ describe('checkCoverageFloors', () => {
   });
 
   it('should skip a package that has no floor yet', () => {
-    // Given
-    const coverage = [{ packageDir: 'theme', fileCount: 1, linesPct: 0, statementsPct: 0 }];
+    // Given, with the floored package rolled up and clear for the same reason as above
+    const coverage = [
+      { packageDir: 'core', fileCount: 1, linesPct: 100, statementsPct: 100 },
+      { packageDir: 'theme', fileCount: 1, linesPct: 0, statementsPct: 0 },
+    ];
 
     // When
     const findings = checkCoverageFloors(coverage, { core: 90 });
 
     // Then
     expect(findings).toEqual([]);
+  });
+
+  it('should refuse a floor whose package was never rolled up at all', () => {
+    // Given a floor over a directory that is not on the disk. `aggregateByPackage` maps over the
+    // package directories it was handed, so such a floor produces no roll up entry, and a loop over
+    // the roll up compares it with nothing. THE SUBJECT IS ASSERTED PRESENT FIRST: `ghost` is in the
+    // floors and is not in the coverage, which is the whole condition.
+    const coverage = [{ packageDir: 'core', fileCount: 1, linesPct: 100, statementsPct: 100 }];
+    const floors = { core: 90, ghost: 90 };
+    expect(floors.ghost).toBe(90);
+    expect(coverage.map((entry) => entry.packageDir)).not.toContain('ghost');
+
+    // When
+    const findings = checkCoverageFloors(coverage, floors);
+
+    // Then it is undetermined rather than met, and it is one finding naming the cause
+    expect(findings).toEqual([
+      { packageDir: 'ghost', metric: 'undetermined', actualPct: 0, floorPct: 90 },
+    ]);
+  });
+
+  it('should report an undetermined floor once and in floor name order', () => {
+    // Given two floors with nothing on the disk under either, so the order is the floors' own
+    const coverage = [{ packageDir: 'core', fileCount: 1, linesPct: 100, statementsPct: 100 }];
+
+    // When
+    const findings = checkCoverageFloors(coverage, { core: 90, zeta: 80, alpha: 70 });
+
+    // Then
+    expect(findings.map((finding) => finding.packageDir)).toEqual(['alpha', 'zeta']);
   });
 });
 
@@ -352,6 +389,35 @@ describe('reportCoverageRun', () => {
     expect(verdict.failed).toBe(true);
     expect(verdict.errors).toHaveLength(1);
     expect(verdict.errors[0]).toContain('json-summary reporter is not configured');
+  });
+
+  it('should fail a green run whose floor names a directory that is not on the disk', () => {
+    // Given the reviewer's own case, and the shape a renamed, moved or never created package
+    // directory makes on a clone: `readPackageDirs` finds `core` and nothing else, so `ghost` is
+    // rolled up nowhere and the loop over the roll up compares it with nothing. THE SUBJECT IS
+    // ASSERTED PRESENT FIRST: the floors carry `ghost` and the directories do not.
+    const packageDirs = ['core'];
+    const withGhost = { core: 90, ghost: 90 };
+    expect(withGhost.ghost).toBe(90);
+    expect(packageDirs).not.toContain('ghost');
+
+    // When, on a suite where every case passed and every measured file is over its floor
+    const verdict = reportCoverageRun(
+      { suitePassed: true, output: '', summary: { '/repo/packages/core/src/a.ts': entry(10, 10) } },
+      packageDirs,
+      withGhost,
+      'coverage/summary.json',
+    );
+
+    // Then the run fails and the message names `ghost`, rather than the gate reporting a green
+    // suite with a floor nothing ever measured. THE STANDARDS 9.1 RECONCILIATION CANNOT COVER THIS:
+    // it needs `ai-docs/`, which no clone restores, so without this nothing anywhere names it.
+    expect(verdict.failed).toBe(true);
+    expect(verdict.errors.join('\n')).toContain('ghost');
+    expect(verdict.errors).toContain(
+      'ghost: its floor of 90% is UNDETERMINED, not met: no packages/ghost/ directory was rolled ' +
+        'up by this run, so nothing was compared with the floor at all',
+    );
   });
 
   it('should still fail on a floor met by measuring none of the package', () => {

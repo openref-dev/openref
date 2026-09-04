@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { BROWSER_CEILINGS, MEASURED_BUDGETS } from '../../src/config';
+import {
+  BROWSER_CEILINGS,
+  MEASURED_BUDGETS,
+  PAGE_SAMPLE_LANGUAGE_MEASUREMENT,
+} from '../../src/config';
 import {
   ASSERTED_FIGURES,
   BASELINE_ANSWERED_BUDGET_IDS,
@@ -12,8 +16,12 @@ import {
   readBaseline,
   readBrowserBaseline,
   recordedFigure,
+  statesNumber,
+  zeroSampleFigureIssues,
+  zeroSamplePage,
   type BrowserBaseline,
 } from '../../src/lib/browser-baseline';
+import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const repoRoot = join(import.meta.dirname, '..', '..', '..', '..');
@@ -600,5 +608,214 @@ describe('the committed baseline', () => {
     expect([160_070, 195_783, 204_818].map(pageBytesStepFor)).toEqual([159, 194, 203]);
     expect(fromTheRecord).toBe(221);
     expect(BROWSER_CEILINGS.pageBytes).toBe(221 * 1024);
+  });
+});
+
+/**
+ * The two texts that state the zero language reading in prose, sliced to the paragraphs that do.
+ *
+ * SLICED RATHER THAN READ WHOLE, because a scan of all of `config.ts` would find every figure it
+ * looks for somewhere and agree with anything. The anchors are the sentences the two paragraphs
+ * open and close on, and a slice that cannot find its anchors fails rather than returning nothing:
+ * a check that cannot determine its fact says so.
+ *
+ * @param text - The whole file
+ * @param from - Text the region starts at
+ * @param to - Text the region ends before
+ * @param what - What this region is, for the failure
+ * @returns The region
+ */
+function sliceBetween(text: string, from: string, to: string, what: string): string {
+  const start = text.indexOf(from);
+  const end = text.indexOf(to, start + 1);
+
+  if (start === -1 || end === -1) {
+    throw new Error(
+      `${what} could not be located: the anchors "${from}" and "${to}" are not both in the file, ` +
+        `so nothing was compared with the derivation`,
+    );
+  }
+
+  return text.slice(start, end);
+}
+
+describe('zeroSamplePage', () => {
+  it('should derive the zero language reading from the record and the measured language cost', () => {
+    // Given a record whose three columns are known, and the committed language costs
+    const record = baseline({
+      commit: PAGE_SAMPLE_LANGUAGE_MEASUREMENT.commit,
+      parsedBytes: { documentBytes: 48_089, cssBytes: 62_594, jsBytes: 112_644 },
+    });
+    const cost = PAGE_SAMPLE_LANGUAGE_MEASUREMENT;
+
+    // When
+    const derived = zeroSamplePage(record);
+
+    // Then every field is the arithmetic over the two records and nothing is typed twice
+    expect(derived.determined).toBe(true);
+    if (!derived.determined) return;
+    const document = record.parsedBytes.documentBytes - cost.allDrawnDocumentBytes;
+    const page = document + record.parsedBytes.cssBytes + record.parsedBytes.jsBytes;
+    expect(derived.figures).toEqual({
+      documentBytes: document,
+      pageBytes: page,
+      replacedCapBytes: cost.replacedPageBytesCap,
+      overrunBytes: page - cost.replacedPageBytesCap,
+      withoutServedBlockPageBytes: page - cost.servedCodeBlockBytes,
+      withoutServedBlockOverrunBytes: page - cost.servedCodeBlockBytes - cost.replacedPageBytesCap,
+    });
+  });
+
+  it('should refuse to derive across two trees rather than answering', () => {
+    // Given a record re-taken at a commit the language costs were not measured on, which is the
+    // exact shape the reading this replaces went stale in: it was taken when the JS column stood at
+    // 112,151 and was still being quoted after the column moved
+    const record = baseline({ commit: `not-${PAGE_SAMPLE_LANGUAGE_MEASUREMENT.commit}` });
+    expect(record.commit).not.toBe(PAGE_SAMPLE_LANGUAGE_MEASUREMENT.commit);
+
+    // When
+    const derived = zeroSamplePage(record);
+
+    // Then
+    expect(derived.determined).toBe(false);
+    if (derived.determined) return;
+    expect(derived.reason).toContain('UNDETERMINED');
+    expect(derived.reason).toContain('measure-languages');
+  });
+});
+
+describe('statesNumber', () => {
+  it('should read a number in each of the three spellings the two documents use', () => {
+    // Given the English comment convention, the Russian document convention and a bare figure
+    // When, Then
+    expect(statesNumber('reads 216,114 in total', 216_114)).toBe(true);
+    expect(statesNumber('весит 216 114 всего', 216_114)).toBe(true);
+    expect(statesNumber('pageBytes: 216114,', 216_114)).toBe(true);
+  });
+
+  it('should not find a figure inside a longer one', () => {
+    // Given the false positive a substring match would produce, which would let a removed figure
+    // read as present
+    // When, Then
+    expect(statesNumber('the block is 3,310 bytes', 310)).toBe(false);
+    expect(statesNumber('1310 bytes', 310)).toBe(false);
+    expect(statesNumber('310,500 bytes', 310)).toBe(false);
+  });
+
+  it('should refuse an ambiguous run rather than guessing which numbers are in it', () => {
+    // Given two space separated figures with nothing between them, which reads equally well as one
+    // eleven digit number. THE FIRST EDITION OF THIS HELPER READ IT GREEDILY AS ONE, which is the
+    // same defect class as the figures it checks. Refusing reports the figure as unstated, so the
+    // check goes red rather than passing on text it could not parse.
+    // When, Then
+    expect(statesNumber('40 876 216 114', 40_876)).toBe(false);
+    expect(statesNumber('40 876 216 114', 216_114)).toBe(false);
+    expect(statesNumber('40 876 и 216 114', 40_876)).toBe(true);
+    expect(statesNumber('40 876 и 216 114', 216_114)).toBe(true);
+  });
+});
+
+describe('zeroSampleFigureIssues', () => {
+  const derived = zeroSamplePage(
+    baseline({
+      commit: PAGE_SAMPLE_LANGUAGE_MEASUREMENT.commit,
+      parsedBytes: { documentBytes: 48_089, cssBytes: 62_594, jsBytes: 112_644 },
+    }),
+  );
+
+  it('should name every derived figure a stale copy no longer states', () => {
+    // Given the paragraph as it read before this correction, which stated the reading taken when
+    // the JS column was 112,151 and 112,380
+    expect(derived.determined).toBe(true);
+    if (!derived.determined) return;
+    const stale =
+      'a page drawing no sample at all measures 214,243 stripped and 214,997 with the section ' +
+      'chrome, so the 6,371 byte overrun exists at zero languages';
+
+    // When
+    const issues = zeroSampleFigureIssues('the old paragraph', stale, derived.figures);
+
+    // Then it is red, and it names the figure the derivation produces rather than the one written
+    expect(issues.length).toBeGreaterThan(0);
+    expect(issues.join('\n')).toContain(String(derived.figures.pageBytes));
+  });
+
+  it('should say nothing about a text that states every derived figure', () => {
+    // Given
+    expect(derived.determined).toBe(true);
+    if (!derived.determined) return;
+    const stated = [
+      ...Object.values(derived.figures),
+      PAGE_SAMPLE_LANGUAGE_MEASUREMENT.allDrawnDocumentBytes,
+      PAGE_SAMPLE_LANGUAGE_MEASUREMENT.servedCodeBlockBytes,
+    ].join(' and ');
+
+    // When, Then
+    expect(zeroSampleFigureIssues('a current paragraph', stated, derived.figures)).toEqual([]);
+  });
+});
+
+describe('the committed zero language reading', () => {
+  const read = readBrowserBaseline(repoRoot);
+  const derived = read.baseline === null ? null : zeroSamplePage(read.baseline);
+
+  it('should be derivable from the committed record and the committed language cost', () => {
+    // Given the real record, asserted present before anything is concluded from it
+    expect(read.baseline, read.reason).not.toBeNull();
+
+    // When, Then
+    expect(derived).not.toBeNull();
+    expect(derived?.determined, derived?.determined === false ? derived.reason : '').toBe(true);
+  });
+
+  it('should be stated by the page-bytes comment in config.ts', () => {
+    // Given the paragraph that carries it, sliced by its own anchors so the scan is about that
+    // paragraph and not about every number in a 2,000 line file
+    if (!derived?.determined) throw new Error('the derivation is undetermined');
+    const source = readFileSync(join(repoRoot, 'tools/gates/src/config.ts'), 'utf8');
+    const region = sliceBetween(
+      source,
+      'RE-DERIVED ON 2026-09-04, 203 TO 221 KB',
+      'export const BROWSER_CEILINGS',
+      'the page-bytes comment in config.ts',
+    );
+
+    // When, Then. THIS IS THE RUNNER THE FIGURE NEVER HAD: nine consecutive rounds of hand written
+    // numbers here were wrong, the ninth because the JS column moved under a reading nobody re-took.
+    expect(
+      zeroSampleFigureIssues('the page-bytes comment in config.ts', region, derived.figures),
+    ).toEqual([]);
+  });
+
+  it('should be stated by SPEC 20 where this checkout has ai-docs', () => {
+    // Given, and `ai-docs/` is git excluded so no clone restores it. The absence is asserted rather
+    // than assumed: where the file is there the paragraph is compared, and where it is not this
+    // says which fact went unchecked.
+    if (!derived?.determined) throw new Error('the derivation is undetermined');
+
+    let spec: string | null;
+    try {
+      spec = readFileSync(join(repoRoot, 'ai-docs/SPEC.md'), 'utf8');
+    } catch {
+      spec = null;
+    }
+
+    if (spec === null) {
+      expect(spec).toBeNull();
+      return;
+    }
+
+    // When
+    const region = sliceBetween(
+      spec,
+      '**Арифметика перевывода целиком.**',
+      '**Перевывод, каждый своим записанным свойством.**',
+      'the page-bytes re-derivation paragraphs of SPEC 20',
+    );
+
+    // Then
+    expect(
+      zeroSampleFigureIssues('the page-bytes paragraphs of SPEC 20', region, derived.figures),
+    ).toEqual([]);
   });
 });
