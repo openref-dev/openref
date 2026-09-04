@@ -12,6 +12,8 @@ import {
   baselineFreshness,
   checkCeilings,
   compareToBaseline,
+  pageBytesFigureIssues,
+  pageBytesFigures,
   pageBytesOf,
   readBaseline,
   readBrowserBaseline,
@@ -864,4 +866,195 @@ describe('the committed zero language reading', () => {
         `${String(derived.figures.replacedCapBytes)} has nothing there telling them the comparison is dated`,
     ).toBe(true);
   });
+});
+
+describe('pageBytesFigures', () => {
+  it('should derive the three columns, their sum and the headroom from the record and the cap', () => {
+    // Given a record whose columns are known, and the ceiling in force rather than a literal
+    const record = baseline({
+      parsedBytes: { documentBytes: 48_089, cssBytes: 62_594, jsBytes: 112_644 },
+    });
+
+    // When
+    const figures = pageBytesFigures(record);
+
+    // Then every value is arithmetic over the record and the cap, and none of the five is typed
+    const valueOf = (what: string): number | undefined =>
+      figures.find((figure) => figure.what === what)?.value;
+    const total = pageBytesOf(record.parsedBytes);
+
+    expect(valueOf('the document column')).toBe(record.parsedBytes.documentBytes);
+    expect(valueOf('the stylesheet column')).toBe(record.parsedBytes.cssBytes);
+    expect(valueOf('the bundle column')).toBe(record.parsedBytes.jsBytes);
+    expect(valueOf('the page total')).toBe(total);
+    expect(valueOf('the headroom under the ceiling in force')).toBe(
+      BROWSER_CEILINGS.pageBytes - total,
+    );
+  });
+
+  it('should say of each figure whether an instrument can take it again, or only the study can', () => {
+    // Given the honest limit this derivation has: two of the three columns equal a published
+    // figure this repository weighs off a built tree, and the document column comes from a browser
+    // study on a named machine that no check here can rerun. Dressing the second up as the first
+    // is the defect, so the standing is data rather than prose.
+    // When
+    const figures = pageBytesFigures(baseline());
+
+    // Then
+    const standingOf = (what: string): string | undefined =>
+      figures.find((figure) => figure.what === what)?.standing;
+
+    expect(standingOf('the stylesheet column')).toBe('measurable');
+    expect(standingOf('the bundle column')).toBe('measurable');
+    expect(standingOf('the document column')).toBe('recorded');
+    expect(standingOf('the page total')).toBe('recorded');
+    expect(standingOf('the headroom under the ceiling in force')).toBe('recorded');
+
+    // And every one of them names what holds it, because a standing with no reason beside it is
+    // the same absence as no standing at all
+    for (const figure of figures) {
+      expect(figure.heldBy.length).toBeGreaterThan(20);
+      expect(figure.heldBy).toContain(figure.standing === 'measurable' ? 'MEASURABLE' : 'RECORDED');
+    }
+  });
+
+  it('should move every figure a re-record moves, which is the whole point of deriving them', () => {
+    // Given the same record with one byte added to each column, which is the smallest re-record
+    const before = baseline({
+      parsedBytes: { documentBytes: 48_089, cssBytes: 62_594, jsBytes: 112_644 },
+    });
+    const after = baseline({
+      parsedBytes: { documentBytes: 48_090, cssBytes: 62_595, jsBytes: 112_645 },
+    });
+
+    // When
+    const moved = pageBytesFigures(before)
+      .map((figure, index) => figure.value !== pageBytesFigures(after)[index]?.value)
+      .filter(Boolean);
+
+    // Then all five, the headroom included: it is the cap less a total that moved
+    expect(moved).toHaveLength(5);
+  });
+});
+
+/**
+ * The three prose homes of the `page-bytes` columns, sliced by their own anchors.
+ *
+ * THE ROW IS ONE OF THEM AND IT WAS THE ONE NOTHING WATCHED. SPEC 20's table row states all five
+ * figures in its own text, the re-derivation paragraphs state them again, and the
+ * `BROWSER_CEILINGS` comment a third time, so a re-record of `baseline.json` moved four numbers and
+ * left three documents to be corrected by hand.
+ */
+const PAGE_BYTES_PROSE = [
+  {
+    label: 'the page-bytes row of SPEC 20',
+    file: 'ai-docs/SPEC.md',
+    from: '| Документ, CSS и JS, отданные главному потоку',
+    to: '| Статическая сборка, 1000 узлов, 4 ядра',
+  },
+  {
+    label: 'the page-bytes re-derivation paragraphs of SPEC 20',
+    file: 'ai-docs/SPEC.md',
+    from: '**Перевывод `page-bytes` с 203 на 221 КБ',
+    to: '**Перевывод, каждый своим записанным свойством.**',
+  },
+  {
+    label: 'the page-bytes comment in config.ts',
+    file: 'tools/gates/src/config.ts',
+    from: 'RE-DERIVED ON 2026-09-04, 203 TO 221 KB',
+    to: 'export const BROWSER_CEILINGS',
+  },
+] as const;
+
+/**
+ * One prose home's text, or null where this checkout does not have the file.
+ *
+ * `ai-docs/` is git excluded, so a clone has two of these three and not the third. The absence is
+ * reported rather than assumed, the way the zero language cases above report it.
+ *
+ * @param repoRoot - Absolute repository root
+ * @param home - Which region to read
+ * @returns The region, or null when the file is not in this checkout
+ */
+function proseRegion(repoRoot: string, home: (typeof PAGE_BYTES_PROSE)[number]): string | null {
+  let text: string;
+  try {
+    text = readFileSync(join(repoRoot, home.file), 'utf8');
+  } catch {
+    return null;
+  }
+
+  return sliceBetween(text, home.from, home.to, home.label);
+}
+
+describe('the committed page-bytes columns', () => {
+  const { baseline: record } = readBrowserBaseline(repoRoot);
+
+  it('should be derivable from the committed record before anything is concluded from them', () => {
+    // Given the real file, asserted present first: a proof that a prose home has gone stale is
+    // worth nothing unless the figure it is missing was really derived
+    expect(record).not.toBeNull();
+    if (record === null) return;
+
+    // When, Then
+    expect(pageBytesFigures(record)).toHaveLength(5);
+  });
+
+  for (const home of PAGE_BYTES_PROSE) {
+    it(`should each be stated by ${home.label}`, () => {
+      if (record === null) throw new Error('no baseline');
+      const region = proseRegion(repoRoot, home);
+
+      if (region === null) {
+        // `ai-docs/` is not in this checkout, and which fact went unchecked is said rather than
+        // passed over in silence
+        expect(home.file.startsWith('ai-docs/')).toBe(true);
+        return;
+      }
+
+      // When, Then, figure by figure, so a failure names the one that went stale and its standing
+      for (const figure of pageBytesFigures(record)) {
+        expect(
+          statesNumber(region, figure.value),
+          `${home.label} does not state ${figure.what}, ${String(figure.value)}. ${figure.heldBy}`,
+        ).toBe(true);
+      }
+
+      expect(pageBytesFigureIssues(home.label, region, record)).toEqual([]);
+    });
+
+    it(`should redden ${home.label} when the record moves under it`, () => {
+      // Given the falsification this whole mechanism is for: one byte added to each column, which
+      // is the smallest re-record `baseline.json` can receive. Before this, the four numbers moved
+      // and the prose stayed, and nothing anywhere went red.
+      if (record === null) throw new Error('no baseline');
+      const region = proseRegion(repoRoot, home);
+
+      if (region === null) {
+        expect(home.file.startsWith('ai-docs/')).toBe(true);
+        return;
+      }
+
+      const reRecorded: BrowserBaseline = {
+        ...record,
+        parsedBytes: {
+          documentBytes: record.parsedBytes.documentBytes + 1,
+          cssBytes: record.parsedBytes.cssBytes + 1,
+          jsBytes: record.parsedBytes.jsBytes + 1,
+        },
+      };
+
+      // When
+      const issues = pageBytesFigureIssues(home.label, region, reRecorded);
+
+      // Then all five, and each message carries the figure the derivation now produces and how
+      // good that figure is, so a reader knows whether to re-run an instrument or the study
+      expect(issues).toHaveLength(5);
+      for (const figure of pageBytesFigures(reRecorded)) {
+        expect(issues.join('\n')).toContain(String(figure.value));
+      }
+      expect(issues.join('\n')).toContain('MEASURABLE');
+      expect(issues.join('\n')).toContain('RECORDED');
+    });
+  }
 });

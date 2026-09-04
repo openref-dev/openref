@@ -20,9 +20,16 @@ import { gzipSync } from 'node:zlib';
 import { DIGEST_LENGTH } from '@openref/render';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { CLIENT_JS_ENTRY, SIZE_BUDGETS, THEME_CSS_ROOTS } from '../../src/config';
+import {
+  BASELINE_INPUT_PATHS,
+  baselineFreshness,
+  pageBytesFigures,
+  readBrowserBaseline,
+} from '../../src/lib/browser-baseline';
 import { collectBudgetOutcomes } from '../../src/lib/budget-report';
 import type { BudgetOutcome } from '../../src/lib/budget-report';
 import { formatBytes } from '../../src/lib/budgets';
+import { countCommitsSince } from '../../src/lib/git';
 import { forgetPublishedForm, readPublishedForm } from '../../src/lib/published-form';
 
 const REPO_ROOT = join(import.meta.dirname, '..', '..', '..', '..');
@@ -330,5 +337,50 @@ describe('the published form of this tree', () => {
     expect(initial + signInReturn).toBeLessThanOrEqual(112 * 1024);
 
     expect(capOf('theme-entry-raw')).toBe(281 * 1024);
+  });
+
+  it('should be the two columns the browser record carries, while the record describes this tree', () => {
+    // Given the honest limit of the `page-bytes` record, made into a check rather than a sentence.
+    // SPEC 20 claims two of its three columns agree with the published form to the byte, and that
+    // claim is the only independent instrument either column has: the document column comes from a
+    // browser study on a named machine and nothing here can take it again. So the two that can be
+    // taken again are taken again, and the one that cannot is left recorded and labelled.
+    const { baseline: record, reason } = readBrowserBaseline(REPO_ROOT);
+    expect(reason).toBeUndefined();
+    if (record === null) throw new Error('no baseline');
+
+    const stylesheets = STYLESHEETS.reduce((sum, name) => sum + sizeOf(name), 0);
+    const initial = INITIAL.reduce((sum, name) => sum + sizeOf(name), 0);
+
+    // WHEN THE RECORD HAS FALLEN BEHIND THE TREE THIS SAYS SO AND DOES NOT FAIL, which is the
+    // decision `baselineFreshness` already records and this must not quietly reverse: any failing
+    // distance would demand a browser study on every commit that touches `packages/`, a cadence a
+    // study taken on a runner cannot hold. A tree that has moved past the record is a tree where
+    // the two columns describe an earlier artefact, so the comparison is not available, and which
+    // fact went unchecked is named instead of passed over.
+    const distance = countCommitsSince(REPO_ROOT, record.commit, BASELINE_INPUT_PATHS);
+
+    if (distance.count !== 0) {
+      expect(
+        baselineFreshness(record, distance.count, distance.reason).state,
+        'the record still describes this tree, so the two columns should have been compared',
+      ).not.toBe('current');
+      return;
+    }
+
+    // Then, the claim as a measurement: 62,594 and 112,644 off this tree against the same two
+    // columns of the record, so a re-record that disagreed with the published form would be red
+    // here rather than restated in three documents.
+    expect(record.parsedBytes.cssBytes).toBe(stylesheets);
+    expect(record.parsedBytes.jsBytes).toBe(initial);
+
+    // AND THE THIRD COLUMN IS NOT DRESSED UP AS THE OTHER TWO. There is no published artefact to
+    // weigh it against, so what is asserted about it is only that it is what the study recorded
+    // and that the sum the SPEC 20 row states is arithmetic over the three.
+    const figure = (what: string): number | undefined =>
+      pageBytesFigures(record).find((entry) => entry.what === what)?.value;
+
+    expect(figure('the document column')).toBe(record.parsedBytes.documentBytes);
+    expect(figure('the page total')).toBe(record.parsedBytes.documentBytes + stylesheets + initial);
   });
 });

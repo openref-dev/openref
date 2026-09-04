@@ -2105,6 +2105,25 @@ export const BROWSER_STUDY_WORKFLOW = '.github/workflows/browser-budget-study.ym
  * enter the budget in silence. 221 KB is the one whole KB step the property keeps, and the headroom
  * is 2,977 bytes.
  *
+ * AND THE FIVE FIGURES OF THE TWO PARAGRAPHS ABOVE ARE NOT TYPED ANY MORE EITHER, WHICH IS THE
+ * SAME DEFECT ONE LAYER UP. The zero language reading was brought under `zeroSamplePage` while the
+ * three columns, their sum and the headroom stayed hand written here, in the SPEC 20 row and in
+ * the paragraphs beside both, and the only assertions that touched them compared the committed
+ * record with itself. `pageBytesFigures` in `lib/browser-baseline.ts` derives all five from
+ * `tools/browser-budget/baseline.json` and the ceiling above, and `pageBytesFigureIssues` walks
+ * this comment, the SPEC 20 row and the SPEC 20 paragraphs for them, so a re-record that leaves a
+ * prose home behind is red rather than quiet.
+ *
+ * WHICH OF THE FIVE ARE DERIVED FROM SOMETHING INDEPENDENTLY MEASURABLE, AND WHICH ARE ONLY AS
+ * GOOD AS THE RUN THAT WROTE THEM, because they are not equally good and one line for both would
+ * be dressing the weaker up as the stronger. MEASURABLE: 62,594 is `theme-css-raw` of the
+ * published form and 112,644 is `client-js-raw` of it, byte for byte on this tree, and both are
+ * weighed off the built artefacts, so the record's two columns are held against an instrument.
+ * RECORDED: the document column comes from the browser study on its named machine and there is no
+ * second instrument for it here, the total contains it and is therefore no better than it, and the
+ * headroom is arithmetic over the ceiling in force and that total. What holds those three is that
+ * nothing types them twice.
+ *
  * `longTaskCount` STAYS AT 2 AND HAS NO ROOM LEFT, recorded here because a count with no
  * headroom is one change away from a red build and nothing else in this file would say so. The
  * six studies of 2026-08-12 read 2, 2, 2, 0, 1 and 2 against a cap of 2, where the same page
