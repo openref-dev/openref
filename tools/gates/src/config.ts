@@ -267,6 +267,90 @@ export const BUILD_LINE_COUNT = 1641;
 export const BUILD_TASK_COUNT = 65;
 
 /**
+ * Fewest leaves the committed reading of `ai-docs/` can hold and still be that reading.
+ *
+ * A SCAN OVER NOTHING REPORTS THE SAME EMPTY LIST AS A SCAN OVER A CLEAN FILE, which is the shape
+ * every check in this repository is written against. The floor is far under the count the artefact
+ * actually carries, because its job is to tell a file from an absence rather than to weigh one.
+ *
+ * IT IS THE FLOOR OF A CORRIDOR AND {@link PROJECTION_ARTEFACT_BUDGET} IS THE CEILING. The two are
+ * written beside each other because a reader meets one of them alone, in a red gate, and reads it
+ * as one end of a scale. It is not a scale. THIS FLOOR ASKS WHETHER THERE IS AN ARTEFACT HERE AT
+ * ALL: an emptied or truncated file passes every grammar in `lib/projection-prose.ts`, since every
+ * leaf it still holds is admissible and the leaves it lost cannot be refused, so without a floor an
+ * absence reads as the cleanest run this gate ever has. THE CEILING ASKS WHETHER THERE IS TOO MUCH,
+ * which is the half no per value grammar can see, because a thousand conforming leaves are a
+ * thousand conforming leaves. Both are counted in leaves only because that is the one quantity
+ * either question has to work with.
+ *
+ * TODAY'S READING SITS BETWEEN THEM AT 625, which is 125 above this and 175 under the budget, and
+ * the corridor is narrow BY CONSTRUCTION RATHER THAN BY ACCIDENT. Both numbers are taken from one
+ * artefact of one size asked two different questions, so the gap between them is about as wide as
+ * one artefact is, and it was never going to be wider. A narrow corridor here is not a defect and
+ * not a warning.
+ *
+ * WHAT TO DO WHEN GROWTH REACHES THE CEILING, stated here because otherwise it gets answered with
+ * an edit. RE-DERIVE THE BUDGET THE WAY ITS OWN RECORDED PROPERTY SAYS: price a milestone off the
+ * artefact as it then reads, the way the comment below prices this one, count the milestones the
+ * plan still holds, and set the number to cover them. Never raise it to fit the reading that just
+ * went red, because a budget sized to the thing it is bounding bounds nothing, and that is the one
+ * move CLAUDE.md's third absolute rule is about.
+ *
+ * AND THIS FLOOR DOES NOT FOLLOW THE CEILING UP. Its subject is emptiness, not volume. It moves
+ * only if the smallest honest artefact changes shape, which is a different event from the artefact
+ * growing; raising it because the reading grew would make it a stale second copy of the reading.
+ */
+export const PROJECTION_LEAF_FLOOR = 500;
+
+/**
+ * What the committed reading of `ai-docs/` may weigh, taken as one file.
+ *
+ * WHY A BUDGET RATHER THAN MORE PER POSITION BOUNDS, WHICH IS THE WHOLE REASON THIS ROW EXISTS.
+ * Every position of `tools/gates/ai-docs-projection.json` bounds how far one value may reach and
+ * how many leaves may stand there, and every one of those numbers is defensible on its own. THEY
+ * MULTIPLY. Measured on 2026-09-03 by filling every position to its own bound and scanning the
+ * result: 4,725,296 bytes over 6,840 leaves, and the scan reported nothing whatever, because no
+ * position was over its own limit. A quantity bounded only a piece at a time is not bounded. This
+ * is the one number that is about the artefact instead of about a position inside it, and the per
+ * position bounds go back to being what they always were, anomaly detection on one value.
+ *
+ * THE BYTES, AND WHY THIS HEADROOM AND NOT ANOTHER. The committed artefact reads 128,068 bytes. A
+ * milestone of ordinary writing is priced off the artefact rather than guessed: the amendments
+ * surrogate costs 429 bytes per heading over its 164 headings, the plan surrogate 126 per task over
+ * 65 tasks, and the claim map 219 per row over 53 rows. This project has averaged eight tasks, five
+ * owned entries and seven claim map rows per milestone over M0 to M7. EACH OF THOSE EIGHT TASKS
+ * COSTS A PLAN ENTRY AND AN AMENDMENT HEADING BOTH, which this sentence used to leave out, so the
+ * arithmetic is 8 x (126 + 429) + 5 x 429 + 7 x 219 and it comes to 8,118 bytes.
+ * 147,456 leaves 19,388 over today's reading, which is two of those, and the plan has exactly two
+ * milestones left in it, RELEASE and POST-1.0. 136 KB covers one and would be re-derived halfway
+ * through the plan; 152 KB covers three, which is more room than the remaining work can use.
+ *
+ * WHAT IT REFUSES, WHICH IS THE HALF THAT MAKES IT A BUDGET. The 4.72 MB above, by a factor of 32.
+ * The amendments surrogate, 70,352 bytes of the file, arriving a second time: that reads 198,420.
+ * And the digest count, which this now binds before `DIGESTS_IN_THE_ARTEFACT` does, since 12,000
+ * digests at seventeen bytes each is 204,000 bytes and does not fit under this at all.
+ *
+ * THE LEAVES ARE THE SECOND NUMBER BECAUSE BYTES ALONE WOULD LET A THOUSAND SHORT ONES THROUGH.
+ * 625 today. 800 leaves 175 of room, which is 29 claim map rows at the six leaves a row costs, or
+ * four milestones at the seven rows a milestone this project has averaged. That leaf count is the
+ * CEILING of the corridor {@link PROJECTION_LEAF_FLOOR} above states in full, and the floor is not
+ * its margin: 500 asks whether there is an artefact here at all and 800 asks whether there is too
+ * much of one, so neither number moves because the other did.
+ *
+ * IT IS NOT A SPEC 20 ROW AND CANNOT BE MADE ONE FROM HERE. `SIZE_BUDGETS` is reconciled against
+ * SPEC 20's table in both directions by the `claims` gate, so a row added there with no row in the
+ * specification is a red gate, and SPEC 20 is the maintainer's document. It sits instead with the
+ * other committed limits in this file that the specification does not state, and it is enforced by
+ * `scanProjectionProse`, by the `projection-privacy` gate and by `projection.spec.ts`.
+ */
+export const PROJECTION_ARTEFACT_BUDGET = {
+  /** Most bytes the whole committed artefact may weigh. */
+  limitBytes: 144 * 1024,
+  /** Most leaves it may hold over every position together. */
+  leaves: 800,
+} as const;
+
+/**
  * THE LIST OF PACKAGES IS NOT IN THIS FILE ANY MORE, and its absence is the fix for F23.
  *
  * It was a hand written array of eight directory names here and another in

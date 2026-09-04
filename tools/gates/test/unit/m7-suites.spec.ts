@@ -16,6 +16,8 @@ import {
 } from '../../src/config';
 import { runM7SuitesGate } from '../../src/gates/m7-suites.gate';
 import { aiDocsPresent } from '../../src/lib/ai-docs';
+import { projectionRequest } from '../../src/lib/projection-request';
+import { projectFromDisk, writeProjection } from '../../src/lib/projection';
 import {
   assertionlessCaseTitlesIn,
   caseTitlesIn,
@@ -64,6 +66,11 @@ function plant(files: Readonly<Record<string, string>>): string {
     mkdirSync(dirname(target), { recursive: true });
     writeFileSync(target, content);
   }
+
+  // THE GATE READS THE COMMITTED ARTEFACT AND NOT THE DOCUMENTS, so a planted tree carries one
+  // generated from whatever was planted into it. Written with the writer the generator uses, so a
+  // fixture can never be in a shape the real file is never in.
+  writeProjection(root, projectFromDisk(root, projectionRequest()));
 
   return root;
 }
@@ -329,17 +336,20 @@ describe('the milestone scope this gate states in its output', () => {
     // When
     const result = runM7SuitesGate({ repoRoot: root });
 
-    // Then no wiring issue is invented, and the unread half says so in words
+    // Then the scope is answered out of the artefact this planted tree carries, which on a tree
+    // with no BUILD.md is the milestone being absent, and it is said rather than passed over.
+    // Before the projection this half was a warning on every clone and a reading on one machine.
     expect(aiDocsPresent(root)).toBe(false);
+    expect(result.status).toBe('fail');
+    expect(result.skipReason).toBeUndefined();
     expect(
-      result.findings.filter(
-        (finding) => finding.level === 'error' && /^\[[a-z-]+\]/.test(finding.message),
-      ),
-    ).toEqual([]);
+      result.findings
+        .filter((finding) => finding.level === 'error' && /^\[[a-z-]+\]/.test(finding.message))
+        .map((finding) => /^\[([a-z-]+)\]/.exec(finding.message)?.[1]),
+    ).toEqual(['milestone-missing']);
     expect(result.findings.map((finding) => finding.message).join(' ')).toContain(
-      'SKIPPED, NOT PASSED',
+      `the ${M7_MILESTONE} scope was not read`,
     );
-    expect(result.findings.map((finding) => finding.message).join(' ')).toContain('was not read');
   });
 });
 

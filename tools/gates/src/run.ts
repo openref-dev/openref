@@ -14,6 +14,7 @@ import { eventsSuitesGate } from './gates/events-suites.gate.js';
 import { federationSuitesGate } from './gates/federation-suites.gate.js';
 import { m6SuitesGate } from './gates/m6-suites.gate.js';
 import { m7SuitesGate } from './gates/m7-suites.gate.js';
+import { projectionPrivacyGate } from './gates/projection-privacy.gate.js';
 import { readerPagesGate } from './gates/reader-pages.gate.js';
 import { fixtureLicensesGate } from './gates/fixture-licenses.gate.js';
 import { formatGate } from './gates/format.gate.js';
@@ -126,10 +127,19 @@ import type { Gate, GateResult } from './types.js';
  * deferred event channels with a parenthesis, the milestone closed at `T054`, ten tasks closed
  * over it and nothing anywhere could see the marker. It needs nothing built, for the reason the
  * two below it need nothing built.
+ *
+ * The projection privacy gate sits third, and it is the pair to the build manifest for the third
+ * time in this list: that one asks whether the committed reading of `ai-docs/` still agrees with
+ * the documents, wherever they are, and this asks what that reading carries, everywhere. It reads
+ * nothing but the committed artefact, so it runs before anything is built and gives the same
+ * verdict on a clone as on the maintainer's machine. It is here at all because the scan was a unit
+ * case only, and `pnpm gates` is the command every session is told to run before declaring a slice
+ * done, so that command proved nothing about the guarantee the artefact exists for.
  */
 export const GATES: readonly Gate[] = [
   buildManifestGate,
   deferralsGate,
+  projectionPrivacyGate,
   formatGate,
   textSourceGate,
   dependencyGraphGate,

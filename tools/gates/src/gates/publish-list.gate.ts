@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { CLAUDE_FILE, CHANGESET_CONFIG_FILE, PUBLISHED_PACKAGES, SPEC_FILE } from '../config.js';
-import { aiDocsAbsentMessage, aiDocsPresent } from '../lib/ai-docs.js';
+import { PROJECTION_FILE, readProjection } from '../lib/projection.js';
 import { runCommand } from '../lib/exec.js';
 import { readOriginRemote } from '../lib/git.js';
 import {
@@ -48,11 +48,11 @@ export const UNREACHABLE_REGISTRY = 'http://127.0.0.1:1/';
  * T064 published `@openref/runner` and `@openref/theme-kit` it still called both internal and its
  * published table still omitted both. It is the file every session is told to read first.
  *
- * IT SKIPS ONLY THE HALF THAT NEEDS THE PRIVATE DOCUMENTS, on the precedent `static-suites` and
- * `capability-debts` set. Two of its four questions need nothing but the tree, so on a clone it
- * still fails on an internal package about to be published and on a missing licence file, and it
- * skips only when those are clean and the documents alone went unread. An absent document reading
- * as coverage is the failure this repository keeps removing.
+ * SPEC 4 ARRIVES THROUGH THE COMMITTED PROJECTION AND THE GATE NO LONGER SKIPS. The three lists
+ * that section states are lists of package names, which is data, so they ship as data and the
+ * comparison runs wherever the gates run. Before the artefact this gate skipped on every clone and
+ * therefore on every CI run, which left the question it exists for, whether a release would emit
+ * the set the specification names, answered on one machine.
  *
  * `CLAUDE.md` IS EXCLUDED FROM GIT THE WAY `ai-docs/` IS, which was measured rather than assumed:
  * `.git/info/exclude` names both, and `git ls-files CLAUDE.md` is empty. So a clone has neither,
@@ -112,52 +112,30 @@ export const publishListGate: Gate = {
       );
     }
 
-    const treeFailed = findings.some((finding) => finding.level === 'error');
+    const read = readProjection(repoRoot);
 
-    if (!aiDocsPresent(repoRoot)) {
-      if (treeFailed) {
-        findings.push({
-          level: 'info',
-          message: `${aiDocsAbsentMessage(publishListGate.title, [SPEC_FILE])} The failures above needed no document.`,
-        });
-
-        return Promise.resolve({
-          id: publishListGate.id,
-          title: publishListGate.title,
-          status: 'fail',
-          findings,
-        });
-      }
-
-      findings.push({
-        level: 'info',
-        message: aiDocsAbsentMessage(publishListGate.title, [SPEC_FILE]),
-      });
-
-      return Promise.resolve({
-        id: publishListGate.id,
-        title: publishListGate.title,
-        status: 'skip',
-        findings,
-        skipReason: 'ai-docs-absent',
-      });
-    }
-
-    const specPath = join(repoRoot, SPEC_FILE);
-    if (!existsSync(specPath)) {
-      findings.push({ level: 'error', message: `${SPEC_FILE} is not readable` });
+    if (!read.ok) {
+      findings.push({ level: 'error', message: `[projection-unreadable] ${read.reason}` });
     } else {
-      const lists = readSpecPackageLists(readFileSync(specPath, 'utf8'));
-      findings.push(...auditSpecAgreement(PUBLISHED_PACKAGES, lists));
-      findings.push(
-        ...auditChangesetGroups(
-          JSON.parse(readFileSync(join(repoRoot, CHANGESET_CONFIG_FILE), 'utf8')) as {
-            readonly fixed?: readonly (readonly string[])[];
-          },
-          lists.published,
-          manifests,
-        ),
-      );
+      const lists = read.projection.data.spec.packages;
+
+      if (lists === null) {
+        findings.push({
+          level: 'error',
+          message: `${SPEC_FILE} carried no readable package lists when ${PROJECTION_FILE} was generated`,
+        });
+      } else {
+        findings.push(...auditSpecAgreement(PUBLISHED_PACKAGES, lists));
+        findings.push(
+          ...auditChangesetGroups(
+            JSON.parse(readFileSync(join(repoRoot, CHANGESET_CONFIG_FILE), 'utf8')) as {
+              readonly fixed?: readonly (readonly string[])[];
+            },
+            lists.published,
+            manifests,
+          ),
+        );
+      }
     }
 
     const failed = findings.some((finding) => finding.level === 'error');

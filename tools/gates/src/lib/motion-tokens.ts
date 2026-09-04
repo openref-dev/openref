@@ -79,6 +79,15 @@ export interface MotionFinding {
 export interface CssBlock {
   /** The at-rules and the selector, outermost first, joined with a space. */
   readonly prelude: string;
+  /**
+   * The same chain unjoined, outermost first.
+   *
+   * KEPT BESIDE THE JOINED FORM RATHER THAN INSTEAD OF IT, because the projection that lets this
+   * check run on a clone has to write the block back out as CSS, and nesting cannot be recovered
+   * from a string in which an at-rule prelude and a selector are separated by the same space that
+   * separates two compound selectors.
+   */
+  readonly parts: readonly string[];
   readonly declarations: ReadonlyMap<string, string>;
 }
 
@@ -117,7 +126,7 @@ function stripComments(css: string): string {
  */
 export function readBlocks(css: string): CssBlock[] {
   const text = stripComments(css);
-  const blocks: { prelude: string; declarations: Map<string, string> }[] = [];
+  const blocks: { prelude: string; parts: string[]; declarations: Map<string, string> }[] = [];
   const stack: string[] = [];
   let pending = '';
   let at = 0;
@@ -169,7 +178,7 @@ export function readBlocks(css: string): CssBlock[] {
         const existing = blocks.find((block) => block.prelude === prelude);
 
         if (existing === undefined) {
-          blocks.push({ prelude, declarations: new Map([[property, value]]) });
+          blocks.push({ prelude, parts: [...stack], declarations: new Map([[property, value]]) });
         } else {
           existing.declarations.set(property, value);
         }

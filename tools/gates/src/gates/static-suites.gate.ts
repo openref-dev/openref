@@ -3,12 +3,11 @@ import { join } from 'node:path';
 import {
   MILESTONE_CLAUSE_COVERAGE,
   MILESTONE_UNDER_GATE,
-  SPEC_FILE,
   STATIC_BUDGET_JOB,
   STATIC_SUITE_COVERAGE,
   STATIC_SUITE_ROW,
 } from '../config.js';
-import { aiDocsAbsentMessage, aiDocsPresent } from '../lib/ai-docs.js';
+import { readSpecHalf } from '../lib/projected-spec.js';
 import { runCommand } from '../lib/exec.js';
 import {
   assertionlessCaseTitlesIn,
@@ -16,8 +15,6 @@ import {
   checkBudgetJob,
   checkMilestoneClauses,
   checkStaticCoverage,
-  milestoneClausesOf,
-  suiteRowOf,
   type StaticSuiteIssue,
 } from '../lib/static-suites.js';
 import type { Gate, GateContext, GateFinding, GateResult } from '../types.js';
@@ -58,8 +55,15 @@ export function runStaticSuitesGate(context: GateContext): GateResult {
 
   const files = [...new Set(STATIC_SUITE_COVERAGE.flatMap((coverage) => coverage.files))].sort();
 
-  const specPath = join(context.repoRoot, SPEC_FILE);
-  const haveSpec = aiDocsPresent(context.repoRoot) && existsSync(specPath);
+  const half = readSpecHalf(context.repoRoot, {
+    rows: [STATIC_SUITE_ROW],
+    milestone: MILESTONE_UNDER_GATE,
+    coverageNames: STATIC_SUITE_COVERAGE.map((coverage) => coverage.spec),
+    clauseNames: MILESTONE_CLAUSE_COVERAGE.map((clause) => clause.spec),
+  });
+  const haveSpec = half.read;
+  const names = half.rows.get(STATIC_SUITE_ROW) ?? null;
+  const clauses = half.clauses;
   const repository = {
     exists: (path: string): boolean => existsSync(join(context.repoRoot, path)),
     casesIn: (path: string): readonly string[] => {
@@ -84,7 +88,7 @@ export function runStaticSuitesGate(context: GateContext): GateResult {
   // suites are red, and each of those is a failure there as much as here.
   issues.push(
     ...checkStaticCoverage(STATIC_SUITE_COVERAGE, {
-      specNames: haveSpec ? suiteRowOf(readFileSync(specPath, 'utf8'), STATIC_SUITE_ROW) : [],
+      specNames: haveSpec ? names : [],
       ...repository,
       // With no specification to read, the row half is not answered here and says so below rather
       // than reporting four coverages nobody stated.
@@ -99,9 +103,7 @@ export function runStaticSuitesGate(context: GateContext): GateResult {
   issues.push(
     ...checkMilestoneClauses(MILESTONE_CLAUSE_COVERAGE, {
       milestone: MILESTONE_UNDER_GATE,
-      clauses: haveSpec
-        ? milestoneClausesOf(readFileSync(specPath, 'utf8'), MILESTONE_UNDER_GATE)
-        : [],
+      clauses: haveSpec ? clauses : [],
       specNames: [],
       ...repository,
       compareWithSpec: haveSpec,
@@ -109,9 +111,6 @@ export function runStaticSuitesGate(context: GateContext): GateResult {
   );
 
   if (haveSpec) {
-    const spec = readFileSync(specPath, 'utf8');
-    const names = suiteRowOf(spec, STATIC_SUITE_ROW);
-    const clauses = milestoneClausesOf(spec, MILESTONE_UNDER_GATE);
     findings.push({
       level: 'info',
       message:
@@ -126,12 +125,9 @@ export function runStaticSuitesGate(context: GateContext): GateResult {
           ? `SPEC 22 states no definition of done for ${MILESTONE_UNDER_GATE}`
           : `SPEC 22 ${MILESTONE_UNDER_GATE} is done when ${String(clauses.length)} clause(s) hold, each answered by named cases: ${clauses.join(' | ')}`,
     });
-  } else {
-    findings.push({
-      level: 'warning',
-      message: aiDocsAbsentMessage(staticSuitesGate.title, [SPEC_FILE]),
-    });
   }
+
+  for (const message of half.errors) findings.push({ level: 'error', message });
 
   const workflowPath = join(context.repoRoot, STATIC_BUDGET_JOB.workflow);
   if (existsSync(workflowPath)) {
@@ -182,11 +178,7 @@ export function runStaticSuitesGate(context: GateContext): GateResult {
   return {
     id: staticSuitesGate.id,
     title: staticSuitesGate.title,
-    ...(failed
-      ? { status: 'fail' as const }
-      : haveSpec
-        ? { status: 'pass' as const }
-        : { status: 'skip' as const, skipReason: 'ai-docs-absent' as const }),
+    status: failed ? 'fail' : 'pass',
     findings,
   };
 }

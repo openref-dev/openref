@@ -3,6 +3,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { CAPABILITY_DEBTS } from '../../src/config';
+import { projectionRequest } from '../../src/lib/projection-request';
+import { projectFromDisk, writeProjection } from '../../src/lib/projection';
 import { capabilityDebtsGate, runCapabilityDebtsGate } from '../../src/gates/capability-debts.gate';
 import type { GateResult } from '../../src/types';
 import {
@@ -210,6 +212,10 @@ function plant(options: { readonly closed: boolean; readonly bundle: string }): 
   );
   writeFileSync(join(root, 'ai-docs', 'BUILD-AMENDMENTS.md'), '', 'utf8');
 
+  // THE GATE READS THE COMMITTED ARTEFACT AND NOT THE PLAN, so a planted tree carries one
+  // generated from the plan planted into it.
+  writeProjection(root, projectFromDisk(root, projectionRequest()));
+
   const browser = join(root, 'packages', 'nest', 'dist', 'browser');
   mkdirSync(browser, { recursive: true });
   writeFileSync(join(browser, 'openref.js'), options.bundle, 'utf8');
@@ -341,8 +347,10 @@ describe('capabilityDebtsGate', () => {
     expect(errorsOf(result)).toContain('stale');
   });
 
-  it('should skip with a named reason where ai-docs is absent and the entry is still sound', () => {
-    // Given
+  it('should read the plan half out of the artefact where ai-docs is absent', () => {
+    // Given the case the artefact exists for: the documents are gone from the tree and the
+    // committed projection of them is not, which is every clone. Before it this was a skip with
+    // only the marker half answered, so a debt whose milestone had closed was invisible in CI.
     const repoRoot = plant({ closed: false, bundle: 'const a=1;export{a};' });
     rmSync(join(repoRoot, 'ai-docs'), { recursive: true, force: true });
 
@@ -350,8 +358,23 @@ describe('capabilityDebtsGate', () => {
     const result = runCapabilityDebtsGate({ repoRoot }, [PLANTED]);
 
     // Then
-    expect(result.status).toBe('skip');
-    expect(result.skipReason).toBe('ai-docs-absent');
+    expect(result.status).toBe('pass');
+    expect(result.skipReason).toBeUndefined();
+    expect(result.findings.some((finding) => finding.message.startsWith('UNREACHABLE'))).toBe(true);
+  });
+
+  it('should fail on a closed milestone with ai-docs absent, which it could not see before', () => {
+    // Given the same clone shaped tree with the milestone closed in the plan the artefact was
+    // generated from. This is the reading that used to live on one machine.
+    const repoRoot = plant({ closed: true, bundle: 'const a=1;export{a};' });
+    rmSync(join(repoRoot, 'ai-docs'), { recursive: true, force: true });
+
+    // When
+    const result = runCapabilityDebtsGate({ repoRoot }, [PLANTED]);
+
+    // Then
+    expect(result.status).toBe('fail');
+    expect(errorsOf(result)).toContain('milestone-closed');
   });
 });
 

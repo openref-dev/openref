@@ -1,7 +1,7 @@
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { aiDocsPresent } from './lib/ai-docs.js';
-import { accountForSkips, skipAccountingFailed } from './lib/skip-accounting.js';
+import { AI_DOCS_DIR, aiDocsPresent } from './lib/ai-docs.js';
+import { accountForSkips, SKIP_REASONS, skipAccountingFailed } from './lib/skip-accounting.js';
 import { failedGateIds, runAllGates, STATUS_LABEL } from './run.js';
 
 export { failedGateIds, GATES, runAllGates, selectGates, STATUS_LABEL } from './run.js';
@@ -27,12 +27,22 @@ async function main(): Promise<void> {
     write(`  ${STATUS_LABEL[result.status].padEnd(4)} ${result.id}${reason}`);
   }
 
-  // THE ONE THING CI CAN ENFORCE ON A CHECKOUT WITH NO PRIVATE DOCUMENTS. Four gates skip
-  // there and document rather than enforce what they read. This says the skipping itself was
-  // in order: every skip named a declared cause, the cause it named is true here, and no gate
-  // that had to skip came out as a pass instead.
+  // THE ONE THING CI CAN ENFORCE ON A CHECKOUT WITH NO PRIVATE DOCUMENTS. The gates that may skip
+  // there document rather than enforce what they read, and HOW MANY THEY ARE IS PRINTED FROM
+  // `SKIP_REASONS` RATHER THAN WRITTEN HERE. The sentence this replaces said four and was never
+  // measured: the projection took it to two while this file went untouched, which is a count of
+  // things in the repository asserted rather than read, and this run's third. `projection.spec.ts`
+  // holds that list to the gates whose own source declares the reason, in both directions, so a
+  // gate that starts or stops skipping cannot leave the number behind. What this section says is
+  // that the skipping itself was in order: every skip named a declared cause, the cause it named is
+  // true here, and no gate that had to skip came out as a pass instead.
+  const withoutDocuments = SKIP_REASONS.find((reason) => reason.id === 'ai-docs-absent');
+  const maySkip = withoutDocuments?.permitted ?? [];
   const accounting = accountForSkips(results, { aiDocsPresent: aiDocsPresent(repoRoot) });
   write('\n=== skip accounting ===');
+  write(
+    `  ${String(maySkip.length)} gate(s) may skip without ${AI_DOCS_DIR}/: ${maySkip.join(', ')}`,
+  );
   if (accounting.length === 0) write('  nothing skipped');
   for (const finding of accounting) write(`  [${finding.level}] ${finding.message}`);
 

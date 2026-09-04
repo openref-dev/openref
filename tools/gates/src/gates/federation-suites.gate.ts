@@ -6,9 +6,8 @@ import {
   FEDERATION_MILESTONE_CLAUSES,
   FEDERATION_SUITE_COVERAGE,
   FEDERATION_SUITE_ROW,
-  SPEC_FILE,
 } from '../config.js';
-import { AI_DOCS_DIR, aiDocsPresent } from '../lib/ai-docs.js';
+import { readSpecHalf } from '../lib/projected-spec.js';
 import { runCommand } from '../lib/exec.js';
 import {
   assertionlessCaseTitlesIn,
@@ -16,8 +15,6 @@ import {
   checkMilestoneClauses,
   checkStaticCoverage,
   checkSuiteFiles,
-  milestoneClausesOf,
-  suiteRowOf,
   type StaticSuiteIssue,
 } from '../lib/static-suites.js';
 import type { Gate, GateContext, GateFinding, GateResult } from '../types.js';
@@ -55,8 +52,15 @@ export function runFederationSuitesGate(context: GateContext): GateResult {
     ...new Set(FEDERATION_SUITE_COVERAGE.flatMap((coverage) => coverage.files)),
   ].sort();
 
-  const specPath = join(context.repoRoot, SPEC_FILE);
-  const haveSpec = aiDocsPresent(context.repoRoot) && existsSync(specPath);
+  const half = readSpecHalf(context.repoRoot, {
+    rows: [FEDERATION_SUITE_ROW],
+    milestone: FEDERATION_MILESTONE,
+    coverageNames: FEDERATION_SUITE_COVERAGE.map((coverage) => coverage.spec),
+    clauseNames: FEDERATION_MILESTONE_CLAUSES.map((clause) => clause.spec),
+  });
+  const haveSpec = half.read;
+  const names = half.rows.get(FEDERATION_SUITE_ROW) ?? null;
+  const clauses = half.clauses;
   const repository = {
     exists: (path: string): boolean => existsSync(join(context.repoRoot, path)),
     casesIn: (path: string): readonly string[] => {
@@ -80,7 +84,7 @@ export function runFederationSuitesGate(context: GateContext): GateResult {
   // named suite has gone, that a named case has gone, or that the suites are red.
   issues.push(
     ...checkStaticCoverage(FEDERATION_SUITE_COVERAGE, {
-      specNames: haveSpec ? suiteRowOf(readFileSync(specPath, 'utf8'), FEDERATION_SUITE_ROW) : [],
+      specNames: haveSpec ? names : [],
       row: FEDERATION_SUITE_ROW,
       ...repository,
       compareWithSpec: haveSpec,
@@ -90,9 +94,7 @@ export function runFederationSuitesGate(context: GateContext): GateResult {
   issues.push(
     ...checkMilestoneClauses(FEDERATION_MILESTONE_CLAUSES, {
       milestone: FEDERATION_MILESTONE,
-      clauses: haveSpec
-        ? milestoneClausesOf(readFileSync(specPath, 'utf8'), FEDERATION_MILESTONE)
-        : [],
+      clauses: haveSpec ? clauses : [],
       specNames: [],
       ...repository,
       compareWithSpec: haveSpec,
@@ -105,9 +107,6 @@ export function runFederationSuitesGate(context: GateContext): GateResult {
   issues.push(...checkSuiteFiles(FEDERATION_BUDGET_SUITE, { specNames: [], ...repository }));
 
   if (haveSpec) {
-    const spec = readFileSync(specPath, 'utf8');
-    const names = suiteRowOf(spec, FEDERATION_SUITE_ROW);
-    const clauses = milestoneClausesOf(spec, FEDERATION_MILESTONE);
     findings.push({
       level: 'info',
       message:
@@ -122,21 +121,9 @@ export function runFederationSuitesGate(context: GateContext): GateResult {
           ? `SPEC 22 states no definition of done for ${FEDERATION_MILESTONE}`
           : `SPEC 22 ${FEDERATION_MILESTONE} is done when ${String(clauses.length)} clause(s) hold, each answered by named cases: ${clauses.join(' | ')}`,
     });
-  } else {
-    findings.push({
-      level: 'warning',
-      message:
-        `SKIPPED, NOT PASSED, AND THE SKIP COVERS THE SPEC HALF ONLY: ${AI_DOCS_DIR}/ is not ` +
-        `present, so the SPEC 21 ${FEDERATION_SUITE_ROW} row and the SPEC 22 ` +
-        `${FEDERATION_MILESTONE} definition of done were not compared with this wiring, and this ` +
-        `run proves nothing about either document. The suite half still ran and can still fail: ` +
-        `every named suite file must be there, every named case must be present and assert ` +
-        `something, and the coverage suites are run. ${AI_DOCS_DIR}/ is excluded from git in ` +
-        `.git/info/exclude and no clone restores it, so a checkout without it is expected rather ` +
-        `than broken. AWAITING THE MAINTAINER'S DECISION on how ${AI_DOCS_DIR}/ is versioned; ` +
-        `until it is made, the document half can only run where the documents already are.`,
-    });
   }
+
+  for (const message of half.errors) findings.push({ level: 'error', message });
 
   for (const issue of issues) {
     findings.push({ level: 'error', message: `[${issue.rule}] ${issue.message}` });
@@ -178,11 +165,7 @@ export function runFederationSuitesGate(context: GateContext): GateResult {
   return {
     id: federationSuitesGate.id,
     title: federationSuitesGate.title,
-    ...(failed
-      ? { status: 'fail' as const }
-      : haveSpec
-        ? { status: 'pass' as const }
-        : { status: 'skip' as const, skipReason: 'ai-docs-absent' as const }),
+    status: failed ? 'fail' : 'pass',
     findings,
   };
 }

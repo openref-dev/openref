@@ -1,8 +1,9 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { THEME_TOKEN_STYLESHEETS } from '../config.js';
-import { aiDocsAbsentMessage, aiDocsPresent } from '../lib/ai-docs.js';
+import { AI_DOCS_DIR } from '../lib/ai-docs.js';
 import { auditMotionTokens, MOTION_TOKENS, type StyleSource } from '../lib/motion-tokens.js';
+import { PROJECTION_FILE, readProjection } from '../lib/projection.js';
 import type { Gate, GateFinding, GateResult } from '../types.js';
 
 /**
@@ -16,16 +17,17 @@ import type { Gate, GateFinding, GateResult } from '../types.js';
  *
  * IT READS THE DESIGN STYLESHEETS AS WELL AS THE SHIPPED ONE. Only vernier is code today, and
  * a check that saw only the shipped theme would report conformance for one third of the
- * problem. The build manifest gate already requires `ai-docs/` to be present, so this makes the
- * same assumption rather than a new one.
+ * problem.
  *
- * A configured stylesheet that is missing is an error, not a skip. A theme this cannot read is
- * a theme nothing checks.
+ * THE THREE THAT LIVE UNDER `ai-docs/` ARRIVE THROUGH THE COMMITTED PROJECTION, since the
+ * artefact. Each is reduced to what this check reads and nothing else: every block that declares
+ * a custom property, every property name, and the value of the four motion tokens and whatever
+ * they alias through. The cascade, the specificity, the load order and the reduced motion query
+ * all survive that; the design does not travel with them. It used to skip on every clone, which
+ * meant the motion contract was enforced on one machine.
  *
- * THE ONE EXCEPTION IS `ai-docs/` NOT BEING THERE AT ALL, which is a checkout without the
- * maintainer's private documents rather than a theme that lost its tokens. Three of the four
- * themes live there, so a run that saw only vernier would report on a third of the contract; it
- * skips loudly instead, per `lib/ai-docs.ts`.
+ * A configured stylesheet that is missing is an error, not a skip, whether it is missing from the
+ * tree or from the artefact. A theme this cannot read is a theme nothing checks.
  */
 export const themeMotionGate: Gate = {
   id: 'theme-motion',
@@ -35,31 +37,45 @@ export const themeMotionGate: Gate = {
     const findings: GateFinding[] = [];
     let failed = false;
 
-    if (!aiDocsPresent(context.repoRoot)) {
+    const read = readProjection(context.repoRoot);
+
+    if (!read.ok) {
       return Promise.resolve({
         id: themeMotionGate.id,
         title: themeMotionGate.title,
-        status: 'skip',
-        skipReason: 'ai-docs-absent',
-        findings: [
-          {
-            level: 'warning',
-            message: aiDocsAbsentMessage(
-              themeMotionGate.title,
-              THEME_TOKEN_STYLESHEETS.flatMap((sheet) => sheet.files).filter((file) =>
-                file.startsWith('ai-docs/'),
-              ),
-            ),
-          },
-        ],
+        status: 'fail',
+        findings: [{ level: 'error', message: `[projection-unreadable] ${read.reason}` }],
       });
     }
+
+    const projected = new Map(
+      read.projection.data.stylesheets.map((sheet) => [sheet.file, sheet.css]),
+    );
 
     for (const stylesheet of THEME_TOKEN_STYLESHEETS) {
       const sources: StyleSource[] = [];
       let readable = true;
 
       for (const file of stylesheet.files) {
+        if (file.startsWith(`${AI_DOCS_DIR}/`)) {
+          const css = projected.get(file);
+
+          if (css === undefined || css === null) {
+            failed = true;
+            readable = false;
+            findings.push({
+              level: 'error',
+              message:
+                `${stylesheet.theme}: ${file} carries no reading in ${PROJECTION_FILE}, so this ` +
+                `theme is unchecked. Either the stylesheet is gone or the artefact predates it`,
+            });
+            continue;
+          }
+
+          sources.push({ file, css });
+          continue;
+        }
+
         const path = join(context.repoRoot, file);
 
         if (!existsSync(path)) {

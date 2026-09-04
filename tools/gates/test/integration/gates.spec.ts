@@ -31,6 +31,8 @@ import { publishListGate } from '../../src/gates/publish-list.gate';
 import { themeFontsGate } from '../../src/gates/theme-fonts.gate';
 import { themeMotionGate } from '../../src/gates/theme-motion.gate';
 import { AI_DOCS_DIR, aiDocsPresent } from '../../src/lib/ai-docs';
+import { projectionRequest } from '../../src/lib/projection-request';
+import { projectFromDisk, writeProjection } from '../../src/lib/projection';
 import { checkBudgetExceptions } from '../../src/lib/budget-exceptions';
 import { parseContents, parseMilestones, splitLines } from '../../src/lib/build-manifest';
 import { runCommand } from '../../src/lib/exec';
@@ -76,8 +78,9 @@ afterEach(() => {
 });
 
 describe('buildManifestGate', () => {
-  it.skipIf(!HAVE_AI_DOCS)('should pass on the committed BUILD.md', async () => {
-    // Given
+  it('should pass on the committed BUILD.md, wherever this runs', async () => {
+    // Given, and it runs everywhere now: the line addressing is read out of the committed
+    // projection, so a clone with no `ai-docs/` answers this too. It was skipped there before.
     const context = { repoRoot };
 
     // When
@@ -348,9 +351,10 @@ describe('publishListGate', () => {
       // When
       const result = await publishListGate.run(context);
 
-      // Then
+      // Then it passes wherever it runs, because SPEC 4's three lists are lists of package names
+      // and travel in the committed projection. It skipped on every clone before that.
       expect(result.findings.filter((finding) => finding.level === 'error')).toEqual([]);
-      expect(result.status).toBe(HAVE_AI_DOCS ? 'pass' : 'skip');
+      expect(result.status).toBe('pass');
     },
     SPAWNED_PROCESS_TIMEOUT_MS,
   );
@@ -481,10 +485,11 @@ describe('fixtureLicensesGate', () => {
 });
 
 describe('themeMotionGate', () => {
-  it.skipIf(!HAVE_AI_DOCS)('should pass on all five committed theme stylesheets', async () => {
+  it('should pass on all five committed theme stylesheets', async () => {
     // Given, three reference designs and the two shipped themes. Three of the five are documents
     // rather than code, and a check that saw only the code would report conformance for a fraction
-    // of the problem. It was four until T032 shipped the second theme.
+    // of the problem. It was four until T032 shipped the second theme. The three under `ai-docs/`
+    // arrive through the committed projection, so this runs on a clone as well.
     const context = { repoRoot };
 
     // When
@@ -509,17 +514,22 @@ describe('themeMotionGate', () => {
     // theme that lost its tokens, and this case is the second one.
     const context = { repoRoot: mkdtempSync(join(tmpdir(), 'openref-motion-')) };
     mkdirSync(join(context.repoRoot, AI_DOCS_DIR), { recursive: true });
+    writeProjection(context.repoRoot, projectFromDisk(context.repoRoot, projectionRequest()));
 
     // When
     const result = await themeMotionGate.run(context);
     rmSync(context.repoRoot, { recursive: true, force: true });
 
     // Then, one finding per file rather than per theme: the shipped theme loads two, and both
-    // are named, because a theme half read is a theme unchecked either way.
+    // are named, because a theme half read is a theme unchecked either way. The three under
+    // `ai-docs/` are named by the artefact that carries no reading of them and the two shipped
+    // ones by the disk, and both sentences say the theme went unchecked.
     const files = THEME_TOKEN_STYLESHEETS.reduce((count, sheet) => count + sheet.files.length, 0);
     expect(result.status).toBe('fail');
     expect(result.findings).toHaveLength(files);
-    expect(result.findings[0]?.message).toContain('is not there, so this theme is unchecked');
+    expect(result.findings.map((finding) => finding.message).join(' ')).toContain(
+      'so this theme is unchecked',
+    );
   });
 });
 
@@ -967,42 +977,42 @@ describe('budgetExceptionsGate', () => {
 
 describe('the gates that read ai-docs', () => {
   /**
-   * The three gates that cannot run without the maintainer's private documents.
+   * The three gates that could not run without the maintainer's private documents, and now can.
    *
-   * `ai-docs/` is excluded from git, so a fresh clone has none of it and these three would
-   * report the absence as a defect in the code. They skip loudly instead. A fourth gate,
-   * `budget-exceptions`, joins them only when the list is not empty, because an exception it
-   * cannot validate is a raised threshold. THE LIST IS EMPTY SINCE 2026-08-14, the close of
-   * M2, so it is not in this array today: with nothing to validate there is nothing it needs
-   * the plan for, and the case below proves it passes rather than skips. The next entry
-   * written puts it back.
+   * `ai-docs/` is excluded from git, so a fresh clone has none of it and these three skipped there,
+   * loudly, on every CI run this repository has ever had. What they read now is the committed
+   * projection of those documents, so they report a verdict wherever the gates run. THE CASE THAT
+   * MATTERS IS THE ONE BELOW IT: with no artefact either, a gate must fail rather than skip, since
+   * the artefact is committed and a checkout without one is a defect in the tree.
    */
   const readers = [buildManifestGate, claimsGate, themeMotionGate];
 
   it(
-    'should skip loudly rather than fail when the directory is not there',
+    'should fail rather than skip when neither the directory nor the artefact is there',
     async () => {
-      // Given, a checkout with no ai-docs at all, which is what every clone of this repository is.
+      // Given a checkout with no ai-docs and no committed projection, which is a tree that lost
+      // the file rather than a clone: a clone has the artefact, because it is committed.
       const root = mkdtempSync(join(tmpdir(), 'openref-nodocs-'));
 
       // When
       const results = await Promise.all(readers.map((gate) => gate.run({ repoRoot: root })));
       rmSync(root, { recursive: true, force: true });
 
-      // Then, a skip and never a pass: nothing was checked and the message says so.
+      // Then, a failure and never a skip: nothing was checked and the message says which file
+      // was missing and how to make it.
       for (const result of results) {
-        expect(result.status).toBe('skip');
-        expect(result.findings[0]?.level).toBe('warning');
-        expect(result.findings[0]?.message).toContain('SKIPPED, NOT PASSED');
-        expect(result.findings[0]?.message).toContain("AWAITING THE MAINTAINER'S DECISION");
+        expect(result.status).toBe('fail');
+        expect(result.skipReason).toBeUndefined();
+        const printed = result.findings.map((finding) => finding.message).join(' ');
+        expect(printed).toContain('projection-unreadable');
+        expect(printed).toContain('pnpm gates:projection');
       }
 
-      // And the fourth, which is conditional on more than the cause. With an entry live it has
-      // terms to validate and no plan to validate them against, so it skips there and says
-      // UNVALIDATED rather than printing the entry as if it had been checked. That branch is
-      // unreachable while the list is empty, exactly as it was before 2026-08-11, because the
-      // gate reads the committed list rather than an injected one; the next entry written makes
-      // it reachable and this case is where its assertions then return.
+      // And the one that still reads a document, which is conditional on more than the cause.
+      // With an entry live it has terms to validate and no plan to validate them against, so it
+      // skips there and says UNVALIDATED rather than printing the entry as if it had been
+      // checked. That branch is unreachable while the list is empty, exactly as it was before
+      // 2026-08-11, because the gate reads the committed list rather than an injected one.
       //
       // WITH THE LIST EMPTY THE GATE NEEDS NO PLAN, WHICH IS WHY IT IS PERMITTED THIS REASON AND
       // NOT FORCED BY IT, AND SINCE T042 THAT IS NOT THE SAME AS NEEDING NOTHING. This case used to
@@ -1042,6 +1052,7 @@ describe('the gates that read ai-docs', () => {
     // skip did not quietly disable them.
     const root = mkdtempSync(join(tmpdir(), 'openref-emptydocs-'));
     mkdirSync(join(root, AI_DOCS_DIR), { recursive: true });
+    writeProjection(root, projectFromDisk(root, projectionRequest()));
 
     // When
     const result = await buildManifestGate.run({ repoRoot: root });

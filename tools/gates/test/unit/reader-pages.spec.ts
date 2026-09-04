@@ -1,4 +1,12 @@
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  cpSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -8,6 +16,7 @@ import {
   READER_PAGES_PREFIX,
   SPEC_FILE,
 } from '../../src/config';
+
 import {
   pageKindsOf,
   readerPagesOf,
@@ -15,6 +24,8 @@ import {
   runReaderPagesGate,
 } from '../../src/gates/reader-pages.gate';
 import { aiDocsPresent } from '../../src/lib/ai-docs';
+import { projectionRequest } from '../../src/lib/projection-request';
+import { PROJECTION_FILE, projectFromDisk, writeProjection } from '../../src/lib/projection';
 import { GATES } from '../../src/run';
 
 const repoRoot = join(import.meta.dirname, '..', '..', '..', '..');
@@ -68,7 +79,11 @@ function unionWith(members: readonly string[]): string {
  * @param options - What to write, each absent to leave the file out entirely
  * @returns Absolute path of the planted root
  */
-function plant(options: { readonly spec?: string; readonly union?: string }): string {
+function plant(options: {
+  readonly spec?: string;
+  readonly union?: string;
+  readonly projection?: boolean;
+}): string {
   const root = mkdtempSync(join(tmpdir(), 'openref-reader-pages-'));
   planted = root;
 
@@ -82,6 +97,13 @@ function plant(options: { readonly spec?: string; readonly union?: string }): st
     const target = join(root, SPEC_FILE);
     mkdirSync(dirname(target), { recursive: true });
     writeFileSync(target, options.spec);
+  }
+
+  // THE GATE READS THE COMMITTED ARTEFACT AND NOT THE DOCUMENT, so a planted tree carries one
+  // generated from whatever was planted. Written with the same writer the generator uses, so a
+  // fixture cannot be in a shape the real file is never in.
+  if (options.projection !== false) {
+    writeProjection(root, projectFromDisk(root, projectionRequest()));
   }
 
   return root;
@@ -271,28 +293,48 @@ describe('the reader pages gate', () => {
     expect(rulesOf(root)).toEqual(['kind-unlisted']);
   });
 
-  it('should skip rather than pass where the specification is not in the checkout', () => {
-    // Given a tree with the union and no `ai-docs/` at all, which is every clone but one
-    const root = plant({ union: unionWith(ALL_KINDS) });
+  it('should fail rather than pass where the artefact is not in the checkout', () => {
+    // Given a tree with the union and no committed projection at all. Before the artefact this
+    // was a skip on every clone; a missing artefact is a defect in the tree rather than a
+    // property of the machine, so it is a failure that names the file and the command.
+    const root = plant({ union: unionWith(ALL_KINDS), projection: false });
 
     // When
     const result = runReaderPagesGate({ repoRoot: root });
 
-    // Then it says so and names the reason, and the half that needs no document still ran: the
-    // union was read and reconciled with the table, which is what the info finding reports.
+    // Then the half that needs no document still ran and reported nothing wrong, and the missing
+    // artefact is the finding.
     expect(aiDocsPresent(root)).toBe(false);
-    expect(result.status).toBe('skip');
-    expect(result.skipReason).toBe('ai-docs-absent');
+    expect(result.status).toBe('fail');
+    expect(result.skipReason).toBeUndefined();
+    expect(rulesOf(root)).toEqual(['projection-unreadable']);
     expect(result.findings.map((finding) => finding.message).join(' ')).toContain(
-      'THE SKIP COVERS THE SPECIFICATION HALF ONLY',
+      'pnpm gates:projection',
     );
-    expect(result.findings.filter((finding) => finding.level === 'error')).toEqual([]);
   });
 
-  it('should go on failing on a disagreement with the directory absent', () => {
-    // Given the same checkout with the half that needs no document broken. A skip here would be
-    // an absence reading as coverage, which is the thing the skip accounting exists to refuse.
-    const root = plant({ union: unionWith([...ALL_KINDS, 'timeline']) });
+  it('should read SPEC 13.3 out of the artefact with the directory absent', () => {
+    // Given the case the artefact exists for: a tree with no `ai-docs/`, carrying a projection
+    // generated from a specification that lists a route the table maps to no kind. Before the
+    // artefact this comparison could not be made anywhere but the maintainer's machine.
+    const source = plant({ spec: specWith([...ALL_ROUTES, '<route>/timeline']) });
+    const root = plant({ union: unionWith(ALL_KINDS), projection: false });
+    mkdirSync(dirname(join(root, PROJECTION_FILE)), { recursive: true });
+    cpSync(join(source, PROJECTION_FILE), join(root, PROJECTION_FILE));
+
+    // When, Then
+    expect(aiDocsPresent(root)).toBe(false);
+    expect(rulesOf(root)).toEqual(['route-unmapped']);
+  });
+
+  it('should go on failing on a disagreement the artefact cannot see', () => {
+    // Given a tree whose projection reads a sound specification and whose union has a member no
+    // route names. A skip here would be an absence reading as coverage, which is the thing the
+    // skip accounting refuses; the artefact half is clean and the tree half is not.
+    const root = plant({
+      spec: specWith(ALL_ROUTES),
+      union: unionWith([...ALL_KINDS, 'timeline']),
+    });
 
     // When
     const result = runReaderPagesGate({ repoRoot: root });
@@ -307,10 +349,9 @@ describe('the reader pages gate', () => {
     // specification, or a member to the union, and stops there.
     const result = runReaderPagesGate({ repoRoot });
 
-    // When, Then. On a checkout with the documents it passes; on one without them it skips, and
-    // either way it reports no error, which is the assertion that holds in both places.
+    // When, Then. It passes wherever it runs now, because the reading it needs is committed.
     expect(result.findings.filter((finding) => finding.level === 'error')).toEqual([]);
-    expect(result.status).toBe(aiDocsPresent(repoRoot) ? 'pass' : 'skip');
+    expect(result.status).toBe('pass');
   });
 
   it('should be registered in the run, after the M7 suites gate', () => {

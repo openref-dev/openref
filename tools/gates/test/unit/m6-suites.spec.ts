@@ -11,6 +11,8 @@ import {
 } from '../../src/config';
 import { m6SuitesGate, runM6SuitesGate } from '../../src/gates/m6-suites.gate';
 import { aiDocsPresent } from '../../src/lib/ai-docs';
+import { projectionRequest } from '../../src/lib/projection-request';
+import { projectFromDisk, writeProjection } from '../../src/lib/projection';
 import {
   assertionlessCaseTitlesIn,
   caseTitlesIn,
@@ -59,6 +61,11 @@ function plant(files: Readonly<Record<string, string>>): string {
     mkdirSync(dirname(target), { recursive: true });
     writeFileSync(target, content);
   }
+
+  // THE GATE READS THE COMMITTED ARTEFACT AND NOT THE DOCUMENTS, so a planted tree carries one
+  // generated from whatever was planted into it. Written with the writer the generator uses, so a
+  // fixture can never be in a shape the real file is never in.
+  writeProjection(root, projectFromDisk(root, projectionRequest()));
 
   return root;
 }
@@ -173,7 +180,7 @@ describe('the M6 suites gate on a planted tree', () => {
     },
   );
 
-  it('should skip rather than pass where the specification is not in the checkout', () => {
+  it('should answer the document half out of the artefact where the specification is absent', () => {
     // Given a tree whose wiring is clean but which carries no `ai-docs/`, which is every clone.
     // Every wired file exists and carries every named case, with an assertion in each, so the half
     // that needs no document really did run and really did have nothing to say.
@@ -199,16 +206,18 @@ describe('the M6 suites gate on a planted tree', () => {
       (finding) => finding.level === 'error' && /^\[[a-z-]+\]/.test(finding.message),
     );
 
-    // Then no wiring issue is reported, no row is reported missing, and the message says which
-    // half went unread rather than the gate passing as if it had read both
+    // Then no wiring issue is reported, and the four rows are answered out of the artefact this
+    // planted tree carries, which on a tree with no SPEC.md means every one of them is absent and
+    // said to be. Before the projection this was a skip on every clone.
     expect(aiDocsPresent(root)).toBe(false);
-    expect(wiring).toEqual([]);
-    expect(result.findings.some((finding) => finding.message.startsWith('SPEC 21 has no'))).toBe(
-      false,
-    );
-    expect(result.findings.map((finding) => finding.message).join(' ')).toContain(
-      'SKIPPED, NOT PASSED',
-    );
+    expect(result.status).toBe('fail');
+    expect(result.skipReason).toBeUndefined();
+    expect(wiring.map((finding) => /^\[([a-z-]+)\]/.exec(finding.message)?.[1])).toEqual([
+      'milestone-missing',
+    ]);
+    expect(
+      result.findings.filter((finding) => finding.message.startsWith('SPEC 21 has no')),
+    ).toHaveLength(4);
   });
 });
 

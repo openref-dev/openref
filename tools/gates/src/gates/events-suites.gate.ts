@@ -5,17 +5,14 @@ import {
   EVENTS_MILESTONE_CLAUSES,
   EVENTS_SUITE_COVERAGE,
   EVENTS_SUITE_ROW,
-  SPEC_FILE,
 } from '../config.js';
-import { AI_DOCS_DIR, aiDocsPresent } from '../lib/ai-docs.js';
+import { readSpecHalf } from '../lib/projected-spec.js';
 import { runCommand } from '../lib/exec.js';
 import {
   assertionlessCaseTitlesIn,
   caseTitlesIn,
   checkMilestoneClauses,
   checkStaticCoverage,
-  milestoneClausesOf,
-  suiteRowOf,
   type StaticSuiteIssue,
 } from '../lib/static-suites.js';
 import type { Gate, GateContext, GateFinding, GateResult } from '../types.js';
@@ -49,8 +46,15 @@ export function runEventsSuitesGate(context: GateContext): GateResult {
 
   const files = [...new Set(EVENTS_SUITE_COVERAGE.flatMap((coverage) => coverage.files))].sort();
 
-  const specPath = join(context.repoRoot, SPEC_FILE);
-  const haveSpec = aiDocsPresent(context.repoRoot) && existsSync(specPath);
+  const half = readSpecHalf(context.repoRoot, {
+    rows: [EVENTS_SUITE_ROW],
+    milestone: EVENTS_MILESTONE,
+    coverageNames: EVENTS_SUITE_COVERAGE.map((coverage) => coverage.spec),
+    clauseNames: EVENTS_MILESTONE_CLAUSES.map((clause) => clause.spec),
+  });
+  const haveSpec = half.read;
+  const names = half.rows.get(EVENTS_SUITE_ROW) ?? null;
+  const clauses = half.clauses;
   const repository = {
     exists: (path: string): boolean => existsSync(join(context.repoRoot, path)),
     casesIn: (path: string): readonly string[] => {
@@ -74,7 +78,7 @@ export function runEventsSuitesGate(context: GateContext): GateResult {
   // be told that a named suite has gone, that a named case has gone, or that the suites are red.
   issues.push(
     ...checkStaticCoverage(EVENTS_SUITE_COVERAGE, {
-      specNames: haveSpec ? suiteRowOf(readFileSync(specPath, 'utf8'), EVENTS_SUITE_ROW) : [],
+      specNames: haveSpec ? names : [],
       row: EVENTS_SUITE_ROW,
       ...repository,
       compareWithSpec: haveSpec,
@@ -84,7 +88,7 @@ export function runEventsSuitesGate(context: GateContext): GateResult {
   issues.push(
     ...checkMilestoneClauses(EVENTS_MILESTONE_CLAUSES, {
       milestone: EVENTS_MILESTONE,
-      clauses: haveSpec ? milestoneClausesOf(readFileSync(specPath, 'utf8'), EVENTS_MILESTONE) : [],
+      clauses: haveSpec ? clauses : [],
       specNames: [],
       ...repository,
       compareWithSpec: haveSpec,
@@ -92,9 +96,6 @@ export function runEventsSuitesGate(context: GateContext): GateResult {
   );
 
   if (haveSpec) {
-    const spec = readFileSync(specPath, 'utf8');
-    const names = suiteRowOf(spec, EVENTS_SUITE_ROW);
-    const clauses = milestoneClausesOf(spec, EVENTS_MILESTONE);
     findings.push({
       level: 'info',
       message:
@@ -109,21 +110,9 @@ export function runEventsSuitesGate(context: GateContext): GateResult {
           ? `SPEC 22 states no definition of done for ${EVENTS_MILESTONE}`
           : `SPEC 22 ${EVENTS_MILESTONE} is done when ${String(clauses.length)} clause(s) hold, each answered by named cases: ${clauses.join(' | ')}`,
     });
-  } else {
-    findings.push({
-      level: 'warning',
-      message:
-        `SKIPPED, NOT PASSED, AND THE SKIP COVERS THE SPEC HALF ONLY: ${AI_DOCS_DIR}/ is not ` +
-        `present, so the SPEC 21 ${EVENTS_SUITE_ROW} row and the SPEC 22 ${EVENTS_MILESTONE} ` +
-        `definition of done were not compared with this wiring, and this run proves nothing ` +
-        `about either document. The suite half still ran and can still fail: every named suite ` +
-        `file must be there, every named case must be present and assert something, and the ` +
-        `coverage suites are run. ${AI_DOCS_DIR}/ is excluded from git in .git/info/exclude and ` +
-        `no clone restores it, so a checkout without it is expected rather than broken. AWAITING ` +
-        `THE MAINTAINER'S DECISION on how ${AI_DOCS_DIR}/ is versioned; until it is made, the ` +
-        `document half can only run where the documents already are.`,
-    });
   }
+
+  for (const message of half.errors) findings.push({ level: 'error', message });
 
   for (const issue of issues) {
     findings.push({ level: 'error', message: `[${issue.rule}] ${issue.message}` });
@@ -158,11 +147,7 @@ export function runEventsSuitesGate(context: GateContext): GateResult {
   return {
     id: eventsSuitesGate.id,
     title: eventsSuitesGate.title,
-    ...(failed
-      ? { status: 'fail' as const }
-      : haveSpec
-        ? { status: 'pass' as const }
-        : { status: 'skip' as const, skipReason: 'ai-docs-absent' as const }),
+    status: failed ? 'fail' : 'pass',
     findings,
   };
 }

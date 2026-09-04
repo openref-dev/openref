@@ -5,16 +5,15 @@ import {
   BUILD_FILE,
   BUILD_LINE_COUNT,
   BUILD_TASK_COUNT,
-  DEFERRAL_DOCUMENTS,
   DEFERRAL_SOURCE_EXTENSIONS,
 } from '../config.js';
-import { aiDocsAbsentMessage, aiDocsPresent } from '../lib/ai-docs.js';
 import {
   parseMilestones,
   parseOwnedEntries,
   POST_RELEASE_MILESTONE,
   splitLines,
 } from '../lib/build-manifest.js';
+import { PROJECTION_FILE, readProjection } from '../lib/projection.js';
 import {
   checkDeferrals,
   checkMaterial,
@@ -65,6 +64,10 @@ export function sourceRoots(repoRoot: string): string[] {
 /**
  * Reads every parenthesised milestone out of a set of files.
  *
+ * USED FOR THE SOURCE HALF ONLY SINCE THE PROJECTION ARRIVED. The seven documents are under
+ * `ai-docs/` and their markers travel in the committed artefact; a marker is a parenthesis in the
+ * closed vocabulary the pattern defines, so it ships as itself and carries nothing anybody wrote.
+ *
  * @param repoRoot - Absolute repository root
  * @param files - Repository relative paths; one that cannot be read contributes nothing
  * @returns The markers, in file order
@@ -102,6 +105,12 @@ function census(markers: readonly DeferralMarker[]): string {
  * conventions and every `src` directory in the workspace. A failure here is about a sentence
  * somebody wrote, and it has to say so in its own title.
  *
+ * THE DOCUMENT HALF ARRIVES THROUGH THE COMMITTED PROJECTION AND NO LONGER SKIPS. A marker is a
+ * parenthesis in the four form vocabulary `MARKER_PATTERN` fixes, so it ships
+ * as itself with its file and its line; the milestones and the entries that expire it ship as ids,
+ * boxes and line numbers. Until the artefact this half ran on the maintainer's machine alone,
+ * which is where the defect it exists for was found and the one place it could never recur.
+ *
  * WHY IT RUNS SECOND. `build-manifest` establishes that the plan still means what its ranges say;
  * this asks whether the obligations written against that plan have outlived it. Both are questions
  * about the bookkeeping rather than about the code, and neither needs anything built.
@@ -120,48 +129,42 @@ export function runDeferralsGate(context: GateContext): GateResult {
 
   const sourceMarkers = markersIn(context.repoRoot, sourceFiles);
 
-  // THE SOURCE HALF NEEDS NO PRIVATE DOCUMENT, and it is the half the fix of 2026-09-02 missed:
-  // the prose marker was repaired and its twin in `packages/core/src` was not, because nothing
-  // read either. Whether a parenthesis says which of the two things it means is answerable on any
-  // checkout, so it is answered there rather than skipped with the rest.
-  if (!aiDocsPresent(context.repoRoot)) {
-    const ambiguous = checkDeferrals(
-      sourceMarkers.filter((marker) => marker.kind === 'ambiguous'),
-      [],
-      [],
-    );
+  const read = readProjection(context.repoRoot);
 
+  if (!read.ok) {
     return {
       id: deferralsGate.id,
       title: deferralsGate.title,
-      ...(ambiguous.length === 0
-        ? { status: 'skip' as const, skipReason: 'ai-docs-absent' as const }
-        : { status: 'fail' as const }),
+      status: 'fail',
       findings: [
         ...findings,
         { level: 'info', message: census(sourceMarkers) },
-        ...ambiguous.map((issue) => ({
-          level: 'error' as const,
-          message: `[${issue.rule}] ${issue.message}`,
-        })),
+        { level: 'error', message: `[projection-unreadable] ${read.reason}` },
+      ],
+    };
+  }
+
+  const build = read.projection.data.build;
+  const amendments = read.projection.data.amendments;
+
+  if (build === null || amendments === null) {
+    return {
+      id: deferralsGate.id,
+      title: deferralsGate.title,
+      status: 'fail',
+      findings: [
+        ...findings,
+        { level: 'info', message: census(sourceMarkers) },
         {
-          level: 'warning',
-          message: aiDocsAbsentMessage(deferralsGate.title, [
-            BUILD_FILE,
-            BUILD_AMENDMENTS_FILE,
-            ...DEFERRAL_DOCUMENTS,
-          ]),
+          level: 'error',
+          message: `${BUILD_FILE} or ${BUILD_AMENDMENTS_FILE} was not readable when ${PROJECTION_FILE} was generated, so no deferral can be held to a milestone`,
         },
       ],
     };
   }
 
-  const markers = [...markersIn(context.repoRoot, DEFERRAL_DOCUMENTS), ...sourceMarkers];
+  const markers = [...read.projection.data.markers, ...sourceMarkers];
   findings.push({ level: 'info', message: census(markers) });
-
-  const build = readFileSync(join(context.repoRoot, BUILD_FILE), 'utf8');
-  const amendmentsPath = join(context.repoRoot, BUILD_AMENDMENTS_FILE);
-  const amendments = existsSync(amendmentsPath) ? readFileSync(amendmentsPath, 'utf8') : '';
 
   const milestones: MilestoneState[] = parseMilestones(splitLines(build)).map((milestone) => ({
     id: milestone.id,
