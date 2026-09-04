@@ -10,6 +10,7 @@
 
 import { describe, expect, it } from 'vitest';
 import {
+  namedNotDrawnIn,
   objectEnd,
   pageWithout,
   readSampleArray,
@@ -20,9 +21,9 @@ import {
 } from '../../src/language-cost';
 import type { SampleLanguage } from '@openref/samples';
 
-const CURL: SampleLanguage = { id: 'shell', label: 'cURL', level: 1 };
-const HTTPIE: SampleLanguage = { id: 'bash', label: 'HTTPie', level: 1 };
-const DART: SampleLanguage = { id: 'dart', label: 'Dart', level: 2 };
+const CURL: SampleLanguage = { id: 'shell', label: 'cURL', level: 1, placement: 'page' };
+const HTTPIE: SampleLanguage = { id: 'bash', label: 'HTTPie', level: 1, placement: 'page' };
+const DART: SampleLanguage = { id: 'dart', label: 'Dart', level: 2, placement: 'page' };
 
 /** A tab as the server draws it. */
 function tab(label: string, active: boolean): string {
@@ -46,10 +47,17 @@ function page(languages: readonly SampleLanguage[]): string {
     sourceHtml: `<pre class="oref-code" data-oref-lang="${language.id}"><code>call ${language.id}</code></pre>`,
   }));
 
-  const state = JSON.stringify({ node: { id: 'n1', codeSamples: samples } }).replace(
-    /</gu,
-    '\\u003c',
-  );
+  const state = JSON.stringify({
+    node: {
+      id: 'n1',
+      codeSamples: samples,
+      codeSamplesElsewhere: [
+        { lang: 'php', label: 'PHP' },
+        { lang: 'java', label: 'Java' },
+        { lang: 'ruby', label: 'Ruby' },
+      ],
+    },
+  }).replace(/</gu, '\\u003c');
 
   return (
     '<!doctype html><html><body><section class="oref-section oref-section-samples">' +
@@ -239,5 +247,39 @@ describe('servedCodeBlockBytes', () => {
 
     // When / Then
     expect(servedCodeBlockBytes(html)).toBeNull();
+  });
+});
+
+/**
+ * The languages a page names without drawing, read off the state block.
+ *
+ * WHY THE READER EXISTS AT ALL, and it is the same reason the tab regex does. The measurement
+ * beside it reports what a page weighs, and a page that had silently dropped three languages would
+ * be the lightest page this harness ever saw and would look like a success. So the names are read
+ * from the data before any byte is believed, and matching the renderer's sentence would have tied
+ * this harness to a wording that is none of its business.
+ */
+describe('namedNotDrawnIn', () => {
+  it('should read the languages a page names without drawing', () => {
+    // Given
+    const html = page([CURL, HTTPIE, DART]);
+
+    // When
+    const named = namedNotDrawnIn(readStateBlock(html).json);
+
+    // Then
+    expect(named).toEqual([['php', 'java', 'ruby']]);
+  });
+
+  it('should read no list at all from a page that names nothing', () => {
+    // Given a state block carrying only samples, which is the page of a build that drew all
+    // fifteen and therefore has nothing to name.
+    const json = JSON.stringify({ node: { id: 'n1', codeSamples: [] } });
+
+    // When
+    const named = namedNotDrawnIn(json);
+
+    // Then: an empty result and not a thrown error, because naming nothing is a real state.
+    expect(named).toEqual([]);
   });
 });

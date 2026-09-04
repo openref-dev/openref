@@ -30,6 +30,7 @@ import { launchChrome, CHROME_ARGS } from './chrome.js';
 import { currentEnvironment, type MeasurementEnvironment } from './environment.js';
 import { bootFixture } from './fixture/boot.js';
 import {
+  namedNotDrawnIn,
   pageWithout,
   readStateBlock,
   servedCodeBlockBytes,
@@ -97,12 +98,27 @@ const report = await (async (): Promise<LanguageReport> => {
 
     // AND THE THREE THAT ARE NOT DRAWN ARE ASSERTED PRESENT AS NAMES, because a page that dropped
     // them silently is exactly the state the ruling forbids and it would look, from the byte
-    // columns alone, like the cheapest possible page.
+    // columns alone, like the cheapest possible page. Read off the state block rather than off the
+    // sentence: the wording belongs to the renderer and the names are what is being asserted.
+    //
+    // THE FIRST EDITION OF THIS CHECK LOOKED FOR `>PHP<` AND WAS WRONG, which is worth the line it
+    // takes. It was written from the tab pattern above, where a label is an element's whole text;
+    // in the notice the labels sit inside a sentence, so the pattern never matched and the run
+    // failed on a page that was doing exactly what it should. The check is right and its subject
+    // was right; only the way it read the page was not.
+    const named = namedNotDrawnIn(readStateBlock(served).json).flat();
     for (const language of OFF_PAGE_SAMPLE_LANGUAGES) {
-      if (!served.includes(`>${language.label}<`)) {
+      if (!named.includes(language.id)) {
         throw new Error(
-          `the page never says the word "${language.label}", so it is not naming the languages ` +
-            'it holds back and the figure below would be the price of dropping them',
+          `the page never names "${language.id}", so it is not saying which languages it holds ` +
+            'back and the figure below would be the price of dropping them',
+        );
+      }
+
+      if (served.includes(`>${language.label}</button>`)) {
+        throw new Error(
+          `the page draws a tab for "${language.label}", which it is supposed to be naming ` +
+            'rather than drawing, so the byte columns below are about a different page',
         );
       }
     }

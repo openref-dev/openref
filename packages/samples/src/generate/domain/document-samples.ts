@@ -205,13 +205,13 @@ function languageListsAgree(
   left: readonly IRCodeSampleLanguage[],
   right: readonly IRCodeSampleLanguage[],
 ): boolean {
-  return (
-    left.length === right.length &&
-    left.every(
-      (language, index) =>
-        language.lang === right[index]?.lang && language.label === right[index]?.label,
-    )
-  );
+  if (left.length !== right.length) return false;
+
+  return left.every((language, index) => {
+    const other = right[index];
+
+    return other?.lang === language.lang && other.label === language.label;
+  });
 }
 
 /** What one operation gets: the samples the page draws, and the languages it names instead. */

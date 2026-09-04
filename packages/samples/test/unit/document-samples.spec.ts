@@ -165,11 +165,10 @@ describe('withGeneratedSamples, what it puts on an operation', () => {
     // refuses everywhere except the two clients measured putting the runner's own octets on the
     // wire. All three held back languages are among the thirteen that refuse.
     const refusing = specification();
-    const post = (refusing.paths as Record<string, Record<string, Record<string, unknown>>>)[
-      '/orders/{orderId}/items'
-    ]?.['post'];
+    const paths = refusing.paths as Record<string, Record<string, Record<string, unknown>>>;
+    const post = paths['/orders/{orderId}/items']?.post;
     expect(post).toBeDefined();
-    (post!['parameters'] as Record<string, unknown>[]).push({
+    (post!.parameters as Record<string, unknown>[]).push({
       name: 'X-Note',
       in: 'header',
       schema: { type: 'string' },

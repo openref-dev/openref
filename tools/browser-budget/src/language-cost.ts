@@ -260,6 +260,51 @@ export function sampleListsIn(json: string): string[][] {
 }
 
 /**
+ * Every `codeSamplesElsewhere` list the state block carries, as the language ids in it.
+ *
+ * WALKED FOR THE SAME REASON {@link sampleListsIn} IS, and read at all for a reason of its own: the
+ * page draws twelve tabs and names three languages beside them, and a page that had quietly dropped
+ * the three would read, from the byte columns alone, as the cheapest page this harness has ever
+ * measured. So the names are asserted from the data rather than from the sentence. Matching the
+ * sentence would tie this file to the renderer's wording, and the wording is not what is being
+ * measured.
+ *
+ * @param json - The state block text
+ * @returns One entry per list, each the ids in that list
+ * @throws Error when the block does not parse
+ */
+export function namedNotDrawnIn(json: string): string[][] {
+  const lists: string[][] = [];
+
+  const walk = (value: unknown): void => {
+    if (Array.isArray(value)) {
+      for (const item of value) walk(item);
+      return;
+    }
+
+    if (value === null || typeof value !== 'object') return;
+
+    for (const [key, held] of Object.entries(value)) {
+      if (key === 'codeSamplesElsewhere' && Array.isArray(held)) {
+        lists.push(
+          held.map((entry) => {
+            const lang = (entry as { lang?: unknown }).lang;
+            return typeof lang === 'string' ? lang : '';
+          }),
+        );
+        continue;
+      }
+
+      walk(held);
+    }
+  };
+
+  walk(JSON.parse(json));
+
+  return lists;
+}
+
+/**
  * The one list of samples a node page carries.
  *
  * @param json - The state block text
