@@ -8,6 +8,7 @@ import { UNREACHABLE_REGISTRY } from '../../src/gates/publish-list.gate';
 import { runCommand } from '../../src/lib/exec';
 import {
   auditChangesetGroups,
+  auditHeldBack,
   auditPublishedDelivery,
   auditPublishList,
   auditSpecAgreement,
@@ -371,6 +372,12 @@ describe('readSpecPackageLists', () => {
     '',
     'A paragraph that mentions `@openref/nest` and must not be read as the list.',
     '',
+    '### Packages held back from 1.0',
+    '',
+    '`@openref/nuxt` ships after 1.0, for a named licence reason.',
+    '',
+    'A paragraph about `@openref/static` that is not the list and must not be read as one.',
+    '',
     '### Ecosystem packages (separate, from M1)',
     '',
     '`@openref/collector-casl`. The contract is public.',
@@ -378,7 +385,7 @@ describe('readSpecPackageLists', () => {
     '## Something else',
   ].join('\n');
 
-  it('should read the three lists CLAUDE.md states, scoping the internal names', () => {
+  it('should read the four lists CLAUDE.md states, scoping the internal names', () => {
     // When
     const lists = readSpecPackageLists(document, CLAUDE_LIST_HEADINGS);
 
@@ -386,6 +393,7 @@ describe('readSpecPackageLists', () => {
     expect(lists.published).toEqual(['@openref/nest', 'openref']);
     expect(lists.internal).toEqual(['@openref/render', '@openref/search']);
     expect(lists.ecosystem).toEqual(['@openref/collector-casl']);
+    expect(lists.heldBack).toEqual(['@openref/nuxt']);
   });
 
   it('should read nothing where the heading is absent rather than reading the wrong section', () => {
@@ -396,6 +404,7 @@ describe('readSpecPackageLists', () => {
     expect(lists.published).toEqual([]);
     expect(lists.internal).toEqual([]);
     expect(lists.ecosystem).toEqual([]);
+    expect(lists.heldBack).toEqual([]);
   });
 });
 
@@ -404,6 +413,7 @@ describe('auditSpecAgreement', () => {
     published: ['@openref/core', 'openref'],
     internal: ['@openref/render'],
     ecosystem: ['@openref/collector-casl'],
+    heldBack: [],
   };
 
   it('should pass when the document and the constant name the same set', () => {
@@ -464,6 +474,132 @@ describe('auditSpecAgreement', () => {
     expect(errorsOf(findings)).toEqual([
       expect.stringContaining('was not found or held no package name') as unknown as string,
     ]);
+  });
+});
+
+describe('auditHeldBack', () => {
+  const nuxt = {
+    name: '@openref/nuxt',
+    reason: 'a peer drags six licences into zone 1',
+    until: 'after 1.0',
+  };
+  const manifests = [manifest('@openref/nuxt', true), manifest('@openref/core', false)];
+  const stated = [
+    { document: 'SPEC 4', names: ['@openref/nuxt'] },
+    { document: 'CLAUDE.md', names: ['@openref/nuxt'] },
+  ];
+
+  it('should pass when the registry, the manifests, the dry run and both documents agree', () => {
+    // When
+    const findings = auditHeldBack([nuxt], ['@openref/core'], ['@openref/core'], manifests, stated);
+
+    // Then, and the info line carries the release, because "held back" without one is the absence
+    // the registry exists to replace.
+    expect(findings.every((finding) => finding.level === 'info')).toBe(true);
+    expect(findings[0]?.message).toContain('@openref/nuxt until after 1.0');
+  });
+
+  it('should go red when the held back package is not a workspace package at all', () => {
+    // When
+    const findings = auditHeldBack([nuxt], ['@openref/core'], ['@openref/core'], [], stated);
+
+    // Then
+    expect(findings.some((finding) => finding.level === 'error')).toBe(true);
+    expect(findings[0]?.message).toContain('this workspace has no such package');
+  });
+
+  it('should go red when the held back package is not private, because a release would publish it', () => {
+    // Given the one marking that decides what `pnpm publish` emits, taken off
+    const publishable = [manifest('@openref/nuxt', false)];
+
+    // When
+    const findings = auditHeldBack(
+      [nuxt],
+      ['@openref/core'],
+      ['@openref/core'],
+      publishable,
+      stated,
+    );
+
+    // Then
+    expect(findings.some((finding) => finding.message.includes('does not set private: true'))).toBe(
+      true,
+    );
+  });
+
+  it('should go red when a held back package is also in the intended published set', () => {
+    // When
+    const findings = auditHeldBack([nuxt], ['@openref/nuxt'], [], manifests, stated);
+
+    // Then
+    expect(
+      findings.some((finding) => finding.message.includes('two answers to one question')),
+    ).toBe(true);
+  });
+
+  it('should go red when the dry run would publish a package the registry holds back', () => {
+    // When, asking the command a release runs rather than the marking, which is the whole reason
+    // the dry run is in this gate at all
+    const findings = auditHeldBack([nuxt], ['@openref/core'], ['@openref/nuxt'], manifests, stated);
+
+    // Then
+    expect(
+      findings.some((finding) => finding.message.includes('the publish dry run would publish it')),
+    ).toBe(true);
+  });
+
+  it('should go red when a document holds a package back and the registry does not', () => {
+    // When
+    const findings = auditHeldBack([], ['@openref/core'], [], manifests, stated);
+
+    // Then, twice, once per document, because a reader fixes the file they are looking at
+    const unenforced = findings.filter((finding) =>
+      finding.message.includes('so nothing enforces it'),
+    );
+    expect(unenforced).toHaveLength(2);
+    expect(unenforced[0]?.message).toContain('SPEC 4');
+    expect(unenforced[1]?.message).toContain('CLAUDE.md');
+  });
+
+  it('should go red when the registry holds a package back and a document does not say so', () => {
+    // Given one document that carries the section and one that does not
+    const half = [
+      { document: 'SPEC 4', names: ['@openref/nuxt'] },
+      { document: 'CLAUDE.md', names: [] },
+    ];
+
+    // When
+    const findings = auditHeldBack([nuxt], ['@openref/core'], ['@openref/core'], manifests, half);
+
+    // Then the document that is silent is named, and the one that is not is not
+    const silent = findings.filter((finding) => finding.message.includes('does not say so'));
+    expect(silent).toHaveLength(1);
+    expect(silent[0]?.message).toContain('CLAUDE.md');
+  });
+
+  it('should go red on an entry that names no reason or no release', () => {
+    // Given an entry that says only "not yet", which is the absence it was written to replace
+    const bare = { name: '@openref/nuxt', reason: '  ', until: 'after 1.0' };
+
+    // When
+    const findings = auditHeldBack([bare], ['@openref/core'], ['@openref/core'], manifests, stated);
+
+    // Then
+    expect(findings.some((finding) => finding.message.includes('no reason or no release'))).toBe(
+      true,
+    );
+  });
+
+  it('should say so rather than pass when nothing is held back and no document says otherwise', () => {
+    // Given, When: the empty registry, which is a legitimate state and must not read as a check
+    const findings = auditHeldBack([], ['@openref/core'], ['@openref/core'], manifests, [
+      { document: 'SPEC 4', names: [] },
+    ]);
+
+    // Then
+    expect(findings).toHaveLength(1);
+    expect(findings[0]?.level).toBe('info');
+    expect(findings[0]?.message).toContain('no package is held back');
   });
 });
 

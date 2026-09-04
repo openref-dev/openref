@@ -388,6 +388,34 @@ export const UNREACHABLE_TAB_NOTE =
   'the document writes a second sample under a language it already used, and a tab strip keyed ' +
   'by language can show one of them, so the first is drawn and this one is not';
 
+/**
+ * What a document writing an alias costs the language that alias is keyed by, said as a sentence.
+ *
+ * THE ALIAS SHARES THE TAB RATHER THAN PUTTING THE OTHER LANGUAGE OUT, which is the maintainer's
+ * ruling of 2026-09-04 and is SPEC 18's since the same day. Tab identity is `lang`, deliberately and
+ * not for want of a field: the invariant over the fifteen already holds by it, and a second identity
+ * on `IRCodeSample` would be a frozen public type gaining a member, which is a major version. What
+ * the ruling costs instead is this sentence, and what it buys is that no language leaves the page
+ * without a word.
+ *
+ * THE MEASURED FAILURE IT CLOSES. A document writing `x-codeSamples` with `lang: "bash"` takes the
+ * id HTTPie is keyed by. Level 3 outranks the generator, so the document's own sample is the tab,
+ * and until this the generated HTTPie sample was dropped by {@link
+ * import('./compose').composeCodeSamples} and appeared in none of the three lists: not drawn, not
+ * held back, not refused. The word HTTPie was nowhere on the page, which is exactly the vanished tab
+ * the whole of SPEC 18 is written against, arriving through the one door left open.
+ *
+ * NOT A REFUSAL AND NOT A HELD BACK LANGUAGE, WHICH IS WHY IT IS A NOTE. The emitter wrote a sample,
+ * so nothing refused; and the page's sentence for a held back language ends "a build that asks for
+ * them draws them", which would be false here, because a build asking for `bash` still gets the
+ * document's tab. What is true is a fact about a tab the reader can see, and that is the fourth
+ * member's whole job.
+ */
+export const SHARED_TAB_NOTE =
+  'the document writes its own sample under this language id, and a tab strip keyed by language ' +
+  'shows one sample per id, so the tab holds what the document wrote and the generated sample ' +
+  'for this language is not drawn beside it';
+
 /** One sentence per cause, for a credential no request can carry at all. */
 const UNSENDABLE_CREDENTIAL_CAUSES: Readonly<Record<UnsendableCause, string>> = {
   'mutual-tls': 'a client certificate chosen during the TLS handshake',

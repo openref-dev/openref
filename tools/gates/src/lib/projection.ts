@@ -90,8 +90,13 @@ export const PROJECTION_COMMAND = 'pnpm gates:projection';
  *
  * A gate reading a version it does not know refuses rather than guessing, because an older
  * artefact answering a newer question is the silent pass this whole file exists against.
+ *
+ * BUMPED TO 2 ON 2026-09-04, WHEN `SpecPackageLists` GAINED ITS HELD BACK SET. A version 1 artefact
+ * carries no such member, so the gate that reconciles it would read `undefined`, and while the
+ * comparison would then fail rather than pass, it would fail naming a document that says nothing
+ * wrong. The refusal above names the command that fixes it, which is the accurate answer.
  */
-export const PROJECTION_VERSION = 1;
+export const PROJECTION_VERSION = 2;
 
 /**
  * How many distinct digests the committed artefact carries.

@@ -90,7 +90,7 @@ anyway. So each position bounds its leaf count, each projected document its line
 whole file its digest count, because a digest is eight bytes nobody can read.
 
 **Per position bounds cannot bound volume, because they multiply.** Measured on 2026-09-03 by
-filling every position to exactly its own limit: 4,725,296 bytes over 6,840 leaves, and the scan
+filling every position to exactly its own limit: 4,725,296 bytes over 6,880 leaves, and the scan
 reported nothing, because no position was over. So the artefact carries one budget of its own,
 `PROJECTION_ARTEFACT_BUDGET` in `src/config.ts`, where every other threshold in this project lives:
 144 KB and 800 leaves, against 128,068 bytes and 625 leaves today. The headroom is two milestones

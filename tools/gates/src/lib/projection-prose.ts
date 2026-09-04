@@ -20,8 +20,12 @@
  *   one value and no per value rule can see them. So every position limits how many leaves may
  *   stand there and every document position its lines, and each of those numbers is defensible on
  *   its own. PER POSITION BOUNDS STILL CANNOT BOUND VOLUME, BECAUSE THEY MULTIPLY: measured on
- *   2026-09-03 by filling every position to exactly its own limit, 4,725,296 bytes over 6,840
- *   leaves went through this scan with ZERO findings, 37 times the committed artefact. What bounds
+ *   2026-09-03 by filling every position to exactly its own limit, 4,725,296 bytes over 6,880
+ *   leaves went through this scan with ZERO findings, 37 times the committed artefact. The byte
+ *   figure is the reading of that day and the leaf figure is derived from the table below, so the
+ *   leaf figure moved on 2026-09-04 when `data.spec.packages.heldBack[]` was governed and the byte
+ *   figure did not: it is one afternoon's measurement over the positions of that afternoon, and a
+ *   case asserts the derivation rather than the memory. What bounds
  *   the volume is {@link PROJECTION_ARTEFACT_BUDGET}, one byte figure and one leaf figure over the
  *   whole file, in the same file every other threshold in this project lives in. The per position
  *   counts are kept and are not that: they are anomaly detection on one position, and this comment
@@ -913,6 +917,11 @@ const RULES: Readonly<Record<string, Position>> = {
     40,
     shaped(IS_PACKAGE, ['identifier'], 'a package name'),
   ),
+  'data.spec.packages.heldBack[]': holds(
+    PACKAGE_BOUND,
+    40,
+    shaped(IS_PACKAGE, ['identifier'], 'a package name'),
+  ),
   'data.spec.securityClaims[].id': holds(
     CLAUSE_BOUND,
     120,
@@ -1159,10 +1168,10 @@ export const ACKNOWLEDGED_RESIDUE: readonly string[] = [
   'data.spec.readerPages[]: a route of up to eight hyphenated segments in 64 characters, because ' +
     'a route is a path and a path has segments. Closed by nothing else, and a four word phrase ' +
     'written as one path segment fits inside it',
-  'data.spec.packages.published[], data.spec.packages.internal[] and ' +
-    'data.spec.packages.ecosystem[]: a scoped name of up to six hyphenated parts, because an ' +
-    'ecosystem collector already writes three. Closed by the `publish-list` gate, which holds all ' +
-    'three lists to what npm would publish',
+  'data.spec.packages.published[], data.spec.packages.internal[], ' +
+    'data.spec.packages.ecosystem[] and data.spec.packages.heldBack[]: a scoped name of up to six hyphenated parts, because an ' +
+    'ecosystem collector already writes three. Closed by the `publish-list` gate, which holds the ' +
+    'first three lists to what npm would publish and the fourth to what it deliberately would not',
   'data.spec.suiteRows.*: two camel cased words, because a row called `RuntimeFacts` is exactly ' +
     'that and `Observability` has to be green',
   'data.stylesheets[].css: THE LARGEST WORD CHANNEL IN THE FILE, and it was not on this list. ' +

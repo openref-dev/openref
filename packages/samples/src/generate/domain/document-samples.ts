@@ -85,6 +85,7 @@ import {
   NO_SERVER_REFUSAL,
   PAGE_SAMPLE_LANGUAGES,
   SAMPLE_LANGUAGES,
+  SHARED_TAB_NOTE,
   UNBUILDABLE_REQUEST_REFUSAL,
   UNREACHABLE_TAB_NOTE,
   unsendableCredentialNote,
@@ -194,7 +195,7 @@ export function withGeneratedSamples(
       drawnLanguages,
       elsewhere,
     );
-    const { samples: composed, unreachable } = composeCodeSamples(declared, drawn);
+    const { samples: composed, unreachable, shared } = composeCodeSamples(declared, drawn);
 
     // A LANGUAGE THE DOCUMENT WROTE ITSELF IS ON THE PAGE, so it is not named as absent from it.
     // Level 3 outranks the generator, and a document that wrote its own Ruby sample has a Ruby tab
@@ -211,9 +212,16 @@ export function withGeneratedSamples(
     // saw, so saying what our cURL emitter's output does with a redirect, or that it carries no
     // credential, would be a sentence about a sample nobody can read. The collision notes are the
     // other way round by construction: those are exactly the document's own entries.
+    //
+    // THE SHARED TAB NOTES ARE THE THIRD KIND AND THEY ARE THE ONE THE PAGE WAS SILENT ABOUT. A
+    // language whose id the document took is not drawn, not held back and not refused, so before
+    // the ruling of 2026-09-04 the three lists said nothing about it and the word never reached a
+    // reader. They stand ahead of the generator's own notes because they are the reason a reader is
+    // looking at a tab whose contents this package did not write.
     const written = new Set(declared.map((sample) => sample.lang));
     const noted = groupByText([
       ...collisionNotes(unreachable),
+      ...sharedTabNotes(shared),
       ...notes.filter((entry) => !written.has(entry.lang)),
     ]).map((group) => ({
       note: group.text,
@@ -385,6 +393,27 @@ function collisionNotes(unreachable: readonly IRCodeSample[]): readonly TextedLa
     lang: sample.lang,
     label: sample.label,
     text: UNREACHABLE_TAB_NOTE,
+  }));
+}
+
+/**
+ * The language a document's own entry took the tab of, named rather than dropped.
+ *
+ * THE LABEL IS THE GENERATOR'S AND NOT THE DOCUMENT'S, WHICH IS THE OPPOSITE CHOICE FROM {@link
+ * collisionNotes} AND FOR THE SAME REASON. There the entry that lost was the document's, so the
+ * document's label is what a reader is looking for; here the entry that lost is ours, so the name a
+ * reader is looking for is the one SPEC 18's table gives it. A document writing `bash` and calling
+ * it "Ours" leaves a reader asking where HTTPie went, and the answer has to contain the word
+ * HTTPie.
+ *
+ * @param shared - The generated samples a declared entry claimed the language of
+ * @returns One entry per shared tab, all carrying the one sentence
+ */
+function sharedTabNotes(shared: readonly IRCodeSample[]): readonly TextedLanguage[] {
+  return shared.map((sample) => ({
+    lang: sample.lang,
+    label: sample.label,
+    text: SHARED_TAB_NOTE,
   }));
 }
 

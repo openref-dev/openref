@@ -1441,11 +1441,15 @@ describe('the volume of the artefact', () => {
     expect(scan.leaves).toBeGreaterThan(PROJECTION_ARTEFACT_BUDGET.leaves);
     expect([scan.bytes, scan.leaves]).toEqual([378_431, 3_627]);
 
-    // And the 6,840 leaves that four files state about the full fill is the sum of the leaf bounds
-    // themselves, so that figure is a derivation rather than a memory of one afternoon
+    // And the 6,880 leaves that four files state about the full fill is the sum of the leaf bounds
+    // themselves, so that figure is a derivation rather than a memory of one afternoon. It read
+    // 6,840 until 2026-09-04, when `data.spec.packages.heldBack[]` was governed alongside its three
+    // sibling package positions at the same 40 leaves; a position gaining a grammar raises this sum
+    // by construction, and the artefact budget of 800 leaves, which is what actually refuses a full
+    // fill, has not moved.
     expect(
       Object.values(PROJECTION_VOLUME_BOUNDS).reduce((total, room) => total + room.leaves, 0),
-    ).toBe(6_840);
+    ).toBe(6_880);
 
     // And the leaf overrun says what to do about itself. THE NEXT PERSON TO MEET THIS MESSAGE IS
     // ADDING CLAIM MAP ROWS, and the cheapest thing they can do is raise the number, so the number
@@ -1977,9 +1981,9 @@ describe('the figures this code states about this repository', () => {
   });
 
   it('should derive the file budget from the artefact rather than from a round number', () => {
-    // Given the arithmetic PROJECTION_ARTEFACT_BUDGET states: the artefact weighs 128,762 bytes
-    // over 625 leaves, an amendment heading costs 432 bytes, a plan task 126 and a claim map row
-    // 224, so a milestone of eight tasks, five owned entries and seven rows is 8,192 bytes and the
+    // Given the arithmetic PROJECTION_ARTEFACT_BUDGET states: the artefact weighs 128,977 bytes
+    // over 626 leaves, an amendment heading costs 433 bytes, a plan task 126 and a claim map row
+    // 224, so a milestone of eight tasks, five owned entries and seven rows is 8,205 bytes and the
     // headroom is two of them. EACH TASK COSTS A PLAN ENTRY AND A HEADING BOTH, which is why the
     // eight is multiplied by the sum of two costs and not by one of them, and which the comment
     // beside the budget used to leave for a reader to work out from a total that did not add up.
@@ -1991,9 +1995,13 @@ describe('the figures this code states about this repository', () => {
     // serves no channel page was corrected and both closures gained the re-measurement: 48 bytes,
     // no new leaf. The per heading cost rose a byte with it, 431 to 432, because those 48 bytes
     // went into two sections that already existed rather than into a new heading, which is the
-    // arithmetic working rather than a figure drifting. The ceiling has not moved and is not the
-    // subject of this case; what moves is the reading, and the two bounds below are what say the
-    // corridor still holds.
+    // arithmetic working rather than a figure drifting. And once more the same day, to 128,977 over
+    // 626 leaves, when the maintainer's two rulings landed: SPEC 4 gained its held back section,
+    // which is THE FIRST NEW LEAF ANY OF THESE MOVES HAS COST, because a package name is a leaf
+    // where a paragraph is not, and the two amendment sections those rulings discharge gained their
+    // answers, which is 176 bytes into headings that already existed and no leaf at all. The ceiling
+    // has not moved and is not the subject of this case; what moves is the reading, and the two
+    // bounds below are what say the corridor still holds.
     const read = readProjection(repoRoot);
     expect(read.ok).toBe(true);
     const data = read.ok ? read.projection.data : undefined;
@@ -2010,9 +2018,9 @@ describe('the figures this code states about this repository', () => {
 
     // Then each figure the budget's derivation states is the one the artefact gives, and the
     // headroom really is two milestones of it
-    expect([scan.bytes, scan.leaves]).toEqual([128_762, 625]);
-    expect([perHeading, perTask, perRow]).toEqual([432, 126, 224]);
-    expect(milestone).toBe(8_192);
+    expect([scan.bytes, scan.leaves]).toEqual([128_977, 626]);
+    expect([perHeading, perTask, perRow]).toEqual([433, 126, 224]);
+    expect(milestone).toBe(8_205);
     expect(PROJECTION_ARTEFACT_BUDGET.limitBytes - scan.bytes).toBeGreaterThanOrEqual(
       2 * milestone,
     );
@@ -2273,12 +2281,17 @@ describe('the projection privacy gate', () => {
     const scan = scanProjectionProse(read.ok ? read.projection : {}, read.ok ? read.bytes : 0);
 
     // Then it is above the floor, so it is a reading and not an absence, and under the budget, so
-    // it is a reading and not a volume. The corridor is narrow and that is what it is: 125 leaves
-    // of room under the reading and 175 over it.
+    // it is a reading and not a volume. The corridor is narrow and that is what it is: 126 leaves
+    // of room under the reading and 174 over it. Both ends are asserted precisely so that a leaf
+    // arriving is a decision somebody takes rather than a drift; it read 125 and 175 until
+    // 2026-09-04, when SPEC 4's held back section put `@openref/nuxt` into the artefact. NEITHER
+    // END OF THE CORRIDOR MOVED: the floor is still PROJECTION_LEAF_FLOOR and the budget is still
+    // PROJECTION_ARTEFACT_BUDGET.leaves, and what these two numbers record is where the reading now
+    // stands between them.
     expect(scan.leaves).toBeGreaterThan(PROJECTION_LEAF_FLOOR);
     expect(scan.leaves).toBeLessThan(PROJECTION_ARTEFACT_BUDGET.leaves);
-    expect(scan.leaves - PROJECTION_LEAF_FLOOR).toBe(125);
-    expect(PROJECTION_ARTEFACT_BUDGET.leaves - scan.leaves).toBe(175);
+    expect(scan.leaves - PROJECTION_LEAF_FLOOR).toBe(126);
+    expect(PROJECTION_ARTEFACT_BUDGET.leaves - scan.leaves).toBe(174);
   });
 
   it('should be in the gate list, since a gate nothing runs is a rule with no runner', () => {

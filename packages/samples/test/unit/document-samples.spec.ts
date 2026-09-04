@@ -16,6 +16,7 @@ import {
   REDIRECT_CREDENTIAL_DROPPED_NOTE,
   REDIRECT_NOT_FOLLOWED_NOTE,
   SAMPLE_LANGUAGES,
+  SHARED_TAB_NOTE,
   UNBUILDABLE_REQUEST_REFUSAL,
   UNREACHABLE_TAB_NOTE,
   unsendableCredentialNote,
@@ -656,7 +657,7 @@ describe('withGeneratedSamples, a recomputed member replaces the old one when it
   });
 });
 
-describe('withGeneratedSamples, what an alias in a document costs, per SPEC 18', () => {
+describe('withGeneratedSamples, an alias shares a tab rather than putting a language out, per SPEC 18', () => {
   /** The document writing its own HTTPie sample under the shared shell grammar id. */
   const aliased = { declared: [{ lang: 'bash', label: 'Ours', source: 'http POST /orders' }] };
 
@@ -675,22 +676,60 @@ describe('withGeneratedSamples, what an alias in a document costs, per SPEC 18',
     }
   });
 
-  it('should cost the HTTPie tab, which is what the ids do not guarantee', () => {
+  it('should draw what the document wrote in the shared tab, because level 3 outranks the generator', () => {
+    // Given, When
+    const samples = samplesOf(aliased);
+
+    // Then one `bash` tab and it is the document's, which is the half of the ruling that does not
+    // change: an author who writes a sample gets the tab.
+    expect(samples.filter((entry) => entry.lang === 'bash')).toHaveLength(1);
+    expect(sample(samples, 'bash')?.label).toBe('Ours');
+  });
+
+  it('should name the language whose tab the alias shares rather than lose it from the page', () => {
     // Given, When: the same document, read over the fifteen tabs rather than the fifteen ids
     const labels = [
       ...samplesOf(aliased).map((entry) => entry.label),
       ...elsewhereOf(aliased).map((entry) => entry.label),
       ...refusedOf(aliased).flatMap((group) => group.languages.map((entry) => entry.label)),
+      ...notedOf(aliased).flatMap((group) => group.languages.map((entry) => entry.label)),
     ];
 
-    // Then, the subject first: fourteen of the fifteen tabs are named somewhere
+    // Then, the subject first, so this is a page with tabs rather than a page with none: the two
+    // neighbouring aliases of the same grammar are each named as their own tab.
     expect(labels).toContain('cURL');
     expect(labels).toContain('wget');
 
-    // And HTTPie is named nowhere at all, because the document's own `bash` entry took the id the
-    // tab is keyed by. This is what SPEC 18 records as the price of three aliases sharing one
-    // grammar, and it is asserted here so the price is a measured fact and not a remark.
-    expect(labels).not.toContain('HTTPie');
+    // And HTTPie is on the page too. Until 2026-09-04 the document's own `bash` entry took the id
+    // the tab is keyed by and HTTPie appeared in none of the three lists, so the word was nowhere
+    // at all: a vanished tab, which is the failure the whole of SPEC 18 is written against.
+    expect(labels).toContain('HTTPie');
+  });
+
+  it('should say which language is sharing the tab and say it once', () => {
+    // Given, When
+    const notes = notedOf(aliased);
+
+    // Then one group, one sentence, naming the language keyed by the id the document took, with
+    // the label SPEC 18's own table gives it rather than the one the document chose.
+    expect(notes.map((entry) => entry.note)).toContain(SHARED_TAB_NOTE);
+    const shared = notes.find((entry) => entry.note === SHARED_TAB_NOTE);
+    expect(shared?.languages).toEqual([{ lang: 'bash', label: 'HTTPie' }]);
+  });
+
+  it('should share no tab where the document writes an id no generated language uses', () => {
+    // Given a document writing a language that is not one of the fifteen at all
+    const foreign = {
+      declared: [{ lang: 'elixir', label: 'Elixir', source: 'HTTPoison.post!()' }],
+    };
+
+    // When
+    const notes = notedOf(foreign);
+
+    // Then, the subject first: this operation does carry notes, so the absence below is a filter
+    // answering rather than an operation with nothing to say.
+    expect(notes.length).toBeGreaterThan(0);
+    expect(notes.map((entry) => entry.note)).not.toContain(SHARED_TAB_NOTE);
   });
 });
 

@@ -87,6 +87,46 @@ export const PUBLISHED_PACKAGES: readonly string[] = [
   'openref',
 ];
 
+/** A package that would be published but for a named reason, and the release it waits for. */
+export interface HeldBackPackage {
+  readonly name: string;
+  /** Why it is not in the published set, in one sentence a reader can act on. */
+  readonly reason: string;
+  /** The release it is expected to ship in. */
+  readonly until: string;
+}
+
+/**
+ * Packages deliberately not in the 1.0 publish list, each with the reason and the release.
+ *
+ * AN ABSENCE IS NOT A DECISION UNTIL SOMETHING WRITES IT DOWN. Every other list here answers "what
+ * goes out"; this one answers "what does not, and why", which no set difference can. A package
+ * missing from {@link PUBLISHED_PACKAGES} with nothing beside it is indistinguishable from a package
+ * somebody forgot, and that is not a hypothetical: `@openref/theme-telltale` was absent from one of
+ * the four hand written copies of the published set for five milestones and nothing could tell that
+ * absence from an intention.
+ *
+ * IT IS NOT THE INTERNAL LIST UNDER ANOTHER NAME. An internal package is unpublished because nobody
+ * installs it: it is bundled into a published one and its licence obligations travel inside that
+ * tarball. A held back package has a consumer who cannot reach it any other way, and it is
+ * unpublished for a reason that has a fix and a date. Both are `private`; only one of them is
+ * waiting for something.
+ *
+ * ENFORCED IN BOTH DIRECTIONS, LIKE EVERY OTHER LIST IN THIS FILE. `auditHeldBack` requires each
+ * name here to be a workspace package, to be `private`, to be out of the intended published set and
+ * out of what the dry run would emit, and to be named in each document that states the package
+ * lists; and it requires each name those documents hold to be in here. A registry that can only fail
+ * in one direction is a comment.
+ */
+export const HELD_BACK_PACKAGES: readonly HeldBackPackage[] = [
+  {
+    name: '@openref/nuxt',
+    reason:
+      'its nuxt peer dependency resolves into SPEC 0 zone 1, which the maintainer confirmed on 2026-09-04 is where a resolved peer belongs, and the enlarged closure carries six packages under licences zone 1 forbids: argparse under Python-2.0, caniuse-lite under CC-BY-4.0, lightningcss and lightningcss-darwin-arm64 under MPL-2.0, @speed-highlight/core under CC0-1.0 with no data-only reading, and mdn-data as a merged two version entry no reading matches. Measured on this tree the same day: the production zone goes from 121 packages and no violation to 658 packages and six',
+    until: 'a release after 1.0',
+  },
+];
+
 /** A package that must never reach a consumer, and the reason it would be a defect if it did. */
 export interface NeverShippedPackage {
   readonly name: string;
@@ -309,7 +349,7 @@ export const PROJECTION_LEAF_FLOOR = 500;
  * Every position of `tools/gates/ai-docs-projection.json` bounds how far one value may reach and
  * how many leaves may stand there, and every one of those numbers is defensible on its own. THEY
  * MULTIPLY. Measured on 2026-09-03 by filling every position to its own bound and scanning the
- * result: 4,725,296 bytes over 6,840 leaves, and the scan reported nothing whatever, because no
+ * result: 4,725,296 bytes over 6,880 leaves, and the scan reported nothing whatever, because no
  * position was over its own limit. A quantity bounded only a piece at a time is not bounded. This
  * is the one number that is about the artefact instead of about a position inside it, and the per
  * position bounds go back to being what they always were, anomaly detection on one value.

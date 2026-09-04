@@ -161,18 +161,28 @@ export function parseDryRun(output: string): string[] {
   return [...output.matchAll(DRY_RUN_LINE)].map((match) => match[1] ?? '').sort();
 }
 
-/** The three sets a document states by hand. */
+/** The four sets a document states by hand. */
 export interface SpecPackageLists {
   readonly published: readonly string[];
   readonly internal: readonly string[];
   readonly ecosystem: readonly string[];
+  /**
+   * Packages the documents state are deliberately not in the publish list.
+   *
+   * THE FOURTH SET, ADDED 2026-09-04 WITH THE RULING IT RECORDS. The other three answer "what goes
+   * out"; a set difference against them can say a name is absent and can never say whether that was
+   * meant. `@openref/nuxt` was absent from the published table for a measured licence reason that
+   * lived only in prose, which is an absence no check could tell from an oversight.
+   */
+  readonly heldBack: readonly string[];
 }
 
-/** The headings one document writes its three lists under. */
+/** The headings one document writes its four lists under. */
 export interface PackageListHeadings {
   readonly published: string;
   readonly internal: string;
   readonly ecosystem: string;
+  readonly heldBack: string;
 }
 
 /** SPEC 4's headings, in the document's own Russian. */
@@ -180,6 +190,7 @@ export const SPEC_LIST_HEADINGS: PackageListHeadings = {
   published: '### Публичные (npm)',
   internal: '### Внутренние (не публикуются, бандлятся)',
   ecosystem: '### Экосистемные (отдельные пакеты, с M1)',
+  heldBack: '### Придержанные (публикуются после 1.0)',
 };
 
 /**
@@ -196,6 +207,7 @@ export const CLAUDE_LIST_HEADINGS: PackageListHeadings = {
   published: '### Published packages',
   internal: '### Internal packages (not published, bundled)',
   ecosystem: '### Ecosystem packages (separate, from M1)',
+  heldBack: '### Packages held back from 1.0',
 };
 
 /**
@@ -226,6 +238,7 @@ export function readSpecPackageLists(
   const publishedSection = sectionOf(headings.published, /^#{2,3} /m);
   const internalSection = sectionOf(headings.internal, /^#{2,3} /m);
   const ecosystemSection = sectionOf(headings.ecosystem, /^#{2,3} /m);
+  const heldBackSection = sectionOf(headings.heldBack, /^#{2,3} /m);
 
   const published = [...publishedSection.matchAll(SPEC_TABLE_ROW)]
     .map((match) => match[1] ?? '')
@@ -245,7 +258,17 @@ export function readSpecPackageLists(
     .filter((name) => name.startsWith('@openref/'))
     .sort();
 
-  return { published, internal, ecosystem };
+  // THE HELD BACK NAMES ARE READ SCOPED, LIKE THE ECOSYSTEM ONES AND UNLIKE THE INTERNAL ONES. Both
+  // documents write an internal package unscoped, as `render`, because that paragraph is about
+  // repository layout; a held back package is a name a consumer would type into an install command
+  // one day, so it is written the way it will be published.
+  const heldBackLine = heldBackSection.split('\n').find((line) => line.trim().startsWith('`'));
+  const heldBack = [...(heldBackLine ?? '').matchAll(SPEC_BACKTICKED)]
+    .map((match) => match[1] ?? '')
+    .filter((name) => name.startsWith('@openref/') || name === 'openref')
+    .sort();
+
+  return { published, internal, ecosystem, heldBack };
 }
 
 /**
@@ -389,6 +412,132 @@ export function auditSpecAgreement(
     findings.push({
       level: 'info',
       message: `${document} and PUBLISHED_PACKAGES agree on ${String(fromSpec.length)} names, ${String(lists.internal.length)} internal`,
+    });
+  }
+
+  return findings;
+}
+
+/** A registry entry: a package that would be published but for a named reason. */
+export interface HeldBackEntry {
+  readonly name: string;
+  readonly reason: string;
+  readonly until: string;
+}
+
+/** One document's name and the held back list it states, for a failure a reader can act on. */
+export interface HeldBackStatement {
+  readonly document: string;
+  readonly names: readonly string[];
+}
+
+/**
+ * Holds the held back registry against the manifests, the intended set and the documents.
+ *
+ * IT ANSWERS THE ONE QUESTION A SET DIFFERENCE CANNOT ASK. Every other audit in this file compares
+ * two statements of what goes out. None of them can tell a package that is absent on purpose from a
+ * package that is absent because somebody forgot, and that difference is the whole of a publish list
+ * being a promise rather than a list. `@openref/nuxt` was absent from the published table for a
+ * measured licence reason recorded only in prose, and prose is exactly what the ninth defect class
+ * of SPEC 0 says a task can close over without answering.
+ *
+ * FIVE CHECKS, EACH BECAUSE IT FAILS ON ITS OWN. A held back name has to be a workspace package, or
+ * the entry governs nothing. It has to be `private`, or the dry run publishes it whatever this list
+ * says. It has to be out of the intended set, or two lists give two answers to one question. It has
+ * to be out of what the dry run would emit, which is the same question asked of the command a
+ * release runs rather than of the marking. And each document that states the package lists has to
+ * name it, in both directions, because a registry entry no document carries is invisible to a
+ * reader and a document entry no registry carries is unenforced.
+ *
+ * NOTHING HERE LOOSENS THE FOUR LISTS IT SITS BESIDE. A held back package is still absent from the
+ * published table, still absent from `PUBLISHED_PACKAGES`, still absent from the dry run, and this
+ * audit fails if any of those three stops being true.
+ *
+ * @param heldBack - The committed registry
+ * @param intended - The committed intended published set
+ * @param wouldPublish - Names read from the dry run
+ * @param manifests - Every workspace manifest
+ * @param statements - One entry per document that states the lists by hand
+ * @returns One finding per disagreement, and an info line when the registry is consistent
+ */
+export function auditHeldBack(
+  heldBack: readonly HeldBackEntry[],
+  intended: readonly string[],
+  wouldPublish: readonly string[],
+  manifests: readonly WorkspaceManifest[],
+  statements: readonly HeldBackStatement[],
+): GateFinding[] {
+  const findings: GateFinding[] = [];
+  const byName = new Map(manifests.map((manifest) => [manifest.name, manifest]));
+  const registry = heldBack.map((entry) => entry.name).sort();
+  const intendedSet = new Set(intended);
+  const wouldSet = new Set(wouldPublish);
+
+  for (const entry of heldBack) {
+    const manifest = byName.get(entry.name);
+
+    if (manifest === undefined) {
+      findings.push({
+        level: 'error',
+        message: `${entry.name} is held back and this workspace has no such package, so the entry governs nothing and reads as cover`,
+      });
+      continue;
+    }
+
+    if (!manifest.isPrivate) {
+      findings.push({
+        level: 'error',
+        message: `${entry.name} is held back and its manifest at ${manifest.directory} does not set private: true, so a release publishes it whatever this list says`,
+      });
+    }
+
+    if (intendedSet.has(entry.name)) {
+      findings.push({
+        level: 'error',
+        message: `${entry.name} is held back and is also in the intended published set, which is two answers to one question`,
+      });
+    }
+
+    if (wouldSet.has(entry.name)) {
+      findings.push({
+        level: 'error',
+        message: `${entry.name} is held back and the publish dry run would publish it, so the record is a statement about the tree that the tree contradicts`,
+      });
+    }
+
+    if (entry.reason.trim() === '' || entry.until.trim() === '') {
+      findings.push({
+        level: 'error',
+        message: `${entry.name} is held back with no reason or no release named, and an entry that says only "not yet" is the absence it was written to replace`,
+      });
+    }
+  }
+
+  for (const statement of statements) {
+    const stated = [...statement.names].sort();
+
+    for (const name of stated.filter((name) => !registry.includes(name))) {
+      findings.push({
+        level: 'error',
+        message: `${statement.document} names ${name} as held back and HELD_BACK_PACKAGES does not, so nothing enforces it`,
+      });
+    }
+
+    for (const name of registry.filter((name) => !stated.includes(name))) {
+      findings.push({
+        level: 'error',
+        message: `HELD_BACK_PACKAGES holds ${name} back and ${statement.document} does not say so, so a reader of that document meets the absence with no reason beside it`,
+      });
+    }
+  }
+
+  if (findings.length === 0) {
+    findings.push({
+      level: 'info',
+      message:
+        registry.length === 0
+          ? `no package is held back, and ${String(statements.length)} document(s) agree`
+          : `${String(registry.length)} package(s) held back from the publish list, each private, out of the intended set, out of the dry run, and stated in ${String(statements.length)} document(s): ${heldBack.map((entry) => `${entry.name} until ${entry.until}`).join('; ')}`,
     });
   }
 
