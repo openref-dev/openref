@@ -172,9 +172,10 @@ const MARGIN = 10;
 /**
  * The heaviest reading any compiling case in this file produced on the runner.
  *
- * MEASURED ON THE RUNNER, WHICH IS THE ONLY INSTRUMENT THAT COUNTS HERE. Six coverage runs on
+ * MEASURED ON THE RUNNER, WHICH IS THE ONLY INSTRUMENT THAT COUNTS HERE. Twelve coverage runs on
  * 2026-09-04, on the four vCPU `ubuntu-latest` runner under V8 instrumentation, over Node 22.22.2
- * and Node 24, spread across the AMD EPYC models the pool handed out.
+ * and Node 24, spread across the AMD EPYC models the pool handed out. The bound did not fire in any
+ * of the twelve.
  *
  * IT IS ONE FIGURE BECAUSE THE PROGRAMS ARE PAID ONCE, by whichever compiling case runs first.
  * That case measured 3,483 to 8,802 ms; the other three measured 1 to 2 ms behind it, and they

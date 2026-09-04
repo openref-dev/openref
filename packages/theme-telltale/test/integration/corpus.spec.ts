@@ -78,9 +78,10 @@ const MARGIN = 10;
 /**
  * The heaviest reading any case in this file produced on the runner, and where it came from.
  *
- * MEASURED ON THE RUNNER, WHICH IS THE ONLY INSTRUMENT THAT COUNTS HERE. Six coverage runs on
+ * MEASURED ON THE RUNNER, WHICH IS THE ONLY INSTRUMENT THAT COUNTS HERE. Twelve coverage runs on
  * 2026-09-04, on the four vCPU `ubuntu-latest` runner under V8 instrumentation, over Node 22.22.2
- * and Node 24, spread across the AMD EPYC models the pool handed out.
+ * and Node 24, spread across the AMD EPYC models the pool handed out. No declared bound in this
+ * file fired in any of the twelve.
  *
  * WHAT THE SAME CASES SAID BEFORE THE SECOND CORPUS PASS WAS REMOVED, over ten samples on
  * 2026-09-03: 12,424 ms for this member and 19,691 ms for the counting case, with the file total at
@@ -124,10 +125,11 @@ const MEASURED = {
  * tomorrow is sized on arrival with nothing to edit here.
  *
  * THE TWO TERMS ARE READ OFF THE SAMPLES. Across the seventeen members the cost is a fixed per case
- * cost plus a term proportional to the bytes parsed: the six members over 180 KB ran between 0.64
- * and 1.66 microseconds per byte, and the eleven small ones are almost all fixed cost at 75 ms or
+ * cost plus a term proportional to the bytes parsed: the six members over 180 KB ran between 0.67
+ * and 1.78 microseconds per byte, and the eleven small ones are almost all fixed cost at 87 ms or
  * under. The terms below are rounded up past the top of each range, and {@link MARGIN} is applied
- * on top, which lands every member between 12.4 and 68.2 times its own measured maximum.
+ * on top, which lands every member between 11.6 and 63.8 times its own measured maximum over the
+ * twelve samples, against 14 to 12,857 when one number covered all seventeen.
  *
  * @param file - The corpus document the member renders
  * @returns The member's timeout, in milliseconds

@@ -101,13 +101,17 @@ describe('the format allowlist', () => {
   /**
    * THIS CASE IS OVER ITS BOUND AND THE DOCTRINE CANNOT COVER IT. Left for the maintainer.
    *
-   * WHAT IT COSTS, ON THE RUNNER, WHICH IS THE ONLY INSTRUMENT THAT COUNTS. Sixteen instrumented
+   * WHAT IT COSTS, ON THE RUNNER, WHICH IS THE ONLY INSTRUMENT THAT COUNTS. Twenty two instrumented
    * coverage runs on 2026-09-03 and 2026-09-04, four vCPU `ubuntu-latest`, Node 22.22.2 and Node
    * 24: 93,869 ms at the low end and 243,730 ms at the high end, against the shared
    * {@link SPAWNED_PROCESS_TIMEOUT_MS} of 180,000 it declares. It is not near the bound, it is past
    * it: the 2026-09-03 Node 22 verify job failed on this case, timed out in 180000ms. An order of
    * magnitude over 243,730 ms would be 2,437,300, which is 40.6 minutes and past the whole 30
    * minute job wall, so the margin this repository uses for the class cannot be applied here.
+   *
+   * ONE SIBLING SCAN CAME OUT AND THAT IS ALL THAT CAME OUT. The file went from 321,840 to 199,966
+   * ms at its maximum, and this case still reads 132,573 to 172,850 ms on the twelve later samples,
+   * which is 96 percent of its bound on the worst of them.
    *
    * WHAT DOMINATES IT is the first of the two scans, `prettier .` with the ignore file taken away.
    * The second scan is measured on its own by the case below at 16,874 to 38,412 ms, which puts the
