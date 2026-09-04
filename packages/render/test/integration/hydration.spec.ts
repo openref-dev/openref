@@ -363,8 +363,12 @@ describe('readPageState', () => {
     // same slice added `codeSamplesRefused`, the languages that wrote nothing for this request
     // and the reason they gave, and that is 21: a page cached before it hydrates an article whose
     // client walk reads no list where the server stated a refusal, so a vanished tab goes back to
-    // looking like a language the reference never had.
-    expect(state?.pageModelVersion).toBe(21);
+    // looking like a language the reference never had. The third round of that slice added
+    // `codeSamplesNotes`, what is true of the samples the page did draw, and that is 22: a page
+    // cached before it hydrates an article whose client walk reads no list where the server said
+    // that four of its twelve clients treat a redirect unlike the console, or that no sample on
+    // the page carries the credential the operation needs.
+    expect(state?.pageModelVersion).toBe(22);
   });
 });
 

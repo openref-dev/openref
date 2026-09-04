@@ -163,6 +163,21 @@ export const NodePanel = defineComponent({
                   `No sample for this request in ${labelsOf(refusal.languages)}: ${refusal.reason}`,
                 ),
               ),
+              // THE THIRD SENTENCE, AND IT IS ABOUT THE TABS A READER CAN SEE RATHER THAN ABOUT
+              // ONES THEY CANNOT. The two above account for a language that is missing; this one
+              // says what is true of a sample that is present and correct. Both of its first two
+              // sources were computed by the generator and thrown away by the transform: four
+              // clients treat a redirect unlike the console, and an operation whose credential no
+              // request can carry draws samples that show the request faithfully and will not
+              // authenticate. A reader copying one of those and watching it return 401 with the
+              // page silent is the same failure as a vanished tab, one layer in.
+              ...node.codeSamplesNotes.map((note) =>
+                h(
+                  'p',
+                  { class: 'oref-description' },
+                  `In ${labelsOf(note.languages)}: ${note.note}`,
+                ),
+              ),
             ]);
           // THE THREE CHANNEL SECTIONS OF `T050`, adopted for the same reason the rest are, and
           // for one more: a schema tree inside an adopted position would be a row of buttons

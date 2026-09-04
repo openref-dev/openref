@@ -15,6 +15,12 @@ import type { CodeSampleModel } from '@openref/vue';
  * refused the request reaches this with an empty list, and an empty `role="tablist"` under the
  * heading announces a control that is not there. What the section says in that case is the refusal,
  * which `NodePanel` prints under this and no theme can take out.
+ *
+ * THE EMPTY LABEL GUARD THAT STOOD HERE IS GONE, AND THE FALLBACK IS ONE PLACE NOW. This drew
+ * `sample.lang` where the label was empty and the default theme drew the empty string, which is
+ * two themes answering one question differently. `label: ""` cannot reach a model any more: the
+ * normalizer falls back to the language where SPEC 18 always said it did, so this file draws the
+ * label it is given and a theme author has nothing to remember.
  */
 export default function CodeSample(props: {
   readonly samples: readonly CodeSampleModel[];
@@ -44,7 +50,7 @@ export default function CodeSample(props: {
                   props.onSelect(sample.lang);
                 },
               },
-              sample.label === '' ? sample.lang : sample.label,
+              sample.label,
             ),
           ),
         ),

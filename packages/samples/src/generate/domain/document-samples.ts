@@ -40,12 +40,28 @@
  * `UNSENDABLE_PLAN_REFUSAL`: a refusal is data, so both the runner's refusal to build and an
  * operation with nowhere to send now travel as `codeSamplesRefused` over every language the caller
  * asked about, and the page prints the reason exactly as it prints every other refusal.
+ *
+ * EVERY MEMBER IS RECOMPUTED AND EVERY MEMBER IS WRITTEN, INCLUDING WHEN IT IS EMPTY. Until
+ * 2026-09-04 the write added a member only where the new list had something in it and spread the
+ * old node underneath, so a member this pass computed as empty was not replaced but inherited.
+ * Measured on second passes, which SPEC 18 names as a supported path: a document that gained a
+ * server drew twelve tabs under a sentence saying all fifteen had refused; a document drawn on all
+ * fifteen kept a sentence naming fourteen of them as held back; and a document whose server was
+ * taken away kept twelve samples addressed to the origin it no longer declares. The first two are
+ * a page contradicting itself in two lines, and the third is a sample that is not the runner's
+ * plan, which is the failure this whole section exists to prevent.
+ *
+ * WHICH REQUIRED KNOWING WHAT THIS PACKAGE WROTE LAST TIME, and `IRCodeSample.generated` is how.
+ * Level 3 is whatever is on the operation, so without a mark the twelve samples of the first pass
+ * are level 3 to the second, and no recomputation can reach them. With it, each pass composes the
+ * document's own samples with a freshly generated set and the fourth defect above cannot arise.
  */
 
 import { compareByCodePoint, finalizeDocument, generateExample, OpenRefError } from '@openref/core';
 import type {
   IRCodeSample,
   IRCodeSampleLanguage,
+  IRCodeSampleNote,
   IRCodeSampleRefusal,
   IRDocument,
   IRJsonSchema,
@@ -70,9 +86,12 @@ import {
   PAGE_SAMPLE_LANGUAGES,
   SAMPLE_LANGUAGES,
   UNBUILDABLE_REQUEST_REFUSAL,
+  UNREACHABLE_TAB_NOTE,
+  unsendableCredentialNote,
 } from './languages';
 import type { SampleLanguage } from './languages';
 import { buildSampleRequest, placeholderCredentials } from './sample-request';
+import type { UnsendableScheme } from './sample-request';
 
 /**
  * One media type of a request body, as a projection richer than the runner's own carries it.
@@ -139,27 +158,43 @@ export function withGeneratedSamples(
   const nodes = new Map(document.nodes);
   let changed = false;
 
+  // THE CALLER'S LIST IS READ AS A SET, AND SAYING SO COSTS ONE LINE HERE INSTEAD OF A TAB NOBODY
+  // CAN REACH. A host that builds its list by concatenation can name a language twice, and two
+  // entries under one id produce two samples with one `lang`, of which `CodeSample` can show the
+  // first. The first mention keeps its position, because the order of this list is the order of
+  // the tabs.
+  const drawnLanguages = uniqueLanguages(languages);
+
   // WHAT IS NOT ON THE PAGE IS DERIVED FROM WHAT IS, AND NEVER WRITTEN OUT BESIDE IT. The caller
   // names one set, the languages the page draws, and the other set is the rest of SPEC 18's
   // fifteen. Two parameters would have let a caller name a page set and a notice set that do not
   // partition the fifteen, and the page would then be able to promise a language nothing writes or
   // to stay silent about one it holds back.
   const elsewhere = SAMPLE_LANGUAGES.filter(
-    (language) => !languages.some((drawn) => drawn.id === language.id),
+    (language) => !drawnLanguages.some((drawn) => drawn.id === language.id),
   );
 
   for (const [id, node] of document.nodes) {
     if (node.kind !== 'operation') continue;
 
-    const { drawn, named, refused } = operationSamples(
+    // WHAT THIS PACKAGE WROTE LAST TIME IS NOT AN INPUT TO THIS TIME, and until 2026-09-04 it was.
+    // `composeCodeSamples` reads whatever is on the operation as level 3, so a second pass treated
+    // the twelve samples the first pass generated as samples an author had typed and kept them
+    // whatever the document now said. Measured: a document whose server was removed between the
+    // two passes came out with twelve samples still addressed to the origin it no longer declares,
+    // which `buildRequest` refuses to build for. The four members below are recomputed from the
+    // document's own samples and this request, every pass, which is what makes the second pass a
+    // transform rather than an accumulation.
+    const declared = (node.codeSamples ?? []).filter((sample) => sample.generated !== true);
+    const { drawn, named, refused, notes } = operationSamples(
       node,
       document,
       operationOf,
       bodies,
-      languages,
+      drawnLanguages,
       elsewhere,
     );
-    const composed = composeCodeSamples(node.codeSamples, drawn);
+    const { samples: composed, unreachable } = composeCodeSamples(declared, drawn);
 
     // A LANGUAGE THE DOCUMENT WROTE ITSELF IS ON THE PAGE, so it is not named as absent from it.
     // Level 3 outranks the generator, and a document that wrote its own Ruby sample has a Ruby tab
@@ -167,36 +202,45 @@ export function withGeneratedSamples(
     // write a sample says nothing about the one the author wrote by hand.
     const spoken = new Set(composed.map((sample) => sample.lang));
     const missing = named.filter((language) => !spoken.has(language.lang));
-    const unable = groupByReason(refused.filter((entry) => !spoken.has(entry.lang)));
+    const unable = groupByText(refused.filter((entry) => !spoken.has(entry.lang))).map((group) => ({
+      reason: group.text,
+      languages: group.languages,
+    }));
+    // AND A NOTE IS ABOUT A SAMPLE THIS PACKAGE WROTE, WHICH IS THE SAME RULE ONE MORE TIME. A
+    // document that wrote its own `shell` sample has a cURL tab whose contents this file never
+    // saw, so saying what our cURL emitter's output does with a redirect, or that it carries no
+    // credential, would be a sentence about a sample nobody can read. The collision notes are the
+    // other way round by construction: those are exactly the document's own entries.
+    const written = new Set(declared.map((sample) => sample.lang));
+    const noted = groupByText([
+      ...collisionNotes(unreachable),
+      ...notes.filter((entry) => !written.has(entry.lang)),
+    ]).map((group) => ({
+      note: group.text,
+      languages: group.languages,
+    }));
 
-    // THE TEST IS WHETHER ANYTHING WAS ADDED, AND A LENGTH IS EXACTLY THAT TEST for the samples,
-    // because `composeCodeSamples` only ever appends to what the document wrote. Two operations
-    // reach this line having gained nothing: one the generator refused, and one whose document
-    // already wrote every language the generator would have. Both keep the node they had.
-    //
-    // THE SECOND HALF IS NOT A LENGTH AND THE FIRST EDITION OF IT WAS, WHICH BROKE IDEMPOTENCE.
-    // The named languages are recomputed from the request every pass rather than appended to what
-    // is there, so `missing.length > 0` is true on the second application as much as on the first,
-    // and the transform re-finalized a document it had not changed. A caller applying it twice got
-    // two equal documents that are not the same object, which is exactly the property the two
-    // hosts rely on to call it without knowing whether the other ran first. The test is therefore
-    // whether the names moved, not whether there are any.
-    const sameSamples = composed.length === (node.codeSamples?.length ?? 0);
+    // THE TEST IS WHETHER THIS PASS SAYS ANYTHING THE NODE DOES NOT ALREADY SAY, and every one of
+    // the four is compared by what it holds rather than by how much of it there is. A length was
+    // enough while `composeCodeSamples` only appended; it stopped being enough the moment the
+    // samples became recomputed, because twelve samples written against one origin and twelve
+    // written against another are both twelve. Comparing the sources is what makes a document
+    // whose servers moved between two passes come out different, and comparing all four is what
+    // keeps a document that did not move come out as the very same object, which is the property
+    // both hosts rely on to call this without knowing whether the other ran first.
+    const sameSamples = sampleListsAgree(node.codeSamples ?? [], composed);
     const sameNames = languageListsAgree(node.codeSamplesElsewhere ?? [], missing);
-    const sameRefusals = refusalListsAgree(node.codeSamplesRefused ?? [], unable);
-    if (sameSamples && sameNames && sameRefusals) continue;
+    const sameRefusals = groupListsAgree(
+      (node.codeSamplesRefused ?? []).map((group) => ({ ...group, text: group.reason })),
+      unable.map((group) => ({ ...group, text: group.reason })),
+    );
+    const sameNotes = groupListsAgree(
+      (node.codeSamplesNotes ?? []).map((group) => ({ ...group, text: group.note })),
+      noted.map((group) => ({ ...group, text: group.note })),
+    );
+    if (sameSamples && sameNames && sameRefusals && sameNotes) continue;
 
-    // ALL THREE MEMBERS ARE WRITTEN ONLY WHEN THEY SAY SOMETHING, and `codeSamples` joined the
-    // other two when the refusal path started producing nodes with nothing drawn on them.
-    // `IROperation.codeSamples` is documented as absent when nobody wrote one, and an empty list
-    // written in its place is a member that says "none" where the type says "nothing to say",
-    // moved into every document a refused operation appears in.
-    nodes.set(id, {
-      ...node,
-      ...(composed.length === 0 ? {} : { codeSamples: composed }),
-      ...(missing.length === 0 ? {} : { codeSamplesElsewhere: missing }),
-      ...(unable.length === 0 ? {} : { codeSamplesRefused: unable }),
-    });
+    nodes.set(id, sampleFactsOn(node, composed, missing, unable, noted));
     changed = true;
   }
 
@@ -238,57 +282,171 @@ function languageListsAgree(
 }
 
 /**
- * Whether two grouped refusal lists say the same thing, in the same order.
+ * Whether two lists of samples say the same thing, in the same order.
+ *
+ * THE SOURCE IS COMPARED AND NOT ONLY THE COUNT, which is the whole point of the function. The
+ * generated half is rebuilt from the request on every pass, so two lists of twelve are equal in
+ * length and unequal in every byte the moment the document's servers, parameters or body moved
+ * between the passes. A length told those two apart from nothing, which is how twelve samples
+ * addressed to a vanished origin survived a second pass.
+ *
+ * @param left - The list the node already carries
+ * @param right - The list this pass produced
+ * @returns True when the two are the same samples in the same order
+ */
+function sampleListsAgree(left: readonly IRCodeSample[], right: readonly IRCodeSample[]): boolean {
+  if (left.length !== right.length) return false;
+
+  return left.every((sample, index) => {
+    const other = right[index];
+
+    return (
+      other?.lang === sample.lang &&
+      other.label === sample.label &&
+      other.source === sample.source &&
+      other.generated === sample.generated
+    );
+  });
+}
+
+/** One sentence and the languages it is about, as this file carries a group before naming it. */
+interface TextGroup {
+  readonly text: string;
+  readonly languages: readonly IRCodeSampleLanguage[];
+}
+
+/**
+ * Whether two grouped lists say the same thing, in the same order.
  *
  * ORDER AND GROUPING BOTH, FOR THE REASON {@link languageListsAgree} STATES ABOUT ORDER ALONE. The
  * page prints one sentence per group and the names inside it in order, so two groupings of the
  * same names are two pages, and a transform calling them equal would leave the first on a document
  * whose second pass produced the other.
  *
+ * ONE FUNCTION FOR REFUSALS AND NOTES, because the two shapes differ in the name of one field and
+ * in nothing a comparison can see. Two copies would be two answers to one question, and the day
+ * one of them learned to compare the languages the other would still not.
+ *
  * @param left - The list the node already carries
  * @param right - The list this pass produced
- * @returns True when the two are the same reasons over the same languages in the same order
+ * @returns True when the two are the same sentences over the same languages in the same order
  */
-function refusalListsAgree(
-  left: readonly IRCodeSampleRefusal[],
-  right: readonly IRCodeSampleRefusal[],
-): boolean {
+function groupListsAgree(left: readonly TextGroup[], right: readonly TextGroup[]): boolean {
   if (left.length !== right.length) return false;
 
   return left.every((group, index) => {
     const other = right[index];
 
-    return other?.reason === group.reason && languageListsAgree(group.languages, other.languages);
+    return other?.text === group.text && languageListsAgree(group.languages, other.languages);
   });
 }
 
 /**
- * The refusals of one operation, gathered into one entry per reason.
+ * Languages gathered into one entry per sentence, keeping first appearance order.
  *
  * FIRST APPEARANCE DECIDES THE ORDER OF THE GROUPS, and the order inside a group is the order the
  * languages were asked in. Both are the order the page would have met the language in, which is
  * what makes the output deterministic without sorting anything into an order nobody chose.
  *
- * @param refused - One entry per language, in the order the generator answered
- * @returns One entry per distinct reason
+ * @param entries - One entry per language, in the order the generator answered
+ * @returns One entry per distinct sentence
  */
-function groupByReason(refused: readonly SampleRefusal[]): readonly IRCodeSampleRefusal[] {
+function groupByText(entries: readonly TextedLanguage[]): readonly TextGroup[] {
   const groups = new Map<string, IRCodeSampleLanguage[]>();
 
-  for (const entry of refused) {
-    const held = groups.get(entry.reason);
+  for (const entry of entries) {
+    const held = groups.get(entry.text);
     const language = { lang: entry.lang, label: entry.label };
 
-    if (held === undefined) groups.set(entry.reason, [language]);
+    if (held === undefined) groups.set(entry.text, [language]);
     else held.push(language);
   }
 
-  return [...groups].map(([reason, languages]) => ({ reason, languages }));
+  return [...groups].map(([text, languages]) => ({ text, languages }));
 }
 
-/** One language that wrote nothing for this request, as this file carries it before grouping. */
-interface SampleRefusal extends IRCodeSampleLanguage {
-  readonly reason: string;
+/** One language and one sentence about it, before the sentences are gathered into groups. */
+interface TextedLanguage extends IRCodeSampleLanguage {
+  readonly text: string;
+}
+
+/**
+ * What the document wrote that the tab strip cannot show, said as a note.
+ *
+ * THE LABEL IS THE ONE THE DOCUMENT GAVE THE ENTRY THAT LOST, so a reader looking for the tab it
+ * names learns which of the two the page kept. Naming the language alone would answer a question
+ * nobody asked: the language is on the page, and what is not is this sample.
+ *
+ * @param unreachable - The declared samples an earlier entry took the language of
+ * @returns One entry per unreachable sample, all carrying the one sentence
+ */
+function collisionNotes(unreachable: readonly IRCodeSample[]): readonly TextedLanguage[] {
+  return unreachable.map((sample) => ({
+    lang: sample.lang,
+    label: sample.label,
+    text: UNREACHABLE_TAB_NOTE,
+  }));
+}
+
+/**
+ * The caller's language list read as a set, keeping the position of the first mention.
+ *
+ * @param languages - The list as the caller wrote it
+ * @returns The same list with any later mention of a language removed
+ */
+function uniqueLanguages(languages: readonly SampleLanguage[]): readonly SampleLanguage[] {
+  const seen = new Set<string>();
+
+  return languages.filter((language) => {
+    if (seen.has(language.id)) return false;
+
+    seen.add(language.id);
+
+    return true;
+  });
+}
+
+/**
+ * The operation with all four sample members replaced by what this pass computed.
+ *
+ * A SPREAD OF THE OLD NODE IS NOT A REPLACEMENT, AND THAT WAS THE DEFECT. The write used to add
+ * each member only where the new list was non empty, so a spread of the previous node carried the
+ * old value forward: a page drew twelve tabs under a sentence saying all fifteen refused, and a
+ * page drew fifteen tabs under a sentence naming fourteen of them as held back. The comment above
+ * it said the lists were recomputed rather than appended, which was true of the equality test and
+ * false of the write. Every member is deleted first, so an empty answer is an answer.
+ *
+ * EMPTY STILL MEANS ABSENT AND NOT AN EMPTY LIST. Each of the four is documented as absent when
+ * there is nothing to say, and a written `[]` says "none" where the type says "nothing to say",
+ * in every document every operation of a refused document appears in.
+ *
+ * @param node - The operation as the document carries it
+ * @param samples - The tabs this pass composed
+ * @param elsewhere - The languages this pass holds back
+ * @param refused - The refusals this pass gathered
+ * @param notes - The notes this pass gathered
+ * @returns A new operation carrying exactly what this pass computed
+ */
+function sampleFactsOn(
+  node: IROperation,
+  samples: readonly IRCodeSample[],
+  elsewhere: readonly IRCodeSampleLanguage[],
+  refused: readonly IRCodeSampleRefusal[],
+  notes: readonly IRCodeSampleNote[],
+): IROperation {
+  const next: { -readonly [Key in keyof IROperation]: IROperation[Key] } = { ...node };
+
+  delete next.codeSamples;
+  delete next.codeSamplesElsewhere;
+  delete next.codeSamplesRefused;
+  delete next.codeSamplesNotes;
+
+  if (samples.length > 0) next.codeSamples = samples;
+  if (elsewhere.length > 0) next.codeSamplesElsewhere = elsewhere;
+  if (refused.length > 0) next.codeSamplesRefused = refused;
+  if (notes.length > 0) next.codeSamplesNotes = notes;
+
+  return next;
 }
 
 /** What one operation gets: the samples the page draws, and the languages it names instead. */
@@ -311,7 +469,17 @@ interface OperationSamples {
    * the refusal is stated for the three as it is for the twelve, and the three answers together
    * account for every language the caller asked about.
    */
-  readonly refused: readonly SampleRefusal[];
+  readonly refused: readonly TextedLanguage[];
+  /**
+   * What is true of the samples that were produced, whether the page draws them or not.
+   *
+   * ORTHOGONAL TO THE THREE ABOVE, WHICH IS WHY IT IS A FOURTH MEMBER AND NOT A FOURTH BUCKET. The
+   * first three partition the languages; this one says something about the ones that ended up with
+   * a sample. Both of its sources were already computed before 2026-09-04 and neither reached a
+   * reader: `GeneratedSamples.notes` carries the redirect divergence of four clients, and
+   * `PlaceholderCredentials.unsendable` carries a credential no request can hold at all.
+   */
+  readonly notes: readonly TextedLanguage[];
 }
 
 /**
@@ -320,7 +488,7 @@ interface OperationSamples {
  * ONE REASON OVER FIFTEEN NAMES RATHER THAN NOTHING AT ALL. Neither of the two refusals this
  * answers is a language's: one is the runner declining to build the request and the other is an
  * operation with nowhere to send, so every emitter is unreachable for the same reason and
- * `groupByReason` folds them into the one sentence the page prints.
+ * {@link groupByText} folds them into the one sentence the page prints.
  *
  * THE DRAWN SET COMES FIRST, which is the order the page would have met the languages in and the
  * order every other refusal is listed in.
@@ -341,8 +509,12 @@ function allRefused(
     refused: [...languages, ...elsewhere].map((language) => ({
       lang: language.id,
       label: language.label,
-      reason,
+      text: reason,
     })),
+    // NO NOTE WHERE THERE IS NO SAMPLE. A note says something about a sample a reader can read, so
+    // an operation with none has nothing for one to be about, and a credential sentence beside no
+    // tab at all would be answering a question the refusal above already closed.
+    notes: [],
   };
 }
 
@@ -378,7 +550,12 @@ function operationSamples(
   if (serverUrl === undefined) return allRefused(languages, elsewhere, NO_SERVER_REFUSAL);
 
   try {
-    const { values } = placeholderCredentials(run.security);
+    // BOTH HALVES OF THE ANSWER ARE READ, AND THE SECOND WAS DISCARDED UNTIL 2026-09-04.
+    // `placeholderCredentials` returns the schemes whose credential no request can carry, and
+    // dropping it meant a mutualTLS operation drew twelve samples that cannot authenticate with
+    // nothing said about why. Measured on such an operation: twelve drawn, three named, no
+    // refusal, and not one word about the credential.
+    const { values, unsendable } = placeholderCredentials(run.security);
     const request = buildSampleRequest(
       run,
       requestInputs(operation, run, bodies, serverUrl),
@@ -389,22 +566,36 @@ function operationSamples(
     // Asking twice would run the shared refusals of `generateCodeSamples`, the unsendable plan and
     // the non-ASCII header, twice over one plan, and would let the two answers be taken from two
     // builds of it the day anything above became less than deterministic.
-    const { samples: produced, omitted } = generateCodeSamples(request, [
-      ...languages,
-      ...elsewhere,
-    ]);
+    //
+    // THE THIRD ANSWER IS READ TOO, AND IT WAS THROWN AWAY FOR AS LONG AS IT EXISTED. `notes`
+    // carries the redirect divergence measured on cURL, HTTPie, PowerShell and Swift; the caller
+    // destructured two of the three members, so a reader was never told that four of their twelve
+    // tabs behave unlike the button once the response is a 302.
+    const {
+      samples: produced,
+      omitted,
+      notes,
+    } = generateCodeSamples(request, [...languages, ...elsewhere]);
     const held = new Set<string>(elsewhere.map((language) => language.id));
 
     return {
-      drawn: produced.filter((sample) => !held.has(sample.lang)),
+      // MARKED AS THIS PACKAGE'S, so the next pass can tell them from what an author wrote and
+      // rebuild them against whatever the document says then.
+      drawn: produced
+        .filter((sample) => !held.has(sample.lang))
+        .map((sample) => ({ ...sample, generated: true as const })),
       named: produced
         .filter((sample) => held.has(sample.lang))
         .map((sample) => ({ lang: sample.lang, label: sample.label })),
       refused: omitted.map((entry) => ({
         lang: entry.lang,
         label: entry.label,
-        reason: entry.reason,
+        text: entry.reason,
       })),
+      notes: [
+        ...notes.map((entry) => ({ lang: entry.lang, label: entry.label, text: entry.note })),
+        ...credentialNotes(produced, unsendable),
+      ],
     };
   } catch (cause) {
     // ONLY THE RUNNER'S OWN REFUSALS ARE ANSWERED HERE. `SerializationError` and `AuthError` both
@@ -426,6 +617,35 @@ function operationSamples(
 
     throw cause;
   }
+}
+
+/**
+ * The credential this operation needs and no sample carries, said over every language that has one.
+ *
+ * THE FACT IS ABOUT THE REQUEST AND NOT ABOUT ANY CLIENT, so it is stated over every language that
+ * produced a sample, which is the same shape {@link allRefused} uses for the two request level
+ * refusals. Naming one language would suggest the others are fine.
+ *
+ * NOT A REFUSAL, WHICH IS THE DECISION THIS FUNCTION MAKES. Each sample sends exactly what the
+ * console sends, and the console cannot carry the credential either, per SPEC 19.7; refusing here
+ * would take fifteen faithful tabs off every operation behind a client certificate. What a reader
+ * gets instead is the tab and the sentence.
+ *
+ * @param produced - The samples the generator wrote, in the order it wrote them
+ * @param unsendable - Schemes whose credential a request cannot carry, from `placeholderCredentials`
+ * @returns One entry per language per scheme, or nothing when every credential can travel
+ */
+function credentialNotes(
+  produced: readonly IRCodeSample[],
+  unsendable: readonly UnsendableScheme[],
+): readonly TextedLanguage[] {
+  return unsendable.flatMap((scheme) =>
+    produced.map((sample) => ({
+      lang: sample.lang,
+      label: sample.label,
+      text: unsendableCredentialNote(scheme.schemeId, scheme.cause),
+    })),
+  );
 }
 
 /**

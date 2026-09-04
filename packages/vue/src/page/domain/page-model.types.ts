@@ -490,6 +490,27 @@ export interface CodeSampleRefusalModel {
 }
 
 /**
+ * Something true about a sample that is drawn and correct, per SPEC 18.
+ *
+ * THE THIRD KIND OF SENTENCE UNDER THE TABS, AND NOT A SOFTER REFUSAL. A refusal says there is no
+ * sample because one would have sent something other than the plan. A note says the sample sends
+ * exactly the plan and there is one more thing to know: this client follows a redirect where the
+ * console does not, the credential this operation needs travels in no request at all, or the
+ * document wrote two samples under one language and a strip keyed by language shows one.
+ *
+ * BOTH OF ITS FIRST TWO SOURCES WERE COMPUTED AND DISCARDED. `GeneratedSamples.notes` and
+ * `PlaceholderCredentials.unsendable` were produced by the generator and dropped by the transform,
+ * so a reader was never told that four of their twelve tabs behave unlike the button, nor that an
+ * operation behind a client certificate draws twelve samples that cannot authenticate.
+ */
+export interface CodeSampleNoteModel {
+  /** What a reader has to know about these samples, in the words of whoever measured it. */
+  readonly note: string;
+  /** The languages it is true of, in the order the page would have met them. */
+  readonly languages: readonly CodeSampleLanguageModel[];
+}
+
+/**
  * The head of a node page: what the operation is, and nothing about what it carries.
  *
  * SEPARATE FROM {@link NodeModel} BECAUSE THE HEADER POSITION IS HANDED THIS AND NOT THAT. The
@@ -603,6 +624,16 @@ export interface NodeModel extends NodeHeaderModel {
    * on every operation whose request all fifteen can express.
    */
   readonly codeSamplesRefused: readonly CodeSampleRefusalModel[];
+  /**
+   * What a reader has to know about the samples that are drawn, per SPEC 18.
+   *
+   * REQUIRED FOR THE REASON THE TWO MEMBERS ABOVE ARE, and orthogonal to both of them. Those three
+   * account for every language the generator was asked about; this says what is true of the ones
+   * that ended up with a tab. The empty list is the ordinary answer, on every channel, on every
+   * page whose document never went through `withGeneratedSamples`, and on every operation whose
+   * credential travels in a header and whose clients agree with the console.
+   */
+  readonly codeSamplesNotes: readonly CodeSampleNoteModel[];
   /**
    * What the try-it console needs to send this operation, or null for a channel.
    *

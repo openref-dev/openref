@@ -27,6 +27,8 @@
  * `IRCodeSample`, which is frozen public API and therefore not this revision's to change.
  */
 
+import type { UnsendableCause } from '@openref/core';
+
 /** Language ids, spelled as the highlighter spells them. */
 export type SampleLanguageId =
   | 'shell'
@@ -370,6 +372,58 @@ export const INVENTED_HEADER_REFUSAL =
 export const REDIRECT_CREDENTIAL_DROPPED_NOTE =
   'this client follows a redirect but does not re-send the Authorization header to the new ' +
   'address; the console re-sends it';
+
+/**
+ * What a tab strip keyed by `lang` costs a document that wrote two samples under one language.
+ *
+ * A NOTE RATHER THAN A SILENT DROP, AND THE ALTERNATIVE IS A MAJOR VERSION. `CodeSample` finds the
+ * active sample by `lang` and keys the list by it, so a second entry under one id is a tab a reader
+ * can click and never reach, and which of the two they see depends on list order. Making both
+ * reachable needs a tab identity of its own on `IRCodeSample`, which is frozen public API and is
+ * the same answer SPEC 18 already gives for the three shell aliases. So the second is left out of
+ * the strip and the page says it was, because dropping it in silence is the one thing this whole
+ * section exists to stop.
+ */
+export const UNREACHABLE_TAB_NOTE =
+  'the document writes a second sample under a language it already used, and a tab strip keyed ' +
+  'by language can show one of them, so the first is drawn and this one is not';
+
+/** One sentence per cause, for a credential no request can carry at all. */
+const UNSENDABLE_CREDENTIAL_CAUSES: Readonly<Record<UnsendableCause, string>> = {
+  'mutual-tls': 'a client certificate chosen during the TLS handshake',
+  'cookie-api-key': 'a key in a cookie, which is a header a browser will not let a script set',
+  'http-challenge': 'a challenge and response the browser performs itself',
+};
+
+/**
+ * Why every sample for this operation goes without the credential the operation requires.
+ *
+ * THE SAMPLES ARE CORRECT AND THEY WILL NOT AUTHENTICATE, WHICH IS WHY THIS IS A NOTE. Nothing is
+ * wrong with what the emitters wrote: they put on the wire exactly what the console puts on the
+ * wire, and the console cannot carry this credential either, per SPEC 19.7. Refusing the sample
+ * would take away fifteen tabs that show the request faithfully; saying nothing leaves a reader
+ * copying a command that returns 401 with the page having computed the reason and dropped it.
+ * `placeholderCredentials` has returned `unsendable` since the generator was built and the
+ * transform discarded it until 2026-09-04.
+ *
+ * THE CAUSE IS `core`'S AND THE WORDS ARE THIS PACKAGE'S, which is the division `credentials.ts`
+ * in `@openref/runner` already states for the same union: the platform rule has one owner and each
+ * interface says it to its own reader.
+ *
+ * @param schemeId - The scheme as the document names it, so a reader can find it
+ * @param cause - Why a request cannot carry it, from `unsendableSchemeCause`
+ * @returns The sentence the page prints under the tabs
+ *
+ * @example
+ * unsendableCredentialNote('mtls', 'mutual-tls');
+ */
+export function unsendableCredentialNote(schemeId: string, cause: UnsendableCause): string {
+  return (
+    `no sample carries a credential for the security scheme "${schemeId}", because it is ` +
+    `${UNSENDABLE_CREDENTIAL_CAUSES[cause]}; the console cannot send it either, so these samples ` +
+    'show the request faithfully and will not authenticate'
+  );
+}
 
 /**
  * Why the OkHttp half of `permitsRequestBody` needs no refusal of its own any more.

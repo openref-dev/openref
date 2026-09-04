@@ -21,6 +21,7 @@ export const PACKAGE_NAME = '@openref/samples';
 export const UPSTREAM_PACKAGES: readonly string[] = [CORE_PACKAGE, RUNNER_PACKAGE];
 
 export { composeCodeSamples } from './generate/domain/compose';
+export type { ComposedCodeSamples } from './generate/domain/compose';
 export { withGeneratedSamples } from './generate/domain/document-samples';
 export type {
   SampleBodyMediaType,
@@ -45,7 +46,9 @@ export {
   REDIRECT_NOT_FOLLOWED_NOTE,
   SAMPLE_LANGUAGES,
   UNBUILDABLE_REQUEST_REFUSAL,
+  UNREACHABLE_TAB_NOTE,
   UNSENDABLE_PLAN_REFUSAL,
+  unsendableCredentialNote,
   UNTYPED_BODY_REFUSAL,
   WGET_MULTIPART_REFUSAL,
 } from './generate/domain/languages';

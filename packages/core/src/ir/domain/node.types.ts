@@ -125,6 +125,22 @@ export interface IRCodeSample {
   /** What the tab says. Defaults to the language when the document names none. */
   readonly label: string;
   readonly source: string;
+  /**
+   * True when `withGeneratedSamples` wrote this sample, absent when the document did.
+   *
+   * WITHOUT IT A SECOND PASS CANNOT RECOMPUTE WHAT THE FIRST WROTE, and that is a wire correctness
+   * defect rather than a tidiness one. `composeCodeSamples` reads whatever is on the operation as
+   * level 3, so after one pass a generated sample is indistinguishable from one an author typed;
+   * a host that changed the document's servers between two passes then kept twelve samples
+   * addressed to the old origin, which `buildRequest` would refuse to build for. Measured on a
+   * document whose server was removed between the passes: twelve tabs, all carrying the origin
+   * that was taken away.
+   *
+   * ADDITIVE AND OPTIONAL, so a document that never met the generator carries nothing new and no
+   * reader of {@link IRCodeSample} has to know about it. It never reaches a page: `CodeSampleModel`
+   * names its three members, and this is not one of them.
+   */
+  readonly generated?: true;
 }
 
 /**
@@ -168,6 +184,33 @@ export interface IRCodeSampleRefusal {
   /** Why none of these languages could write this request, in the emitter's own words. */
   readonly reason: string;
   /** The languages that gave this reason, in the order the page would have met them. */
+  readonly languages: readonly IRCodeSampleLanguage[];
+}
+
+/**
+ * Something true about a sample that is drawn and correct, per SPEC 18.
+ *
+ * NOT A WEAKER REFUSAL, AND SPEC 18 KEEPS THE TWO APART DELIBERATELY. A refusal says the sample
+ * would have sent something other than the plan, so there is no sample. A note says the sample
+ * sends exactly the plan and a reader still has to know one more thing: the client follows a
+ * redirect where the console does not, the credential this operation needs travels in no request
+ * at all, or the document wrote two samples under one language and a tab strip keyed by `lang` can
+ * show one of them. Folding the two together would either hide a real divergence or take away
+ * tabs that are correct.
+ *
+ * COMPUTED SINCE THE FIRST GENERATOR AND DELIVERED SINCE 2026-09-04. `GeneratedSamples.notes` and
+ * `PlaceholderCredentials.unsendable` were both produced and both discarded by the transform, so
+ * the divergence of four clients and an operation whose credential no request carries reached no
+ * reader at all. That is the same silence the other two members exist to end, one layer down.
+ *
+ * GROUPED BY SENTENCE FOR THE REASON {@link IRCodeSampleRefusal} IS GROUPED BY REASON: four clients
+ * share two sentences, and repeating each per language would carry it into a page state block SPEC
+ * 20 already reports over its cap.
+ */
+export interface IRCodeSampleNote {
+  /** What a reader has to know about these samples, in the words of whoever measured it. */
+  readonly note: string;
+  /** The languages it is true of, in the order the page would have met them. */
   readonly languages: readonly IRCodeSampleLanguage[];
 }
 
@@ -215,6 +258,15 @@ export interface IROperation {
    * lists exist to end.
    */
   readonly codeSamplesRefused?: readonly IRCodeSampleRefusal[];
+  /**
+   * What a reader has to know about the samples that are drawn, per SPEC 18.
+   *
+   * ADDITIVE AND OPTIONAL, AND WRITTEN BY THE SAME ONE PLACE THE TWO ABOVE ARE. The three lists
+   * above account for every language a caller asked about; this one is orthogonal to them and says
+   * what is true of the ones that ended up drawn. It is the delivery of two results the generator
+   * already computed and the transform used to throw away.
+   */
+  readonly codeSamplesNotes?: readonly IRCodeSampleNote[];
   readonly runtime?: IRNodeRuntime;
   readonly extensions?: Readonly<Record<string, IRJsonValue>>;
   /**

@@ -299,6 +299,7 @@ function clientNodeModel(node: NodeModel | null, kind: PageModel['kind']): NodeM
       // are.
       codeSamplesElsewhere: [],
       codeSamplesRefused: [],
+      codeSamplesNotes: [],
       requestBody: [],
       channel: null,
       runtime: null,

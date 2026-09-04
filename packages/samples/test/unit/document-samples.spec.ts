@@ -3,6 +3,7 @@ import { normalizeOpenApiDocument } from '@openref/core';
 import type {
   IRCodeSample,
   IRCodeSampleLanguage,
+  IRCodeSampleNote,
   IRCodeSampleRefusal,
   IRDocument,
   IROperation,
@@ -12,8 +13,12 @@ import {
   NO_SERVER_REFUSAL,
   OFF_PAGE_SAMPLE_LANGUAGES,
   PAGE_SAMPLE_LANGUAGES,
+  REDIRECT_CREDENTIAL_DROPPED_NOTE,
+  REDIRECT_NOT_FOLLOWED_NOTE,
   SAMPLE_LANGUAGES,
   UNBUILDABLE_REQUEST_REFUSAL,
+  UNREACHABLE_TAB_NOTE,
+  unsendableCredentialNote,
   withGeneratedSamples,
 } from '../../src/index';
 
@@ -120,6 +125,13 @@ function elsewhereOf(edits: Edits = {}): readonly IRCodeSampleLanguage[] {
 function refusedOf(edits: Edits = {}): readonly IRCodeSampleRefusal[] {
   return (
     onlyOperation(withGeneratedSamples(document(edits), runnerOperationOf)).codeSamplesRefused ?? []
+  );
+}
+
+/** The notes one version of the document ends up carrying, grouped as the page states them. */
+function notedOf(edits: Edits = {}): readonly IRCodeSampleNote[] {
+  return (
+    onlyOperation(withGeneratedSamples(document(edits), runnerOperationOf)).codeSamplesNotes ?? []
   );
 }
 
@@ -543,5 +555,242 @@ describe('withGeneratedSamples, determinism', () => {
 
     // Then
     expect(onlyOperation(before).codeSamples).toBeUndefined();
+  });
+});
+
+/**
+ * The four members are recomputed on every pass, which is what a second pass over an edited
+ * document depends on.
+ *
+ * SPEC 18 NAMES THE SECOND PASS AS A SUPPORTED PATH, so these are not synthetic. A host transforms
+ * a document, hands it to `ReferenceService` as `ir:`, and it is transformed again over the top;
+ * `@openref/static` transforms it in both `buildSite` and `createSiteServer`. Every case here is a
+ * document that changed between the two passes, which is the ordinary shape of that path.
+ */
+describe('withGeneratedSamples, a recomputed member replaces the old one when it is empty', () => {
+  /** The one fixture operation of an already transformed document, so a second pass has a subject. */
+  const transformed = (
+    from: IRDocument,
+    languages?: readonly (typeof SAMPLE_LANGUAGES)[number][],
+  ) =>
+    languages === undefined
+      ? withGeneratedSamples(from, runnerOperationOf)
+      : withGeneratedSamples(from, runnerOperationOf, languages);
+
+  it('should take the refusal off an operation whose server arrived between two passes', () => {
+    // Given a document with nowhere to send, transformed once, so all fifteen stand refused
+    const nowhere: IRDocument = { ...document(), servers: [] };
+    const once = transformed(nowhere);
+    expect(onlyOperation(once).codeSamplesRefused).toHaveLength(1);
+
+    // When the document gains the server it was missing and is transformed again
+    const restored: IRDocument = { ...once, servers: document().servers };
+    const operation = onlyOperation(transformed(restored));
+
+    // Then the twelve tabs are drawn and no sentence under them says the languages refused, since
+    // a reader told a language refused while looking at its tab is being told two things at once.
+    expect(operation.codeSamples).toHaveLength(12);
+    expect(operation.codeSamplesRefused).toBeUndefined();
+  });
+
+  it('should take the held back sentence off a page that now draws those languages', () => {
+    // Given a host that asked for one tab, so fourteen languages are named as held back
+    const once = transformed(document(), [SAMPLE_LANGUAGES[0]!]);
+    expect(onlyOperation(once).codeSamplesElsewhere).toHaveLength(14);
+
+    // When the same document is transformed again with every language on the page
+    const operation = onlyOperation(transformed(once, SAMPLE_LANGUAGES));
+
+    // Then fifteen tabs and no held back sentence, because a sentence naming a language that is a
+    // tab on the same page names it in two contradictory places.
+    expect(operation.codeSamples).toHaveLength(15);
+    expect(operation.codeSamplesElsewhere).toBeUndefined();
+  });
+
+  it('should not keep a sample addressed to a server the document no longer declares', () => {
+    // Given a transformed document whose twelve samples all carry the origin it declared
+    const once = transformed(document());
+    expect(sample(onlyOperation(once).codeSamples ?? [], 'shell')?.source).toContain(
+      'https://api.example.com/v1',
+    );
+
+    // When the server is taken away and the document is transformed again
+    const moved: IRDocument = { ...once, servers: [] };
+    const operation = onlyOperation(transformed(moved));
+
+    // Then no sample survives pointing at an origin `buildRequest` would now refuse to build for.
+    // This is the wire correctness half: a drawn sample that is not the runner's plan is exactly
+    // the failure SPEC 18 exists to prevent, and a stale sample is one.
+    expect(operation.codeSamples).toBeUndefined();
+    expect(operation.codeSamplesRefused?.[0]?.languages).toHaveLength(15);
+    expect(operation.codeSamplesRefused?.[0]?.reason).toBe(NO_SERVER_REFUSAL);
+  });
+
+  it('should draw one tab for a language a caller named twice', () => {
+    // Given a caller list carrying the same language twice, which is a list a host may build by
+    // concatenation without noticing
+    const twice = [SAMPLE_LANGUAGES[0]!, SAMPLE_LANGUAGES[0]!];
+
+    // When
+    const operation = onlyOperation(withGeneratedSamples(document(), runnerOperationOf, twice));
+
+    // Then one tab, because `CodeSample` resolves the active sample by `lang` and a second entry
+    // under one id is a tab a reader can click and never reach.
+    expect(operation.codeSamples).toHaveLength(1);
+    expect(operation.codeSamples?.[0]?.lang).toBe('shell');
+  });
+
+  it('should keep the samples the document wrote when the server goes away', () => {
+    // Given a hand written sample and a generated set, both on the operation after one pass
+    const declared = [{ lang: 'elixir', label: 'Elixir', source: 'HTTPoison.post!(url, body)' }];
+    const once = transformed(document({ declared }));
+    expect(onlyOperation(once).codeSamples).toHaveLength(13);
+
+    // When the server goes away and the document is transformed again
+    const operation = onlyOperation(transformed({ ...once, servers: [] }));
+
+    // Then the document's own sample is still there and only the generated twelve are gone, which
+    // is the difference between recomputing what this package wrote and deleting what it did not.
+    expect(operation.codeSamples).toHaveLength(1);
+    expect(operation.codeSamples?.[0]?.lang).toBe('elixir');
+  });
+});
+
+describe('withGeneratedSamples, what an alias in a document costs, per SPEC 18', () => {
+  /** The document writing its own HTTPie sample under the shared shell grammar id. */
+  const aliased = { declared: [{ lang: 'bash', label: 'Ours', source: 'http POST /orders' }] };
+
+  it('should still account for every one of the fifteen lang ids', () => {
+    // Given, When: the guarantee SPEC 18 states, read over ids, which is the level it holds at
+    const drawn = samplesOf(aliased).map((entry) => entry.lang);
+    const named = elsewhereOf(aliased).map((entry) => entry.lang);
+    const refused = refusedOf(aliased).flatMap((group) =>
+      group.languages.map((entry) => entry.lang),
+    );
+
+    // Then every id is somewhere, and `bash` is there as the document's own tab
+    expect(drawn).toContain('bash');
+    for (const language of SAMPLE_LANGUAGES) {
+      expect([...drawn, ...named, ...refused]).toContain(language.id);
+    }
+  });
+
+  it('should cost the HTTPie tab, which is what the ids do not guarantee', () => {
+    // Given, When: the same document, read over the fifteen tabs rather than the fifteen ids
+    const labels = [
+      ...samplesOf(aliased).map((entry) => entry.label),
+      ...elsewhereOf(aliased).map((entry) => entry.label),
+      ...refusedOf(aliased).flatMap((group) => group.languages.map((entry) => entry.label)),
+    ];
+
+    // Then, the subject first: fourteen of the fifteen tabs are named somewhere
+    expect(labels).toContain('cURL');
+    expect(labels).toContain('wget');
+
+    // And HTTPie is named nowhere at all, because the document's own `bash` entry took the id the
+    // tab is keyed by. This is what SPEC 18 records as the price of three aliases sharing one
+    // grammar, and it is asserted here so the price is a measured fact and not a remark.
+    expect(labels).not.toContain('HTTPie');
+  });
+});
+
+describe('withGeneratedSamples, two level 3 samples under one language', () => {
+  /** A document writing two Ruby samples, of which a tab strip keyed by `lang` can show one. */
+  const collided = {
+    declared: [
+      { lang: 'ruby', label: 'Ruby', source: 'Net::HTTP.post(uri, body)' },
+      { lang: 'ruby', label: 'Ruby, async', source: 'Async { Net::HTTP.post(uri, body) }' },
+    ],
+  };
+
+  it('should draw the first and never a second tab a reader cannot reach', () => {
+    // Given, When
+    const samples = samplesOf(collided);
+
+    // Then one Ruby tab, the document's first, because `CodeSample` finds the active sample by
+    // `lang` and a second entry under that id is drawn, clickable and never shown.
+    expect(samples.filter((entry) => entry.lang === 'ruby')).toHaveLength(1);
+    expect(sample(samples, 'ruby')?.label).toBe('Ruby');
+  });
+
+  it('should state the collision rather than drop the second in silence', () => {
+    // Given, When
+    const notes = notedOf(collided);
+
+    // Then the page has a sentence naming what the document wrote and cannot be shown, which is
+    // the same rule that governs a language the page holds back and a language that refused.
+    expect(notes.map((entry) => entry.note)).toContain(UNREACHABLE_TAB_NOTE);
+    const collision = notes.find((entry) => entry.note === UNREACHABLE_TAB_NOTE);
+    expect(collision?.languages).toEqual([{ lang: 'ruby', label: 'Ruby, async' }]);
+  });
+});
+
+describe('withGeneratedSamples, what a correct sample still does not say by itself', () => {
+  it('should carry the redirect divergence of the clients measured to differ from the console', () => {
+    // Given, When: the ordinary page, whose twelve tabs are all correct
+    const notes = notedOf();
+
+    // Then two groups, because the four clients diverge in two different ways, and a note is not a
+    // refusal: each of these samples sends exactly what the button sends and then behaves
+    // differently with the response. Until this the divergence was computed and thrown away.
+    expect(notes.map((entry) => entry.note)).toEqual([
+      REDIRECT_NOT_FOLLOWED_NOTE,
+      REDIRECT_CREDENTIAL_DROPPED_NOTE,
+    ]);
+    expect(notes[0]?.languages.map((entry) => entry.label)).toEqual(['cURL', 'HTTPie']);
+    expect(notes[1]?.languages.map((entry) => entry.label)).toEqual(['PowerShell', 'Swift']);
+  });
+
+  it('should say that no sample carries a credential no request can carry', () => {
+    // Given an operation whose only scheme is mutualTLS, whose credential is chosen by the browser
+    // during the TLS handshake and travels in no request at all
+    const mutual = specification();
+    const components = mutual.components as Record<string, Record<string, unknown>>;
+    components.securitySchemes = { mtls: { type: 'mutualTLS' } };
+    mutual.security = [{ mtls: [] }];
+
+    // When
+    const operation = onlyOperation(
+      withGeneratedSamples(normalizeOpenApiDocument(mutual), runnerOperationOf),
+    );
+
+    // Then, the subject first: twelve tabs are drawn, and every one of them is a request that will
+    // not authenticate. `placeholderCredentials` computed that and the page threw it away.
+    expect(operation.codeSamples).toHaveLength(12);
+    const note = unsendableCredentialNote('mtls', 'mutual-tls');
+    expect(operation.codeSamplesNotes?.map((entry) => entry.note)).toContain(note);
+
+    // And it is said about every language that has a tab or a name, since the fact is about the
+    // request rather than about any client.
+    const named = operation.codeSamplesNotes?.find((entry) => entry.note === note);
+    expect(named?.languages).toHaveLength(15);
+  });
+
+  it('should say nothing about a sample the document wrote itself', () => {
+    // Given a document that writes its own cURL, which is level 3 and outranks the generator, so
+    // the tab a reader opens holds text this package never produced
+    const declared = [{ lang: 'shell', label: 'Ours', source: 'curl -sS https://ours.example' }];
+
+    // When
+    const notes = notedOf({ declared });
+
+    // Then, the subject first: the redirect notes are still there for the client that did not
+    // write its own, so this is a filter rather than an empty answer
+    expect(notes.map((entry) => entry.note)).toContain(REDIRECT_NOT_FOLLOWED_NOTE);
+
+    // And cURL is not named, because what our emitter would have done with a redirect says nothing
+    // about the command the author typed.
+    const following = notes.find((entry) => entry.note === REDIRECT_NOT_FOLLOWED_NOTE);
+    expect(following?.languages.map((entry) => entry.label)).toEqual(['HTTPie']);
+  });
+
+  it('should say nothing about a credential an ordinary bearer operation carries', () => {
+    // Given, When: the fixture, whose bearer scheme travels in a header like any other
+    const notes = notedOf();
+
+    // Then, a proof of absence that first asserts the subject was present: there are notes, and
+    // none of them is about a credential.
+    expect(notes).toHaveLength(2);
+    expect(notes.every((entry) => !entry.note.includes('credential for'))).toBe(true);
   });
 });

@@ -161,6 +161,14 @@ import { reasonPhrase } from '../../shared/status';
  * where it does not. A page cached before this serves a console that sends directly on a host
  * whose proxy is up, which is the defence existing and not being offered.
  *
+ * 22 SINCE THE TWO RESULTS THAT WERE COMPUTED AND DISCARDED WERE DELIVERED. A node carries
+ * `codeSamplesNotes`, the sentences that are true of the samples a reader can see: four clients
+ * measured to treat a redirect unlike the console, a credential this operation needs that travels
+ * in no request at all, and a second sample the document wrote under a language a tab strip keyed
+ * by language cannot show twice. Same mechanism and same failure as the two entries below: a
+ * client reading `undefined` where a list belongs draws nothing, and a note that draws nothing is
+ * the divergence going back to being computed and thrown away.
+ *
  * 21 SINCE THE REFUSAL WAS GIVEN SOMEWHERE TO STAND. A node carries `codeSamplesRefused`, the
  * languages that produced no sample for this request and the reason they gave. It is the same
  * mechanism as the member below and the same failure it prevents, applied to the other silence: a
@@ -189,7 +197,7 @@ import { reasonPhrase } from '../../shared/status';
  * 6 was T027: `run.bodyMediaTypes`, a list of strings, became `run.body`, a list of media types
  * each carrying the editor its schema asks for and the fields it is made of.
  */
-export const PAGE_MODEL_VERSION = 21;
+export const PAGE_MODEL_VERSION = 22;
 
 /** Media types an example is generated for. */
 const JSON_MEDIA_TYPE = /^application\/(?:[\w.+-]+\+)?json$/i;
@@ -991,9 +999,14 @@ function drawnOf(node: Omit<NodeModel, 'drawn'>): NodeModel['drawn'] {
     // SPEC 18 rather than a claim softened here. What does reach this condition on every surface is
     // the third list: an operation the runner refuses to build a request for has no tab, no held
     // back language and one reason, and that reason is the whole of what the page has to say.
+    //
+    // THE FOURTH LIST JOINED THE CONDITION WITH THE MEMBER, AND FOR THE SAME REASON THE THIRD DID.
+    // A note is a sentence the section is there to print, so a node carrying one and nothing else
+    // would draw no section and the sentence would go the way the languages used to.
     ...(node.codeSamples.length > 0 ||
     node.codeSamplesElsewhere.length > 0 ||
-    node.codeSamplesRefused.length > 0
+    node.codeSamplesRefused.length > 0 ||
+    node.codeSamplesNotes.length > 0
       ? ['samples' as const]
       : []),
     // THE THREE CHANNEL SECTIONS OF `T050`, drawn from the same list for the same reason: the
@@ -1055,6 +1068,7 @@ function nodeModel(context: ModelContext, nodeId: string): NodeModel | null {
       codeSamples: [],
       codeSamplesElsewhere: [],
       codeSamplesRefused: [],
+      codeSamplesNotes: [],
       run: null,
       channel: channelModel(view.node, context),
       runtime,
@@ -1106,6 +1120,13 @@ function nodeModel(context: ModelContext, nodeId: string): NodeModel | null {
     })),
     codeSamplesRefused: (view.node.codeSamplesRefused ?? []).map((group) => ({
       reason: group.reason,
+      languages: group.languages.map((language) => ({
+        lang: language.lang,
+        label: language.label,
+      })),
+    })),
+    codeSamplesNotes: (view.node.codeSamplesNotes ?? []).map((group) => ({
+      note: group.note,
       languages: group.languages.map((language) => ({
         lang: language.lang,
         label: language.label,

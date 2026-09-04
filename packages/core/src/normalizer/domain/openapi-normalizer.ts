@@ -207,6 +207,13 @@ function readExamples(raw: unknown): Readonly<Record<string, IRExample>> | undef
  * label falls back to the language, because a tab has to say something and the language is what
  * the author already told us.
  *
+ * AN EMPTY LABEL IS NO LABEL, AND WRITING THAT AS `?? lang` MADE THE FALLBACK NEVER FIRE. An empty
+ * string is a string, so `label: ""` reached the IR as `""` and the two shipped themes then
+ * disagreed about it: telltale drew the language and the default theme drew the empty string, so
+ * on the default theme a Ruby sample arrived as a nameless button and the word Ruby appeared
+ * nowhere on the page. It is fixed here rather than in either theme, because a theme guarding a
+ * value the IR should never have carried is the second answer that drifts from the first.
+ *
  * @param source - The operation object as the document wrote it
  * @returns The samples in document order, or nothing when there are none worth drawing
  */
@@ -223,7 +230,8 @@ function readCodeSamples(source: Record<string, unknown>): IRCodeSample[] | unde
     const code = asString(entry.source);
     if (lang === undefined || code === undefined || code === '') continue;
 
-    samples.push({ lang, label: asString(entry.label) ?? lang, source: code });
+    const label = asString(entry.label);
+    samples.push({ lang, label: label === undefined || label === '' ? lang : label, source: code });
   }
 
   return samples.length > 0 ? samples : undefined;

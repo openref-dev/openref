@@ -318,7 +318,7 @@ describe('the console positions, driven', () => {
     const tree = CodeSample({
       samples: [
         { lang: 'bash', label: 'cURL', sourceHtml: '<pre>curl</pre>' },
-        { lang: 'python', label: '', sourceHtml: '<pre>httpx</pre>' },
+        { lang: 'python', label: 'Python', sourceHtml: '<pre>httpx</pre>' },
       ],
       activeLang: '',
       onSelect,

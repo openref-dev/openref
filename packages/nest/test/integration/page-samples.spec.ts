@@ -403,6 +403,57 @@ describe('an operation page of a served reference', () => {
     expect(html).toContain('No sample for this request in cURL, HTTPie, wget, PowerShell');
     expect(html).toContain('outside US-ASCII');
   });
+
+  it('should say how four of its own tabs treat a redirect, which it used to compute and drop', async () => {
+    // Given the ordinary page, whose twelve tabs are all correct. `GeneratedSamples.notes` has
+    // carried the measured redirect divergence of cURL, HTTPie, PowerShell and Swift since the
+    // generator was built, and the transform destructured two of the three members, so it reached
+    // no reader on any page at all.
+    const html = await page(service());
+    const section = samplesSection(html);
+
+    // Then, the subject first: all four have tabs, so these are notes about samples a reader can
+    // see rather than about languages that are missing
+    for (const label of ['cURL', 'HTTPie', 'PowerShell', 'Swift']) {
+      expect(section, label).toContain(`>${label}</button>`);
+    }
+
+    // And each pair is named with what it does, inside the section, grouped by the sentence
+    expect(section).toContain('In cURL, HTTPie: this client stops at the first response');
+    expect(section).toContain('In PowerShell, Swift: this client follows a redirect');
+  });
+
+  it('should say that no sample carries a credential no request can carry', async () => {
+    // Given an operation behind mutualTLS, whose credential the browser chooses during the TLS
+    // handshake and which travels in no request at all. `placeholderCredentials` has returned that
+    // fact since the generator was built and the transform threw it away, so such a page drew
+    // twelve commands that cannot authenticate and said nothing about it.
+    const mutual = specification();
+    const components = mutual.components as Record<string, Record<string, unknown>>;
+    components.securitySchemes = { mtls: { type: 'mutualTLS' } };
+    mutual.security = [{ mtls: [] }];
+    const reference = new ReferenceService({
+      document: mutual,
+      basePath: '/docs',
+      assets: loadDefaultAssets(),
+    });
+
+    // When
+    const section = samplesSection(await page(reference));
+
+    // Then, the subject first: the tabs are there and they are correct
+    expect(section).toContain('>cURL</button>');
+    expect(section).not.toContain('No sample for this request in');
+
+    // And the page says what they cannot do, naming the scheme so a reader can find it. The
+    // scheme id arrives escaped, because it is a document's string reaching markup and SPEC 19.1
+    // keeps a document's text out of the interface's namespace; the assertion reads what the
+    // browser receives rather than what the constant says.
+    expect(section).toContain(
+      'no sample carries a credential for the security scheme &quot;mtls&quot;',
+    );
+    expect(section).toContain('will not authenticate');
+  });
 });
 
 describe('the transform the page and the static build share', () => {

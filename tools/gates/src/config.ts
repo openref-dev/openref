@@ -1056,6 +1056,17 @@ export const SIZE_BUDGETS: readonly SizeBudget[] = [
     //
     // 489 BYTES IS THE NUMBER TO WATCH NOW. The next 490 bytes the first paint gains fail this
     // budget, and the task that brings them comes to the maintainer with its own measurement.
+    //
+    // AND ON 2026-09-04 THEY WERE SPENT AND FOUR MORE WITH THEM. The operation page prints a third
+    // sentence under the tabs, the one that says what is true of the samples it did draw: four
+    // clients treat a redirect unlike the console, an operation whose credential no request can
+    // carry draws samples that will not authenticate, and a document that wrote two samples under
+    // one language has one of them shown. All three were computed before and reached no reader.
+    // Measured on the published form by building the tree twice: 112,644 against 112,587, so 57
+    // bytes against 53 of headroom. THE CAP IS NOT MOVED HERE AND THE ROW IS RED BY FOUR BYTES.
+    // The property that derives this cap is broken in its first half, since the artefact no longer
+    // fits under 110 KB, and re-deriving it is the maintainer's decision rather than this file's:
+    // a gate edited to make something pass is the one rule this project protects hardest.
     limitBytes: 110 * 1024,
     roots: CLIENT_JS_ROOTS,
     extensions: ['.js', '.mjs'],
@@ -1641,6 +1652,16 @@ export const SIZE_BUDGETS: readonly SizeBudget[] = [
     // tighter of the two and SPEC 20 said so; after it the gzip row is, by a factor of nine. That
     // is what having two caps on one artefact is for, and it is written down because the sentence
     // it replaces was true when it was written.
+    //
+    // BOTH FIGURES ABOVE DESCRIBE A TREE THAT NO LONGER EXISTS, AND SINCE 2026-09-04 A CASE HOLDS
+    // THE ONES THAT DO. This directory carries a chunk per gesture and the renderer entire, so
+    // every first paint arrival lands in it by construction, and not one of this milestone's was
+    // ever recorded against it, because neither row had a case of any kind. Re-measured: 261,932
+    // raw on disk before the third sentence under the sample tabs and 262,009 after, so headroom
+    // 25,735 rather than 26,897; and 96,816 gzip published before it and 96,838 after, so headroom
+    // 2,490 rather than 2,973. Neither cap moved. The runner is
+    // `tools/gates/test/integration/published-form.spec.ts`, so the next drift reddens instead of
+    // sitting in a comment.
     limitBytes: 281 * 1024,
     quantity: 'parse',
     roots: ['packages/theme-telltale/dist/entry'],

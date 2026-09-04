@@ -10,26 +10,63 @@
  *
  * THE DOCUMENT'S OWN ORDER IS KEPT. A reader who wrote three samples wrote them in an order, and
  * sorting them would be this package having an opinion about a document it did not write.
+ *
+ * THE SAME RULE HAD TO BE READ AGAINST THE DOCUMENT ITSELF, WHICH IT WAS NOT UNTIL 2026-09-04. The
+ * function deduplicated the generated list against the declared one and never the declared list
+ * against itself, so a document writing two samples under one `lang` reached a page with two tabs
+ * of which one could be clicked and never shown. That is the same defect the paragraph above
+ * describes, arriving from the other side, and it is answered the same way: the first entry under
+ * a language is the tab and the rest are returned as {@link ComposedCodeSamples.unreachable}, so
+ * the page can say what the document wrote and the strip cannot show.
  */
 
 import type { IRCodeSample } from '@openref/core';
+
+/** One list of samples, and the entries a tab strip keyed by language cannot show. */
+export interface ComposedCodeSamples {
+  /** The tabs, document samples first, one per language. */
+  readonly samples: readonly IRCodeSample[];
+  /**
+   * Declared samples an earlier entry already claimed the language of, in document order.
+   *
+   * RETURNED RATHER THAN DROPPED, because dropping is the silence this whole section is written
+   * against. The caller states it beside the tabs; nothing here decides the words.
+   */
+  readonly unreachable: readonly IRCodeSample[];
+}
 
 /**
  * Puts the document's samples before the generated ones and drops the duplicates by language.
  *
  * @param declared - What the document wrote, from `IROperation.codeSamples`, absent when none
  * @param generated - What the generator produced
- * @returns One list, document samples first
+ * @returns One list, document samples first, and what the document wrote that cannot be shown
  *
  * @example
- * composeCodeSamples(operation.codeSamples, samples);
+ * const { samples } = composeCodeSamples(operation.codeSamples, generated);
  */
 export function composeCodeSamples(
   declared: readonly IRCodeSample[] | undefined,
   generated: readonly IRCodeSample[],
-): readonly IRCodeSample[] {
-  const written = declared ?? [];
-  const spoken = new Set(written.map((sample) => sample.lang));
+): ComposedCodeSamples {
+  const samples: IRCodeSample[] = [];
+  const unreachable: IRCodeSample[] = [];
+  const spoken = new Set<string>();
 
-  return [...written, ...generated.filter((sample) => !spoken.has(sample.lang))];
+  for (const sample of declared ?? []) {
+    if (spoken.has(sample.lang)) unreachable.push(sample);
+    else {
+      spoken.add(sample.lang);
+      samples.push(sample);
+    }
+  }
+
+  for (const sample of generated) {
+    if (spoken.has(sample.lang)) continue;
+
+    spoken.add(sample.lang);
+    samples.push(sample);
+  }
+
+  return { samples, unreachable };
 }

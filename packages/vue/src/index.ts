@@ -114,6 +114,7 @@ export type {
   ChannelServerModel,
   CodeSampleLanguageModel,
   CodeSampleModel,
+  CodeSampleNoteModel,
   CodeSampleRefusalModel,
   DriftModel,
   ErrorContractGroupModel,
