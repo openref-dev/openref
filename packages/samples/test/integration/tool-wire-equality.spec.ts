@@ -1,22 +1,26 @@
 /**
- * The three command line tools, Swift and Ruby, executed for real against a live server, sending
- * the request the runner sends, compared at the wire level.
+ * The three command line tools, Swift, Ruby and C#, executed for real against a live server,
+ * sending the request the runner sends, compared at the wire level.
  *
  * IT IS THE SAME PROOF cURL ALREADY HAS AND FOR THE SAME REASON. SPEC 18's whole claim is that a
  * sample and the button beside it are one request; a claim of that shape is worth exactly as much
  * as the binary that was run to check it. So each sample is handed to a real shell, the runner's
  * own transport sends the same plan, and the server compares what arrived.
  *
- * A CASE THAT CANNOT DETERMINE ITS FACT SAYS SO. Five binaries are guarded, not four: wget, HTTPie,
- * PowerShell, Swift and Ruby. None is on every machine this project builds on, so each group
- * asserts its binary is present and skips with the reason named when it is not. It never passes
- * without having sent anything, which is what separates a skip from a green case that proved
- * nothing.
+ * A CASE THAT CANNOT DETERMINE ITS FACT SAYS SO. Six toolchains are guarded: wget, HTTPie,
+ * PowerShell, Swift, Ruby and the .NET SDK. None is on every machine this project builds on, so each
+ * group asserts its toolchain is present and skips with the reason named when it is not. It never
+ * passes without having sent anything, which is what separates a skip from a green case that proved
+ * nothing. Where each group runs is recorded in `tools/gates/src/lib/conditional-cases.ts`, because
+ * a guard covering neither machine looks exactly like one covering both.
  *
- * WHAT IS NOT PROVED HERE IS NAMED IN SPEC 18 RATHER THAN LEFT OUT. Kotlin and Dart have no case,
- * because proving either means fetching a dependency from the network during a test run: `kotlinc`
- * plus the OkHttp jar, or the Dart SDK plus `pub get` for `package:http`. The six original level 2
- * templates have no case either, and that was true before this revision.
+ * WHAT IS NOT PROVED HERE IS NAMED IN SPEC 18 RATHER THAN LEFT OUT. Kotlin, Dart and Python have no
+ * case, because proving any of them means fetching a dependency from the network during a test run:
+ * `kotlinc` plus the OkHttp jar, the Dart SDK plus `pub get` for `package:http`, or `pip install
+ * httpx` for a system interpreter that does not carry it. Java has none for a different reason,
+ * measured 2026-09-04: there is no JDK on the workstation at all, so the group would run on neither
+ * machine, which the `test-skips` gate makes an error. Go, PHP, Rust and TypeScript have no case
+ * either.
  */
 
 import { mkdtemp, writeFile } from 'node:fs/promises';
@@ -52,6 +56,7 @@ const present = {
   powershell: await toolIsRunnable('pwsh -NoProfile -Command "exit 0"'),
   swift: await toolIsRunnable('swift --version'),
   ruby: await toolIsRunnable('ruby --version'),
+  dotnet: await toolIsRunnable('DOTNET_CLI_TELEMETRY_OPTOUT=1 dotnet --version'),
 };
 
 beforeAll(async () => {
@@ -486,8 +491,8 @@ describe('the generated Ruby program and the runner send one request', () => {
    *
    * RUBY WAS ON THE NOT-PROVED LIST AND DID NOT BELONG THERE. It ships with every macOS and most
    * Linux images, needs no dependency beyond its own standard library, and the presence probe this
-   * suite already had was all that was missing. The five other level 2 templates still need a
-   * toolchain each, which is why they stay on the list.
+   * suite already had was all that was missing. C# came off the same list on 2026-09-04, by the
+   * same route. The level 2 templates still on it need a toolchain each or a fetched dependency.
    */
   async function rubyCommand(request: SampleRequest, name: string): Promise<string> {
     const source = sampleFor(request, 'ruby');
@@ -557,6 +562,73 @@ describe('the generated Ruby program and the runner send one request', () => {
       // Then
       expectSameWire(request, runner, tool);
       expect(tool.method).toBe('PROPFIND');
+    },
+    SPAWNED_PROCESS_TIMEOUT_MS,
+  );
+});
+
+describe('the generated C# program and the runner send one request', () => {
+  /**
+   * Writes the sample to a file and runs it as a .NET file based application.
+   *
+   * ONE LINE IS ADDED AND IT IS DECLARED HERE RATHER THAN LEFT TO BE NOTICED. The C# emitter
+   * produces a snippet, which is what SPEC 18 says a level 2 template is: `HttpClient`,
+   * `HttpRequestMessage` and `StringContent` are covered by the implicit global usings of a console
+   * application, and `MediaTypeHeaderValue` is not, so a body carrying a content type does not
+   * compile on its own. The harness prepends `using System.Net.Http.Headers;` and nothing else, and
+   * the case below asserts that the file is that one line plus the sample verbatim, so the addition
+   * cannot grow into a rewrite of what is under test.
+   *
+   * TELEMETRY IS OPTED OUT OF, WHICH IS NOT HOUSEKEEPING. The .NET CLI reports usage over the
+   * network on first run, and a suite in this repository that made an outgoing request of its own
+   * would be the thing the security suite exists to forbid. The presence probe carries the same
+   * variable, so the tool is never found present by a probe that behaves differently from the run.
+   *
+   * @param request - The request under test
+   * @param name - A file name stem unique within the work directory
+   * @returns The shell command that sends it
+   */
+  async function csharpCommand(request: SampleRequest, name: string): Promise<string> {
+    const source = sampleFor(request, 'csharp');
+    const file = `${source.includes('MediaTypeHeaderValue') ? 'using System.Net.Http.Headers;\n\n' : ''}${source}\n`;
+    expect(file.endsWith(`${source}\n`), 'the harness added more than one using directive').toBe(
+      true,
+    );
+    await writeFile(join(workDirectory, `${name}.cs`), file, 'utf8');
+
+    return `DOTNET_CLI_TELEMETRY_OPTOUT=1 DOTNET_NOLOGO=1 dotnet run ${name}.cs`;
+  }
+
+  it.skipIf(!present.dotnet)(
+    'should agree on a GET carrying query parameters, a header parameter and an apiKey',
+    async () => {
+      // Given
+      const request = queryRequest();
+
+      // When
+      const [runner, tool] = await bothWays(request, await csharpCommand(request, 'query'));
+
+      // Then
+      expectSameWire(request, runner, tool);
+      expect(tool.target).toBe('/pets?limit=10&tags=cat,small%20dog');
+    },
+    SPAWNED_PROCESS_TIMEOUT_MS,
+  );
+
+  it.skipIf(!present.dotnet)(
+    'should agree on a JSON body carrying a quote, a subexpression and a non ASCII character',
+    async () => {
+      // Given
+      const request = hostileBodyRequest();
+
+      // When
+      const [runner, tool] = await bothWays(request, await csharpCommand(request, 'body'));
+
+      // Then, including the content type, which .NET carries on the content and not on the request,
+      // and which is the one refusal this emitter has that is not about bytes
+      expectSameWire(request, runner, tool);
+      expect(tool.body.toString('utf8')).toContain('é');
+      expect(tool.headers['content-type']).toBe('application/json');
     },
     SPAWNED_PROCESS_TIMEOUT_MS,
   );

@@ -365,6 +365,125 @@ describe('a conditional group the register does not name', () => {
   });
 });
 
+describe('a column nobody established', () => {
+  /** A dependency measured on darwin, whose runner column no one could read. */
+  function undeterminedOnLinux(): ConditionalDependency {
+    return {
+      ...bothMachines('thing'),
+      runsOn: ['darwin-workstation'],
+      undetermined: ['linux-runner'],
+      evidence: 'the manifest was not readable from the machine that wrote this',
+    };
+  }
+
+  it('should print it as undetermined and never as a gap, because the two are different facts', () => {
+    // Given a dependency whose linux column is recorded as unestablished
+    const dependency = undeterminedOnLinux();
+
+    // When
+    const issues = reconcileConditionalCases(
+      [seen()],
+      onDarwinWithEverything([dependency]),
+      [group()],
+      [dependency],
+    );
+    const printed = issues.map((issue) => issue.message).join('\n');
+
+    // Then it is said in its own word, it is not a failure, and no line claims the case never runs
+    // on linux, which is the assertion `runsOn` alone would have made for free
+    expect(printed).toContain('UNDETERMINED thing');
+    expect(printed).toContain('is not established');
+    expect(printed).not.toContain('GAP thing');
+    expect(printed).not.toContain('never on linux-runner');
+    expect(conditionalCasesFailed(issues)).toBe(false);
+  });
+
+  it('should report what it measured when the run is on the machine nobody established', () => {
+    // Given the same dependency, on the machine whose column is undetermined, present there
+    const dependency = undeterminedOnLinux();
+
+    // When
+    const issues = reconcileConditionalCases(
+      [seen()],
+      { machine: 'linux-runner', present: new Map([['thing', true]]) },
+      [group()],
+      [dependency],
+    );
+    const printed = issues.map((issue) => issue.message).join('\n');
+
+    // Then the measurement is in front of a reader with what to do about it, and the run that
+    // honestly says it does not know is not the run that fails
+    expect(printed).toContain('recorded UNDETERMINED on linux-runner');
+    expect(printed).toContain('measured it as PRESENT');
+    expect(conditionalCasesFailed(issues)).toBe(false);
+  });
+
+  it('should fail when one machine is recorded as both known and unestablished', () => {
+    // Given a register that says both things about one column
+    const dependency: ConditionalDependency = {
+      ...bothMachines('thing'),
+      runsOn: ['darwin-workstation', 'linux-runner'],
+      undetermined: ['linux-runner'],
+    };
+
+    // When
+    const issues = reconcileConditionalCases(
+      [seen()],
+      onDarwinWithEverything([dependency]),
+      [group()],
+      [dependency],
+    );
+
+    // Then
+    expect(conditionalCasesFailed(issues)).toBe(true);
+    expect(issues.map((issue) => issue.message).join('\n')).toContain(
+      'both known to run it and undetermined',
+    );
+  });
+
+  it('should still fail a dependency no machine is known to run, undetermined or not', () => {
+    // Given the nginx class, wearing the new state: nothing has ever been shown to run it
+    const dependency: ConditionalDependency = {
+      ...bothMachines('thing'),
+      runsOn: [],
+      undetermined: ['linux-runner'],
+    };
+
+    // When
+    const issues = reconcileConditionalCases(
+      [seen()],
+      onDarwinWithEverything([dependency]),
+      [group()],
+      [dependency],
+    );
+
+    // Then the rule this file exists for is untouched by the third state
+    expect(conditionalCasesFailed(issues)).toBe(true);
+    expect(issues.map((issue) => issue.message).join('\n')).toContain('it is on NEITHER machine');
+  });
+
+  it('should be the record the C# wire cases carry, and the only one that carries it', () => {
+    // Given the committed register
+    const dotnet = CONDITIONAL_DEPENDENCIES.find((entry) => entry.id === 'dotnet');
+
+    // Then the subject is present before anything is claimed about the shape of the register
+    expect(dotnet?.runsOn).toEqual(['darwin-workstation']);
+    expect(dotnet?.undetermined).toEqual(['linux-runner']);
+    expect(
+      CONDITIONAL_DEPENDENCIES.filter((entry) => (entry.undetermined ?? []).length > 0).map(
+        (entry) => entry.id,
+      ),
+    ).toEqual(['dotnet']);
+
+    // And the group it guards is the C# half of the wire suite
+    const guarded = CONDITIONAL_CASES.filter((entry) => entry.dependency === 'dotnet');
+    expect(guarded.map((entry) => entry.file)).toEqual([
+      'packages/samples/test/integration/tool-wire-equality.spec.ts',
+    ]);
+    expect(guarded[0]?.guard).toBe('!present.dotnet');
+  });
+});
+
 describe('the probe', () => {
   it('should report absence for a binary that is not on this machine', () => {
     // Given a command no machine has

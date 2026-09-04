@@ -117,7 +117,7 @@ ways depending on a request header:
 | `<route>/_proxy` | the same origin proxy the console sends through |
 | `<route>/_bridge` | the broker bridge, when one is configured |
 | `<route>/_oauth/callback` | the return address of an authorization server |
-| `<route>/_health` | whether this mount is alive and what it was built from |
+| `<route>/_health` | whether this mount is alive, whether it describes anything, and what it was built from |
 | `<route>/_federation` | a live snapshot of remote states |
 | `<route>/llms.txt`, `<route>/llms-full.txt` | the reference as text for a language model |
 | `<route>/mcp` | a read only JSON-RPC endpoint, off by default |

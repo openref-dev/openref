@@ -194,6 +194,40 @@ class DeclaredController {
   }
 }
 
+/**
+ * A plain provider carrying `@ApiChannel`, which is SPEC 8.3's third class kind.
+ *
+ * IT IS NEITHER A CONTROLLER NOR A GATEWAY, and that is the whole of what this fixture is for. A
+ * projector, a saga, a listener a broker library registers: none of them is a `@Controller` and
+ * none implies `@WebSocketGateway`, and until 2026-09-04 the walk read `@ApiChannel` on those two
+ * class kinds alone, so the decorator written here reached nothing at all.
+ */
+@Injectable()
+class OrdersProjector {
+  @ApiChannel({ address: 'orders.projected', protocol: 'kafka', summary: 'An order was projected' })
+  @ApiMessage({ payload: OrderPlacedDto })
+  onProjected(): void {
+    // nothing
+  }
+}
+
+/**
+ * A plain provider carrying a framework pattern and no `@ApiChannel`, which is not a channel.
+ *
+ * THE NARROWING IS THE DECISION AND NOT AN OVERSIGHT. Nest routes `@MessagePattern` off a
+ * controller; a provider carrying one is served by nothing, so a walk that admitted it would put an
+ * address in the reference that no message ever arrives at. What the provider walk admits is the
+ * declaration, because a declaration is a person stating a fact rather than the framework being
+ * read off a class the framework does not route.
+ */
+@Injectable()
+class PatternedProvider {
+  @MessagePattern('providers.unrouted', Transport.KAFKA)
+  unrouted(): void {
+    // nothing
+  }
+}
+
 function channelsOf(document: unknown): IRChannel[] {
   const normalized = normalizeAsyncApiDocument(document);
   return [...normalized.nodes.values()].filter(
@@ -354,6 +388,60 @@ describe('discoverChannels, per SPEC 8.3', () => {
     // shaped produced it
     expect(placed?.address.confidence).toBe('declared');
     expect(placed?.declared?.value.summary).toBe('An order was placed');
+    // And the source names the decorator that produced it rather than one of the two framework
+    // ones. It read `message-pattern` until 2026-09-04, which said a decorator nobody wrote here
+    // had been read off this handler.
+    expect(placed?.source).toBe('api-channel');
+  });
+
+  it('should read a declaration off a plain provider, which is neither controller nor gateway', () => {
+    // Given a provider that is only `@Injectable()`, reported where a gateway would be reported
+    const discovery = discoveryOf([], [OrdersProjector]);
+    expect(discovery.getProviders().map((wrapper) => wrapper.name)).toEqual(['OrdersProjector']);
+
+    // When
+    const { channels, problems } = discoverChannels(discovery);
+
+    // Then the third class kind of SPEC 8.3 reaches the walk, at `declared`, with its message
+    expect(channels.map((channel) => channel.address.value)).toEqual(['orders.projected']);
+    expect(channels[0]?.address.confidence).toBe('declared');
+    expect(channels[0]?.source).toBe('api-channel');
+    expect(channels[0]?.declared?.value.summary).toBe('An order was projected');
+    expect(channels[0]?.message?.value.payload).toBe(OrderPlacedDto);
+    expect(problems).toEqual([]);
+  });
+
+  it('should not read a framework pattern off a provider, which the framework does not route', () => {
+    // Given a provider carrying `@MessagePattern`, which is asserted to be really there before
+    // its absence from the result is claimed to mean anything
+    const discovery = discoveryOf([], [PatternedProvider]);
+    const unrouted: unknown = Object.getOwnPropertyDescriptor(
+      PatternedProvider.prototype,
+      'unrouted',
+    )?.value;
+    expect(Reflect.getMetadata('microservices:pattern', unrouted as object)).toBeDefined();
+
+    // When
+    const { channels, problems } = discoverChannels(discovery);
+
+    // Then nothing, because Nest routes that decorator off a controller and a channel here would
+    // be an address in the reference no message ever arrives at
+    expect(channels).toEqual([]);
+    expect(problems).toEqual([]);
+  });
+
+  it('should read a declaration off a class that is a controller and one that is a provider alike', () => {
+    // Given both class kinds at once, so the two walks are proved not to drop or double either
+    const discovery = discoveryOf([DeclaredController], [OrdersProjector, SilentGateway]);
+
+    // When
+    const { channels } = discoverChannels(discovery);
+
+    // Then one entry per declaration and no entry twice
+    expect(channels.filter((channel) => channel.address.value === 'orders.projected')).toHaveLength(
+      1,
+    );
+    expect(channels.filter((channel) => channel.address.value === 'orders.placed')).toHaveLength(1);
   });
 });
 

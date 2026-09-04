@@ -811,13 +811,21 @@ export class ReferenceService {
    * It answers what a probe can use honestly: that the reference is up, and which document
    * it is serving.
    *
+   * `ok` MEANS UP AND SERVICEABLE, AND A REFERENCE WITH NO NODES IS ONLY THE FIRST. Two words
+   * since 2026-09-04, per SPEC 13.3: a document whose `nodes` map is empty describes nothing, and
+   * answering `ok` for it made the one surface a reader checks report health for exactly the state
+   * it exists to surface. Measured on the built `examples/events`, which answered
+   * `{"status":"ok", ..., "nodes":0}` for two milestones. The HTTP status stays 200 in both cases,
+   * because the process is up and a probe that fails a deployment over a documentation defect is
+   * the worse of the two wrong answers; what changes is the word.
+   *
    * @returns The report
    */
   private status(): ReferenceReply {
     // A literal object, serialized as written, per SPEC 12. Sorting it would put `document`
     // before `status` for no reason a reader of this route benefits from.
     const body = JSON.stringify({
-      status: 'ok',
+      status: this.document.nodes.size === 0 ? 'empty' : 'ok',
       document: {
         id: this.document.id,
         title: this.document.info.title,

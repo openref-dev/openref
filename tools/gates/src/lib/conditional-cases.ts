@@ -31,6 +31,12 @@
  * is the one T065 was told to make. Such a case has run somewhere, so it is not the nginx class;
  * but the machine it runs on is a single laptop nothing else checks, so it is printed by name and
  * counted on every run rather than left to be rediscovered.
+ *
+ * A COLUMN NOBODY ESTABLISHED IS A THIRD STATE AND NOT A NO. Added 2026-09-04 with the first
+ * dependency whose runner column could not be read from the machine writing it down. Leaving such a
+ * machine out of `runsOn` is not neutral: it prints a GAP asserting the case never runs there, and
+ * a wrong absence is as much a false record as a wrong presence. See
+ * {@link ConditionalDependency.undetermined}.
  */
 
 import { execFileSync } from 'node:child_process';
@@ -75,6 +81,23 @@ export interface ConditionalDependency {
    * is a committed fact and carries its evidence in {@link ConditionalDependency.evidence}.
    */
   readonly runsOn: readonly MachineId[];
+
+  /**
+   * The machines whose column nobody has established, which is neither a yes nor a no.
+   *
+   * A THIRD STATE, ADDED 2026-09-04, AND IT EXISTS TO KEEP A GUESS OUT OF THE REGISTER. Every
+   * `linux-runner` column here is read off the runner image manifest, and a slice that cannot read
+   * that document has two dishonest options and no honest one: claiming the runner has it invents
+   * evidence, and leaving it out of `runsOn` claims the runner does NOT have it, which is a
+   * statement with the same standing and prints a GAP naming a machine nobody asked. So the column
+   * is recorded as undetermined, the gap is printed as undetermined rather than as an absence, and
+   * the first run on that machine measures it and says what it found.
+   *
+   * IT NEVER SUBSTITUTES FOR `runsOn`. A dependency with an empty `runsOn` is still the error this
+   * file exists for, undetermined or not: a check nothing has ever been shown to run is a check
+   * that exists as text. A machine may not appear in both lists.
+   */
+  readonly undetermined?: readonly MachineId[];
 
   /** Where the claim about the machine this code is not running on comes from. */
   readonly evidence: string;
@@ -128,6 +151,24 @@ export const CONDITIONAL_DEPENDENCIES: readonly ConditionalDependency[] = [
     probe: { kind: 'binary', command: 'ruby', args: ['--version'] },
     runsOn: ['darwin-workstation', 'linux-runner'],
     evidence: 'Ubuntu 24.04 runner image lists Ruby 3.2.3',
+  },
+  {
+    id: 'dotnet',
+    description: 'the .NET SDK, which compiles and runs the C# sample as a file based application',
+    probe: {
+      kind: 'binary',
+      command: 'sh',
+      args: ['-c', 'DOTNET_CLI_TELEMETRY_OPTOUT=1 dotnet --version'],
+    },
+    runsOn: ['darwin-workstation'],
+    undetermined: ['linux-runner'],
+    evidence:
+      'measured here 2026-09-04 as SDK 10.0.400, which is what puts darwin-workstation in ' +
+      'runsOn. THE RUNNER COLUMN IS UNDETERMINED AND THAT IS THE RECORD RATHER THAN A GAP: every ' +
+      'other linux-runner entry in this file is read off the Ubuntu 24.04 image software list, ' +
+      'that document was not readable from the machine this entry was written on, and both a yes ' +
+      'and a no would have been invented. `ci.yml` adds no setup-dotnet step, so nothing in this ' +
+      'repository settles it either. The first run on linux measures it and says so',
   },
   {
     id: 'four-tools-together',
@@ -210,7 +251,7 @@ export interface ConditionalGroup {
 /**
  * Every conditional group in the suites, with the dependency each one waits on.
  *
- * DERIVED FROM THE TREE ON 2026-09-04 AND RE-DERIVED ON EVERY RUN. 59 cases over 21 groups over
+ * DERIVED FROM THE TREE ON 2026-09-04 AND RE-DERIVED ON EVERY RUN. 61 cases over 22 groups over
  * 7 files. `scanConditionalCases` produces the same list from the sources, and the gate compares
  * the two in both directions, so this is a record that cannot go stale in silence.
  */
@@ -235,6 +276,13 @@ export const CONDITIONAL_CASES: readonly ConditionalGroup[] = [
     guard: '!HAVE_SPEC',
     dependency: 'ai-docs',
     cases: 1,
+  },
+  {
+    file: 'packages/samples/test/integration/tool-wire-equality.spec.ts',
+    mechanism: 'it.skipIf',
+    guard: '!present.dotnet',
+    dependency: 'dotnet',
+    cases: 2,
   },
   {
     file: 'packages/samples/test/integration/tool-wire-equality.spec.ts',
@@ -668,16 +716,52 @@ export function reconcileConditionalCases(
       continue;
     }
 
-    const missing = MACHINES.filter((machine) => !dependency.runsOn.includes(machine));
-    issues.push({
-      level: missing.length === 0 ? 'info' : 'warning',
-      message:
-        missing.length === 0
-          ? `${dependency.id}: ${String(cases)} case(s) over ${String(groups.length)} group(s), on both machines`
-          : `GAP ${dependency.id}: ${String(cases)} case(s) over ${String(groups.length)} group(s) ` +
-            `run on ${dependency.runsOn.join(' and ')} ONLY, never on ${missing.join(' and ')}. ` +
-            `${dependency.description}. Evidence: ${dependency.evidence}`,
-    });
+    // A MACHINE IN BOTH LISTS IS A CONTRADICTION AND NOT A PREFERENCE. `runsOn` says it runs there
+    // and `undetermined` says nobody knows, and a register that says both says nothing.
+    const unknown = dependency.undetermined ?? [];
+    const contradictory = unknown.filter((machine) => dependency.runsOn.includes(machine));
+    if (contradictory.length > 0) {
+      issues.push({
+        level: 'error',
+        message:
+          `${dependency.id} lists ${contradictory.join(' and ')} as both known to run it and ` +
+          'undetermined, which are two different records of one column',
+      });
+    }
+
+    const missing = MACHINES.filter(
+      (machine) => !dependency.runsOn.includes(machine) && !unknown.includes(machine),
+    );
+
+    if (missing.length > 0) {
+      issues.push({
+        level: 'warning',
+        message:
+          `GAP ${dependency.id}: ${String(cases)} case(s) over ${String(groups.length)} group(s) ` +
+          `run on ${dependency.runsOn.join(' and ')} ONLY, never on ${missing.join(' and ')}. ` +
+          `${dependency.description}. Evidence: ${dependency.evidence}`,
+      });
+    }
+
+    // UNDETERMINED IS PRINTED AS ITS OWN WORD AND NEVER FOLDED INTO THE GAP ABOVE. A gap is a
+    // measured absence a reader can act on; this is the absence of a measurement, and calling it a
+    // gap would put a fact in front of a reader that nobody established.
+    if (unknown.length > 0) {
+      issues.push({
+        level: 'warning',
+        message:
+          `UNDETERMINED ${dependency.id}: ${String(cases)} case(s) over ` +
+          `${String(groups.length)} group(s); whether ${unknown.join(' and ')} run(s) them is not ` +
+          `established. ${dependency.description}. Evidence: ${dependency.evidence}`,
+      });
+    }
+
+    if (missing.length === 0 && unknown.length === 0) {
+      issues.push({
+        level: 'info',
+        message: `${dependency.id}: ${String(cases)} case(s) over ${String(groups.length)} group(s), on both machines`,
+      });
+    }
   }
 
   for (const group of register) {
@@ -712,6 +796,21 @@ export function reconcileConditionalCases(
       issues.push({
         level: 'error',
         message: `${dependency.id} was not probed on ${machine}, so its column is unverified`,
+      });
+      continue;
+    }
+
+    // THE RUN THAT CAN SETTLE AN UNDETERMINED COLUMN SAYS WHAT IT FOUND AND DOES NOT GO RED. The
+    // register honestly records that nobody established this column, so failing the run that first
+    // measures it would turn an honest record into a broken build on a correct tree. It is a
+    // warning carrying the measurement, which is what a maintainer needs to write the column down.
+    if ((dependency.undetermined ?? []).includes(machine)) {
+      issues.push({
+        level: 'warning',
+        message:
+          `${dependency.id} is recorded UNDETERMINED on ${machine} and this run measured it as ` +
+          `${actual ? 'PRESENT' : 'ABSENT'}. Record that column in CONDITIONAL_DEPENDENCIES and ` +
+          'take the machine out of `undetermined`',
       });
       continue;
     }

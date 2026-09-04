@@ -157,7 +157,7 @@ describe('the wire case denominator SPEC 18 records', () => {
     // day it was typed. This one is derived, so adding a case reddens here and the sentence and
     // the tree move together.
     expect(curl).toBe(7);
-    expect(tools).toBe(27);
-    expect(total).toBe(34);
+    expect(tools).toBe(29);
+    expect(total).toBe(36);
   });
 });

@@ -41,8 +41,16 @@ import {
  * of them produces a channel with an invented address or an invented protocol.
  */
 
-/** Which decorator a discovered channel came from, which is what SPEC 8.3's table is keyed by. */
-export type DiscoveredChannelSource = 'message-pattern' | 'event-pattern' | 'subscribe-message';
+/**
+ * Which decorator a discovered channel came from, which is what SPEC 8.3's table is keyed by.
+ *
+ * `api-channel` IS THE THIRD CLASS KIND AND NOT A FOURTH DECORATOR. It is what a declaration on a
+ * plain `@Injectable()` provider is read as, because a provider is neither of the two class kinds
+ * the framework sources live on, and recording it under one of their names would say the framework
+ * routed something it did not.
+ */
+export type DiscoveredChannelSource =
+  'message-pattern' | 'event-pattern' | 'subscribe-message' | 'api-channel';
 
 /** One channel of the running application, before anything has been merged or normalized. */
 export interface DiscoveredChannel {
@@ -191,7 +199,7 @@ function collectPatterns(
 
       channels.push({
         address: declaredValue(address),
-        source: 'message-pattern',
+        source: 'api-channel',
         declared,
         ...messageOf(handler),
         controller: target,
@@ -268,18 +276,19 @@ function messageOf(handler: object): { message?: DeclaredValue<ApiMessageOptions
  * @param instance - Its instance
  * @param channels - Accumulator
  * @param problems - Accumulator for what could not be read
+ * @returns True when the class is a gateway, whether or not it produced a channel
  */
 function collectGateway(
   target: ControllerLike,
   instance: unknown,
   channels: DiscoveredChannel[],
   problems: DiscoveryProblem[],
-): void {
+): boolean {
   const gateway = readGateway(target);
-  if (gateway === undefined) return;
+  if (gateway === undefined) return false;
 
   const start = prototypeOf(instance, target);
-  if (start === undefined) return;
+  if (start === undefined) return true;
 
   const address = gatewayAddress(gateway);
   let events = 0;
@@ -313,15 +322,76 @@ function collectGateway(
         '@ApiChannel is how such a channel is declared',
     });
   }
+
+  return true;
+}
+
+/**
+ * Adds every channel one plain provider declares outright.
+ *
+ * THE THIRD CLASS KIND OF SPEC 8.3, ADMITTED 2026-09-04 AND NOT BEFORE. A projector, a saga or a
+ * listener a broker library registers is a plain `@Injectable()`: it is not a `@Controller`, so
+ * `collectPatterns` never saw it, and it carries no `@WebSocketGateway`, so `collectGateway`
+ * returned on it. `@ApiChannel` written on such a class therefore reached nothing at all, while
+ * five prose surfaces of this repository and its own shipped example presented that form as the
+ * ordinary one. It is admitted rather than the surfaces being narrowed, per SPEC 8.3.
+ *
+ * A DECLARATION AND NOTHING ELSE, WHICH IS THE NARROWING AND NOT A HALF MEASURE. A provider
+ * carrying `@MessagePattern` or `@EventPattern` produces nothing here, because Nest routes those
+ * off a controller: a channel built from a pattern on a class the framework does not route would
+ * be an address in the reference no message ever arrives at. `@ApiChannel` is a person stating a
+ * fact, and that statement is as true on a provider as it is anywhere else.
+ *
+ * NO PROBLEM IS REPORTED FOR A PROVIDER THAT DECLARES NOTHING, which is the rule
+ * {@link discoverChannels} already states: an application's providers are mostly not channels, and
+ * a finding per provider would bury every real one.
+ *
+ * @param target - The provider class
+ * @param instance - Its instance, whose prototype carries the handlers
+ * @param channels - Accumulator
+ */
+function collectDeclarations(
+  target: ControllerLike,
+  instance: unknown,
+  channels: DiscoveredChannel[],
+): void {
+  const start = prototypeOf(instance, target);
+  if (start === undefined) return;
+
+  for (const { name: handlerName, handler, owner } of handlersOf(start, target)) {
+    const declared = declaredChannel(handler);
+    const address = declared?.value.address;
+    if (declared === undefined || address === undefined || address === '') continue;
+
+    channels.push({
+      address: declaredValue(address),
+      source: 'api-channel',
+      declared,
+      ...messageOf(handler),
+      controller: target,
+      controllerName: target.name,
+      declaredOn: owner,
+      handler,
+      handlerName,
+    });
+  }
 }
 
 /**
  * Enumerates every channel the application declares.
  *
- * CONTROLLERS AND PROVIDERS BOTH, because the two sources live in two containers. `@MessagePattern`
- * goes on a controller and `@WebSocketGateway` implies `@Injectable`, so a gateway is a provider
- * and `getControllers` never sees it. A provider that is neither is skipped in silence, since an
- * application's providers are mostly not gateways and reporting each would bury the real findings.
+ * CONTROLLERS AND PROVIDERS BOTH, because the three sources live in two containers.
+ * `@MessagePattern` goes on a controller and `@WebSocketGateway` implies `@Injectable`, so a
+ * gateway is a provider and `getControllers` never sees it. A provider that is neither is read for
+ * a declaration and nothing else, per SPEC 8.3 as amended 2026-09-04, and one that declares
+ * nothing is skipped in silence, since an application's providers are mostly not channels and
+ * reporting each would bury the real findings.
+ *
+ * THE PROVIDER WALK IS DEEPER THAN IT WAS AND THE COST IS NAMED. Until 2026-09-04 a provider that
+ * failed the `@WebSocketGateway` read cost one metadata lookup; it now costs a walk of its
+ * prototype chain and one lookup per method. It runs once, inside the same `onModuleInit` that
+ * already walks every controller the same way, and the alternative was a decorator that five
+ * documented surfaces promise and nothing reads.
  *
  * @param discovery - Nest's `DiscoveryService`
  * @returns The channels, and everything that could not be read with the reason
@@ -339,7 +409,13 @@ export function discoverChannels(discovery: DiscoveryServiceLike): ChannelDiscov
   for (const wrapper of discovery.getProviders()) {
     const target = classOf(wrapper);
     if (target === undefined) continue;
-    collectGateway(target, wrapper.instance, channels, problems);
+
+    // A GATEWAY IS READ AS A GATEWAY AND NEVER ALSO AS A PLAIN PROVIDER. `collectGateway` already
+    // takes the declaration on each `@SubscribeMessage` handler, so running both walks over one
+    // class would file a channel twice for a gateway method carrying `@ApiChannel`.
+    if (collectGateway(target, wrapper.instance, channels, problems)) continue;
+
+    collectDeclarations(target, wrapper.instance, channels);
   }
 
   return { channels, problems };

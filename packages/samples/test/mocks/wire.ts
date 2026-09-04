@@ -344,8 +344,9 @@ export function comparableHeaders(
  *
  * A SUITE THAT CANNOT DETERMINE ITS FACT SAYS SO RATHER THAN PASSING, which is why this returns an
  * answer instead of throwing. cURL is required by its own suite because every machine this project
- * builds on has it; the five this guards, wget, HTTPie, PowerShell, Swift and Ruby, are not, so
- * their cases skip with the reason named rather than going green on a machine that proved nothing.
+ * builds on has it; the six this guards, wget, HTTPie, PowerShell, Swift, Ruby and the .NET SDK,
+ * are not, so their cases skip with the reason named rather than going green on a machine that
+ * proved nothing.
  *
  * @param probe - A command that succeeds when the tool is installed
  * @returns True when it ran and exited zero
