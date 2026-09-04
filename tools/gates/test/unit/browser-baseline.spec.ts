@@ -818,4 +818,50 @@ describe('the committed zero language reading', () => {
       zeroSampleFigureIssues('the page-bytes paragraphs of SPEC 20', region, derived.figures),
     ).toEqual([]);
   });
+
+  it('should be stated by the SPEC 18 samples paragraph where this checkout has ai-docs', () => {
+    // Given the THIRD prose home of this one arithmetic, which is the copy nothing was over. While
+    // the other two were being corrected it went on saying 229,935 with fifteen languages, 214,500
+    // at zero and an overrun of 6,628, in the present tense, against a ceiling that had already
+    // been replaced. Same absence rule as above: `ai-docs/` is git excluded, so where the file is
+    // there the paragraph is compared, and where it is not this says which fact went unchecked.
+    if (!derived?.determined) throw new Error('the derivation is undetermined');
+
+    let spec: string | null;
+    try {
+      spec = readFileSync(join(repoRoot, 'ai-docs/SPEC.md'), 'utf8');
+    } catch {
+      spec = null;
+    }
+
+    if (spec === null) {
+      expect(spec).toBeNull();
+      return;
+    }
+
+    // When
+    const region = sliceBetween(
+      spec,
+      '**Цена названа числом и измерена сборкой дерева с этим и без этого.**',
+      '**Владелец проводки назван, а не подразумевается.**',
+      'the samples cost paragraph of SPEC 18',
+    );
+
+    // Then
+    expect(
+      zeroSampleFigureIssues('the samples cost paragraph of SPEC 18', region, derived.figures),
+    ).toEqual([]);
+
+    // AND THE CEILING IN FORCE IS NAMED, not only the replaced one the overrun is measured against.
+    // This paragraph keeps a dated comparison on purpose, and the figure that decided the ruling
+    // was a comparison against a cap that has since moved, so a reader arriving later must be able
+    // to see both numbers. Holding it against `BROWSER_CEILINGS` means the next move of the cap
+    // reddens here instead of leaving the paragraph quietly describing a page nobody measures.
+    expect(
+      statesNumber(region, BROWSER_CEILINGS.pageBytes),
+      `the SPEC 18 samples paragraph does not state the page-bytes ceiling in force, ` +
+        `${String(BROWSER_CEILINGS.pageBytes)}, so a reader meeting its overrun over the replaced ` +
+        `${String(derived.figures.replacedCapBytes)} has nothing there telling them the comparison is dated`,
+    ).toBe(true);
+  });
 });
