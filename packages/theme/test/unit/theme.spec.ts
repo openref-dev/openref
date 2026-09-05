@@ -95,6 +95,10 @@ const NOT_CLASSES = new Set([
   // button rides `.oref-send`, which this theme draws, and a class of its own would have put a
   // name on the second theme's boundary list for a rule that would style nothing new.
   'oref-copy',
+  // `data-oref-copy-said`, on the live region beside that control. A state, not a class, for the
+  // same reason and one step further: the confirmation is a sentence in the block's own body text,
+  // and the row it sits in is `.oref-tryit-actions`, which this theme already draws.
+  'oref-copy-said',
   // Ids the palette generates one per option, so `aria-activedescendant` can name one.
   'oref-palette-option-',
   // Id prefix of a try-it field, so a label can name the control it belongs to. The full id

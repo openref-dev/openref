@@ -30,6 +30,7 @@ export const RUNTIME_FACT_FIELDS = [
   'scopes',
   'roles',
   'rateLimit',
+  'rateLimitReach',
   'timeout',
   'requiredHeaders',
   'parameterReads',
@@ -92,6 +93,11 @@ export const RUNTIME_FACT_COLLECTORS: Readonly<Record<RuntimeFactField, readonly
   // is that this is the first field two SHIPPED collectors can both produce on one route, which is
   // the tie `mergeContributions` now records rather than resolving in silence.
   rateLimit: ['throttlerCollector', 'redisxRateLimitCollector'],
+  // THE SAME TWO NAMES, BECAUSE THE ANSWER COMES FROM THE SAME INSTRUMENT. A collector that can
+  // report a limit is the collector that can report there is none, so a reader missing this fact
+  // is missing it for exactly the reason they are missing `rateLimit`, and pointing them at a
+  // third name would be pointing them at a package that does not exist.
+  rateLimitReach: ['throttlerCollector', 'redisxRateLimitCollector'],
   timeout: ['timeoutCollector'],
   requiredHeaders: ['headersCollector'],
   parameterReads: ['handlerScanCollector'],
@@ -153,6 +159,8 @@ function collectorOfFact(runtime: IRNodeRuntime, field: RuntimeFactField): strin
       return runtime.roles?.collector;
     case 'rateLimit':
       return runtime.rateLimit?.collector;
+    case 'rateLimitReach':
+      return runtime.rateLimitReach?.collector;
     case 'timeout':
       return runtime.timeout?.collector;
     case 'requiredHeaders':

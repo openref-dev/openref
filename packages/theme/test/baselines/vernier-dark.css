@@ -1185,6 +1185,12 @@ a.oref-topology-name {
   text-transform: uppercase;
 }
 
+.oref-send[data-oref-copy] {
+  display: inline-grid;
+  padding: 6px;
+  place-items: center;
+}
+
 .oref-send:disabled {
   background: #131b22;
   border-color: #79899a;

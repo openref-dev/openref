@@ -152,8 +152,8 @@ describe('the parity scale says which of the two silences an empty cell is', () 
 
     // Then the two sentences are different sentences, which is the whole of this change
     expect(validation?.reason).toBe(
-      'pipesCollector examined this route and found no pipe declared on it. Anything applied to ' +
-        'it from outside the route is named in the doctor report, not here.',
+      'pipesCollector examined this route and reported no pipe for it. Where it read one and ' +
+        'could not state it, the doctor report says why.',
     );
   });
 
@@ -272,10 +272,15 @@ describe('the gutter and the health page answer one comparison the same way', ()
     const rows = buildParityRows(document, node, [], '');
     const authentication = rows.find((row) => row.kind === 'authentication');
 
-    // Then claiming less is the right answer, not a match borrowed from a comparison nothing ran
+    // Then claiming less is the right answer, not a match borrowed from a comparison nothing ran.
+    // AND THE SENTENCE IS THE OTHER ONE, since SPEC 6.2.3 split it: `security-drift` is a rule of
+    // the catalogue and it does examine this row, so telling a reader no rule exists was false.
+    // What is true is that the rule ran and found nothing here to compare, the mapping being what
+    // it needs and what this document does not carry.
     expect(authentication?.verdict).toBe('unknown');
     expect(authentication?.reason).toBe(
-      'No rule of the drift catalogue examines this row yet, so neither side is judged.',
+      'The rules that judge this row found nothing on this operation to compare, so neither side ' +
+        'is judged.',
     );
   });
 });

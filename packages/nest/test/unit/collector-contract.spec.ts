@@ -148,6 +148,11 @@ describe('the merge partition', () => {
             confidence: 'derived',
             collector: 'testCollector',
           },
+          rateLimitReach: {
+            value: { kind: 'external', by: ['GlobalRateLimitGuard'] },
+            confidence: 'derived',
+            collector: 'testCollector',
+          },
           timeout: { value: { ms: 5000 }, confidence: 'derived', collector: 'testCollector' },
           requiredHeaders: {
             value: ['If-Match'],

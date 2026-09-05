@@ -78,6 +78,9 @@ describe('hasRuntimeFacts', () => {
       rateLimit: {
         rateLimit: { value: { limit: 100, ttlMs: 60_000 }, confidence: 'derived', collector: 't' },
       },
+      rateLimitReach: {
+        rateLimitReach: { value: { kind: 'none' }, confidence: 'derived', collector: 't' },
+      },
       errors: { errors: { declared: [], runtimeDerived: [], global: [] } },
       streaming: {
         streaming: { value: { transport: 'sse' }, confidence: 'declared', collector: 's' },

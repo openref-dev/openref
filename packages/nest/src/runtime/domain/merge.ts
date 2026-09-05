@@ -128,6 +128,7 @@ export const FACT_FIELDS = [
   'scopes',
   'roles',
   'rateLimit',
+  'rateLimitReach',
   'timeout',
   'requiredHeaders',
   'parameterReads',
@@ -174,6 +175,7 @@ export function mergeContributions(
     scopes?: IRFact<readonly string[]> | undefined;
     roles?: IRFact<readonly string[]> | undefined;
     rateLimit?: IRNodeRuntime['rateLimit'] | undefined;
+    rateLimitReach?: IRNodeRuntime['rateLimitReach'] | undefined;
     timeout?: IRNodeRuntime['timeout'] | undefined;
     requiredHeaders?: IRNodeRuntime['requiredHeaders'] | undefined;
     parameterReads?: IRNodeRuntime['parameterReads'] | undefined;
@@ -204,6 +206,13 @@ export function mergeContributions(
       'rateLimit',
       merged.rateLimit,
       runtime.rateLimit,
+      collector,
+      contests,
+    );
+    merged.rateLimitReach = resolve(
+      'rateLimitReach',
+      merged.rateLimitReach,
+      runtime.rateLimitReach,
       collector,
       contests,
     );
@@ -293,6 +302,7 @@ export function mergeContributions(
     ...(merged.scopes === undefined ? {} : { scopes: merged.scopes }),
     ...(merged.roles === undefined ? {} : { roles: merged.roles }),
     ...(merged.rateLimit === undefined ? {} : { rateLimit: merged.rateLimit }),
+    ...(merged.rateLimitReach === undefined ? {} : { rateLimitReach: merged.rateLimitReach }),
     ...(merged.timeout === undefined ? {} : { timeout: merged.timeout }),
     ...(merged.requiredHeaders === undefined ? {} : { requiredHeaders: merged.requiredHeaders }),
     ...(merged.parameterReads === undefined ? {} : { parameterReads: merged.parameterReads }),

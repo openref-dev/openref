@@ -133,8 +133,15 @@ describe('the published form of this tree', () => {
     // document with no health report. Null and zero are different statements per SPEC 7.3, and
     // until that rule only one of them was ever drawn. THE CAP DID NOT MOVE and the headroom is
     // 845 bytes, asserted below.
-    expect(total).toBe(62_643);
-    expect(sizeOf('theme.css')).toBe(48_555);
+    //
+    // 112 BYTES MORE ON 2026-09-05, AND THEY ARE ALSO ONE RULE: `.oref-send[data-oref-copy]`, the
+    // shape the copy control needs now that it carries a glyph rather than a word. The padding
+    // written for a label draws a wide bar around a 14 pixel icon, so the one control that has no
+    // text gets a square. Selected by the state attribute the button already carried, so no name
+    // arrived on the boundary list every theme must style. THE CAP DID NOT MOVE and the headroom
+    // is 733 bytes, asserted below.
+    expect(total).toBe(62_755);
+    expect(sizeOf('theme.css')).toBe(48_667);
     expect(sizeOf('tokens.css')).toBe(9_707);
     expect(sizeOf('fonts.css')).toBe(4_381);
   });
@@ -176,7 +183,18 @@ describe('the published form of this tree', () => {
     // `T065`'s node segment escape, itself 325 over the 111,826 left by the socket console, itself
     // 1,267 over 110,559. The cap did not move for any of them, this one included.
     //
-    // 202 BYTES ON 2026-09-05 AT `TX-INSTRUMENT`, AND THE ROW IS NOW 221 OVER, STILL REPORTED RED
+    // 442 BYTES ON 2026-09-05, AND THE ROW IS NOW 663 OVER, STILL REPORTED RED RATHER THAN PAID
+    // FOR. Two fixes landed and the split between them was measured rather than apportioned, by
+    // building the tree three times: 113,885 at HEAD, 113,885 again with the rate limit reach fix
+    // alone, and 114,327 with the copy control on top of it. So the three states of SPEC 6.2.3
+    // cost the browser NOTHING, which is what the module header of `parity-model.ts` claims and
+    // this is the second measurement of it, and all 442 are the copy control: an inline `svg`, a
+    // stable `aria-label`, and a live region beside the button rather than a label that renames
+    // itself. THE CAP DID NOT MOVE, no other row was raided, and nothing was trimmed to fit. A
+    // button whose only content is a drawing and no accessible name is unreadable to a screen
+    // reader, so the name is not a byte that can be bought back.
+    //
+    // 202 BYTES EARLIER ON 2026-09-05 AT `TX-INSTRUMENT`, AND THE ROW WAS 221 OVER, STILL RED
     // RATHER THAN PAID FOR. Measured by building the tree three times, each with one changed
     // component reverted: 113,360 raw without `NodePanel.ts` against 113,556 with it, so all 196
     // are the copy control's revert, and 113,562 either way for `RuntimePanel.ts` and
@@ -195,7 +213,7 @@ describe('the published form of this tree', () => {
     // call samples block, 470. The cap held 451 when the fourth arrived and it cost 470. Nothing
     // was trimmed to fit, no other row was raided, and the cap is the maintainer's to rule on, the
     // way the four bytes of 2026-09-04 were ruled on.
-    expect(total).toBe(113_885);
+    expect(total).toBe(114_327);
 
     // AND ALL 57 ARE IN THE ENTRY, WHICH IS DERIVED HERE RATHER THAN RESTATED, exactly as the 26
     // and the 181 before them were. The six files beside the entry weighed 91,364 before the change
@@ -209,7 +227,11 @@ describe('the published form of this tree', () => {
     // AND WHERE THE 1,039 WENT, DERIVED HERE RATHER THAN RESTATED. 935 of them were in the entry,
     // 21,280 to 22,215, and 104 in the notice chunk, 656 to 760, which is the two new
     // `StateNotice` shapes.
-    expect(sizeOf('openref.js')).toBe(22_417);
+    // AND WHERE THE 442 WENT, DERIVED HERE RATHER THAN RESTATED. Every one of them is in the
+    // entry, 22,417 to 22,859, because the copy control lives in `NodePanel` and `NodePanel` is in
+    // it. The six files beside the entry weigh 90,708 before and after, both operands off this
+    // tree, and no chunk name moved this time.
+    expect(sizeOf('openref.js')).toBe(22_859);
     expect(sizeOf('chunk-NNVNJ4ZN.js')).toBe(760);
     expect(total - sizeOf('openref.js') - sizeOf('chunk-NNVNJ4ZN.js')).toBe(90_708);
     expect(sizeOf('chunk-HCWNPUXA.js')).toBe(5_089);
@@ -306,13 +328,19 @@ describe('the published form of this tree', () => {
     // gzip row moves by 80, a little over half the raw arrival, because the added code is a timer
     // and a cancellation beside code that already sets the same ref. Both rows still fit.
     //
-    // 1,386 raw and 888 gzip on 2026-09-05, which was the previous slice arriving the same way.
-    expect(onDisk).toBe(263_553);
-    expect(gzip).toBe(97_806);
+    // 442 raw and 208 gzip later on 2026-09-05, which is the copy control's icon and its live
+    // region arriving in a second bundle for the reason every arrival does. Here the raw figure is
+    // the SAME 442 the first paint row pays rather than fewer, unlike the revert before it: what
+    // arrived is markup and two string constants rather than logic a whole bundle minifier can
+    // fold. Both rows still fit, at 23,749 raw and 1,314 gzip of headroom.
+    //
+    // 1,386 raw and 888 gzip on 2026-09-05, which was an earlier slice arriving the same way.
+    expect(onDisk).toBe(263_995);
+    expect(gzip).toBe(98_014);
 
     // And the headroom each row actually has, against caps neither of which moved
-    expect(281 * 1024 - onDisk).toBe(24_191);
-    expect(97 * 1024 - gzip).toBe(1_522);
+    expect(281 * 1024 - onDisk).toBe(23_749);
+    expect(97 * 1024 - gzip).toBe(1_314);
   });
 
   it('should leave the caps where the two derivations put them', () => {
@@ -373,7 +401,16 @@ describe('the published form of this tree', () => {
     // began naming the three SPEC 18 languages it does not draw, so a reader can tell a language
     // this reference does not have from one it can produce.
     //
-    // TWO HUNDRED AND FIFTEEN BYTES OVER ON 2026-09-05, STILL RED AND STILL NOT RULED ON HERE.
+    // SIX HUNDRED AND SIXTY THREE BYTES OVER ON 2026-09-05, STILL RED AND STILL NOT RULED ON HERE.
+    // 442 arrived on top of the 221 below and every one of them is the copy control: the button
+    // shows an icon instead of the words `Copy the sample`, keeps a fixed `aria-label` because a
+    // button whose only content is a drawing has no accessible name at all, and the confirmation
+    // moved to a live region beside it instead of replacing the label. Measured by building the
+    // tree three times: 113,885 at HEAD, 113,885 with the rate limit reach fix alone, 114,327 with
+    // both, so the three states of SPEC 6.2.3 cost this row zero and the whole 442 is the control.
+    // THE CAP DID NOT MOVE, no other row was raided, and nothing was trimmed to fit.
+    //
+    // TWO HUNDRED AND TWENTY ONE BYTES OVER EARLIER ON 2026-09-05, THE SAME WAY.
     // `TX-INSTRUMENT` added 202 to the nineteen below, and all 202 are one thing: the copy control
     // in the call samples block now returns to offering the copy instead of saying `Copied` for
     // the life of the page, which is a timer, its cancellation and an unmount hook. Measured by
@@ -397,7 +434,7 @@ describe('the published form of this tree', () => {
     // was raided, and no part of any of the four was trimmed to fit, which is the trade this
     // project forbids and the reason the four bytes of 2026-09-04 were reported the same way.
     // What the maintainer decides is whether the cap moves or a fix comes back out.
-    expect(capOf('client-js-raw') - initial).toBe(-221);
+    expect(capOf('client-js-raw') - initial).toBe(-663);
 
     // AND THE PROPERTY THE CAP WAS DERIVED BY, WHICH CANNOT BE RE-TAKEN WHILE THE ROW IS OVER.
     // The derivation is the smallest whole KB step the artefact fits under at which the cheapest
@@ -408,7 +445,7 @@ describe('the published form of this tree', () => {
     // are read off the tree, so a fix that brought the row back under the cap turns this red and
     // the property above it goes back in.
     expect(initial).toBeGreaterThan(capOf('client-js-raw'));
-    expect(initial - capOf('client-js-raw')).toBe(221);
+    expect(initial - capOf('client-js-raw')).toBe(663);
     expect(initial + signInReturn).toBeGreaterThan(112 * 1024);
 
     expect(capOf('theme-entry-raw')).toBe(281 * 1024);

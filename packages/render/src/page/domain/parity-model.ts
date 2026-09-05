@@ -61,6 +61,7 @@ import {
   parameterReadsLabel,
   pipeValues,
   rateLimitLabel,
+  rateLimitReachLabel,
   SEVERITY_CLASSES,
   streamingLabel,
   timeoutLabel,
@@ -111,9 +112,17 @@ const ROW_SUBJECT: Readonly<Record<ParityRowKind, readonly [RuntimeFactField, st
  * a collector reads declarations on a route, and a route can be governed by something that is not a
  * declaration on it. The case that found it is an application whose rate limiting guard is
  * registered for the whole application and whose routes mostly carry no decorator, where fifty four
- * of fifty eight operations were told a limit does not apply when one does. What a collector can
- * report is what it read, so that is what the sentence now says, and it points at the report that
- * holds whatever the route is governed by from outside itself.
+ * of fifty eight operations were told a limit does not apply when one does.
+ *
+ * IT NO LONGER SENDS THE READER TO ANOTHER PAGE EITHER, AND THAT WAS THE HALF THE FIRST FIX LEFT.
+ * The replacement said the truth and then said "the doctor report, not here", which on the row that
+ * prompted it is an admission that the row cannot answer its own question: a reader looking at one
+ * operation was told to go and read a different report about a different subject to find out
+ * whether their endpoint is rate limited. SPEC 6.2.3 gives the collector somewhere to put the
+ * answer, `IRRateLimitReach`, so the rate limit row now answers on the row and this sentence is
+ * reached only where nothing observed anything about the fact. What is left of it says what was
+ * observed and where the reason for an unreadable one is written, and claims nothing about what
+ * else may be true of the route.
  *
  * @param instrument - What `runtimeInstrument` decided about this fact
  * @param noun - The row's subject, singular
@@ -127,8 +136,8 @@ function instrumentReason(instrument: RuntimeInstrument, noun: string): string {
       const who = instrument.collector === '' ? 'A collector' : instrument.collector;
 
       return (
-        `${who} examined this route and found no ${noun} declared on it. Anything applied to it ` +
-        'from outside the route is named in the doctor report, not here.'
+        `${who} examined this route and reported no ${noun} for it. Where it read one and could ` +
+        'not state it, the doctor report says why.'
       );
     }
     case 'skipped':
@@ -150,6 +159,39 @@ function instrumentReason(instrument: RuntimeInstrument, noun: string): string {
  */
 const NO_RULE_YET =
   'No rule of the drift catalogue examines this row yet, so neither side is judged.';
+
+/**
+ * Why a row that HAS a rule still shows no verdict, which is a third thing and read as the second.
+ *
+ * `NO_RULE_YET` WAS PRINTED OVER TWO STATES AND IS TRUE OF ONE. A row with facts and no verdict is
+ * either a row the catalogue does not reach yet, which is roles, validation, timeout and source,
+ * or a row whose rule ran and found this operation out of its scope. The second is reachable
+ * without the rate limit work and always was: a route with declared scopes and no security
+ * requirement puts `scope-drift` out of scope by that rule's own first check, and the cell then
+ * told the reader no rule examines scopes. The rate limit row makes it ordinary rather than rare,
+ * because a route governed from outside carries a fact and declares no limit for
+ * `ratelimit-undocumented` to compare.
+ */
+const RULE_OUT_OF_SCOPE =
+  'The rules that judge this row found nothing on this operation to compare, so neither side is ' +
+  'judged.';
+
+/** Why a row with facts and a rule still shows no verdict when nothing ran the catalogue. */
+const NOT_COMPARED =
+  'No drift report was built for this document, so no rule was asked and neither side is judged.';
+
+/**
+ * Why a row that carries facts carries no verdict, which is three answers rather than one.
+ *
+ * @param hasRules - Whether the catalogue has a rule for this row at all
+ * @param measured - Whether a drift report was built for this document
+ * @returns The sentence a reader sees beside a `?` over a full cell
+ */
+function verdictReason(hasRules: boolean, measured: boolean): string {
+  if (!hasRules) return NO_RULE_YET;
+
+  return measured ? RULE_OUT_OF_SCOPE : NOT_COMPARED;
+}
 
 /**
  * The rules that give each row its verdict, for the rows that have any today.
@@ -358,12 +400,32 @@ function runtimeSide(
     }
     case 'rate-limit': {
       const limit = runtime.rateLimit;
-      if (limit === undefined) return [];
+      if (limit !== undefined) {
+        return [
+          {
+            ...EMPTY_VALUE,
+            text: rateLimitLabel(limit.value),
+            ...mark(limit.confidence, limit.collector),
+          },
+        ];
+      }
+
+      // THE THIRD AND SECOND STATES OF SPEC 6.2.3, DRAWN ON THE ROW AND NOT ONLY IN THE REPORT.
+      // The row used to have one answer for three situations and send the reader to the doctor
+      // page to find out which; two of the three now answer here, and the third, an installation
+      // with no rate limit collector at all, still falls through to the instrument sentence
+      // because there is nobody to have observed anything.
+      const reach = runtime.rateLimitReach;
+      if (reach === undefined) return [];
+
+      const label = rateLimitReachLabel(reach.value);
+
       return [
         {
           ...EMPTY_VALUE,
-          text: rateLimitLabel(limit.value),
-          ...mark(limit.confidence, limit.collector),
+          text: label.value,
+          note: label.note,
+          ...mark(reach.confidence, reach.collector),
         },
       ];
     }
@@ -534,14 +596,17 @@ export function buildParityRows(
     }
 
     const [field, noun] = ROW_SUBJECT[kind];
-    // THE REASON ANSWERS WHICHEVER OF THE TWO SILENCES THIS IS. An empty side is explained by the
+    // THE REASON ANSWERS WHICHEVER OF THE THREE SILENCES THIS IS. An empty side is explained by the
     // instrument, per SPEC 6.3; a full side with no verdict is explained by the catalogue, and
-    // before `TX-INSTRUMENT` the second had no words at all outside an `aria-label`.
+    // before `TX-INSTRUMENT` the second had no words at all outside an `aria-label`. The third is
+    // the split {@link RULE_OUT_OF_SCOPE} records: a row the catalogue does not reach at all reads
+    // differently from a row whose rule ran and found nothing here to compare, and one sentence
+    // over both told a reader the catalogue is missing a rule it has.
     const reason =
       values.length === 0
         ? instrumentReason(runtimeInstrument(document.runtime, field, observed), noun)
         : verdict === 'unknown'
-          ? NO_RULE_YET
+          ? verdictReason(rules.length > 0, measured)
           : '';
 
     return {

@@ -91,6 +91,11 @@ function control(host: HTMLElement): HTMLElement | null {
   return host.querySelector('[data-oref-copy]');
 }
 
+/** What the control says beside itself, which is where the confirmation moved. */
+function said(host: HTMLElement): string {
+  return host.querySelector('[data-oref-copy-said]')?.textContent ?? '(no live region)';
+}
+
 afterEach(() => {
   mounted?.unmount();
   mounted = null;
@@ -109,20 +114,55 @@ describe('the copy control in the call samples block', () => {
     const sample = host.querySelector('.oref-section-samples .oref-code code')?.textContent;
     expect(sample).toBe('curl https://api.example.com/orders');
 
-    // And the control is there, named, and a button rather than something pretending to be one
+    // And the control is there, a button rather than something pretending to be one, showing a
+    // glyph and no word, with a name a screen reader can read off it
     const button = control(host);
     expect(button?.tagName).toBe('BUTTON');
-    expect(button?.textContent).toBe('Copy the sample');
     expect(button?.getAttribute('type')).toBe('button');
+    expect(button?.textContent).toBe('');
+    expect(button?.querySelector('svg')).not.toBeNull();
+    expect(button?.getAttribute('aria-label')).toBe('Copy the sample');
 
     // When
     button?.click();
     await Promise.resolve();
     await Promise.resolve();
 
-    // Then the text the reader can see is what was written, and the control says it happened
+    // Then the text the reader can see is what was written, the confirmation appears BESIDE the
+    // control, and the control itself still says what pressing it will do
     expect(written).toEqual(['curl https://api.example.com/orders']);
-    expect(control(host)?.textContent).toBe('Copied');
+    expect(said(host)).toBe('Copied');
+    expect(control(host)?.getAttribute('aria-label')).toBe('Copy the sample');
+    expect(control(host)?.textContent).toBe('');
+  });
+
+  it('should draw the icon as markup, since no inline style and no script may paint one', () => {
+    // Given, the subject is present: the control renders and carries a glyph
+    const host = mount();
+    const icon = control(host)?.querySelector('svg');
+    expect(icon).not.toBeNull();
+
+    // Then the drawing is in the markup, takes its colour from the button, and is hidden from the
+    // accessibility tree, which `aria-label` on the button answers for instead
+    expect(icon?.getAttribute('stroke')).toBe('currentColor');
+    expect(icon?.getAttribute('aria-hidden')).toBe('true');
+    expect(icon?.getAttribute('focusable')).toBe('false');
+
+    // And nothing anywhere under the control carries an inline style, which a strict policy of
+    // `style-src 'self' 'nonce-...'` can never authorize
+    const styled = Array.from(control(host)?.querySelectorAll('[style]') ?? []);
+    expect(styled).toEqual([]);
+    expect(control(host)?.getAttribute('style')).toBeNull();
+  });
+
+  it('should keep the live region in the markup while it has nothing to say', () => {
+    // Given a control nobody has pressed. A region inserted at the same moment as its text is not
+    // reliably announced, so the element exists from the first paint and is empty.
+    const host = mount();
+
+    // Then
+    expect(host.querySelector('[data-oref-copy-said]')).not.toBeNull();
+    expect(said(host)).toBe('');
   });
 
   it('should say the clipboard is unavailable rather than doing nothing', async () => {
@@ -132,14 +172,15 @@ describe('the copy control in the call samples block', () => {
     const button = control(host);
 
     // Then the subject is present before anything is said about the absence
-    expect(button?.textContent).toBe('Copy the sample');
+    expect(button?.getAttribute('aria-label')).toBe('Copy the sample');
+    expect(said(host)).toBe('');
 
     // When
     button?.click();
     await Promise.resolve();
 
     // Then the reader is told, and is told what to do instead
-    expect(control(host)?.textContent).toBe('Copy unavailable, select the sample');
+    expect(said(host)).toBe('Copy unavailable, select the sample');
   });
 
   it('should say the same when the clipboard is there and refuses', async () => {
@@ -154,7 +195,7 @@ describe('the copy control in the call samples block', () => {
     await Promise.resolve();
 
     // Then the failure reaches the reader rather than the console
-    expect(control(host)?.textContent).toBe('Copy unavailable, select the sample');
+    expect(said(host)).toBe('Copy unavailable, select the sample');
   });
 
   it('should return to offering the copy rather than saying Copied for the life of the page', async () => {
@@ -166,14 +207,15 @@ describe('the copy control in the call samples block', () => {
       control(host)?.click();
       await Promise.resolve();
       await Promise.resolve();
-      expect(control(host)?.textContent).toBe('Copied');
+      expect(said(host)).toBe('Copied');
 
       // When time passes and the reader looks at a second sample
       await vi.advanceTimersByTimeAsync(2000);
 
-      // Then the label describes what the control will do, not what it once did. A button that
-      // says `Copied` forever tells a reader they have copied every sample they look at next.
-      expect(control(host)?.textContent).toBe('Copy the sample');
+      // Then the confirmation clears rather than standing beside every sample looked at next, and
+      // the control's own name never moved in the first place.
+      expect(said(host)).toBe('');
+      expect(control(host)?.getAttribute('aria-label')).toBe('Copy the sample');
     } finally {
       vi.useRealTimers();
     }
@@ -188,24 +230,26 @@ describe('the copy control in the call samples block', () => {
       control(host)?.click();
       await Promise.resolve();
       await Promise.resolve();
-      expect(control(host)?.textContent).toBe('Copy unavailable, select the sample');
+      expect(said(host)).toBe('Copy unavailable, select the sample');
 
       // When the document regains focus, which is time passing as far as this control knows
       await vi.advanceTimersByTimeAsync(2000);
 
-      // Then the control offers itself again rather than latching a permanent failure
-      expect(control(host)?.textContent).toBe('Copy the sample');
+      // Then the reason clears rather than latching a permanent failure beside a working control
+      expect(said(host)).toBe('');
     } finally {
       vi.useRealTimers();
     }
   });
 
-  it('should announce its own state, since the label is what changed', () => {
-    // Given, a reader who cannot see the label change is told the same thing by the live region
+  it('should announce beside the control rather than by renaming it', () => {
+    // Given, the live region is the sibling now: the button's name is fixed, so there is nothing
+    // on the button for a live region to announce.
     const host = mount();
 
     // When, Then
-    expect(control(host)?.getAttribute('aria-live')).toBe('polite');
+    expect(host.querySelector('[data-oref-copy-said]')?.getAttribute('aria-live')).toBe('polite');
+    expect(control(host)?.getAttribute('aria-live')).toBeNull();
   });
 
   it('should offer no control where there is no sample to copy', () => {
@@ -224,7 +268,9 @@ describe('the copy control in the call samples block', () => {
     app.mount(host);
     mounted = app;
 
-    // When, Then
+    // When, Then, and the confirmation goes with it: a live region for a control that is not
+    // there is an element nothing can ever write to.
     expect(host.querySelector('[data-oref-copy]')).toBeNull();
+    expect(host.querySelector('[data-oref-copy-said]')).toBeNull();
   });
 });

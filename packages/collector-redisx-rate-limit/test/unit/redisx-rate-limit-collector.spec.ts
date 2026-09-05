@@ -7,6 +7,7 @@ import type { IRConfidence, IRFact, IRNode } from '@openref/core';
 import type { CollectorContext } from '@openref/nest';
 import { isRuntimeCollector } from '@openref/nest';
 import {
+  BUDGET_SOURCE,
   MILLISECONDS_PER_SECOND,
   RATE_LIMIT_OPTIONS_KEY,
   RATE_LIMIT_PLUGIN_OPTIONS_KEY,
@@ -216,7 +217,7 @@ describe('redisxRateLimitCollector', () => {
     expect(collector.problems()).toEqual([]);
   });
 
-  it('should say nothing about an undecorated route with no global guard over it', () => {
+  it('should say nothing to doctor about an undecorated route with no global guard over it', () => {
     // Given an application that limits only what it decorated. There the absence of metadata is
     // the absence of policy rather than unreadable policy, and a warning on every route of every
     // such application is the noise that makes a report unreadable.
@@ -225,9 +226,15 @@ describe('redisxRateLimitCollector', () => {
     // When
     const produced = collector.collect(contextOf());
 
-    // Then
-    expect(produced).toBeUndefined();
+    // Then the report stays quiet, and the third state of SPEC 6.2.3 is stated on the node itself:
+    // nothing anywhere limits this route, which is an answer and not a silence.
     expect(collector.problems()).toEqual([]);
+    expect(produced?.rateLimit).toBeUndefined();
+    expect(produced?.rateLimitReach).toEqual({
+      value: { kind: 'none' },
+      confidence: 'derived',
+      collector: REDISX_RATE_LIMIT_COLLECTOR_NAME,
+    });
   });
 });
 
@@ -253,9 +260,68 @@ describe('a route governed from outside itself', () => {
       }),
     );
 
-    // Then the numbers exist and are on no node. Which routes the guard limits, and at what, is
+    // Then the numbers are on no node as a LIMIT. Which routes the guard limits, and at what, is
     // written in its own code, and guard logic is never read.
+    expect(produced?.rateLimit).toBeUndefined();
+  });
+
+  it('should state on the node that something outside the route governs it, with the budget', () => {
+    // Given the same undecorated route behind the same globally registered limiter
+    const collector = collectorOver(new Map());
+
+    // When
+    const produced = collector.collect(
+      contextOf({
+        globalGuards: ['GlobalRateLimitGuard'],
+        pluginOptions: { defaultPoints: 900, defaultDuration: 60 },
+      }),
+    );
+
+    // Then the second state of SPEC 6.2.3 is a fact on the node, so the row can say it without
+    // sending a reader to a different report on a different page. It is not a limit: it names what
+    // stands in front, the budget that thing was configured with, and where the budget was read.
+    expect(produced?.rateLimitReach).toEqual({
+      value: {
+        kind: 'external',
+        by: ['GlobalRateLimitGuard'],
+        budget: { limit: 900, ttlMs: 60_000 },
+        budgetSource: BUDGET_SOURCE,
+      },
+      confidence: 'derived',
+      collector: REDISX_RATE_LIMIT_COLLECTOR_NAME,
+    });
+  });
+
+  it('should name every global guard and not guess which of them is the limiter', () => {
+    // Given two guards registered for the whole application, only one of which sounds like a
+    // limiter. Which of them limits is decided in code that is never read, so filtering by the
+    // sound of a class name would be the inference SPEC 6.1 forbids.
+    const collector = collectorOver(new Map());
+
+    // When
+    const produced = collector.collect(
+      contextOf({ globalGuards: ['JwtAuthGuard', 'GlobalRateLimitGuard'] }),
+    );
+
+    // Then, and with no budget anywhere the fact says so by carrying none
+    expect(produced?.rateLimitReach?.value).toEqual({
+      kind: 'external',
+      by: ['JwtAuthGuard', 'GlobalRateLimitGuard'],
+    });
+  });
+
+  it('should carry no reach for a route that declared something it could not read', () => {
+    // Given the half declared decorator: `points` and no `duration`, completed per request from
+    // module configuration. The route DID decide something, so neither "governed from outside"
+    // nor "not limited" is true of it, and `problems` already says what could not be read.
+    const collector = collectorOver(onHandler({ points: 720 }));
+
+    // When
+    const produced = collector.collect(contextOf({ globalGuards: ['GlobalRateLimitGuard'] }));
+
+    // Then
     expect(produced).toBeUndefined();
+    expect(collector.problems()[0]?.reason).toContain('points and no duration');
   });
 
   it('should say the route is governed by something it cannot read, rather than nothing', () => {

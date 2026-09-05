@@ -96,6 +96,7 @@ export type {
   IRPipe,
   IRPipeScope,
   IRRateLimit,
+  IRRateLimitReach,
   IRRuntimeMeta,
   IRSourceLocation,
   IRStreaming,

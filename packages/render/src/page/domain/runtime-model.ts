@@ -54,6 +54,7 @@ import {
   guardValues,
   mark,
   rateLimitLabel,
+  rateLimitReachLabel,
   SEVERITY_CLASSES,
   streamingLabel,
 } from './runtime-values';
@@ -138,6 +139,29 @@ function rowsOf(runtime: IRNodeRuntime, template: string | undefined): RuntimeRo
           ...EMPTY_VALUE,
           text: (format as (value: unknown) => string)(fact.value),
           ...mark(fact.confidence, fact.collector),
+        },
+      ],
+    });
+  }
+
+  // THE SAME ROW KIND, BECAUSE IT IS THE SAME QUESTION AND `RuntimeRowKind` IS FROZEN. What limits
+  // this route is one row whether the answer is a number, something outside the route, or nothing;
+  // a twelfth kind would be a major version of `@openref/vue` for a distinction a reader does not
+  // draw. It is drawn only where there is no limit of the route's own, so the two can never both
+  // appear and the row keeps one meaning.
+  const reach = runtime.rateLimitReach;
+  if (runtime.rateLimit === undefined && reach !== undefined) {
+    const label = rateLimitReachLabel(reach.value);
+
+    rows.push({
+      kind: 'rate-limit',
+      label: 'Rate limit',
+      values: [
+        {
+          ...EMPTY_VALUE,
+          text: label.value,
+          note: label.note,
+          ...mark(reach.confidence, reach.collector),
         },
       ],
     });

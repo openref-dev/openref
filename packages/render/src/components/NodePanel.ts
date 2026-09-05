@@ -39,8 +39,26 @@ interface BlockLike {
   querySelector(selector: string): { readonly textContent: string | null } | null;
 }
 
-/** What the three states of the control say. The first is also its accessible name. */
-const COPY = ['Copy the sample', 'Copied', 'Copy unavailable, select the sample'] as const;
+/**
+ * What the control is called, in every state, because a control that renames itself is two.
+ *
+ * IT IS AN `aria-label` AND NOT THE BUTTON'S TEXT, since the control shows an icon. A button whose
+ * only content is a drawing has no accessible name at all, so this is the whole of what a screen
+ * reader is given for it, and it says what pressing will do rather than what pressing did.
+ */
+const COPY_NAME = 'Copy the sample';
+
+/**
+ * What the control's confirmation says, indexed by state, and it is NOT the button's label.
+ *
+ * THE LABEL USED TO BE THE STATE AND THAT WAS THE DEFECT. `Copied` replaced `Copy the sample` on
+ * the button itself, so for two seconds the only control in the block stopped saying what it does
+ * and started reporting what had happened, which is a different sentence in a different tense on
+ * an element whose job is the first one. The confirmation now stands beside the button, in a live
+ * region that exists from the first paint so a change to it is announced, and the button's name
+ * never moves. The first entry is empty because the resting state has nothing to confirm.
+ */
+const COPY_SAID = ['', 'Copied', 'Copy unavailable, select the sample'] as const;
 
 /**
  * How long the control holds a state before returning to the first.
@@ -67,6 +85,45 @@ function clipboard(): { writeText(text: string): Promise<void> } | null {
   };
 
   return host.navigator?.clipboard ?? null;
+}
+
+/**
+ * The copy glyph: two sheets, one over the other.
+ *
+ * MARKUP AND NOT A STYLE, WHICH IS THE ONLY FORM AVAILABLE HERE. A strict policy of
+ * `style-src 'self' 'nonce-...'` without `unsafe-inline` can never authorize a `style` attribute,
+ * and no script may run to draw one, so the two shapes left are an inline `svg` and a CSS
+ * background painted from a token. The first is chosen because it is the one that survives both
+ * DOM modes: a background belongs to a stylesheet, and a light DOM build takes its stylesheet from
+ * the host page, so a theme that only sets tokens would leave the button empty. This travels with
+ * the markup and is drawn wherever the markup is.
+ *
+ * IT PAINTS FROM `currentColor` AND SIZES ITSELF WITH GEOMETRY ATTRIBUTES, so a theme decides the
+ * colour by setting the button's, the way it already does for text, and can override the size with
+ * a rule because a presentation attribute loses to every stylesheet. Neither is an inline style.
+ *
+ * @returns The icon, hidden from the accessibility tree, which {@link COPY_NAME} answers for
+ */
+function copyIcon(): VNode {
+  return h(
+    'svg',
+    {
+      width: '14',
+      height: '14',
+      viewBox: '0 0 16 16',
+      fill: 'none',
+      stroke: 'currentColor',
+      'stroke-width': '1.6',
+      'aria-hidden': 'true',
+      focusable: 'false',
+    },
+    [
+      h('rect', { x: '5.9', y: '5.9', width: '8.2', height: '8.2', rx: '1.5' }),
+      h('path', {
+        d: 'M10.1 3.3V2.5A1.5 1.5 0 0 0 8.6 1H3.4A1.5 1.5 0 0 0 1.9 2.5v5.2A1.5 1.5 0 0 0 3.4 9.2h.8',
+      }),
+    ],
+  );
 }
 
 /** Renders one operation or channel. */
@@ -240,28 +297,48 @@ export const NodePanel = defineComponent({
               }),
               // NO SAMPLE, NO CONTROL, which is the `role="tablist"` rule one element over: a
               // button offering to copy a block that is not there is the dead control SPEC 11
-              // forbids. `aria-live` is on the button because what it says is its own state and
-              // its accessible name at once, so a reader who cannot see the label change is told
-              // the same thing a reader who can is.
+              // forbids.
+              //
+              // THE CONFIRMATION STANDS BESIDE THE BUTTON AND NO LONGER REPLACES ITS LABEL. What
+              // the control is called and what just happened are two statements, and putting the
+              // second where the first was cost the first: for two seconds the button said
+              // `Copied`, which is not an offer to do anything, and a reader arriving mid revert
+              // met a control whose name described the past. The live region is a sibling that is
+              // rendered from the first paint and is empty at rest, because a region inserted at
+              // the same moment as its text is not reliably announced.
+              //
+              // THE ROW IS `.oref-tryit-actions` AND NOT A NEW NAME, for the reason the hook below
+              // is an attribute. Both shipped themes already draw that class as exactly this: a
+              // centred row with a gap, which is what a control and the sentence beside it need. A
+              // class of its own would put a name on the boundary list every theme must style, per
+              // THEME-BOUNDARY.md, for a rule that would duplicate one that exists.
               node.codeSamples.length === 0
                 ? null
-                : h(
-                    'button',
-                    {
-                      class: 'oref-send',
-                      type: 'button',
-                      // THE HOOK IS AN ATTRIBUTE AND NOT A CLASS, and the reason is measured
-                      // rather than stylistic. The button already carries `.oref-send`, which
-                      // both shipped themes draw, so a class of its own would style nothing new
-                      // and would put a tenth name on the boundary list every theme has to
-                      // style, per THEME-BOUNDARY.md. `data-oref-copy` is the same hook at no
-                      // such cost, and it is what a theme selects to tell this control from Send.
-                      'data-oref-copy': '',
-                      'aria-live': 'polite',
-                      onClick: copySample,
-                    },
-                    COPY[copyState.value],
-                  ),
+                : h('div', { class: 'oref-tryit-actions' }, [
+                    h(
+                      'button',
+                      {
+                        class: 'oref-send',
+                        type: 'button',
+                        // THE HOOK IS AN ATTRIBUTE AND NOT A CLASS, and the reason is measured
+                        // rather than stylistic. The button already carries `.oref-send`, which
+                        // both shipped themes draw, so a class of its own would style nothing new
+                        // and would put a tenth name on the boundary list every theme has to
+                        // style, per THEME-BOUNDARY.md. `data-oref-copy` is the same hook at no
+                        // such cost, and it is what a theme selects to tell this control from
+                        // Send, which is now also how both themes shape it around an icon.
+                        'data-oref-copy': '',
+                        'aria-label': COPY_NAME,
+                        onClick: copySample,
+                      },
+                      copyIcon(),
+                    ),
+                    h(
+                      'span',
+                      { 'data-oref-copy-said': '', 'aria-live': 'polite' },
+                      COPY_SAID[copyState.value],
+                    ),
+                  ]),
               node.codeSamplesElsewhere.length === 0
                 ? null
                 : h(

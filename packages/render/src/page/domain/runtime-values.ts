@@ -17,6 +17,7 @@ import type {
   IRPipe,
   IRPipeScope,
   IRRateLimit,
+  IRRateLimitReach,
   IRStreaming,
   IRTimeout,
 } from '@openref/core';
@@ -81,6 +82,45 @@ export function rateLimitLabel(limit: IRRateLimit): string {
   const suffix = limit.name === undefined || limit.name === '' ? '' : ` (${limit.name})`;
 
   return `${String(limit.limit)} / ${window}${suffix}`;
+}
+
+/**
+ * What a route with no limit of its own is told, in the two lines a cell draws.
+ *
+ * THE WORDS ARE BUILT ONCE HERE AND BY NO COLLECTOR, which is what makes {@link IRRateLimitReach}
+ * a generalisation rather than one library's special case. `@nestjs/throttler` behind a global
+ * guard and `@nestjs-redisx/rate-limit` behind one report the same shape and read the same on the
+ * page; a collector supplies only what it observed, the names and, where it read one, the budget.
+ *
+ * THE SECOND LINE REFUSES THE ATTRIBUTION IN THE SAME BREATH AS IT GIVES THE NUMBER, per SPEC 6.1
+ * and 6.2.3. A budget printed on its own reads as this route's limit, which is precisely what
+ * nothing observed, so the sentence that names the figure is the sentence that says whose it is
+ * not. Where nothing states a figure the line says that instead, because "no budget anywhere" and
+ * "a budget that is not this route's" are two different things a reader acts on differently.
+ *
+ * @param reach - The fact's value
+ * @returns The value line and the note line
+ */
+export function rateLimitReachLabel(reach: IRRateLimitReach): { value: string; note: string } {
+  if (reach.kind === 'none') {
+    return {
+      value: 'Not rate limited',
+      note: 'This route declares no limit and nothing stands in front of the whole application.',
+    };
+  }
+
+  const where = reach.budgetSource === undefined ? '' : `, read from ${reach.budgetSource}`;
+  const budget =
+    reach.budget === undefined
+      ? 'Nothing states a budget anywhere.'
+      : `The module budget is ${rateLimitLabel(reach.budget)}${where}.`;
+
+  return {
+    value: `No limit of its own; governed from outside by ${reach.by.join(', ')}`,
+    note:
+      `${budget} Whether this route is exempt, and at what budget, is decided inside guard ` +
+      'code, which is never read.',
+  };
 }
 
 /**

@@ -479,9 +479,9 @@ describe('the markup a complete L2 theme does not own', () => {
     // Then the subject is present before anything is said about absence: the renderer emits names,
     // the sweep reaches names, and the sweep reaches fewer.
     expect(emitted.files).toBe(79);
-    expect(emitted.literals).toHaveLength(358);
+    expect(emitted.literals).toHaveLength(359);
     expect(emitted.prefixes).toHaveLength(11);
-    expect(emitted.names).toHaveLength(347);
+    expect(emitted.names).toHaveLength(348);
     expect(surviving.length).toBeLessThan(emitted.names.length);
 
     // And the partition is pinned, both ways. 245 emitted names no fixture provokes is the number
@@ -495,9 +495,15 @@ describe('the markup a complete L2 theme does not own', () => {
     // side for the swept one, because the reference now draws that section itself on an
     // operation nothing measured. Two of the three arrivals are data attributes rather than
     // classes, which is why they can be emitted and never swept: the sweep reads class lists.
+    //
+    // It went from 243 to 244 later on 2026-09-05, one arrival and no departure:
+    // `data-oref-copy-said`, the live region beside the copy control, which is the third data
+    // attribute here for the third time for the same reason. The control's own row is
+    // `.oref-tryit-actions`, a name this list already carries, which is why a control that grew a
+    // sibling element added nothing to the boundary a theme has to style.
     const emittedNotSwept = emitted.names.filter((name) => !surviving.includes(name));
     const sweptNotEmitted = surviving.filter((name) => !emitted.names.includes(name));
-    expect(emittedNotSwept).toHaveLength(243);
+    expect(emittedNotSwept).toHaveLength(244);
     expect(sweptNotEmitted).toEqual([
       'oref-method-get',
       'oref-method-post',

@@ -1232,6 +1232,14 @@
   text-transform: uppercase;
 }
 
+/* The copy control carries a glyph and no word, so the label padding would draw a wide bar around
+   it. The attribute rather than a class, per THEME-BOUNDARY.md. */
+.oref-send[data-oref-copy] {
+  display: inline-grid;
+  padding: var(--oref-space-100);
+  place-items: center;
+}
+
 .oref-run-result {
   margin: var(--oref-space-300) 0 0;
   padding: 0;

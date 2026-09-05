@@ -46,8 +46,13 @@ function readerOf(table: ReadonlyMap<unknown, ReadonlyMap<string, unknown>>): Me
   };
 }
 
-/** A context over one route. */
-function contextOf(): CollectorContext {
+/**
+ * A context over one route.
+ *
+ * @param globalGuards - Class names registered for the whole application, per SPEC 6.2.1
+ * @returns The context
+ */
+function contextOf(globalGuards: readonly string[] = []): CollectorContext {
   return {
     node: { id: 'orders.list' } as unknown as IRNode,
     controller: OrdersController,
@@ -56,7 +61,7 @@ function contextOf(): CollectorContext {
     handlerName: 'list',
     reflector: { get: () => undefined, getAllAndOverride: () => undefined },
     moduleRef: { get: () => undefined },
-    globalGuards: [],
+    globalGuards,
     globalPipes: [],
     fact: <T>(value: T, confidence: IRConfidence): IRFact<T> => ({
       value,
@@ -232,6 +237,67 @@ describe('throttlerCollector', () => {
 
     // When
     const produced = collector.collect(contextOf());
+
+    // Then
+    expect(produced).toBeUndefined();
+    expect(collector.problems()[0]?.reason).toContain('no ttl');
+  });
+
+  it('should say a route behind a global guard is governed from outside, not unlimited', () => {
+    // Given the ordinary installation of this package: `ThrottlerGuard` under `APP_GUARD`, and a
+    // route carrying no `@Throttle` of its own. Before SPEC 6.2.3 this produced nothing, so the
+    // page told such a route the same thing it told a route nothing limits.
+    const collector = collectorOver(new Map());
+
+    // When
+    const produced = collector.collect(contextOf(['ThrottlerGuard']));
+
+    // Then, and no budget travels: no reachable reading of `ThrottlerModule.forRoot` has been
+    // measured for this package, and a number nobody measured is the guess SPEC 6.1 forbids.
+    expect(produced?.rateLimit).toBeUndefined();
+    expect(produced?.rateLimitReach).toEqual({
+      value: { kind: 'external', by: ['ThrottlerGuard'] },
+      confidence: 'derived',
+      collector: THROTTLER_COLLECTOR_NAME,
+    });
+  });
+
+  it('should say a route with nothing in front of it is not rate limited at all', () => {
+    // Given no `@Throttle` and no globally registered guard
+    const collector = collectorOver(new Map());
+
+    // When
+    const produced = collector.collect(contextOf());
+
+    // Then the third state of SPEC 6.2.3, which is an answer rather than a silence
+    expect(produced?.rateLimitReach?.value).toEqual({ kind: 'none' });
+  });
+
+  it('should claim no reach for a route that opted out, since that is its own decision', () => {
+    // Given `@SkipThrottle()` on a route behind a global guard. The route decided something; an
+    // opt out of one throttler is not an observation about everything else standing in front.
+    const collector = collectorOver(
+      new Map([
+        [list, new Map<string, unknown>([[`${THROTTLER_KEY_PREFIXES.skip}default`, true]])],
+      ]),
+    );
+
+    // When
+    const produced = collector.collect(contextOf(['ThrottlerGuard']));
+
+    // Then
+    expect(produced).toBeUndefined();
+  });
+
+  it('should claim no reach for a route whose declared throttler could not be read', () => {
+    // Given a limit with no ttl, behind a global guard. `problems` already says what was unread,
+    // and calling the route governed or unlimited would state something nothing observed.
+    const collector = collectorOver(
+      new Map([[list, new Map<string, unknown>([[`${THROTTLER_KEY_PREFIXES.limit}default`, 3]])]]),
+    );
+
+    // When
+    const produced = collector.collect(contextOf(['ThrottlerGuard']));
 
     // Then
     expect(produced).toBeUndefined();

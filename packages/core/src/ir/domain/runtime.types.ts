@@ -78,6 +78,65 @@ export interface IRRateLimit {
 }
 
 /**
+ * How far rate limiting reaches a route that declares none of its own, per SPEC 6.2.3.
+ *
+ * THREE STATES, AND ONLY ONE OF THEM HAD A REPRESENTATION. A reader of one operation has to be
+ * able to tell apart: this route declares its own limit, which is {@link IRRateLimit} on
+ * `rateLimit` and always could be said; a limit governs it from outside its own declaration, which
+ * is `external` here; and nothing anywhere rate limits it, which is `none`. Until this type the
+ * second and third were one absent field, so a page told a route covered by a globally registered
+ * limiter the same thing it told an unlimited route, and pointed both at a different report on a
+ * different page to find out which. That is the defect measured on an application where four of
+ * fifty eight routes carry a decorator and a guard registered under `APP_GUARD` stands in front of
+ * all fifty eight.
+ *
+ * IT IS NOT A LIMIT AND MUST NEVER BE READ AS ONE. `external` says what stands in front and what
+ * budget was configured for it; it does not say that the budget applies to this route, because
+ * whether it does is decided inside guard code, and guard logic is never read, per SPEC 6.1. The
+ * two are kept in separate members for that reason: anything that wants "the limit this route
+ * enforces" reads `rateLimit`, and no reading of this member can be mistaken for one.
+ *
+ * IT IS GENERAL AND NOT ONE LIBRARY'S. `@nestjs/throttler` behind an `APP_GUARD` and
+ * `@nestjs-redisx/rate-limit` behind one are the same three states, and so is any collector that
+ * can see a limiter it cannot attribute to a route. The collector fills in the names and the
+ * budget it managed to read; the words a reader sees are built once, from this shape.
+ */
+export type IRRateLimitReach =
+  | {
+      /** Something limits from outside the route, and this route declares nothing of its own. */
+      readonly kind: 'external';
+      /**
+       * What stands in front, by class name, exactly as it was registered.
+       *
+       * EVERY GLOBAL REGISTRATION AND NOT THE ONES THAT LIMIT, because which of them limits is the
+       * thing that cannot be read. A collector that filtered this list by guessing which class name
+       * sounds like a rate limiter would be making the inference SPEC 6.1 forbids, so the list is
+       * what was registered and the sentence beside it refuses to say what each one does.
+       */
+      readonly by: readonly string[];
+      /**
+       * The budget whatever governs it was configured with, where a configuration states one.
+       *
+       * ABSENT IS A REAL ANSWER: nothing anywhere states a number, which is different from a number
+       * that exists and is not this route's. Present is not an attribution either, per the note
+       * above; it is the figure a reader would otherwise have to go and find.
+       */
+      readonly budget?: IRRateLimit;
+      /** Where the budget was read, named so a reader can look at the same place. */
+      readonly budgetSource?: string;
+    }
+  | {
+      /**
+       * Nothing rate limits this route: it declares none and nothing stands in front of it.
+       *
+       * A STATEMENT AND NOT A SILENCE, which is the whole reason this member exists. It is the
+       * answer `hasRuntimeFacts` counts, so a route carrying only this still draws its scale: a
+       * reader who registered a rate limit collector asked a question, and "nothing" is the reply.
+       */
+      readonly kind: 'none';
+    };
+
+/**
  * How widely a pipe was registered, per SPEC 6.2.1 and `TX-COLLECTORS`.
  *
  * THREE VALUES WHERE A GUARD HAS TWO, because a pipe can stand somewhere a guard cannot: on one
@@ -364,7 +423,25 @@ export interface IRDriftIssue {
    * before.
    */
   readonly subject?: string;
+  /**
+   * What is wrong, in one clause, without the subject in front of it and without the fix in it.
+   *
+   * BOTH HALVES OF THAT SENTENCE WERE BROKEN BY ONE RULE AND ARE NOW STATED, per SPEC 7.2.
+   * `discovery-incomplete` built this as `${subject}: ${reason}` and then set `suggestion` to the
+   * same `reason`, so every reader of the health page was shown one sentence twice, once with the
+   * subject glued to the front of it. The subject travels in {@link subject}, the action travels in
+   * `suggestion`, and neither is repeated here.
+   */
   readonly message: string;
+  /**
+   * The longer reasoning behind the finding, for a reader who opens it, per SPEC 7.2.
+   *
+   * IT IS NOT A SECOND MESSAGE AND A RENDERER MAY LEAVE IT CLOSED. Everything a reader must have to
+   * act is in {@link message} and `suggestion`; this is why the fact is unobtainable rather than
+   * merely missing, which is the difference between a finding a reader can fix and one they should
+   * stop trying to.
+   */
+  readonly detail?: string;
   /** What the runtime says, rendered for display. */
   readonly runtimeValue?: string;
   /** What the specification says, rendered for display. */
@@ -389,6 +466,16 @@ export interface IRNodeRuntime {
   readonly scopes?: IRFact<readonly string[]>;
   readonly roles?: IRFact<readonly string[]>;
   readonly rateLimit?: IRFact<IRRateLimit>;
+  /**
+   * What limits the route when the route declares nothing, per SPEC 6.2.3.
+   *
+   * A SECOND MEMBER RATHER THAN A WIDER `rateLimit`, for the reason {@link IRRateLimitReach} gives:
+   * a reader of `rateLimit` is reading what this route enforces, and admitting a value that means
+   * "something else might" into that member would put an unattributed budget in front of every
+   * consumer that already reads it, including the drift rule that compares one against a documented
+   * 429. Nothing here is ever compared with the specification.
+   */
+  readonly rateLimitReach?: IRFact<IRRateLimitReach>;
   readonly timeout?: IRFact<IRTimeout>;
   readonly requiredHeaders?: IRFact<readonly string[]>;
   readonly parameterReads?: IRFact<IRParameterReads>;
@@ -405,14 +492,50 @@ export interface IRNodeRuntime {
  * from, a gateway that declares no event, a protocol whose host nobody configured, a class name no
  * supplied schema answers to: each is a fact the reference would have carried and cannot, and
  * CLAUDE.md's rule is that such a fact reaches `doctor` rather than being invented. The subject is
- * named the way a reader of `doctor` would recognise it, and the reason is one sentence that says
- * both what happened and what to write instead.
+ * named the way a reader of `doctor` would recognise it.
+ *
+ * THE REASON IS THE SHORT CLAUSE AND THE REASONING IS BELOW IT, SINCE 2026-09-05 AND SPEC 7.1. It
+ * was one sentence carrying both what happened and what to write instead, which on the first real
+ * reader ran to fifty words of the product explaining itself with no action in it. What a reader
+ * gets first now names the cause and what is therefore not known, in the voice of the `source` row
+ * SPEC 7.1 sets as the standard, and {@link detail} carries everything that used to be crammed in
+ * beside it.
  */
 export interface IRDiscoveryProblem {
   /** What was skipped: a handler, a gateway, a broker, a channel address. */
   readonly subject: string;
-  /** Why, in a sentence. */
+  /**
+   * The cause and what is not known because of it, in one clause, per SPEC 7.1.
+   *
+   * IT IS WHAT A READER SEES FIRST AND IT IS THE WHOLE OF WHAT SOME READERS SEE, so it is not an
+   * abbreviation of {@link detail} that assumes the rest will be opened. The action goes here too
+   * when there is one, and when there is none this says so plainly rather than leaving a reader to
+   * work out that the record is only a record.
+   */
   readonly reason: string;
+  /**
+   * What the reader is to do, or that there is nothing to do and why the finding exists anyway.
+   *
+   * SEPARATE FROM {@link reason} BECAUSE THEY LAND IN DIFFERENT PLACES. A browser theme draws the
+   * reason and the action one under the other, and `openref doctor` draws the subject and the
+   * action and never the reason, so one string in both slots is one sentence printed twice on one
+   * surface and the wrong half printed on the other.
+   *
+   * OPTIONAL ONLY FOR THE PRODUCERS THAT HAVE NOT MOVED. A producer that leaves it out has its
+   * reason used for both, which is what every producer did before SPEC 7.1 asked for the split; the
+   * collectors of SPEC 6.2 all set it.
+   */
+  readonly action?: string;
+  /**
+   * Why the fact is unobtainable rather than merely absent, for a reader who asks.
+   *
+   * OPTIONAL BECAUSE SOME CAUSES ARE THEIR OWN EXPLANATION. A metadata key that holds the wrong
+   * type needs no second paragraph; a scan that will not guess past a custom parameter decorator
+   * does, and deleting that reasoning to make the first line short would trade one defect for
+   * another. Nothing is required to read it, and a consumer that does not is showing a complete
+   * finding rather than a truncated one.
+   */
+  readonly detail?: string;
 }
 
 /** Document wide runtime metadata: which collectors ran, and how to link to source. */

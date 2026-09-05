@@ -26,7 +26,7 @@
  */
 
 import { createRequire } from 'node:module';
-import type { IRNodeRuntime, IRRateLimit } from '@openref/core';
+import type { IRNodeRuntime, IRRateLimit, IRRateLimitReach } from '@openref/core';
 import type { CollectorContext, IRuntimeCollector, SkippedCollector } from '@openref/nest';
 
 /** Name of this package. */
@@ -54,6 +54,15 @@ export const RATE_LIMIT_OPTIONS_KEY: symbol = Symbol.for('RATE_LIMIT_OPTIONS');
  * measured, and {@link describeUnreadableRoute} for why the numbers under it are not route facts.
  */
 export const RATE_LIMIT_PLUGIN_OPTIONS_KEY: symbol = Symbol.for('RATE_LIMIT_PLUGIN_OPTIONS');
+
+/**
+ * How the reach fact names where it read the module budget, per SPEC 6.2.3.
+ *
+ * IT IS THE PLACE AND NOT THE SENTENCE. The words a reader sees are built once, in the renderer,
+ * out of `IRRateLimitReach`; what only this package can supply is which provider it looked in, so
+ * that is all it supplies. A reader can go and read the same registration.
+ */
+export const BUDGET_SOURCE = 'the provider under Symbol.for("RATE_LIMIT_PLUGIN_OPTIONS")';
 
 /** Milliseconds in the second `duration` is written in. */
 export const MILLISECONDS_PER_SECOND = 1000;
@@ -202,7 +211,11 @@ export function redisxRateLimitCollector(
       if (!hasAnyKey(merged)) {
         describeUnreadableRoute(context, subject, moduleDefault, problems);
 
-        return undefined;
+        // THE ROUTE NOW ANSWERS ON ITS OWN PAGE AND NOT ONLY IN `doctor`. The record above is the
+        // report's; this is the row's, and it is the same observation in a shape a renderer can
+        // draw. Returning `undefined` here is what left a reader with one sentence over two
+        // different situations, per SPEC 6.2.3.
+        return { rateLimitReach: context.fact(reachOf(context, moduleDefault), 'derived') };
       }
 
       recordUnreadable(merged, subject, problems);
@@ -215,6 +228,39 @@ export function redisxRateLimitCollector(
     problems(): readonly RedisxRateLimitCollectorProblem[] {
       return problems;
     },
+  };
+}
+
+/**
+ * Says which of the two states a route that declares no limit of its own is in, per SPEC 6.2.3.
+ *
+ * IT IS THE SAME OBSERVATION `describeUnreadableRoute` WRITES INTO `doctor`, IN A SHAPE A ROW CAN
+ * DRAW, and the two are built beside each other so they cannot come to say different things. The
+ * split is the one SPEC 6.2.1 already ruled on for `scopesCollector`: a route standing behind a
+ * globally registered guard has a policy written in code that is never read, and a route standing
+ * behind nothing has no policy. The first is `external` and the second is `none`.
+ *
+ * THE BUDGET TRAVELS AND IS STILL NOT ATTRIBUTED. It goes into the fact because a reader otherwise
+ * has to leave the page to learn the only number anybody configured; it goes in under `budget` on
+ * `external` rather than into `rateLimit`, so nothing that reads a route's enforced limit can pick
+ * it up, per {@link IRRateLimitReach}.
+ *
+ * @param context - The node's context, for the global guard list
+ * @param budget - The module budget, or null when nothing registered one
+ * @returns The reach, for the node's `rateLimitReach` fact
+ */
+function reachOf(context: CollectorContext, budget: ModuleDefaultBudget | null): IRRateLimitReach {
+  if (context.globalGuards.length === 0) return { kind: 'none' };
+
+  return {
+    kind: 'external',
+    by: [...context.globalGuards],
+    ...(budget === null
+      ? {}
+      : {
+          budget: { limit: budget.points, ttlMs: budget.ttlMs },
+          budgetSource: BUDGET_SOURCE,
+        }),
   };
 }
 
@@ -305,6 +351,12 @@ function recordModuleDefault(
  * own guard is applied by the decorator and a route without the decorator is not behind it. Warning
  * on every route of every application that installed the package would be the noise that makes a
  * report unreadable, which is worse than the silence it replaced.
+ *
+ * THE ROW SAYS IT TOO SINCE SPEC 6.2.3, and this record is no longer the only place it is said.
+ * {@link reachOf} builds the same observation as a fact on the node, so a reader on the operation
+ * page is not sent to a different report on a different page to learn which of the three states
+ * their route is in. The two are built from the same two inputs and neither is derived from the
+ * other's words.
  *
  * @param context - The node's context, for the global guard list
  * @param subject - The route, for a message

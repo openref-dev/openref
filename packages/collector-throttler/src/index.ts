@@ -22,7 +22,7 @@
  */
 
 import { createRequire } from 'node:module';
-import type { IRNodeRuntime, IRRateLimit } from '@openref/core';
+import type { IRNodeRuntime, IRRateLimit, IRRateLimitReach } from '@openref/core';
 import type { CollectorContext, IRuntimeCollector, SkippedCollector } from '@openref/nest';
 
 /** Name of this package. */
@@ -144,13 +144,28 @@ export function throttlerCollector(
       // THE HANDLER IS READ AFTER THE CONTROLLER SO THAT IT WINS. `@Throttle` on a method
       // replaces the class's setting for the same throttler name, which is what NestJS enforces.
       const limits = new Map<string, Partial<IRRateLimit>>();
+      let declared = false;
       for (const target of [context.controller, context.handler]) {
-        readInto(limits, metadata, target, scale);
+        declared = readInto(limits, metadata, target, scale) || declared;
       }
 
       const found = firstComplete(limits, subject, problems);
+      if (found !== undefined) return { rateLimit: context.fact(found, 'derived') };
 
-      return found === undefined ? undefined : { rateLimit: context.fact(found, 'derived') };
+      // NO LIMIT OF ITS OWN IS TWO DIFFERENT ANSWERS AND USED TO BE ONE SILENCE, per SPEC 6.2.3.
+      // `ThrottlerGuard` under `APP_GUARD` is the ordinary way this package is installed, so a
+      // route without `@Throttle` is usually limited by something and occasionally by nothing, and
+      // returning `undefined` for both told a reader neither.
+      //
+      // A ROUTE THAT WROTE ANY THROTTLER KEY AT ALL IS EXCLUDED, and that is why `readInto` reports
+      // whether it saw one. A half declared throttler and a `@SkipThrottle` are both decisions this
+      // route made: the first is already a `problems` record about what could not be read, and the
+      // second is an opt out of one throttler and not an observation about everything else in front
+      // of the route. Answering either with a reach would be this package stating something it did
+      // not observe.
+      if (declared) return undefined;
+
+      return { rateLimitReach: context.fact(reachOf(context), 'derived') };
     },
 
     problems(): readonly ThrottlerCollectorProblem[] {
@@ -166,18 +181,22 @@ export function throttlerCollector(
  * @param metadata - The reader
  * @param target - Controller class or handler
  * @param scale - What a `ttl` has to be multiplied by to become milliseconds
+ * @returns Whether this target wrote any throttler key at all, readable or not
  */
 function readInto(
   limits: Map<string, Partial<IRRateLimit>>,
   metadata: MetadataReader,
   target: unknown,
   scale: number,
-): void {
+): boolean {
+  let declared = false;
+
   for (const key of metadata.keys(target)) {
     if (typeof key !== 'string') continue;
 
     const limitName = suffixAfter(key, THROTTLER_KEY_PREFIXES.limit);
     if (limitName !== undefined) {
+      declared = true;
       const value = metadata.get(key, target);
       if (typeof value === 'number' && Number.isFinite(value)) {
         limits.set(limitName, { ...limits.get(limitName), limit: value, name: limitName });
@@ -187,6 +206,7 @@ function readInto(
 
     const ttlName = suffixAfter(key, THROTTLER_KEY_PREFIXES.ttl);
     if (ttlName !== undefined) {
+      declared = true;
       const value = metadata.get(key, target);
       if (typeof value === 'number' && Number.isFinite(value)) {
         limits.set(ttlName, { ...limits.get(ttlName), ttlMs: value * scale, name: ttlName });
@@ -197,8 +217,36 @@ function readInto(
     // A ROUTE THAT OPTED OUT HAS NO RATE LIMIT TO REPORT. `@SkipThrottle()` writes true and
     // `@SkipThrottle({ short: false })` writes false, which un-skips, so the value is read.
     const skipName = suffixAfter(key, THROTTLER_KEY_PREFIXES.skip);
-    if (skipName !== undefined && metadata.get(key, target) === true) limits.delete(skipName);
+    if (skipName !== undefined) {
+      declared = true;
+      if (metadata.get(key, target) === true) limits.delete(skipName);
+    }
   }
+
+  return declared;
+}
+
+/**
+ * Says which of the two states a route that wrote no throttler key at all is in, per SPEC 6.2.3.
+ *
+ * IT IS THE SAME TWO STATES `@openref/collector-redisx-rate-limit` REPORTS AND DELIBERATELY NOT THE
+ * SAME LINES. The two packages share a contract and no code, per SPEC 4, because their key shapes
+ * have nothing in common; what they share is {@link IRRateLimitReach}, and the words a reader sees
+ * are built once from that shape by whoever renders it. So a `ThrottlerGuard` under `APP_GUARD` and
+ * a redisx guard under one produce the same row.
+ *
+ * NO BUDGET TRAVELS, AND THE ABSENCE IS THE MEASUREMENT. `@nestjs/throttler` holds its defaults in
+ * `ThrottlerModule.forRoot`, whose value reaches the guard through a token this collector has not
+ * measured a reachable reading of. The redisx collector carries a budget because a reading of its
+ * provider was measured; this one does not, and stating one would be the guess SPEC 6.1 forbids.
+ *
+ * @param context - The node's context, for the global guard list
+ * @returns The reach, for the node's `rateLimitReach` fact
+ */
+function reachOf(context: CollectorContext): IRRateLimitReach {
+  return context.globalGuards.length === 0
+    ? { kind: 'none' }
+    : { kind: 'external', by: [...context.globalGuards] };
 }
 
 /**

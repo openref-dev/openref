@@ -1424,6 +1424,16 @@ a.oref-topology-name {
   text-transform: uppercase;
 }
 
+/* The copy control of the call samples block is the one `.oref-send` that carries no word, so the
+   padding written for a label would draw a wide bar around a small glyph. Selected by the state
+   attribute rather than by a class of its own, for the reason THEME-BOUNDARY.md gives: a class here
+   would be a name every theme has to style for a shape only this control has. */
+.oref-send[data-oref-copy] {
+  display: inline-grid;
+  padding: var(--oref-space-300);
+  place-items: center;
+}
+
 /* Only a live console that cannot send is painted unavailable. The deferred button carries no
    disabling attribute and no muted paint, per the SPEC 11 rule F14 grew into: a press on it is
    the action the notice names, and a control painted inert beside a sentence asking for a press
