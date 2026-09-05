@@ -1,3 +1,4 @@
+import { prettyResponseBody } from '@openref/vue/runner';
 import { h, type VNode } from 'vue';
 import type { RunnerResult } from '@openref/vue';
 
@@ -60,7 +61,11 @@ export default function ResponseView(props: {
         ),
       ),
     ]),
-    h('pre', { class: 'tt-result-body' }, [h('code', {}, result.body)]),
+    // Indented where it is JSON and untouched where it is not, through the one step
+    // `@openref/vue` publishes for it. A theme drawing the wire string on one line beside a
+    // request example the same page indented is the asymmetry this closes, and writing the
+    // step here a second time is how the two themes would come to disagree about a body.
+    h('pre', { class: 'tt-result-body' }, [h('code', {}, prettyResponseBody(result.body))]),
   ]);
 }
 

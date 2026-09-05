@@ -302,6 +302,10 @@
   margin-left: auto;
 }
 
+.oref-nav-stats-missing {
+  margin-left: auto;
+}
+
 .oref-nav-drift {
   color: #a92616;
   font-family: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;

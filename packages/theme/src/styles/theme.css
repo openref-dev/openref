@@ -410,6 +410,12 @@
   margin-left: auto;
 }
 
+/* Words where the count would be, on a document with no health report, per SPEC 7.3. One cell
+ * holds both statements, so null and zero are read in one place instead of two. */
+.oref-nav-stats-missing {
+  margin-left: auto;
+}
+
 /* The drift counter on a group or an item: a warning glyph whose absence asserts nothing. */
 .oref-nav-drift {
   color: var(--oref-drift-crit-fg);

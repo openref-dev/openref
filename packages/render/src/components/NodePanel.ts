@@ -34,6 +34,32 @@ function labelsOf(languages: readonly CodeSampleLanguageModel[]): string {
   return languages.map((language) => language.label).join(', ');
 }
 
+/** What copying a sample needs from the block it was drawn into, described rather than imported. */
+interface BlockLike {
+  querySelector(selector: string): { readonly textContent: string | null } | null;
+}
+
+/** What the three states of the control say. The first is also its accessible name. */
+const COPY = ['Copy the sample', 'Copied', 'Copy unavailable, select the sample'] as const;
+
+/**
+ * The clipboard, when this browser has one to offer.
+ *
+ * IT IS ASKED FOR RATHER THAN ASSUMED, because a page served over plain HTTP has no clipboard at
+ * all: `navigator.clipboard` is undefined outside a secure context, and a control that called it
+ * anyway would throw where a reader could not see it. A reference published to an internal host
+ * without TLS is a real deployment of this product, so the control says what happened instead.
+ *
+ * @returns The writer, or null where there is none
+ */
+function clipboard(): { writeText(text: string): Promise<void> } | null {
+  const host = globalThis as unknown as {
+    navigator?: { clipboard?: { writeText(text: string): Promise<void> } };
+  };
+
+  return host.navigator?.clipboard ?? null;
+}
+
 /** Renders one operation or channel. */
 export const NodePanel = defineComponent({
   name: 'OrefNodePanel',
@@ -52,6 +78,34 @@ export const NodePanel = defineComponent({
     // Which call sample is showing. The first on both sides, so the server render and the first
     // client render agree without anything being carried between them.
     const activeLang = ref('');
+
+    // THE COPY CONTROL READS THE BLOCK RATHER THAN THE MODEL, and that is what lets it exist at
+    // all. `CodeSampleModel` keeps `lang`, `label` and `sourceHtml` and drops the raw source, so
+    // the text a reader wants is only in the document; and `SlotProps['CodeSample']` is frozen at
+    // three members, so a fourth prop carrying it would be a major version. The rendered
+    // `.oref-code code` is the same element in both themes, because the highlighted block is the
+    // server's own markup and a theme only decides what surrounds it.
+    //
+    // IT IS DRAWN HERE AND NOT INSIDE THE SLOT, the decision the three sentences below it are
+    // drawn by: one control for both themes, no prop added to a frozen map, and no second copy
+    // of the fallback for a theme author to get wrong.
+    const block = ref<BlockLike | null>(null);
+    const copyState = ref(0);
+
+    function copySample(): void {
+      const text = block.value?.querySelector('.oref-code code')?.textContent ?? '';
+      const clip = clipboard();
+
+      if (text === '' || clip === null) {
+        copyState.value = 2;
+        return;
+      }
+
+      void clip.writeText(text).then(
+        () => (copyState.value = 1),
+        () => (copyState.value = 2),
+      );
+    }
 
     return (): VNode => {
       const node = props.node;
@@ -139,7 +193,7 @@ export const NodePanel = defineComponent({
             // it; and a theme replacing `AppShell` with a composition that drops its children
             // removes them along with the whole article. Neither is reachable by replacing the
             // `CodeSample` slot, which is what keeping the sentences out of the slot bought.
-            return h('section', { class: 'oref-section oref-section-samples' }, [
+            return h('section', { class: 'oref-section oref-section-samples', ref: block }, [
               h(samples.value, {
                 samples: node.codeSamples,
                 activeLang: activeLang.value,
@@ -147,6 +201,30 @@ export const NodePanel = defineComponent({
                   activeLang.value = lang;
                 },
               }),
+              // NO SAMPLE, NO CONTROL, which is the `role="tablist"` rule one element over: a
+              // button offering to copy a block that is not there is the dead control SPEC 11
+              // forbids. `aria-live` is on the button because what it says is its own state and
+              // its accessible name at once, so a reader who cannot see the label change is told
+              // the same thing a reader who can is.
+              node.codeSamples.length === 0
+                ? null
+                : h(
+                    'button',
+                    {
+                      class: 'oref-send',
+                      type: 'button',
+                      // THE HOOK IS AN ATTRIBUTE AND NOT A CLASS, and the reason is measured
+                      // rather than stylistic. The button already carries `.oref-send`, which
+                      // both shipped themes draw, so a class of its own would style nothing new
+                      // and would put a tenth name on the boundary list every theme has to
+                      // style, per THEME-BOUNDARY.md. `data-oref-copy` is the same hook at no
+                      // such cost, and it is what a theme selects to tell this control from Send.
+                      'data-oref-copy': '',
+                      'aria-live': 'polite',
+                      onClick: copySample,
+                    },
+                    COPY[copyState.value],
+                  ),
               node.codeSamplesElsewhere.length === 0
                 ? null
                 : h(

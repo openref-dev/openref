@@ -383,6 +383,7 @@ describe('the markup a complete L2 theme does not own', () => {
       'oref-section-health',
       'oref-section-messages',
       'oref-section-request',
+      'oref-section-runtime',
       'oref-section-samples',
       'oref-section-security',
       'oref-section-service',
@@ -478,9 +479,9 @@ describe('the markup a complete L2 theme does not own', () => {
     // Then the subject is present before anything is said about absence: the renderer emits names,
     // the sweep reaches names, and the sweep reaches fewer.
     expect(emitted.files).toBe(79);
-    expect(emitted.literals).toHaveLength(355);
+    expect(emitted.literals).toHaveLength(358);
     expect(emitted.prefixes).toHaveLength(11);
-    expect(emitted.names).toHaveLength(344);
+    expect(emitted.names).toHaveLength(347);
     expect(surviving.length).toBeLessThan(emitted.names.length);
 
     // And the partition is pinned, both ways. 245 emitted names no fixture provokes is the number
@@ -488,10 +489,15 @@ describe('the markup a complete L2 theme does not own', () => {
     // either side moves one of these and is read rather than absorbed. It went from 242 to 241 on
     // 2026-09-03 with no name arriving or leaving the renderer: `oref-section-samples` moved from
     // inside the `CodeSample` position to `NodePanel`, so the sweep now reaches a name it emitted
-    // all along.
+    // all along. It went from 241 to 243 on 2026-09-05, and the arithmetic is four moves rather
+    // than one: `oref-nav-stats-missing`, `oref-nav-scroller` and `oref-copy` arrived in the
+    // renderer and no fixture provokes any of the three, and `oref-section-runtime` left this
+    // side for the swept one, because the reference now draws that section itself on an
+    // operation nothing measured. Two of the three arrivals are data attributes rather than
+    // classes, which is why they can be emitted and never swept: the sweep reads class lists.
     const emittedNotSwept = emitted.names.filter((name) => !surviving.includes(name));
     const sweptNotEmitted = surviving.filter((name) => !emitted.names.includes(name));
-    expect(emittedNotSwept).toHaveLength(241);
+    expect(emittedNotSwept).toHaveLength(243);
     expect(sweptNotEmitted).toEqual([
       'oref-method-get',
       'oref-method-post',

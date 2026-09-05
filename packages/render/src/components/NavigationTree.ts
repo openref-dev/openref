@@ -15,8 +15,9 @@
  * class, because every chunk holds the same number of rows. That is what makes virtualization
  * possible without writing a computed length into the document, which STANDARDS 10 forbids.
  *
- * The window opens on the chunk holding the page's own entry, so a reader arriving at an
- * operation sees it in the sidebar rather than at the top of a list of two thousand.
+ * The window opens on the chunk holding the page's own entry, and the container is scrolled to
+ * it after mount, so a reader arriving at an operation sees it in the sidebar rather than a band
+ * of reserved height where the chunks above it are.
  *
  * A GROUP THE PAGE DID NOT SHIP OPENS BY FETCHING. Since T012-R2 a page carries the navigation
  * it can draw rather than the document's whole index, per `nav-payload.ts`, so a closed group
@@ -35,7 +36,17 @@
  */
 
 import { useSlot } from '@openref/vue';
-import { computed, defineComponent, h, ref, watch, type PropType, type VNode } from 'vue';
+import {
+  computed,
+  defineComponent,
+  h,
+  onBeforeUnmount,
+  onMounted,
+  ref,
+  watch,
+  type PropType,
+  type VNode,
+} from 'vue';
 import { methodBadge } from './method-badge';
 import { StateNotice } from './StateNotice';
 import { nodeHref, schemaHref, serviceHref } from '../page/domain/links';
@@ -50,25 +61,58 @@ import {
 } from '../page/domain/nav-rows';
 import type { FrameStatsModel, NavEntryModel } from '@openref/vue';
 
-/** What this component needs from a scroll event target, and nothing else. */
-interface ScrollTarget {
-  readonly scrollTop: number;
+/** A box, in the two edges this needs. */
+interface EdgesLike {
+  readonly top: number;
+  readonly bottom: number;
+}
+
+/**
+ * What this needs from an element, and nothing else.
+ *
+ * THE DOM IS DESCRIBED HERE RATHER THAN IMPORTED, the way `browser/` and the harness describe
+ * it: this directory compiles in a program with no DOM library, because everything in it also
+ * renders on a server. The four members below are what finding a scroll container and moving
+ * it by the smallest honest amount takes.
+ */
+interface ElementLike {
+  readonly parentElement: ElementLike | null;
+  scrollTop: number;
   readonly scrollHeight: number;
   readonly clientHeight: number;
+  setAttribute(name: string, value: string): void;
+  removeAttribute(name: string): void;
+  addEventListener(type: string, listener: () => void): void;
+  removeEventListener(type: string, listener: () => void): void;
+  querySelector(selector: string): { getBoundingClientRect(): EdgesLike } | null;
+  getBoundingClientRect(): EdgesLike;
 }
 
-interface ScrollEventLike {
-  readonly target: unknown;
-}
+/** Computed overflow values that make an element a scroll container. */
+const SCROLLS = ['auto', 'scroll', 'overlay'];
 
-function isScrollTarget(value: unknown): value is ScrollTarget {
-  if (value === null || typeof value !== 'object') return false;
-  const candidate = value as Partial<ScrollTarget>;
-  return (
-    typeof candidate.scrollTop === 'number' &&
-    typeof candidate.scrollHeight === 'number' &&
-    typeof candidate.clientHeight === 'number'
-  );
+/**
+ * The element that actually scrolls, which is a question only the theme can answer.
+ *
+ * The nearest ancestor whose computed overflow scrolls, and this element itself when nothing
+ * above it does. A package that renders markup cannot know which element a stylesheet gave the
+ * overflow to: the default theme gives it to `.oref-sidebar` and leaves `.oref-nav-scroll`
+ * visible, a theme that wanted the rail to scroll inside its own frame would do the reverse,
+ * and both are legitimate. Reading it off the computed style asks rather than assumes.
+ *
+ * @param from - The rail this component drew
+ * @returns The element whose scroll events move the window
+ */
+function scrollerOf(from: ElementLike): ElementLike {
+  const view = globalThis as unknown as {
+    getComputedStyle(element: ElementLike): { readonly overflowY: string };
+  };
+
+  for (let at: ElementLike | null = from; at !== null; at = at.parentElement) {
+    if (SCROLLS.includes(view.getComputedStyle(at).overflowY)) return at;
+  }
+
+  return from;
 }
 
 function rowClasses(row: NavRow, active: boolean): string[] {
@@ -172,13 +216,60 @@ export const NavigationTree = defineComponent({
 
     const visible = computed(() => new Set(chunkWindow(current.value, chunks.value.length)));
 
-    function onScroll(event: ScrollEventLike): void {
-      const target = (event as { target?: unknown }).target;
-      if (!isScrollTarget(target)) return;
+    // THE RAIL AND THE ELEMENT THE RAIL SCROLLS INSIDE ARE TWO ELEMENTS, and until this they
+    // were assumed to be one. The handler sat on `.oref-nav-scroll`, which the shipped theme
+    // draws `display: block` with a visible overflow, so it never fired: a `scroll` event does
+    // not bubble, and the element that scrolls is `.oref-sidebar` above it. The window
+    // therefore stayed on whatever chunk the first render chose, and a reader whose entry was
+    // in chunk two or beyond met the reserved height of chunk zero as a blank band with the
+    // rows below the fold. Measured 602.9px of blank on a 1440x640 viewport.
+    const rail = ref<ElementLike | null>(null);
+    let scroller: ElementLike | null = null;
 
-      const at = chunkAt(target, chunks.value.length);
+    function onScroll(): void {
+      if (scroller === null) return;
+
+      const at = chunkAt(scroller, chunks.value.length);
       if (at !== current.value) current.value = at;
     }
+
+    onMounted(() => {
+      const element = rail.value;
+      if (element === null) return;
+
+      // The attribute is how the binding can be checked rather than described: a browser suite
+      // reads it back and asserts the marked element is the one whose overflow really scrolls.
+      scroller = scrollerOf(element);
+      scroller.setAttribute('data-oref-nav-scroller', '');
+      scroller.addEventListener('scroll', onScroll);
+
+      // AND THE WINDOW IS BROUGHT INTO VIEW, WHICH IS THE OTHER HALF OF THE SAME DEFECT.
+      // `chunkOfActive` opens the window on the reader's own entry, and nothing ever scrolled
+      // the container to it, so the window was correct and off screen behind the reserved
+      // height of the chunks above it.
+      //
+      // THE ARITHMETIC IS WRITTEN OUT RATHER THAN LEFT TO `scrollIntoView`, and the reason is
+      // the second scroll it would do. That method walks every scrollable ancestor, so bringing
+      // a row into the rail would also move the page under a reader who asked for neither. This
+      // moves one container by the smallest amount that puts the row inside it, and moves it not
+      // at all when the row is already there.
+      const active = element.querySelector('.oref-nav-item.oref-active');
+
+      if (active !== null) {
+        const row = active.getBoundingClientRect();
+        const view = scroller.getBoundingClientRect();
+        const below = row.bottom - view.bottom;
+        const above = row.top - view.top;
+
+        scroller.scrollTop += below > 0 ? below : above < 0 ? above : 0;
+      }
+    });
+
+    onBeforeUnmount(() => {
+      scroller?.removeEventListener('scroll', onScroll);
+      scroller?.removeAttribute('data-oref-nav-scroller');
+      scroller = null;
+    });
 
     /**
      * What a row says, per the layout since `TX-MARKUP`: an operation is its method badge and
@@ -299,15 +390,17 @@ export const NavigationTree = defineComponent({
     }
 
     return (): VNode =>
-      h('div', { class: 'oref-nav-scroll', onScroll }, [
+      h('div', { class: 'oref-nav-scroll', ref: rail }, [
         // THE STATS ROW SAYS WHAT THE DOCUMENT HOLDS, not what this slice carries, so a
-        // partial tree still states the whole. The drift cell draws only when a report
-        // exists: null and zero are different statements, per SPEC 7.3.
+        // partial tree still states the whole. Null and zero are different statements, per
+        // SPEC 7.3, and until this only one of them was drawn: no report printed nothing,
+        // which is what a clean measured document would have printed if the figure had been
+        // a warning glyph. It is not, it is a count, so the absence gets words.
         h('div', { class: 'oref-nav-stats' }, [
           h('span', {}, `${String(props.stats.operations)} operations`),
           h('span', {}, `${String(props.stats.groups)} groups`),
           props.stats.drift === null
-            ? null
+            ? h(notice.value, { kind: 'drift-missing', message: 'drift not measured' })
             : h('b', { class: 'oref-nav-stats-drift' }, `▲ ${String(props.stats.drift)}`),
         ]),
         ...chunks.value.map((chunk, index) =>

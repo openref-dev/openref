@@ -296,6 +296,11 @@ describe('slot registry contract', () => {
       | 'schema-missing'
       | 'no-schema'
       | 'health-missing'
+      // The two siblings `health-missing` shipped without. Same class of change and the same
+      // migration: a total record over this union gains two cases. Recorded in SPEC 6.3, SPEC
+      // 7.3, PUBLIC-API.md and CONTRACT.md before the code.
+      | 'runtime-missing'
+      | 'drift-missing'
     >();
   });
 

@@ -819,9 +819,21 @@ export class ReferenceService {
    * because the process is up and a probe that fails a deployment over a documentation defect is
    * the worse of the two wrong answers; what changes is the word.
    *
+   * IT ALSO SAYS WHY RUNTIME IS ABSENT, since the `runtime-missing` notice was added. The page
+   * can say that nothing measured an operation; it cannot say whether that is a host who
+   * registered no collector or a collector that ran and reported nothing, because the page
+   * holds one node. This holds the document, so it answers with the count.
+   *
    * @returns The report
    */
   private status(): ReferenceReply {
+    // HOW MANY NODES ANY COLLECTOR REACHED, counted here because this is the one surface that
+    // can answer it without a reader opening a page. Every operation of a document with none
+    // now draws the `runtime-missing` sentence, and a reader who sees it on every page is owed
+    // a way to tell a reference nobody instrumented from one whose collectors were skipped.
+    let measured = 0;
+    for (const node of this.document.nodes.values()) if (node.runtime !== undefined) measured += 1;
+
     // A literal object, serialized as written, per SPEC 12. Sorting it would put `document`
     // before `status` for no reason a reader of this route benefits from.
     const body = JSON.stringify({
@@ -834,6 +846,9 @@ export class ReferenceService {
         nodes: this.document.nodes.size,
         schemas: this.document.schemas.size,
       },
+      // NOT A SCORE AND NOT A VERDICT, per SPEC 13.3: how many nodes carry facts, against how
+      // many there are. Zero of a thousand is why the pages say nothing measured them.
+      runtime: { measured, of: this.document.nodes.size },
       versions: {
         ir: IR_VERSION,
         pageModel: PAGE_MODEL_VERSION,

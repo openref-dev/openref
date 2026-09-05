@@ -11,7 +11,7 @@ import { finalizeDocument } from '@openref/core';
 import { buildPageModel } from '../../src/page/domain/page-model';
 import { serializePageModel } from '../../src/render/application/services/render.service';
 import { createMarkdownRenderer } from '../../src/markdown/domain/markdown';
-import { runtimeDocument, runtimeNodeId, smallDocument } from '../mocks/documents';
+import { eventsDocument, runtimeDocument, runtimeNodeId, smallDocument } from '../mocks/documents';
 import type { IRDocument, IROperation } from '@openref/core';
 import type { PageKind, PageModel } from '@openref/vue';
 
@@ -77,6 +77,43 @@ describe('drawnOf, through buildPageModel', () => {
 
     // Then security stands as its own section, per the TX-GUTTER rule
     expect(model.node?.drawn).toContain('security');
+  });
+
+  it('should mount the runtime position on an operation nothing measured, per SPEC 6.3', async () => {
+    // Given an operation in a document no collector ran over
+    const document = smallDocument();
+    const operation = [...document.nodes.entries()].find(
+      ([, node]) => node.kind === 'operation' && node.runtime === undefined,
+    )?.[0];
+    expect(operation, 'the fixture no longer has an unmeasured operation').toBeDefined();
+
+    // When
+    const model = buildPageModel(document, {
+      nodeId: operation ?? null,
+      markdown: await createMarkdownRenderer(),
+    });
+
+    // Then the position is mounted anyway, because what fills it is the sentence saying nothing
+    // measured this. It used to be absent, which made an uninstrumented page identical to one
+    // whose collectors all agreed with the specification.
+    expect(model.node?.drawn).toContain('runtime');
+    expect(model.node?.runtime).toBeNull();
+  });
+
+  it('should mount no runtime position on a channel, which no collector can reach', async () => {
+    // Given a channel, per SPEC 6.3: every collector is HTTP until M5 builds the event ones
+    const document = eventsDocument();
+    const channel = [...document.nodes.entries()].find(([, node]) => node.kind === 'channel')?.[0];
+    expect(channel, 'the fixture no longer has a channel').toBeDefined();
+
+    // When
+    const model = buildPageModel(document, {
+      nodeId: channel ?? null,
+      markdown: await createMarkdownRenderer(),
+    });
+
+    // Then nothing is drawn, because a measurement that cannot be taken and a measurement
+    // nobody took are different statements and only the second one has a sentence.
     expect(model.node?.drawn).not.toContain('runtime');
   });
 

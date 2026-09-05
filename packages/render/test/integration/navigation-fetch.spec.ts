@@ -221,9 +221,20 @@ describe('the first client render of a sliced navigation', () => {
       console.warn = original;
     }
 
-    // Then
+    // Then, with one attribute normalized and the exception named the way the paragraph above
+    // names its own: `data-oref-nav-scroller` is written imperatively after mount onto whichever
+    // element the rail found actually scrolls, the way the federation snapshot writes
+    // `data-oref-remote-status` onto a service mark. It is not part of any render, so it is
+    // neither in the server's string nor a hydration mismatch, and stripping it here compares
+    // the two renders rather than the annotations laid over one of them.
+    const rendered_ = (document.querySelector('.oref-sidebar')?.innerHTML ?? '').replaceAll(
+      ' data-oref-nav-scroller=""',
+      '',
+    );
+
     expect(hydrated).toBe(true);
-    expect(document.querySelector('.oref-sidebar')?.innerHTML).toBe(server);
+    expect(rendered_).toBe(server);
+    expect(document.querySelector('[data-oref-nav-scroller]')).not.toBeNull();
 
     // And Vue itself agrees, which catches a mismatch the string comparison would not see
     // because Vue repairs some of them in place.

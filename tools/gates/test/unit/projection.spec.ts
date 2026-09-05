@@ -480,7 +480,7 @@ describe('the committed artefact', () => {
     // The count is read off the directory at collection time rather than written here. It has
     // already been wrong once: the sweep grew from seven documents to every one of them, and a
     // document added to `ai-docs/` afterwards moved it again while this name still said sixteen.
-    `should carry no line of any of the ${HAVE_AI_DOCS ? privateDocuments(repoRoot).length : 0} private documents, bar the forms it may carry`,
+    `should carry no line of any of the ${String(HAVE_AI_DOCS ? privateDocuments(repoRoot).length : 0)} private documents, bar the forms it may carry`,
     () => {
       // Given, and this is the assertion the privacy claim rests on: every substantial line of
       // every private document, taken from the documents themselves rather than from a list.

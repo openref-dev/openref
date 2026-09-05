@@ -1082,10 +1082,14 @@
   margin-bottom: var(--oref-space-600);
 }
 
-/* The three modifiers are named rather than left to the base rule, so that the list of what this
-   theme has to style is the list of what the reference leaves behind, with nothing implied. */
+/* The four modifiers are named rather than left to the base rule, so that the list of what this
+   theme has to style is the list of what the reference leaves behind, with nothing implied.
+   `oref-section-runtime` joined them on 2026-09-05 and only in one state: the reference draws
+   this section itself on an operation nothing measured, so that the sentence saying so cannot be
+   dropped by a theme, and on a measured page the block is this theme's own `RuntimePanel`. */
 .oref-section-security,
 .oref-section-request,
+.oref-section-runtime,
 .oref-section-tryit {
   border-top: var(--oref-border-hair) solid var(--oref-color-line);
   padding-top: var(--oref-space-300);

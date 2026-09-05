@@ -86,6 +86,15 @@ const NOT_CLASSES = new Set([
   // classes; the stylesheet selects them as attributes.
   'oref-service',
   'oref-remote-status',
+  // `data-oref-nav-scroller`, written onto whichever element the navigation found actually
+  // scrolls. A state, not a class: the renderer reads the computed overflow rather than
+  // assuming which element a stylesheet gave it to, and the attribute is how a browser suite
+  // checks the binding instead of describing it.
+  'oref-nav-scroller',
+  // `data-oref-copy`, on the copy control of the call samples block. A state, not a class: the
+  // button rides `.oref-send`, which this theme draws, and a class of its own would have put a
+  // name on the second theme's boundary list for a rule that would style nothing new.
+  'oref-copy',
   // Ids the palette generates one per option, so `aria-activedescendant` can name one.
   'oref-palette-option-',
   // Id prefix of a try-it field, so a label can name the control it belongs to. The full id

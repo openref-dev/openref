@@ -36,6 +36,13 @@ const SHAPES: Readonly<Record<StateNoticeKind, readonly [string, string, string 
   'schema-missing': ['p', 'oref-schema-empty', null],
   'no-schema': ['p', 'oref-schema-empty', null],
   'health-missing': ['p', 'oref-health-empty', null],
+  // A PARAGRAPH IN THE SECTION THE SCALE WOULD HAVE FILLED, so a reader meets it where the
+  // measurement would have been rather than in a corner of the page.
+  'runtime-missing': ['p', 'oref-parity-empty', null],
+  // A SPAN, BECAUSE THE RAIL'S STATS ROW IS A ROW OF SPANS. The kinds above choose an element
+  // for the markup they sit in, and a paragraph in a flex row of counts is the same error a
+  // list item outside a list is.
+  'drift-missing': ['span', 'oref-nav-stats-missing', null],
 };
 
 /**

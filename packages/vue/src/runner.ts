@@ -16,7 +16,13 @@
  * THE PORT ITSELF STAYS ON THE MAIN BARREL. `RUNNER_KEY`, `provideRunner` and `useRunnerPort`
  * are how a runner is handed to a page at all, so the first paint reaches for them by
  * construction; they are 116 bytes and they are not what the sweep found.
+ *
+ * `prettyResponseBody` IS HERE FOR THE SAME MEASUREMENT, TAKEN AGAIN. It went on the main
+ * barrel first and cost the first paint 84 raw bytes it has no use for, because a barrel the
+ * first paint imports statically carries every module it re-exports. Its only two consumers
+ * are the two themes' `ResponseView`, which nothing draws until a reader has pressed Send.
  */
 
+export { prettyResponseBody } from './runner/domain/response-body';
 export { useRunner, useRunnerFor } from './composables/useRunner';
 export type { UseRunner, UseRunnerSendArgs, UseRunnerSignInArgs } from './composables/useRunner';

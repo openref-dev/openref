@@ -985,7 +985,18 @@ function drawnOf(node: Omit<NodeModel, 'drawn'>): NodeModel['drawn'] {
 
   return [
     'header' as const,
-    ...(node.runtime !== null ? ['runtime' as const] : []),
+    // THE RUNTIME POSITION IS MOUNTED ON AN OPERATION WHETHER OR NOT ANYTHING MEASURED IT, and
+    // that is a correction rather than a widening. It used to mount on `runtime !== null`, so a
+    // page nobody had instrumented was byte identical to a page whose collectors all agreed with
+    // the specification, which is the one distinction this product exists to draw. What fills
+    // the position when there are no facts is the `runtime-missing` sentence, decided in
+    // `eager.ts` where the slot is resolved and where it costs the first paint nothing.
+    //
+    // A CHANNEL STILL GETS NOTHING, per SPEC 6.3 and `RuntimePanel`'s own note: every collector
+    // is HTTP, no channel can carry a fact before M5 builds the event collectors, and a sentence
+    // about a measurement that cannot exist yet is not the same statement as one about a
+    // measurement nobody took.
+    ...(node.runtime !== null || node.channel === null ? ['runtime' as const] : []),
     ...(node.descriptionHtml !== '' ? ['description' as const] : []),
     // The security list draws only when there is no parity scale carrying the same assertion,
     // which is the rule `TX-GUTTER` set: the authentication and scopes rows are where the

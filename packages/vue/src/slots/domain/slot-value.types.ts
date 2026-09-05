@@ -23,6 +23,11 @@
  *   to offer for it
  * - `schema-missing`: a schema page was opened for an id this document does not declare
  * - `no-schema`: a position declares no schema, so the viewer has no tree to draw
+ * - `health-missing`, `runtime-missing`, `drift-missing`: the three halves of one statement, that
+ *   nothing measured this. The document has no health report, the operation carries no runtime
+ *   facts, and the rail has no finding count to print. Each is drawn where the measurement would
+ *   have been, because an absent measurement and a measurement that found nothing look the same
+ *   and mean opposite things
  *
  * WHAT IS NOT HERE IS THE SENTENCE BESIDE SEND. It is `SendButton.notice`, because the button
  * points at it with `aria-describedby` and a control announced as unavailable with the reason in
@@ -47,7 +52,21 @@ export type StateNoticeKind =
   | 'no-schema'
   // The health page for a document nothing measured, since `TX-FRAME`: the panel does not
   // exist there, per SPEC 7.3, and the page saying why is content rather than an absence.
-  | 'health-missing';
+  | 'health-missing'
+  // THE TWO SIBLINGS `health-missing` WENT WITHOUT FOR THREE MILESTONES, and the gap they close
+  // is the product's own thesis. Health said "nothing has measured it, which is a different
+  // statement from a score of zero" while the other two halves of the same argument said
+  // nothing at all: an operation with no runtime facts drew no parity scale, and a document
+  // with no report drew no drift figure, so a reference nobody instrumented was pixel identical
+  // to one that was instrumented and found in perfect agreement. That is the claim this product
+  // exists to make, made silently in the wrong direction.
+  //
+  // `runtime-missing` is the operation page whose node carries no facts, per SPEC 6.3, drawn in
+  // the position the parity scale would have taken. `drift-missing` is the rail's stats row on a
+  // document with no health report, per SPEC 7.3, where the finding count would be: null and
+  // zero are different statements, and until this only one of them was ever drawn.
+  | 'runtime-missing'
+  | 'drift-missing';
 
 /**
  * What a bounded stream window has seen, per SPEC 14.6.

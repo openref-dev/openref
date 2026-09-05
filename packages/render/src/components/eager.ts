@@ -30,6 +30,7 @@ import { ServiceCard } from './ServiceCard';
 import { ShapesFillPanel } from './ShapesFillPanel';
 import { ShapesReader } from './ShapesReader';
 import { SocketConsole } from './SocketConsole';
+import { StateNotice } from './StateNotice';
 import { StatesPanel } from './StatesPanel';
 import { TryItPanel } from './TryItPanel';
 import type { DeferrableComponents } from './deferrable';
@@ -62,12 +63,41 @@ const HeaderPosition: Component = (props: {
     benchHref: props.benchHref,
   });
 
-/** The runtime panel the theme put in the position, or the reference's. */
+/**
+ * The runtime panel the theme put in the position, or the reference's, or the sentence that says
+ * why there is neither.
+ *
+ * THE MISSING CASE IS THE POSITION'S AND NOT THE PANEL'S, AND THAT IS WHAT KEEPS THE CONTRACT.
+ * `SlotProps['RuntimePanel']` is frozen with `runtime: RuntimeModel`, so widening it to a
+ * nullable would be a major version and would hand every theme's override a null it was never
+ * written to expect. The position answers the question one level up instead: a theme's panel is
+ * mounted exactly when there are facts for it to draw, and a node with none gets the notice.
+ *
+ * IT COSTS THE FIRST PAINT NOTHING, which is why it is here rather than in `NodePanel`. This
+ * module is the server's registry and the client bundle never reaches it; the browser fills the
+ * same position with a childless `section` that adopts whichever of the two the server drew.
+ * `NodePanel` therefore keeps its one code path over `NodeModel.drawn` and recomputes no
+ * condition over a `runtime` that arrives redacted.
+ */
 const RuntimePosition: Component = (props: {
   readonly nodeId: string;
-  readonly runtime: RuntimeModel;
-}): VNode =>
-  h(useSlot('RuntimePanel', RuntimePanel).value, { nodeId: props.nodeId, runtime: props.runtime });
+  readonly runtime: RuntimeModel | null;
+}): VNode => {
+  const runtime = props.runtime;
+
+  if (runtime === null) {
+    return h('section', { class: 'oref-section oref-section-runtime' }, [
+      h(useSlot('StateNotice', StateNotice).value, {
+        kind: 'runtime-missing',
+        message:
+          'No collector has reported on this operation. Nothing has measured it, which is a ' +
+          'different statement from an application that agrees with the specification.',
+      }),
+    ]);
+  }
+
+  return h(useSlot('RuntimePanel', RuntimePanel).value, { nodeId: props.nodeId, runtime });
+};
 
 /** The parameters table the theme put in the position, or the reference's. */
 const ParamsPosition: Component = (props: { readonly parameters: readonly ParameterModel[] }) =>

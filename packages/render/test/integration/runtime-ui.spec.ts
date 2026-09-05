@@ -77,7 +77,7 @@ function ruleBody(selector: string): string {
 }
 
 describe('the runtime block on an operation page', () => {
-  it('should render nothing at all when no collector reached the application', () => {
+  it('should say nothing measured this rather than drawing a scaffold or nothing', () => {
     // Given a document normalized outside any application, which is what a reader arriving from
     // plain @nestjs/swagger has. SPEC 6.3: a scaffold of labelled slots with dashes in them reads
     // as a broken product rather than as a feature nobody switched on.
@@ -86,10 +86,17 @@ describe('the runtime block on an operation page', () => {
     // When
     const host = mount(page);
 
-    // Then, no block, no columns, and no empty second column beside the specification
-    expect(host.querySelector('.oref-section-runtime')).toBeNull();
+    // Then no scaffold: no scale, no columns, no empty second column beside the specification.
+    expect(host.querySelector('.oref-parity-grid')).toBeNull();
     expect(host.querySelector('.oref-node-columns')).toBeNull();
     expect(host.querySelector('.oref-runtime')).toBeNull();
+
+    // AND NOT SILENCE EITHER, which is the half this case used to assert and the reason the
+    // product's own thesis was being made backwards. Drawing nothing made a page nobody had
+    // instrumented identical to a page whose collectors all agreed with the specification.
+    const notice = host.querySelector('.oref-section-runtime .oref-parity-empty');
+    expect(notice?.textContent).toContain('No collector has reported on this operation');
+    expect(notice?.textContent).toContain('different statement');
   });
 
   it('should pair the specification and the runtime per row and draw no page columns', () => {
