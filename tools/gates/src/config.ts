@@ -1967,6 +1967,17 @@ export const MEASURED_BUDGETS: readonly MeasuredBudget[] = [
   // understates, because every term of the difference is something a host adds and the harness does
   // not. The browser study was deliberately not extended to this page, since that is a fixture, an
   // app and a Chrome navigation, none of which the threshold needs.
+  //
+  // AND NOTHING HERE BOUNDS A PAGE WHOSE WEIGHT IS ONE DOCUMENT MEMBER
+  // (DEFER POST-1.0, `TX-PAGE-WEIGHT-ROW`). This row's subject is written into its name and its
+  // fixture, and its payer is navigation and topology. A page whose weight is `info.description`
+  // has a different payer and no row at all: the built documentation site read 101,236 bytes on
+  // 2026-09-02 against these 86,016, which breaks nothing because the subjects differ. The class is
+  // wider than a long description, measured the same day: the largest page the default theme
+  // renders over the whole corpus is the node page of `stripe.yaml` at 205,147 bytes, 2.4 times
+  // this cap, and no row here bounds a node page or a schema page of a real document. Whether such
+  // a page gets a row of its own is the maintainer's, and any cap it gets is derived from a
+  // re-taken measurement by the standing rule rather than from either figure above.
   {
     id: 'overview-document',
     label: 'Overview page of the federated corpus, raw bytes, as the renderer produces it',

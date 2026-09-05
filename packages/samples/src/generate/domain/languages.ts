@@ -14,6 +14,15 @@
  * reads that character as the end of the name. The three command line tools of this revision refuse
  * by the same rule and for reasons taken off a live server rather than off a manual.
  *
+ * EIGHT OF THE FIFTEEN WRITE CODE NOTHING HAS EVER RUN (DEFER POST-1.0, `TX-SAMPLE-WIRE`).
+ * `packages/samples/test/integration/tool-wire-equality.spec.ts` runs the real client for cURL,
+ * wget, HTTPie, PowerShell, Swift, Ruby and C# and compares bytes at a loopback server. Go, PHP,
+ * Java, Rust, TypeScript, Python, Kotlin and Dart have no such case, and the last two are the
+ * uncomfortable half because level 1 builds its own multipart and binary bodies out of the reader's
+ * fields rather than copying the plan's bytes. What unblocks each is named in the entry the marker
+ * names: a network fetch inside a test run for Kotlin, Dart and Python, a measured runner column for
+ * Java, and nothing at all for Go, PHP, Rust and TypeScript, which nobody has attempted.
+ *
  * THE IDS ARE HIGHLIGHTER IDS AND NOT PRODUCT NAMES. `IRCodeSample.lang` reaches
  * `markdown.renderCode` on the server, which passes it to the highlighter, so `csharp` and not
  * `C#`; the product name is the label, which is what the tab says.

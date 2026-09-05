@@ -16,6 +16,24 @@
  * EVERYTHING ELSE IN THE DOCUMENTATION STAYS PROSE AND STAYS FREE. This is nine sentences about a
  * bare mount and four about what a collector adds, measured across every surface before the file
  * was written. It is not a general mechanism for documenting the product.
+ *
+ * SO THE PERIMETER IS WHERE THIS FILE STOPS, AND A WRITER MEETS IT HERE
+ * (DEFER POST-1.0, `TX-DOCS-PERIMETER`). Measured rather than assumed, twice. Inside the twelve
+ * entries below, ten are unreachable by a writer because the statement is generated: each was
+ * reworded by hand where the documentation states it and each turned one case red. Two stay
+ * reachable, and they are the two contexts no region emits, `errors-collector` and
+ * `throttler-package`, so the remainder inside the twelve is a region that was never placed rather
+ * than a hole. Outside them the perimeter is real and open: nine claims about what a reader sees
+ * were written into the documentation by hand and eight reached a reader with 51 of 51 cases green
+ * and every gate green, because `expandGenerated` copies text outside a region through untouched
+ * and nothing else in the tree reads documentation prose for meaning. `generatedSurfaces()` owns 18
+ * surfaces, 12 carry a region and 6 carry none at all, and 32 regions hold 2,857 bytes of 67,626.
+ *
+ * A THIRTEENTH CLAIM WRITTEN BY HAND IS CAUGHT BY REVIEW AND BY NOTHING ELSE, and no mechanism
+ * proposed so far makes that impossible. The three paths and the maintainer's ruling that the box
+ * stays shut are in `ai-docs/BUILD-AMENDMENTS.md` under the entry the marker above names. If you
+ * are about to write a sentence saying a reader will see something, and it is not in the array
+ * below, nothing in this repository will check it for you.
  */
 
 /** Which mount a claim is about, and therefore what has to be true for it to hold. */

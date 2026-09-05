@@ -1078,7 +1078,7 @@ export const CITED_READINGS: readonly {
 }[] = [
   { path: 'data.build', measure: 'chars', reading: 24, cited: 'BUILD_LINE_BOUND' },
   { path: 'data.build', measure: 'capitals', reading: 7, cited: 'BUILD_LINE_BOUND, RELEASE' },
-  { path: 'data.amendments', measure: 'chars', reading: 31, cited: 'AMENDMENT_LINE_BOUND' },
+  { path: 'data.amendments', measure: 'chars', reading: 32, cited: 'AMENDMENT_LINE_BOUND' },
   {
     path: 'data.amendments',
     measure: 'capitals',

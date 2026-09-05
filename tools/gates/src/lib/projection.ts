@@ -106,7 +106,7 @@ export const PROJECTION_VERSION = 2;
  * committed file with {@link distinctDigestsIn} and holds the count to this, and holds the odds in
  * the comment below to the arithmetic on it, so neither can drift without going red.
  */
-export const PROJECTION_DISTINCT_DIGESTS = 2438;
+export const PROJECTION_DISTINCT_DIGESTS = 2444;
 
 /**
  * How many distinct digests a text carries, so the collision figure is measured and not guessed.

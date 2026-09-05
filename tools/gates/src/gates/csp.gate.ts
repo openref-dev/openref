@@ -11,6 +11,18 @@ import type { Gate, GateFinding, GateResult } from '../types.js';
  *
  * Working under `style-src 'self' 'nonce-...'` with no `unsafe-inline` is a declared
  * advantage of this project, so an inline style attribute in built output is fatal.
+ *
+ * THE ROOTS HOLD NO RENDERED PAGE, AND WIDENING THEM IS A SCOPE DECISION
+ * (DEFER POST-1.0, `TX-CSP-ROOTS`). `cspScanRoots` walks `packages/<name>/dist` and `.html` is in
+ * `CSP_SCAN_EXTENSIONS`, so the rule for a rendered page exists and has never been applied to one:
+ * every page this product produces is written by a host, by `openref build` or by the Nuxt module,
+ * and none of those writes into a package's `dist`. Measured on the first rendered page the scan
+ * ever met, `docs/dist/index.html`: three violations before `isViolation` learned to read a
+ * script's `type` and one after, against zero from a real browser under
+ * `default-src 'none'; script-src 'self'; style-src 'self'`. The one that remains is a
+ * documentation chapter teaching the rule by quoting the construct it forbids, which a scan over
+ * text cannot tell from an attribute; SPEC 19 records which instrument is authoritative for which
+ * subject, and the entry the marker names carries the recommendation as a yes or a no.
  */
 export const cspGate: Gate = {
   id: 'csp',

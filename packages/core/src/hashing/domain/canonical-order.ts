@@ -18,6 +18,20 @@ import type { IRJsonValue } from '../../ir/domain/schema.types';
  * by an identifier the normalizer builds, their order is walk order, and SPEC 5.1.1 requires the IR
  * to be invariant to walk order.
  *
+ * TWO NAMES THIS RECORD CANNOT TELL APART, AND 202 POSITIONS PAY FOR IT
+ * (DEFER POST-1.0, `TX-CANONICAL-POSITIONS`). The record is keyed by member name because the name
+ * is the only thing the serializer sees while walking a value, and two names serve both an author
+ * written value and one this IR built: `value` is `IRExample.value` and `IRFact.value`, `examples`
+ * is a map of `IRExample` and an array of arbitrary JSON on `IRJsonSchema`. Both are `sorted`,
+ * resolved towards the IR reading, because the alternative hashes the order a normalizer literal
+ * happens to be written in. Measured over both corpora on 2026-09-02: 424 objects at
+ * `IRExample.value` of which 199 are written in an order sorting changes, and 20 in an
+ * `IRJsonSchema.examples` array of which 3 are, so 202 declared examples a page prints verbatim
+ * have a key order the document hash does not carry. Telling the two apart means a runtime
+ * description of the IR's shape, which is a second total record able to drift from this one, which
+ * is this defect one level up. The three choices and what decides them are in the entry the marker
+ * names; SPEC 5.3 carries the residual in its own words until then.
+ *
  * THREE VERDICTS, BECAUSE TWO COULD NOT SAY IT. `ordered` is a map whose keys the author chose and
  * whose values are shapes this IR declares, so the keys keep their order and the values are read by
  * the rule again. `ordered-tree` is a position that is the author's all the way down, where nothing
