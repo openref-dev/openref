@@ -391,7 +391,7 @@ describe('namesFromDigests', () => {
 /**
  * Every private document, and not the seven the sweep below used to open.
  *
- * IT SWEPT `DEFERRAL_DOCUMENTS`, WHICH IS SEVEN OF SIXTEEN, and the nine outside its subject were
+ * IT SWEPT `DEFERRAL_DOCUMENTS`, WHICH WAS SEVEN OF THEM, and the rest outside its subject were
  * the ones nobody would think to check: `design/CONTRACT.md`, the three `tokens.css` the projection
  * actually reads, and the five design notes beside them. A sweep whose subject is a list written
  * for another purpose proves what that list happens to cover.
@@ -477,7 +477,10 @@ function artefactLines(artefact: unknown): string[] {
 
 describe('the committed artefact', () => {
   it.skipIf(!HAVE_AI_DOCS)(
-    'should carry no line of any of the sixteen private documents, bar the forms it may carry',
+    // The count is read off the directory at collection time rather than written here. It has
+    // already been wrong once: the sweep grew from seven documents to every one of them, and a
+    // document added to `ai-docs/` afterwards moved it again while this name still said sixteen.
+    `should carry no line of any of the ${HAVE_AI_DOCS ? privateDocuments(repoRoot).length : 0} private documents, bar the forms it may carry`,
     () => {
       // Given, and this is the assertion the privacy claim rests on: every substantial line of
       // every private document, taken from the documents themselves rather than from a list.
