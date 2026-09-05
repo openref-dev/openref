@@ -807,7 +807,15 @@ export interface ParityRowModel {
   readonly label: string;
   readonly spec: ParitySideModel;
   readonly runtime: readonly RuntimeValueModel[];
-  /** Why the runtime side is empty. Empty exactly when `runtime` has values. */
+  /**
+   * Why there is nothing to compare: the empty side, or the missing verdict.
+   *
+   * IT ANSWERS TWO QUESTIONS AND USED TO ANSWER HALF OF ONE. With `runtime` empty it says which of
+   * the two silences of SPEC 6.3 this is, naming the collector that examined the route and found
+   * nothing, or the one that would report the fact and is not registered. With `runtime` full and
+   * `verdict` `unknown` it says that no rule of the catalogue examines this row yet, which was a
+   * fact only an `aria-label` carried. Empty exactly when there is a verdict and a side.
+   */
   readonly reason: string;
   readonly verdict: ParityVerdict;
   /** Severity of the recorded finding. Empty unless `verdict` is `drift`. */

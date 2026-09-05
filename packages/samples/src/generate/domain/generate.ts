@@ -28,13 +28,16 @@ import {
 } from './emit-templates';
 import { emitHttpie, emitPowerShell, emitWget } from './emit-tools';
 import {
+  LINE_COMMENT,
   NON_ASCII_HEADER_REFUSAL,
   REDIRECT_CREDENTIAL_DROPPED_NOTE,
   REDIRECT_NOT_FOLLOWED_NOTE,
+  RELATIVE_ADDRESS_NOTE,
+  RELATIVE_ADDRESS_SHELL_NOTE,
   SAMPLE_LANGUAGES,
 } from './languages';
 import type { EmitOutcome, SampleLanguage, SampleLanguageId } from './languages';
-import { nonAsciiHeaderNames, unsendablePlanReason } from './plan-parts';
+import { isOriginRelative, nonAsciiHeaderNames, unsendablePlanReason } from './plan-parts';
 import type { SampleRequest } from './sample-request';
 
 /**
@@ -47,6 +50,29 @@ import type { SampleRequest } from './sample-request';
  * the same answer for the purpose of this list: not proved to match.
  */
 const NON_ASCII_HEADER_CAPABLE: readonly SampleLanguageId[] = ['typescript', 'swift'];
+
+/** The three whose address `shellUrl` completes with an environment variable. */
+const SHELL_LANGUAGES: readonly SampleLanguageId[] = ['shell', 'bash', 'sh'];
+
+/**
+ * The comment a sample carries when the document named no origin to send to.
+ *
+ * IT IS DECIDED ONCE PER REQUEST AND WRITTEN INTO EVERY SAMPLE, in the language's own comment
+ * syntax, because the copy control copies the source and nothing else. The three shells get a
+ * second line naming the variable their command already reads, so a reader who copies a cURL line
+ * has, in one paste, the command, the reason it needs a value, and the value's name.
+ *
+ * @param language - The language the sample is written in
+ * @returns The comment lines, ending in a newline, or the empty string
+ */
+function addressComment(language: SampleLanguage): string {
+  const mark = LINE_COMMENT[language.id];
+  const lines = [`${mark} ${RELATIVE_ADDRESS_NOTE}`];
+
+  if (SHELL_LANGUAGES.includes(language.id)) lines.push(`${mark} ${RELATIVE_ADDRESS_SHELL_NOTE}`);
+
+  return `${lines.join('\n')}\n`;
+}
 
 /** Per language, what it does with a redirect where that differs from the console. */
 const REDIRECT_NOTES: Partial<Readonly<Record<SampleLanguageId, string>>> = {
@@ -129,6 +155,11 @@ export function generateCodeSamples(
   // second is a header value whose octets depend on who writes them.
   const unsendable = unsendablePlanReason(request);
   const nonAscii = nonAsciiHeaderNames(request);
+  // THE THIRD REQUEST LEVEL FACT, AND THE ONLY ONE THAT IS NOT A REFUSAL. An address with no
+  // origin is a request that is completely known except for one value the reader holds and this
+  // package does not, so every sample says so in its own comment syntax and the three shells read
+  // the value from an environment variable rather than refusing or inventing a host.
+  const relative = isOriginRelative(request.plan.url);
 
   for (const language of languages) {
     const refusal =
@@ -145,7 +176,11 @@ export function generateCodeSamples(
       continue;
     }
 
-    samples.push({ lang: language.id, label: language.label, source: outcome.source });
+    samples.push({
+      lang: language.id,
+      label: language.label,
+      source: relative ? `${addressComment(language)}${outcome.source}` : outcome.source,
+    });
 
     const note = REDIRECT_NOTES[language.id];
     if (note !== undefined) notes.push({ lang: language.id, label: language.label, note });

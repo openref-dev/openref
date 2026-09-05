@@ -343,8 +343,14 @@ export type {
   IRDiffReport,
 } from './diff/domain/diff-report';
 
-export { hasRuntimeFacts, RUNTIME_FACT_FIELDS } from './runtime/domain/runtime-view';
-export type { RuntimeFactField } from './runtime/domain/runtime-view';
+export {
+  hasRuntimeFacts,
+  observedFactCollectors,
+  RUNTIME_FACT_COLLECTORS,
+  RUNTIME_FACT_FIELDS,
+  runtimeInstrument,
+} from './runtime/domain/runtime-view';
+export type { RuntimeFactField, RuntimeInstrument } from './runtime/domain/runtime-view';
 
 export {
   deriveRuntimeErrorContracts,

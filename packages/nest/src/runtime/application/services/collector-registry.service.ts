@@ -66,6 +66,14 @@ export interface CollectorRegistryOptions {
   readonly globalPipes?: readonly string[];
   /** Template for the source link of SPEC 6.3, carried through to the document meta. */
   readonly sourceLinkTemplate?: string;
+  /**
+   * Guard class to security scheme, per SPEC 13.2, carried through to the document meta.
+   *
+   * IT IS CARRIED RATHER THAN CONSUMED HERE. No collector reads it; `security-drift` does, and so
+   * does anything that re-asks that rule from the served document afterwards. See
+   * `IRRuntimeMeta.guardSchemes` for what went wrong while only the pass had it.
+   */
+  readonly guardSecuritySchemes?: Readonly<Record<string, string>>;
   /** Version of NestJS the host is running, for the document meta. */
   readonly nestVersion?: string;
   /** ISO 8601 instant to record as the collection time. Injected so the meta is reproducible. */
@@ -88,6 +96,14 @@ export class CollectorRegistry {
   private readonly registeredNames: readonly string[];
   private readonly declined: readonly { readonly collector: string; readonly reason: string }[];
   private readonly retired = new Map<string, Retirement>();
+  /**
+   * Collectors that returned facts about at least one node, which is what the check counts.
+   *
+   * A NAME IS ADDED WHEN SOMETHING CAME BACK, not when the collector was called. A collector is
+   * called on every node and returns `undefined` on the ones it has nothing to say about, so being
+   * called says only that the pass reached it.
+   */
+  private readonly reported = new Set<string>();
   private readonly options: CollectorRegistryOptions;
   /**
    * The global guard names, frozen once, because every context is handed this same array.
@@ -154,8 +170,10 @@ export class CollectorRegistry {
         continue;
       }
 
-      if (produced !== undefined)
+      if (produced !== undefined) {
+        this.reported.add(collector.name);
         contributions.push({ collector: collector.name, runtime: produced });
+      }
     }
 
     return mergeContributions(contributions);
@@ -185,6 +203,9 @@ export class CollectorRegistry {
       ...(this.options.sourceLinkTemplate === undefined
         ? {}
         : { sourceLinkTemplate: this.options.sourceLinkTemplate }),
+      ...(this.options.guardSecuritySchemes === undefined
+        ? {}
+        : { guardSchemes: this.options.guardSecuritySchemes }),
       ...(skipped.length === 0 ? {} : { skipped }),
     };
   }
@@ -197,17 +218,24 @@ export class CollectorRegistry {
    * instrument failing rather than the two sides differing. Reporting it as drift would put a
    * defect in this package into a list a reader is meant to act on by editing their own code.
    *
-   * @returns How many of the registered collectors contributed
+   * IT COUNTS WHAT CAME BACK, NOT WHAT WAS TYPED. Until this it counted registrations minus the
+   * ones that declined or threw, so on every run where nothing crashed it read `5 / 5`, and it is
+   * the only line about collectors a reader of the health page sees. A registration is the host's
+   * own input, so a check whose numerator and denominator both come from it answers a question
+   * nobody asked. A collector that was reached on every node and never once had anything to say is
+   * the ordinary shape of a misconfiguration, a metadata key that does not match or a package the
+   * application does not actually use, and it was invisible. It is a `warning` because the other
+   * reading is also possible and also fine: an application with no streaming endpoint gives
+   * `streamCollector` nothing to report, and that is worth a reader's glance rather than an alarm.
+   *
+   * @returns How many of the registered collectors reported a fact about at least one node
    */
   healthCheck(): IRHealthCheck {
-    const total = this.registeredNames.length;
-    const lost = this.declined.length + this.retired.size;
-
     return {
       id: COLLECTOR_HEALTH_CHECK_ID,
-      label: 'Runtime collectors that ran',
-      passed: total - lost,
-      total,
+      label: 'Runtime collectors that reported a fact',
+      passed: this.registeredNames.filter((name) => this.reported.has(name)).length,
+      total: this.registeredNames.length,
       severity: 'warning',
     };
   }

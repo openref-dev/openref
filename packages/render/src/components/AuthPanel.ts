@@ -66,9 +66,14 @@ export function isOAuthScheme(scheme: RunnerSecuritySchemeView): boolean {
  */
 function credentialLabel(scheme: RunnerSecuritySchemeView): string {
   if (scheme.type === 'http') {
-    const named = (scheme.scheme ?? 'http').toLowerCase();
+    const written = scheme.scheme ?? 'http';
+    const named = written.toLowerCase();
+    // CAPITALIZED, BECAUSE THE COMMENT ABOVE ALREADY SAID SO AND THE CODE DID NOT. A document
+    // writes `bearer` because RFC 7235 registers it in lower case; a reader being asked for a
+    // credential reads `Bearer token`, which is the word the label was introduced to use.
+    const label = `${named.charAt(0).toUpperCase()}${named.slice(1)}`;
 
-    return named === 'basic' ? 'user:password' : `${scheme.scheme ?? 'http'} token`;
+    return named === 'basic' ? 'user:password' : `${label} token`;
   }
   if (scheme.type === 'apiKey') return `${scheme.name ?? 'API key'} (${scheme.in ?? 'header'})`;
 

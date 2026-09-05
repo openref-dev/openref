@@ -21,7 +21,7 @@
  */
 
 import { useSlot } from '@openref/vue';
-import { defineComponent, Fragment, h, ref, type PropType, type VNode } from 'vue';
+import { defineComponent, Fragment, h, onBeforeUnmount, ref, type PropType, type VNode } from 'vue';
 import { CodeSample } from './CodeSample';
 import { mediaTypeBlock, type SchemaContext } from './MediaTypeBlock';
 import { useDeferrable } from './deferrable';
@@ -41,6 +41,15 @@ interface BlockLike {
 
 /** What the three states of the control say. The first is also its accessible name. */
 const COPY = ['Copy the sample', 'Copied', 'Copy unavailable, select the sample'] as const;
+
+/**
+ * How long the control holds a state before returning to the first.
+ *
+ * Long enough that a reader who looked away sees it, short enough that it is gone before they
+ * reach for the next sample. `aria-live` is `polite`, so the announcement has already happened by
+ * the time this elapses and nothing is lost by reverting.
+ */
+const COPY_REVERT_MS = 2000;
 
 /**
  * The clipboard, when this browser has one to offer.
@@ -91,19 +100,47 @@ export const NodePanel = defineComponent({
     // of the fallback for a theme author to get wrong.
     const block = ref<BlockLike | null>(null);
     const copyState = ref(0);
+    let revert: ReturnType<typeof setTimeout> | undefined;
+
+    /**
+     * Moves the control to a state and books its way back to the first one.
+     *
+     * BOTH OF THE OTHER TWO STATES REVERT, AND UNTIL NOW NEITHER DID. `Copied` stayed on the button
+     * for the life of the page, so a reader who copied once was told they had copied every sample
+     * they looked at afterwards, including the ones they had not. `Copy unavailable` was worse: a
+     * clipboard write rejected because the document had lost focus latched a permanent failure onto
+     * a control that would work on the next click. A label that never changes back is a label that
+     * stops describing what the control will do.
+     *
+     * THE TIMER IS CLEARED BEFORE IT IS SET AND ON UNMOUNT, so two clicks in quick succession leave
+     * one booking rather than two, and a page navigated away from leaves nothing holding a `ref`.
+     */
+    function say(state: number): void {
+      copyState.value = state;
+      clearTimeout(revert);
+      revert = setTimeout(() => (copyState.value = 0), COPY_REVERT_MS);
+    }
+
+    onBeforeUnmount(() => {
+      clearTimeout(revert);
+    });
 
     function copySample(): void {
       const text = block.value?.querySelector('.oref-code code')?.textContent ?? '';
       const clip = clipboard();
 
       if (text === '' || clip === null) {
-        copyState.value = 2;
+        say(2);
         return;
       }
 
       void clip.writeText(text).then(
-        () => (copyState.value = 1),
-        () => (copyState.value = 2),
+        () => {
+          say(1);
+        },
+        () => {
+          say(2);
+        },
       );
     }
 

@@ -304,6 +304,51 @@ export const UNBUILDABLE_REQUEST_REFUSAL =
  * handed back untouched, so the page said nothing, which is indistinguishable from a reference that
  * has no samples at all.
  */
+/** The environment variable a shell sample reads the missing origin from. */
+export const ORIGIN_VARIABLE = 'OPENREF_ORIGIN';
+
+/** What the shell prints when that variable is unset, in place of curl's rejected URL. */
+export const ORIGIN_PROMPT = 'set this to the origin the API is served from';
+
+/**
+ * The line comment of each language, so a sample can say something about itself.
+ *
+ * A TOTAL RECORD OVER THE FIFTEEN, so a sixteenth language is a compile error here rather than a
+ * sample that silently loses its note. Every one of the fifteen has a line comment; the two forms
+ * are the only two that appear.
+ */
+export const LINE_COMMENT: Readonly<Record<SampleLanguageId, string>> = {
+  shell: '#',
+  bash: '#',
+  sh: '#',
+  powershell: '#',
+  typescript: '//',
+  python: '#',
+  go: '//',
+  php: '//',
+  java: '//',
+  csharp: '//',
+  ruby: '#',
+  rust: '//',
+  swift: '//',
+  kotlin: '//',
+  dart: '//',
+};
+
+/**
+ * What a sample says about itself when the document named no origin to send to.
+ *
+ * IT TRAVELS INSIDE THE SOURCE AND NOT BESIDE IT, which is the whole point. A note drawn next to
+ * the tab is not copied by the copy control, so a reader pastes a command into a terminal and the
+ * explanation stays on the page they have left. This is one line of the language's own comment
+ * syntax, so it survives the paste and costs nothing to a reader who does not need it.
+ */
+export const RELATIVE_ADDRESS_NOTE =
+  'this document declares no server, so the address below has no origin:';
+
+/** The second line, for the three shells, which name the variable that supplies it. */
+export const RELATIVE_ADDRESS_SHELL_NOTE = `${ORIGIN_VARIABLE} supplies it, for example export ${ORIGIN_VARIABLE}=https://api.example.com`;
+
 export const NO_SERVER_REFUSAL =
   'this operation declares no server to send to, so there is no address a sample could be written ' +
   'against';

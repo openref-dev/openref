@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createApp } from 'vue';
 import { normalizeOpenApiDocument } from '@openref/core';
 import { createMarkdownRenderer } from '../../src/markdown/domain/markdown';
@@ -155,6 +155,49 @@ describe('the copy control in the call samples block', () => {
 
     // Then the failure reaches the reader rather than the console
     expect(control(host)?.textContent).toBe('Copy unavailable, select the sample');
+  });
+
+  it('should return to offering the copy rather than saying Copied for the life of the page', async () => {
+    // Given a control that has just copied, which until `TX-INSTRUMENT` was its final state
+    vi.useFakeTimers();
+    try {
+      const host = mount();
+      withClipboard(() => Promise.resolve());
+      control(host)?.click();
+      await Promise.resolve();
+      await Promise.resolve();
+      expect(control(host)?.textContent).toBe('Copied');
+
+      // When time passes and the reader looks at a second sample
+      await vi.advanceTimersByTimeAsync(2000);
+
+      // Then the label describes what the control will do, not what it once did. A button that
+      // says `Copied` forever tells a reader they have copied every sample they look at next.
+      expect(control(host)?.textContent).toBe('Copy the sample');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('should return from the unavailable state, since a refusal can be transient', async () => {
+    // Given a clipboard that rejected once, which is what a browser does for an unfocused document
+    vi.useFakeTimers();
+    try {
+      withClipboard(() => Promise.reject(new Error('denied')));
+      const host = mount();
+      control(host)?.click();
+      await Promise.resolve();
+      await Promise.resolve();
+      expect(control(host)?.textContent).toBe('Copy unavailable, select the sample');
+
+      // When the document regains focus, which is time passing as far as this control knows
+      await vi.advanceTimersByTimeAsync(2000);
+
+      // Then the control offers itself again rather than latching a permanent failure
+      expect(control(host)?.textContent).toBe('Copy the sample');
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('should announce its own state, since the label is what changed', () => {

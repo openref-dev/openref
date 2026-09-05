@@ -278,6 +278,15 @@ export const CANONICAL_MAP_ORDER = {
    * header of this file rather than assumed away.
    */
   value: 'sorted',
+  /**
+   * `IRRuntimeMeta.guardSchemes`, keyed by guard class name.
+   *
+   * SORTED, WHICH PUTS IT WITH `nodes` AND NOT WITH `extensions`. The host writes the mapping, so
+   * the key order is theirs; nothing renders it in order, and every reader of it looks a name up.
+   * Hashing the order somebody happened to write two guards in would invalidate the cache of a
+   * document nothing about which changed, which is exactly what SPEC 5.3 is for.
+   */
+  guardSchemes: 'sorted',
 } as const satisfies Readonly<Record<IRAuthoredCandidate, CanonicalOrderVerdict>>;
 
 /**

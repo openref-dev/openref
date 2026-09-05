@@ -255,6 +255,17 @@ export type IRDriftEdit =
   | 'conflicting-assertion'
   /** A change reaching inside an assertion that already exists. */
   | 'narrowed-assertion'
+  /**
+   * A fact about the whole application that does not say whether this subject is inside it.
+   *
+   * THE FACT IS REAL AND ITS REACH IS NOT OBSERVABLE, which is a third thing beside having a fact
+   * and having none. A guard registered under `APP_GUARD` stands in front of every route, and
+   * whether one route escapes it is decided by metadata that guard reads inside its own logic, per
+   * SPEC 6.1 and CLAUDE.md's rule about guard logic. Writing the assertion would state a
+   * requirement about a route nothing measured; withholding the finding would hide a guard the
+   * reader can see running. So it is reported, and it is a person's to settle.
+   */
+  | 'unscoped-assertion'
   /** A deletion of an existing assertion, which is the only edit that would satisfy the rule. */
   | 'deleted-assertion'
   /** The source already asserts it; the gap is in the generated document, which is never written. */
@@ -415,6 +426,21 @@ export interface IRRuntimeMeta {
   readonly sourceLinkTemplate?: string;
   /** Collectors that were skipped, with the reason, for `doctor` to report. */
   readonly skipped?: readonly { readonly collector: string; readonly reason: string }[];
+  /**
+   * Guard class name to security scheme id, exactly as the host configured it, per SPEC 13.2.
+   *
+   * IT TRAVELS WITH THE DOCUMENT BECAUSE THE COMPARISON IT DECIDES IS RE-ASKED AFTER THE PASS ENDS.
+   * `security-drift` is out of scope without it, per its own rule, so a renderer re-asking the rule
+   * with no mapping answered `out-of-scope` for every guarded operation whose security the document
+   * does state, and drew `?` on the parity scale over the same operations the health report had
+   * already counted as passed. The gutter and the report then said different things about one
+   * comparison, which is the class of defect this field closes: one input, one answer, wherever the
+   * question is asked from.
+   *
+   * A `Record` and not a `Map`, unlike `DriftObservation.guardSchemes`, because this one is part of
+   * a document that is serialized and hashed rather than part of a call.
+   */
+  readonly guardSchemes?: Readonly<Record<string, string>>;
   /**
    * What the discovery of the running application found and could not state, per SPEC 8.3.
    *

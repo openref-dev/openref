@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { RUNTIME_FACT_COLLECTORS } from '@openref/core';
 import type { IRConfidence, IRFact, IRNode } from '@openref/core';
 import type { CollectorContext } from '@openref/nest';
 import { isRuntimeCollector } from '@openref/nest';
@@ -183,5 +184,22 @@ describe('accessControlCollector', () => {
     // Then
     expect(produced).toBeUndefined();
     expect(collector.problems()).toEqual([]);
+  });
+});
+
+/**
+ * The name this collector stamps is the name `@openref/core` names for its fact.
+ *
+ * IT IS ASSERTED HERE BECAUSE THE TWO LISTS LIVE IN TWO PACKAGES. `@openref/render` writes the
+ * sentence "no registered collector reports X" against a table in `core`, and cannot import this
+ * package to check it. A name that drifted would offer a reader an instrument that does not exist.
+ */
+describe('the name `@openref/core` names for this fact', () => {
+  it('should be the name this collector stamps', () => {
+    // Given, the subject is present: core names something for the fact
+    expect(RUNTIME_FACT_COLLECTORS.roles.length).toBeGreaterThan(0);
+
+    // When, Then
+    expect(RUNTIME_FACT_COLLECTORS.roles).toContain(ACCESS_CONTROL_COLLECTOR_NAME);
   });
 });

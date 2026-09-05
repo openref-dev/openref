@@ -1,5 +1,5 @@
 {
-  "hash": "1452746f316a245c562ab121c18ae9d0eea724543ece6f52baccfde78de8cca8",
+  "hash": "a7117977bc6b0940f352b46598cbdcfe264b465971c436b36f686c3d609de2f1",
   "id": "tic-tac-toe",
   "info": {
     "description": "This API allows writing down marks on a Tic Tac Toe board\nand requesting the state of the board or of individual squares.\n",
@@ -95,8 +95,10 @@
         "id": "callback-put-board-row-column-statuscallback-post-request-header-progressurl",
         "kind": "operation",
         "method": "post",
+        "operationId": "markOperationCallback",
         "parameters": [],
         "path": "{$request.header.progressUrl}",
+        "rawOperationId": "markOperationCallback",
         "requestBody": {
           "content": [
             {
@@ -548,8 +550,10 @@
         "id": "webhook-post-markstatus",
         "kind": "operation",
         "method": "post",
+        "operationId": "markOperationWebhook",
         "parameters": [],
         "path": "markStatus",
+        "rawOperationId": "markOperationWebhook",
         "responses": [
           {
             "content": [

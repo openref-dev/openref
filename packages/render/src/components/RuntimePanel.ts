@@ -108,6 +108,15 @@ function parityRow(row: ParityRowModel, tag: Component): VNode {
             {
               class: ['oref-verdict', variant, suffix === '' ? '' : `oref-verdict-${suffix}`],
               'aria-label': name,
+              // THE REASON REACHES A READER WHO IS NOT USING A SCREEN READER. `?` carried
+              // `comparison not run` in `aria-label` and nothing else, so a sighted reader saw a
+              // glyph with no way to ask what it meant, on rows the model can now explain
+              // precisely. `title` because it is the one native affordance that needs no script
+              // and no inline style, both of which the strict CSP of SPEC 19 forbids. Only on the
+              // unknown verdict: `=` and `≠` are answers, and a tooltip on an answer is noise.
+              // `undefined` rather than a spread, because Vue omits the attribute either way and
+              // this is a branch in the bundle every reader downloads.
+              title: row.verdict === 'unknown' ? row.reason : undefined,
             },
             glyph,
           ),

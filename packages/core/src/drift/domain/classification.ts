@@ -38,7 +38,16 @@ export function classifyDrift(edit: IRDriftEdit, basis: IRDriftBasis): IRDriftCl
     return { bucket: 'contradiction' };
   }
 
-  if (edit === 'narrowed-assertion' || edit === 'already-asserted') {
+  // `unscoped-assertion` JOINS THESE TWO AND NOT THE `nothing-to-write` LINE BELOW. There is an
+  // observed fact behind it, so calling it `no-observed-fact` would be false; what is ambiguous is
+  // whether the fact reaches this subject, and that is a structure a person reads and no collector
+  // can. It must never become fixable by a better collector, which is what would happen if it were
+  // filed as confidence starvation.
+  if (
+    edit === 'narrowed-assertion' ||
+    edit === 'already-asserted' ||
+    edit === 'unscoped-assertion'
+  ) {
     return { bucket: 'manual', reason: 'structural-ambiguity' };
   }
 

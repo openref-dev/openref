@@ -116,7 +116,7 @@ describe('security-drift', () => {
     // Then it is a silence: the specification is empty and the edit adds to nothing
     expect(issue.classification).toEqual({ bucket: 'silence' });
     expect(issue.runtimeValue).toBe('ScopesGuard');
-    expect(issue.specValue).toBe('security: undefined');
+    expect(issue.specValue).toBe('no security requirement');
     expect(issue.suggestion).toContain('DocumentBuilder');
   });
 

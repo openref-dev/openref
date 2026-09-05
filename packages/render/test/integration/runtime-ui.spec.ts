@@ -121,23 +121,48 @@ describe('the runtime block on an operation page', () => {
   });
 
   it('should draw the empty side hatched with the reason, per SPEC 6.3', () => {
-    // Given, the four rows whose facts this fixture's collectors never attached. Until
-    // TX-COLLECTORS the phrase named the missing instrument; the instruments exist now, so an
-    // absent fact means nothing was observed, the same phrase the other rows always used.
+    // Given, the four rows whose facts this fixture's collectors never attached. Since
+    // TX-INSTRUMENT the phrase says which of the two silences it is, rather than one sentence
+    // over a fact nobody was asked about and a route that was asked and had nothing to say.
     const page = buildPageModel(runtimeDocument(), { markdown, nodeId: runtimeNodeId() });
 
     // When
     const host = mount(page);
     const hatched = Array.from(host.querySelectorAll('.oref-parity-cell-runtime.oref-hatch'));
 
-    // Then, the absence is drawn rather than blanked, the phrase is the observed silence, and
-    // the verdict beside it says the comparison did not run.
+    // Then, the absence is drawn rather than blanked, each phrase names its own cause, and the
+    // verdict beside it says the comparison did not run.
     expect(hatched).toHaveLength(4);
     for (const cell of hatched) {
-      expect(cell.querySelector('.oref-parity-empty')?.textContent).toBe('Nothing observed here.');
+      const said = cell.querySelector('.oref-parity-empty')?.textContent ?? '';
+      expect(said).not.toBe('Nothing observed here.');
+      expect(said).toContain('No registered collector reports');
       expect(
         cell.closest('.oref-parity-grid')?.querySelector('.oref-verdict-unknown'),
       ).not.toBeNull();
+    }
+  });
+
+  it('should put the reason on the unknown verdict where a sighted reader can reach it', () => {
+    // Given the same page. `aria-label` was the only carrier of `comparison not run`, so a
+    // reader not using a screen reader saw a question mark and had no way to ask what it meant.
+    const page = buildPageModel(runtimeDocument(), { markdown, nodeId: runtimeNodeId() });
+
+    // When
+    const host = mount(page);
+    const unknown = Array.from(host.querySelectorAll('.oref-verdict-unknown'));
+
+    // Then, the subject is present, and every one of them carries its row's own sentence
+    expect(unknown.length).toBeGreaterThan(0);
+    for (const glyph of unknown) {
+      expect(glyph.getAttribute('aria-label')).toBe('comparison not run');
+      expect(glyph.getAttribute('title') ?? '').not.toBe('');
+    }
+
+    // And an answered verdict carries none, because a tooltip on an answer is noise
+    for (const glyph of Array.from(host.querySelectorAll('.oref-verdict'))) {
+      if (glyph.classList.contains('oref-verdict-unknown')) continue;
+      expect(glyph.getAttribute('title')).toBeNull();
     }
   });
 

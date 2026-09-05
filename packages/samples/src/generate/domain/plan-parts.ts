@@ -11,8 +11,50 @@
 
 import { isMultipart } from '@openref/runner';
 import type { RunnerBodyField, RunnerFile } from '@openref/runner';
-import { UNSENDABLE_PLAN_REFUSAL } from './languages';
+import { ORIGIN_PROMPT, ORIGIN_VARIABLE, UNSENDABLE_PLAN_REFUSAL } from './languages';
+import { quoteShell } from './literals';
 import type { SampleRequest } from './sample-request';
+
+/**
+ * Whether a plan's address names no origin, so nothing outside a browser can send it.
+ *
+ * THE DEFAULT SERVER OF OPENAPI IS `/`, WHICH MEANS "WHEREVER THIS IS SERVED FROM". A document that
+ * declares no `servers` gets that default, per the normalizer, so every plan built from it carries
+ * a path and no scheme or host. The console sends those, because a browser resolves them against
+ * the page; every sample this package writes is run somewhere else, and `curl -X GET '/api/v1/
+ * health'` answers `curl: (3) URL rejected: No host part in the URL`. Measured on a real document
+ * of fifty eight operations, every one of which copied a command that cannot run.
+ *
+ * IT IS NOT A REFUSAL. The request is completely known except for one value the reader has and this
+ * package does not, so the sample names that value rather than inventing one or writing nothing.
+ *
+ * @param url - `RequestPlan.url`
+ * @returns True when the address has no origin
+ */
+export function isOriginRelative(url: string): boolean {
+  return !URL.canParse(url);
+}
+
+/**
+ * A plan's address as a POSIX shell word, naming the origin when the plan carries none.
+ *
+ * ONE HELPER FOR THE THREE SHELL CLIENTS, so cURL, HTTPie and wget cannot answer this differently.
+ * The expansion is `${VAR:?message}`, which is POSIX: with the variable set the command runs and
+ * sends exactly the bytes the runner would send from a page on that origin, and with it unset the
+ * shell prints the message and exits non-zero instead of curl reporting a rejected URL.
+ *
+ * THE PATH STAYS SINGLE QUOTED AND ONLY THE EXPANSION IS DOUBLE QUOTED. Two adjacent quoted words
+ * concatenate in every POSIX shell, so nothing in the path is ever exposed to expansion, which is
+ * the property `quoteShell` exists for and which a single double quoted string would have lost.
+ *
+ * @param url - `RequestPlan.url`
+ * @returns The shell word, quoted
+ */
+export function shellUrl(url: string): string {
+  if (!isOriginRelative(url)) return quoteShell(url);
+
+  return `"\${${ORIGIN_VARIABLE}:?${ORIGIN_PROMPT}}"${quoteShell(url)}`;
+}
 
 /** One header, as an emitter writes it. */
 export type HeaderPair = readonly [name: string, value: string];

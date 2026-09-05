@@ -1108,9 +1108,14 @@ function nodeModel(context: ModelContext, nodeId: string): NodeModel | null {
 
   const operation: Omit<NodeModel, 'drawn'> = {
     ...base,
-    // The public operation id of SPEC 5.4: the author's own whenever they wrote a real one,
-    // which is what the kicker quotes.
-    operationId: view.node.operationId ?? '',
+    // THE DOCUMENT'S OWN ID AND NOT THE NORMALIZER'S, per SPEC 11: the kicker draws the author's
+    // `operationId`, and each segment of it only when the document wrote one. `IROperation
+    // .operationId` is the rewritten public id of SPEC 5.4, which is the document's own only when
+    // the document's own was not generated, and is a `<method>-<path-slug>` this package invented
+    // otherwise. So the kicker printed `get-api-v1-health` on a document whose every operation is
+    // named `HealthController_getHealth`, and printed an id on documents that name none at all.
+    // `rawOperationId` is the field that is present exactly when the document wrote something.
+    operationId: view.node.rawOperationId ?? '',
     method: view.node.method.toUpperCase(),
     path: view.node.path,
     address: null,
@@ -1254,6 +1259,17 @@ function holdsSchema(entry: IRNavNode, schemaId: string): boolean {
 }
 
 /**
+ * Whether a navigation entry files any node under it, at any depth.
+ *
+ * @param entry - The entry
+ * @returns True when its subtree reaches a node
+ */
+function holdsNode(entry: IRNavNode): boolean {
+  if (entry.kind === 'node') return true;
+  return entry.children.some((child) => holdsNode(child));
+}
+
+/**
  * Breadcrumb of the current node, per SPEC 11: the group, then what the node answers on.
  *
  * A SCHEMA'S GROUP IS READ OFF THE NAVIGATION AND NEVER SPELLED HERE, since `TX-MARKUP`
@@ -1293,9 +1309,15 @@ function crumbOf(
 function frameStats(document: IRDocument): FrameStatsModel {
   return {
     operations: document.nodes.size,
-    groups: document.navigation.filter(
-      (entry) => entry.nodeId === undefined && entry.schemaId === undefined,
-    ).length,
+    // A GROUP IS A BUCKET OPERATIONS ARE FILED UNDER, and the Schemas registry is not one. Counting
+    // it is how a document with fourteen tags printed `15 groups` beside `58 operations`. It is a
+    // root of `kind: 'group'` like every tag bucket, so `kind` does not separate them and neither
+    // does the missing `nodeId`, which its children carry as `schemaId` instead. What separates
+    // them is what is inside: a tag bucket holds nodes, the Schemas root holds only schemas. The
+    // untagged `Other` bucket holds nodes, so it counts, which is what a reader looking at the rail
+    // would count too.
+    groups: document.navigation.filter((entry) => entry.kind === 'group' && holdsNode(entry))
+      .length,
     drift: document.health === undefined ? null : document.health.drift.length,
   };
 }

@@ -49,8 +49,17 @@ import type { IRJsonSchema } from '../../ir/domain/schema.types';
  * application behind it scores on the questions it can actually be asked.
  */
 export interface DriftObservation {
-  /** Ids of the document's operations the pass found a handler for. */
-  readonly handledNodeIds: ReadonlySet<string>;
+  /**
+   * Ids of the document's operations the pass found a handler for.
+   *
+   * OPTIONAL SINCE `TX-INSTRUMENT`, AND ITS ABSENCE IS A CLAIM RATHER THAN A DEFAULT. A caller that
+   * re-asks a rule from a served document has the guard mapping, because the document carries it,
+   * and has no record of which operations were paired with a handler, because a document does not
+   * carry one. An empty set would tell `orphan-operation` that every operation is an orphan; the
+   * field being absent tells it that this caller cannot be asked, which is the same distinction
+   * between an empty group and a missing field that `IRErrorContracts` draws.
+   */
+  readonly handledNodeIds?: ReadonlySet<string>;
   /** Guard class name to security scheme id, exactly as the host configured it, per SPEC 13.2. */
   readonly guardSchemes?: ReadonlyMap<string, string>;
 }
@@ -70,6 +79,18 @@ interface Finding {
   readonly basis: IRDriftBasis;
   /** The same values `suggestion` names, in a form nothing has to parse. */
   readonly assertion?: IRDriftAssertion;
+  /**
+   * A severity below the rule's own, for a finding that rests on a weaker observation.
+   *
+   * IT ONLY EVER LOWERS, AND IT EXISTS BECAUSE ONE RULE CAN SEE TWO STRENGTHS OF FACT. A guard
+   * written on a handler is a decision about that route, and the specification's silence about it
+   * is a contradiction. A guard registered under `APP_GUARD` is a decision about the application
+   * that this route inherits, and per SPEC 6.1 nothing can read whether the route escapes it: an
+   * `@Public()` marker sits inside that guard's own logic, which is the class of fact CLAUDE.md
+   * forbids guessing at. Reporting the two at one severity asserted about the second what was only
+   * observed about the first. Absent means the rule's severity, so no existing finding moves.
+   */
+  readonly severity?: IRDriftSeverity;
 }
 
 /** One check's verdict about one subject. */
@@ -198,18 +219,42 @@ const SECURITY_DRIFT: OperationRule = {
       .map((guard) => schemes?.get(guard.name))
       .filter((scheme): scheme is string => scheme !== undefined);
 
+    // A ROUTE GUARD AND AN APPLICATION WIDE GUARD ARE TWO STRENGTHS OF THE SAME OBSERVATION, per
+    // SPEC 6.2.1 and 7.1. `@UseGuards` on this handler or its controller is somebody's decision
+    // about this route, so the document's silence contradicts a decision. A provider under
+    // `APP_GUARD` says only that a guard runs in front of everything, and whether this route is
+    // exempt is inside that guard's own logic: `@Public()` and every escape hatch like it are
+    // metadata the guard reads and nothing else can, which is exactly the fact SPEC 6.1 forbids
+    // guessing at. Calling that an error asserted a protection the engine cannot see, and on the
+    // application this was measured against it produced a critical finding on all four routes that
+    // are deliberately public.
+    const routeGuarded = guards.some((guard) => guard.scope === 'route');
+
     if (operation.security.length === 0) {
       return found({
-        message: 'A guard stands on this operation and the specification asserts no security.',
+        message: routeGuarded
+          ? 'A guard stands on this operation and the specification asserts no security.'
+          : 'A guard stands in front of the whole application and the specification asserts no ' +
+            'security here. Whether this route is exempt is decided inside that guard, which is ' +
+            'not readable.',
         runtimeValue: named,
-        specValue: 'security: undefined',
-        suggestion:
-          mapped.length === 0
+        // THE DOCUMENT'S SILENCE IN WORDS AND NOT AS A JAVASCRIPT LITERAL. This string is printed
+        // under `OpenAPI:` by `doctor` and inside the drift card, where `security: undefined` reads
+        // as a value the document holds rather than as a field it never wrote.
+        specValue: 'no security requirement',
+        suggestion: routeGuarded
+          ? mapped.length === 0
             ? 'add @ApiBearerAuth() or declare security in DocumentBuilder'
             : `add the decorator for the security scheme "${mapped[0] ?? ''}" to the handler, ` +
-              'for example @ApiBearerAuth(name), or declare it in DocumentBuilder',
-        edit: 'new-assertion',
+              'for example @ApiBearerAuth(name), or declare it in DocumentBuilder'
+          : 'confirm by hand whether this route is public. If it is protected, declare security ' +
+            'in DocumentBuilder; if a route level escape exempts it, nothing here is wrong',
+        edit: routeGuarded ? 'new-assertion' : 'unscoped-assertion',
         basis,
+        // THE WEAKER OBSERVATION IS REPORTED AS ONE. `--fail-on error` still stops on a route
+        // somebody guarded and did not document, and no longer stops on every public route of
+        // every application whose auth is one `APP_GUARD`.
+        ...(routeGuarded ? {} : { severity: 'warning' as const }),
         // THE FIRST MAPPED SCHEME AND NOT ALL OF THEM. Several guards may stand on one route and
         // each may map, but the assertion this fills is the operation's silence about security,
         // and one requirement ends that silence. Writing every mapped scheme would assert that the
@@ -421,9 +466,11 @@ const ORPHAN_OPERATION: OperationRule = {
   label: 'Documented operations the application serves',
 
   check(operation: IROperation, context: RuleContext): Outcome {
-    const observation = context.observation;
-    if (observation === undefined) return OUT_OF_SCOPE;
-    if (observation.handledNodeIds.has(operation.id)) return CLEAN;
+    // NO PAIRING, NO ANSWER. Either no pass ran, or the caller re-asking this rule holds the
+    // document alone, which does not record which operations were paired with a handler.
+    const handled = context.observation?.handledNodeIds;
+    if (handled === undefined) return OUT_OF_SCOPE;
+    if (handled.has(operation.id)) return CLEAN;
 
     return found({
       message: 'The specification describes this operation and no handler was found for it.',
@@ -605,11 +652,19 @@ const STATUS_DRIFT: OperationRule = {
 
 /**
  * `missing-description`: the operation says nothing about itself.
+ *
+ * THE LABEL NAMES BOTH FIELDS BECAUSE THE PREDICATE ACCEPTS BOTH, and the two disagreeing is how
+ * this line printed `58 / 58 Operations with a description` on a document where seven operations
+ * of fifty eight have a `description`. SPEC 7.1 fixes the predicate and gives the reason: an
+ * operation with a `summary` is described briefly rather than undescribed, and a rule firing on
+ * every operation of an ordinary NestJS document is a panel that stops being read. What was wrong
+ * was never the count; it was a label claiming to have counted something else. The label is part
+ * of the report's contract, per SPEC 7.2, because it is the whole of what a reader is told.
  */
 const MISSING_DESCRIPTION: OperationRule = {
   id: 'missing-description',
   severity: 'warning',
-  label: 'Operations with a description',
+  label: 'Operations with a summary or a description',
 
   check(operation: IROperation): Outcome {
     if (operation.description !== undefined || operation.summary !== undefined) return CLEAN;
@@ -657,11 +712,17 @@ const MISSING_EXAMPLE: OperationRule = {
 
 /**
  * `missing-operation-id`: the public name of the operation is whatever the generator produced.
+ *
+ * THE LABEL SAYS WHOSE ID IS BEING COUNTED, because `Operations with a stable operationId` reading
+ * `0 / 58` on a document where all fifty eight carry one told a reader the document has no
+ * operation ids. The count was right and unreadable: none of those ids was written by a person,
+ * they are all `Controller_method`, and the sentence a reader needed was that one. The message
+ * below has said which of the two cases it is since T025; the line above the findings had not.
  */
 const MISSING_OPERATION_ID: OperationRule = {
   id: 'missing-operation-id',
   severity: 'warning',
-  label: 'Operations with a stable operationId',
+  label: 'Operations whose operationId a person wrote',
 
   check(operation: IROperation): Outcome {
     const raw = operation.rawOperationId;
@@ -872,7 +933,7 @@ function issueOf(
 ): IRDriftIssue {
   return {
     rule: rule.id,
-    severity: rule.severity,
+    severity: finding.severity ?? rule.severity,
     ...(subject.nodeId === undefined ? {} : { nodeId: subject.nodeId }),
     ...(subject.schemaId === undefined ? {} : { schemaId: subject.schemaId }),
     ...(subject.pointer === undefined ? {} : { pointer: subject.pointer }),

@@ -88,13 +88,24 @@ describe('the rows TX-COLLECTORS filled, on the served pages', () => {
       expect(unread).toContain('SP010');
       expect(unread).toContain('#oref-rule-parameter-unread');
 
-      // And the row whose fact this operation does not have keeps the observed silence: the
-      // hatch outlived the collectors, the phrase naming a missing instrument did not
+      // And the row whose fact this operation does not have says which silence it is, on a real
+      // served page: the collector ran on this application and had nothing to report here, which
+      // since `TX-INSTRUMENT` is a different sentence from the one a missing collector gets
       const headers = rowOf(page, 'required-headers');
       expect(headers).toContain('oref-hatch');
-      expect(headers).toContain('Nothing observed here.');
+      expect(headers).toContain(
+        'headersCollector examined this route and found no required header. The route is silent, not unmeasured.',
+      );
+      expect(page).not.toContain('Nothing observed here.');
       expect(page).not.toContain('does not exist yet');
       expect(page).not.toContain('nothing reads yet');
+
+      // And the reason is on the verdict too, where a reader who is not using a screen reader
+      // can reach it. `aria-label` carried it alone until this.
+      expect(headers).toContain('aria-label="comparison not run"');
+      expect(headers).toContain(
+        'title="headersCollector examined this route and found no required header.',
+      );
     },
     TIMEOUT,
   );

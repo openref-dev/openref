@@ -260,7 +260,10 @@ describe('the hash carries an order the document wrote, per SPEC 5.3', () => {
     // Then, the subject is present: there are sorted maps, and none of them is in the list.
     // `value` is here because one name serves `IRExample.value` and `IRFact.value` and the
     // serializer sees only the name, which the record states in full.
-    expect(sorted).toEqual(['nodes', 'schemas', 'webhooks', 'value']);
+    // `guardSchemes` joined them at `TX-INSTRUMENT`: the host writes the mapping and nothing
+    // renders it in order, so hashing the order two guards were written in would invalidate a
+    // cache over nothing.
+    expect(sorted).toEqual(['nodes', 'schemas', 'webhooks', 'value', 'guardSchemes']);
     expect(leaked).toEqual([]);
   });
 });

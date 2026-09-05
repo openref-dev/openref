@@ -24,6 +24,7 @@ import {
   contentTypeHeaderOf,
   headersOf,
   multipartFieldsOf,
+  shellUrl,
   textBodyOf,
 } from './plan-parts';
 import type { SampleRequest } from './sample-request';
@@ -107,7 +108,7 @@ export function emitHttpie(request: SampleRequest): EmitOutcome {
 
   const parts = [
     `http${file === null ? ' --ignore-stdin' : ''} ${request.plan.method} ` +
-      quoteShell(request.plan.url),
+      shellUrl(request.plan.url),
     ...headers.map(([name, value]) => quoteShell(value === '' ? `${name};` : `${name}:${value}`)),
   ];
 
@@ -158,7 +159,7 @@ export function emitWget(request: SampleRequest): EmitOutcome {
   if (file !== null) parts.push(`--body-file ${quoteShell(file.fileName)}`);
   else if (text !== null) parts.push(`--body-data ${quoteShell(text)}`);
 
-  parts.push(quoteShell(request.plan.url));
+  parts.push(shellUrl(request.plan.url));
 
   return { kind: 'source', source: parts.join(CONTINUE) };
 }

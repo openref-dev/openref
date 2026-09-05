@@ -234,7 +234,7 @@ describe('runRuntimePass, the health report', () => {
     // Then a failed collector is a health check and never a drift finding, per SPEC 7
     expect(check).toEqual({
       id: 'runtime-collectors',
-      label: 'Runtime collectors that ran',
+      label: 'Runtime collectors that reported a fact',
       passed: 1,
       total: 2,
       severity: 'warning',
@@ -318,6 +318,25 @@ describe('runRuntimePass, the health report', () => {
     const found = result.document.health?.drift.filter((issue) => issue.rule === 'security-drift');
     expect(found).toHaveLength(1);
     expect(found?.[0]?.classification).toEqual({ bucket: 'contradiction' });
+
+    // And the mapping travels on the document, so a renderer re-asking this rule after the pass
+    // ends compares the same two things the report compared. Without it the parity gutter drew
+    // `?` over the operations the health page had already counted as passed.
+    expect(result.document.runtime?.guardSchemes).toEqual({ JwtAuthGuard: 'bearer' });
+  });
+
+  it('should leave the guard mapping off a document whose host configured none', () => {
+    // Given, an absent field is the claim that there is nothing to compare with, which is what
+    // `security-drift` reads it as
+    const result = runRuntimePass(document(), {
+      collectors: [scopes],
+      discovery,
+      reflector,
+      moduleRef,
+    });
+
+    // Then
+    expect(result.document.runtime?.guardSchemes).toBeUndefined();
   });
 
   it('should put a guard registered under APP_GUARD on a route that declares none', () => {
