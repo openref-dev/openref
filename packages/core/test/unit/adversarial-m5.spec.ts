@@ -568,7 +568,10 @@ describe('a message payload whose declared dialect does not match its content', 
     // And it reaches the reader through `discovery-incomplete`, which SPEC 7.1 widened to this
     // reader rather than gaining a second code for the same question
     const finding = buildDoctorReport(document).findings.find((entry) => entry.code === 'RT070');
-    expect(finding?.message).toContain('channel-a.messages.m.payload');
+    // THE SUBJECT IS ITS OWN MEMBER AND NOT A PREFIX ON THE MESSAGE, per SPEC 7.2 since
+    // 2026-09-05: it used to be glued to the front of every `discovery-incomplete` message and
+    // printed a second time as the suggestion.
+    expect(finding?.subject).toContain('channel-a.messages.m.payload');
     expect(finding?.message).toContain('contentEncoding, contentMediaType');
   });
 

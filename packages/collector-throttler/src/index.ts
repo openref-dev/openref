@@ -79,7 +79,12 @@ export interface MetadataReader {
 export interface ThrottlerCollectorProblem {
   /** `OrdersController.list`, as a reader recognises it. */
   readonly subject: string;
+  /** The cause and what is not known because of it, in one clause, per SPEC 7.1. */
   readonly reason: string;
+  /** The action, or that there is none and why the finding is recorded anyway, per SPEC 7.1. */
+  readonly action: string;
+  /** The reasoning behind it, for a reader who opens it. Absent where the cause is its own. */
+  readonly detail?: string;
 }
 
 /** The collector, with the record of what it could not read. */
@@ -276,7 +281,11 @@ function firstComplete(
         subject,
         reason:
           `the throttler "${name}" declares ${partial.limit === undefined ? 'a ttl and no limit' : 'a limit and no ttl'}, ` +
-          'so it is not a rate limit anything can be said about and nothing was reported for it',
+          'so no rate limit is known for it',
+        action: 'name both limit and ttl on the throttler',
+        detail:
+          'Half a throttler is not a rate limit anything can be said about: a count with no ' +
+          'window and a window with no count each describe nothing a reader could act on.',
       });
       continue;
     }
@@ -287,13 +296,16 @@ function firstComplete(
   if (complete.length > 1) {
     problems.push({
       subject,
-      reason:
-        `${String(complete.length)} named throttlers apply and the reference carries one: ` +
-        `"${complete[0]?.name ?? ''}". The others are ` +
+      reason: `${String(complete.length)} named throttlers apply here and the reference carries one`,
+      action: `check which of them this route is really limited by; it shows "${complete[0]?.name ?? ''}"`,
+      detail:
+        'The others are ' +
         complete
           .slice(1)
           .map((limit) => `"${limit.name ?? ''}"`)
-          .join(', '),
+          .join(', ') +
+        '. Which one a request is counted against is decided inside the guard, and guard logic ' +
+        'is never read, per SPEC 6.1.',
     });
   }
 

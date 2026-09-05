@@ -12,7 +12,7 @@
       },
       {
         "file": "ai-docs/PROJECT_STATE.md",
-        "bytes": 981342
+        "bytes": 989352
       },
       {
         "file": "ai-docs/SPEC.md",
@@ -988,5 +988,5 @@
       }
     ]
   },
-  "integrity": "#913a39159f5f13d9"
+  "integrity": "#46b73763246e2a52"
 }

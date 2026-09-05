@@ -163,7 +163,8 @@ describe('locateFunction', () => {
 
     // Then
     expect(result.location).toBeUndefined();
-    expect(result.reason).toContain('[[FunctionLocation]]');
+    expect(result.reason).toContain('V8 reports no location for this handler');
+    expect(result.detail).toContain('bound or generated wrapper');
   });
 
   it('should refuse a native function, which is written in no file at all', () => {

@@ -1,12 +1,18 @@
 /**
  * The Documentation Health report of SPEC 7.2: a percentage, a line per rule, and the findings.
  *
- * THE SCORE IS THE MEAN OF THE PER CHECK RATIOS AND NOT ONE POOLED RATIO, per SPEC 7.2. Each check
+ * THE SCORE IS A MEAN OF THE PER CHECK RATIOS AND NOT ONE POOLED RATIO, per SPEC 7.2. Each check
  * is one question about the document, and the score answers how many of those questions the
  * document answers well. Pooling every subject into one fraction would let the rule with the
  * largest denominator decide for the rest: five hundred DTO fields would outvote a hundred and
  * twenty seven operations, and a document with no described endpoint at all would score well for
  * having described its fields.
+ *
+ * THE MEAN IS WEIGHTED, SINCE 2026-09-05, BY SEVERITY AND BY THE ROOT OF THE SUBJECT COUNT. Both
+ * halves close a defect measured on a real application rather than reasoned about, and both are
+ * recorded on {@link healthScore} and the two helpers above it. The unweighted mean is the shape
+ * this paragraph defends and the weights are what stopped it lying about which findings are loud
+ * and how many of them there are.
  *
  * A CHECK WITH NOTHING TO COUNT IS LEFT OUT RATHER THAN COUNTED AS PERFECT. A document with no
  * streaming endpoint is scored on the questions it can be asked; giving it the tenth question for
@@ -37,7 +43,68 @@ export interface HealthReportOptions {
 }
 
 /**
+ * How loud a check is, per SPEC 7.2, as an integer multiplier on its weight.
+ *
+ * IT ENTERED THE SCORE ON 2026-09-05 AND UNTIL THEN IT DID NOT ENTER AT ALL. Measured on the
+ * maintainer's application: four `security-drift` findings, a rule whose severity is `error`, cost
+ * the score 0.63 points, while fifty three `missing-example` findings, a rule whose severity is
+ * `info`, cost 9.09. Per finding that is 0.157 against 0.171, so the quiet finding was the more
+ * expensive one and a reader watching the number was being told the opposite of the report.
+ */
+const SEVERITY_WEIGHT: Readonly<Record<IRDriftSeverity, number>> = {
+  error: 4,
+  warning: 2,
+  info: 1,
+};
+
+/**
+ * The integer square root, which is how the number of subjects enters a check's weight.
+ *
+ * `Math.sqrt` IS AN IMPLEMENTATION APPROXIMATED VALUE IN ECMASCRIPT AND THE SCORE IS HASHED. The
+ * whole report rides in `IRDocument.health`, so a figure that two engines may disagree about in the
+ * last bit is a figure that can give one document two hashes. This is exact integer arithmetic and
+ * terminates for every non-negative input.
+ *
+ * @param value - The number of subjects a check asked about, which is never negative
+ * @returns The largest integer whose square does not exceed it, and never less than one
+ */
+function integerRoot(value: number): number {
+  if (value <= 1) return 1;
+
+  let guess = value;
+  let next = Math.floor((guess + 1) / 2);
+  while (next < guess) {
+    guess = next;
+    next = Math.floor((guess + Math.floor(value / guess)) / 2);
+  }
+
+  return guess;
+}
+
+/**
+ * What one check is worth in the score, per SPEC 7.2.
+ *
+ * THE ROOT AND NOT THE COUNT, BECAUSE THE PARAGRAPH ABOVE STAYS TRUE. Weighting by the subject
+ * count outright is the pooled ratio wearing a different name, and five hundred DTO fields would
+ * decide for a hundred and twenty seven operations. Measured on the maintainer's application: 466
+ * described fields weigh 21 and a `warning` check over 58 operations weighs 14, so the one large
+ * quiet check is worth one and a half ordinary checks rather than eight.
+ *
+ * @param check - The check, which has at least one subject
+ * @returns Its weight, a positive integer
+ */
+function checkWeight(check: IRHealthCheck): number {
+  return SEVERITY_WEIGHT[check.severity] * integerRoot(check.total);
+}
+
+/**
  * Computes the percentage of SPEC 7.2 from the checks it is made of.
+ *
+ * IT IS A WEIGHTED MEAN OF THE PER CHECK RATIOS SINCE 2026-09-05, AND STILL NOT ONE POOLED RATIO.
+ * The module header says why the mean; {@link checkWeight} and {@link SEVERITY_WEIGHT} say why the
+ * weights. The second defect they close is that a plain mean charges the same for a check that
+ * failed nine subjects and one that failed sixty eight, so the number a reader watches did not move
+ * when the count of unanswered subjects went up sixfold.
  *
  * @param checks - Every check in the report
  * @returns Whole percentage points, 0 to 100, and 100 when nothing could be asked
@@ -46,9 +113,15 @@ export function healthScore(checks: readonly IRHealthCheck[]): number {
   const asked = checks.filter((check) => check.total > 0);
   if (asked.length === 0) return 100;
 
-  const total = asked.reduce((sum, check) => sum + check.passed / check.total, 0);
+  let weighted = 0;
+  let weight = 0;
+  for (const check of asked) {
+    const own = checkWeight(check);
+    weighted += own * (check.passed / check.total);
+    weight += own;
+  }
 
-  return Math.round((total / asked.length) * 100);
+  return Math.round((weighted / weight) * 100);
 }
 
 /**
@@ -134,6 +207,85 @@ export function groupDriftByRule(issues: readonly IRDriftIssue[]): readonly Drif
 
       return count === 0 ? left.rule.localeCompare(right.rule) : count;
     });
+}
+
+/** Every finding that says the same thing about a different subject, per SPEC 7.2. */
+export interface DriftCauseGroup {
+  /**
+   * The first finding of the group, which speaks for all of them.
+   *
+   * IT IS A MEMBER AND NOT A SUMMARY. Every finding here carries the same rule, severity, message,
+   * detail, suggestion and both measured sides, because those are what the group is keyed by, so
+   * reading any one of them reads the cause. It is a named member rather than `issues[0]` so that
+   * no consumer has to write a fallback for a group that cannot be empty.
+   */
+  readonly issue: IRDriftIssue;
+  /** The findings, in report order, never fewer than one and never truncated. */
+  readonly issues: readonly IRDriftIssue[];
+  /** How many subjects this one cause was found on, which is `issues.length`. */
+  readonly count: number;
+}
+
+/**
+ * The whole of a finding except which subject it is about, as one comparable string.
+ *
+ * THE MEASURED SIDES ARE IN THE KEY AND THAT IS WHERE THE CLASS ENDS. A finding whose runtime or
+ * specification side names something that differs per subject cannot be a copy of another, so it
+ * groups with nothing and stays itself. Measured on the maintainer's application: `missing-example`
+ * has no side and its 53 findings are one sentence 53 times, while `missing-operation-id` prints
+ * each operation's own `Controller.handler` and its 58 stay 58. Nothing here decides which of those
+ * is right; the presence of a measured side decides it, which is the property rather than a list.
+ *
+ * @param issue - The finding
+ * @returns A key equal for two findings a reader could not tell apart but by their subject
+ */
+function causeKey(issue: IRDriftIssue): string {
+  return [
+    issue.rule,
+    issue.severity,
+    issue.message,
+    issue.detail ?? '',
+    issue.suggestion,
+    issue.runtimeValue ?? '',
+    issue.specValue ?? '',
+  ].join('\u0000');
+}
+
+/**
+ * Folds findings that differ only in their subject into one, per SPEC 7.2.
+ *
+ * GROUPING BY RULE WAS NOT ENOUGH AND THIS IS THE SECOND HALF OF IT. {@link groupDriftByRule} keeps
+ * the panel to ten rows a reader scans; inside one of those rows a reader was still handed a
+ * hundred copies of one sentence. Measured on the maintainer's application, where the reader was
+ * shown 186 findings: 53 of them are `missing-example` with byte identical text, and 68 are
+ * `discovery-incomplete` from five causes. The same list is 68 rows once folded.
+ *
+ * IT IS PRESENTATION AND IT DOES NOT TOUCH THE REPORT, which is why it lives beside
+ * {@link groupDriftByRule} rather than inside {@link buildHealthReport}. `IRHealthReport.drift`
+ * stays one finding per subject because {@link driftForNode} draws a node's own findings on that
+ * node's page, and a group covering fifty three operations belongs to none of them.
+ *
+ * ORDER IS THE ORDER OF FIRST APPEARANCE, so a folded list is the report's own order with the
+ * repeats removed, and it is as fixed as the report is.
+ *
+ * @param issues - Findings from {@link IRHealthReport.drift}, in report order
+ * @returns One group per distinct cause, each carrying its count and every subject
+ */
+export function groupDriftByCause(issues: readonly IRDriftIssue[]): readonly DriftCauseGroup[] {
+  const groups = new Map<string, { first: IRDriftIssue; found: IRDriftIssue[] }>();
+
+  for (const issue of issues) {
+    const key = causeKey(issue);
+    const held = groups.get(key);
+    if (held === undefined) groups.set(key, { first: issue, found: [issue] });
+    else held.found.push(issue);
+  }
+
+  return [...groups.values()].map((group) => ({
+    issue: group.first,
+    issues: group.found,
+    count: group.found.length,
+  }));
 }
 
 /**

@@ -336,14 +336,19 @@ describe('a route governed from outside itself', () => {
       }),
     );
 
-    // Then the route's own record names the guard and refuses to attribute the budget to it
+    // Then the route's own record names the guard and refuses to attribute the budget to it, in
+    // the three members SPEC 7.1 requires: the cause on `reason`, the next step on `action`, and
+    // the reasoning a reader opens on `detail`
     const route = collector
       .problems()
       .find((problem) => problem.subject === 'WidgetsController.ingest');
     expect(route?.reason).toContain('GlobalRateLimitGuard');
-    expect(route?.reason).toContain('never read');
-    expect(route?.reason).toContain('900 request(s) per 60000 ms');
-    expect(route?.reason).toContain('nothing observed says that guard applies it to this route');
+    expect(route?.reason).toContain('declares no limit of its own');
+    expect(route?.reason).toContain('its budget is not known');
+    expect(route?.action).toContain('@RateLimit({ points, duration })');
+    expect(route?.detail).toContain('never read');
+    expect(route?.detail).toContain('900 request(s) per 60000 ms');
+    expect(route?.detail).toContain('nothing observed says that guard applies it to this route');
   });
 
   it('should state the module budget once, as a fact about the application', () => {
@@ -365,8 +370,20 @@ describe('a route governed from outside itself', () => {
       .filter((problem) => problem.subject === 'the application');
     expect(application).toHaveLength(1);
     expect(application[0]?.reason).toContain('900 request(s) per 60000 ms');
-    expect(application[0]?.reason).toContain('RATE_LIMIT_PLUGIN_OPTIONS');
     expect(application[0]?.reason).toContain('written onto no route');
+
+    // AND THE FIGURE IS IN THE ACTION TOO, which is the one place a repeat is right. `openref
+    // doctor` prints the subject and the action and never the reason, per SPEC 7.2, and this is
+    // the only finding whose whole content is the number.
+    expect(application[0]?.action).toContain('@RateLimit({ points: 900, duration: 60 })');
+    expect(application[0]?.action).toContain('carries them already and does not use this');
+    expect(application[0]?.detail).toContain('RATE_LIMIT_PLUGIN_OPTIONS');
+    expect(application[0]?.detail).toContain('guard logic is never read');
+
+    // AND IT CLAIMS NOTHING ABOUT ROUTES IT HAS NOT READ. The record is pushed on the first node
+    // of the pass, before any route's own decorator has been seen, so a sentence saying no route
+    // uses the default would be an assertion about routes nothing had examined.
+    expect(application[0]?.reason).not.toContain('no route is known');
   });
 
   it('should read the module budget from the provider, which was measured to be reachable', () => {
@@ -396,10 +413,16 @@ describe('a route governed from outside itself', () => {
     // When
     collector.collect(contextOf({ globalGuards: ['GlobalRateLimitGuard'] }));
 
-    // Then, and there is no application level record because there is no budget to state
+    // Then, and there is no application level record because there is no budget to state. The
+    // absence is the reasoning behind the finding rather than its cause, so it is on `detail`.
     expect(collector.problems()).toHaveLength(1);
-    expect(collector.problems()[0]?.subject).toBe('WidgetsController.ingest');
-    expect(collector.problems()[0]?.reason).toContain('No module budget was registered');
+    const problem = collector.problems()[0];
+    expect(problem?.subject).toBe('WidgetsController.ingest');
+    expect(problem?.reason).toContain('stands behind GlobalRateLimitGuard');
+    expect(problem?.reason).toContain('its budget is not known');
+    expect(problem?.action).toContain('@RateLimit({ points, duration })');
+    expect(problem?.detail).toContain('No module budget was registered');
+    expect(problem?.detail).toContain('nothing anywhere states a number for this route');
   });
 
   it('should keep a decorated route a fact and not warn about the global guard on it', () => {
@@ -462,7 +485,9 @@ describe('what the collector refuses to read, per SPEC 6.2.2', () => {
     const problem = collector.problems()[0];
     expect(problem?.subject).toBe('WidgetsController.ingest');
     expect(problem?.reason).toContain('key function');
-    expect(problem?.reason).toContain('never');
+    expect(problem?.reason).toContain('what the limit is counted per is not known');
+    expect(problem?.action).toContain('use a string key');
+    expect(problem?.detail).toContain('never read');
   });
 
   it('should report a skip function rather than treating the limit as unconditional', () => {
@@ -486,10 +511,14 @@ describe('what the collector refuses to read, per SPEC 6.2.2', () => {
     // When
     const produced = collector.collect(contextOf());
 
-    // Then
+    // Then, and the provider is named where the reasoning is, not in the one clause `doctor` has
+    // room for
     expect(produced).toBeUndefined();
-    expect(collector.problems()[0]?.reason).toContain('points and no duration');
-    expect(collector.problems()[0]?.reason).toContain('RATE_LIMIT_PLUGIN_OPTIONS');
+    const problem = collector.problems()[0];
+    expect(problem?.reason).toContain('points and no duration');
+    expect(problem?.reason).toContain('no limit is known');
+    expect(problem?.action).toContain('name both points and duration');
+    expect(problem?.detail).toContain('RATE_LIMIT_PLUGIN_OPTIONS');
   });
 
   it('should report nothing when the decorator names neither half', () => {
@@ -514,9 +543,14 @@ describe('what the collector refuses to read, per SPEC 6.2.2', () => {
     // When
     const produced = collector.collect(contextOf());
 
-    // Then
+    // Then, and the action says plainly that there is none to take, which is why the finding is
+    // recorded at all
     expect(produced).toBeUndefined();
-    expect(collector.problems()[0]?.reason).toContain('bucket capacity');
+    const problem = collector.problems()[0];
+    expect(problem?.reason).toContain('token-bucket algorithm');
+    expect(problem?.reason).toContain('no count per window is known');
+    expect(problem?.action).toContain('unless the route can use a windowed algorithm');
+    expect(problem?.detail).toContain('bucket capacity');
   });
 
   it('should qualify a memory store limit as per instance and still report it', () => {
@@ -529,8 +563,12 @@ describe('what the collector refuses to read, per SPEC 6.2.2', () => {
 
     // Then
     expect(produced?.rateLimit?.value).toEqual({ limit: 720, ttlMs: 60_000 });
-    expect(collector.problems()[0]?.reason).toContain('one instance');
-    expect(collector.problems()[0]?.reason).toContain('instance count is runtime state');
+    const problem = collector.problems()[0];
+    expect(problem?.reason).toContain('store: "memory"');
+    expect(problem?.reason).toContain('the limit across the deployment is not known');
+    expect(problem?.action).toContain('declare store: "redis"');
+    expect(problem?.detail).toContain('one instance');
+    expect(problem?.detail).toContain('instance count is runtime state');
   });
 
   it('should refuse a points value that is not a positive finite number', () => {

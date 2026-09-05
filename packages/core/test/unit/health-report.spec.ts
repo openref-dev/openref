@@ -2,9 +2,11 @@ import { describe, expect, it } from 'vitest';
 import {
   buildHealthReport,
   driftForNode,
+  groupDriftByCause,
   groupDriftByRule,
   healthScore,
   type IRDocument,
+  type IRDriftIssue,
   type IRHealthCheck,
   type IRNode,
   type IROperation,
@@ -67,8 +69,107 @@ describe('healthScore', () => {
     const score = healthScore(checks);
 
     // Then. A POOLED RATIO WOULD READ 99%, which is a document with nothing described at all
-    // scoring well for having described its fields.
-    expect(score).toBe(50);
+    // scoring well for having described its fields. The weights of SPEC 7.2 are `info` at 1 times
+    // the root of 500, which is 22, against `warning` at 2 times the root of 4, which is 4, so the
+    // big quiet question is worth five and a half of the small loud one rather than a hundred and
+    // twenty five. THE RESIDUE IS NAMED RATHER THAN SMOOTHED: at four operations this is still a
+    // high number, and the next case is why the bound is drawn where it is.
+    expect(score).toBe(85);
+  });
+
+  it('should let no check outvote the rest by being asked of more subjects', () => {
+    // Given SPEC 7.2's own scenario rather than an extreme of it: five hundred DTO fields and a
+    // hundred and twenty seven operations, which is the pair the paragraph names when it refuses
+    // the pooled ratio
+    const fields: IRHealthCheck = {
+      id: 'dto-field-undescribed',
+      label: 'fields',
+      passed: 500,
+      total: 500,
+      severity: 'info',
+    };
+    const operations: IRHealthCheck = {
+      id: 'missing-description',
+      label: 'operations',
+      passed: 0,
+      total: 127,
+      severity: 'warning',
+    };
+
+    // When both are failed outright and then each in turn
+    const fieldsFail = healthScore([
+      { ...fields, passed: 0 },
+      { ...operations, passed: 127 },
+    ]);
+    const operationsFail = healthScore([fields, operations]);
+
+    // Then the two cost the same, which is the property: `info` at 1 times the root of 500 is 22,
+    // and `warning` at 2 times the root of 127 is 22. A pooled ratio would have made the fields
+    // worth four operations each.
+    expect(fieldsFail).toBe(operationsFail);
+    expect(fieldsFail).toBe(50);
+  });
+
+  it('should charge more for a check that failed sixty eight subjects than one that failed nine', () => {
+    // Given the same rule failing outright at two sizes, beside one check that passes, so the two
+    // scores are comparable. WHAT USED TO HAPPEN: the mean was unweighted, so a check scoring zero
+    // cost one eleventh of the score whether its denominator was 9 or 68, and the number a reader
+    // watches did not move when the count of unanswered subjects went up sixfold.
+    const passing: IRHealthCheck = {
+      id: 'orphan-operation',
+      label: 'served',
+      passed: 9,
+      total: 9,
+      severity: 'error',
+    };
+    const small: IRHealthCheck = {
+      id: 'discovery-incomplete',
+      label: 'stated',
+      passed: 0,
+      total: 9,
+      severity: 'warning',
+    };
+
+    // When
+    const nine = healthScore([passing, small]);
+    const sixtyEight = healthScore([passing, { ...small, total: 68 }]);
+
+    // Then the larger failure costs more. The two really are the same rule at the same severity,
+    // differing only in how many subjects went unanswered, so nothing but the size moved.
+    expect(sixtyEight).toBeLessThan(nine);
+    expect(nine).toBe(67);
+    expect(sixtyEight).toBe(43);
+  });
+
+  it('should charge more for a loud check than a quiet one of the same size', () => {
+    // Given two checks of the same size failing outright, one at the severity of a rule a reader
+    // must act on and one at the severity of a rule they may not. WHAT USED TO HAPPEN: severity
+    // did not enter the score at all, so on the maintainer's application four `error` findings
+    // cost 0.63 points while fifty three `info` findings cost 9.09.
+    const passing: IRHealthCheck = {
+      id: 'orphan-operation',
+      label: 'served',
+      passed: 58,
+      total: 58,
+      severity: 'error',
+    };
+    const loud: IRHealthCheck = {
+      id: 'security-drift',
+      label: 'guarded',
+      passed: 0,
+      total: 58,
+      severity: 'error',
+    };
+    const quiet: IRHealthCheck = { ...loud, id: 'missing-example', severity: 'info' };
+
+    // When
+    const withLoud = healthScore([passing, loud]);
+    const withQuiet = healthScore([passing, quiet]);
+
+    // Then
+    expect(withLoud).toBeLessThan(withQuiet);
+    expect(withLoud).toBe(50);
+    expect(withQuiet).toBe(80);
   });
 
   it('should leave a check with nothing to count out rather than call it perfect', () => {
@@ -261,5 +362,88 @@ describe('buildHealthReport', () => {
 
     // Then every runtime rule counts nothing rather than failing everything
     expect(runtimeRules.map((check) => check.total)).toEqual([0, 0, 0, 0]);
+  });
+});
+
+describe('groupDriftByCause', () => {
+  const base: IRDriftIssue = {
+    rule: 'missing-example',
+    severity: 'info',
+    message: 'No request or response body of this operation carries an example.',
+    suggestion: 'add example or examples to the media type',
+    classification: { bucket: 'manual', reason: 'structural-ambiguity' },
+    edit: 'nothing-to-write',
+    basis: { kind: 'unobserved' },
+  };
+
+  it('should fold findings that differ only in their subject into one row', () => {
+    // Given the shape the maintainer's application produced 53 of: one sentence, no measured side,
+    // one subject each. WHAT USED TO HAPPEN: a reader opened the group and was handed 53 byte
+    // identical rows one under the other.
+    const issues: readonly IRDriftIssue[] = [
+      { ...base, nodeId: 'get-orders' },
+      { ...base, nodeId: 'post-orders' },
+      { ...base, nodeId: 'get-orders-id' },
+    ];
+
+    // When
+    const grouped = groupDriftByCause(issues);
+
+    // Then one cause, its count, and every subject kept
+    expect(grouped).toHaveLength(1);
+    expect(grouped[0]?.count).toBe(3);
+    expect(grouped[0]?.issues.map((issue) => issue.nodeId)).toEqual([
+      'get-orders',
+      'post-orders',
+      'get-orders-id',
+    ]);
+    expect(grouped[0]?.issue).toBe(issues[0]);
+  });
+
+  it('should fold nothing when a side is measured, because then no two are copies', () => {
+    // Given the shape `missing-operation-id` produces: the same sentence with each operation's own
+    // `Controller.handler` beside it. This is the boundary of the class rather than an exception
+    // to it: a finding whose measured side differs per subject is not a copy of any other.
+    const issues: readonly IRDriftIssue[] = [
+      { ...base, nodeId: 'a', runtimeValue: 'OrdersController.list' },
+      { ...base, nodeId: 'b', runtimeValue: 'OrdersController.create' },
+    ];
+
+    // When
+    const grouped = groupDriftByCause(issues);
+
+    // Then. The subject is asserted present first: the two really do share their rule, severity,
+    // message and suggestion, so only the measured side kept them apart.
+    expect(issues[0]?.message).toBe(issues[1]?.message);
+    expect(grouped).toHaveLength(2);
+    expect(grouped.map((group) => group.count)).toEqual([1, 1]);
+  });
+
+  it('should fold nothing when the reasoning below the fold differs', () => {
+    // Given two findings a reader would see as identical until they opened them
+    const issues: readonly IRDriftIssue[] = [
+      { ...base, nodeId: 'a', detail: 'One reason it cannot be read.' },
+      { ...base, nodeId: 'b', detail: 'A different one.' },
+    ];
+
+    // When, Then
+    expect(groupDriftByCause(issues)).toHaveLength(2);
+  });
+
+  it('should keep every finding, so folding can hide nothing', () => {
+    // Given a mixed list, which is the property that matters more than any single grouping
+    const issues: readonly IRDriftIssue[] = [
+      { ...base, nodeId: 'a' },
+      { ...base, nodeId: 'b' },
+      { ...base, nodeId: 'c', severity: 'warning' },
+      { ...base, nodeId: 'd', specValue: 'no operationId' },
+    ];
+
+    // When
+    const grouped = groupDriftByCause(issues);
+
+    // Then the counts sum to the input and every finding is in exactly one group
+    expect(grouped.reduce((total, group) => total + group.count, 0)).toBe(issues.length);
+    expect(grouped.flatMap((group) => group.issues)).toEqual(issues);
   });
 });

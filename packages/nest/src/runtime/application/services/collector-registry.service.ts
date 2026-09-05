@@ -1,5 +1,6 @@
 import type {
   IRConfidence,
+  IRDiscoveryProblem,
   IRFact,
   IRHealthCheck,
   IRNodeRuntime,
@@ -110,14 +111,28 @@ export const COLLECTOR_HEALTH_CHECK_ID = 'runtime-collectors';
  * @param entry - One element of whatever `problems()` returned
  * @returns The problem, or undefined when the element is not one
  */
-function asProblem(entry: unknown): { subject: string; reason: string } | undefined {
+function asProblem(entry: unknown): IRDiscoveryProblem | undefined {
   if (typeof entry !== 'object' || entry === null) return undefined;
 
-  const { subject, reason } = entry as { subject?: unknown; reason?: unknown };
+  const { subject, reason, action, detail } = entry as {
+    subject?: unknown;
+    reason?: unknown;
+    action?: unknown;
+    detail?: unknown;
+  };
   if (typeof subject !== 'string' || typeof reason !== 'string') return undefined;
   if (subject === '' || reason === '') return undefined;
 
-  return { subject, reason };
+  // THE TWO OPTIONAL HALVES OF SPEC 7.1's VOICE, EACH READ ON ITS OWN. A collector that supplies
+  // neither is exactly where it was: its one sentence lands in both slots, which is what every
+  // producer did before the split. A collector that supplies one and not the other is not a
+  // defect either, since a cause can have an action and no reasoning worth opening.
+  return {
+    subject,
+    reason,
+    ...(typeof action === 'string' && action !== '' ? { action } : {}),
+    ...(typeof detail === 'string' && detail !== '' ? { detail } : {}),
+  };
 }
 
 export class CollectorRegistry {
@@ -279,7 +294,7 @@ export class CollectorRegistry {
    *
    * @returns One entry per problem, named by the collector that reported it
    */
-  problems(): readonly { readonly subject: string; readonly reason: string }[] {
+  problems(): readonly IRDiscoveryProblem[] {
     return [...this.collectorProblems(), ...this.contests()];
   }
 
@@ -288,8 +303,8 @@ export class CollectorRegistry {
    *
    * @returns What the collectors could not read, prefixed with the name that could not read it
    */
-  private collectorProblems(): readonly { readonly subject: string; readonly reason: string }[] {
-    const drained: { subject: string; reason: string }[] = [];
+  private collectorProblems(): readonly IRDiscoveryProblem[] {
+    const drained: IRDiscoveryProblem[] = [];
 
     for (const collector of this.collectors) {
       const method = (collector as { problems?: unknown }).problems;
@@ -301,11 +316,14 @@ export class CollectorRegistry {
       } catch (cause) {
         drained.push({
           subject: collector.name,
-          reason:
-            'it threw when asked for the problems it recorded: ' +
-            `${cause instanceof Error ? cause.message : String(cause)}. Whatever it could not ` +
-            'read is therefore unreported, which is a defect in the collector rather than in the ' +
-            'application',
+          reason: 'it threw when asked for the problems it recorded, so they are unreported',
+          action:
+            'report it to whoever wrote the collector: this is a defect in the instrument and ' +
+            'not in the application',
+          detail:
+            'The throw was: ' +
+            `${cause instanceof Error ? cause.message : String(cause)}. Whatever this collector ` +
+            'could not read is therefore missing from this report as well as from the reference.',
         });
         continue;
       }
@@ -318,11 +336,10 @@ export class CollectorRegistry {
 
         // THE COLLECTOR'S NAME GOES IN FRONT, as it does for a skipped one. Every reason in this
         // repository is written as a continuation of its subject, so without the name a reader of
-        // `doctor` is told a route has an unreadable policy and not by which instrument.
-        drained.push({
-          subject: problem.subject,
-          reason: `${collector.name}: ${problem.reason}`,
-        });
+        // `doctor` is told a route has an unreadable policy and not by which instrument. It
+        // survived the sentence being cut to a clause on purpose, per SPEC 7.1: shortening the
+        // text may not cost the provenance, and this word is the whole of it.
+        drained.push({ ...problem, reason: `${collector.name}: ${problem.reason}` });
       }
     }
 
@@ -346,16 +363,21 @@ export class CollectorRegistry {
    *
    * @returns One entry per pair of collectors and field, in the order the ties first happened
    */
-  contests(): readonly { readonly subject: string; readonly reason: string }[] {
+  contests(): readonly IRDiscoveryProblem[] {
     return [...this.contested.values()].map((record) => ({
       subject: record.firstSubject,
       reason:
-        `two collectors reported ${record.contest.field} at "${record.contest.confidence}", and ` +
-        `equal confidence is broken by registration order, so ${record.contest.kept} is in the ` +
-        `reference and ${record.contest.dropped} was dropped${
+        `two collectors reported ${record.contest.field}, so ${record.contest.dropped} was ` +
+        'dropped and the reference carries one of the two readings',
+      action:
+        `register only ${record.contest.kept} or ${record.contest.dropped}, whichever reads the ` +
+        'mechanism this application runs, or put it first, because the first registration wins',
+      detail:
+        `Both reported at "${record.contest.confidence}", and equal confidence is broken by ` +
+        `registration order, so ${record.contest.kept} is in the reference${
           record.routes === 1 ? '' : ` on this and ${String(record.routes - 1)} further route(s)`
-        }. Register only the collector that reads the mechanism this application actually runs, or ` +
-        'put it first, because the first registration wins',
+        }. Nothing anywhere says the two agreed, which is why this is recorded rather than left ` +
+        'to the deterministic rule that resolved it.',
     }));
   }
 

@@ -34,7 +34,12 @@ export interface TimeoutCollectorOptions {
 export interface TimeoutCollectorProblem {
   /** `OrdersController.list`, as a reader recognises it. */
   readonly subject: string;
+  /** The cause and what is not known because of it, in one clause, per SPEC 7.1. */
   readonly reason: string;
+  /** The action, or that there is none and why the finding is recorded anyway, per SPEC 7.1. */
+  readonly action: string;
+  /** The reasoning behind it, for a reader who opens it. Absent where the cause is its own. */
+  readonly detail?: string;
 }
 
 /** The collector, with the record of what it could not read. */
@@ -79,9 +84,11 @@ export function timeoutCollector(options: TimeoutCollectorOptions): TimeoutColle
       if (typeof raw !== 'number' || !Number.isFinite(raw) || raw <= 0) {
         problems.push({
           subject: `${context.declaredOn.name}.${context.handlerName}`,
-          reason:
-            `the metadata under ${describe(key)} is not a positive number of milliseconds, so ` +
-            'nothing was reported for this route rather than a coerced value',
+          reason: `the metadata under ${describe(key)} is not a duration, so no timeout is known`,
+          action: 'write a positive number of milliseconds under that key',
+          detail:
+            'Nothing was reported for this route rather than a coerced value, because a coerced ' +
+            'value would document a timeout this route does not enforce.',
         });
 
         return undefined;

@@ -605,6 +605,22 @@
   color: var(--oref-color-accent-runtime);
 }
 
+.tt-drift-subjects {
+  margin: var(--oref-space-100) 0 0;
+  padding-left: var(--oref-space-500);
+  color: var(--oref-color-fg-secondary);
+}
+
+.tt-drift-why {
+  margin-top: var(--oref-space-100);
+  color: var(--oref-color-fg-secondary);
+  font-size: var(--oref-font-size-100);
+}
+
+.tt-drift-why summary {
+  cursor: pointer;
+}
+
 /* -- tables -------------------------------------------------------------------------------- */
 
 .tt-table {

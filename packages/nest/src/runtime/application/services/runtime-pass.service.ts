@@ -146,9 +146,13 @@ function withoutGhostFindings(
 
     problems.push({
       subject: `the finding "${issue.message}"`,
-      reason:
-        `a collector reported it against node "${issue.nodeId}", which this document does not ` +
-        'hold, so it was dropped rather than drawn as a link to an operation that is not there',
+      reason: `it names node "${issue.nodeId}", which this document does not hold, so it was dropped`,
+      action:
+        'report it to whoever wrote the collector: a finding addressed to a node that is not ' +
+        'here is a defect in the instrument',
+      detail:
+        'Drawing it would have put a link to an operation that does not exist on a page a ' +
+        'reader is meant to act on.',
     });
   }
 
@@ -234,9 +238,13 @@ export function runRuntimePass(
           {
             subject: 'the application',
             reason:
-              `${String(global.anonymous)} guard(s) are registered under APP_GUARD and have no ` +
-              'class name to report, so they protect every route and are absent from the ' +
-              'reference. A plain object under useValue, or an anonymous class, produces this',
+              `${String(global.anonymous)} guard(s) under APP_GUARD have no class name, so none ` +
+              'is shown on any route',
+            action: 'register a named class under APP_GUARD if these guards should appear by name',
+            detail:
+              'A plain object under useValue, or an anonymous class, has nothing to print. They ' +
+              'protect every route and are absent from the reference, so every page understates ' +
+              'what stands in front of it.',
           },
         ]),
     ...(globalPipes.anonymous === 0
@@ -245,9 +253,13 @@ export function runRuntimePass(
           {
             subject: 'the application',
             reason:
-              `${String(globalPipes.anonymous)} pipe(s) are registered under APP_PIPE and have ` +
-              'no class name to report, so they stand on every route and are absent from the ' +
-              'reference. A plain object under useValue, or an anonymous class, produces this',
+              `${String(globalPipes.anonymous)} pipe(s) under APP_PIPE have no class name, so ` +
+              'none is shown on any route',
+            action: 'register a named class under APP_PIPE if these pipes should appear by name',
+            detail:
+              'A plain object under useValue, or an anonymous class, has nothing to print. They ' +
+              'stand on every route and are absent from the reference, so every page understates ' +
+              'what runs before it.',
           },
         ]),
   ];

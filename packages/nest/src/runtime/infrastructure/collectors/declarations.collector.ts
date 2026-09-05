@@ -31,7 +31,12 @@ export const DECLARATIONS_COLLECTOR_NAME = 'declarationsCollector';
 export interface DeclarationsCollectorProblem {
   /** `OrdersController.list`, as a reader recognises it. */
   readonly subject: string;
+  /** The cause and what is not known because of it, in one clause, per SPEC 7.1. */
   readonly reason: string;
+  /** The action, or that there is none and why the finding is recorded anyway, per SPEC 7.1. */
+  readonly action: string;
+  /** The reasoning behind it, for a reader who opens it. Absent where the cause is its own. */
+  readonly detail?: string;
 }
 
 /** The collector, with the record of what it could not read. */
@@ -70,9 +75,8 @@ export function declarationsCollector(): DeclarationsCollector {
       if (scopes === undefined) {
         problems.push({
           subject: `${context.declaredOn.name}.${context.handlerName}`,
-          reason:
-            '@ApiScopes was applied with something other than strings, so no scope fact was ' +
-            'reported for this route. Pass scope names: @ApiScopes("orders:read")',
+          reason: '@ApiScopes was applied with something other than strings, so no scope is known',
+          action: 'pass scope names: @ApiScopes("orders:read")',
         });
 
         return undefined;

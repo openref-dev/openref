@@ -41,7 +41,7 @@ export interface DeclaredParameter {
 /** What the scan concluded, or why it could not conclude anything. */
 export type HandlerScanResult =
   | { readonly kind: 'scanned'; readonly parameters: readonly IRParameterRead[] }
-  | { readonly kind: 'blind'; readonly reason: string };
+  | { readonly kind: 'blind'; readonly reason: string; readonly detail: string };
 
 /** The three parameter locations a NestJS binding can read, by paramtype number. */
 const LOCATION_TYPES: readonly (readonly [IRParameterLocation, number])[] = [
@@ -87,8 +87,11 @@ export function scanHandlerReads(
     return {
       kind: 'blind',
       reason:
-        'the controller is request or transient scoped, so it may inject REQUEST and read any ' +
-        'parameter from a field no scan of the handler body can see',
+        'the controller is request scoped, so which parameters the handler reads cannot be seen',
+      detail:
+        'A request or transient scoped controller may inject REQUEST and read any parameter out ' +
+        'of a field, which is an access path outside the handler body. Reporting the bindings ' +
+        'that are visible would report them as the complete set.',
     };
   }
 
@@ -123,10 +126,12 @@ export function scanHandlerReads(
     if (argument === undefined || source?.kind !== 'parsed') {
       return {
         kind: 'blind',
-        reason:
-          `the source of ${handlerName} does not carry a parameter at index ` +
-          `${String(entry.index)} that the bindings name, so it is a wrapper rather than the ` +
-          'handler, and scanning a wrapper would report the wrong function',
+        reason: `${handlerName} is wrapped, so the scan would be reading a different function`,
+        detail:
+          'The route argument metadata names a parameter at index ' +
+          `${String(entry.index)} that the emitted source does not carry, which is what a ` +
+          'decorator replacing the method looks like. Scanning the wrapper would report its ' +
+          "reads as the handler's.",
       };
     }
 
@@ -192,7 +197,7 @@ interface Binding {
 /** The bindings, or the reason they cannot be trusted. */
 type BindingsResult =
   | { readonly kind: 'bindings'; readonly entries: readonly Binding[] }
-  | { readonly kind: 'blind'; readonly reason: string };
+  | { readonly kind: 'blind'; readonly reason: string; readonly detail: string };
 
 /**
  * Reads and classifies the route argument metadata of one handler.
@@ -210,7 +215,13 @@ function bindingsOf(
   const raw = reflect.getMetadata(NEST_ROUTE_ARGS_METADATA, controller, handlerName);
   if (raw === undefined || raw === null) return { kind: 'bindings', entries: [] };
   if (typeof raw !== 'object') {
-    return { kind: 'blind', reason: 'the route argument metadata is not an object' };
+    return {
+      kind: 'blind',
+      reason: 'the route argument metadata is not an object, so no binding can be read',
+      detail:
+        'NestJS writes one object keyed by paramtype and index. Anything else came from ' +
+        'somewhere this scan does not know, and reading it as bindings would invent reads.',
+    };
   }
 
   const entries: Binding[] = [];
@@ -220,8 +231,13 @@ function bindingsOf(
       return {
         kind: 'blind',
         reason:
-          'the handler binds a custom parameter decorator, whose factory receives the whole ' +
-          'execution context, which is an access path no scan of the handler body can see',
+          'a custom parameter decorator reads the request itself, so what the handler reads ' +
+          'cannot be seen',
+        detail:
+          'The factory behind a custom parameter decorator receives the whole execution context ' +
+          'and may take anything out of it, which is an access path no scan of the handler body ' +
+          'can follow. Reporting the bindings that are visible would report them as the ' +
+          'complete set.',
       };
     }
 
@@ -229,15 +245,25 @@ function bindingsOf(
     const type = Number(typeText);
     const index = Number(indexText);
     if (!Number.isInteger(type) || !Number.isInteger(index)) {
-      return { kind: 'blind', reason: `the binding key "${key}" is not in the known form` };
+      return {
+        kind: 'blind',
+        reason: `the binding key "${key}" is not in the form NestJS writes, so no binding can be read`,
+        detail:
+          'A route argument key is a paramtype and an index joined by a colon. A key in another ' +
+          'shape came from somewhere this scan does not know.',
+      };
     }
 
     if (type === NEST_ROUTE_PARAMTYPES.request || type === NEST_ROUTE_PARAMTYPES.response) {
       return {
         kind: 'blind',
         reason:
-          'the handler binds the request or response object, through which every parameter is ' +
-          'reachable, so nothing about unread parameters can be concluded',
+          'the handler binds the whole request or response, so any parameter is reachable ' +
+          'without a binding',
+        detail:
+          'A handler holding the request object can read any parameter off it, so a parameter ' +
+          'nothing binds cannot be told from one read that way. Nothing about unread parameters ' +
+          'can be concluded, which is not the same as concluding there are none.',
       };
     }
 
@@ -249,7 +275,11 @@ function bindingsOf(
       // binding kind may well open the whole request the way `@Req` does.
       return {
         kind: 'blind',
-        reason: `the handler carries a binding of paramtype ${String(type)}, which this scan does not know`,
+        reason: `the handler binds paramtype ${String(type)}, which this scan does not know`,
+        detail:
+          'The paramtype table is the one this scan was written against. A binding kind outside ' +
+          'it may open the whole request the way @Req does, so it is refused rather than ' +
+          'passed over.',
       };
     }
 
@@ -267,7 +297,7 @@ function bindingsOf(
 /** The handler source, split once into parameters and body. */
 type SourceResult =
   | { readonly kind: 'parsed'; readonly parameters: readonly string[]; readonly body: string }
-  | { readonly kind: 'blind'; readonly reason: string };
+  | { readonly kind: 'blind'; readonly reason: string; readonly detail: string };
 
 /**
  * Splits the emitted function into its parameter texts and its body.
@@ -282,11 +312,25 @@ type SourceResult =
 function parseSource(handler: HandlerLike): SourceResult {
   const source = Function.prototype.toString.call(handler);
   if (source.includes('[native code]')) {
-    return { kind: 'blind', reason: 'the handler is native code, which has no source to scan' };
+    return {
+      kind: 'blind',
+      reason: 'the handler is native code, so there is no source to scan',
+      detail:
+        'A bound, generated or native function has no body text. The scan reads the emitted ' +
+        'source to see which members of a whole object binding are read, and there is none.',
+    };
   }
 
   const open = source.indexOf('(');
-  if (open === -1) return { kind: 'blind', reason: 'the handler source carries no parameter list' };
+  if (open === -1) {
+    return {
+      kind: 'blind',
+      reason: 'the handler source carries no parameter list, so its arguments cannot be read',
+      detail:
+        'The scan splits the emitted function at its first parenthesis. A source with none is ' +
+        'not a function this scan understands.',
+    };
+  }
 
   const parameters: string[] = [];
   let depth = 0;
@@ -297,7 +341,14 @@ function parseSource(handler: HandlerLike): SourceResult {
   while (at < source.length) {
     const skipped = skipAtom(source, at);
     if (skipped === undefined) {
-      return { kind: 'blind', reason: 'the handler source does not scan as balanced text' };
+      return {
+        kind: 'blind',
+        reason: 'the handler source does not scan as balanced text, so it cannot be split',
+        detail:
+          'Parentheses, brackets, braces, strings and template literals are tracked so a default ' +
+          'value holding a comma does not split a parameter. Anything that leaves the walk ' +
+          'unbalanced is a doubt, and a doubt is answered by refusing.',
+      };
     }
     if (skipped > at) {
       at = skipped;
@@ -321,7 +372,13 @@ function parseSource(handler: HandlerLike): SourceResult {
   }
 
   if (close === -1) {
-    return { kind: 'blind', reason: 'the handler source does not close its parameter list' };
+    return {
+      kind: 'blind',
+      reason: 'the handler source does not close its parameter list, so it cannot be split',
+      detail:
+        'The walk reached the end of the emitted text with the parameter list still open, which ' +
+        'is text this scan does not understand rather than a handler with no parameters.',
+    };
   }
 
   const last = source.slice(start, close).trim();

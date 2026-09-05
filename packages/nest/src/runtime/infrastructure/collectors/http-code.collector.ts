@@ -24,7 +24,12 @@ export const HTTP_CODE_COLLECTOR_NAME = 'httpCodeCollector';
 export interface HttpCodeCollectorProblem {
   /** `OrdersController.list`, as a reader recognises it. */
   readonly subject: string;
+  /** The cause and what is not known because of it, in one clause, per SPEC 7.1. */
   readonly reason: string;
+  /** The action, or that there is none and why the finding is recorded anyway, per SPEC 7.1. */
+  readonly action: string;
+  /** The reasoning behind it, for a reader who opens it. Absent where the cause is its own. */
+  readonly detail?: string;
 }
 
 /** The collector, with the record of what it could not read. */
@@ -50,9 +55,11 @@ export function httpCodeCollector(): HttpCodeCollector {
       if (typeof raw !== 'number' || !Number.isInteger(raw) || raw < 100 || raw > 599) {
         problems.push({
           subject: `${context.declaredOn.name}.${context.handlerName}`,
-          reason:
-            'the @HttpCode metadata is not an HTTP status code, so nothing was reported for ' +
-            'this route rather than a coerced value',
+          reason: 'the @HttpCode metadata is not a status code, so no explicit status is known',
+          action: 'pass a status code to @HttpCode, or remove it and let the framework default',
+          detail:
+            'Nothing was reported for this route rather than a coerced value, because a coerced ' +
+            'value would document a status this handler never answers with.',
         });
 
         return undefined;

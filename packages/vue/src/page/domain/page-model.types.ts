@@ -734,6 +734,14 @@ export interface DriftModel {
   /** Class carrying the severity, which the design names crit, warn and note. */
   readonly severityClass: string;
   readonly message: string;
+  /**
+   * The longer reasoning behind the finding, per SPEC 7.2. Empty when the rule wrote none.
+   *
+   * A THEME DRAWS IT CLOSED OR NOT AT ALL, and either is a complete finding: everything a reader
+   * needs to act is in {@link message} and {@link suggestion}. It exists so that shortening those
+   * two to one clause each did not have to delete the reasoning behind them.
+   */
+  readonly detail: string;
   /** What each side says, already labelled, so the component draws a list and not two cases. */
   readonly sides: readonly string[];
   readonly suggestion: string;
@@ -741,6 +749,24 @@ export interface DriftModel {
   readonly href: string;
   /** What the finding is about, for a row on a page that is not about it. Empty otherwise. */
   readonly subject: string;
+  /**
+   * Every subject this one cause was found on, per SPEC 7.2. Empty on a page about one subject.
+   *
+   * ONE ROW PER CAUSE AND NOT PER SUBJECT, which is what the health panel draws since 2026-09-05.
+   * {@link subject} and {@link href} stay the first of these, so a theme that reads only those two
+   * draws what it always drew and loses the rest rather than breaking. Measured on the maintainer's
+   * application: 186 findings are 68 causes, one of which holds 54 subjects.
+   */
+  readonly subjects: readonly DriftSubjectModel[];
+  /** How many subjects the cause was found on, as text. `1` for a finding that stands alone. */
+  readonly count: string;
+}
+
+/** One subject of a grouped finding, with the link to it when there is one. */
+export interface DriftSubjectModel {
+  readonly label: string;
+  /** Where the subject is, or empty when the finding names something no page is about. */
+  readonly href: string;
 }
 
 /**

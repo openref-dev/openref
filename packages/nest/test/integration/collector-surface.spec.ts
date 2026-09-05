@@ -13,7 +13,7 @@
  * source knows about is a name a consumer cannot use, which is the same argument
  * `packages/vue/test/integration/public-surface.spec.ts` makes for the theme side and the same one
  * `module-formats.spec.ts` makes about bundling. The list is re-derived here rather than repeated,
- * so a twelfth name entering a public signature reddens instead of passing unnoticed.
+ * so a further name entering a public signature reddens instead of passing unnoticed.
  *
  * IT SAID NINE AND IT IS ELEVEN, AND THE CORRECTION CAME FROM THE ARTEFACT CHANGING UNDER IT. This
  * file's own rule is to measure the built declaration because it cannot be wrong about what a
@@ -25,6 +25,12 @@
  * eleven. Both are reachable from types already re-exported, not from internals alone, so both are
  * the defect this file exists for: `IRDocument.info` is an `IRInfo` and `IRRelationship.fromKind`
  * is an `IRRelationshipEndpointKind`.
+ *
+ * IT IS TWELVE SINCE 2026-09-05, AND THE TWELFTH ARRIVED THE WAY THIS FILE PREDICTS THEY WILL.
+ * `IRDiscoveryProblem` entered a public signature when `CollectorRegistry.problems` stopped
+ * returning an inline pair of strings and started returning the IR shape, which is what let a
+ * collector add an action and a detail to what it records. The list is derived, so nothing had to
+ * remember: this case went red on the built declaration and the re-export followed.
  */
 
 import { existsSync, readFileSync } from 'node:fs';

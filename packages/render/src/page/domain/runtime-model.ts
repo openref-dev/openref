@@ -25,6 +25,7 @@ import {
   DRIFT_RULE_CODES,
   driftForNode,
   expandSourceLink,
+  groupDriftByCause,
   groupDriftByRule,
   hasRuntimeFacts,
   type IRDocument,
@@ -39,6 +40,7 @@ import {
 import { schemaDisplayName } from '@openref/vue';
 import type {
   DriftModel,
+  DriftSubjectModel,
   ErrorContractGroupModel,
   ErrorContractItemModel,
   HealthModel,
@@ -433,6 +435,49 @@ function contractGroups(
 }
 
 /**
+ * Where one finding's subject is and what it is called, when the page is not already about it.
+ *
+ * A FINDING THAT NAMES ITS OWN SUBJECT IS DRAWN, AND IT WAS NOT UNTIL 2026-09-05. `IRDriftIssue`
+ * gained `subject` at `T054` for exactly the rules whose subject is neither a node nor a schema,
+ * and this function returned the empty string for them, so the reference theme, which draws the
+ * subject only when there is a link, drew none at all. That is why `discovery-incomplete` was
+ * gluing the subject onto the front of its own message: it was the only way the address reached the
+ * page. It reaches the page now, per SPEC 7.2, and unlinked is a normal state rather than an
+ * absence, because a handler that has no operation on it has no page to link to.
+ *
+ * @param issue - The finding
+ * @param document - The document, for the subject's own title
+ * @param basePath - Mount point, so the link is the one the server answers at
+ * @returns The label and the link, either of which may be empty
+ */
+function driftSubject(
+  issue: IRDriftIssue,
+  document: IRDocument,
+  basePath: string,
+): DriftSubjectModel {
+  if (issue.nodeId !== undefined) {
+    const node = document.nodes.get(issue.nodeId);
+    const label =
+      node === undefined
+        ? issue.nodeId
+        : node.kind === 'channel'
+          ? (node.address ?? issue.nodeId)
+          : `${node.method.toUpperCase()} ${node.path}`;
+
+    return { label, href: nodeHref(issue.nodeId, basePath) };
+  }
+
+  if (issue.schemaId !== undefined) {
+    return {
+      label: `${issue.schemaId}${issue.pointer ?? ''}`,
+      href: schemaHref(issue.schemaId, basePath),
+    };
+  }
+
+  return { label: issue.subject ?? '', href: '' };
+}
+
+/**
  * One finding as a row, with a link to its subject when the page is not already about it.
  *
  * @param issue - The finding
@@ -447,42 +492,56 @@ function driftModel(
   basePath: string,
   linked: boolean,
 ): DriftModel {
+  return causeModel(issue, [issue], document, basePath, linked);
+}
+
+/**
+ * One cause as a row, naming every subject it was found on, per SPEC 7.2.
+ *
+ * THE FIRST FINDING SPEAKS FOR THE GROUP AND THAT IS NOT A CHOICE. Every member of a cause group
+ * carries the same rule, severity, message, detail, suggestion and both measured sides, because
+ * those are what the group is keyed by; only the subjects differ, and all of them are here.
+ *
+ * @param issue - Any member of the group, since every member carries the same text
+ * @param members - Every finding in the group, in report order
+ * @param document - The document, for each subject's own title
+ * @param basePath - Mount point, so the links are the ones the server answers at
+ * @param linked - Whether to name the subjects at all, which a page about one of them does not
+ * @returns The row
+ */
+function causeModel(
+  issue: IRDriftIssue,
+  members: readonly IRDriftIssue[],
+  document: IRDocument,
+  basePath: string,
+  linked: boolean,
+): DriftModel {
   const sides: string[] = [];
   if (issue.runtimeValue !== undefined) sides.push(`Runtime: ${issue.runtimeValue}`);
   if (issue.specValue !== undefined) sides.push(`OpenAPI: ${issue.specValue}`);
 
-  const base = {
+  const subjects = linked ? members.map((member) => driftSubject(member, document, basePath)) : [];
+  const first = subjects[0];
+
+  return {
     rule: issue.rule,
     code: DRIFT_RULE_CODES[issue.rule],
     severityClass: SEVERITY_CLASSES[issue.severity],
     message: issue.message,
+    detail: issue.detail ?? '',
     sides,
-    suggestion: issue.suggestion,
+    // A SUGGESTION THAT REPEATS THE MESSAGE IS DROPPED RATHER THAN PRINTED TWICE, per SPEC 7.2.
+    // `openref doctor` prints the suggestion and never the message, so a producer that has not
+    // been moved to the three member voice writes its one sentence into both and must keep doing
+    // it; a page that prints both prints the sentence twice. Seventeen event side producers of
+    // SPEC 8.3 are in exactly that state, so this is where the repeat is closed for all of them at
+    // once rather than in each of them.
+    suggestion: issue.suggestion === issue.message ? '' : issue.suggestion,
+    href: first?.href ?? '',
+    subject: first?.label ?? '',
+    subjects,
+    count: String(members.length),
   };
-
-  if (!linked) return { ...base, href: '', subject: '' };
-
-  if (issue.nodeId !== undefined) {
-    const node = document.nodes.get(issue.nodeId);
-    const subject =
-      node === undefined
-        ? issue.nodeId
-        : node.kind === 'channel'
-          ? (node.address ?? issue.nodeId)
-          : `${node.method.toUpperCase()} ${node.path}`;
-
-    return { ...base, href: nodeHref(issue.nodeId, basePath), subject };
-  }
-
-  if (issue.schemaId !== undefined) {
-    return {
-      ...base,
-      href: schemaHref(issue.schemaId, basePath),
-      subject: `${issue.schemaId}${issue.pointer ?? ''}`,
-    };
-  }
-
-  return { ...base, href: '', subject: '' };
 }
 
 /**
@@ -562,13 +621,19 @@ export function buildHealthModel(
   const grouped = groupDriftByRule(report.drift);
   const found = new Set(grouped.map((group) => group.rule));
 
+  // THE COUNT ON THE HEADING STAYS THE NUMBER OF FINDINGS AND THE ROWS UNDER IT ARE THE CAUSES,
+  // per SPEC 7.2. Those are two different questions and a reader asks both: how much is wrong with
+  // this document, and how many different things they have to decide about. Folding the heading
+  // count too would have hidden the volume the panel exists to report.
   const rules = grouped.map((group) => ({
     rule: group.rule,
     code: DRIFT_RULE_CODES[group.rule],
     summary: ruleChecks.get(group.rule)?.label ?? '',
     severityClass: SEVERITY_CLASSES[group.severity],
     count: String(group.issues.length),
-    findings: group.issues.map((issue) => driftModel(issue, document, basePath, true)),
+    findings: groupDriftByCause(group.issues).map((cause) =>
+      causeModel(cause.issue, cause.issues, document, basePath, true),
+    ),
   }));
 
   // A RULE THAT EXAMINED AND FOUND NOTHING IS A ROW WITH ITS ZERO, per `TX-PARITY-UI` and the

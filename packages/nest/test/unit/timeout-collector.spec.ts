@@ -88,7 +88,9 @@ describe('timeoutCollector', () => {
       expect(collector.collect(contextOf(wrong))).toBeUndefined();
     }
     expect(collector.problems()).toHaveLength(5);
-    expect(collector.problems()[0]?.reason).toContain('positive number of milliseconds');
+    expect(collector.problems()[0]?.reason).toContain('is not a duration, so no timeout is known');
+    expect(collector.problems()[0]?.action).toContain('positive number of milliseconds');
+    expect(collector.problems()[0]?.detail).toContain('rather than a coerced value');
   });
 
   it('should decline to exist without a usable key, with the reason', () => {

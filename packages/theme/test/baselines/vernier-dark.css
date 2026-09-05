@@ -1518,6 +1518,26 @@ a.oref-topology-name {
   margin: 0;
 }
 
+.oref-drift-subjects,
+.oref-drift-why {
+  color: #93a4b3;
+  font-size: 11px;
+}
+
+.oref-drift-subjects summary,
+.oref-drift-why summary {
+  cursor: pointer;
+}
+
+.oref-drift-subjects ul {
+  margin: 2px 0 0;
+  padding-left: 14px;
+}
+
+.oref-drift-why p {
+  margin: 2px 0 0;
+}
+
 .oref-rule-head {
   cursor: pointer;
 }
@@ -1530,6 +1550,7 @@ a.oref-topology-name {
 .oref-drift-message,
 .oref-drift-side,
 .oref-drift-subject,
+.oref-drift-why,
 .oref-example,
 .oref-media-schema,
 .oref-nav-label,

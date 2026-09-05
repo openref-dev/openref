@@ -91,7 +91,13 @@ describe('headersCollector', () => {
       expect(collector.collect(contextOf(wrong))).toBeUndefined();
     }
     expect(collector.problems()).toHaveLength(4);
-    expect(collector.problems()[0]?.reason).toContain('non-empty list of header names');
+    expect(collector.problems()[0]?.reason).toContain(
+      'is not a list of header names, so none is known',
+    );
+    expect(collector.problems()[0]?.action).toContain('write a non-empty list of header names');
+    expect(collector.problems()[0]?.detail).toContain(
+      'a coerced value would put a header name in the reference',
+    );
   });
 
   it('should decline to exist without a usable key, with the reason', () => {

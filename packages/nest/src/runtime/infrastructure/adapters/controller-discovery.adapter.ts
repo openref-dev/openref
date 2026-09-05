@@ -61,8 +61,18 @@ export interface DiscoveredRoute {
 export interface DiscoveryProblem {
   /** What was skipped, named the way a reader of `doctor` would recognise it. */
   readonly subject: string;
-  /** Why, in a sentence. */
+  /** The cause and what is not known because of it, in one clause, per SPEC 7.1. */
   readonly reason: string;
+  /**
+   * The action, or that there is none and why the record exists anyway, per SPEC 7.1.
+   *
+   * OPTIONAL, AND ABSENT MEANS THE REASON IS USED FOR BOTH, which is where every producer of this
+   * shape stood before the split. The collectors of SPEC 6.2 set it; the event side producers of
+   * SPEC 8.3 have not been moved yet and are named as the remainder rather than changed quietly.
+   */
+  readonly action?: string;
+  /** The reasoning behind it, for a reader who opens it, per SPEC 7.1. */
+  readonly detail?: string;
 }
 
 /** What one pass produced. */

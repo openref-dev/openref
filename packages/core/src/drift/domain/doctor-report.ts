@@ -91,6 +91,17 @@ export interface IRDoctorFinding {
   /** A human readable name for the subject: `POST /users`, a schema pointer, or `(document)`. */
   readonly subject: string;
   readonly message: string;
+  /**
+   * The longer reasoning behind the finding, per SPEC 7.2, when the rule wrote one.
+   *
+   * IT IS IN THE JSON AND NOT IN THE TEXT FORM, and that is the proportion rather than an
+   * oversight. The text block is the subject, the two sides and one arrow, and a paragraph under
+   * every one of sixty eight findings is the volume SPEC 7.2 already refuses elsewhere. A reader
+   * who wants the reasoning opens it on the health page, where it is a closed disclosure, or reads
+   * it here. Adding it does not move {@link DOCTOR_REPORT_VERSION}: this shape is bumped when a
+   * field is removed or changes meaning, never for an addition.
+   */
+  readonly detail?: string;
   readonly runtimeValue?: string;
   readonly specValue?: string;
   readonly suggestion: string;
@@ -248,6 +259,7 @@ function doctorFinding(document: IRDocument, issue: IRDriftIssue): IRDoctorFindi
     ...(issue.pointer === undefined ? {} : { pointer: issue.pointer }),
     subject: findingSubject(document, issue),
     message: issue.message,
+    ...(issue.detail === undefined ? {} : { detail: issue.detail }),
     ...(issue.runtimeValue === undefined ? {} : { runtimeValue: issue.runtimeValue }),
     ...(issue.specValue === undefined ? {} : { specValue: issue.specValue }),
     suggestion: issue.suggestion,

@@ -81,6 +81,12 @@ describe('httpCodeCollector', () => {
       expect(collector.collect(contextOf(wrong))).toBeUndefined();
     }
     expect(collector.problems()).toHaveLength(4);
-    expect(collector.problems()[0]?.reason).toContain('not an HTTP status code');
+    expect(collector.problems()[0]?.reason).toContain(
+      'is not a status code, so no explicit status is known',
+    );
+    expect(collector.problems()[0]?.action).toContain('pass a status code to @HttpCode');
+    expect(collector.problems()[0]?.detail).toContain(
+      'would document a status this handler never answers with',
+    );
   });
 });

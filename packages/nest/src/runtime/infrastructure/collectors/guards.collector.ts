@@ -38,7 +38,12 @@ export const GUARDS_COLLECTOR_NAME = 'guardsCollector';
 export interface GuardsCollectorProblem {
   /** `OrdersController.list`, as a reader recognises it. */
   readonly subject: string;
+  /** The cause and what is not known because of it, in one clause, per SPEC 7.1. */
   readonly reason: string;
+  /** The action, or that there is none and why the finding is recorded anyway, per SPEC 7.1. */
+  readonly action: string;
+  /** The reasoning behind it, for a reader who opens it. Absent where the cause is its own. */
+  readonly detail?: string;
 }
 
 /** The collector, with the record of what it could not name. */
@@ -64,10 +69,11 @@ export function guardsCollector(): GuardsCollector {
       if (reading.anonymous > 0) {
         problems.push({
           subject: `${context.declaredOn.name}.${context.handlerName}`,
-          reason:
-            `${String(reading.anonymous)} guard(s) are applied and have no class name to report, ` +
-            'so they are counted here and absent from the reference. An anonymous class or a ' +
-            'plain object passed to @UseGuards produces this',
+          reason: `${String(reading.anonymous)} guard(s) here have no class name, so none is shown`,
+          action: 'pass a named class to @UseGuards if these guards should appear by name',
+          detail:
+            'An anonymous class or a plain object passed to @UseGuards has nothing to print. ' +
+            'They are counted here so the route is not read as carrying fewer guards than it does.',
         });
       }
 

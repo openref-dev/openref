@@ -174,11 +174,17 @@ describe('CollectorRegistry', () => {
     expect(result?.rateLimit?.collector).toBe('throttlerCollector');
 
     // And the loser is no longer invisible, which is the half that was missing
+    // And the loser is no longer invisible, which is the half that was missing. The three parts
+    // are in three members since SPEC 7.1's voice: the cause is what a reader is shown first, the
+    // action names both collectors so they can choose one, and the reasoning is what they open.
     const contest = reported.find((problem) => problem.reason.includes('rateLimit'));
     expect(contest?.subject).toBe('OrdersController.list');
-    expect(contest?.reason).toContain('throttlerCollector is in the reference');
     expect(contest?.reason).toContain('redisxRateLimitCollector was dropped');
-    expect(contest?.reason).toContain('"derived"');
+    expect(contest?.action).toContain('throttlerCollector');
+    expect(contest?.action).toContain('redisxRateLimitCollector');
+    expect(contest?.action).toContain('the first registration wins');
+    expect(contest?.detail).toContain('throttlerCollector is in the reference');
+    expect(contest?.detail).toContain('"derived"');
   });
 
   it('should record one tie for a pair of collectors however many routes it happened on', () => {
@@ -199,7 +205,7 @@ describe('CollectorRegistry', () => {
 
     // Then
     expect(registry.problems()).toHaveLength(1);
-    expect(registry.problems()[0]?.reason).toContain('2 further route(s)');
+    expect(registry.problems()[0]?.detail).toContain('2 further route(s)');
   });
 
   it('should record no tie when the two collectors disagree at different confidence', () => {
@@ -404,7 +410,9 @@ describe('CollectorRegistry, the problems a collector recorded', () => {
 
     // Then
     expect(registry.problems()[0]?.subject).toBe('thirdPartyCollector');
-    expect(registry.problems()[0]?.reason).toContain('the accumulator was never initialised');
+    expect(registry.problems()[0]?.reason).toContain('it threw when asked for the problems');
+    expect(registry.problems()[0]?.action).toContain('a defect in the instrument');
+    expect(registry.problems()[0]?.detail).toContain('the accumulator was never initialised');
   });
 
   it('should skip an entry that is not a pair of strings rather than printing an object', () => {

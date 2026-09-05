@@ -54,7 +54,12 @@ export interface MetadataCollectorOptions {
 export interface MetadataCollectorProblem {
   /** `OrdersController.list`, as a reader recognises it. */
   readonly subject: string;
+  /** The cause and what is not known because of it, in one clause, per SPEC 7.1. */
   readonly reason: string;
+  /** The action, or that there is none and why the finding is recorded anyway, per SPEC 7.1. */
+  readonly action: string;
+  /** The reasoning behind it, for a reader who opens it. Absent where the cause is its own. */
+  readonly detail?: string;
 }
 
 /** A metadata collector, with the record of what it could not read. */
@@ -137,9 +142,11 @@ function metadataCollector(
       if (values === undefined) {
         problems.push({
           subject,
-          reason:
-            `the metadata under ${describe(key)} is ${typeName(raw)}, and a ${field} fact is a ` +
-            'list of strings. Nothing was reported for this route rather than a coerced value',
+          reason: `the metadata under ${describe(key)} is ${typeName(raw)}, so no ${field} are known`,
+          action: `write a list of strings under that key, which is what a ${field} fact is`,
+          detail:
+            'Nothing was reported for this route rather than a coerced value, because a coerced ' +
+            `value would put ${field} in the reference that no guard ever enforced.`,
         });
 
         return undefined;
@@ -181,10 +188,11 @@ function recordUnreadablePolicy(
 
   problems.push({
     subject,
-    reason:
-      `it is guarded by ${named} and carries no metadata under ${describe(key)}, so whatever ` +
-      'policy the guard enforces in code is not in this reference. Guard logic is never read, ' +
-      'per SPEC 6.1. Declare the fact with a decorator that writes that key',
+    reason: `it is guarded by ${named} and carries no metadata under ${describe(key)}, so whatever that guard enforces is not known`,
+    action: 'declare the fact with a decorator that writes that key',
+    detail:
+      'Guard logic is never read, per SPEC 6.1. A policy that lives only inside the guard is ' +
+      'invisible to every instrument here, so the route reads as unrestricted while it is not.',
   });
 }
 

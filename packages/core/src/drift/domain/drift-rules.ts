@@ -72,6 +72,8 @@ interface RuleContext {
 /** What a check found, before the classification is stamped on it. */
 interface Finding {
   readonly message: string;
+  /** The longer reasoning, per SPEC 7.2, where the rule has one and the message must stay short. */
+  readonly detail?: string;
   readonly runtimeValue?: string;
   readonly specValue?: string;
   readonly suggestion: string;
@@ -939,6 +941,7 @@ function issueOf(
     ...(subject.pointer === undefined ? {} : { pointer: subject.pointer }),
     ...(subject.subject === undefined ? {} : { subject: subject.subject }),
     message: finding.message,
+    ...(finding.detail === undefined ? {} : { detail: finding.detail }),
     ...(finding.runtimeValue === undefined ? {} : { runtimeValue: finding.runtimeValue }),
     ...(finding.specValue === undefined ? {} : { specValue: finding.specValue }),
     suggestion: finding.suggestion,
@@ -1024,13 +1027,24 @@ function discoveryProblemResult(document: IRDocument): RuleResult {
       DISCOVERY_INCOMPLETE_RULE,
       { subject: problem.subject },
       {
-        // THE REASON IS ONE SENTENCE THAT CARRIES BOTH HALVES, and it is not split here. Every one
-        // of the sixteen producers writes what happened and what to write instead in one sentence,
-        // and splitting them would mean rewriting sixteen producers to fit a shape that gains a
-        // reader nothing: the block `doctor` prints is the subject and the suggestion, so the
-        // sentence lands where a reader looks for the action.
-        message: `${problem.subject}: ${problem.reason}`,
-        suggestion: problem.reason,
+        // ONE SENTENCE, ONCE, AND THE SUBJECT BESIDE IT RATHER THAN INSIDE IT. This built `message`
+        // as `${subject}: ${reason}` and then set `suggestion` to the same `reason`, on the reading
+        // that `doctor` prints the subject and the suggestion and never `message`. It does; every
+        // browser theme prints `message` and `suggestion` one under the other, so a reader of the
+        // health page was shown the same fifty word sentence twice in every finding, once with the
+        // subject glued to the front. Measured on the maintainer's application: 68 findings, 136
+        // copies of five sentences. The subject rides `IRDriftIssue.subject`, which every renderer
+        // now draws, per SPEC 7.2.
+        message: problem.reason,
+        ...(problem.detail === undefined ? {} : { detail: problem.detail }),
+        // THE ACTION WHERE THE PRODUCER WROTE ONE, AND THE CAUSE AGAIN WHERE IT DID NOT. A producer
+        // that has been moved to SPEC 7.1's voice separates the two, and its finding says the cause
+        // once and the action once. A producer that has not is left exactly where it was rather
+        // than given a constant that would say less than its own sentence: `renderDoctorFinding`
+        // prints the suggestion and never the message, so a fallback of anything but the reason
+        // would empty `openref doctor` for the event side producers of SPEC 8.3. What every
+        // producer gains regardless is that the subject is no longer glued to the front.
+        suggestion: problem.action ?? problem.reason,
         edit: 'nothing-to-write',
         basis: UNOBSERVED,
       },

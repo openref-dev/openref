@@ -117,6 +117,7 @@ export type {
   CodeSampleNoteModel,
   CodeSampleRefusalModel,
   DriftModel,
+  DriftSubjectModel,
   ErrorContractGroupModel,
   ErrorContractItemModel,
   FrameModel,

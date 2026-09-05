@@ -56,8 +56,10 @@ export interface FunctionLocation {
 /** The answer, or why there is none. The two are never both present and never both absent. */
 export interface FunctionLocationResult {
   readonly location?: FunctionLocation;
-  /** Why nothing was found, phrased for a reader of `doctor`. */
+  /** The cause and what is therefore not known, in one clause, per SPEC 7.1. */
   readonly reason?: string;
+  /** The reasoning behind it, for a reader who opens it, per SPEC 7.1. */
+  readonly detail?: string;
 }
 
 /** How a located function is handed to the inspector, since it evaluates expressions not values. */
@@ -101,22 +103,29 @@ interface OpenSession {
 export function locateFunction(fn: HandlerLike): FunctionLocationResult {
   const attached = attach();
   if (attached.session === undefined) {
-    return { reason: attached.reason ?? 'no inspector session could be attached' };
+    return {
+      reason: attached.reason ?? 'no inspector session could be attached, so no line is known',
+      ...(attached.detail === undefined ? {} : { detail: attached.detail }),
+    };
   }
 
   try {
     const raw = rawLocationOf(attached.session, fn);
     if (raw === undefined) {
       return {
-        reason:
-          'V8 reported no [[FunctionLocation]] for the handler, which happens for a native ' +
-          'function or one produced by a bound or generated wrapper',
+        reason: 'V8 reports no location for this handler, so no line is known',
+        detail:
+          'That happens for a native function and for one produced by a bound or generated ' +
+          'wrapper, neither of which has a place in a source file to point at.',
       };
     }
 
     const script = attached.session.scripts.get(raw.scriptId);
     if (script === undefined) {
-      return { reason: `the inspector reported script ${raw.scriptId}, which it never parsed` };
+      return {
+        reason: 'the inspector named a script it never parsed, so no file is known',
+        detail: `It reported script ${raw.scriptId}, which is not among the scripts it announced.`,
+      };
     }
 
     return resolve(script, raw);
@@ -148,7 +157,10 @@ export function closeFunctionLocator(): void {
 /** What {@link attach} produced. */
 interface Attached {
   readonly session?: OpenSession;
+  /** The cause and what is therefore not known, in one clause, per SPEC 7.1. */
   readonly reason?: string;
+  /** The reasoning behind it, for a reader who opens it, per SPEC 7.1. */
+  readonly detail?: string;
 }
 
 /**
@@ -190,16 +202,18 @@ function attach(): Attached {
 
     if (failed !== undefined) {
       session.disconnect();
-      return { reason: `the V8 debugger could not be enabled: ${failed}` };
+      return {
+        reason: 'the V8 debugger could not be enabled, so no handler can be located',
+        detail: `It refused with: ${failed}.`,
+      };
     }
 
     open = { session, scripts, closing: false };
     return { session: open };
   } catch (cause) {
     return {
-      reason: `node:inspector is not usable in this runtime: ${
-        cause instanceof Error ? cause.message : String(cause)
-      }`,
+      reason: 'node:inspector is not usable in this runtime, so no handler can be located',
+      detail: `It threw: ${cause instanceof Error ? cause.message : String(cause)}.`,
     };
   }
 }
@@ -303,9 +317,10 @@ function resolve(script: ParsedScript, raw: RawLocation): FunctionLocationResult
   const compiled = pathOf(script.url);
   if (compiled === undefined) {
     return {
-      reason:
-        `the handler is in "${script.url}", which is not a file. A handler defined in an eval ` +
-        'or in a module built at runtime has no place in a repository to link to',
+      reason: `the handler is in "${script.url}", which is not a file, so it cannot be linked`,
+      detail:
+        'A handler defined in an eval or in a module built at runtime has no place in a ' +
+        'repository to point a reader at.',
     };
   }
 
@@ -330,16 +345,18 @@ function resolve(script: ParsedScript, raw: RawLocation): FunctionLocationResult
   if (typeof originalSource !== 'string' || typeof entry.originalLine !== 'number') {
     return {
       reason:
-        `the source map beside "${compiled}" has no entry for line ${String(raw.lineNumber + 1)}, ` +
-        'so the position in the original file is unknown. Reporting the compiled path instead ' +
-        'would link a reader to a build directory rather than to the code',
+        `the source map beside "${compiled}" has no entry for this handler, so its place in the ` +
+        'original file is unknown',
+      detail:
+        `Nothing maps line ${String(raw.lineNumber + 1)} of the compiled file. Reporting the ` +
+        'compiled path instead would link a reader to a build directory rather than to the code.',
     };
   }
 
   const original = pathOf(new URL(originalSource, map.base).href);
   if (original === undefined) {
     return {
-      reason: `the source map names "${originalSource}", which does not resolve to a file`,
+      reason: `the source map names "${originalSource}", which is not a file, so it cannot be linked`,
     };
   }
 
@@ -426,11 +443,15 @@ function loadMap(script: ParsedScript): LoadedMap | undefined {
  * @param script - The parsed script
  * @returns A one field object, so it can be spread into a result
  */
-function noMapReason(script: ParsedScript): { readonly reason: string } {
+function noMapReason(script: ParsedScript): {
+  readonly reason: string;
+  readonly detail: string;
+} {
   return {
-    reason:
-      `the script names a source map at "${script.sourceMapURL}" that could not be read, so the ` +
-      'line is the compiled one and is not reported. The link points at the file',
+    reason: `the source map at "${script.sourceMapURL}" could not be read, so no line is known`,
+    detail:
+      'The link points at the file and stops there. The only line available is the compiled ' +
+      "one, which is not this handler's line in the code a reader would open.",
   };
 }
 

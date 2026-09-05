@@ -113,6 +113,7 @@ export type {
   ChannelServerModel,
   CodeSampleModel,
   DriftModel,
+  DriftSubjectModel,
   FrameModel,
   FrameStatsModel,
   FrameTabKind,

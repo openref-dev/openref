@@ -149,7 +149,11 @@ describe('caslCollector', () => {
     // Then
     expect(produced).toBeUndefined();
     expect(collector.problems()[0]?.subject).toBe('OrdersController.list');
-    expect(collector.problems()[0]?.reason).toContain('never read');
+    expect(collector.problems()[0]?.reason).toContain(
+      'are functions, so what they allow is not known',
+    );
+    expect(collector.problems()[0]?.action).toContain('declare the action and the subject as data');
+    expect(collector.problems()[0]?.detail).toContain('never read');
   });
 
   it('should keep the readable abilities and report the unreadable ones beside them', () => {

@@ -159,7 +159,11 @@ describe('accessControlCollector', () => {
 
     // Then
     expect(produced).toBeUndefined();
-    expect(collector.problems()[0]?.reason).toContain('never read');
+    expect(collector.problems()[0]?.reason).toContain(
+      'are functions, so the roles they name are not known',
+    );
+    expect(collector.problems()[0]?.action).toContain('declare the role as data');
+    expect(collector.problems()[0]?.detail).toContain('never read');
   });
 
   it('should record a grant that names no role rather than dropping it silently', () => {

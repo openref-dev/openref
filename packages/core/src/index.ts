@@ -320,10 +320,11 @@ export {
   buildHealthReport,
   collectDrift,
   driftForNode,
+  groupDriftByCause,
   groupDriftByRule,
   healthScore,
 } from './drift/domain/health';
-export type { DriftRuleGroup, HealthReportOptions } from './drift/domain/health';
+export type { DriftCauseGroup, DriftRuleGroup, HealthReportOptions } from './drift/domain/health';
 export {
   buildDoctorReport,
   DOCTOR_REPORT_VERSION,

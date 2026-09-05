@@ -272,7 +272,13 @@ describe('scanHandlerReads', () => {
 
     // Then
     expect(result.kind).toBe('blind');
-    if (result.kind === 'blind') expect(result.reason).toContain('request or transient scoped');
+    if (result.kind === 'blind') {
+      expect(result.reason).toContain(
+        'request scoped, so which parameters the handler reads cannot be seen',
+      );
+      expect(result.detail).toContain('request or transient scoped');
+      expect(result.detail).toContain('may inject REQUEST and read any parameter out of a field');
+    }
   });
 
   it('should be blind on a wrapper whose source does not match the bindings', () => {
@@ -290,7 +296,12 @@ describe('scanHandlerReads', () => {
 
     // Then
     expect(result.kind).toBe('blind');
-    if (result.kind === 'blind') expect(result.reason).toContain('wrapper');
+    if (result.kind === 'blind') {
+      expect(result.reason).toContain('is wrapped, so the scan would be reading a different');
+      expect(result.detail).toContain(
+        "Scanning the wrapper would report its reads as the handler's",
+      );
+    }
   });
 
   it('should be blind on a paramtype outside the table, rather than guessing at it', () => {

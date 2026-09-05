@@ -115,7 +115,12 @@ export interface MetadataValueReader {
 export interface RedisxRateLimitCollectorProblem {
   /** `WidgetsController.ingest`, as a reader recognises it. */
   readonly subject: string;
+  /** The cause and what is not known because of it, in one clause, per SPEC 7.1. */
   readonly reason: string;
+  /** The action, or that there is none and why the finding is recorded anyway, per SPEC 7.1. */
+  readonly action: string;
+  /** The reasoning behind it, for a reader who opens it. Absent where the cause is its own. */
+  readonly detail?: string;
 }
 
 /** The collector, with the record of what it could not read. */
@@ -325,13 +330,26 @@ function recordModuleDefault(
 
   problems.push({
     subject: 'the application',
+    // THE FIGURE IS IN THE ACTION AS WELL AS THE REASON, and that is not a repeat. `openref
+    // doctor` prints the subject and the action and never the reason, per SPEC 7.2, and this is
+    // the one finding whose whole content is the number: an action that did not carry it would
+    // send a terminal reader to look up a budget nothing on that surface names.
+    //
+    // IT SAYS WHAT IT OBSERVED AND NOT WHAT IT HAS NOT LOOKED AT. This record is pushed on the
+    // first node of the pass, before any route's own decorator has been read, so a sentence
+    // claiming no route uses the default would be an assertion about routes nothing had examined.
     reason:
-      `the rate limit module is configured with a default budget of ${String(budget.points)} ` +
-      `request(s) per ${String(budget.ttlMs)} ms, read from the provider under ` +
-      'Symbol.for("RATE_LIMIT_PLUGIN_OPTIONS"). It is stated here and written onto no route, ' +
-      'because which routes it reaches is decided by whatever guard the application registered ' +
-      'and by what that guard passes, and guard logic is never read, per SPEC 6.1. A route that ' +
-      'declares its own points and duration carries them as a fact and does not use this',
+      `the module declares a default budget of ${String(budget.points)} request(s) per ` +
+      `${String(budget.ttlMs)} ms and it is written onto no route`,
+    action:
+      `declare @RateLimit({ points: ${String(budget.points)}, duration: ` +
+      `${String(budget.ttlMs / MILLISECONDS_PER_SECOND)} }) on a route to make that budget a fact ` +
+      'about it; a route that declares its own points and duration carries them already and does ' +
+      'not use this',
+    detail:
+      'The figure is read from the provider under Symbol.for("RATE_LIMIT_PLUGIN_OPTIONS"). Which ' +
+      'routes it reaches is decided by whatever guard the application registered and by what that ' +
+      'guard passes, and guard logic is never read, per SPEC 6.1.',
   });
 }
 
@@ -375,16 +393,18 @@ function describeUnreadableRoute(
 
   problems.push({
     subject,
-    reason:
-      `it declares no rate limit of its own and stands behind ${named}, registered for the whole ` +
-      'application. Whether that guard limits this route, and at what budget, is written in its ' +
-      'own code and is never read, per SPEC 6.1, so no rate limit is reported here. ' +
+    reason: `it declares no limit of its own and stands behind ${named}, so its budget is not known`,
+    action:
+      'declare @RateLimit({ points, duration }) on the route if it has a budget, which is what ' +
+      'makes the number a fact about it',
+    detail:
+      'Whether that guard limits this route, and at what budget, is written in its own code and ' +
+      'is never read, per SPEC 6.1. ' +
       (budget === null
-        ? 'No module budget was registered either, so nothing anywhere states a number for this route'
+        ? 'No module budget was registered either, so nothing anywhere states a number for this route.'
         : `The module's configured default is ${String(budget.points)} request(s) per ` +
           `${String(budget.ttlMs)} ms, and it is not written here because nothing observed says ` +
-          'that guard applies it to this route') +
-      '. @RateLimit({ points, duration }) on the route is what makes the budget a fact about it',
+          'that guard applies it to this route.'),
   });
 }
 
@@ -446,11 +466,12 @@ function buildRateLimit(
   if (points === undefined || duration === undefined) {
     problems.push({
       subject,
-      reason:
-        `it carries @RateLimit and declares ${describeHalves(points, duration)}, so the rest is ` +
-        `resolved per request from the module provider under Symbol.for("RATE_LIMIT_PLUGIN_OPTIONS"). ` +
-        'That is configuration of the module rather than a decision recorded on this route, so no ' +
-        'rate limit was reported for it. Naming both points and duration on the decorator is the fix',
+      reason: `it carries @RateLimit and declares ${describeHalves(points, duration)}, so no limit is known`,
+      action: 'name both points and duration on the decorator',
+      detail:
+        'The rest is resolved per request from the module provider under ' +
+        'Symbol.for("RATE_LIMIT_PLUGIN_OPTIONS"), which is configuration of the module rather ' +
+        'than a decision recorded on this route.',
     });
 
     return undefined;
@@ -464,11 +485,15 @@ function buildRateLimit(
   if (options.algorithm === CAPACITY_ALGORITHM) {
     problems.push({
       subject,
-      reason:
-        `it declares the ${CAPACITY_ALGORITHM} algorithm, where points is the bucket capacity and ` +
-        'the sustained rate is a refill per second rather than a count per window. A rate limit of ' +
-        `${String(points)} per ${String(duration * MILLISECONDS_PER_SECOND)} ms would describe ` +
-        'something this route does not enforce, so none was reported',
+      reason: `it declares the ${CAPACITY_ALGORITHM} algorithm, so no count per window is known`,
+      action:
+        'nothing to do here unless the route can use a windowed algorithm: the reference has no ' +
+        'shape for a bucket capacity, and this finding is what says the row is unmeasured',
+      detail:
+        'Under this algorithm points is the bucket capacity and the sustained rate is a refill ' +
+        `per second rather than a count per window, so a rate limit of ${String(points)} per ` +
+        `${String(duration * MILLISECONDS_PER_SECOND)} ms would describe something this route ` +
+        'does not enforce.',
     });
 
     return undefined;
@@ -481,11 +506,12 @@ function buildRateLimit(
   if (options.store === PER_INSTANCE_STORE) {
     problems.push({
       subject,
-      reason:
-        `it declares store: "${PER_INSTANCE_STORE}", which counts inside one process, so ` +
-        `${String(points)} is what one instance allows and the limit across the deployment is that ` +
-        'number times the instance count. The instance count is runtime state, so it is not ' +
-        'reported. store: "redis" is the declaration that makes the number exact',
+      reason: `it declares store: "${PER_INSTANCE_STORE}", so the limit across the deployment is not known`,
+      action: 'declare store: "redis", which is what makes the number exact',
+      detail:
+        `A memory store counts inside one process, so ${String(points)} is what one instance ` +
+        'allows and the deployment allows that number times the instance count. The instance ' +
+        'count is runtime state and is not readable here.',
     });
   }
 
@@ -522,19 +548,24 @@ function recordUnreadable(
     problems.push({
       subject,
       reason:
-        'its rate limit bucket is chosen by a key function, and a function under a key is never ' +
-        'read, per SPEC 6.1. What the limit is counted per, a caller, a tenant or an address, is ' +
-        'therefore not reported. A string key would be read and shown as the bucket name',
+        'its bucket is chosen by a key function, so what the limit is counted per is not known',
+      action: 'use a string key if the bucket should be named in the reference',
+      detail:
+        'A function under a key is never read, per SPEC 6.1, so whether the limit is counted per ' +
+        'caller, per tenant or per address cannot be stated. A string key is read and shown as ' +
+        'the bucket name.',
     });
   }
 
   if (typeof options.skip === 'function') {
     problems.push({
       subject,
-      reason:
-        'it carries a skip function, so some requests are not counted at all and which ones is ' +
-        'written in code this never reads, per SPEC 6.1. The limit below is what applies to a ' +
-        'request that is counted, and nothing here says which requests those are',
+      reason: 'it carries a skip function, so which requests are counted at all is not known',
+      action:
+        'nothing to do here: the limit shown is what applies to a request that is counted, and ' +
+        'this finding is what says the row does not cover every request',
+      detail:
+        'Which requests the function skips is written in code this never reads, per SPEC 6.1.',
     });
   }
 }

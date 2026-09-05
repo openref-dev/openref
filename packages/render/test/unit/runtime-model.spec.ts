@@ -320,17 +320,27 @@ describe('buildHealthModel', () => {
 
   it('should print the count a closed group stands for, so nothing is hidden by folding it', () => {
     // Given, the panel folds and never truncates: a group that showed the first twenty of its
-    // findings would read as coverage while hiding the tail.
+    // findings would read as coverage while hiding the tail. Since SPEC 7.2 the rows inside a
+    // group are its causes rather than its findings, so the heading's count is the sum of the
+    // rows' counts rather than the number of rows.
     const document = runtimeDocument();
 
     // When
     const model = buildHealthModel(document, '');
 
-    // Then
+    // Then. The subject is asserted present first: there really are groups here to be folded.
+    expect((model?.rules ?? []).length).toBeGreaterThan(0);
     const mismatched = (model?.rules ?? []).filter(
-      (rule) => rule.count !== String(rule.findings.length),
+      (rule) =>
+        rule.count !==
+        String(rule.findings.reduce((total, finding) => total + Number(finding.count), 0)),
     );
     expect(mismatched).toEqual([]);
+
+    // And every row names as many subjects as it stands for, so nothing folded away
+    const rows = (model?.rules ?? []).flatMap((rule) => rule.findings);
+    expect(rows.length).toBeGreaterThan(0);
+    expect(rows.every((row) => row.subjects.length === Number(row.count))).toBe(true);
   });
 
   it('should keep a failed collector among the checks and out of the findings', () => {

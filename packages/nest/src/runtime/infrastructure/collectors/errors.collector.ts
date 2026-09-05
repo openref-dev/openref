@@ -81,7 +81,12 @@ export interface ErrorsCollectorOptions {
 export interface ErrorsCollectorProblem {
   /** `OrdersController.read`, as a reader recognises it. */
   readonly subject: string;
+  /** The cause and what is not known because of it, in one clause, per SPEC 7.1. */
   readonly reason: string;
+  /** The action, or that there is none and why the finding is recorded anyway, per SPEC 7.1. */
+  readonly action: string;
+  /** The reasoning behind it, for a reader who opens it. Absent where the cause is its own. */
+  readonly detail?: string;
 }
 
 /** The collector, with the record of the declarations it could not resolve. */
@@ -166,9 +171,11 @@ function resolve(
   if (name === undefined) {
     problems.push({
       subject,
-      reason:
-        `@ApiErrors was applied with ${describe(entry)}, and a contract is built from an error ` +
-        'class. Pass the classes themselves: @ApiErrors(NotFoundError)',
+      reason: `@ApiErrors was applied with ${describe(entry)}, so no error contract is known`,
+      action: 'pass the classes themselves: @ApiErrors(NotFoundError)',
+      detail:
+        'A contract is built from an error class, which is where the status and the title are ' +
+        'read from. Nothing else carries them.',
     });
 
     return null;
@@ -178,10 +185,14 @@ function resolve(
   if (found === undefined) {
     problems.push({
       subject,
-      reason:
-        `@ApiErrors names ${name} and nothing says what status it answers with, so no contract ` +
-        'was reported for it. Add it to a catalog passed as errorsCollector({ catalogs }), or ' +
-        `give ${name} a static status. A status is never taken from a class name`,
+      reason: `nothing says what status ${name} answers with, so no contract was built for it`,
+      action:
+        `add ${name} to a catalog passed as errorsCollector({ catalogs }), or give it a static ` +
+        'status',
+      detail:
+        'A status is never taken from a class name, per SPEC 6.1: a class called NotFoundError ' +
+        'is a name and not a declaration, and reading 404 out of it would be a guess printed as ' +
+        'a fact.',
     });
 
     return null;

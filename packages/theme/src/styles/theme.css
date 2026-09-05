@@ -1835,6 +1835,28 @@ a.oref-topology-name {
   margin: 0;
 }
 
+/* The subject list and the reasoning open with the browser's own disclosure, so neither costs a
+ * byte of script, neither is the first thing a reader reads, and both survive a strict CSP. */
+.oref-drift-subjects,
+.oref-drift-why {
+  color: var(--oref-color-fg-secondary);
+  font-size: var(--oref-font-size-100);
+}
+
+.oref-drift-subjects summary,
+.oref-drift-why summary {
+  cursor: pointer;
+}
+
+.oref-drift-subjects ul {
+  margin: var(--oref-space-100) 0 0;
+  padding-left: var(--oref-space-500);
+}
+
+.oref-drift-why p {
+  margin: var(--oref-space-100) 0 0;
+}
+
 .oref-rule-head {
   cursor: pointer;
 }
@@ -1865,6 +1887,7 @@ a.oref-topology-name {
 .oref-drift-message,
 .oref-drift-side,
 .oref-drift-subject,
+.oref-drift-why,
 .oref-example,
 .oref-media-schema,
 .oref-nav-label,

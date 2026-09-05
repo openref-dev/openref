@@ -323,9 +323,15 @@ describe('throttlerCollector', () => {
     // When
     const produced = collector.collect(contextOf());
 
-    // Then
+    // Then the count is the cause, the one the row carries is the action, and the names of the
+    // ones it does not carry are the reasoning, per SPEC 7.1
     expect(produced?.rateLimit?.value.name).toBe('short');
-    expect(collector.problems()[0]?.reason).toContain('"long"');
+    const problem = collector.problems()[0];
+    expect(problem?.reason).toContain('2 named throttlers apply here');
+    expect(problem?.reason).toContain('the reference carries one');
+    expect(problem?.action).toContain('"short"');
+    expect(problem?.detail).toContain('"long"');
+    expect(problem?.detail).toContain('guard logic is never read');
   });
 
   it('should skip rather than fail the build when the package is not installed', () => {

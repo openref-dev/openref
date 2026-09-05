@@ -88,7 +88,7 @@ const INITIAL = [
   'openref.js',
   'chunk-EJ4XQ22A.js',
   'chunk-FMGVZQY6.js',
-  'chunk-HCWNPUXA.js',
+  'chunk-D45QPAC7.js',
   'chunk-GKCAFBE4.js',
   'chunk-ZSSABZO4.js',
   'chunk-NNVNJ4ZN.js',
@@ -140,8 +140,18 @@ describe('the published form of this tree', () => {
     // text gets a square. Selected by the state attribute the button already carried, so no name
     // arrived on the boundary list every theme must style. THE CAP DID NOT MOVE and the headroom
     // is 733 bytes, asserted below.
-    expect(total).toBe(62_755);
-    expect(sizeOf('theme.css')).toBe(48_667);
+    //
+    // 380 BYTES MORE ON 2026-09-05 AT `TX-VOICE`, AND THEY ARE FOUR RULES OVER TWO NEW NAMES.
+    // `.oref-drift-subjects` and `.oref-drift-why` are the disclosure a folded finding lists its
+    // subjects in and the one its reasoning sits behind, per SPEC 7.2, plus the `summary` cursor
+    // and the two inner margins. Both are `details` elements, so the opening costs no script and
+    // survives the strict CSP; `.oref-drift-why` also joins the bidirectional isolation list,
+    // because it carries a collector's sentence with an address interpolated into it exactly as
+    // the message above it does. THE CAP DID NOT MOVE and the headroom is 353 bytes, asserted
+    // below. What the two names cost the reader's first paint is zero: the health panel is server
+    // markup the browser adopts, and the initial JS figure below is byte identical.
+    expect(total).toBe(63_135);
+    expect(sizeOf('theme.css')).toBe(49_047);
     expect(sizeOf('tokens.css')).toBe(9_707);
     expect(sizeOf('fonts.css')).toBe(4_381);
   });
@@ -234,7 +244,7 @@ describe('the published form of this tree', () => {
     expect(sizeOf('openref.js')).toBe(22_859);
     expect(sizeOf('chunk-NNVNJ4ZN.js')).toBe(760);
     expect(total - sizeOf('openref.js') - sizeOf('chunk-NNVNJ4ZN.js')).toBe(90_708);
-    expect(sizeOf('chunk-HCWNPUXA.js')).toBe(5_089);
+    expect(sizeOf('chunk-D45QPAC7.js')).toBe(5_089);
   });
 
   it('should account for every byte of both deltas as a rewritten reference', () => {
@@ -335,12 +345,20 @@ describe('the published form of this tree', () => {
     // fold. Both rows still fit, at 23,749 raw and 1,314 gzip of headroom.
     //
     // 1,386 raw and 888 gzip on 2026-09-05, which was an earlier slice arriving the same way.
-    expect(onDisk).toBe(263_995);
-    expect(gzip).toBe(98_014);
+    //
+    // 415 raw on 2026-09-05 at `TX-VOICE`, which is this theme's own `DriftCard` learning to draw
+    // the subjects of a folded finding and the disclosure the reasoning sits in. It is drawn here
+    // rather than inherited, because a second theme that read only `subject` would have shown one
+    // subject of a group of fifty four and compiled perfectly while doing it, and it is the only
+    // instrument that can catch that. 105 of it survives gzip, a quarter of the raw arrival,
+    // because most of what arrived is markup this bundle already spells elsewhere. Both rows
+    // still fit, and neither cap moved.
+    expect(onDisk).toBe(264_410);
+    expect(gzip).toBe(98_119);
 
     // And the headroom each row actually has, against caps neither of which moved
-    expect(281 * 1024 - onDisk).toBe(23_749);
-    expect(97 * 1024 - gzip).toBe(1_314);
+    expect(281 * 1024 - onDisk).toBe(23_334);
+    expect(97 * 1024 - gzip).toBe(1_209);
   });
 
   it('should leave the caps where the two derivations put them', () => {

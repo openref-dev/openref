@@ -35,7 +35,12 @@ export const STREAM_COLLECTOR_NAME = 'streamCollector';
 export interface StreamCollectorProblem {
   /** `OrdersController.events`, as a reader recognises it. */
   readonly subject: string;
+  /** The cause and what is not known because of it, in one clause, per SPEC 7.1. */
   readonly reason: string;
+  /** The action, or that there is none and why the finding is recorded anyway, per SPEC 7.1. */
+  readonly action: string;
+  /** The reasoning behind it, for a reader who opens it. Absent where the cause is its own. */
+  readonly detail?: string;
 }
 
 /** The collector, with the record of the streams it could not describe. */
@@ -70,10 +75,13 @@ export function streamCollector(): StreamCollector {
       if (resolved.slot === undefined) {
         problems.push({
           subject: `${context.declaredOn.name}.${context.handlerName}`,
-          reason:
-            'it streams and nothing says what it streams. Reflection cannot recover the type ' +
-            'parameter of a stream, per SPEC 6.1, so the item type is declared with ' +
-            '@ApiStream({ itemType: YourDto }) or with itemSchema on the response',
+          reason: 'it streams and nothing says what it streams, so the item type is unknown',
+          action:
+            'declare it with @ApiStream({ itemType: YourDto }) or with itemSchema on the response',
+          detail:
+            'Reflection cannot recover the type parameter of a stream, per SPEC 6.1: ' +
+            'Observable<MessageEvent<OrderDto>> does not yield OrderDto at runtime, because ' +
+            'TypeScript generics do not survive compilation. No better collector can close this.',
         });
       }
 

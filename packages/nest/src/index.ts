@@ -605,8 +605,14 @@ export { buildContentSecurityPolicy } from '@openref/render';
 //
 // A NAME ADDED HERE IS A MINOR VERSION AND A NAME REMOVED IS A MAJOR ONE, per `PUBLIC-API.md`.
 // That asymmetry is the whole price of the decision.
+// IT BECAME TWELVE ON 2026-09-05 WITH `IRDiscoveryProblem`, and by the same reading. The registry
+// drains a collector's `problems()` into that shape and `CollectorRegistry.problems` returns it, so
+// a host typing the list it is handed named a type it could not import. The same measurement found
+// it: the built declaration imports the name, and the case re-derives the list rather than
+// repeating it.
 export type {
   IRConfidence,
+  IRDiscoveryProblem,
   IRDocument,
   IRFact,
   IRHealthCheck,
