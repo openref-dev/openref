@@ -306,7 +306,7 @@ const MEASURED_MAXIMUM_MS = 7_850;
  * F25, AND THE CLASS IS THE ONE `vitest.spawn-timeout.ts` NAMES rather than the class vitest's
  * five second default was chosen for. The case below writes 186 assignment probes and asks a
  * TypeScript program to check every one of them against thirteen declaration entry points of
- * eleven published packages. What that costs is set by the compiler and by the size of the
+ * twelve published packages. What that costs is set by the compiler and by the size of the
  * declaration graph, and neither is a property of the agreement being asserted; the assertion
  * itself is a comparison of two arrays.
  *

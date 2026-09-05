@@ -212,10 +212,21 @@ export function runRuntimePass(
   // why it is recorded here and not by the collector. `{ provide: APP_GUARD, useValue: { ... } }`
   // protects every route with something the reference cannot name, and a reader is owed the fact
   // that it is there rather than a row that says `Object`.
+  // WHAT THE COLLECTORS COULD NOT READ, AND THE TIE THIS PASS BROKE FOR THEM, LAND HERE. Both are
+  // subjects the discovery met and could not state, which is what this list is, so `doctor` prints
+  // them under RT070 with no second mechanism. Read after the loop that produces them and before
+  // the meta is built, because a rule cannot count a subject that is not on the document yet.
+  //
+  // THE COLLECTORS' HALF IS NEW AND THE RULE IT SERVES IS NOT. CLAUDE.md has always required a fact
+  // that cannot be obtained to reach `doctor` rather than be guessed, and every collector recorded
+  // its half faithfully into a `problems()` list nothing ever read. This is where that list finally
+  // arrives; see `CollectorRegistry.problems` for what was measured before it did.
+  const collectorProblems = registry.problems();
   const problems: readonly DiscoveryProblem[] = [
     ...(options.carriedProblems ?? []),
     ...discovered.problems,
     ...ghosts,
+    ...collectorProblems,
     ...declared.problems,
     ...(global.anonymous === 0
       ? []

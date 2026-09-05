@@ -87,7 +87,11 @@ export const RUNTIME_FACT_COLLECTORS: Readonly<Record<RuntimeFactField, readonly
   pipes: ['pipesCollector'],
   scopes: ['scopesCollector', 'declarationsCollector', 'caslCollector'],
   roles: ['rolesCollector', 'accessControlCollector'],
-  rateLimit: ['throttlerCollector'],
+  // TWO NAMES SINCE `TX-REDISX-RATELIMIT`, AND THE SENTENCE THE ROW BUILDS CHANGES SHAPE BECAUSE OF
+  // IT. `scopes` and `roles` already carried more than one, so the joining is not new; what is new
+  // is that this is the first field two SHIPPED collectors can both produce on one route, which is
+  // the tie `mergeContributions` now records rather than resolving in silence.
+  rateLimit: ['throttlerCollector', 'redisxRateLimitCollector'],
   timeout: ['timeoutCollector'],
   requiredHeaders: ['headersCollector'],
   parameterReads: ['handlerScanCollector'],

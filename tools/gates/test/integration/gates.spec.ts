@@ -233,9 +233,15 @@ describe('licensesGate', () => {
     // A third, `@openref/nuxt`, was decided the same way and then reversed by measurement: it
     // drags Nuxt's build toolchain into SPEC 0's zone 1 through a resolved peer dependency, and
     // five licences there are outside the allowlist. SPEC 4 carries all three.
+    // AND A FOURTH ECOSYSTEM COLLECTOR ARRIVED AT `TX-REDISX-RATELIMIT`, which is the twelfth name
+    // and the first collector written against the frozen contract rather than alongside it.
+    // `@openref/collector-redisx-rate-limit` reads `@nestjs-redisx/rate-limit`, which is MIT with
+    // no runtime dependency of its own and is an optional peer, so it enlarges the production zone
+    // by nothing.
     expect(result.published).toEqual([
       '@openref/collector-access-control',
       '@openref/collector-casl',
+      '@openref/collector-redisx-rate-limit',
       '@openref/collector-throttler',
       '@openref/core',
       '@openref/nest',

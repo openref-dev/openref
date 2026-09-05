@@ -565,7 +565,7 @@ export {
   LIST_FIELDS,
   mergeContributions,
 } from './runtime/domain/merge';
-export type { Contribution } from './runtime/domain/merge';
+export type { Contribution, FactContest, FactField } from './runtime/domain/merge';
 
 // The policy of SPEC 19.2, re-exported so a Nest host can call it from the package it installed.
 // THE HOST SETS THE POLICY AND THIS MODULE SETS NO HEADER. Nothing here writes a

@@ -69,13 +69,16 @@ export const DATA_ONLY_ATTESTATIONS: readonly DataOnlyAttestation[] = [
  * SPEC 4 recorded it, `PROJECT-STANDARDS.md` 3.1 did not, and for five milestones nothing read
  * either. The comparison is what makes a fourth copy safe.
  *
- * ELEVEN NAMES. Eight from SPEC 4's published table, three ecosystem collectors. `@openref/action`
+ * TWELVE NAMES. Eight from SPEC 4's published table, four ecosystem collectors. It read eleven
+ * until `TX-REDISX-RATELIMIT` added `@openref/collector-redisx-rate-limit`; the published table did
+ * not move, because a collector is an ecosystem package and never a row in it. `@openref/action`
  * is not among them and never was: a composite GitHub Action is consumed by git ref rather than
  * installed, so it stays private and is versioned in lockstep with the CLI it runs.
  */
 export const PUBLISHED_PACKAGES: readonly string[] = [
   '@openref/collector-access-control',
   '@openref/collector-casl',
+  '@openref/collector-redisx-rate-limit',
   '@openref/collector-throttler',
   '@openref/core',
   '@openref/nest',
@@ -548,6 +551,12 @@ export const COVERAGE_FLOORS: Readonly<Record<string, number>> = {
   'collector-access-control': 90,
   'collector-casl': 90,
   'collector-throttler': 90,
+  // ADDED AT `TX-REDISX-RATELIMIT`, WITH THE PACKAGE AND NOT AFTER IT, which is the whole lesson of
+  // the block above. `T065` closed the case where seven of eleven published packages were governed
+  // by nothing; a twelfth published package landing with no floor would have reopened it on the day
+  // it landed, and `[floor-ungoverned]` says exactly that. 90 by the margin doctrine, on the
+  // reading stated with its date in STANDARDS 9.1.
+  'collector-redisx-rate-limit': 90,
   // THE ONE ROW TAKEN EXPLICITLY RATHER THAN BY ROUNDING, because rounding gives two wrong answers
   // here. At 77.20 of lines and 74.20 of statements, 80 would be red on the day it lands and a
   // floor at the measurement would govern nothing. 70 is the step that governs: it is a real floor

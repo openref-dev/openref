@@ -478,9 +478,12 @@ const PATH_BOUND: Extent = { chars: 120, segments: 16, perToken: 12, capitals: 1
  * A package name, published, internal or ecosystem, all three being the same kind.
  *
  * WHAT SETS THE FLOOR: `@openref/collector-throttler` is 28 characters and was over the bound the
- * published list carried; `@openref/collector-access-control` is 33 over 4 segments and is the
- * longest name SPEC 4 states. The grammar admits no capital at all, so the capitals bound is zero
- * and costs nothing.
+ * published list carried; `@openref/collector-redisx-rate-limit` is 36 over 6 segments and is the
+ * longest name SPEC 4 states, which `@openref/collector-access-control` was at 33 until
+ * `TX-REDISX-RATELIMIT`. The grammar admits no capital at all, so the capitals bound is zero and
+ * costs nothing. THE BOUND ITSELF DID NOT MOVE FOR IT, and that is the bound working rather than
+ * being lucky: 48 characters was chosen to hold a package name of this kind, and the longest one
+ * anybody has written still sits twelve characters under it.
  */
 const PACKAGE_BOUND: Extent = { chars: 48, segments: 8, perToken: 6, capitals: 0 };
 
@@ -1110,8 +1113,8 @@ export const CITED_READINGS: readonly {
   {
     path: 'data.spec.packages.ecosystem[]',
     measure: 'chars',
-    reading: 33,
-    cited: 'PACKAGE_BOUND, @openref/collector-access-control',
+    reading: 36,
+    cited: 'PACKAGE_BOUND, @openref/collector-redisx-rate-limit',
   },
   { path: 'data.spec.readerPages[]', measure: 'chars', reading: 27, cited: 'ROUTE_BOUND' },
   {

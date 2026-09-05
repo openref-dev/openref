@@ -137,8 +137,12 @@ describe('runtimeInstrument, why one fact is missing from one node', () => {
     // When
     const instrument = runtimeInstrument(meta, 'rateLimit', new Map());
 
-    // Then
-    expect(instrument).toEqual({ kind: 'absent', shipped: ['throttlerCollector'] });
+    // Then, and both shipped names are offered rather than the first: a host whose limiter is
+    // `@nestjs-redisx/rate-limit` must not read "add throttlerCollector" as the only answer
+    expect(instrument).toEqual({
+      kind: 'absent',
+      shipped: ['throttlerCollector', 'redisxRateLimitCollector'],
+    });
   });
 
   it('should name a collector for every fact the IR can carry', () => {

@@ -18,7 +18,7 @@
  *
  * THE TWO HALVES THAT NEED A TARBALL LIVE WHERE THE TARBALLS ALREADY ARE, AND THIS FILE PACKS
  * NOTHING. `packages/nest/test/integration/published-consumer.spec.ts` assembles a consumer tree
- * out of all eleven tarballs, and the claims that need one are cases there: that every exported
+ * out of all twelve tarballs, and the claims that need one are cases there: that every exported
  * class can be imported and is the class the throw site used, which is what `instanceof` answers
  * false for when a package bundles its own copy of `@openref/core`, and that a consumer can
  * switch exhaustively over `ErrorCode` with no `default`. A second packing pass here raced the

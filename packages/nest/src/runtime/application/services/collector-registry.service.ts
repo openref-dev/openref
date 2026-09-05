@@ -11,7 +11,7 @@ import type {
   IRuntimeCollector,
 } from '../ports/collector.port';
 import { isRuntimeCollector, isSkippedCollector } from '../ports/collector.port';
-import { mergeContributions, type Contribution } from '../../domain/merge';
+import { mergeContributions, type Contribution, type FactContest } from '../../domain/merge';
 import type {
   ControllerLike,
   HandlerLike,
@@ -88,14 +88,53 @@ interface Retirement {
   missed: number;
 }
 
+/** One pair of collectors that tied over one field, and every route where they did. */
+interface ContestRecord {
+  readonly contest: FactContest;
+  /** The first route it happened on, which is the one a reader is sent to look at. */
+  readonly firstSubject: string;
+  /** How many routes in all, so the record says how wide the disagreement is. */
+  routes: number;
+}
+
 /** The health check this registry owns, per SPEC 7.2. */
 export const COLLECTOR_HEALTH_CHECK_ID = 'runtime-collectors';
+
+/**
+ * Reads one entry of a collector's problem list, when it is one.
+ *
+ * A THIRD PARTY COLLECTOR'S LIST IS NOT TYPE CHECKED BY ANYTHING. `problems()` is not on the frozen
+ * contract, so nothing between that collector and this line agreed on what it holds, and a document
+ * carrying `[object Object]` in a `doctor` report would be this package's defect and not theirs.
+ *
+ * @param entry - One element of whatever `problems()` returned
+ * @returns The problem, or undefined when the element is not one
+ */
+function asProblem(entry: unknown): { subject: string; reason: string } | undefined {
+  if (typeof entry !== 'object' || entry === null) return undefined;
+
+  const { subject, reason } = entry as { subject?: unknown; reason?: unknown };
+  if (typeof subject !== 'string' || typeof reason !== 'string') return undefined;
+  if (subject === '' || reason === '') return undefined;
+
+  return { subject, reason };
+}
 
 export class CollectorRegistry {
   private readonly collectors: readonly IRuntimeCollector[];
   private readonly registeredNames: readonly string[];
   private readonly declined: readonly { readonly collector: string; readonly reason: string }[];
   private readonly retired = new Map<string, Retirement>();
+  /**
+   * Ties of equal confidence, one record per pair of collectors and field rather than per route.
+   *
+   * KEYED SO THE REPORT IS READABLE, by the same doctrine that retires a throwing collector after
+   * one record: two collectors that tie over `rateLimit` on one route tie over it on every route
+   * they both see, and a thousand copies of one sentence is a report nobody reads. The count of
+   * routes rides along, so the record says how wide the disagreement is rather than only that
+   * there was one.
+   */
+  private readonly contested = new Map<string, ContestRecord>();
   /**
    * Collectors that returned facts about at least one node, which is what the check counts.
    *
@@ -176,7 +215,11 @@ export class CollectorRegistry {
       }
     }
 
-    return mergeContributions(contributions);
+    const contests: FactContest[] = [];
+    const merged = mergeContributions(contributions, contests);
+    this.recordContests(contests, `${target.controller.name}.${target.handlerName}`);
+
+    return merged;
   }
 
   /**
@@ -208,6 +251,112 @@ export class CollectorRegistry {
         : { guardSchemes: this.options.guardSecuritySchemes }),
       ...(skipped.length === 0 ? {} : { skipped }),
     };
+  }
+
+  /**
+   * Everything the collectors could not read, and everything this pass decided for them.
+   *
+   * TWO SOURCES AND ONE CHANNEL, because a reader of `doctor` has one question and it is not "which
+   * layer noticed". The first is the collectors' own record of what they met and could not turn
+   * into a fact; the second is {@link contests}, this registry's record of a tie it broke.
+   *
+   * WHY THE COLLECTORS' RECORD HAD TO BE DRAINED HERE. CLAUDE.md's rule is that a fact which cannot
+   * be obtained produces a `doctor` warning and never a guess, and every collector in this
+   * repository and in all four ecosystem packages honours the first half by keeping a `problems()`
+   * list. Nothing read it. Measured before this change: `grep -rn '\\.problems()'` outside `test/`
+   * returned zero hits, so fifteen collectors were writing warnings into an accumulator whose only
+   * reader was their own unit tests, and a third party collector had no route into `doctor` at all.
+   * A rule with no runner is the shape SPEC 0 is written against.
+   *
+   * IT IS READ STRUCTURALLY AND `IRuntimeCollector` DOES NOT MOVE. The contract is two members and
+   * frozen as public API, so `problems()` cannot become a third one without a major version; what
+   * this does is offer a channel to a collector that already has the method, which every one of
+   * ours does and any third party may. A collector without it is not asked and loses nothing.
+   *
+   * IT IS FAIL OPEN LIKE EVERYTHING ELSE HERE. `problems()` is somebody else's code running after
+   * the pass: a throw is caught and reported as its own problem rather than taking the boot down,
+   * and an entry that is not a pair of strings is skipped rather than printed as `[object Object]`.
+   *
+   * @returns One entry per problem, named by the collector that reported it
+   */
+  problems(): readonly { readonly subject: string; readonly reason: string }[] {
+    return [...this.collectorProblems(), ...this.contests()];
+  }
+
+  /**
+   * Drains the problem list of every collector that keeps one.
+   *
+   * @returns What the collectors could not read, prefixed with the name that could not read it
+   */
+  private collectorProblems(): readonly { readonly subject: string; readonly reason: string }[] {
+    const drained: { subject: string; reason: string }[] = [];
+
+    for (const collector of this.collectors) {
+      const method = (collector as { problems?: unknown }).problems;
+      if (typeof method !== 'function') continue;
+
+      let found: unknown;
+      try {
+        found = (method as () => unknown).call(collector);
+      } catch (cause) {
+        drained.push({
+          subject: collector.name,
+          reason:
+            'it threw when asked for the problems it recorded: ' +
+            `${cause instanceof Error ? cause.message : String(cause)}. Whatever it could not ` +
+            'read is therefore unreported, which is a defect in the collector rather than in the ' +
+            'application',
+        });
+        continue;
+      }
+
+      if (!Array.isArray(found)) continue;
+
+      for (const entry of found as readonly unknown[]) {
+        const problem = asProblem(entry);
+        if (problem === undefined) continue;
+
+        // THE COLLECTOR'S NAME GOES IN FRONT, as it does for a skipped one. Every reason in this
+        // repository is written as a continuation of its subject, so without the name a reader of
+        // `doctor` is told a route has an unreadable policy and not by which instrument.
+        drained.push({
+          subject: problem.subject,
+          reason: `${collector.name}: ${problem.reason}`,
+        });
+      }
+    }
+
+    return drained;
+  }
+
+  /**
+   * The ties of equal confidence this pass resolved by registration order, phrased for `doctor`.
+   *
+   * A TIE IS DETERMINISTIC AND WAS INVISIBLE, WHICH IS TWO PROPERTIES AND NOT ONE. SPEC 6.2 states
+   * the rule and T017 has always enforced it, so the same input has always produced the same
+   * document; what nothing said was that a second collector had reported a different value for a
+   * fact a reader is looking at. The page draws the winner's provenance, so the reader could not
+   * tell one report from two. It stayed unreachable while every fact field had a single producer in
+   * the shipped set, and the second producer of `rateLimit` reaches it.
+   *
+   * IT IS A PROBLEM AND NOT A DRIFT ISSUE, by the argument {@link healthCheck} already makes about
+   * the other direction: drift is the specification and the application disagreeing, per SPEC 7.1,
+   * and this is two instruments disagreeing. `IRRuntimeMeta.problems` is where a fact the reference
+   * would have carried and cannot goes, and the dropped value is exactly that.
+   *
+   * @returns One entry per pair of collectors and field, in the order the ties first happened
+   */
+  contests(): readonly { readonly subject: string; readonly reason: string }[] {
+    return [...this.contested.values()].map((record) => ({
+      subject: record.firstSubject,
+      reason:
+        `two collectors reported ${record.contest.field} at "${record.contest.confidence}", and ` +
+        `equal confidence is broken by registration order, so ${record.contest.kept} is in the ` +
+        `reference and ${record.contest.dropped} was dropped${
+          record.routes === 1 ? '' : ` on this and ${String(record.routes - 1)} further route(s)`
+        }. Register only the collector that reads the mechanism this application actually runs, or ` +
+        'put it first, because the first registration wins',
+    }));
   }
 
   /**
@@ -279,6 +428,26 @@ export class CollectorRegistry {
         collector: collector.name,
       }),
     };
+  }
+
+  /**
+   * Folds one node's ties into the pass wide record.
+   *
+   * @param contests - What the merge decided by order on this node
+   * @param subject - The route, as a reader of `doctor` recognises it
+   */
+  private recordContests(contests: readonly FactContest[], subject: string): void {
+    for (const contest of contests) {
+      const key = `${contest.field}\0${contest.kept}\0${contest.dropped}\0${contest.confidence}`;
+      const held = this.contested.get(key);
+
+      if (held === undefined) {
+        this.contested.set(key, { contest, firstSubject: subject, routes: 1 });
+        continue;
+      }
+
+      held.routes += 1;
+    }
   }
 
   /**

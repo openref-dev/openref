@@ -154,6 +154,89 @@ describe('CollectorRegistry', () => {
     });
   });
 
+  it('should say out loud that it broke a tie, naming both collectors and the field', () => {
+    // Given the case a second shipped rate limit collector makes reachable for the first time:
+    // two collectors, equal confidence, one field, and two different numbers
+    const throttler = collectorOf('throttlerCollector', (context) => ({
+      rateLimit: context.fact({ limit: 100, ttlMs: 60_000 }, 'derived'),
+    }));
+    const redisx = collectorOf('redisxRateLimitCollector', (context) => ({
+      rateLimit: context.fact({ limit: 720, ttlMs: 60_000 }, 'derived'),
+    }));
+    const registry = registryOf([throttler, redisx]);
+
+    // When
+    const result = registry.collect(targetOf());
+    const reported = registry.problems();
+
+    // Then the rule is unchanged, the first registration still wins
+    expect(result?.rateLimit?.value).toEqual({ limit: 100, ttlMs: 60_000 });
+    expect(result?.rateLimit?.collector).toBe('throttlerCollector');
+
+    // And the loser is no longer invisible, which is the half that was missing
+    const contest = reported.find((problem) => problem.reason.includes('rateLimit'));
+    expect(contest?.subject).toBe('OrdersController.list');
+    expect(contest?.reason).toContain('throttlerCollector is in the reference');
+    expect(contest?.reason).toContain('redisxRateLimitCollector was dropped');
+    expect(contest?.reason).toContain('"derived"');
+  });
+
+  it('should record one tie for a pair of collectors however many routes it happened on', () => {
+    // Given the doctrine a retired collector already follows: a report carrying one finding a
+    // thousand times is a report nobody reads
+    const first = collectorOf('throttlerCollector', (context) => ({
+      rateLimit: context.fact({ limit: 100, ttlMs: 60_000 }, 'derived'),
+    }));
+    const second = collectorOf('redisxRateLimitCollector', (context) => ({
+      rateLimit: context.fact({ limit: 720, ttlMs: 60_000 }, 'derived'),
+    }));
+    const registry = registryOf([first, second]);
+
+    // When three routes all tie
+    registry.collect(targetOf('get-orders'));
+    registry.collect(targetOf('get-order'));
+    registry.collect(targetOf('post-order'));
+
+    // Then
+    expect(registry.problems()).toHaveLength(1);
+    expect(registry.problems()[0]?.reason).toContain('2 further route(s)');
+  });
+
+  it('should record no tie when the two collectors disagree at different confidence', () => {
+    // Given. That loss is explained by SPEC 6.1 and the winning fact carries the evidence, so
+    // there is nothing a reader cannot already see.
+    const declared = collectorOf('scopesCollector', (context) => ({
+      scopes: context.fact(['orders:read'], 'declared'),
+    }));
+    const inferred = collectorOf('astCollector', (context) => ({
+      scopes: context.fact(['guessed'], 'inferred'),
+    }));
+    const registry = registryOf([declared, inferred]);
+
+    // When
+    registry.collect(targetOf());
+
+    // Then
+    expect(registry.problems()).toEqual([]);
+  });
+
+  it('should record no tie when independent collectors touch different fields', () => {
+    // Given
+    const scopes = collectorOf('scopesCollector', (context) => ({
+      scopes: context.fact(['orders:read'], 'derived'),
+    }));
+    const limits = collectorOf('throttlerCollector', (context) => ({
+      rateLimit: context.fact({ limit: 100, ttlMs: 60_000 }, 'derived'),
+    }));
+    const registry = registryOf([scopes, limits]);
+
+    // When
+    registry.collect(targetOf());
+
+    // Then
+    expect(registry.problems()).toEqual([]);
+  });
+
   it('should attribute a fact to the collector that produced it, whatever name it wrote', () => {
     // Given a collector that hand builds a fact and names somebody else. The types cannot stop
     // it, so the registry restamps, because a fact that lies about its source is worse than one
@@ -257,6 +340,98 @@ describe('CollectorRegistry', () => {
 
     // Then
     expect(result).toBeUndefined();
+  });
+});
+
+/**
+ * The channel a collector's own record of what it could not read finally travels down.
+ *
+ * WHAT WAS MEASURED BEFORE THIS EXISTED. Every collector in this repository and every one of the
+ * four ecosystem packages keeps a `problems()` list, because CLAUDE.md requires an unobtainable fact
+ * to produce a `doctor` warning rather than a guess. `grep -rn '\.problems()'` outside `test/`
+ * returned zero hits: fifteen collectors were writing into an accumulator whose only reader was
+ * their own unit tests, and a third party collector had no route into `doctor` at all.
+ */
+describe('CollectorRegistry, the problems a collector recorded', () => {
+  it('should drain the problem list of a collector that keeps one', () => {
+    // Given the shape every shipped collector uses, which is not on the frozen contract
+    const collector = {
+      name: 'timeoutCollector',
+      collect: () => undefined,
+      problems: () => [
+        { subject: 'OrdersController.list', reason: 'it holds a timeout that is not a number' },
+      ],
+    };
+
+    // When
+    const registry = registryOf([collector]);
+    registry.collect(targetOf());
+
+    // Then, and the collector's name is in front, as it is for a skipped one
+    expect(registry.problems()).toEqual([
+      {
+        subject: 'OrdersController.list',
+        reason: 'timeoutCollector: it holds a timeout that is not a number',
+      },
+    ]);
+  });
+
+  it('should ask nothing of a collector that keeps no list', () => {
+    // Given the contract as it is frozen: two members and no more
+    const collector = collectorOf('scopesCollector', () => undefined);
+
+    // When
+    const registry = registryOf([collector]);
+    registry.collect(targetOf());
+
+    // Then
+    expect(registry.problems()).toEqual([]);
+  });
+
+  it('should survive a problems() that throws, and say which collector it was', () => {
+    // Given somebody else's code, running after the pass. Fail open, like everything else here.
+    const collector = {
+      name: 'thirdPartyCollector',
+      collect: () => undefined,
+      problems: () => {
+        throw new Error('the accumulator was never initialised');
+      },
+    };
+
+    // When
+    const registry = registryOf([collector]);
+    registry.collect(targetOf());
+
+    // Then
+    expect(registry.problems()[0]?.subject).toBe('thirdPartyCollector');
+    expect(registry.problems()[0]?.reason).toContain('the accumulator was never initialised');
+  });
+
+  it('should skip an entry that is not a pair of strings rather than printing an object', () => {
+    // Given. `problems()` is not type checked by anything between that collector and this line,
+    // and `[object Object]` in a doctor report would be this package's defect and not theirs.
+    const collector = {
+      name: 'thirdPartyCollector',
+      collect: () => undefined,
+      problems: () => [
+        { subject: 'OrdersController.list', reason: { why: 'an object' } },
+        { subject: '', reason: 'an empty subject names nothing' },
+        null,
+        { subject: 'OrdersController.list', reason: 'this one is well formed' },
+      ],
+    };
+
+    // When
+    const registry = registryOf([collector]);
+    registry.collect(targetOf());
+
+    // Then
+    expect(registry.problems()).toEqual([
+      {
+        subject: 'OrdersController.list',
+        reason: 'thirdPartyCollector: this one is well formed',
+      },
+    ]);
   });
 });
 

@@ -94,7 +94,8 @@ describe('the rows TX-COLLECTORS filled, on the served pages', () => {
       const headers = rowOf(page, 'required-headers');
       expect(headers).toContain('oref-hatch');
       expect(headers).toContain(
-        'headersCollector examined this route and found no required header. The route is silent, not unmeasured.',
+        'headersCollector examined this route and found no required header declared on it. ' +
+          'Anything applied to it from outside the route is named in the doctor report, not here.',
       );
       expect(page).not.toContain('Nothing observed here.');
       expect(page).not.toContain('does not exist yet');
@@ -104,7 +105,7 @@ describe('the rows TX-COLLECTORS filled, on the served pages', () => {
       // can reach it. `aria-label` carried it alone until this.
       expect(headers).toContain('aria-label="comparison not run"');
       expect(headers).toContain(
-        'title="headersCollector examined this route and found no required header.',
+        'title="headersCollector examined this route and found no required header declared on it.',
       );
     },
     TIMEOUT,

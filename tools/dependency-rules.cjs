@@ -168,7 +168,7 @@ const BOUNDARIES = {
   // `openref` is a devDependency for the tests alone, which this boundary does not govern.
   action: [],
 
-  // THE THREE ECOSYSTEM COLLECTORS OF SPEC 4, AND THE EDGE RUNS THE OTHER WAY. `nest` does not
+  // THE FOUR ECOSYSTEM COLLECTORS OF SPEC 4, AND THE EDGE RUNS THE OTHER WAY. `nest` does not
   // depend on any of them and must not: each one exists to read a third party package, and an
   // edge from `nest` would put that package in the closure of the one every consumer installs.
   // They depend on `nest` for the collector contract and on `core` for the IR their `collect`
@@ -178,6 +178,7 @@ const BOUNDARIES = {
   'collector-throttler': ['core', 'nest'],
   'collector-casl': ['core', 'nest'],
   'collector-access-control': ['core', 'nest'],
+  'collector-redisx-rate-limit': ['core', 'nest'],
 };
 
 /**

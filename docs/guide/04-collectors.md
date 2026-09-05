@@ -42,7 +42,22 @@ OpenRefModule.forRoot({
 `throttlerCollector` lives in its own package, `@openref/collector-throttler`, so that
 installing `@openref/nest` never puts a rate limiting library in the dependency closure of an
 application that does not rate limit anything. The same is true of
-`@openref/collector-casl` and `@openref/collector-access-control`.
+`@openref/collector-casl`, `@openref/collector-access-control` and
+`@openref/collector-redisx-rate-limit`, which reads `@nestjs-redisx/rate-limit`.
+
+Register at most one collector per fact. Two that report the same fact at the same confidence are
+resolved by registration order, first wins, and the `doctor` report names the pair and the value it
+dropped so the choice is never silent.
+
+### What a collector cannot read, it says
+
+A rate limit written on a route is a fact. A rate limit applied by a guard your application
+registered for everything is not: what that guard decides is in its own code, which no collector
+ever reads. So a route with no limit of its own and a globally registered guard over it does not
+come back empty. It comes back with a line in `openref doctor` naming the guard, and the module wide
+budget if one is configured, and saying that nothing observed connects the two. An unlimited route
+and a route whose limit is unreadable must not look the same, and this is where they stop looking
+the same.
 
 ### Every fact carries where it came from
 

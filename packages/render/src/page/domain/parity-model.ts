@@ -106,6 +106,15 @@ const ROW_SUBJECT: Readonly<Record<ParityRowKind, readonly [RuntimeFactField, st
  * collector of the host's own would do, because a host whose limiter is not `@nestjs/throttler`
  * must not read "add throttlerCollector" as the only answer.
  *
+ * AND `ran` NO LONGER SAYS "THE ROUTE IS SILENT", BECAUSE THAT WAS AN ASSERTION THE COLLECTOR NEVER
+ * MADE. It said what a collector observed and then drew a conclusion the observation does not carry:
+ * a collector reads declarations on a route, and a route can be governed by something that is not a
+ * declaration on it. The case that found it is an application whose rate limiting guard is
+ * registered for the whole application and whose routes mostly carry no decorator, where fifty four
+ * of fifty eight operations were told a limit does not apply when one does. What a collector can
+ * report is what it read, so that is what the sentence now says, and it points at the report that
+ * holds whatever the route is governed by from outside itself.
+ *
  * @param instrument - What `runtimeInstrument` decided about this fact
  * @param noun - The row's subject, singular
  * @returns The sentence a reader sees in the hatched cell
@@ -117,7 +126,10 @@ function instrumentReason(instrument: RuntimeInstrument, noun: string): string {
     case 'ran': {
       const who = instrument.collector === '' ? 'A collector' : instrument.collector;
 
-      return `${who} examined this route and found no ${noun}. The route is silent, not unmeasured.`;
+      return (
+        `${who} examined this route and found no ${noun} declared on it. Anything applied to it ` +
+        'from outside the route is named in the doctor report, not here.'
+      );
     }
     case 'skipped':
       return `${instrument.collector} was registered and did not run: ${instrument.reason}`;

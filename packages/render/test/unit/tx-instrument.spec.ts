@@ -152,7 +152,8 @@ describe('the parity scale says which of the two silences an empty cell is', () 
 
     // Then the two sentences are different sentences, which is the whole of this change
     expect(validation?.reason).toBe(
-      'pipesCollector examined this route and found no pipe. The route is silent, not unmeasured.',
+      'pipesCollector examined this route and found no pipe declared on it. Anything applied to ' +
+        'it from outside the route is named in the doctor report, not here.',
     );
   });
 

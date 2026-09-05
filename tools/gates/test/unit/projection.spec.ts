@@ -2000,7 +2000,10 @@ describe('the figures this code states about this repository', () => {
     // AFTER IT: the first draft of those entries went 992 bytes past two milestones of headroom and
     // was cut and re-homed until it fitted, and no ceiling moved for it. The ceiling has not moved
     // and is not the subject of this case; what moves is the reading, and the two bounds below are
-    // what say the corridor still holds.
+    // what say the corridor still holds. `TX-REDISX-RATELIMIT` took it to 131,183 over 645: one
+    // leaf, `@openref/collector-redisx-rate-limit` in SPEC 4's ecosystem list, and 50 bytes, which
+    // is that name plus the JSON around it. A published package is a leaf where a paragraph is
+    // not, which is the whole reason this case reads leaves as well as bytes.
     const read = readProjection(repoRoot);
     expect(read.ok).toBe(true);
     const data = read.ok ? read.projection.data : undefined;
@@ -2017,7 +2020,7 @@ describe('the figures this code states about this repository', () => {
 
     // Then each figure the budget's derivation states is the one the artefact gives, and the
     // headroom really is two milestones of it
-    expect([scan.bytes, scan.leaves]).toEqual([131_133, 644]);
+    expect([scan.bytes, scan.leaves]).toEqual([131_183, 645]);
     expect([perHeading, perTask, perRow]).toEqual([421, 126, 224]);
     expect(milestone).toBe(8_049);
     expect(PROJECTION_ARTEFACT_BUDGET.limitBytes - scan.bytes).toBeGreaterThanOrEqual(
@@ -2280,21 +2283,24 @@ describe('the projection privacy gate', () => {
     const scan = scanProjectionProse(read.ok ? read.projection : {}, read.ok ? read.bytes : 0);
 
     // Then it is above the floor, so it is a reading and not an absence, and under the budget, so
-    // it is a reading and not a volume. The corridor is narrow and that is what it is: 144 leaves
-    // of room under the reading and 156 over it. Both ends are asserted precisely so that a leaf
+    // it is a reading and not a volume. The corridor is narrow and that is what it is: 145 leaves
+    // of room under the reading and 155 over it. Both ends are asserted precisely so that a leaf
     // arriving is a decision somebody takes rather than a drift; it read 125 and 175 until
     // 2026-09-04, when SPEC 4's held back section put `@openref/nuxt` into the artefact, then 126
-    // and 174, and it reads 144 and 156 since the T065 close, which put eight POST-1.0 entries into
+    // and 174, and 144 and 156 from the T065 close, which put eight POST-1.0 entries into
     // the amendments and three of their markers into documents the artefact projects, the other
     // five going to the source files their subjects live in, where the sweep reads them live and
-    // the artefact does not carry them at all. NEITHER END OF THE CORRIDOR MOVED ON ANY OF THE
-    // THREE OCCASIONS: the floor is still PROJECTION_LEAF_FLOOR and the budget is still
-    // PROJECTION_ARTEFACT_BUDGET.leaves, and what these two numbers record is where the reading now
-    // stands between them.
+    // the artefact does not carry them at all. It reads 145 and 155 since `TX-REDISX-RATELIMIT`,
+    // where the one leaf is `@openref/collector-redisx-rate-limit` joining SPEC 4's ecosystem list,
+    // and that is this case working: a twelfth published package is exactly the kind of decision
+    // these two numbers exist to make somebody take on purpose. NEITHER END OF THE CORRIDOR MOVED
+    // ON ANY OF THE FOUR OCCASIONS: the floor is still PROJECTION_LEAF_FLOOR and the budget is
+    // still PROJECTION_ARTEFACT_BUDGET.leaves, and what these two numbers record is where the
+    // reading now stands between them.
     expect(scan.leaves).toBeGreaterThan(PROJECTION_LEAF_FLOOR);
     expect(scan.leaves).toBeLessThan(PROJECTION_ARTEFACT_BUDGET.leaves);
-    expect(scan.leaves - PROJECTION_LEAF_FLOOR).toBe(144);
-    expect(PROJECTION_ARTEFACT_BUDGET.leaves - scan.leaves).toBe(156);
+    expect(scan.leaves - PROJECTION_LEAF_FLOOR).toBe(145);
+    expect(PROJECTION_ARTEFACT_BUDGET.leaves - scan.leaves).toBe(155);
   });
 
   it('should be in the gate list, since a gate nothing runs is a rule with no runner', () => {
