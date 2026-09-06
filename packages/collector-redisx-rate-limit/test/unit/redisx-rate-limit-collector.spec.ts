@@ -8,11 +8,15 @@ import type { CollectorContext } from '@openref/nest';
 import { isRuntimeCollector } from '@openref/nest';
 import {
   BUDGET_SOURCE,
+  FAIL_CLOSED_POLICY,
+  FAIL_OPEN_POLICY,
   MILLISECONDS_PER_SECOND,
+  RATE_LIMIT_EXCEEDED_STATUS,
   RATE_LIMIT_OPTIONS_KEY,
   RATE_LIMIT_PLUGIN_OPTIONS_KEY,
   REDISX_RATE_LIMIT_COLLECTOR_NAME,
   redisxRateLimitCollector,
+  STORE_UNAVAILABLE_STATUS,
   type MetadataValueReader,
   type RedisxRateLimitCollector,
   type RedisxRateLimitCollectorRegistration,
@@ -212,9 +216,13 @@ describe('redisxRateLimitCollector', () => {
     // When
     const produced = collector.collect(contextOf());
 
-    // Then
+    // Then, and nothing about this route was unreadable. The pass's one record about the module's
+    // store failure policy is a statement about the application and is filtered out by subject
+    // rather than by wording, which is what keeps this case about the route.
     expect(produced?.rateLimit?.value).toEqual({ limit: 5, ttlMs: 60_000, name: 'global' });
-    expect(collector.problems()).toEqual([]);
+    expect(
+      collector.problems().filter((problem) => problem.subject === 'WidgetsController.ingest'),
+    ).toEqual([]);
   });
 
   it('should say nothing to doctor about an undecorated route with no global guard over it', () => {
@@ -319,9 +327,14 @@ describe('a route governed from outside itself', () => {
     // When
     const produced = collector.collect(contextOf({ globalGuards: ['GlobalRateLimitGuard'] }));
 
-    // Then
-    expect(produced).toBeUndefined();
-    expect(collector.problems()[0]?.reason).toContain('points and no duration');
+    // Then, and the statuses stand: what the route could not say is the number, not that it
+    // refuses anybody at all
+    expect(produced?.rateLimit).toBeUndefined();
+    expect(produced?.rateLimitReach).toBeUndefined();
+    expect(produced?.errors?.runtimeDerived.map((contract) => contract.status)).toEqual([429]);
+    expect(
+      collector.problems().some((problem) => problem.reason.includes('points and no duration')),
+    ).toBe(true);
   });
 
   it('should say the route is governed by something it cannot read, rather than nothing', () => {
@@ -513,7 +526,7 @@ describe('what the collector refuses to read, per SPEC 6.2.2', () => {
 
     // Then, and the provider is named where the reasoning is, not in the one clause `doctor` has
     // room for
-    expect(produced).toBeUndefined();
+    expect(produced?.rateLimit).toBeUndefined();
     const problem = collector.problems()[0];
     expect(problem?.reason).toContain('points and no duration');
     expect(problem?.reason).toContain('no limit is known');
@@ -529,8 +542,12 @@ describe('what the collector refuses to read, per SPEC 6.2.2', () => {
     const produced = collector.collect(contextOf());
 
     // Then
-    expect(produced).toBeUndefined();
-    expect(collector.problems()[0]?.reason).toContain('neither points nor duration');
+    expect(produced?.rateLimit).toBeUndefined();
+    expect(
+      collector
+        .problems()
+        .some((problem) => problem.reason.includes('neither points nor duration')),
+    ).toBe(true);
   });
 
   it('should report nothing for a token bucket, whose points is a capacity and not a count', () => {
@@ -545,7 +562,7 @@ describe('what the collector refuses to read, per SPEC 6.2.2', () => {
 
     // Then, and the action says plainly that there is none to take, which is why the finding is
     // recorded at all
-    expect(produced).toBeUndefined();
+    expect(produced?.rateLimit).toBeUndefined();
     const problem = collector.problems()[0];
     expect(problem?.reason).toContain('token-bucket algorithm');
     expect(problem?.reason).toContain('no count per window is known');
@@ -579,8 +596,225 @@ describe('what the collector refuses to read, per SPEC 6.2.2', () => {
     const produced = collector.collect(contextOf());
 
     // Then
-    expect(produced).toBeUndefined();
+    expect(produced?.rateLimit).toBeUndefined();
     expect(collector.problems()[0]?.reason).toContain('duration and no points');
+  });
+});
+
+/**
+ * The statuses a limited route answers with, which this package reported none of until 2026-09-05.
+ *
+ * THE TWO ARE NOT THE SAME KIND OF FACT AND ARE NOT PROVED THE SAME WAY. 429 follows from the
+ * decorator alone, because `@RateLimit` binds `RateLimitGuard` itself and the guard throws
+ * `RateLimitExceededError` whenever a counted request goes over; 503 follows from a module option
+ * with no route half, `errorPolicy`, which only the plugin's own provider states. So the cases
+ * below prove 429 on a route whose budget could not even be read, and prove that 503 appears only
+ * where the policy that produces it was read off the container.
+ */
+describe('the statuses a decorated route answers with', () => {
+  it('should report 429 on a route the decorator is on, as a runtime derived contract', () => {
+    // Given a route with a budget of its own
+    const collector = collectorOver(onHandler({ points: 720, duration: 60 }));
+
+    // When
+    const produced = collector.collect(contextOf());
+
+    // Then the status travels in the group a documented response is already compared against, with
+    // the provenance every runtime fact carries
+    expect(produced?.errors?.runtimeDerived).toHaveLength(1);
+    const contract = produced?.errors?.runtimeDerived[0];
+    expect(contract?.status).toBe(RATE_LIMIT_EXCEEDED_STATUS);
+    expect(contract?.title).toBe('The rate limit on this route is exhausted');
+    expect(contract?.detail).toContain('RateLimitGuard');
+    expect(contract?.origin).toBe('runtime-derived');
+    expect(contract?.confidence).toBe('derived');
+    expect(contract?.collector).toBe(REDISX_RATE_LIMIT_COLLECTOR_NAME);
+    expect(produced?.errors?.declared).toEqual([]);
+    expect(produced?.errors?.global).toEqual([]);
+  });
+
+  it('should report 429 even where it could not read the budget at all', () => {
+    // Given the half declared decorator, whose window is completed per request from module
+    // configuration. What the collector cannot say is the number; that the route refuses a request
+    // over it is a property of the guard the decorator bound.
+    const collector = collectorOver(onHandler({ points: 720 }));
+
+    // When
+    const produced = collector.collect(contextOf());
+
+    // Then
+    expect(produced?.rateLimit).toBeUndefined();
+    expect(produced?.errors?.runtimeDerived.map((contract) => contract.status)).toEqual([
+      RATE_LIMIT_EXCEEDED_STATUS,
+    ]);
+  });
+
+  it('should report 503 beside 429 when the module declares fail-closed', () => {
+    // Given the policy that produces it, read off the provider the library registers. Under it
+    // `RateLimitService.handleError` throws `RateLimitScriptError`, which the library's own filter
+    // answers with 503 and the body "Rate limiting is temporarily unavailable".
+    const collector = collectorOver(onHandler({ points: 10, duration: 60 }));
+
+    // When
+    const produced = collector.collect(
+      contextOf({
+        pluginOptions: { defaultPoints: 100, defaultDuration: 60, errorPolicy: 'fail-closed' },
+      }),
+    );
+
+    // Then, and nothing was recorded about the policy, because the status says it
+    expect(produced?.errors?.runtimeDerived.map((contract) => contract.status)).toEqual([
+      RATE_LIMIT_EXCEEDED_STATUS,
+      STORE_UNAVAILABLE_STATUS,
+    ]);
+    const unavailable = produced?.errors?.runtimeDerived[1];
+    expect(unavailable?.title).toBe('Rate limiting is temporarily unavailable');
+    expect(unavailable?.detail).toContain('fail-closed');
+    expect(unavailable?.confidence).toBe('derived');
+    expect(unavailable?.collector).toBe(REDISX_RATE_LIMIT_COLLECTOR_NAME);
+    expect(collector.problems().some((problem) => problem.reason.includes('errorPolicy'))).toBe(
+      false,
+    );
+  });
+
+  it('should withhold 503 under fail-open and say what that costs instead', () => {
+    // Given the other policy, which answers a store failure by admitting the request. There the
+    // 503 is not an answer the route has, and the fact worth reporting is the other one: for as
+    // long as the store is failing the route is not limited at all.
+    const collector = collectorOver(onHandler({ points: 10, duration: 60 }));
+
+    // When
+    const produced = collector.collect(
+      contextOf({
+        pluginOptions: { defaultPoints: 100, defaultDuration: 60, errorPolicy: 'fail-open' },
+      }),
+    );
+
+    // Then
+    expect(produced?.errors?.runtimeDerived.map((contract) => contract.status)).toEqual([
+      RATE_LIMIT_EXCEEDED_STATUS,
+    ]);
+    const problem = collector
+      .problems()
+      .find((found) => found.reason.includes(`errorPolicy: "${FAIL_OPEN_POLICY}"`));
+    expect(problem?.subject).toBe('the application');
+    expect(problem?.reason).toContain('503 is not an answer');
+    expect(problem?.action).toContain(`errorPolicy: "${FAIL_CLOSED_POLICY}"`);
+    expect(problem?.detail).toContain('stops being');
+    expect(problem?.detail).toContain('InvalidRateLimitConfigError');
+  });
+
+  it('should withhold 503 and name what it did not read when no plugin configuration answered', () => {
+    // Given a container that throws UnknownElementException, which is what NestJS answers when
+    // nobody registered the token. `errorPolicy` has no route half, so there is nowhere else to
+    // read it, and the library's own `?? "fail-closed"` is a default rather than a reading.
+    const collector = collectorOver(onHandler({ points: 10, duration: 60 }));
+
+    // When
+    const produced = collector.collect(contextOf());
+
+    // Then the status is left off and the reason names the subject, in the three members SPEC 7.1
+    // requires
+    expect(produced?.errors?.runtimeDerived.map((contract) => contract.status)).toEqual([
+      RATE_LIMIT_EXCEEDED_STATUS,
+    ]);
+    const problem = collector.problems().find((found) => found.reason.includes('errorPolicy'));
+    expect(problem?.subject).toBe('the application');
+    expect(problem?.reason).toContain('whether a store failure answers 503 is not known');
+    expect(problem?.action).toContain('register RateLimitPlugin');
+    expect(problem?.detail).toContain('left off rather than taken from the library default');
+  });
+
+  it('should say nothing about the policy in an application that decorated no route', () => {
+    // Given, the subject is present: the collector runs and the route is examined. What it must
+    // not do is warn about a status no route of this application can answer with, which is the
+    // noise SPEC 6.2.2 rules against for the undecorated route.
+    const collector = collectorOver(new Map());
+
+    // When
+    const produced = collector.collect(contextOf({ globalGuards: ['GlobalRateLimitGuard'] }));
+
+    // Then
+    expect(produced?.rateLimitReach).toBeDefined();
+    expect(produced?.errors).toBeUndefined();
+    expect(collector.problems().some((problem) => problem.reason.includes('errorPolicy'))).toBe(
+      false,
+    );
+  });
+
+  it('should record the policy once for the pass, not once per decorated route', () => {
+    // Given three decorated routes of one application, whose policy is one provider value
+    const collector = collectorOver(onHandler({ points: 10, duration: 60 }));
+
+    // When
+    collector.collect(contextOf());
+    collector.collect(contextOf());
+    collector.collect(contextOf());
+
+    // Then, by the precedent the module budget record already sets for a fact about the
+    // application rather than about a route
+    expect(
+      collector.problems().filter((problem) => problem.reason.includes('errorPolicy')),
+    ).toHaveLength(1);
+  });
+
+  it('should treat @RateLimit() with no argument as a decorated route rather than an unlimited one', () => {
+    // Given the decorator applied with no options, whose whole budget is module configuration.
+    // Measured on the installed library: `RateLimit(options = {})` defaults the parameter before
+    // calling SetMetadata, so the value stored under the key is `{}` and not `undefined`.
+    @Controller('widgets')
+    class Widgets {
+      @Post('bare')
+      @RateLimit()
+      bare(): string {
+        return 'ok';
+      }
+    }
+    const handler = Object.getOwnPropertyDescriptor(Widgets.prototype, 'bare')?.value as
+      (() => string) | undefined;
+    expect(handler).toBeDefined();
+    expect(Reflect.getMetadata(RATE_LIMIT_OPTIONS, handler!)).toEqual({});
+
+    // When
+    const collector = running(redisxRateLimitCollector());
+    const produced = collector.collect({
+      ...contextOf({ globalGuards: ['GlobalRateLimitGuard'] }),
+      controller: Widgets,
+      declaredOn: Widgets,
+      handler: handler as () => string,
+      handlerName: 'bare',
+    });
+
+    // Then it is not the third state of SPEC 6.2.3 and not the second either: the guard is bound
+    // by this route's own decorator, so it answers 429, and the number it does not carry is
+    // reported as a route that named neither half.
+    expect(produced?.rateLimitReach).toBeUndefined();
+    expect(produced?.rateLimit).toBeUndefined();
+    expect(produced?.errors?.runtimeDerived.map((contract) => contract.status)).toEqual([
+      RATE_LIMIT_EXCEEDED_STATUS,
+    ]);
+    expect(
+      collector
+        .problems()
+        .some((problem) => problem.reason.includes('neither points nor duration')),
+    ).toBe(true);
+  });
+
+  it('should put no status on a route the decorator is not on', () => {
+    // Given, the proof of absence needs the subject present: the same collector does report the
+    // statuses when the key is there, which the case above measures. Here it is not.
+    const collector = collectorOver(new Map());
+
+    // When
+    const produced = collector.collect(
+      contextOf({
+        pluginOptions: { defaultPoints: 100, defaultDuration: 60, errorPolicy: 'fail-closed' },
+      }),
+    );
+
+    // Then nothing carries a status, because what would answer it is a guard whose code is never
+    // read, per SPEC 6.1
+    expect(produced?.errors).toBeUndefined();
   });
 });
 
@@ -719,5 +953,15 @@ describe('the name `@openref/core` names for this fact', () => {
       'throttlerCollector',
       REDISX_RATE_LIMIT_COLLECTOR_NAME,
     ]);
+  });
+
+  it('should be named for the errors fact too, since this collector now produces one', () => {
+    // Given, the subject is present: core names something for the fact, and this collector writes
+    // into it. A collector producing a fact and absent from the list of instruments for it leaves a
+    // reader with an empty node and one name to try when three exist.
+    expect(RUNTIME_FACT_COLLECTORS.errors.length).toBeGreaterThan(0);
+
+    // When, Then
+    expect(RUNTIME_FACT_COLLECTORS.errors).toContain(REDISX_RATE_LIMIT_COLLECTOR_NAME);
   });
 });

@@ -24,29 +24,34 @@ OpenRefModule.forRoot({
 });
 ```
 
-| Collector | Reads |
-| --- | --- |
-| `sourceCollector` | where the handler is written, from V8 and the source map |
-| `guardsCollector` | the guard class names in front of the route |
-| `scopesCollector` | scopes, from a metadata key you name |
-| `rolesCollector` | roles, from a metadata key you name |
-| `pipesCollector` | the pipes bound to the route, with their scope |
-| `timeoutCollector` | a timeout, from a metadata key you name |
-| `headersCollector` | required headers, from a metadata key you name |
-| `httpCodeCollector` | the success status `@HttpCode` sets |
-| `streamCollector` | that a route streams, and its item type when declared |
-| `declarationsCollector` | what this package's own decorators declared |
-| `errorsCollector` | error contracts, from catalogs you supply |
-| `handlerScanCollector` | which declared parameters the handler actually binds |
+| Collector               | Reads                                                    |
+| ----------------------- | -------------------------------------------------------- |
+| `sourceCollector`       | where the handler is written, from V8 and the source map |
+| `guardsCollector`       | the guard class names in front of the route              |
+| `scopesCollector`       | scopes, from a metadata key you name                     |
+| `rolesCollector`        | roles, from a metadata key you name                      |
+| `pipesCollector`        | the pipes bound to the route, with their scope           |
+| `timeoutCollector`      | a timeout, from a metadata key you name                  |
+| `headersCollector`      | required headers, from a metadata key you name           |
+| `httpCodeCollector`     | the success status `@HttpCode` sets                      |
+| `streamCollector`       | that a route streams, and its item type when declared    |
+| `declarationsCollector` | what this package's own decorators declared              |
+| `errorsCollector`       | error contracts, from catalogs you supply                |
+| `handlerScanCollector`  | which declared parameters the handler actually binds     |
 
 `throttlerCollector` lives in its own package, `@openref/collector-throttler`, so that
 installing `@openref/nest` never puts a rate limiting library in the dependency closure of an
 application that does not rate limit anything. The same is true of
 `@openref/collector-casl`, `@openref/collector-access-control`,
 `@openref/collector-redisx-rate-limit`, which reads `@nestjs-redisx/rate-limit`, and
-`@openref/collector-redisx-idempotency`, which reads `@nestjs-redisx/idempotency` and reports the
-two statuses an `@Idempotent` route can answer with into the route's runtime derived error
-contracts.
+`@openref/collector-redisx-idempotency`, which reads `@nestjs-redisx/idempotency`.
+
+Both of the redisx collectors report statuses as well, into the route's runtime derived error
+contracts, so a route that answers something the document does not mention shows up as drift. A
+`@RateLimit` route answers 429 whenever the limit is spent, and answers 503 as well where the
+module declares `errorPolicy: 'fail-closed'`, which is the only place that option can be read; where
+it cannot be read the 503 is left off and `openref doctor` says so rather than assuming it. An
+`@Idempotent` route answers 409, and 422 as well where the plugin compares request fingerprints.
 
 Register at most one collector per fact. Two that report the same fact at the same confidence are
 resolved by registration order, first wins, and the `doctor` report names the pair and the value it

@@ -102,7 +102,12 @@ export const RUNTIME_FACT_COLLECTORS: Readonly<Record<RuntimeFactField, readonly
   requiredHeaders: ['headersCollector'],
   parameterReads: ['handlerScanCollector'],
   statusCode: ['httpCodeCollector'],
-  errors: ['errorsCollector'],
+  // THREE NAMES SINCE 2026-09-05, AND THE TWO NEW ONES REPORT A STATUS WHERE THE FIRST REPORTS A
+  // CATALOGUE. `errorsCollector` carries what a host handed it; the two redisx collectors carry
+  // what their libraries answer with, into `runtimeDerived`. They were absent from here while
+  // producing the fact, which is the one direction this list can be wrong in: a reader whose route
+  // has no contracts was offered one instrument when three exist.
+  errors: ['errorsCollector', 'redisxRateLimitCollector', 'redisxIdempotencyCollector'],
   streaming: ['streamCollector'],
 };
 

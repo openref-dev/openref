@@ -11,6 +11,7 @@ import {
   IdempotencyKeyRequiredError,
   IdempotencyRecordNotFoundError,
 } from '@nestjs-redisx/idempotency';
+import { RUNTIME_FACT_COLLECTORS } from '@openref/core';
 import type { IRConfidence, IRErrorContract, IRFact, IRNode } from '@openref/core';
 import type { CollectorContext } from '@openref/nest';
 import { isRuntimeCollector } from '@openref/nest';
@@ -515,5 +516,23 @@ describe('the package name', () => {
   it('should be the one the manifest publishes', () => {
     // Given, When, Then
     expect(PACKAGE_NAME).toBe('@openref/collector-redisx-idempotency');
+  });
+});
+
+/**
+ * The name this collector stamps is a name `@openref/core` names for the fact it produces.
+ *
+ * IT IS ASSERTED HERE BECAUSE THE TWO LISTS LIVE IN TWO PACKAGES, which is the reason every other
+ * ecosystem collector's suite carries the same case. This one did not, and the list did not carry
+ * this name: the package shipped producing `errors` while `RUNTIME_FACT_COLLECTORS.errors` offered
+ * a reader `errorsCollector` alone.
+ */
+describe('the name `@openref/core` names for this fact', () => {
+  it('should be the name this collector stamps', () => {
+    // Given, the subject is present: core names something for the fact
+    expect(RUNTIME_FACT_COLLECTORS.errors.length).toBeGreaterThan(0);
+
+    // When, Then
+    expect(RUNTIME_FACT_COLLECTORS.errors).toContain(REDISX_IDEMPOTENCY_COLLECTOR_NAME);
   });
 });

@@ -2046,6 +2046,16 @@ describe('the figures this code states about this repository', () => {
     // longer than the name before it. THE HEADROOM IS STILL TWO MILESTONES AND NO CEILING MOVED,
     // which is the property this case exists to hold: a thirteenth published package costs the
     // artefact fifty one bytes out of sixteen thousand of room.
+    // THE THIRTEENTH NAME REACHED THE DOCUMENTS ON 2026-09-05 AND THE READING DID NOT MOVE FOR IT,
+    // which is the same fifty one bytes twice rather than a second cost: the artefact this case was
+    // asserting against had been hand edited and the edit did not survive a merge, so the committed
+    // file read 131,183 over 645 while this line already said 131,234 over 646. Regenerating it
+    // wrote exactly what this line expected, which is the strongest thing that could be said about
+    // the hand edit and the reason nothing here moved to accommodate it.
+    // ONE BYTE MORE SINCE, AND IT IS NOT A LEAF. 131,235 over the same 646, because
+    // `ai-docs/PROJECT_STATE.md` crossed a megabyte while that session was recorded in it: the
+    // artefact carries each required document's size, and 996,227 is six digits where 1,005,378 is
+    // seven. A digit is not a leaf, so the leaf count is unchanged and the corridor is unmoved.
     const read = readProjection(repoRoot);
     expect(read.ok).toBe(true);
     const data = read.ok ? read.projection.data : undefined;
@@ -2062,7 +2072,7 @@ describe('the figures this code states about this repository', () => {
 
     // Then each figure the budget's derivation states is the one the artefact gives, and the
     // headroom really is two milestones of it
-    expect([scan.bytes, scan.leaves]).toEqual([131_234, 646]);
+    expect([scan.bytes, scan.leaves]).toEqual([131_235, 646]);
     expect([perHeading, perTask, perRow]).toEqual([421, 126, 224]);
     expect(milestone).toBe(8_049);
     expect(PROJECTION_ARTEFACT_BUDGET.limitBytes - scan.bytes).toBeGreaterThanOrEqual(

@@ -23,10 +23,18 @@
  * `@RateLimit({ points: perNodePoints(720, resolveNodeCount()) })` stores the integer the call
  * returned, including whatever the environment made it. Static analysis of the source can only ever
  * report the call; a runtime collector reports the number the application is enforcing.
+ *
+ * IT REPORTS THE STATUSES A LIMITED ROUTE ANSWERS WITH, SINCE 2026-09-05, AND IT REPORTED NONE
+ * BEFORE. The library answers 429 and 503 and this package carried neither, which left a route whose
+ * limit it did report reading as a route that cannot refuse anybody. The statuses go into
+ * `IRErrorContracts.runtimeDerived`, the group `error-undocumented` already compares against the
+ * document, exactly as `@openref/collector-redisx-idempotency` puts its own there; nothing in
+ * `@openref/core` moved for either. See {@link buildContracts} for which of the two is
+ * unconditional and why the other one is not.
  */
 
 import { createRequire } from 'node:module';
-import type { IRNodeRuntime, IRRateLimit, IRRateLimitReach } from '@openref/core';
+import type { IRErrorContract, IRNodeRuntime, IRRateLimit, IRRateLimitReach } from '@openref/core';
 import type { CollectorContext, IRuntimeCollector, SkippedCollector } from '@openref/nest';
 
 /** Name of this package. */
@@ -78,6 +86,28 @@ export const CAPACITY_ALGORITHM = 'token-bucket';
 
 /** The store that counts in one process, so the number on the route is a per instance number. */
 export const PER_INSTANCE_STORE = 'memory';
+
+/** The status the guard's rejection is answered with, on every route the decorator is on. */
+export const RATE_LIMIT_EXCEEDED_STATUS = 429;
+
+/** The status a store failure is answered with, and only under one of the two policies. */
+export const STORE_UNAVAILABLE_STATUS = 503;
+
+/**
+ * What the module does when the store backing a limit fails.
+ *
+ * IT HAS NO ROUTE HALF, WHICH IS WHY IT IS READ FROM THE CONTAINER AND NOWHERE ELSE. `@RateLimit`
+ * takes no such option: `RateLimitService.handleError` reads `this.config.errorPolicy`, and
+ * `this.config` is the merged plugin configuration under
+ * {@link RATE_LIMIT_PLUGIN_OPTIONS_KEY}.
+ */
+export type RateLimitErrorPolicy = 'fail-closed' | 'fail-open';
+
+/** The policy that rejects a request the store could not be asked about. */
+export const FAIL_CLOSED_POLICY: RateLimitErrorPolicy = 'fail-closed';
+
+/** The policy that admits it instead, which is what removes 503 from the answers. */
+export const FAIL_OPEN_POLICY: RateLimitErrorPolicy = 'fail-open';
 
 /** What a host may tell the collector that it cannot work out for itself. */
 export interface RedisxRateLimitCollectorOptions {
@@ -156,6 +186,21 @@ export interface ModuleDefaultBudget {
 }
 
 /**
+ * What the library's own merged plugin configuration states, as much of it as is read here.
+ *
+ * TWO ANSWERS OUT OF ONE CONTAINER LOOKUP, AND THEY FAIL SEPARATELY. A provider can state a budget
+ * and no policy, or a policy and no budget, and neither absence tells anything about the other.
+ * They are read together because the lookup is one, and they are carried apart because a reader of
+ * either has to be able to tell "read" from "not stated".
+ */
+export interface ModuleConfiguration {
+  /** The module wide budget, absent when the provider does not state both halves of one. */
+  readonly budget?: ModuleDefaultBudget;
+  /** `errorPolicy`, absent when the provider states nothing this collector recognises. */
+  readonly errorPolicy?: RateLimitErrorPolicy;
+}
+
+/**
  * Builds the redisx rate limit collector of SPEC 6.2.2.
  *
  * @param options - Seams for the tests; a host passes nothing
@@ -186,11 +231,17 @@ export function redisxRateLimitCollector(
   }
 
   const problems: RedisxRateLimitCollectorProblem[] = [];
-  // THE MODULE BUDGET IS READ ONCE PER PASS AND NOT ONCE PER ROUTE. It is one provider value for
-  // the whole application and it cannot change between two nodes of one pass, so a thousand routes
-  // must not pay for a thousand container lookups. `null` distinguishes "asked and there was none"
-  // from `undefined`, "not asked yet".
-  let moduleDefault: ModuleDefaultBudget | null | undefined;
+  // THE MODULE CONFIGURATION IS READ ONCE PER PASS AND NOT ONCE PER ROUTE. It is one provider value
+  // for the whole application and it cannot change between two nodes of one pass, so a thousand
+  // routes must not pay for a thousand container lookups. `null` distinguishes "asked and there was
+  // none" from `undefined`, "not asked yet".
+  let configuration: ModuleConfiguration | null | undefined;
+  // THE POLICY RECORD IS PUSHED ON THE FIRST DECORATED ROUTE AND NOT ON THE FIRST ROUTE. What it
+  // says is about the module, so it is said once, with `subject: "the application"`, by the
+  // precedent the budget record already sets; what makes it worth saying at all is that a route
+  // carries the decorator, and an application that installed the library and decorated nothing
+  // should not be told about a status no route of it can answer with.
+  let policyRecorded = false;
 
   return {
     name: REDISX_RATE_LIMIT_COLLECTOR_NAME,
@@ -198,9 +249,28 @@ export function redisxRateLimitCollector(
     collect(context: CollectorContext): IRNodeRuntime | undefined {
       const subject = `${context.declaredOn.name}.${context.handlerName}`;
 
-      if (moduleDefault === undefined) {
-        moduleDefault = readModuleDefault(context) ?? null;
-        recordModuleDefault(moduleDefault, problems);
+      if (configuration === undefined) {
+        configuration = readModuleConfiguration(context) ?? null;
+        recordModuleDefault(configuration?.budget ?? null, problems);
+      }
+
+      const budget = configuration?.budget ?? null;
+
+      // THE BRANCH IS DECIDED BY THE PRESENCE OF THE KEY AND NOT BY THE CONTENT UNDER IT, and that
+      // was measured on the installed library rather than remembered: `RateLimit(options = {})`
+      // defaults the parameter before calling `SetMetadata`, so `@RateLimit()` with no argument
+      // stores `{}`. Until 2026-09-05 this asked whether the merged object carried any field this
+      // collector reads, which answered "no" for exactly that decorator, sent the route down the
+      // undecorated branch and reported `rateLimitReach: none` on a route the guard is bound to.
+      // That is the confident wrong answer SPEC 6.2.3 exists about, arrived at from the other side.
+      if (!isDecorated(metadata, context)) {
+        describeUnreadableRoute(context, subject, budget, problems);
+
+        // THE ROUTE NOW ANSWERS ON ITS OWN PAGE AND NOT ONLY IN `doctor`. The record above is the
+        // report's; this is the row's, and it is the same observation in a shape a renderer can
+        // draw. Returning `undefined` here is what left a reader with one sentence over two
+        // different situations, per SPEC 6.2.3.
+        return { rateLimitReach: context.fact(reachOf(context, budget), 'derived') };
       }
 
       // THE HANDLER IS READ AFTER THE CONTROLLER AND MERGED FIELD BY FIELD, because that is what
@@ -213,21 +283,30 @@ export function redisxRateLimitCollector(
         ...readOptions(metadata, context.handler),
       };
 
-      if (!hasAnyKey(merged)) {
-        describeUnreadableRoute(context, subject, moduleDefault, problems);
-
-        // THE ROUTE NOW ANSWERS ON ITS OWN PAGE AND NOT ONLY IN `doctor`. The record above is the
-        // report's; this is the row's, and it is the same observation in a shape a renderer can
-        // draw. Returning `undefined` here is what left a reader with one sentence over two
-        // different situations, per SPEC 6.2.3.
-        return { rateLimitReach: context.fact(reachOf(context, moduleDefault), 'derived') };
-      }
-
       recordUnreadable(merged, subject, problems);
 
       const limit = buildRateLimit(merged, subject, problems);
 
-      return limit === undefined ? undefined : { rateLimit: context.fact(limit, 'derived') };
+      // THE POLICY RECORD IS PUSHED AFTER THIS ROUTE'S OWN, so that what a reader meets first about
+      // a node is the node. It is still one record for the pass.
+      if (!policyRecorded) {
+        policyRecorded = true;
+        recordErrorPolicy(configuration?.errorPolicy, problems);
+      }
+
+      const errors = {
+        declared: [],
+        runtimeDerived: buildContracts(configuration?.errorPolicy),
+        global: [],
+      };
+
+      // THE STATUSES DO NOT DEPEND ON THE BUDGET BEING READABLE, which is the whole of what was
+      // missing. A route whose `points` is half declared, or whose algorithm has no window this
+      // model can carry, still refuses a request that goes over whatever the module completes it
+      // with, and still answers 429 for it.
+      return limit === undefined
+        ? { errors }
+        : { rateLimit: context.fact(limit, 'derived'), errors };
     },
 
     problems(): readonly RedisxRateLimitCollectorProblem[] {
@@ -270,7 +349,7 @@ function reachOf(context: CollectorContext, budget: ModuleDefaultBudget | null):
 }
 
 /**
- * Reads the module wide budget out of the library's own configuration provider.
+ * Reads the module wide budget and the store failure policy out of one configuration provider.
  *
  * IT IS REACHABLE, AND THAT WAS MEASURED RATHER THAN ASSUMED. The library registers
  * `{ provide: RATE_LIMIT_PLUGIN_OPTIONS, useValue: RateLimitPlugin.mergeDefaults(options) }` and
@@ -281,14 +360,20 @@ function reachOf(context: CollectorContext, budget: ModuleDefaultBudget | null):
  * distinguishable and none of them is a guess.
  *
  * WHAT IS READ AND WHAT IS STILL NOT A ROUTE FACT ARE TWO DIFFERENT SENTENCES. This function
- * answers "what budget did the application configure"; it does not answer "what limit does this
- * route enforce", and nothing here writes its numbers onto a node. See
- * {@link describeUnreadableRoute}.
+ * answers "what did the application configure"; it does not answer "what limit does this route
+ * enforce", and nothing here writes its numbers onto a node. See {@link describeUnreadableRoute}.
+ * The policy is the one thing read here that changes what a route's own row says, and even that is
+ * a status rather than a number: see {@link buildContracts}.
+ *
+ * `errorPolicy` IS TAKEN ONLY WHERE THE PROVIDER STATES ONE OF THE TWO VALUES. `mergeDefaults`
+ * always states it, so a registered plugin is readable; an object that does not is not this
+ * library's merged configuration, and reading the library's own `?? "fail-closed"` fallback off it
+ * would be substituting a default for a reading, which is what puts an unprovable status on a page.
  *
  * @param context - The node's context, for the module reference
- * @returns The budget, or undefined when nothing registered one or it does not hold two numbers
+ * @returns What the provider states, or undefined when nothing registered one
  */
-function readModuleDefault(context: CollectorContext): ModuleDefaultBudget | undefined {
+function readModuleConfiguration(context: CollectorContext): ModuleConfiguration | undefined {
   let value: unknown;
   try {
     value = context.moduleRef.get(RATE_LIMIT_PLUGIN_OPTIONS_KEY, { strict: false });
@@ -300,16 +385,139 @@ function readModuleDefault(context: CollectorContext): ModuleDefaultBudget | und
 
   if (typeof value !== 'object' || value === null) return undefined;
 
-  const { defaultPoints, defaultDuration } = value as {
+  const { defaultPoints, defaultDuration, errorPolicy } = value as {
     defaultPoints?: unknown;
     defaultDuration?: unknown;
+    errorPolicy?: unknown;
   };
   const points = positiveNumber(defaultPoints);
   const duration = positiveNumber(defaultDuration);
+  const policy = readErrorPolicy(errorPolicy);
 
-  return points === undefined || duration === undefined
-    ? undefined
-    : { points, ttlMs: duration * MILLISECONDS_PER_SECOND };
+  return {
+    ...(points === undefined || duration === undefined
+      ? {}
+      : { budget: { points, ttlMs: duration * MILLISECONDS_PER_SECOND } }),
+    ...(policy === undefined ? {} : { errorPolicy: policy }),
+  };
+}
+
+/**
+ * Reads a store failure policy that has to be one of the two the library acts on.
+ *
+ * @param value - Whatever the provider held under `errorPolicy`
+ * @returns The policy, or undefined when the provider states nothing this collector recognises
+ */
+function readErrorPolicy(value: unknown): RateLimitErrorPolicy | undefined {
+  if (value === FAIL_CLOSED_POLICY) return FAIL_CLOSED_POLICY;
+  if (value === FAIL_OPEN_POLICY) return FAIL_OPEN_POLICY;
+
+  return undefined;
+}
+
+/**
+ * The statuses a route the decorator is on can answer with, and only those.
+ *
+ * 429 IS UNCONDITIONAL BECAUSE THE DECORATOR BINDS THE GUARD ITSELF. `@RateLimit` is
+ * `applyDecorators(SetMetadata(RATE_LIMIT_OPTIONS, options), UseGuards(RateLimitGuard))`, so the
+ * key being present is proof the guard stands in front of this route; the guard throws
+ * `RateLimitExceededError` the moment `check` answers `allowed: false`, and
+ * `RateLimitExceptionFilter` answers it with 429 and a `Retry-After` header. Nothing about the
+ * budget, the algorithm, the store or a `skip` function changes that, so nothing about them is
+ * consulted here.
+ *
+ * 503 IS NOT, AND WHAT DECIDES IT IS READ RATHER THAN ASSUMED. A store failure reaches
+ * `RateLimitService.handleError`, where `this.config.errorPolicy ?? "fail-closed"` decides:
+ * `fail-closed` throws `RateLimitScriptError`, which the same filter answers with 503; `fail-open`
+ * returns an allowed result instead, so the request goes through and no store failure is answered
+ * at all. That option has no route half, so the only place it can be read is the plugin provider,
+ * and where the provider does not state it the status is left off and {@link recordErrorPolicy}
+ * says why. A status this collector cannot tie to a configuration it read is not reported.
+ *
+ * @param policy - What the module states, or undefined when nothing readable states it
+ * @returns The contracts, in ascending status order
+ */
+function buildContracts(policy: RateLimitErrorPolicy | undefined): readonly IRErrorContract[] {
+  const contracts: IRErrorContract[] = [
+    {
+      status: RATE_LIMIT_EXCEEDED_STATUS,
+      title: 'The rate limit on this route is exhausted',
+      detail:
+        'The request was counted past the budget in force and RateLimitGuard rejected it, which ' +
+        'RateLimitExceptionFilter answers with Retry-After and the remaining window.',
+      origin: 'runtime-derived',
+      confidence: 'derived',
+      collector: REDISX_RATE_LIMIT_COLLECTOR_NAME,
+    },
+  ];
+
+  if (policy !== FAIL_CLOSED_POLICY) return contracts;
+
+  contracts.push({
+    status: STORE_UNAVAILABLE_STATUS,
+    title: 'Rate limiting is temporarily unavailable',
+    detail:
+      'The store backing the limit could not be asked, and the module declares errorPolicy: ' +
+      '"fail-closed", so the request is rejected rather than admitted.',
+    origin: 'runtime-derived',
+    confidence: 'derived',
+    collector: REDISX_RATE_LIMIT_COLLECTOR_NAME,
+  });
+
+  return contracts;
+}
+
+/**
+ * Records what the store failure policy decided, once, as a statement about the application.
+ *
+ * IT IS ONE RECORD AND NOT ONE PER ROUTE, by the precedent {@link recordModuleDefault} follows:
+ * `errorPolicy` has no route half at all, so a sentence about it repeated on every decorated route
+ * of an application would be one fact wearing many subjects.
+ *
+ * NOTHING IS RECORDED UNDER `fail-closed`, because there the status is in the contracts and a
+ * finding beside it would say the same thing twice.
+ *
+ * @param policy - What the module states, or undefined when nothing readable states it
+ * @param problems - Accumulator
+ */
+function recordErrorPolicy(
+  policy: RateLimitErrorPolicy | undefined,
+  problems: RedisxRateLimitCollectorProblem[],
+): void {
+  if (policy === FAIL_CLOSED_POLICY) return;
+
+  if (policy === FAIL_OPEN_POLICY) {
+    problems.push({
+      subject: 'the application',
+      reason: `the module declares errorPolicy: "${FAIL_OPEN_POLICY}", so a store failure lets the request through and 503 is not an answer`,
+      action: `declare errorPolicy: "${FAIL_CLOSED_POLICY}" if an outage has to reject rather than admit; there is nothing to do if admitting is the intent`,
+      detail:
+        'Under this policy RateLimitService.handleError returns an allowed result instead of ' +
+        'throwing, so for as long as the store is failing every decorated route stops being ' +
+        'limited and nothing answers 503. The 429 stands either way: it is the guard rejecting a ' +
+        'request it did count, which needs no store failure. One 503 path is left and is not a ' +
+        'contract: a route naming a store other than "redis" or "memory" throws ' +
+        'InvalidRateLimitConfigError before the policy is consulted, which is a configuration ' +
+        'defect rather than something the route answers with.',
+    });
+
+    return;
+  }
+
+  problems.push({
+    subject: 'the application',
+    reason:
+      'no readable errorPolicy stands under the plugin options token, so whether a store failure answers 503 is not known',
+    action:
+      'register RateLimitPlugin so its merged configuration answers that token; the 429 on each decorated route holds either way',
+    detail:
+      'The library resolves it as this.config.errorPolicy ?? "fail-closed" inside ' +
+      'RateLimitService.handleError, and RateLimitPlugin.mergeDefaults always states it, so a ' +
+      'registered plugin is readable. Either the token answered nothing, which is what NestJS ' +
+      'does when nobody registered it, or it answered an object that does not state the field. ' +
+      'The 503 is left off rather than taken from the library default, because a status nothing ' +
+      'read is a status this reference cannot stand behind.',
+  });
 }
 
 /**
@@ -418,27 +626,38 @@ function describeUnreadableRoute(
 function readOptions(metadata: MetadataValueReader, target: unknown): StoredOptions {
   const stored: unknown = metadata.get(RATE_LIMIT_OPTIONS_KEY, target);
 
-  // `@RateLimit()` WITH NO ARGUMENT STORES `undefined`, which is a decorated route whose whole
-  // budget is module configuration. It is not an object, so it contributes nothing here and is
-  // reported by `recordUnreadable` through the missing halves below.
+  // `@RateLimit()` WITH NO ARGUMENT STORES `{}` AND NOT `undefined`, measured on the installed
+  // library: `RateLimit(options = {})` defaults the parameter before it calls `SetMetadata`. So an
+  // empty object here is a decorated route whose whole budget is module configuration, which
+  // {@link isDecorated} tells from an undecorated one and `buildRateLimit` reports as a route that
+  // named neither half.
   return typeof stored === 'object' && stored !== null ? stored : {};
 }
 
 /**
- * Reports whether the merged object carries anything this collector looks at.
+ * Reports whether the library's decorator is on this route at all.
  *
- * @param options - What both targets contributed
- * @returns True when the route is decorated in a way worth reading
+ * PRESENCE AND NOT CONTENT, which is the distinction the empty object above makes necessary. What
+ * decides whether the guard stands in front of a route is that `@RateLimit` was applied, since the
+ * decorator is `applyDecorators(SetMetadata(...), UseGuards(RateLimitGuard))`; what is under the
+ * key decides only how much of the budget the route named for itself. A check that asked for
+ * content answered "undecorated" for `@RateLimit()` and reported that nothing limits the route.
+ *
+ * EITHER TARGET COUNTS, because either one applies the decorator, and the guard is bound by
+ * whichever carries it.
+ *
+ * @param metadata - The reader
+ * @param context - The node's context, for the two targets
+ * @returns True when the key stands on the handler or on the controller
  */
-function hasAnyKey(options: StoredOptions): boolean {
-  return (
-    options.points !== undefined ||
-    options.duration !== undefined ||
-    options.key !== undefined ||
-    options.skip !== undefined ||
-    options.algorithm !== undefined ||
-    options.store !== undefined
-  );
+function isDecorated(metadata: MetadataValueReader, context: CollectorContext): boolean {
+  const onTarget = (target: unknown): boolean => {
+    const stored: unknown = metadata.get(RATE_LIMIT_OPTIONS_KEY, target);
+
+    return typeof stored === 'object' && stored !== null;
+  };
+
+  return onTarget(context.handler) || onTarget(context.controller);
 }
 
 /**
