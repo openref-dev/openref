@@ -364,6 +364,40 @@ describe('a route governed from outside itself', () => {
     expect(route?.detail).toContain('nothing observed says that guard applies it to this route');
   });
 
+  it('should name what is unreadable, so the withdrawn proposal is not made a second time', () => {
+    // Given the shape that makes this finding unremovable: a module level default and a guard
+    // registered for the whole application. The proposal it invites is to derive an effective
+    // budget at `inferred` from those two, and it was withdrawn because the counter-examples hit
+    // the premise rather than the confidence. The finding fires on fifty four of fifty eight
+    // operations of the application it was measured on, so the reason has to travel in the text a
+    // reader meets, not in a tracker they never open.
+    const collector = collectorOver(new Map());
+
+    // When
+    collector.collect(
+      contextOf({
+        globalGuards: ['GlobalRateLimitGuard'],
+        pluginOptions: { defaultPoints: 900, defaultDuration: 60 },
+      }),
+    );
+
+    // Then both unreadable things are named, each as the property it is
+    const route = collector
+      .problems()
+      .find((problem) => problem.subject === 'WidgetsController.ingest');
+    expect(route?.detail).toContain(
+      'skip, which is an arbitrary function of the execution context',
+    );
+    expect(route?.detail).toContain('which requests are counted at all');
+    expect(route?.detail).toContain('node count taken in this process');
+    expect(route?.detail).toContain('rather than what a deployed replica enforces');
+
+    // And it says why a weaker confidence is not the answer, which is the whole of the withdrawal
+    expect(route?.detail).toContain(
+      'would still be a statement about the route that nothing observed',
+    );
+  });
+
   it('should state the module budget once, as a fact about the application', () => {
     // Given three routes of the same application
     const collector = collectorOver(new Map());
@@ -963,5 +997,68 @@ describe('the name `@openref/core` names for this fact', () => {
 
     // When, Then
     expect(RUNTIME_FACT_COLLECTORS.errors).toContain(REDISX_RATE_LIMIT_COLLECTOR_NAME);
+  });
+});
+
+/**
+ * The guard the decorator installs, named as the limiter it is.
+ *
+ * ONE READING GIVES BOTH FACTS. `RateLimit(options = {})` is
+ * `applyDecorators(SetMetadata(RATE_LIMIT_OPTIONS, options), UseGuards(RateLimitGuard))`, read off
+ * the installed library, so the key this collector finds on a target is proof that the guard stands
+ * on that route and proof of what it was put there to do.
+ *
+ * WHAT READS IT. `security-drift` chose between an error and a warning on a guard's SCOPE alone and
+ * had no test of purpose at all, so a route whose only route scope guard is this one was reported
+ * as an undocumented protected route. Measured on the maintainer's application: a deliberately
+ * public token endpoint was advised to declare security, which would make the specification claim a
+ * token is needed to get a token.
+ */
+describe('the guard @RateLimit installs, named as a limiter', () => {
+  it('should name it at route scope on a decorated route', () => {
+    // Given `@RateLimit({ points, duration })` on the handler
+    const collector = collectorOver(onHandler({ points: 5, duration: 60 }));
+
+    // When
+    const produced = collector.collect(contextOf());
+
+    // Then
+    expect(produced?.guards).toEqual([
+      {
+        name: 'RateLimitGuard',
+        scope: 'route',
+        purpose: 'rate-limit',
+        confidence: 'derived',
+        collector: REDISX_RATE_LIMIT_COLLECTOR_NAME,
+      },
+    ]);
+  });
+
+  it('should name it even where the budget could not be read, since the guard is still bound', () => {
+    // Given `@RateLimit()` with no argument, which the library stores as `{}`. No limit is known
+    // and the guard is on the route regardless: the decorator applied it before the options were
+    // ever consulted.
+    const collector = collectorOver(onHandler({}));
+
+    // When
+    const produced = collector.collect(contextOf());
+
+    // Then
+    expect(produced?.rateLimit).toBeUndefined();
+    expect(produced?.guards?.[0]).toMatchObject({ name: 'RateLimitGuard', purpose: 'rate-limit' });
+  });
+
+  it('should name nothing on an undecorated route, however the application is guarded', () => {
+    // Given the fifty four routes of the measured application: no decorator, a limiter under
+    // APP_GUARD. Asserting the subject first: this route IS examined and IS answered about.
+    const collector = collectorOver(new Map());
+
+    // When
+    const produced = collector.collect(contextOf({ globalGuards: ['RateLimitGuard'] }));
+
+    // Then the reach is stated and no guard is claimed, because no decorator bound one here and
+    // what the global registration does to this route is inside its own code, per SPEC 6.1
+    expect(produced?.rateLimitReach?.value).toMatchObject({ kind: 'external' });
+    expect(produced?.guards).toBeUndefined();
   });
 });

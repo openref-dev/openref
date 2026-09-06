@@ -199,6 +199,96 @@ describe('parameter-unread', () => {
     expect(result.passed).toBe(1);
   });
 
+  it('should say the scan saw none read only when the scan saw none read', () => {
+    // Given two declarations, both accounted for and neither seen read
+    const document = documentOf([
+      operation({
+        parameters: [
+          parameter({ name: 'sort', in: 'query' }),
+          parameter({ name: 'page', in: 'query' }),
+        ],
+        runtime: {
+          parameterReads: reads([
+            { in: 'query', name: 'sort', verdict: 'not-seen-read' },
+            { in: 'query', name: 'page', verdict: 'not-seen-read' },
+          ]),
+        },
+      }),
+    ]);
+
+    // When
+    const issue: IRDriftIssue | undefined = resultOf('parameter-unread', document).issues[0];
+
+    // Then the whole-silence sentence, which is the one case it was ever true of
+    expect(issue?.message).toBe(
+      'Parameters are declared on this operation and the scan saw the handler read none of them.',
+    );
+  });
+
+  it('should not claim the scan saw none read when the scan saw some of them read', () => {
+    // Given a partial reading, which is what every finding on the maintainer's application was:
+    // eight of nine read and one not, and three findings out of three printing a sentence saying
+    // the handler read none. The rule fires on `unread.length > 0` and the header was an
+    // unconditional constant, so the two could never agree on a partial operation.
+    const document = documentOf([
+      operation({
+        parameters: [
+          parameter({ name: 'sort', in: 'query' }),
+          parameter({ name: 'page', in: 'query' }),
+        ],
+        runtime: {
+          parameterReads: reads([
+            { in: 'query', name: 'sort', verdict: 'read' },
+            { in: 'query', name: 'page', verdict: 'not-seen-read' },
+          ]),
+        },
+      }),
+    ]);
+
+    // When
+    const issue: IRDriftIssue | undefined = resultOf('parameter-unread', document).issues[0];
+
+    // Then the sentence says what was seen, and the fields it is printed above are untouched
+    expect(issue?.message).toBe(
+      'Parameters are declared on this operation and the scan saw the handler read some of them ' +
+        'and not the rest.',
+    );
+    expect(issue?.runtimeValue).toBe('not seen read: query page');
+    expect(issue?.specValue).toBe('2 parameter(s) declared');
+    expect(issue?.edit).toBe('deleted-assertion');
+    expect(issue?.classification).toEqual({ bucket: 'contradiction' });
+  });
+
+  it('should branch on the verdicts rather than on how many parameters are declared', () => {
+    // Given one declared parameter the scan saw read and one it could not account for, so the
+    // declared count is two, the scanned set is two and the set that was READ is one. Keying the
+    // sentence on `operation.parameters.length` would call this whole-silence; it is not.
+    const document = documentOf([
+      operation({
+        parameters: [
+          parameter({ name: 'id', in: 'query' }),
+          parameter({ name: 'page', in: 'query' }),
+          parameter({ name: 'session', in: 'cookie' }),
+        ],
+        runtime: {
+          parameterReads: reads([
+            { in: 'query', name: 'id', verdict: 'read' },
+            { in: 'query', name: 'page', verdict: 'not-seen-read' },
+            { in: 'cookie', name: 'session', verdict: 'unaccounted' },
+          ]),
+        },
+      }),
+    ]);
+
+    // When
+    const issue: IRDriftIssue | undefined = resultOf('parameter-unread', document).issues[0];
+
+    // Then
+    expect(issue?.message).toContain('read some of them and not the rest');
+    expect(issue?.suggestion).toContain('Which side is wrong is not knowable here');
+    expect(issue?.suggestion).toContain('remove the parameter from the specification');
+  });
+
   it('should take a header the requiredHeaders fact names as read, case insensitively', () => {
     // Given a header the handler never binds and the guard metadata requires
     const document = documentOf([

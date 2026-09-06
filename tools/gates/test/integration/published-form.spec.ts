@@ -434,12 +434,26 @@ describe('the published form of this tree', () => {
     // re-recorded rather than derived for the reason it exists: a drift detector cannot take its
     // expected value from the thing it is watching. It is the one figure in this file that a
     // rotation still moves, and it is now the only one.
+    //
+    // 0 RAW AND PLUS 10 GZIP AT `TX-PUBLIC-ROUTE-KEY`'s SLICE, WHICH IS THE SAME FINDING A THIRD
+    // TIME AND THIS TIME IT WAS PROVED RATHER THAN INFERRED. The slice added code to
+    // `@openref/core`, none of which this bundle imports; the twelve chunk digests it does import
+    // rotated, because a digest is taken over the modules that went in. Measured by building this
+    // entry from the stashed tree and from the changed one and comparing the directory listing:
+    // every one of the twenty four files is byte for byte the SAME LENGTH, twelve names changed and
+    // twelve did not, and the raw row is the same 264,410. `chunk-YOKCG3IN` became `chunk-MS2MCFQF`
+    // and `chunk-MOA7QWC2` became `chunk-ZW2USI7L`, the two the last entry above recorded, along
+    // with ten more. The names sit inside the import statements of the files this row compresses
+    // and a digest is eight characters either way, so the raw row cannot see the change and the
+    // deflate window reads ten bytes longer. THE CAP DID NOT MOVE, the headroom shrank by the same
+    // ten, and this figure is re-recorded rather than derived for the reason it exists: a drift
+    // detector cannot take its expected value from the thing it is watching.
     expect(onDisk).toBe(264_410);
-    expect(gzip).toBe(98_101);
+    expect(gzip).toBe(98_111);
 
     // And the headroom each row actually has, against caps neither of which moved
     expect(281 * 1024 - onDisk).toBe(23_334);
-    expect(97 * 1024 - gzip).toBe(1_227);
+    expect(97 * 1024 - gzip).toBe(1_217);
   });
 
   it('should leave the caps where the two derivations put them', () => {

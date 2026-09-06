@@ -61,11 +61,38 @@ export interface IRSourceLocation {
  */
 export type IRGuardScope = 'route' | 'global';
 
+/**
+ * What a guard was installed to do, where a collector reading the library that ships it can say.
+ *
+ * IT IS NOT A READING OF GUARD LOGIC AND MUST NEVER BECOME ONE, per SPEC 6.1. Nothing here is
+ * worked out from a class name: a value lands on a guard only when a collector whose whole subject
+ * is the library that defines that guard has read the metadata the library's own decorator wrote.
+ * `@RateLimit` is `applyDecorators(SetMetadata(key), UseGuards(RateLimitGuard))`, so the key's
+ * presence is proof of the guard's presence and of what it is; `@nestjs/throttler` names
+ * `ThrottlerGuard` as its limiter, so a guard of that name standing on a route the throttler
+ * collector is reading is that limiter. A collector that decided a class "sounds like" a limiter
+ * would be making exactly the inference `IRRateLimitReach.by` already refuses.
+ *
+ * ONE VALUE, AND THE ABSENCE IS THE ORDINARY CASE. Absent means nobody who could say has said, not
+ * that the guard authorises: `security-drift` reads the field to rule a guard OUT of an
+ * authorisation claim it never had grounds for, and never to rule one in.
+ */
+export type IRGuardPurpose = 'rate-limit';
+
 /** A guard observed on a route. Only the class name is knowable, never the logic. */
 export interface IRGuard {
   readonly name: string;
   /** Whether it was declared on this route or registered for the whole application. */
   readonly scope: IRGuardScope;
+  /**
+   * What it was installed to do, where a collector that reads its library could say.
+   *
+   * ABSENT ON EVERY GUARD `guardsCollector` REPORTS, AND THAT IS RIGHT. That collector reads
+   * `@UseGuards` and the container, which say a class stands here and nothing about why; the
+   * purpose arrives from a collector that read the library, and the merge folds it onto the guard
+   * this one already named.
+   */
+  readonly purpose?: IRGuardPurpose;
   readonly confidence: IRConfidence;
   readonly collector: string;
 }

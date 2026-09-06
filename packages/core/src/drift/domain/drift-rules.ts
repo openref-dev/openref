@@ -67,6 +67,16 @@ export interface DriftObservation {
 /** Everything a check may look at. */
 interface RuleContext {
   readonly observation: DriftObservation | undefined;
+  /**
+   * How many operations of the document lay claim to each public name, per {@link operationIdClaims}.
+   *
+   * A CHECK SEES ONE OPERATION AND `operationId` IS UNIQUE ACROSS THE DOCUMENT, so this is the one
+   * question `missing-operation-id` cannot answer from its own subject. It is computed once by
+   * {@link runDriftRules}, which holds every operation already, and handed down rather than looked
+   * up, for the reason `CollectorContext.globalGuards` is handed down: the answer is a property of
+   * the document and cannot change between two operations of one run.
+   */
+  readonly operationIdClaims: ReadonlyMap<string, number>;
 }
 
 /** What a check found, before the classification is stamped on it. */
@@ -205,7 +215,20 @@ const SECURITY_DRIFT: OperationRule = {
   label: 'Guarded operations with documented security',
 
   check(operation: IROperation, context: RuleContext): Outcome {
-    const guards = operation.runtime?.guards ?? [];
+    const observed = operation.runtime?.guards ?? [];
+
+    // A GUARD IDENTIFIED AS A RATE LIMITER IS NOT GROUNDS FOR SECURITY DRIFT, AND THE RULE HAD NO
+    // TEST FOR PURPOSE AT ALL. Both branches below were chosen by the guard's SCOPE alone, so a
+    // class installed to count requests was read as a class that authorises them. Measured on
+    // `POST /api/v1/dev/login`, whose sole route scope guard is the one `@RateLimit` installs,
+    // `applyDecorators(SetMetadata(...), UseGuards(RateLimitGuard))`: a deliberately public token
+    // endpoint was advised to declare security, which is a specification saying a token is needed
+    // to get a token. `@UseGuards(ThrottlerGuard)` is the same defect through the other library.
+    //
+    // THE PURPOSE IS READ AND NEVER GUESSED, per {@link IRGuardPurpose}. It arrives from a
+    // collector whose subject is the library that defines the guard, and its absence means nobody
+    // who could say has said, so an unlabelled guard is treated exactly as it was before.
+    const guards = observed.filter((guard) => guard.purpose !== 'rate-limit');
     if (guards.length === 0) return OUT_OF_SCOPE;
 
     const basis = collected(strongestConfidence(guards));
@@ -230,7 +253,30 @@ const SECURITY_DRIFT: OperationRule = {
     // guessing at. Calling that an error asserted a protection the engine cannot see, and on the
     // application this was measured against it produced a critical finding on all four routes that
     // are deliberately public.
+    //
+    // AND THE SENTENCE THIS BRANCH PRINTS IS TOO STRONG FOR THE COMMON CASE, WHICH IS WHY THE STATE
+    // IS UNRESOLVABLE RATHER THAN MERELY WEAK. It says the decision is inside the guard and not
+    // readable; on the ordinary NestJS escape hatch the decision is handler METADATA, an
+    // `@Public()` marker the guard reads with `getAllAndOverride`, and metadata under a key a host
+    // names is exactly what five collectors already read. Nothing here can be cleared until a host
+    // can declare that key, so this finding stands on every deliberately public route of every
+    // application whose auth is one `APP_GUARD` provider, and the only way to silence it is to
+    // write a security requirement the specification would then be lying about. Owned past 1.0
+    // (DEFER POST-1.0, `TX-PUBLIC-ROUTE-KEY`).
     const routeGuarded = guards.some((guard) => guard.scope === 'route');
+
+    // THE ADVICE NAMES A SCHEME ONLY FROM THE GUARDS ITS OWN FIRMNESS CAME FROM, AND `mapped` IS
+    // ASSEMBLED OVER ALL OF THEM. That is a second defect independent of the purpose test above:
+    // with `@UseGuards(AdminGuard)` on the handler and one mapped `JwtAuthGuard` under `APP_GUARD`,
+    // the firm branch fired because of `AdminGuard` and told the reader to declare `bearer`, a
+    // scheme read off a guard that decided nothing about this finding. The comparison half below
+    // keeps reading every guard, because there the question is whether ANY observed guard maps to
+    // what the document already requires, and an application wide guard answering that is not a
+    // disagreement.
+    const deciding = routeGuarded ? guards.filter((guard) => guard.scope === 'route') : guards;
+    const decided = deciding
+      .map((guard) => schemes?.get(guard.name))
+      .filter((scheme): scheme is string => scheme !== undefined);
 
     if (operation.security.length === 0) {
       return found({
@@ -245,9 +291,9 @@ const SECURITY_DRIFT: OperationRule = {
         // as a value the document holds rather than as a field it never wrote.
         specValue: 'no security requirement',
         suggestion: routeGuarded
-          ? mapped.length === 0
+          ? decided.length === 0
             ? 'add @ApiBearerAuth() or declare security in DocumentBuilder'
-            : `add the decorator for the security scheme "${mapped[0] ?? ''}" to the handler, ` +
+            : `add the decorator for the security scheme "${decided[0] ?? ''}" to the handler, ` +
               'for example @ApiBearerAuth(name), or declare it in DocumentBuilder'
           : 'confirm by hand whether this route is public. If it is protected, declare security ' +
             'in DocumentBuilder; if a route level escape exempts it, nothing here is wrong',
@@ -262,10 +308,14 @@ const SECURITY_DRIFT: OperationRule = {
         // and one requirement ends that silence. Writing every mapped scheme would assert that the
         // operation requires all of them together, which is a claim about the guards' composition
         // that nothing observed.
+        //
+        // AND IT IS THE DECIDING GUARDS' MAPPING, FOR THE REASON THE SUGGESTION ABOVE USES IT. The
+        // suggestion is prose a person reads and this is what a fix mode writes, so a borrowed
+        // scheme here would put the wrong decorator into source through the tool.
         assertion:
-          mapped[0] === undefined
+          decided[0] === undefined
             ? { kind: 'unnameable', reason: 'unconfigured-mapping' }
-            : { kind: 'security-scheme', scheme: mapped[0] },
+            : { kind: 'security-scheme', scheme: decided[0] },
       });
     }
 
@@ -531,9 +581,25 @@ const PARAMETER_UNREAD: OperationRule = {
 
     const names = unread.map((parameter) => `${parameter.in} ${parameter.name}`);
 
+    // THE HEADER SAYS WHICH OF THE TWO READINGS THIS IS, AND IT WAS ONE CONSTANT OVER BOTH. The
+    // rule fires whenever one declaration was not seen read, and the sentence above it claimed
+    // none of them was, so on every partial operation the header contradicted the fields printed
+    // under it. Measured on the maintainer's application: all three findings were partial, two at
+    // eight of nine seen read and one at four of five, so the sentence was false three times out
+    // of three.
+    //
+    // IT IS KEYED ON THE VERDICTS AND NOT ON `operation.parameters.length`, because those are two
+    // different sets. The declared count is what the document holds; the scanned set is what the
+    // instrument accounted for, and an operation can declare five, have three accounted for and
+    // one of those seen read. What the sentence is about is what the SCAN SAW, so what it reads is
+    // what the scan wrote down.
+    const someSeenRead = reads.value.parameters.some((parameter) => parameter.verdict === 'read');
+
     return found({
-      message:
-        'Parameters are declared on this operation and the scan saw the handler read none of them.',
+      message: someSeenRead
+        ? 'Parameters are declared on this operation and the scan saw the handler read some of ' +
+          'them and not the rest.'
+        : 'Parameters are declared on this operation and the scan saw the handler read none of them.',
       runtimeValue: `not seen read: ${names.join(', ')}`,
       specValue: `${String(operation.parameters.length)} parameter(s) declared`,
       suggestion:
@@ -726,7 +792,7 @@ const MISSING_OPERATION_ID: OperationRule = {
   severity: 'warning',
   label: 'Operations whose operationId a person wrote',
 
-  check(operation: IROperation): Outcome {
+  check(operation: IROperation, context: RuleContext): Outcome {
     const raw = operation.rawOperationId;
     if (raw !== undefined && raw !== '' && !isGeneratedOperationId(raw)) return CLEAN;
 
@@ -753,6 +819,43 @@ const MISSING_OPERATION_ID: OperationRule = {
       });
     }
 
+    // THE PROPOSAL IS MADE ONLY WHERE IT WOULD STILL BE A NAME, AND IT WAS MADE UNCONDITIONALLY.
+    // A method name is unique inside its class and an `operationId` is unique across the document,
+    // and the rule proposed the first as the second on every finding. On the application this was
+    // measured against, `list` collides six ways and `create`, `delete`, `getOne`, `patch` and
+    // `update` four each, so twenty six of fifty eight operations were sent to take six names: a
+    // reader who followed the advice literally got a document with thirty eight distinct keys
+    // instead of fifty eight, which is not valid OpenAPI and which collapses in
+    // `openapi-typescript`. A rule about names that survive a refactor proposed a set that does
+    // not survive its own application.
+    //
+    // AND WHERE IT IS NOT A NAME, NOTHING IS PROPOSED AND THE REQUIREMENT IS STATED INSTEAD. There
+    // is no second name to invent: a convention like `listOrders` would be a guess about how the
+    // host names things, and a counter like `list2` moves the moment a neighbour is added, which
+    // is the instability this rule exists to report. Naming the collision and leaving the choice
+    // to the person is the only advice that is true of every document.
+    const claims = context.operationIdClaims.get(source.handler) ?? 1;
+
+    if (claims > 1) {
+      return found({
+        message,
+        runtimeValue: `${source.controller}.${source.handler}`,
+        specValue,
+        suggestion:
+          `add @ApiOperation({ operationId: 'yourName' }) to the handler, and it cannot be ` +
+          `"${source.handler}": ${String(claims)} operations of this document lay claim to that ` +
+          'name, and OpenAPI requires an operationId to be unique across the whole document',
+        edit: 'new-assertion',
+        basis: collected('declared'),
+        // NO ASSERTION, AND THAT IS THE HALF THE PROSE COULD NOT DO. `new-assertion` on a
+        // `declared` fact is the bucket a fix mode is allowed to write, so a finding that warned
+        // about the collision in words while still carrying `operationId: "list"` here would put
+        // the duplicate into source through the tool that reads this field and never reads the
+        // sentence. `fix-plan` reports the absence as `no-mechanical-edit` and prints the
+        // suggestion, which is the state this is.
+      });
+    }
+
     // THE PAIR IS AT `declared` BECAUSE THERE IS NOTHING TO BE UNCERTAIN ABOUT, which is the same
     // reading SPEC 6.3 gives `source` when it says that field carries no confidence: the class
     // name and the method name are read literally rather than worked out.
@@ -769,6 +872,42 @@ const MISSING_OPERATION_ID: OperationRule = {
     });
   },
 };
+
+/**
+ * How many operations of the document lay claim to each name `missing-operation-id` deals in.
+ *
+ * TWO KINDS OF CLAIM, AND BOTH HAVE TO COUNT. An operation whose `operationId` a person wrote
+ * holds that name already, so nothing may be sent to take it; an operation this rule would fire on
+ * holds the method name it would be told to write. An operation whose id the generator produced
+ * contributes nothing under that id, because the whole point of the finding is that the id is
+ * about to be replaced.
+ *
+ * A COUNT AND NOT A SET, so a finding can say how many neighbours it is competing with rather than
+ * only that it is competing.
+ *
+ * @param operations - Every operation of the document, in document order
+ * @returns Name to the number of operations laying claim to it
+ */
+function operationIdClaims(operations: readonly IROperation[]): ReadonlyMap<string, number> {
+  const claims = new Map<string, number>();
+
+  const claim = (name: string): void => {
+    claims.set(name, (claims.get(name) ?? 0) + 1);
+  };
+
+  for (const operation of operations) {
+    const raw = operation.rawOperationId;
+    if (raw !== undefined && raw !== '' && !isGeneratedOperationId(raw)) {
+      claim(raw);
+      continue;
+    }
+
+    const handler = operation.runtime?.source?.handler;
+    if (handler !== undefined && handler !== '') claim(handler);
+  }
+
+  return claims;
+}
 
 /**
  * Every rule that asks its question of an operation, in report order.
@@ -975,11 +1114,15 @@ export function runDriftRules(
   document: IRDocument,
   observation?: DriftObservation,
 ): readonly RuleResult[] {
-  const context: RuleContext = { observation };
   const operations: IROperation[] = [];
   for (const node of document.nodes.values()) {
     if (node.kind === 'operation') operations.push(node);
   }
+
+  // THE ONE THING A CHECK CANNOT SEE IS COMPUTED HERE, WHERE THE DOCUMENT IS. A check is handed one
+  // operation, and `operationId` is unique across the document, so the only place the question can
+  // be answered is the loop that already holds every operation.
+  const context: RuleContext = { observation, operationIdClaims: operationIdClaims(operations) };
 
   const results: RuleResult[] = OPERATION_DRIFT_RULES.map((rule) => {
     const issues: IRDriftIssue[] = [];
@@ -1234,5 +1377,12 @@ export function operationRuleOutcome(
   const asked = OPERATION_DRIFT_RULES.find((candidate) => candidate.id === rule);
   if (asked === undefined) return 'out-of-scope';
 
-  return asked.check(operation, { observation }).kind;
+  // ONE OPERATION IS THE WHOLE DOCUMENT THIS CALLER HAS, and that is exactly right for what it
+  // asks. The claims map decides how `missing-operation-id` words its suggestion and never whether
+  // it fires, so the answer this function returns is the same either way; a caller wanting the
+  // wording reads the recorded finding, which `runDriftRules` built with the whole document in
+  // hand. The alternative, an optional field with a default, would put the same reasoning behind a
+  // `??` where nobody reads it.
+  return asked.check(operation, { observation, operationIdClaims: operationIdClaims([operation]) })
+    .kind;
 }

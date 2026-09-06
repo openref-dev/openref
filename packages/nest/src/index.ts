@@ -519,6 +519,12 @@ export {
   isCanActivateLike,
   isHttpExceptionLike,
   NEST_CORE_VALUE_NAMES,
+  // PUBLIC SO AN ECOSYSTEM COLLECTOR CAN ASK WHETHER ITS OWN LIBRARY'S GUARD STANDS ON A ROUTE.
+  // `@openref/collector-throttler` has to know whether `ThrottlerGuard` was applied here before it
+  // may say that the guard on this route is a rate limiter, and the alternative was a second copy
+  // of the literal in another package, which is the shape that comes to disagree. It is pinned
+  // against the real `@UseGuards` by `test/unit/nest-value-surface.spec.ts`.
+  NEST_GUARD_METADATA,
   NEST_REQUEST_METHODS,
   NEST_ROUTE_METADATA,
 } from './shared/types/nest-surface';

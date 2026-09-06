@@ -262,13 +262,9 @@ export function mergeContributions(
     // collectors disagree about. Duplicates are dropped by the pair that identifies each kind,
     // so registering the same collector twice cannot double a list.
     if (runtime.guards !== undefined) {
-      merged.guards = dedupe(
-        [...(merged.guards ?? []), ...runtime.guards.map((guard) => ({ ...guard, collector }))],
-        // THE SCOPE IS PART OF WHAT MAKES TWO GUARDS THE SAME, per SPEC 6.2.1. One class both
-        // registered under `APP_GUARD` and named in `@UseGuards` on a route is two registrations,
-        // and a key without the scope would keep whichever arrived first and drop the other,
-        // which is the half a reader asking "is this the route's own decision" is asking for.
-        (guard) => `${guard.name}\0${guard.scope}\0${guard.confidence}`,
+      merged.guards = foldGuards(
+        merged.guards ?? [],
+        runtime.guards.map((guard) => ({ ...guard, collector })),
       );
     }
     if (runtime.pipes !== undefined) {
@@ -343,6 +339,66 @@ export function mergeContributions(
   };
 
   return Object.keys(result).length === 0 ? undefined : result;
+}
+
+/**
+ * What makes two guard readings the same guard.
+ *
+ * THE SCOPE IS PART OF IT, per SPEC 6.2.1. One class both registered under `APP_GUARD` and named
+ * in `@UseGuards` on a route is two registrations, and a key without the scope would keep whichever
+ * arrived first and drop the other, which is the half a reader asking "is this the route's own
+ * decision" is asking for. The confidence joins them because two collectors that read the same
+ * declaration at two levels are two observations.
+ *
+ * @param guard - One guard reading
+ * @returns Its identity
+ */
+function guardKey(guard: IRGuard): string {
+  return `${guard.name}\0${guard.scope}\0${guard.confidence}`;
+}
+
+/**
+ * Accumulates guard readings, keeping the first of each and letting a purpose join it.
+ *
+ * IT IS `dedupe` WITH ONE ADDITION, AND THE ADDITION IS WHY IT IS ITS OWN FUNCTION. A guard is
+ * reported by `guardsCollector`, which reads `@UseGuards` and the container and so knows that a
+ * class stands here and nothing about why. {@link IRGuardPurpose} arrives from a collector whose
+ * subject is the library that defines the guard, and that collector reports the same guard, at the
+ * same scope, with the purpose filled in. Plain deduplication would keep whichever arrived first
+ * and drop the other, so on the ordinary registration order the purpose was the half that vanished
+ * and `security-drift` went on reading a rate limiter as an authorisation guard.
+ *
+ * A PURPOSE ONLY EVER JOINS A READING, AND NEVER REPLACES ONE. There is one value in the union, so
+ * two collectors cannot disagree here; if one is ever added, the first claim stands, which is the
+ * same precedence the rest of this file gives registration order.
+ *
+ * @param held - What the merge has so far
+ * @param incoming - What this collector produced, already attributed
+ * @returns The accumulated list, in the order the readings arrived
+ */
+function foldGuards(held: readonly IRGuard[], incoming: readonly IRGuard[]): IRGuard[] {
+  const folded: IRGuard[] = [...held];
+  const at = new Map(folded.map((guard, index) => [guardKey(guard), index]));
+
+  for (const guard of incoming) {
+    const key = guardKey(guard);
+    const index = at.get(key);
+
+    if (index === undefined) {
+      at.set(key, folded.length);
+      folded.push(guard);
+      continue;
+    }
+
+    const standing = folded[index];
+    if (standing === undefined || standing.purpose !== undefined || guard.purpose === undefined) {
+      continue;
+    }
+
+    folded[index] = { ...standing, purpose: guard.purpose };
+  }
+
+  return folded;
 }
 
 /**

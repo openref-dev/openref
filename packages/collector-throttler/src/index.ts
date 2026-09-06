@@ -22,7 +22,14 @@
  */
 
 import { createRequire } from 'node:module';
-import type { IRNodeRuntime, IRRateLimit, IRRateLimitReach } from '@openref/core';
+import type {
+  IRGuard,
+  IRGuardScope,
+  IRNodeRuntime,
+  IRRateLimit,
+  IRRateLimitReach,
+} from '@openref/core';
+import { NEST_GUARD_METADATA } from '@openref/nest';
 import type { CollectorContext, IRuntimeCollector, SkippedCollector } from '@openref/nest';
 
 /** Name of this package. */
@@ -33,6 +40,17 @@ export const THROTTLER_COLLECTOR_NAME = 'throttlerCollector';
 
 /** The package this collector exists to read. */
 export const THROTTLER_PACKAGE = '@nestjs/throttler';
+
+/**
+ * The guard class `@nestjs/throttler` ships, which is what enforces every limit this collector reads.
+ *
+ * A NAME AND NEVER A TEST, per {@link IRGuardPurpose}. Nothing here decides that a class whose name
+ * sounds like a limiter is one; this is the class the package this collector exists to read defines
+ * as its limiter, and it is claimed only where it was actually observed standing on the route or in
+ * front of the application. `@Throttle` does not apply it, unlike the redisx decorator, so its
+ * presence is read rather than deduced from the metadata.
+ */
+export const THROTTLER_GUARD = 'ThrottlerGuard';
 
 /** Key prefixes `@nestjs/throttler` writes, with the throttler's name appended to each. */
 export const THROTTLER_KEY_PREFIXES = {
@@ -146,6 +164,16 @@ export function throttlerCollector(
     collect(context: CollectorContext): IRNodeRuntime | undefined {
       const subject = `${context.declaredOn.name}.${context.handlerName}`;
 
+      // WHAT STANDS IN FRONT OF THIS ROUTE IS NAMED AS A LIMITER WHEREVER IT IS OBSERVED, and it
+      // rides every answer below rather than one of them. `security-drift` chose between an error
+      // and a warning on a guard's SCOPE alone, so `@UseGuards(ThrottlerGuard)` on a handler, which
+      // this project's own documentation shows, was read as an authorisation decision about the
+      // route and produced a critical finding on a route nobody said anything about protecting.
+      // `guardsCollector` reports the same class from `@UseGuards` and from the container and
+      // cannot say what it is for; the merge folds this purpose onto that reading.
+      const guards = limiterGuards(context, metadata);
+      const naming = guards.length === 0 ? {} : { guards };
+
       // THE HANDLER IS READ AFTER THE CONTROLLER SO THAT IT WINS. `@Throttle` on a method
       // replaces the class's setting for the same throttler name, which is what NestJS enforces.
       const limits = new Map<string, Partial<IRRateLimit>>();
@@ -155,7 +183,7 @@ export function throttlerCollector(
       }
 
       const found = firstComplete(limits, subject, problems);
-      if (found !== undefined) return { rateLimit: context.fact(found, 'derived') };
+      if (found !== undefined) return { ...naming, rateLimit: context.fact(found, 'derived') };
 
       // NO LIMIT OF ITS OWN IS TWO DIFFERENT ANSWERS AND USED TO BE ONE SILENCE, per SPEC 6.2.3.
       // `ThrottlerGuard` under `APP_GUARD` is the ordinary way this package is installed, so a
@@ -168,15 +196,94 @@ export function throttlerCollector(
       // second is an opt out of one throttler and not an observation about everything else in front
       // of the route. Answering either with a reach would be this package stating something it did
       // not observe.
-      if (declared) return undefined;
+      // A ROUTE THAT DECLARED SOMETHING GETS NO REACH AND STILL GETS THE NAMING. What is withheld
+      // here is the claim about what limits the route, which this package did not observe; that a
+      // `ThrottlerGuard` was seen standing in front of it is a separate reading and is not
+      // withdrawn by the route having declared a half throttler or opted one out.
+      if (declared) return guards.length === 0 ? undefined : { guards };
 
-      return { rateLimitReach: context.fact(reachOf(context), 'derived') };
+      return { ...naming, rateLimitReach: context.fact(reachOf(context), 'derived') };
     },
 
     problems(): readonly ThrottlerCollectorProblem[] {
       return problems;
     },
   };
+}
+
+/**
+ * Where the throttler's own guard was observed standing, if anywhere, per SPEC 6.2.1.
+ *
+ * OBSERVED AND NEVER ASSUMED, which is the difference between this and the redisx collector beside
+ * it. There, one decorator writes the metadata and applies the guard, so the key's presence is the
+ * guard's presence; here `@Throttle` writes metadata and applies nothing, and the guard is put in
+ * front of the route separately, usually as one `APP_GUARD` provider and sometimes with
+ * `@UseGuards` on a handler or a controller. Claiming it unobserved would put a guard on a route
+ * that has none, which is the direction a security rule must never be wrong in.
+ *
+ * BOTH SCOPES ARE REPORTED WHERE BOTH HOLD, because they are two registrations, per SPEC 6.2.1, and
+ * because `security-drift` reads the scope. The route reading uses the key `@UseGuards` writes,
+ * exported by `@openref/nest` rather than spelled again here, and reads the controller and the
+ * handler for the reason `readGuards` reads both: NestJS applies both and neither overrides.
+ *
+ * @param context - The node's context, for the two targets and the global registrations
+ * @param metadata - The reader
+ * @returns The guard, at each scope it was seen at, or nothing when it was seen at neither
+ */
+function limiterGuards(context: CollectorContext, metadata: MetadataReader): readonly IRGuard[] {
+  const scopes: IRGuardScope[] = [];
+
+  const onRoute = [context.controller, context.handler].some((target) =>
+    asArray(metadata.get(NEST_GUARD_METADATA, target)).some(isThrottlerGuard),
+  );
+  if (onRoute) scopes.push('route');
+  if (context.globalGuards.includes(THROTTLER_GUARD)) scopes.push('global');
+
+  return scopes.map((scope) => ({
+    name: THROTTLER_GUARD,
+    scope,
+    purpose: 'rate-limit',
+    // `derived`, per the SPEC 6.1 table, which names a guard's class name as the example of that
+    // level. It is the same level `guardsCollector` reports the same class at, which is what lets
+    // the merge recognise the two readings as one guard.
+    confidence: 'derived',
+    collector: THROTTLER_COLLECTOR_NAME,
+  }));
+}
+
+/**
+ * Reports whether one entry of the guard metadata is this package's guard.
+ *
+ * `@UseGuards(ThrottlerGuard)` STORES THE CLASS AND `@UseGuards(new ThrottlerGuard(...))` STORES
+ * THE INSTANCE, and both are ordinary usage, so both are read. Anything else is somebody else's
+ * guard and is not this collector's to name.
+ *
+ * @param entry - One entry from the metadata
+ * @returns True when it is `ThrottlerGuard`
+ */
+function isThrottlerGuard(entry: unknown): boolean {
+  if (typeof entry === 'function') return entry.name === THROTTLER_GUARD;
+
+  if (typeof entry === 'object' && entry !== null) {
+    const constructor: unknown = (entry as { constructor?: unknown }).constructor;
+
+    return typeof constructor === 'function' && constructor.name === THROTTLER_GUARD;
+  }
+
+  return false;
+}
+
+/**
+ * Narrows whatever was under the guard metadata key to a list.
+ *
+ * The key holds an array in every NestJS version this package supports, and it is still checked:
+ * the value is whatever somebody put there.
+ *
+ * @param value - Whatever the reader returned
+ * @returns The entries, or an empty list
+ */
+function asArray(value: unknown): readonly unknown[] {
+  return Array.isArray(value) ? value : [];
 }
 
 /**

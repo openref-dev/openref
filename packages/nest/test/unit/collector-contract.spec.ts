@@ -229,6 +229,90 @@ describe('the merge partition', () => {
     expect(Object.keys(everything ?? {}).sort()).toEqual([...LIST_FIELDS].sort());
   });
 
+  it('should let a purpose join a guard another collector already named, whatever the order', () => {
+    // Given the two readings of one guard: `guardsCollector` sees `@UseGuards` and can say only
+    // that the class stands here, and a collector that reads the library the class comes from can
+    // say what it was installed to do. They arrive in registration order, and `guardsCollector` is
+    // registered first, so plain deduplication kept the reading with no purpose and dropped the
+    // other; `security-drift` then went on reading a rate limiter as an authorisation guard.
+    const named = {
+      name: 'RateLimitGuard',
+      scope: 'route',
+      confidence: 'derived',
+      collector: 'guardsCollector',
+    } as const;
+
+    // When both orders are folded
+    const first = mergeContributions([
+      { collector: 'guardsCollector', runtime: { guards: [named] } },
+      {
+        collector: 'redisxRateLimitCollector',
+        runtime: { guards: [{ ...named, purpose: 'rate-limit' }] },
+      },
+    ]);
+    const second = mergeContributions([
+      {
+        collector: 'redisxRateLimitCollector',
+        runtime: { guards: [{ ...named, purpose: 'rate-limit' }] },
+      },
+      { collector: 'guardsCollector', runtime: { guards: [named] } },
+    ]);
+
+    // Then one guard, carrying the purpose, either way. The `collector` is the first reader's,
+    // which is the precedence the rest of the merge gives registration order.
+    expect(first?.guards).toEqual([{ ...named, purpose: 'rate-limit' }]);
+    expect(second?.guards).toEqual([
+      { ...named, purpose: 'rate-limit', collector: 'redisxRateLimitCollector' },
+    ]);
+  });
+
+  it('should keep two scopes of one class apart, which a purpose must not merge', () => {
+    // Given the same class both under APP_GUARD and named in @UseGuards, which per SPEC 6.2.1 is
+    // two registrations, with the purpose claimed at one of them
+    const guards = mergeContributions([
+      {
+        collector: 'guardsCollector',
+        runtime: {
+          guards: [
+            {
+              name: 'ThrottlerGuard',
+              scope: 'route',
+              confidence: 'derived',
+              collector: 'guardsCollector',
+            },
+            {
+              name: 'ThrottlerGuard',
+              scope: 'global',
+              confidence: 'derived',
+              collector: 'guardsCollector',
+            },
+          ],
+        },
+      },
+      {
+        collector: 'throttlerCollector',
+        runtime: {
+          guards: [
+            {
+              name: 'ThrottlerGuard',
+              scope: 'route',
+              purpose: 'rate-limit',
+              confidence: 'derived',
+              collector: 'throttlerCollector',
+            },
+          ],
+        },
+      },
+    ])?.guards;
+
+    // Then
+    expect(guards).toHaveLength(2);
+    expect(guards?.map((guard) => [guard.scope, guard.purpose])).toEqual([
+      ['route', 'rate-limit'],
+      ['global', undefined],
+    ]);
+  });
+
   it('should fold each named grouped field, which is the third shape a runtime field has', () => {
     // Given a contribution carrying every grouped field at once. `errors` LEFT `LIST_FIELDS` IN
     // T021 and this case is what stops the move from being invisible: a field that is three lists

@@ -34,7 +34,13 @@
  */
 
 import { createRequire } from 'node:module';
-import type { IRErrorContract, IRNodeRuntime, IRRateLimit, IRRateLimitReach } from '@openref/core';
+import type {
+  IRErrorContract,
+  IRGuard,
+  IRNodeRuntime,
+  IRRateLimit,
+  IRRateLimitReach,
+} from '@openref/core';
 import type { CollectorContext, IRuntimeCollector, SkippedCollector } from '@openref/nest';
 
 /** Name of this package. */
@@ -45,6 +51,17 @@ export const REDISX_RATE_LIMIT_COLLECTOR_NAME = 'redisxRateLimitCollector';
 
 /** The package this collector exists to read. */
 export const REDISX_RATE_LIMIT_PACKAGE = '@nestjs-redisx/rate-limit';
+
+/**
+ * The guard class the library's own decorator applies.
+ *
+ * READ OFF THE INSTALLED LIBRARY AND NOT REMEMBERED: `RateLimit(options = {})` is
+ * `applyDecorators(SetMetadata(RATE_LIMIT_OPTIONS, options), UseGuards(RateLimitGuard))`, so a
+ * target carrying {@link RATE_LIMIT_OPTIONS_KEY} carries this guard, and the two facts arrive from
+ * one reading. A NAME AND NEVER A TEST: nothing here decides that a class called something is a
+ * limiter. The name is only ever attached to a route whose metadata this library's decorator wrote.
+ */
+export const REDISX_RATE_LIMIT_GUARD = 'RateLimitGuard';
 
 /**
  * The key the library writes its route options under.
@@ -300,13 +317,35 @@ export function redisxRateLimitCollector(
         global: [],
       };
 
+      // THE GUARD THE DECORATOR INSTALLED IS NAMED, AND IT IS NAMED AS A LIMITER. `@RateLimit` is
+      // `applyDecorators(SetMetadata(RATE_LIMIT_OPTIONS, options), UseGuards(RateLimitGuard))`,
+      // read off the installed library rather than remembered, so the key this collector just
+      // found on the target is proof that the guard stands here and proof of what it is for.
+      // Nothing is inferred from the class name, per SPEC 6.1: the name is written down here
+      // because this package exists to read that library, and it is only ever attached to a route
+      // whose metadata the same decorator wrote.
+      //
+      // IT MATTERS TO ONE READER IN PARTICULAR. `security-drift` chose between an error and a
+      // warning on the guard's SCOPE alone, so a route whose only route scope guard is this one
+      // was reported as an undocumented protected route: on the application this was measured
+      // against, a deliberately public token endpoint was advised to declare security.
+      const guards: readonly IRGuard[] = [
+        {
+          name: REDISX_RATE_LIMIT_GUARD,
+          scope: 'route',
+          purpose: 'rate-limit',
+          confidence: 'derived',
+          collector: REDISX_RATE_LIMIT_COLLECTOR_NAME,
+        },
+      ];
+
       // THE STATUSES DO NOT DEPEND ON THE BUDGET BEING READABLE, which is the whole of what was
       // missing. A route whose `points` is half declared, or whose algorithm has no window this
       // model can carry, still refuses a request that goes over whatever the module completes it
       // with, and still answers 429 for it.
       return limit === undefined
-        ? { errors }
-        : { rateLimit: context.fact(limit, 'derived'), errors };
+        ? { guards, errors }
+        : { guards, rateLimit: context.fact(limit, 'derived'), errors };
     },
 
     problems(): readonly RedisxRateLimitCollectorProblem[] {
@@ -605,6 +644,24 @@ function describeUnreadableRoute(
     action:
       'declare @RateLimit({ points, duration }) on the route if it has a budget, which is what ' +
       'makes the number a fact about it',
+    // THE DETAIL SAYS WHAT IS UNREADABLE AND NOT ONLY THAT SOMETHING IS. This finding fires on
+    // fifty four of fifty eight operations of the application it was measured on, and it is
+    // unremovable for any host with a module level default, so the next reader meets it fifty four
+    // times and proposes the same weakening: derive an effective budget at `inferred` where a
+    // module default and a global guard are both known. That proposal was withdrawn because the
+    // counter-examples strike its premise rather than its confidence, and unless the sentence names
+    // them it will be made again. `inferred` would have marked the conclusion weak while the
+    // statement was simply false.
+    //
+    // BOTH NAMED THINGS ARE PROPERTIES OF THE LIBRARY AND THE HOST RATHER THAN OF THIS ROUTE, which
+    // is why neither can be fixed by reading harder. `skip` is typed
+    // `(context: ExecutionContext) => boolean | Promise<boolean>` on the plugin options, so which
+    // requests are counted at all is decided by calling it, and a function under a key is never
+    // read, per SPEC 6.1: a host whose `skip` returns true for a whole controller has routes with
+    // no budget, and a derived number would state one for them. And the figure under the token is
+    // whatever this process was configured with, so a configuration that computes it, dividing a
+    // deployment wide allowance by a node count taken in this process, yields a boot artefact
+    // rather than what a deployed replica enforces.
     detail:
       'Whether that guard limits this route, and at what budget, is written in its own code and ' +
       'is never read, per SPEC 6.1. ' +
@@ -612,7 +669,16 @@ function describeUnreadableRoute(
         ? 'No module budget was registered either, so nothing anywhere states a number for this route.'
         : `The module's configured default is ${String(budget.points)} request(s) per ` +
           `${String(budget.ttlMs)} ms, and it is not written here because nothing observed says ` +
-          'that guard applies it to this route.'),
+          'that guard applies it to this route.') +
+      ' Two things stop that default from being narrowed into a budget for this route, and ' +
+      'neither is a matter of reading harder. The module may carry skip, which is an arbitrary ' +
+      'function of the execution context, so which requests are counted at all is decided by ' +
+      'calling it: a skip that exempts a whole controller leaves those routes with no budget, and ' +
+      'a number derived here would state one for them. And the figure under the token is whatever ' +
+      'this process was configured with, so a configuration that computes it from a node count ' +
+      'taken in this process describes this boot rather than what a deployed replica enforces. ' +
+      'A weaker confidence would mark such a number uncertain; it would still be a statement ' +
+      'about the route that nothing observed.',
   });
 }
 

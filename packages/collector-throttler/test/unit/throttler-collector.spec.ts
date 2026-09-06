@@ -285,8 +285,19 @@ describe('throttlerCollector', () => {
     // When
     const produced = collector.collect(contextOf(['ThrottlerGuard']));
 
-    // Then
-    expect(produced).toBeUndefined();
+    // Then, and the guard standing in front of it is still named, because that is a separate
+    // reading and the opt out did not withdraw it
+    expect(produced?.rateLimitReach).toBeUndefined();
+    expect(produced?.rateLimit).toBeUndefined();
+    expect(produced?.guards).toEqual([
+      {
+        name: 'ThrottlerGuard',
+        scope: 'global',
+        purpose: 'rate-limit',
+        confidence: 'derived',
+        collector: THROTTLER_COLLECTOR_NAME,
+      },
+    ]);
   });
 
   it('should claim no reach for a route whose declared throttler could not be read', () => {
@@ -300,7 +311,8 @@ describe('throttlerCollector', () => {
     const produced = collector.collect(contextOf(['ThrottlerGuard']));
 
     // Then
-    expect(produced).toBeUndefined();
+    expect(produced?.rateLimitReach).toBeUndefined();
+    expect(produced?.rateLimit).toBeUndefined();
     expect(collector.problems()[0]?.reason).toContain('no ttl');
   });
 
@@ -377,5 +389,105 @@ describe('the name `@openref/core` names for this fact', () => {
 
     // When, Then
     expect(RUNTIME_FACT_COLLECTORS.rateLimit).toContain(THROTTLER_COLLECTOR_NAME);
+  });
+});
+
+/**
+ * The guard is named as a limiter wherever it was seen, and nowhere else.
+ *
+ * WHY THIS COLLECTOR SAYS IT AT ALL. `guardsCollector` reads `@UseGuards` and the container, so it
+ * knows `ThrottlerGuard` stands here and nothing about what it is for; `security-drift` then chose
+ * between an error and a warning on the guard's SCOPE alone and read a rate limiter as an
+ * authorisation guard. `@UseGuards(ThrottlerGuard)` on a handler is a pattern this project's own
+ * documentation shows, so the defect is reachable through this package exactly as it is through
+ * `@openref/collector-redisx-rate-limit`.
+ *
+ * WHY IT IS OBSERVED RATHER THAN ASSUMED. `@Throttle` applies no guard, unlike the redisx
+ * decorator, so nothing about a route's metadata proves the guard is in front of it. A claim made
+ * without looking would put a guard on a route that has none.
+ */
+describe('the throttler guard, named as the limiter it is', () => {
+  it('should name it at route scope where @UseGuards put it on the handler', () => {
+    // Given the real guard class under the key `@UseGuards` writes
+    class ThrottlerGuard {
+      canActivate(): boolean {
+        return true;
+      }
+    }
+    const collector = collectorOver(
+      new Map([[list, new Map<string, unknown>([['__guards__', [ThrottlerGuard]]])]]),
+    );
+
+    // When
+    const produced = collector.collect(contextOf());
+
+    // Then
+    expect(produced?.guards).toEqual([
+      {
+        name: 'ThrottlerGuard',
+        scope: 'route',
+        purpose: 'rate-limit',
+        confidence: 'derived',
+        collector: THROTTLER_COLLECTOR_NAME,
+      },
+    ]);
+  });
+
+  it('should name it at both scopes where it was registered at both', () => {
+    // Given `@UseGuards(ThrottlerGuard)` on the controller and the same class under APP_GUARD,
+    // which per SPEC 6.2.1 is two registrations and not one
+    class ThrottlerGuard {
+      canActivate(): boolean {
+        return true;
+      }
+    }
+    const collector = collectorOver(
+      new Map([[OrdersController, new Map<string, unknown>([['__guards__', [ThrottlerGuard]]])]]),
+    );
+
+    // When
+    const produced = collector.collect(contextOf(['ThrottlerGuard']));
+
+    // Then
+    expect(produced?.guards?.map((guard) => guard.scope)).toEqual(['route', 'global']);
+    expect(produced?.guards?.every((guard) => guard.purpose === 'rate-limit')).toBe(true);
+  });
+
+  it('should read an instance as readily as a class, since both are ordinary usage', () => {
+    // Given `@UseGuards(new ThrottlerGuard(...))`
+    class ThrottlerGuard {
+      canActivate(): boolean {
+        return true;
+      }
+    }
+    const collector = collectorOver(
+      new Map([[list, new Map<string, unknown>([['__guards__', [new ThrottlerGuard()]]])]]),
+    );
+
+    // When
+    const produced = collector.collect(contextOf());
+
+    // Then
+    expect(produced?.guards?.[0]?.name).toBe('ThrottlerGuard');
+  });
+
+  it('should name nothing where the guard was seen at neither scope', () => {
+    // Given a route guarded by somebody else's guard and no APP_GUARD registration. Asserting the
+    // subject first: the key IS read, and it holds a guard.
+    class JwtAuthGuard {
+      canActivate(): boolean {
+        return true;
+      }
+    }
+    const collector = collectorOver(
+      new Map([[list, new Map<string, unknown>([['__guards__', [JwtAuthGuard]]])]]),
+    );
+
+    // When
+    const produced = collector.collect(contextOf());
+
+    // Then this package says nothing about a guard that is not its own
+    expect(produced?.guards).toBeUndefined();
+    expect(produced?.rateLimitReach?.value).toEqual({ kind: 'none' });
   });
 });

@@ -667,6 +667,87 @@ describe('missing-operation-id', () => {
     // Then
     expect(issues).toEqual([]);
   });
+
+  it('should not propose one method name to two operations, which is invalid OpenAPI', () => {
+    // Given two controllers whose handlers are both called `list`, which is the ordinary shape of
+    // a CRUD application. Measured on the maintainer's: `list` collides six ways, `create`,
+    // `delete`, `getOne`, `patch` and `update` four each, so twenty six of fifty eight operations
+    // collapse into six names and the document loses twenty distinct keys.
+    const document = documentOf([
+      operation({
+        id: 'get-orders',
+        rawOperationId: 'OrdersController_list',
+        runtime: { source: { controller: 'OrdersController', handler: 'list' } },
+      }),
+      operation({
+        id: 'get-invoices',
+        path: '/invoices',
+        rawOperationId: 'InvoicesController_list',
+        runtime: { source: { controller: 'InvoicesController', handler: 'list' } },
+      }),
+    ]);
+
+    // When
+    const issues = issuesFor('missing-operation-id', document);
+
+    // Then both still fire, and neither is told to write the name the other would take
+    expect(issues).toHaveLength(2);
+    for (const issue of issues) {
+      expect(issue.suggestion).not.toContain("operationId: 'list'");
+      expect(issue.suggestion).toContain('cannot be "list"');
+      expect(issue.suggestion).toContain('unique');
+      // NOTHING MACHINE READABLE CARRIES THE COLLIDING NAME EITHER. `edit: 'new-assertion'` marks
+      // this bucket as one a fix mode may write, so a suggestion that warned in prose while the
+      // assertion still held `list` would put the duplicate into source through the tool.
+      expect(issue.assertion).toBeUndefined();
+    }
+  });
+
+  it('should still propose the method name when no neighbour lays claim to it', () => {
+    // Given the same two controllers with distinct handler names
+    const document = documentOf([
+      operation({
+        id: 'get-orders',
+        rawOperationId: 'OrdersController_listOrders',
+        runtime: { source: { controller: 'OrdersController', handler: 'listOrders' } },
+      }),
+      operation({
+        id: 'get-invoices',
+        path: '/invoices',
+        rawOperationId: 'InvoicesController_listInvoices',
+        runtime: { source: { controller: 'InvoicesController', handler: 'listInvoices' } },
+      }),
+    ]);
+
+    // When
+    const issues = issuesFor('missing-operation-id', document);
+
+    // Then the proposal a unique name always was is unchanged
+    expect(issues).toHaveLength(2);
+    expect(issues[0]?.suggestion).toContain("operationId: 'listOrders'");
+    expect(issues[0]?.assertion).toEqual({ kind: 'operation-id', operationId: 'listOrders' });
+    expect(issues[1]?.suggestion).toContain("operationId: 'listInvoices'");
+  });
+
+  it('should refuse a method name an operationId a person wrote already holds', () => {
+    // Given a handler named `list` and, elsewhere in the same document, a hand written `list`
+    const document = documentOf([
+      operation({
+        id: 'get-orders',
+        rawOperationId: 'OrdersController_list',
+        runtime: { source: { controller: 'OrdersController', handler: 'list' } },
+      }),
+      operation({ id: 'get-invoices', path: '/invoices', rawOperationId: 'list' }),
+    ]);
+
+    // When
+    const issues = issuesFor('missing-operation-id', document);
+
+    // Then the one that is quiet stays quiet, and the other is not sent to take its name
+    expect(issues).toHaveLength(1);
+    expect(issues[0]?.suggestion).toContain('cannot be "list"');
+    expect(issues[0]?.assertion).toBeUndefined();
+  });
 });
 
 describe('dto-field-undescribed', () => {
