@@ -11,11 +11,15 @@ import { describe, expect, it } from 'vitest';
  * fifty words of the product explaining itself with no action in it, so the rule has to be about
  * the shape rather than about any one sentence.
  *
- * WHAT THIS PACKAGE CAN SEE. The four ecosystem collectors live in their own packages and cannot
- * be swept from here without a test in one package asserting about another's source. Each of them
- * carries the three members and each of their own unit suites now pins all three, which is the
- * weaker instrument and the honest one to name: a fifth ecosystem package could be written in the
- * old voice and nothing here would say so.
+ * WHAT THIS PACKAGE CAN SEE, AND WHAT NOW SEES THE REST. The ecosystem collectors live in their own
+ * packages and cannot be swept from here without a test in one package asserting about another's
+ * source. Until `TX-REDISX-IDEMPOTENCY` that was the whole story and this header said so: each of
+ * them carried the three members, each of their own unit suites pinned all three, and a fifth
+ * ecosystem package could have been written in the old voice with nothing to say so. The
+ * `collector-voice` gate now measures every package under `packages/` whose name marks it a
+ * collector, derived from the disk rather than listed, with the same walk and the same bound, which
+ * `tools/gates/test/unit/collector-voice.spec.ts` reads out of the line below and reconciles. What
+ * this file still owns is the collectors of this package, which that gate does not reach.
  *
  * WHAT IS MEASURED IS WHAT A READER IS SHOWN FIRST. `reason` is the top line of the finding on the
  * health page and, once the registry has prefixed the collector's name onto it, the whole of what

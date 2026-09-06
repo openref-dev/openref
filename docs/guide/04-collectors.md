@@ -42,8 +42,11 @@ OpenRefModule.forRoot({
 `throttlerCollector` lives in its own package, `@openref/collector-throttler`, so that
 installing `@openref/nest` never puts a rate limiting library in the dependency closure of an
 application that does not rate limit anything. The same is true of
-`@openref/collector-casl`, `@openref/collector-access-control` and
-`@openref/collector-redisx-rate-limit`, which reads `@nestjs-redisx/rate-limit`.
+`@openref/collector-casl`, `@openref/collector-access-control`,
+`@openref/collector-redisx-rate-limit`, which reads `@nestjs-redisx/rate-limit`, and
+`@openref/collector-redisx-idempotency`, which reads `@nestjs-redisx/idempotency` and reports the
+two statuses an `@Idempotent` route can answer with into the route's runtime derived error
+contracts.
 
 Register at most one collector per fact. Two that report the same fact at the same confidence are
 resolved by registration order, first wins, and the `doctor` report names the pair and the value it

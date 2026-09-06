@@ -14,8 +14,12 @@ import {
   gatewayAddress,
   readGateway,
   readMicroserviceHandler,
+  readRedisxStreamConsumer,
+  readRedisxSubscribe,
   readSubscribeMessage,
   GATEWAY_PROTOCOL,
+  REDISX_CHANNEL_PROTOCOL,
+  type RedisxSubscriptionReading,
   type DeclaredValue,
   type DerivedValue,
   type EventValue,
@@ -50,7 +54,23 @@ import {
  * routed something it did not.
  */
 export type DiscoveredChannelSource =
-  'message-pattern' | 'event-pattern' | 'subscribe-message' | 'api-channel';
+  | 'message-pattern'
+  | 'event-pattern'
+  | 'subscribe-message'
+  | 'api-channel'
+  /**
+   * `@Subscribe` from `@nestjs-redisx/pubsub`, on a plain provider.
+   *
+   * A FIFTH AND SIXTH KIND RATHER THAN `api-channel`, ADDED AT `TX-REDISX-IDEMPOTENCY`, and the
+   * distinction is the one this union already draws twice. A provider carrying only `@ApiChannel`
+   * is a person stating a fact; a provider carrying one of these is routed, by a library rather
+   * than by the framework, and a reader who wants to know which of their channels the application
+   * actually subscribes to on boot cannot get that answer out of a kind that means "somebody wrote
+   * this down".
+   */
+  | 'redisx-subscribe'
+  /** `@StreamConsumer` from `@nestjs-redisx/streams`, on a plain provider. */
+  | 'redisx-stream-consumer';
 
 /** One channel of the running application, before anything has been merged or normalized. */
 export interface DiscoveredChannel {
@@ -354,11 +374,18 @@ function collectDeclarations(
   target: ControllerLike,
   instance: unknown,
   channels: DiscoveredChannel[],
+  filed: ReadonlySet<object>,
 ): void {
   const start = prototypeOf(instance, target);
   if (start === undefined) return;
 
   for (const { name: handlerName, handler, owner } of handlersOf(start, target)) {
+    // A HANDLER THE REDISX WALK ALREADY FILED IS NOT FILED AGAIN. That walk applies `@ApiChannel`
+    // on top of what the library routed, per SPEC 6.1, so the declaration is already in the
+    // channel it produced; reading it a second time here would put one handler's channel in the
+    // document twice, once routed and once declared.
+    if (filed.has(handler)) continue;
+
     const declared = declaredChannel(handler);
     const address = declared?.value.address;
     if (declared === undefined || address === undefined || address === '') continue;
@@ -378,14 +405,117 @@ function collectDeclarations(
 }
 
 /**
+ * Adds every channel one provider subscribes to through the `@nestjs-redisx` family.
+ *
+ * ROUTED BY A LIBRARY RATHER THAN BY THE FRAMEWORK, WHICH IS WHY IT IS NOT THE NARROWING
+ * {@link collectDeclarations} REFUSES. That function refuses to build a channel out of
+ * `@MessagePattern` on a plain provider because Nest routes those off a controller, so the address
+ * would be one no message arrives at. These two are the opposite case: `@Subscribe` and
+ * `@StreamConsumer` are subscribed on boot by their own plugin's discovery pass, off a plain
+ * `@Injectable()`, which is where the library documents them and the only place they work. The
+ * address is one the application really listens on, so it is `derived` under SPEC 6.1 rather than
+ * refused.
+ *
+ * NOTHING IS IMPORTED AND NOTHING IS RESOLVED, per the rule `event-metadata.ts` opens with for
+ * `@nestjs/microservices`. The two keys are `Symbol.for` expressions in `nest-surface.ts`, measured
+ * against the real decorators by `nest-value-surface.spec.ts`, and an application that subscribes to
+ * nothing carries neither.
+ *
+ * WHAT IS NOT READ IS THE PREFIX, AND IT IS REPORTED RATHER THAN GUESSED. Both plugins concatenate a
+ * configured prefix onto the logical name, `channelPrefix` defaulting to the empty string and
+ * `keyPrefix` defaulting to `stream:`, and both live in a provider this walk does not resolve. So
+ * the address filed is the logical one the decorator names, which is the one a reader recognises in
+ * the source, and the finding says the wire name may carry a prefix.
+ *
+ * @param target - The provider class
+ * @param instance - Its instance, whose prototype carries the handlers
+ * @param channels - Accumulator
+ * @param problems - Accumulator for what could not be read
+ * @returns The handlers this filed, so the declaration walk does not file them again
+ */
+function collectRedisxSubscriptions(
+  target: ControllerLike,
+  instance: unknown,
+  channels: DiscoveredChannel[],
+  problems: DiscoveryProblem[],
+): ReadonlySet<object> {
+  const filed = new Set<object>();
+  const start = prototypeOf(instance, target);
+  if (start === undefined) return filed;
+
+  for (const { name: handlerName, handler, owner } of handlersOf(start, target)) {
+    const subscribe = readRedisxSubscribe(handler);
+    const stream = subscribe === undefined ? readRedisxStreamConsumer(handler) : undefined;
+    const reading = subscribe ?? stream;
+    if (reading === undefined) continue;
+
+    filed.add(handler);
+    const declared = declaredChannel(handler);
+
+    channels.push({
+      address: declaredAddress(declared) ?? derived(reading.address),
+      source: subscribe === undefined ? 'redisx-stream-consumer' : 'redisx-subscribe',
+      protocol: derived(REDISX_CHANNEL_PROTOCOL),
+      ...(declared === undefined ? {} : { declared }),
+      ...messageOf(handler),
+      controller: target,
+      controllerName: target.name,
+      declaredOn: owner,
+      handler,
+      handlerName,
+    });
+
+    recordRedisxGaps(`${target.name}.${handlerName}`, reading, problems);
+  }
+
+  return filed;
+}
+
+/**
+ * Says what a redisx subscription's address does not say, per SPEC 8.3.
+ *
+ * @param subject - The provider and method, as a reader of `doctor` recognises it
+ * @param reading - What the decorator named
+ * @param problems - Accumulator
+ */
+function recordRedisxGaps(
+  subject: string,
+  reading: RedisxSubscriptionReading,
+  problems: DiscoveryProblem[],
+): void {
+  if (reading.kind === 'pattern') {
+    problems.push({
+      subject,
+      reason: 'it subscribes to a Redis glob, so which concrete channels reach it is not known',
+      action: 'nothing to do here: the pattern is the address, and this says it matches many',
+      detail:
+        'Which channels a pattern matches is decided by whatever publishes, which is not in this ' +
+        'application unless it publishes to itself. The address filed is the pattern as written.',
+    });
+  }
+
+  problems.push({
+    subject,
+    reason: `the plugin prefix is not read, so the wire name of ${reading.address} may differ`,
+    action:
+      'declare @ApiChannel({ address }) with the full name if the plugin is configured with a prefix',
+    detail:
+      'Both plugins concatenate a configured prefix onto the logical name, channelPrefix ' +
+      'defaulting to the empty string and keyPrefix to "stream:". The value lives in a provider ' +
+      'this walk does not resolve, so the logical name is filed and the prefix is not invented.',
+  });
+}
+
+/**
  * Enumerates every channel the application declares.
  *
  * CONTROLLERS AND PROVIDERS BOTH, because the three sources live in two containers.
  * `@MessagePattern` goes on a controller and `@WebSocketGateway` implies `@Injectable`, so a
  * gateway is a provider and `getControllers` never sees it. A provider that is neither is read for
- * a declaration and nothing else, per SPEC 8.3 as amended 2026-09-04, and one that declares
- * nothing is skipped in silence, since an application's providers are mostly not channels and
- * reporting each would bury the real findings.
+ * a declaration and for the two `@nestjs-redisx` subscription keys, per SPEC 8.3 as amended
+ * 2026-09-04 and at `TX-REDISX-IDEMPOTENCY`, and one that carries none of them is skipped in
+ * silence, since an application's providers are mostly not channels and reporting each would bury
+ * the real findings.
  *
  * THE PROVIDER WALK IS DEEPER THAN IT WAS AND THE COST IS NAMED. Until 2026-09-04 a provider that
  * failed the `@WebSocketGateway` read cost one metadata lookup; it now costs a walk of its
@@ -415,7 +545,12 @@ export function discoverChannels(discovery: DiscoveryServiceLike): ChannelDiscov
     // class would file a channel twice for a gateway method carrying `@ApiChannel`.
     if (collectGateway(target, wrapper.instance, channels, problems)) continue;
 
-    collectDeclarations(target, wrapper.instance, channels);
+    // THE ROUTED HALF IS READ FIRST AND THE DECLARED HALF IS READ OVER WHAT IT DID NOT REACH. A
+    // handler carrying `@Subscribe` and `@ApiChannel` is one channel whose address the declaration
+    // may override, per SPEC 6.1, and not two channels for one subscription.
+    const filed = collectRedisxSubscriptions(target, wrapper.instance, channels, problems);
+
+    collectDeclarations(target, wrapper.instance, channels, filed);
   }
 
   return { channels, problems };

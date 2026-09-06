@@ -564,6 +564,40 @@ export const NEST_WEBSOCKET_METADATA = {
 export const NEST_WEBSOCKET_PROTOCOL = 'ws';
 
 /**
+ * The keys the `@nestjs-redisx` family writes on an event handler, per SPEC 8.3.
+ *
+ * SYMBOLS AND NOT PEER DEPENDENCIES, for the reason {@link NEST_MICROSERVICE_METADATA} gives about
+ * `@nestjs/microservices`: an application that publishes nothing over Redis carries neither key, and
+ * making two packages a dependency of every consumer to read two symbols is a cost paid by the
+ * hosts that do not use the feature. `Symbol.for` reaches the global registry, so these expressions
+ * yield the same symbols the libraries' own modules yield without loading either, and
+ * `nest-value-surface.spec.ts` applies the real `@Subscribe` and `@StreamConsumer` and asserts each
+ * still holds what this table says, which is the same check the microservice keys already get.
+ *
+ * A GLOBAL SYMBOL IS READABLE WHETHER OR NOT THE LIBRARY IS INSTALLED, WHICH IS WHY THE SHAPE IS
+ * WHAT DECIDES. `@openref/collector-redisx-rate-limit` resolves its library before reading its key,
+ * because the object under it becomes a number on a route; the walk that reads these two makes a
+ * channel out of a string only when the string is where this family puts it, and reports anything
+ * else rather than filing an address out of somebody else's object.
+ */
+export const REDISX_EVENT_METADATA = {
+  /** `@Subscribe`, whose value carries a `channel` or a `pattern` and never both. */
+  subscribe: Symbol.for('PUBSUB_SUBSCRIBE_METADATA'),
+  /** `@StreamConsumer`, whose value carries a `stream`, a `group` and the method's own name. */
+  streamConsumer: Symbol.for('STREAM_CONSUMER_METADATA'),
+} as const;
+
+/**
+ * The protocol a Redis Pub/Sub channel and a Redis stream speak, as the AsyncAPI protocol list
+ * spells it.
+ *
+ * `redis` AND NOT `rediss`, for the reason {@link NEST_WEBSOCKET_PROTOCOL} is `ws` and not `wss`:
+ * the decorator says nothing about TLS, and which of the two a deployment dials is a property of the
+ * client configuration this package has never seen.
+ */
+export const REDISX_PROTOCOL = 'redis';
+
+/**
  * The key `@nestjs/swagger` keeps operation extensions under.
  *
  * WRITTEN DIRECTLY, AND THAT IS WHY `@nestjs/swagger` IS NOT A PEER OF THIS PACKAGE. `ApiExtension`

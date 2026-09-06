@@ -526,6 +526,7 @@ describe('a consumer holding only what npm pack produced', () => {
     expect(present).toEqual([
       'collector-access-control',
       'collector-casl',
+      'collector-redisx-idempotency',
       'collector-redisx-rate-limit',
       'collector-throttler',
       'core',
@@ -539,22 +540,23 @@ describe('a consumer holding only what npm pack produced', () => {
     expect(existsSync(join(consumer, 'node_modules', 'openref'))).toBe(true);
   });
 
-  it('should have packed all twelve published packages, before the licence case asserts anything', () => {
+  it('should have packed all thirteen published packages, before the licence case asserts anything', () => {
     // Given, the case below is a proof of absence over a set, so the set has to be present first.
-    // Twelve is SPEC 4's eight plus the four ecosystem collectors, and it is asserted as a number
+    // Thirteen is SPEC 4's eight plus the five ecosystem collectors, and it is asserted as a number
     // rather than derived twice, so a package that quietly stopped being publishable shows here.
-    // It read eleven until `TX-REDISX-RATELIMIT` added `@openref/collector-redisx-rate-limit`.
+    // It read eleven until `TX-REDISX-RATELIMIT` added `@openref/collector-redisx-rate-limit` and
+    // twelve until `TX-REDISX-IDEMPOTENCY` added `@openref/collector-redisx-idempotency`.
     // When
     const packedNames = [...unpacked.values()].sort();
 
     // Then
-    expect(packedNames).toHaveLength(12);
+    expect(packedNames).toHaveLength(13);
     expect(packedNames).toContain('openref');
     expect(packedNames).toContain('@openref/theme-kit');
     expect(packedNames).toContain('@openref/collector-casl');
   });
 
-  it('should carry the MIT licence text inside every published tarball, all twelve of them', () => {
+  it('should carry the MIT licence text inside every published tarball, all thirteen of them', () => {
     // Given, SPEC 0: the text travels with the files. A reader who installs one package never
     // sees this repository, so a licence at the root discharges nothing, and neither does one in
     // the working tree: what a reader receives is the tarball, so the tarball is what is opened.
@@ -572,9 +574,9 @@ describe('a consumer holding only what npm pack produced', () => {
     expect(missing).toEqual([]);
   });
 
-  it('should carry that text in the seven tarballs no consumer tree here assembles', () => {
-    // Given, five of the twelve are unpacked into the consumer tree above and seven are not, and
-    // it was those seven the working tree stood in for. Named rather than counted, so a case that
+  it('should carry that text in the eight tarballs no consumer tree here assembles', () => {
+    // Given, five of the thirteen are unpacked into the consumer tree above and eight are not, and
+    // it was those eight the working tree stood in for. Named rather than counted, so a case that
     // silently stopped reading them cannot report what a clean one does.
     const canonical = readFileSync(join(REPO_ROOT, 'LICENSE'), 'utf8');
     const beyondTheConsumer = [...unpacked.keys()].filter(
@@ -591,6 +593,7 @@ describe('a consumer holding only what npm pack produced', () => {
       'cli',
       'collector-access-control',
       'collector-casl',
+      'collector-redisx-idempotency',
       'collector-redisx-rate-limit',
       'collector-throttler',
       'theme-kit',

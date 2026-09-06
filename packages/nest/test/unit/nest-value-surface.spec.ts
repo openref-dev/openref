@@ -28,6 +28,8 @@ import {
 } from '@nestjs/core';
 import { EventPattern, MessagePattern, Transport } from '@nestjs/microservices';
 import { SubscribeMessage, WebSocketGateway } from '@nestjs/websockets';
+import { PUBSUB_SUBSCRIBE_METADATA, Subscribe } from '@nestjs-redisx/pubsub';
+import { STREAM_CONSUMER_METADATA, StreamConsumer } from '@nestjs-redisx/streams';
 import type { Observable } from 'rxjs';
 import {
   NEST_CORE_VALUE_NAMES,
@@ -48,6 +50,7 @@ import {
   NEST_TRANSPORT_NAMES,
   NEST_TRANSPORT_PROTOCOLS,
   NEST_WEBSOCKET_METADATA,
+  REDISX_EVENT_METADATA,
 } from '../../src/shared/types/nest-surface';
 import { readGlobalGuards } from '../../src/runtime/domain/guards';
 import {
@@ -409,6 +412,53 @@ describe('the metadata keys the event discovery of SPEC 8.3 reads', () => {
     expect(Reflect.getMetadata('namespace', ChatGateway)).toBeUndefined();
     expect(Reflect.getMetadata(NEST_WEBSOCKET_METADATA.messageMapping, handler)).toBe(true);
     expect(Reflect.getMetadata(NEST_WEBSOCKET_METADATA.message, handler)).toBe('events');
+  });
+
+  it('should be where @Subscribe and @StreamConsumer write, on the real decorators', () => {
+    // Given the two `@nestjs-redisx` keys, measured on the real decorators rather than assumed.
+    // Neither package is a dependency of this one, for the reason the microservice keys are not:
+    // an application that subscribes to nothing over Redis carries neither key.
+    class OrdersProjector {
+      @Subscribe('orders.created')
+      onCreated(): void {
+        // nothing
+      }
+
+      @Subscribe({ pattern: 'orders.*' })
+      onAny(): void {
+        // nothing
+      }
+
+      @StreamConsumer({ stream: 'orders', group: 'projector' })
+      onStream(): void {
+        // nothing
+      }
+    }
+
+    // When
+    const created = Object.getOwnPropertyDescriptor(OrdersProjector.prototype, 'onCreated')
+      ?.value as object;
+    const any = Object.getOwnPropertyDescriptor(OrdersProjector.prototype, 'onAny')
+      ?.value as object;
+    const stream = Object.getOwnPropertyDescriptor(OrdersProjector.prototype, 'onStream')
+      ?.value as object;
+
+    // Then the symbols this package names are the ones the libraries export, and each holds the
+    // decorator's own object. `@StreamConsumer` adds the method name to what it stores, which this
+    // package never reads and which is recorded here so a reader of the table is not surprised.
+    expect(REDISX_EVENT_METADATA.subscribe).toBe(PUBSUB_SUBSCRIBE_METADATA);
+    expect(REDISX_EVENT_METADATA.streamConsumer).toBe(STREAM_CONSUMER_METADATA);
+    expect(Reflect.getMetadata(REDISX_EVENT_METADATA.subscribe, created)).toEqual({
+      channel: 'orders.created',
+    });
+    expect(Reflect.getMetadata(REDISX_EVENT_METADATA.subscribe, any)).toEqual({
+      pattern: 'orders.*',
+    });
+    expect(Reflect.getMetadata(REDISX_EVENT_METADATA.streamConsumer, stream)).toEqual({
+      stream: 'orders',
+      group: 'projector',
+      methodName: 'onStream',
+    });
   });
 });
 

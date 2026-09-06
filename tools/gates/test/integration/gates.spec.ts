@@ -238,9 +238,15 @@ describe('licensesGate', () => {
     // `@openref/collector-redisx-rate-limit` reads `@nestjs-redisx/rate-limit`, which is MIT with
     // no runtime dependency of its own and is an optional peer, so it enlarges the production zone
     // by nothing.
+    // AND A FIFTH AT `TX-REDISX-IDEMPOTENCY`, the thirteenth name, on the same reasoning applied to
+    // a different member of the same family. `@openref/collector-redisx-idempotency` reads
+    // `@nestjs-redisx/idempotency`, MIT, optional peer, no runtime dependency of its own, and it
+    // reports into `IRErrorContracts` rather than into a member of `IRNodeRuntime` that had to be
+    // invented for it, so nothing in `@openref/core` moved to admit it.
     expect(result.published).toEqual([
       '@openref/collector-access-control',
       '@openref/collector-casl',
+      '@openref/collector-redisx-idempotency',
       '@openref/collector-redisx-rate-limit',
       '@openref/collector-throttler',
       '@openref/core',
