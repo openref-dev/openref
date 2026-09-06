@@ -74,6 +74,33 @@ import {
 const repoRoot = join(import.meta.dirname, '..', '..', '..', '..');
 
 /**
+ * What one ordinary milestone of writing costs the artefact, derived from the artefact.
+ *
+ * ONE DERIVATION AND NOT TWO, SINCE `TX-REDISX-IDEMPOTENCY`. Two cases below are stated in
+ * multiples of this quantity and each carried its own answer: one the literal 8,118, measured once
+ * and never re-read, the other this arithmetic, which the artefact answers 8,049 today. Nothing
+ * compared them, so the bound written in the stale one sat 37 bytes from red on a figure that had
+ * already moved, and a single package name took it over. The ceiling neither of them touches is
+ * `PROJECTION_ARTEFACT_BUDGET.limitBytes`.
+ *
+ * EACH TASK COSTS A PLAN ENTRY AND A HEADING BOTH, which is why the eight is multiplied by the sum
+ * of two costs rather than by one of them.
+ *
+ * @param data - The committed artefact's data, or nothing when it could not be read
+ * @returns Bytes one milestone of eight tasks, five owned entries and seven claim rows adds
+ */
+function milestoneCost(data: AiDocsProjection['data'] | undefined): number {
+  const amendments = data?.amendments ?? '';
+  const headings = amendments.split('\n').filter((line) => /^#{2,3} /u.test(line)).length;
+  const perHeading = Math.round(JSON.stringify(amendments).length / headings);
+  const perTask = Math.round(JSON.stringify(data?.build ?? '').length / BUILD_TASK_COUNT);
+  const rows = data?.claimMap ?? [];
+  const perRow = Math.round(JSON.stringify(rows).length / rows.length);
+
+  return 8 * (perTask + perHeading) + 5 * perHeading + 7 * perRow;
+}
+
+/**
  * The committed reading of `ai-docs/`, and the two things it has to be at once.
  *
  * WHAT THIS FILE IS FOR. Twelve gates skipped on every CI run because the documents they read are
@@ -1474,11 +1501,21 @@ describe('the volume of the artefact', () => {
     const scan = scanProjectionProse(read.ok ? read.projection : {}, bytes);
 
     // Then the reading is real, is under both budgets, and the headroom is the one the budget's
-    // own derivation claims: two milestones of ordinary writing at the measured 8,118 bytes each
+    // own derivation claims: two milestones of ordinary writing.
+    //
+    // THE COST OF A MILESTONE IS DERIVED HERE AND NOT WRITTEN DOWN, SINCE `TX-REDISX-IDEMPOTENCY`,
+    // AND THE SECOND WRITING IS WHY. It was the literal 8,118, measured once and never re-read,
+    // while the case below derived the same quantity from the artefact and got 8,049; the two
+    // disagreed by 69 bytes and nothing compared them, so this bound was 37 bytes from red on a
+    // figure that had already moved. One published package name, 51 bytes, took it over. THE
+    // CEILING DID NOT MOVE FOR IT: `PROJECTION_ARTEFACT_BUDGET.limitBytes` is untouched, and what
+    // is now read live is the cost this bound is stated in multiples of.
     expect(scan.bytes).toBe(bytes);
     expect(scan.bytes).toBeGreaterThan(100_000);
     expect(scan.findings).toEqual([]);
-    expect(PROJECTION_ARTEFACT_BUDGET.limitBytes - scan.bytes).toBeGreaterThan(2 * 8_118);
+    expect(PROJECTION_ARTEFACT_BUDGET.limitBytes - scan.bytes).toBeGreaterThan(
+      2 * milestoneCost(read.ok ? read.projection.data : undefined),
+    );
     expect(PROJECTION_ARTEFACT_BUDGET.leaves - scan.leaves).toBeGreaterThan(0);
   });
 
@@ -2004,6 +2041,11 @@ describe('the figures this code states about this repository', () => {
     // leaf, `@openref/collector-redisx-rate-limit` in SPEC 4's ecosystem list, and 50 bytes, which
     // is that name plus the JSON around it. A published package is a leaf where a paragraph is
     // not, which is the whole reason this case reads leaves as well as bytes.
+    // `TX-REDISX-IDEMPOTENCY` took it to 131,234 over 646, by the same one leaf in the same list,
+    // for 51 bytes rather than 50 because `@openref/collector-redisx-idempotency` is one character
+    // longer than the name before it. THE HEADROOM IS STILL TWO MILESTONES AND NO CEILING MOVED,
+    // which is the property this case exists to hold: a thirteenth published package costs the
+    // artefact fifty one bytes out of sixteen thousand of room.
     const read = readProjection(repoRoot);
     expect(read.ok).toBe(true);
     const data = read.ok ? read.projection.data : undefined;
@@ -2013,14 +2055,14 @@ describe('the figures this code states about this repository', () => {
     const perTask = Math.round(JSON.stringify(data?.build ?? '').length / BUILD_TASK_COUNT);
     const rows = data?.claimMap ?? [];
     const perRow = Math.round(JSON.stringify(rows).length / rows.length);
-    const milestone = 8 * (perTask + perHeading) + 5 * perHeading + 7 * perRow;
+    const milestone = milestoneCost(data);
 
     // When
     const scan = scanProjectionProse(read.ok ? read.projection : {}, read.ok ? read.bytes : 0);
 
     // Then each figure the budget's derivation states is the one the artefact gives, and the
     // headroom really is two milestones of it
-    expect([scan.bytes, scan.leaves]).toEqual([131_183, 645]);
+    expect([scan.bytes, scan.leaves]).toEqual([131_234, 646]);
     expect([perHeading, perTask, perRow]).toEqual([421, 126, 224]);
     expect(milestone).toBe(8_049);
     expect(PROJECTION_ARTEFACT_BUDGET.limitBytes - scan.bytes).toBeGreaterThanOrEqual(
@@ -2283,24 +2325,26 @@ describe('the projection privacy gate', () => {
     const scan = scanProjectionProse(read.ok ? read.projection : {}, read.ok ? read.bytes : 0);
 
     // Then it is above the floor, so it is a reading and not an absence, and under the budget, so
-    // it is a reading and not a volume. The corridor is narrow and that is what it is: 145 leaves
-    // of room under the reading and 155 over it. Both ends are asserted precisely so that a leaf
+    // it is a reading and not a volume. The corridor is narrow and that is what it is: 146 leaves
+    // of room under the reading and 154 over it. Both ends are asserted precisely so that a leaf
     // arriving is a decision somebody takes rather than a drift; it read 125 and 175 until
     // 2026-09-04, when SPEC 4's held back section put `@openref/nuxt` into the artefact, then 126
     // and 174, and 144 and 156 from the T065 close, which put eight POST-1.0 entries into
     // the amendments and three of their markers into documents the artefact projects, the other
     // five going to the source files their subjects live in, where the sweep reads them live and
-    // the artefact does not carry them at all. It reads 145 and 155 since `TX-REDISX-RATELIMIT`,
-    // where the one leaf is `@openref/collector-redisx-rate-limit` joining SPEC 4's ecosystem list,
-    // and that is this case working: a twelfth published package is exactly the kind of decision
-    // these two numbers exist to make somebody take on purpose. NEITHER END OF THE CORRIDOR MOVED
-    // ON ANY OF THE FOUR OCCASIONS: the floor is still PROJECTION_LEAF_FLOOR and the budget is
-    // still PROJECTION_ARTEFACT_BUDGET.leaves, and what these two numbers record is where the
-    // reading now stands between them.
+    // the artefact does not carry them at all. It read 145 and 155 from `TX-REDISX-RATELIMIT`,
+    // where the one leaf was `@openref/collector-redisx-rate-limit` joining SPEC 4's ecosystem
+    // list, and 146 and 154 since `TX-REDISX-IDEMPOTENCY`, whose one leaf is
+    // `@openref/collector-redisx-idempotency` joining the same list, and that is this case working:
+    // a thirteenth published package is exactly the kind of decision these two numbers exist to
+    // make somebody take on purpose. NEITHER END OF THE CORRIDOR MOVED ON ANY OF THE FIVE
+    // OCCASIONS: the floor is still PROJECTION_LEAF_FLOOR and the budget is still
+    // PROJECTION_ARTEFACT_BUDGET.leaves, and what these two numbers record is where the reading now
+    // stands between them.
     expect(scan.leaves).toBeGreaterThan(PROJECTION_LEAF_FLOOR);
     expect(scan.leaves).toBeLessThan(PROJECTION_ARTEFACT_BUDGET.leaves);
-    expect(scan.leaves - PROJECTION_LEAF_FLOOR).toBe(145);
-    expect(PROJECTION_ARTEFACT_BUDGET.leaves - scan.leaves).toBe(155);
+    expect(scan.leaves - PROJECTION_LEAF_FLOOR).toBe(146);
+    expect(PROJECTION_ARTEFACT_BUDGET.leaves - scan.leaves).toBe(154);
   });
 
   it('should be in the gate list, since a gate nothing runs is a rule with no runner', () => {

@@ -69,15 +69,17 @@ export const DATA_ONLY_ATTESTATIONS: readonly DataOnlyAttestation[] = [
  * SPEC 4 recorded it, `PROJECT-STANDARDS.md` 3.1 did not, and for five milestones nothing read
  * either. The comparison is what makes a fourth copy safe.
  *
- * TWELVE NAMES. Eight from SPEC 4's published table, four ecosystem collectors. It read eleven
- * until `TX-REDISX-RATELIMIT` added `@openref/collector-redisx-rate-limit`; the published table did
- * not move, because a collector is an ecosystem package and never a row in it. `@openref/action`
- * is not among them and never was: a composite GitHub Action is consumed by git ref rather than
- * installed, so it stays private and is versioned in lockstep with the CLI it runs.
+ * THIRTEEN NAMES. Eight from SPEC 4's published table, five ecosystem collectors. It read eleven
+ * until `TX-REDISX-RATELIMIT` added `@openref/collector-redisx-rate-limit` and twelve until
+ * `TX-REDISX-IDEMPOTENCY` added `@openref/collector-redisx-idempotency`; the published table did
+ * not move either time, because a collector is an ecosystem package and never a row in it.
+ * `@openref/action` is not among them and never was: a composite GitHub Action is consumed by git
+ * ref rather than installed, so it stays private and is versioned in lockstep with the CLI it runs.
  */
 export const PUBLISHED_PACKAGES: readonly string[] = [
   '@openref/collector-access-control',
   '@openref/collector-casl',
+  '@openref/collector-redisx-idempotency',
   '@openref/collector-redisx-rate-limit',
   '@openref/collector-throttler',
   '@openref/core',
@@ -89,6 +91,22 @@ export const PUBLISHED_PACKAGES: readonly string[] = [
   '@openref/vue',
   'openref',
 ];
+
+/**
+ * The bound on a discovery problem's `reason`, in characters, per SPEC 7.1.
+ *
+ * IT IS THE SECOND WRITING OF ONE NUMBER AND THE TWO ARE RECONCILED RATHER THAN SHARED.
+ * `packages/nest/test/unit/discovery-voice.spec.ts` carries it as `REASON_LIMIT` and measures the
+ * collectors of that package with it; this one measures the ecosystem collector packages, which a
+ * test inside `packages/nest` cannot read. A gate importing a spec file, or a spec file importing a
+ * gate's build output, are both worse than one case that reads the other's literal and fails when
+ * the two numbers stop agreeing, which is what `collector-voice.spec.ts` does.
+ *
+ * MEASURED FROM THE SENTENCE SPEC 7.1 NAMES AS THE STANDARD, `no source link template is
+ * configured, so DevTokenController.login cannot be linked`, which is 88 characters, with room for
+ * one interpolated name longer than `DevTokenController.login`.
+ */
+export const COLLECTOR_REASON_LIMIT = 140;
 
 /** A package that would be published but for a named reason, and the release it waits for. */
 export interface HeldBackPackage {
@@ -557,6 +575,10 @@ export const COVERAGE_FLOORS: Readonly<Record<string, number>> = {
   // it landed, and `[floor-ungoverned]` says exactly that. 90 by the margin doctrine, on the
   // reading stated with its date in STANDARDS 9.1.
   'collector-redisx-rate-limit': 90,
+  // ADDED AT `TX-REDISX-IDEMPOTENCY`, WITH THE PACKAGE, for the reason the row above states and on
+  // the same day as the package rather than after it. A thirteenth published package landing with
+  // no floor reopens what `T065` closed, and `[floor-ungoverned]` would say so.
+  'collector-redisx-idempotency': 90,
   // THE ONE ROW TAKEN EXPLICITLY RATHER THAN BY ROUNDING, because rounding gives two wrong answers
   // here. At 77.20 of lines and 74.20 of statements, 80 would be red on the day it lands and a
   // floor at the measurement would govern nothing. 70 is the step that governs: it is a real floor

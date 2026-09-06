@@ -191,6 +191,7 @@
         "ecosystem": [
           "@openref/collector-access-control",
           "@openref/collector-casl",
+          "@openref/collector-redisx-idempotency",
           "@openref/collector-redisx-rate-limit",
           "@openref/collector-throttler"
         ],
@@ -988,5 +989,5 @@
       }
     ]
   },
-  "integrity": "#46b73763246e2a52"
+  "integrity": "#2ff7ad374ba55a64"
 }

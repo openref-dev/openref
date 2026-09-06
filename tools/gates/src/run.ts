@@ -24,6 +24,7 @@ import { staticSuitesGate } from './gates/static-suites.gate.js';
 import { testSkipsGate } from './gates/test-skips.gate.js';
 import { themeFontsGate } from './gates/theme-fonts.gate.js';
 import { themeMotionGate } from './gates/theme-motion.gate.js';
+import { collectorVoiceGate } from './gates/collector-voice.gate.js';
 import { textSourceGate } from './gates/text-source.gate.js';
 import { themeTokensGate } from './gates/theme-tokens.gate.js';
 import type { Gate, GateResult } from './types.js';
@@ -121,6 +122,14 @@ import type { Gate, GateResult } from './types.js';
  * tool can read the file at all, which is the condition every sweep this project has run silently
  * assumed. It runs before the gates that read artifacts because it needs none.
  *
+ * The collector voice gate sits immediately after the text source one, in the same family and for
+ * the same reason: it reads source text and needs nothing built. It is a gate rather than a test
+ * because the thing it measures is spread across packages. `discovery-voice.spec.ts` sweeps the
+ * collectors inside `packages/nest` and its header states the hole it cannot reach, that an
+ * ecosystem collector in its own package could ship in the old voice with nothing to say so. A gate
+ * derives the collector set from the disk the way `cspScanRoots` does, so the hole closes for every
+ * collector that will ever be added rather than for the ones somebody remembered to list.
+ *
  * The deferrals gate sits immediately after the build manifest, and the pair is one question asked
  * of two registers. That one holds every entry filed against a task to the milestone it declares;
  * this holds every deferral written into the documents and into the source to the milestone it
@@ -150,6 +159,7 @@ export const GATES: readonly Gate[] = [
   projectionPrivacyGate,
   formatGate,
   textSourceGate,
+  collectorVoiceGate,
   dependencyGraphGate,
   enginesFloorGate,
   licensesGate,

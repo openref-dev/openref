@@ -6,6 +6,8 @@ import {
   NEST_TRANSPORT_PROTOCOLS,
   NEST_WEBSOCKET_METADATA,
   NEST_WEBSOCKET_PROTOCOL,
+  REDISX_EVENT_METADATA,
+  REDISX_PROTOCOL,
   metadataReflect,
 } from '../../shared/types/nest-surface';
 
@@ -291,3 +293,85 @@ export const DEFAULT_SOCKET_PATH = '/socket.io';
 
 /** The protocol every WebSocket gateway channel speaks, per SPEC 8.3. */
 export const GATEWAY_PROTOCOL = NEST_WEBSOCKET_PROTOCOL;
+
+/** The protocol every `@nestjs-redisx` channel speaks, per SPEC 8.3. */
+export const REDISX_CHANNEL_PROTOCOL = REDISX_PROTOCOL;
+
+/** Which of the three shapes a `@nestjs-redisx` handler subscribes to. */
+export type RedisxSubscriptionKind = 'channel' | 'pattern' | 'stream';
+
+/** One `@nestjs-redisx` subscription, with the shape the document has to render. */
+export interface RedisxSubscriptionReading {
+  /** The logical address, before whatever prefix the plugin was configured with. */
+  readonly address: string;
+  readonly kind: RedisxSubscriptionKind;
+  /** The consumer group a stream is read through. Absent on a Pub/Sub channel. */
+  readonly group?: string;
+}
+
+/**
+ * Reads what `@Subscribe` wrote on a handler, per SPEC 8.3.
+ *
+ * THE SHAPE IS WHAT DECIDES, BECAUSE THE KEY IS GLOBAL. `Symbol.for('PUBSUB_SUBSCRIBE_METADATA')`
+ * resolves in any process whether or not `@nestjs-redisx/pubsub` is installed, so a second library
+ * claiming the same symbol would otherwise put its own object's fields into a reference as channel
+ * addresses. The decorator refuses a value with neither `channel` nor `pattern` and refuses one with
+ * both, so an object carrying exactly one of them as a non empty string is this family's and an
+ * object carrying anything else is not read at all.
+ *
+ * A PATTERN IS AN ADDRESS AND IT IS NOT A CONCRETE ONE, which the walk that calls this records. It
+ * is what the application subscribed to, so it belongs in the reference; which concrete channels it
+ * matches is decided by whatever publishes, and that is not readable here.
+ *
+ * @param handler - The method the provider carries
+ * @returns The subscription, or nothing when the key is absent or holds another shape
+ */
+export function readRedisxSubscribe(handler: object): RedisxSubscriptionReading | undefined {
+  const written: unknown = metadataReflect().getMetadata(REDISX_EVENT_METADATA.subscribe, handler);
+  if (!isRecord(written)) return undefined;
+
+  const channel = nonEmptyString(written.channel);
+  const pattern = nonEmptyString(written.pattern);
+
+  if (channel !== undefined && pattern !== undefined) return undefined;
+  if (channel !== undefined) return { address: channel, kind: 'channel' };
+
+  return pattern === undefined ? undefined : { address: pattern, kind: 'pattern' };
+}
+
+/**
+ * Reads what `@StreamConsumer` wrote on a handler, per SPEC 8.3.
+ *
+ * BOTH HALVES OR NEITHER, AND THE GROUP IS NOT OPTIONAL HERE EVEN THOUGH IT LOOKS IT. The library's
+ * own options type requires `stream` and `group`; a stream read without naming a group is a
+ * different Redis command with different delivery, so an address filed with the group missing would
+ * describe delivery the application does not perform. See {@link readRedisxSubscribe} for why the
+ * shape rather than a resolved package is what admits the object.
+ *
+ * @param handler - The method the provider carries
+ * @returns The subscription, or nothing when the key is absent or holds another shape
+ */
+export function readRedisxStreamConsumer(handler: object): RedisxSubscriptionReading | undefined {
+  const written: unknown = metadataReflect().getMetadata(
+    REDISX_EVENT_METADATA.streamConsumer,
+    handler,
+  );
+  if (!isRecord(written)) return undefined;
+
+  const stream = nonEmptyString(written.stream);
+  const group = nonEmptyString(written.group);
+
+  return stream === undefined || group === undefined
+    ? undefined
+    : { address: stream, kind: 'stream', group };
+}
+
+/**
+ * Reads a member that has to be a non empty string to mean anything.
+ *
+ * @param value - Whatever the decorator stored
+ * @returns The string, or undefined
+ */
+function nonEmptyString(value: unknown): string | undefined {
+  return typeof value === 'string' && value !== '' ? value : undefined;
+}

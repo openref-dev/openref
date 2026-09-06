@@ -364,6 +364,30 @@ importers:
         specifier: 5.9.3
         version: 5.9.3
 
+  packages/collector-redisx-idempotency:
+    devDependencies:
+      '@nestjs-redisx/idempotency':
+        specifier: 1.12.0
+        version: 1.12.0(@nestjs-redisx/core@1.12.0(@nestjs/common@11.1.28(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2))(@nestjs/core@11.1.28)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/common@11.1.28(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2))(@nestjs/core@11.1.28)(reflect-metadata@0.2.2)(rxjs@7.8.2)
+      '@nestjs/common':
+        specifier: 11.1.28
+        version: 11.1.28(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2)
+      '@openref/core':
+        specifier: workspace:*
+        version: link:../core
+      '@openref/nest':
+        specifier: workspace:*
+        version: link:../nest
+      reflect-metadata:
+        specifier: 0.2.2
+        version: 0.2.2
+      tsup:
+        specifier: 8.5.1
+        version: 8.5.1(jiti@2.7.0)(postcss@8.5.26)(supports-color@10.2.2)(typescript@5.9.3)(yaml@2.9.0)
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+
   packages/collector-redisx-rate-limit:
     devDependencies:
       '@nestjs-redisx/rate-limit':
@@ -477,6 +501,12 @@ importers:
         specifier: 2.9.0
         version: 2.9.0
     devDependencies:
+      '@nestjs-redisx/pubsub':
+        specifier: 1.12.0
+        version: 1.12.0(@nestjs-redisx/core@1.12.0(@nestjs/common@11.1.28(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2))(@nestjs/core@11.1.28)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/common@11.1.28(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2))(@nestjs/core@11.1.28)(reflect-metadata@0.2.2)(rxjs@7.8.2)
+      '@nestjs-redisx/streams':
+        specifier: 1.12.0
+        version: 1.12.0(@nestjs-redisx/core@1.12.0(@nestjs/common@11.1.28(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2))(@nestjs/core@11.1.28)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/common@11.1.28(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2))(@nestjs/core@11.1.28)(reflect-metadata@0.2.2)(rxjs@7.8.2)
       '@nestjs/common':
         specifier: 11.1.28
         version: 11.1.28(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2)
@@ -1609,8 +1639,38 @@ packages:
       reflect-metadata: ^0.2.0
       rxjs: ^7.8.0
 
+  '@nestjs-redisx/idempotency@1.12.0':
+    resolution: {integrity: sha512-fxF1Qjip6eChTmeawl+Oujq4mvAHyHeZU/Kaq80/g5CTqhBXFwS25WMk9133d7qny6/NiyMXBCg+ZzsuCbiLMw==}
+    engines: {node: '>=18.0.0'}
+    peerDependencies:
+      '@nestjs-redisx/core': ^1.0.0
+      '@nestjs/common': ^10.0.0 || ^11.0.0
+      '@nestjs/core': ^10.0.0 || ^11.0.0
+      reflect-metadata: ^0.2.0
+      rxjs: ^7.8.0
+
+  '@nestjs-redisx/pubsub@1.12.0':
+    resolution: {integrity: sha512-GFyrJ84xCuIWQ9oTvN0Gd2FnfY0/1G//sXjFV7TJgggMmDP6JEcxX7+25Ov00d2ytAu7jsZE3ASX5aAmUJHAgw==}
+    engines: {node: '>=18.0.0'}
+    peerDependencies:
+      '@nestjs-redisx/core': ^1.0.0
+      '@nestjs/common': ^10.0.0 || ^11.0.0
+      '@nestjs/core': ^10.0.0 || ^11.0.0
+      reflect-metadata: ^0.2.0
+      rxjs: ^7.8.0
+
   '@nestjs-redisx/rate-limit@1.12.0':
     resolution: {integrity: sha512-vjK4M77sV/oIC+e5USCmhdrQfvD8JftRPv36M4fbRrQj/P9MXCcP670uUhAEWX1Og0g9WxMREDPmrvD2/zwbxA==}
+    engines: {node: '>=18.0.0'}
+    peerDependencies:
+      '@nestjs-redisx/core': ^1.0.0
+      '@nestjs/common': ^10.0.0 || ^11.0.0
+      '@nestjs/core': ^10.0.0 || ^11.0.0
+      reflect-metadata: ^0.2.0
+      rxjs: ^7.8.0
+
+  '@nestjs-redisx/streams@1.12.0':
+    resolution: {integrity: sha512-r4VUq4t4slR9UKhfmzTFCr4LGgLCcwLZCHTAHuyG7bfZ+UpQq8KfuM9auxnBQFmFuk9OqpmqKaeyVb6+G9yuWw==}
     engines: {node: '>=18.0.0'}
     peerDependencies:
       '@nestjs-redisx/core': ^1.0.0
@@ -7127,7 +7187,31 @@ snapshots:
       reflect-metadata: 0.2.2
       rxjs: 7.8.2
 
+  '@nestjs-redisx/idempotency@1.12.0(@nestjs-redisx/core@1.12.0(@nestjs/common@11.1.28(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2))(@nestjs/core@11.1.28)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/common@11.1.28(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2))(@nestjs/core@11.1.28)(reflect-metadata@0.2.2)(rxjs@7.8.2)':
+    dependencies:
+      '@nestjs-redisx/core': 1.12.0(@nestjs/common@11.1.28(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2))(@nestjs/core@11.1.28)(reflect-metadata@0.2.2)(rxjs@7.8.2)
+      '@nestjs/common': 11.1.28(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2)
+      '@nestjs/core': 11.1.28(@nestjs/common@11.1.28(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2))(@nestjs/microservices@11.1.28)(@nestjs/platform-express@11.1.28)(@nestjs/websockets@11.1.28)(reflect-metadata@0.2.2)(rxjs@7.8.2)
+      reflect-metadata: 0.2.2
+      rxjs: 7.8.2
+
+  '@nestjs-redisx/pubsub@1.12.0(@nestjs-redisx/core@1.12.0(@nestjs/common@11.1.28(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2))(@nestjs/core@11.1.28)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/common@11.1.28(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2))(@nestjs/core@11.1.28)(reflect-metadata@0.2.2)(rxjs@7.8.2)':
+    dependencies:
+      '@nestjs-redisx/core': 1.12.0(@nestjs/common@11.1.28(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2))(@nestjs/core@11.1.28)(reflect-metadata@0.2.2)(rxjs@7.8.2)
+      '@nestjs/common': 11.1.28(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2)
+      '@nestjs/core': 11.1.28(@nestjs/common@11.1.28(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2))(@nestjs/microservices@11.1.28)(@nestjs/platform-express@11.1.28)(@nestjs/websockets@11.1.28)(reflect-metadata@0.2.2)(rxjs@7.8.2)
+      reflect-metadata: 0.2.2
+      rxjs: 7.8.2
+
   '@nestjs-redisx/rate-limit@1.12.0(@nestjs-redisx/core@1.12.0(@nestjs/common@11.1.28(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2))(@nestjs/core@11.1.28)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/common@11.1.28(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2))(@nestjs/core@11.1.28)(reflect-metadata@0.2.2)(rxjs@7.8.2)':
+    dependencies:
+      '@nestjs-redisx/core': 1.12.0(@nestjs/common@11.1.28(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2))(@nestjs/core@11.1.28)(reflect-metadata@0.2.2)(rxjs@7.8.2)
+      '@nestjs/common': 11.1.28(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2)
+      '@nestjs/core': 11.1.28(@nestjs/common@11.1.28(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2))(@nestjs/microservices@11.1.28)(@nestjs/platform-express@11.1.28)(@nestjs/websockets@11.1.28)(reflect-metadata@0.2.2)(rxjs@7.8.2)
+      reflect-metadata: 0.2.2
+      rxjs: 7.8.2
+
+  '@nestjs-redisx/streams@1.12.0(@nestjs-redisx/core@1.12.0(@nestjs/common@11.1.28(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2))(@nestjs/core@11.1.28)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/common@11.1.28(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2))(@nestjs/core@11.1.28)(reflect-metadata@0.2.2)(rxjs@7.8.2)':
     dependencies:
       '@nestjs-redisx/core': 1.12.0(@nestjs/common@11.1.28(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2))(@nestjs/core@11.1.28)(reflect-metadata@0.2.2)(rxjs@7.8.2)
       '@nestjs/common': 11.1.28(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@10.2.2)

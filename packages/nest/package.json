@@ -75,6 +75,8 @@
     "@nestjs/platform-express": "11.1.28",
     "@nestjs/platform-fastify": "11.1.28",
     "@nestjs/websockets": "11.1.28",
+    "@nestjs-redisx/pubsub": "1.12.0",
+    "@nestjs-redisx/streams": "1.12.0",
     "@openref/agent": "workspace:*",
     "@openref/federation": "workspace:*",
     "@openref/render": "workspace:*",
