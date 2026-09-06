@@ -4,6 +4,7 @@ import type {
   IRErrorContract,
   IRFact,
   IRGuard,
+  IRHandlerPolicy,
   IRNodeRuntime,
   IRPipe,
 } from '@openref/core';
@@ -136,8 +137,17 @@ export const FACT_FIELDS = [
   'streaming',
 ] as const;
 
-/** The list valued fields, which accumulate rather than compete. */
-export const LIST_FIELDS = ['guards', 'pipes', 'drift'] as const;
+/**
+ * The list valued fields, which accumulate rather than compete.
+ *
+ * `handlerPolicies` JOINED THEM AT `TX-REDISX-POLICIES` AND COULD NOT HAVE BEEN A FACT FIELD. Three
+ * shipped collectors fill it, one per library module, and a cache, a lock and a breaker on one
+ * handler are three behaviours rather than three readings of one. An `IRFact` would have made the
+ * second collector on a route contest the first at equal confidence and lose to registration order,
+ * which is the silent tie {@link FactContest} exists to make audible and which here would be wrong
+ * rather than merely quiet.
+ */
+export const LIST_FIELDS = ['guards', 'pipes', 'handlerPolicies', 'drift'] as const;
 
 /**
  * The fields that are three lists rather than one, per SPEC 6.4.
@@ -183,6 +193,7 @@ export function mergeContributions(
     streaming?: IRNodeRuntime['streaming'] | undefined;
     guards?: IRGuard[];
     pipes?: IRPipe[];
+    handlerPolicies?: IRHandlerPolicy[];
     errors?: {
       declared: IRErrorContract[];
       runtimeDerived: IRErrorContract[];
@@ -268,6 +279,22 @@ export function mergeContributions(
         (pipe) => `${pipe.name}\0${pipe.scope}\0${pipe.confidence}`,
       );
     }
+    // THE POLICIES ACCUMULATE THE WAY THE TWO ABOVE DO, AND THE KEY IS WHAT MAKES TWO THE SAME.
+    // A cache and a lock on one handler are two facts; the SAME cache read twice, because a host
+    // registered one collector twice, is one. `kind`, `key` and `reach` identify it: two policies
+    // of one kind on one key at one reach are the same declaration however many settings each
+    // carries, and `@Cached` plus `@InvalidateTags` differ on the key one has and the other does
+    // not. The confidence joins them for the reason it joins guards: two collectors that read the
+    // same declaration at two levels are two observations.
+    if (runtime.handlerPolicies !== undefined) {
+      merged.handlerPolicies = dedupe(
+        [
+          ...(merged.handlerPolicies ?? []),
+          ...runtime.handlerPolicies.map((policy) => ({ ...policy, collector })),
+        ],
+        (policy) => `${policy.kind}\0${policy.key ?? ''}\0${policy.reach}\0${policy.confidence}`,
+      );
+    }
     // THE GROUPS ACCUMULATE SEPARATELY AND ARE NEVER CONCATENATED, which is what makes SPEC 6.4
     // structural rather than a convention. Two collectors both reporting errors contribute to the
     // same three groups; a contract moves between groups only by changing its own origin, and the
@@ -310,6 +337,7 @@ export function mergeContributions(
     ...(merged.streaming === undefined ? {} : { streaming: merged.streaming }),
     ...(merged.guards === undefined ? {} : { guards: merged.guards }),
     ...(merged.pipes === undefined ? {} : { pipes: merged.pipes }),
+    ...(merged.handlerPolicies === undefined ? {} : { handlerPolicies: merged.handlerPolicies }),
     ...(merged.errors === undefined ? {} : { errors: merged.errors }),
     ...(merged.drift === undefined ? {} : { drift: merged.drift }),
   };

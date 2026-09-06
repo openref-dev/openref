@@ -88,6 +88,18 @@ describe('hasRuntimeFacts', () => {
       pipes: {
         pipes: [{ name: 'TrimPipe', scope: 'route', confidence: 'derived', collector: 'pipes' }],
       },
+      handlerPolicies: {
+        handlerPolicies: [
+          {
+            kind: 'cache',
+            key: 'orders:{0}',
+            settings: [{ name: 'ttlMs', value: 60_000 }],
+            reach: 'handler',
+            confidence: 'derived',
+            collector: 'redisxCacheCollector',
+          },
+        ],
+      },
       timeout: { timeout: { value: { ms: 5000 }, confidence: 'derived', collector: 'timeout' } },
       requiredHeaders: {
         requiredHeaders: { value: ['If-Match'], confidence: 'inferred', collector: 'headers' },

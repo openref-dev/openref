@@ -145,6 +145,53 @@ describe('runtimeInstrument, why one fact is missing from one node', () => {
     });
   });
 
+  it('should offer all three policy collectors, since no one of them answers for the field', () => {
+    // Given an application with no redisx module installed at all, so none of the three is
+    // registered and no node carries a policy
+    const meta: IRRuntimeMeta = { collectors: ['guardsCollector'] };
+
+    // When
+    const instrument = runtimeInstrument(meta, 'handlerPolicies', new Map());
+
+    // Then all three are offered rather than the first, for the reason the rate limit row already
+    // gives: a host who caches and does not lock must not be told to install the lock collector,
+    // and the three read one library's three modules
+    expect(instrument).toEqual({
+      kind: 'absent',
+      shipped: ['redisxCacheCollector', 'redisxLockCollector', 'redisxCircuitBreakerCollector'],
+    });
+  });
+
+  it('should answer ran off a policy list, which carries its collector on its members', () => {
+    // Given a node carrying one policy and a registry naming nobody this distribution ships
+    const meta: IRRuntimeMeta = { collectors: ['someoneElsesCollector'] };
+    const document = documentOf(
+      [
+        operation({
+          runtime: {
+            handlerPolicies: [
+              {
+                kind: 'lock',
+                key: 'order:{0}',
+                settings: [{ name: 'onFailure', value: 'throw' }],
+                reach: 'handler',
+                confidence: 'derived',
+                collector: 'redisxLockCollector',
+              },
+            ],
+          },
+        }),
+      ],
+      meta,
+    );
+
+    // When
+    const instrument = runtimeInstrument(meta, 'handlerPolicies', observedFactCollectors(document));
+
+    // Then the list shape answers the way `guards` and `pipes` do, off its first member
+    expect(instrument).toEqual({ kind: 'ran', collector: 'redisxLockCollector' });
+  });
+
   it('should name a collector for every fact the IR can carry', () => {
     // Given, the subject is present: there are facts, and the record is total over them
     expect(RUNTIME_FACT_FIELDS.length).toBeGreaterThan(0);

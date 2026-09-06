@@ -170,6 +170,95 @@ export interface IRTimeout {
 }
 
 /**
+ * Which behaviour a handler declared around itself, per SPEC 6.2.
+ *
+ * THREE KINDS BECAUSE THREE LIBRARIES WRITE THEM AND A READER ASKS THREE QUESTIONS. Is this
+ * response served from a cache and for how long; is this route serialized under a lock; is this
+ * route behind a breaker and what trips it. They are one member of {@link IRNodeRuntime} rather
+ * than three because they are one shape, a list whose members each carry their own provenance, and
+ * because three members would be three fact fields, three collector tables and three rows for a
+ * distinction the shape itself already draws.
+ */
+export type IRHandlerPolicyKind = 'cache' | 'lock' | 'circuit-breaker';
+
+/**
+ * How far a declared policy reaches the response a caller receives, per SPEC 6.1.
+ *
+ * THE DECLARATION IS THE FACT AND ITS REACH IS A SECOND FACT, and until both are said the first one
+ * is a half truth a reader cannot act on. `@nestjs-redisx/cache` ships two families of decorator
+ * under one name: `@Cached` replaces the method with a wrapper the moment it is applied, so the
+ * behaviour is bound by the decorator itself; `@Cacheable`, `@CachePut` and `@CacheEvict` are bare
+ * `SetMetadata` calls read by an interceptor the library registers nowhere, so the same page would
+ * otherwise show a ttl for a route that caches nothing at all.
+ *
+ * IT IS NOT A CONFIDENCE AND MUST NOT BE READ AS ONE. Both readings are `derived`: the value came
+ * from metadata under a key this project knows, which is exactly what SPEC 6.1 means by the level.
+ * What differs is not how well the fact was read but what the fact is about, and folding the two
+ * into one scale would say the unbound declaration was read less well rather than that it binds
+ * nothing.
+ */
+export type IRHandlerPolicyReach =
+  /** The decorator wrapped the handler, so every call to the route goes through the behaviour. */
+  | 'handler'
+  /** The decorator recorded an intention and nothing observed here binds it to a served response. */
+  | 'unbound';
+
+/**
+ * One setting of a policy, in the value the decorator stored.
+ *
+ * A NAME AND A VALUE RATHER THAN A SCHEMA PER LIBRARY, and the choice is the one
+ * `IRRateLimitReach` makes for its own contents: what only a collector can supply is which knobs
+ * the application set and to what, and the words a reader sees are built once from this shape.
+ * Three declared schemas would be three copies of somebody else's option object, each of which
+ * this project would then have to keep in step with a library it does not own.
+ *
+ * THE NAME CARRIES THE UNIT AND IS NOT ALWAYS THE DECORATOR'S OWN. `@Cached({ ttl })` is seconds
+ * and `@WithLock({ ttl })` is milliseconds, so a member called `ttl` on both would put two
+ * quantities under one word on one page. Milliseconds throughout, for the reason
+ * {@link IRRateLimit} is milliseconds, and a collector that converts says so where it converts.
+ */
+export interface IRHandlerPolicySetting {
+  /** What was declared, named for a reader, with its unit where the value has one. */
+  readonly name: string;
+  /** The value as the decorator stored it, converted only where {@link name} says so. */
+  readonly value: string | number | boolean | readonly string[];
+}
+
+/**
+ * A behaviour a handler declares around itself that the specification carries no field for.
+ *
+ * A LIST WHOSE MEMBERS EACH CARRY PROVENANCE, LIKE `guards` AND `pipes` AND UNLIKE `rateLimit`.
+ * Three collectors can report on one route at once, and a cache, a lock and a breaker on one
+ * handler are three facts rather than one fact three collectors disagree about, so they accumulate
+ * and no tie is possible. An `IRFact` here would have made the second collector on a route contest
+ * the first and lose in silence.
+ *
+ * NOTHING HERE IS AN ERROR CONTRACT, AND THAT WAS MEASURED RATHER THAN PREFERRED. None of the three
+ * libraries this exists to read contains an `ExceptionFilter`, an `HttpException` or an `HttpStatus`
+ * anywhere in its source: a lock that cannot be acquired throws a plain `Error` subclass and a
+ * breaker that is open throws another, and what status a caller sees is whatever the host's own
+ * filter does with it. Putting a status in `IRErrorContracts.runtimeDerived` would have been the
+ * cheaper home and would have been the guess CLAUDE.md rule 5 forbids.
+ */
+export interface IRHandlerPolicy {
+  readonly kind: IRHandlerPolicyKind;
+  /**
+   * The key or key template the behaviour is scoped by, when it is a literal string.
+   *
+   * ABSENT WHERE THE KEY IS A FUNCTION, per SPEC 6.1: a function under a key is never read, so
+   * what the cache varies by or what the lock serializes on cannot be stated. The collector that
+   * met one records it for `doctor` rather than leaving the absence to be read as "no key".
+   */
+  readonly key?: string;
+  /** What the decorator declared, in the order the collector reads its options. */
+  readonly settings: readonly IRHandlerPolicySetting[];
+  /** How far the declaration reaches the response a caller receives. */
+  readonly reach: IRHandlerPolicyReach;
+  readonly confidence: IRConfidence;
+  readonly collector: string;
+}
+
+/**
  * What the handler scan concluded about one declared parameter, per SPEC 6.2.1.
  *
  * THE THREE VALUES ARE THE DISTINCTION THE SCAN IS REQUIRED TO CARRY. `read` when a decorator
@@ -477,6 +566,14 @@ export interface IRNodeRuntime {
    */
   readonly rateLimitReach?: IRFact<IRRateLimitReach>;
   readonly timeout?: IRFact<IRTimeout>;
+  /**
+   * Behaviours the handler declares around itself, per {@link IRHandlerPolicy}.
+   *
+   * A LIST AND NOT AN `IRFact`, for the reason `guards` is a list: three collectors can report on
+   * one route at once and each of them is reporting a different behaviour, so they accumulate and
+   * carry their own provenance rather than competing for one slot.
+   */
+  readonly handlerPolicies?: readonly IRHandlerPolicy[];
   readonly requiredHeaders?: IRFact<readonly string[]>;
   readonly parameterReads?: IRFact<IRParameterReads>;
   readonly statusCode?: IRFact<number>;

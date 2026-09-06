@@ -55,6 +55,7 @@ import { buildParityRows } from './parity-model';
 import {
   EMPTY_VALUE,
   guardValues,
+  handlerPolicyValues,
   mark,
   rateLimitLabel,
   rateLimitReachLabel,
@@ -167,6 +168,20 @@ function rowsOf(runtime: IRNodeRuntime, template: string | undefined): RuntimeRo
           ...mark(reach.confidence, reach.collector),
         },
       ],
+    });
+  }
+
+  // A ROW OF ITS OWN AND NOT A KIND FOLDED INTO ONE ABOVE, which is the opposite of the decision
+  // the reach block just made and rests on the same test. `rateLimitReach` reuses `rate-limit`
+  // because it is a second answer to the question that row already asks; a cache window, a lock
+  // key and a breaker threshold answer none of the ten questions the other rows ask, and putting
+  // them under an existing label would make that label mean two things.
+  const policies = runtime.handlerPolicies;
+  if (policies !== undefined && policies.length > 0) {
+    rows.push({
+      kind: 'handler-policies',
+      label: 'Handler policies',
+      values: handlerPolicyValues(policies),
     });
   }
 

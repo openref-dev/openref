@@ -706,6 +706,15 @@ export interface RuntimeValueModel {
  * THE THREE ERROR GROUPS ARE THREE KINDS AND NOT ONE, which is T021's decision carried into this
  * field. A promise, an observation and a host wide list are different statements, and a single
  * `errors` kind would let a theme concatenate them without deciding to.
+ *
+ * `handler-policies` IS THE ELEVENTH AND IT IS ADDITIVE, WHICH IS WHY IT COULD BE ADDED AT ALL. A
+ * theme RECEIVES rows and never produces them, so a widened union reaches a consumer as a case they
+ * may ignore rather than as a shape they must now build. Neither reference theme reads this type at
+ * all, measured over both of their sources, and the reference panel spends it on a data attribute,
+ * so the addition costs the browser nothing. The note next to `rate-limit` in
+ * `@openref/render`'s row builder still holds for the case it is about: a SECOND kind for a
+ * question a reader already asks under an existing label would be a major version for nothing, and
+ * a cache, a lock and a breaker are not that question under any existing label.
  */
 export type RuntimeRowKind =
   | 'guards'
@@ -713,6 +722,7 @@ export type RuntimeRowKind =
   | 'scopes'
   | 'roles'
   | 'rate-limit'
+  | 'handler-policies'
   | 'streaming'
   | 'errors-declared'
   | 'errors-runtime-derived'

@@ -200,6 +200,16 @@ describe('the merge partition', () => {
               collector: 'testCollector',
             },
           ],
+          handlerPolicies: [
+            {
+              kind: 'lock',
+              key: 'order:{0}',
+              settings: [{ name: 'onFailure', value: 'throw' }],
+              reach: 'handler',
+              confidence: 'derived',
+              collector: 'testCollector',
+            },
+          ],
           drift: [
             {
               rule: 'scope-drift',
