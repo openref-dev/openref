@@ -168,7 +168,7 @@ const BOUNDARIES = {
   // `openref` is a devDependency for the tests alone, which this boundary does not govern.
   action: [],
 
-  // THE FIVE ECOSYSTEM COLLECTORS OF SPEC 4, AND THE EDGE RUNS THE OTHER WAY. `nest` does not
+  // THE EIGHT ECOSYSTEM COLLECTORS OF SPEC 4, AND THE EDGE RUNS THE OTHER WAY. `nest` does not
   // depend on any of them and must not: each one exists to read a third party package, and an
   // edge from `nest` would put that package in the closure of the one every consumer installs.
   // They depend on `nest` for the collector contract and on `core` for the IR their `collect`
@@ -180,6 +180,14 @@ const BOUNDARIES = {
   'collector-access-control': ['core', 'nest'],
   'collector-redisx-rate-limit': ['core', 'nest'],
   'collector-redisx-idempotency': ['core', 'nest'],
+  // THE THREE ADDED AT `TX-REDISX-POLICIES`, ON THE SAME EDGE AND FOR THE SAME REASON. Each reads
+  // one more module of the same library, and each is a separate package rather than one because
+  // an application that caches nothing must not carry the lock module in its closure to learn
+  // that it locks nothing either. They are `private` in this tree until the published set of
+  // SPEC 4 is reconciled, and the boundary is the same either way.
+  'collector-redisx-cache': ['core', 'nest'],
+  'collector-redisx-locks': ['core', 'nest'],
+  'collector-redisx-circuit-breaker': ['core', 'nest'],
 };
 
 /**

@@ -13,6 +13,9 @@ import type {
   IRDriftSeverity,
   IRGuard,
   IRGuardScope,
+  IRHandlerPolicy,
+  IRHandlerPolicyKind,
+  IRHandlerPolicySetting,
   IRParameterReads,
   IRPipe,
   IRPipeScope,
@@ -237,6 +240,65 @@ export function parameterReadsLabel(reads: IRParameterReads): { value: string; n
     value: `${String(read)} of ${String(total)} seen read`,
     note: notes.join('; '),
   };
+}
+
+/**
+ * What each policy kind is called on the page, in a reader's words rather than a library's.
+ *
+ * NAMED FOR THE BEHAVIOUR AND NOT FOR THE DECORATOR, because a second library that caches the same
+ * way produces the same kind and must read the same. The decorator's own name reaches the reader
+ * where it matters, in the `declaredBy` setting an unbound declaration carries.
+ */
+const POLICY_LABELS: Readonly<Record<IRHandlerPolicyKind, string>> = {
+  cache: 'Cached',
+  lock: 'Locked',
+  'circuit-breaker': 'Circuit breaker',
+};
+
+/**
+ * One setting as `name value`, with a list joined rather than printed as an array.
+ *
+ * @param setting - The declared setting
+ * @returns `ttlMs 60000`, `tags orders, users`
+ */
+function settingText(setting: IRHandlerPolicySetting): string {
+  const value = Array.isArray(setting.value) ? setting.value.join(', ') : String(setting.value);
+
+  return `${setting.name} ${value}`;
+}
+
+/**
+ * Handler policies as values, one per policy, in the order the collectors reported them.
+ *
+ * NOT MERGED BY PROVENANCE, WHICH IS WHERE THIS PARTS COMPANY WITH {@link guardValues}. Three
+ * guards from one collector are three names for one observation and read as noise apart; a cache
+ * and a lock from two collectors are two different behaviours with two different sets of numbers,
+ * and joining their texts would produce a line no reader could parse.
+ *
+ * THE UNBOUND ONES SAY SO ON THE ROW AND NOT ONLY IN THE REPORT, per {@link IRHandlerPolicyReach}.
+ * A ttl beside a declaration nothing binds is the exact defect this member exists to prevent, so
+ * the note is written before anything else in the line and the collector reports no settings for
+ * that case at all.
+ *
+ * @param policies - What the collectors attached to the node
+ * @returns One value per policy, empty when there are none
+ */
+export function handlerPolicyValues(policies: readonly IRHandlerPolicy[]): RuntimeValueModel[] {
+  return policies.map((policy) => {
+    const scope = policy.key === undefined || policy.key === '' ? '' : ` on ${policy.key}`;
+    const settings = policy.settings.map(settingText).join(', ');
+    const unbound =
+      policy.reach === 'unbound'
+        ? 'Declared and bound by nothing here, so this route does not behave this way today. '
+        : '';
+
+    return {
+      ...EMPTY_VALUE,
+      text: `${POLICY_LABELS[policy.kind]}${scope}`,
+      note: `${unbound}${settings}`,
+      ...mark(policy.confidence, policy.collector),
+    };
+  });
 }
 
 /**

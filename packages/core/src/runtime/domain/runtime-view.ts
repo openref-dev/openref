@@ -31,6 +31,7 @@ export const RUNTIME_FACT_FIELDS = [
   'roles',
   'rateLimit',
   'rateLimitReach',
+  'handlerPolicies',
   'timeout',
   'requiredHeaders',
   'parameterReads',
@@ -98,6 +99,10 @@ export const RUNTIME_FACT_COLLECTORS: Readonly<Record<RuntimeFactField, readonly
   // is missing it for exactly the reason they are missing `rateLimit`, and pointing them at a
   // third name would be pointing them at a package that does not exist.
   rateLimitReach: ['throttlerCollector', 'redisxRateLimitCollector'],
+  // THREE NAMES, WHICH IS THE FIRST FIELD MORE THAN TWO SHIPPED COLLECTORS FILL, and unlike
+  // `rateLimit` they never contest each other: a cache, a lock and a breaker on one handler are
+  // three behaviours, so the list accumulates and `mergeContributions` records no tie.
+  handlerPolicies: ['redisxCacheCollector', 'redisxLockCollector', 'redisxCircuitBreakerCollector'],
   timeout: ['timeoutCollector'],
   requiredHeaders: ['headersCollector'],
   parameterReads: ['handlerScanCollector'],
@@ -145,6 +150,13 @@ function collectorOfFact(runtime: IRNodeRuntime, field: RuntimeFactField): strin
       return runtime.guards === undefined ? undefined : (runtime.guards[0]?.collector ?? '');
     case 'pipes':
       return runtime.pipes === undefined ? undefined : (runtime.pipes[0]?.collector ?? '');
+    // THE LIST SHAPE, LIKE THE TWO ABOVE IT: a present but empty list is a collector that ran and
+    // found nothing, which carries no name to prove it with, so it answers the empty string and
+    // the caller falls back to the registry.
+    case 'handlerPolicies':
+      return runtime.handlerPolicies === undefined
+        ? undefined
+        : (runtime.handlerPolicies[0]?.collector ?? '');
     case 'errors': {
       const errors = runtime.errors;
       if (errors === undefined) return undefined;

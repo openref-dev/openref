@@ -143,6 +143,84 @@ describe('buildRuntimeModel', () => {
     expect(labels).toEqual(['Errors, declared']);
   });
 
+  it('should draw one handler policy row holding every policy, each with its own mark', () => {
+    // Given a handler carrying a cache from one collector and a lock from another, which is the
+    // case the IR member is a list for
+    const document = withRuntime(NODE, {
+      handlerPolicies: [
+        {
+          kind: 'cache',
+          key: 'orders:{0}',
+          settings: [
+            { name: 'ttlMs', value: 60_000 },
+            { name: 'tags', value: ['orders', 'lists'] },
+          ],
+          reach: 'handler',
+          confidence: 'derived',
+          collector: 'redisxCacheCollector',
+        },
+        {
+          kind: 'lock',
+          key: 'order:{0}',
+          settings: [{ name: 'onFailure', value: 'throw' }],
+          reach: 'handler',
+          confidence: 'derived',
+          collector: 'redisxLockCollector',
+        },
+      ],
+    });
+
+    // When
+    const row = buildRuntimeModel(document, NODE, '')?.rows.find(
+      (candidate) => candidate.label === 'Handler policies',
+    );
+
+    // Then two values and NOT one joined line, which is where this parts company with the guard
+    // row: two behaviours with two sets of numbers cannot share a text
+    expect(row?.kind).toBe('handler-policies');
+    expect(row?.values.map((value) => value.text)).toEqual([
+      'Cached on orders:{0}',
+      'Locked on order:{0}',
+    ]);
+    expect(row?.values.map((value) => value.note)).toEqual([
+      'ttlMs 60000, tags orders, lists',
+      'onFailure throw',
+    ]);
+    expect(row?.values.map((value) => value.collector)).toEqual([
+      'redisxCacheCollector',
+      'redisxLockCollector',
+    ]);
+  });
+
+  it('should say on the row that an unbound declaration binds nothing today', () => {
+    // Given the half of `@nestjs-redisx/cache` whose interceptor the library registers nowhere.
+    // A ttl beside it would be read as a window this route's responses are served in, so the
+    // collector reports no settings and the row leads with the sentence.
+    const document = withRuntime(NODE, {
+      handlerPolicies: [
+        {
+          kind: 'cache',
+          settings: [{ name: 'declaredBy', value: '@Cacheable' }],
+          reach: 'unbound',
+          confidence: 'derived',
+          collector: 'redisxCacheCollector',
+        },
+      ],
+    });
+
+    // When
+    const row = buildRuntimeModel(document, NODE, '')?.rows.find(
+      (candidate) => candidate.label === 'Handler policies',
+    );
+
+    // Then the value names the behaviour with no key after it, and the note refuses it
+    expect(row?.values[0]?.text).toBe('Cached');
+    expect(row?.values[0]?.note).toBe(
+      'Declared and bound by nothing here, so this route does not behave this way today. ' +
+        'declaredBy @Cacheable',
+    );
+  });
+
   it('should show a detail two contracts share once, on the first of them', () => {
     // Given the pair SPEC 6.4 derives from one fact: 401 and 403 differ by their title and by
     // nothing else, so the block printed the same sentence twice under two codes and read as a

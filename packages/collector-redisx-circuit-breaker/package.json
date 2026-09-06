@@ -1,0 +1,61 @@
+{
+  "name": "@openref/collector-redisx-circuit-breaker",
+  "version": "0.0.0",
+  "description": "OPENREF collector for @nestjs-redisx/circuit-breaker: what a route does when the thing behind it is down",
+  "license": "MIT",
+  "private": true,
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/openref-dev/openref.git",
+    "directory": "packages/collector-redisx-circuit-breaker"
+  },
+  "homepage": "https://openref.dev",
+  "bugs": {
+    "url": "https://github.com/openref-dev/openref/issues"
+  },
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "source": "./src/index.ts",
+  "exports": {
+    ".": {
+      "source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "sideEffects": false,
+  "engines": {
+    "node": "^22.22.2 || ^24.15.0 || >=26.0.0"
+  },
+  "scripts": {
+    "build": "tsup"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "peerDependencies": {
+    "@openref/core": "workspace:*",
+    "@openref/nest": "workspace:*",
+    "@nestjs-redisx/circuit-breaker": "*"
+  },
+  "devDependencies": {
+    "@openref/core": "workspace:*",
+    "@openref/nest": "workspace:*",
+    "@nestjs-redisx/circuit-breaker": "1.12.0",
+    "tsup": "8.5.1",
+    "typescript": "5.9.3",
+    "@nestjs/common": "11.1.28",
+    "reflect-metadata": "0.2.2"
+  },
+  "peerDependenciesMeta": {
+    "@nestjs-redisx/circuit-breaker": {
+      "optional": true
+    }
+  }
+}
