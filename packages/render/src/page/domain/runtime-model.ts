@@ -36,6 +36,7 @@ import {
   type IRGuardScope,
   type IRHealthReport,
   type IRNodeRuntime,
+  pageNode,
 } from '@openref/core';
 import { schemaDisplayName } from '@openref/vue';
 import type {
@@ -456,13 +457,20 @@ function driftSubject(
   basePath: string,
 ): DriftSubjectModel {
   if (issue.nodeId !== undefined) {
-    const node = document.nodes.get(issue.nodeId);
+    const node = pageNode(document, issue.nodeId);
+    // A FINDING THAT NAMES A NODE THIS DOCUMENT DOES NOT HOLD IS NAMED AND NOT LINKED. `nodeId` is
+    // a free string a collector or a federated record fills in, and this built an address out of
+    // it whichever way the lookup went, so a stale id was drawn as a link to a page that does not
+    // exist. `withoutGhostFindings` in `@openref/nest` drops such a finding from a node's own
+    // facts and reports it to `doctor`, but the report on the document reaches this function too,
+    // and one guard here is what makes the two paths agree. It is the shape `contractSchema` above
+    // already uses: found means a link, absent means the words alone.
+    if (node === undefined) return { label: issue.nodeId, href: '' };
+
     const label =
-      node === undefined
-        ? issue.nodeId
-        : node.kind === 'channel'
-          ? (node.address ?? issue.nodeId)
-          : `${node.method.toUpperCase()} ${node.path}`;
+      node.kind === 'channel'
+        ? (node.address ?? issue.nodeId)
+        : `${node.method.toUpperCase()} ${node.path}`;
 
     return { label, href: nodeHref(issue.nodeId, basePath) };
   }
@@ -557,7 +565,7 @@ export function buildRuntimeModel(
   nodeId: string,
   basePath: string,
 ): RuntimeModel | null {
-  const node = document.nodes.get(nodeId);
+  const node = pageNode(document, nodeId);
   const runtime = node?.runtime;
   if (node === undefined || runtime === undefined || !hasRuntimeFacts(runtime)) return null;
 
@@ -621,20 +629,29 @@ export function buildHealthModel(
   const grouped = groupDriftByRule(report.drift);
   const found = new Set(grouped.map((group) => group.rule));
 
-  // THE COUNT ON THE HEADING STAYS THE NUMBER OF FINDINGS AND THE ROWS UNDER IT ARE THE CAUSES,
-  // per SPEC 7.2. Those are two different questions and a reader asks both: how much is wrong with
-  // this document, and how many different things they have to decide about. Folding the heading
-  // count too would have hidden the volume the panel exists to report.
-  const rules = grouped.map((group) => ({
-    rule: group.rule,
-    code: DRIFT_RULE_CODES[group.rule],
-    summary: ruleChecks.get(group.rule)?.label ?? '',
-    severityClass: SEVERITY_CLASSES[group.severity],
-    count: String(group.issues.length),
-    findings: groupDriftByCause(group.issues).map((cause) =>
+  // THE HEADING NAMES BOTH QUANTITIES AND THE ROWS UNDER IT ARE THE CAUSES, per SPEC 7.2. Those
+  // are two different questions and a reader asks both: how much is wrong with this document, and
+  // how many different things they have to decide about. Folding the heading count into the causes
+  // would have hidden the volume the panel exists to report; naming only the findings, which is
+  // what this did until 2026-09-05, told a reader who counts the rows two different numbers about
+  // one thing. `causes` is accumulated from the rows themselves rather than counted a second way,
+  // so the sentence cannot disagree with what is drawn under it.
+  let causes = 0;
+  const rules = grouped.map((group) => {
+    const rows = groupDriftByCause(group.issues).map((cause) =>
       causeModel(cause.issue, cause.issues, document, basePath, true),
-    ),
-  }));
+    );
+    causes += rows.length;
+
+    return {
+      rule: group.rule,
+      code: DRIFT_RULE_CODES[group.rule],
+      summary: ruleChecks.get(group.rule)?.label ?? '',
+      severityClass: SEVERITY_CLASSES[group.severity],
+      count: String(group.issues.length),
+      findings: rows,
+    };
+  });
 
   // A RULE THAT EXAMINED AND FOUND NOTHING IS A ROW WITH ITS ZERO, per `TX-PARITY-UI` and the
   // layout; a rule that never examined anything is not drawn at all, per SPEC 7.3's
@@ -654,8 +671,12 @@ export function buildHealthModel(
     });
   }
 
+  // THE SECOND HALF IS LEFT OFF WHEN NOTHING FOLDED, per SPEC 7.2. `6 findings in 6 causes` is not
+  // a contradiction, but it is one quantity written twice, and the clause exists to tell two apart.
+  const covered = causes === report.drift.length ? '' : ` in ${String(causes)} causes`;
+
   return {
-    title: `Documentation health, ${operations} operations, ${findings} findings`,
+    title: `Documentation health, ${operations} operations, ${findings} findings${covered}`,
     score: `${String(report.score)}%`,
     // THE TRIPLE IS THE REPORT REREAD AND NEVER A NEW COUNT: operations is the report's own
     // figure, and the two severities are the drift list partitioned, per `TX-PARITY-UI`.

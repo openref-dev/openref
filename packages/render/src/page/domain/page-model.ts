@@ -34,6 +34,7 @@ import {
   type IRSchemaSlot,
   type IRSchemaView,
   type IRSecurityRequirement,
+  pageNode,
 } from '@openref/core';
 import {
   materializeNode,
@@ -1058,7 +1059,9 @@ function channelFactsDrawn(channel: ChannelModel | null): boolean {
 
 function nodeModel(context: ModelContext, nodeId: string): NodeModel | null {
   const { document, markdown } = context;
-  const node = document.nodes.get(nodeId);
+  // A WEBHOOK IS A PAGE TOO, per SPEC 13.3 as amended 2026-09-05: `pageNode` reads both maps, so
+  // the id the overview's topology and the search index already hand out has something behind it.
+  const node = pageNode(document, nodeId);
   if (node === undefined) return null;
 
   const view = materializeNode(node, document);
@@ -1161,7 +1164,12 @@ function nodeModel(context: ModelContext, nodeId: string): NodeModel | null {
         label: language.label,
       })),
     })),
-    run: runnerOperationOf(view.node, document),
+    // A WEBHOOK HAS NO CONSOLE, AND IT IS THE F14 RULE A CHANNEL ALREADY OBEYS, per SPEC 13.3 as
+    // amended 2026-09-05. A webhook is what the server calls, not what the reader calls, so its
+    // path is a name rather than an address and a send button on it would promise a request that
+    // cannot be made. With `run` empty the frame draws no bench tab, so no bench address is
+    // printed for one and the bench route keeps resolving through `nodes` alone.
+    run: document.nodes.has(nodeId) ? runnerOperationOf(view.node, document) : null,
     channel: null,
     runtime,
   };

@@ -1,4 +1,11 @@
-import { normalizeOpenApiDocument, type IRDocument, type IRNode } from '@openref/core';
+import {
+  buildHealthReport,
+  groupDriftByCause,
+  groupDriftByRule,
+  normalizeOpenApiDocument,
+  type IRDocument,
+  type IRNode,
+} from '@openref/core';
 import { describe, expect, it } from 'vitest';
 import {
   buildHealthModel,
@@ -28,6 +35,55 @@ function withRuntime(id: string, runtime: NonNullable<IRNode['runtime']>): IRDoc
   if (node !== undefined) nodes.set(id, { ...node, runtime });
 
   return { ...base, nodes };
+}
+
+/** One operation, with a response body and with or without the example that stops a finding. */
+function operation(index: number, example: boolean): Record<string, unknown> {
+  const schema = { type: 'object', properties: { name: { type: 'string' } } };
+  const media = example ? { schema, example: { name: 'a' } } : { schema };
+
+  return {
+    get: {
+      operationId: `ThingsController_read${String(index)}`,
+      summary: 'Read a thing',
+      responses: { '200': { description: 'ok', content: { 'application/json': media } } },
+    },
+  };
+}
+
+/** A document measured by the drift rules, with one operation per path. */
+function measured(count: number, example: boolean): IRDocument {
+  const paths: Record<string, unknown> = {};
+  for (let index = 0; index < count; index += 1)
+    paths[`/thing-${String(index)}`] = operation(index, example);
+
+  const document = normalizeOpenApiDocument({
+    openapi: '3.1.0',
+    info: { title: 'Things', version: '1.0.0' },
+    paths,
+  });
+
+  return {
+    ...document,
+    health: buildHealthReport(document, {
+      observation: { handledNodeIds: new Set(document.nodes.keys()) },
+    }),
+  };
+}
+
+/**
+ * A document whose findings fold: several operations miss an example for one identical reason.
+ *
+ * The fold is what makes the heading's two counts differ, so a fixture that does not fold would
+ * assert nothing about the sentence under test.
+ */
+function foldedDocument(): IRDocument {
+  return measured(3, false);
+}
+
+/** A document where every finding names its own subject and so stands alone. */
+function unfoldedDocument(): IRDocument {
+  return measured(3, true);
 }
 
 describe('buildRuntimeModel', () => {
@@ -394,6 +450,55 @@ describe('buildHealthModel', () => {
     const drawn = rows.map((row) => row.label);
     for (const label of empty) expect(drawn).not.toContain(label);
     for (const row of rows) expect(row.count).toMatch(/^\d+ \/ \d+$/);
+  });
+
+  it('should name the causes it draws beside the findings they cover, so two counts cannot disagree', () => {
+    // Given a document whose findings fold, which is the state the heading contradicted: SPEC 7.2
+    // folds findings of one cause into one row and deliberately leaves `IRHealthReport.drift` a
+    // flat list, so on the maintainer's application the heading said 186 findings above 68 rows
+    // and a reader who counted was told two different numbers by one page.
+    const document = foldedDocument();
+    const report = document.health;
+    const findings = report?.drift ?? [];
+    const causes = groupDriftByRule(findings).flatMap((group) => groupDriftByCause(group.issues));
+
+    // Then the subject is present before anything is claimed about it: this document really does
+    // fold, so the two counts really are different here.
+    expect(findings.length).toBeGreaterThan(causes.length);
+
+    // When
+    const model = buildHealthModel(document, '');
+
+    // Then the heading states both quantities and the rows a reader can count are the causes it
+    // names, so neither number is a lie and neither has to be reconciled against the other.
+    expect(model?.title).toBe(
+      `Documentation health, ${String(report?.operationCount ?? 0)} operations, ` +
+        `${String(findings.length)} findings in ${String(causes.length)} causes`,
+    );
+    expect((model?.rules ?? []).flatMap((rule) => rule.findings)).toHaveLength(causes.length);
+  });
+
+  it('should say findings once when nothing folded, rather than print one number twice', () => {
+    // Given a document where every finding is its own cause, which is the ordinary small case.
+    // "6 findings in 6 causes" is not a contradiction, but it is one quantity written twice, and
+    // the clause exists to tell two quantities apart.
+    const document = unfoldedDocument();
+    const report = document.health;
+    const findings = report?.drift ?? [];
+    const causes = groupDriftByRule(findings).flatMap((group) => groupDriftByCause(group.issues));
+
+    // Then the subject is present: there are findings here, and none of them folded
+    expect(findings.length).toBeGreaterThan(0);
+    expect(causes).toHaveLength(findings.length);
+
+    // When
+    const model = buildHealthModel(document, '');
+
+    // Then
+    expect(model?.title).toBe(
+      `Documentation health, ${String(report?.operationCount ?? 0)} operations, ` +
+        `${String(findings.length)} findings`,
+    );
   });
 });
 

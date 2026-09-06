@@ -24,6 +24,7 @@ import {
   IR_VERSION,
   isAsyncApiSource,
   normalizeSpecification,
+  pageNodes,
   parseSpecification,
   proxyServers,
   ProxyBlockedError,
@@ -339,7 +340,10 @@ export class ReferenceService {
       basePath: this.basePath,
       ...(options.agent === undefined ? {} : { agent: options.agent }),
     });
-    this.nodeIdBySegment = segmentIndex(this.document.nodes.keys(), nodeSegmentOf);
+    // `pageNodes` AND NOT `nodes`, per SPEC 13.3 as amended 2026-09-05: a webhook is a node with a
+    // page, its id is a resolvable topology end by SPEC 9.5 and the search index of SPEC 11 stores
+    // it, so an index built from `nodes` alone 404s on an address the overview itself printed.
+    this.nodeIdBySegment = segmentIndex(pageNodes(this.document).keys(), nodeSegmentOf);
     this.schemaIdBySegment = segmentIndex(this.document.schemas.keys());
     this.serviceIdBySegment = segmentIndex(
       (this.document.services ?? []).map((service) => service.id),
@@ -453,8 +457,11 @@ export class ReferenceService {
     if (schemaSegment !== null && schemaId === null) return notFoundReply('schema');
     if (kind === 'service' && serviceId === null) return this.serviceNotFound();
 
-    // A CHANNEL HAS NO BENCH. Nothing links here for one, per SPEC 11's dead link rule, so a
-    // reader arrives only by hand and the honest answer is that the address holds nothing.
+    // A CHANNEL HAS NO BENCH, AND SINCE 2026-09-05 NEITHER HAS A WEBHOOK. Nothing links here for
+    // either, per SPEC 11's dead link rule and SPEC 13.3's webhook rule, so a reader arrives only
+    // by hand and the honest answer is that the address holds nothing. The lookup is `nodes` and
+    // deliberately not `pageNodes`: a webhook is a node with a page and not a node with a console,
+    // and that difference is exactly this line.
     if (kind === 'bench' && this.document.nodes.get(nodeId ?? '')?.kind !== 'operation') {
       return notFoundReply('bench');
     }

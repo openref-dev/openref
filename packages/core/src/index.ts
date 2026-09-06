@@ -72,6 +72,7 @@ export type {
   IRStandardHttpMethod,
 } from './ir/domain/node.types';
 export { AUDIENCE_EXTENSION, INTERNAL_AUDIENCE, isInternalAudience } from './ir/domain/audience';
+export { pageNode, pageNodes } from './ir/domain/page-nodes';
 
 export type {
   IRDiscoveryProblem,

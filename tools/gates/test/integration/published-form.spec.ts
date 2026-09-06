@@ -77,6 +77,15 @@ const REPO_ROOT = join(import.meta.dirname, '..', '..', '..', '..');
  * samples it did draw. Both weigh exactly what they weighed, 5,089 and 2,352, and the whole of the
  * change is again in `openref.js`.
  *
+ * TWO OF THESE NAMES MOVED ON 2026-09-05 AND NOT ONE BYTE OF THE ARTEFACT DID, WHICH IS THE PLAIN
+ * MECHANISM AT ITS PUREST. `chunk-D45QPAC7` became `chunk-NQKJDTAZ` and `chunk-ZSSABZO4` became
+ * `chunk-DJLSRFLZ` when the node page lookup and the health heading were changed: both are server
+ * side modules, and what reached the bundle is nothing at all. Every one of the seven initial files
+ * weighs exactly what it weighed, `openref.js` included at 22,604, and so does every deferred chunk;
+ * the digest moved because it is taken over the modules that went in rather than over the bytes that
+ * came out, and comments are stripped on the way. The one figure that moved anywhere is the gzip row
+ * of the telltale entry, by 11 bytes, and the entry below says why.
+ *
  * TWO OF THESE NAMES MOVED ON 2026-09-02 AND NOT ONE OF THE SIZES DID. A chunk's name is its
  * content digest, so renaming a published constant moves it and every chunk that imports it:
  * `chunk-TEAI3FZD` became `chunk-5LRQ4D6P` when `@openref/vue`'s `DEFAULT_THEME_NAME` became
@@ -88,9 +97,9 @@ const INITIAL = [
   'openref.js',
   'chunk-EJ4XQ22A.js',
   'chunk-FMGVZQY6.js',
-  'chunk-D45QPAC7.js',
+  'chunk-NQKJDTAZ.js',
   'chunk-GKCAFBE4.js',
-  'chunk-ZSSABZO4.js',
+  'chunk-DJLSRFLZ.js',
   'chunk-NNVNJ4ZN.js',
 ] as const;
 
@@ -241,10 +250,15 @@ describe('the published form of this tree', () => {
     // entry, 22,417 to 22,859, because the copy control lives in `NodePanel` and `NodePanel` is in
     // it. The six files beside the entry weigh 90,708 before and after, both operands off this
     // tree, and no chunk name moved this time.
+    // AND WHERE THE 0 WENT ON 2026-09-05, WHICH IS THE CASE THIS LINE EXISTS FOR. The node page
+    // lookup and the health heading are decided on the server, so nothing arrived: the entry is
+    // 22,859 either way, the notice chunk is 760 either way, the six files beside the entry are
+    // 90,708 either way, and the total is the same 114,327. Two chunk names rotated and are
+    // re-read above, because a digest is taken over the modules that went in.
     expect(sizeOf('openref.js')).toBe(22_859);
     expect(sizeOf('chunk-NNVNJ4ZN.js')).toBe(760);
     expect(total - sizeOf('openref.js') - sizeOf('chunk-NNVNJ4ZN.js')).toBe(90_708);
-    expect(sizeOf('chunk-D45QPAC7.js')).toBe(5_089);
+    expect(sizeOf('chunk-NQKJDTAZ.js')).toBe(5_089);
   });
 
   it('should account for every byte of both deltas as a rewritten reference', () => {
@@ -353,12 +367,21 @@ describe('the published form of this tree', () => {
     // instrument that can catch that. 105 of it survives gzip, a quarter of the raw arrival,
     // because most of what arrived is markup this bundle already spells elsewhere. Both rows
     // still fit, and neither cap moved.
+    //
+    // 0 raw and 11 gzip on 2026-09-05, and the pair is the whole finding: the raw row did not move
+    // by a byte and the gzip row moved by eleven. Nothing arrived. The node page lookup and the
+    // health heading are server side, so no code reached this bundle at all; what reached it is two
+    // rotated chunk names, because a chunk's name is its content digest and the digest is taken over
+    // the modules that went in. The names are inside the import statements of the files this row
+    // compresses, so eleven bytes of the deflate window read differently and the raw row, which
+    // compresses nothing, is byte identical at 264,410. The cap did not move and the headroom below
+    // is taken off the measurement.
     expect(onDisk).toBe(264_410);
-    expect(gzip).toBe(98_119);
+    expect(gzip).toBe(98_130);
 
     // And the headroom each row actually has, against caps neither of which moved
     expect(281 * 1024 - onDisk).toBe(23_334);
-    expect(97 * 1024 - gzip).toBe(1_209);
+    expect(97 * 1024 - gzip).toBe(1_198);
   });
 
   it('should leave the caps where the two derivations put them', () => {
