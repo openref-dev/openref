@@ -3,7 +3,6 @@
   "version": "0.0.0",
   "description": "OPENREF collector for @nestjs-redisx/locks: how a route behaves when two callers arrive at once",
   "license": "MIT",
-  "private": true,
   "repository": {
     "type": "git",
     "url": "git+https://github.com/openref-dev/openref.git",

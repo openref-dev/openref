@@ -3,7 +3,6 @@
   "version": "0.0.0",
   "description": "OPENREF collector for @nestjs-redisx/cache: what a handler declares about caching its own response",
   "license": "MIT",
-  "private": true,
   "repository": {
     "type": "git",
     "url": "git+https://github.com/openref-dev/openref.git",

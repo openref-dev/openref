@@ -49,10 +49,16 @@ export const REDISX_CACHE_PACKAGE = '@nestjs-redisx/cache';
  *
  * A STRING AND NOT A SYMBOL, WHICH IS THE OPPOSITE OF THE TWO REDISX COLLECTORS BESIDE THIS ONE.
  * `@nestjs-redisx/rate-limit` and `@nestjs-redisx/idempotency` both key on `Symbol.for`, so those
- * packages reach the same key without loading the library; this one uses plain strings for its own
- * three keys and a global symbol for the other two, so both forms appear here. Neither needs the
- * library loaded, and both are still guarded by {@link isPackageInstalled} for the reason
+ * packages reach the same key without loading the library. THE SPLIT IN THIS ONE IS FIVE AND ONE,
+ * COUNTED FROM THE LIBRARY RATHER THAN FROM THIS FILE, and the sentence here said three and two
+ * until it was counted: five of its six keys are plain strings, `cache:options`,
+ * `cache:invalidate:tags`, `cache:cacheable`, `cache:put` and `cache:evict`, and one is the global
+ * symbol `INVALIDATE_ON_OPTIONS`. So both forms appear here. Neither needs the library loaded, and
+ * both are still guarded by {@link isPackageInstalled} for the reason
  * `@openref/collector-redisx-rate-limit` gives: a generic key is a key a second library could claim.
+ *
+ * IT IS SPELLED RATHER THAN IMPORTED EVEN THOUGH THE LIBRARY EXPORTS IT AS `CACHE_OPTIONS_KEY`, and
+ * {@link CACHEABLE_KEY} carries the whole of that reasoning for all six.
  */
 export const CACHED_OPTIONS_KEY = 'cache:options';
 
@@ -62,13 +68,39 @@ export const INVALIDATE_TAGS_KEY = 'cache:invalidate:tags';
 /** The key `@InvalidateOn` writes its options under. */
 export const INVALIDATE_ON_KEY: symbol = Symbol.for('INVALIDATE_ON_OPTIONS');
 
-/** The key `@Cacheable` writes its options under, whose reader the library registers nowhere. */
+/**
+ * The three keys of `@Cacheable`, `@CachePut` and `@CacheEvict`, whose reader the library
+ * registers nowhere.
+ *
+ * SPELLED AND NOT IMPORTED, AND THERE IS NO IMPORT TO TIDY THEM INTO. Written down because the
+ * next reader will look at three string literals beside a library that plainly declares the same
+ * three constants and reach for an import, and the import does not exist. Measured against
+ * `@nestjs-redisx/cache@1.12.0`: the library declares `CACHEABLE_METADATA_KEY`,
+ * `CACHE_PUT_METADATA_KEY` and `CACHE_EVICT_METADATA_KEY` inside its three decorator modules and
+ * leaves all three out of its root barrel, which exports the DECORATORS and, of the six keys, only
+ * `CACHE_OPTIONS_KEY` and `INVALIDATE_TAGS_KEY`. Its `exports` map declares `"."` and nothing else,
+ * so the subpath the constants do live at answers `ERR_PACKAGE_PATH_NOT_EXPORTED`. There is
+ * therefore no specifier that yields them.
+ *
+ * AND EVEN THE TWO THE BARREL DOES EXPORT ARE SPELLED HERE, for the reason that governs the whole
+ * file: `@nestjs-redisx/cache` is an OPTIONAL peer, so a value import of it at module scope would
+ * make this collector fail to load in the application it is designed to skip in. Nothing in this
+ * package imports the library at all; {@link isPackageInstalled} resolves it and never requires it.
+ * That is why {@link CACHED_OPTIONS_KEY} is a literal too, next to a library constant of the same
+ * value.
+ *
+ * WHAT HOLDS THE THREE STRINGS TRUE IS A CASE AND NOT THIS COMMENT.
+ * `redisx-cache-collector.spec.ts` applies the three real decorators to three methods and reads
+ * each key back off the method, so a value the library changes goes red here rather than producing
+ * a collector that silently reports nothing. The two exported keys are pinned harder still, by
+ * identity against the library's own constants, which is the check the three below cannot have.
+ */
 export const CACHEABLE_KEY = 'cache:cacheable';
 
-/** The key `@CachePut` writes its options under, whose reader the library registers nowhere. */
+/** The key `@CachePut` writes its options under. See {@link CACHEABLE_KEY} for why it is spelled. */
 export const CACHE_PUT_KEY = 'cache:put';
 
-/** The key `@CacheEvict` writes its options under, whose reader the library registers nowhere. */
+/** The key `@CacheEvict` writes its options under. See {@link CACHEABLE_KEY} for why it is spelled. */
 export const CACHE_EVICT_KEY = 'cache:evict';
 
 /** Milliseconds in the second `@Cached({ ttl })` is written in. */

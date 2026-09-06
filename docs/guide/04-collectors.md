@@ -43,10 +43,18 @@ OpenRefModule.forRoot({
 installing `@openref/nest` never puts a rate limiting library in the dependency closure of an
 application that does not rate limit anything. The same is true of
 `@openref/collector-casl`, `@openref/collector-access-control`,
-`@openref/collector-redisx-rate-limit`, which reads `@nestjs-redisx/rate-limit`, and
-`@openref/collector-redisx-idempotency`, which reads `@nestjs-redisx/idempotency`.
+`@openref/collector-redisx-rate-limit`, which reads `@nestjs-redisx/rate-limit`,
+`@openref/collector-redisx-idempotency`, which reads `@nestjs-redisx/idempotency`,
+`@openref/collector-redisx-cache`, which reads `@nestjs-redisx/cache`,
+`@openref/collector-redisx-locks`, which reads `@nestjs-redisx/locks`, and
+`@openref/collector-redisx-circuit-breaker`, which reads `@nestjs-redisx/circuit-breaker`.
 
-Both of the redisx collectors report statuses as well, into the route's runtime derived error
+The last three report a handler policy: what a route declares about caching its own response, about
+what happens when two callers arrive at once, and about what it does when the thing behind it is
+down. Each is a separate package for the reason the first sentence gives, so an application that
+caches nothing does not carry the lock module to learn that it locks nothing either.
+
+The rate limit and idempotency collectors report statuses as well, into the route's runtime derived error
 contracts, so a route that answers something the document does not mention shows up as drift. A
 `@RateLimit` route answers 429 whenever the limit is spent, and answers 503 as well where the
 module declares `errorPolicy: 'fail-closed'`, which is the only place that option can be read; where

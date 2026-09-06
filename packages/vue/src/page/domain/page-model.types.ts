@@ -707,14 +707,24 @@ export interface RuntimeValueModel {
  * field. A promise, an observation and a host wide list are different statements, and a single
  * `errors` kind would let a theme concatenate them without deciding to.
  *
- * `handler-policies` IS THE ELEVENTH AND IT IS ADDITIVE, WHICH IS WHY IT COULD BE ADDED AT ALL. A
- * theme RECEIVES rows and never produces them, so a widened union reaches a consumer as a case they
- * may ignore rather than as a shape they must now build. Neither reference theme reads this type at
- * all, measured over both of their sources, and the reference panel spends it on a data attribute,
- * so the addition costs the browser nothing. The note next to `rate-limit` in
- * `@openref/render`'s row builder still holds for the case it is about: a SECOND kind for a
- * question a reader already asks under an existing label would be a major version for nothing, and
- * a cache, a lock and a breaker are not that question under any existing label.
+ * `handler-policies` IS THE ELEVENTH AND IT IS A BREAKING CHANGE, NOT AN ADDITIVE ONE. It was
+ * recorded as additive by the task that added it and re-decided on 2026-09-05; the ruling and the
+ * whole of its reasoning are in `ai-docs/design/CONTRACT.md` beside `StateNoticeKind`'s, which is
+ * the same event and the same correction. The argument for additive was that a theme RECEIVES rows
+ * and never produces them, and that neither reference theme reads this type at all. Both are true
+ * and neither is the test. The rule of `PUBLIC-API.md` is that widening an exported union is
+ * retyping it, and what decides it is whether a total spelling over the union is SANCTIONED, never
+ * whether anybody has written one yet: a theme is written outside this repository, so absence of a
+ * total record here is evidence about this tree and not about the contract. The sentence at the top
+ * of this comment sanctions it, and `@openref/render` already writes that spelling over the sibling
+ * union in `parity-model.ts`. The migration is the author's and it is one line: add the case.
+ *
+ * The note next to `rate-limit` in `@openref/render`'s row builder still holds for the case it is
+ * about: a SECOND kind for a question a reader already asks under an existing label would be a
+ * major version for nothing, and a cache, a lock and a breaker are not that question under any
+ * existing label. The BROWSER cost is separately zero, and the reason is not the one first written
+ * here: the reference panel draws no labelled runtime row at all, so it spends this type on
+ * nothing.
  */
 export type RuntimeRowKind =
   | 'guards'

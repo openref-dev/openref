@@ -243,10 +243,21 @@ describe('licensesGate', () => {
     // `@nestjs-redisx/idempotency`, MIT, optional peer, no runtime dependency of its own, and it
     // reports into `IRErrorContracts` rather than into a member of `IRNodeRuntime` that had to be
     // invented for it, so nothing in `@openref/core` moved to admit it.
+    // AND THREE MORE, THE FOURTEENTH TO SIXTEENTH NAMES, BUILT AT `TX-REDISX-POLICIES` AS `private`
+    // AND PUBLISHED IN A LATER CHANGE. `@openref/collector-redisx-cache`,
+    // `@openref/collector-redisx-locks` and `@openref/collector-redisx-circuit-breaker` read three
+    // more members of the same family, all MIT, all optional peers with no runtime dependency of
+    // their own, so the production zone is again enlarged by nothing. They arrived `private`
+    // because the session that built them held no `ai-docs/` and could reconcile none of the four
+    // lists; that is the one thing this expectation would not have caught, since a private package
+    // is absent from `result.published` and from every list it is compared against at once.
     expect(result.published).toEqual([
       '@openref/collector-access-control',
       '@openref/collector-casl',
+      '@openref/collector-redisx-cache',
+      '@openref/collector-redisx-circuit-breaker',
       '@openref/collector-redisx-idempotency',
+      '@openref/collector-redisx-locks',
       '@openref/collector-redisx-rate-limit',
       '@openref/collector-throttler',
       '@openref/core',

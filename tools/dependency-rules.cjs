@@ -183,8 +183,9 @@ const BOUNDARIES = {
   // THE THREE ADDED AT `TX-REDISX-POLICIES`, ON THE SAME EDGE AND FOR THE SAME REASON. Each reads
   // one more module of the same library, and each is a separate package rather than one because
   // an application that caches nothing must not carry the lock module in its closure to learn
-  // that it locks nothing either. They are `private` in this tree until the published set of
-  // SPEC 4 is reconciled, and the boundary is the same either way.
+  // that it locks nothing either. They were `private` in this tree until the published set of
+  // SPEC 4 was reconciled, and they are published since; the boundary is the same either way,
+  // which is why these three rows did not move when the manifests did.
   'collector-redisx-cache': ['core', 'nest'],
   'collector-redisx-locks': ['core', 'nest'],
   'collector-redisx-circuit-breaker': ['core', 'nest'],

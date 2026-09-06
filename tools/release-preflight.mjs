@@ -10,7 +10,8 @@
  * and only then a tag whose workflow publishes what that commit holds.
  *
  * WHAT WENT WRONG WITHOUT THIS. `.changeset/` held no changeset and every manifest still said
- * 0.0.0, so pushing a `v*` tag would have run `changeset publish` over eleven packages at 0.0.0 and
+ * 0.0.0, so pushing a `v*` tag would have run `changeset publish` over every publishable package at
+ * 0.0.0 and
  * put that on the registry. Nothing anywhere would have gone red: the gates check the set that
  * publishes and what each package carries, not what version it carries, and 0.0.0 is a perfectly
  * valid semantic version. The done-when clause "a fresh consumer installs from npm" was therefore

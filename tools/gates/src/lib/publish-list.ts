@@ -560,7 +560,7 @@ interface ChangesetConfig {
  * the group is what decides whether one tag means one version, and a silent omission is a package
  * quietly leaving lockstep.
  *
- * THE RULE IS THE SPEC 4 TABLE RATHER THAN THE WHOLE INTENDED SET. The three ecosystem collectors
+ * THE RULE IS THE SPEC 4 TABLE RATHER THAN THE WHOLE INTENDED SET. The eight ecosystem collectors
  * are published and are deliberately not in the table: SPEC 4 keeps them as separate packages with
  * their own cadence, so they may be in a group or out of one. What may not happen is a name in the
  * table missing from every group, or a group naming something this workspace does not have.

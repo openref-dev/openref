@@ -57,6 +57,7 @@ import {
   guardValues,
   handlerPolicyValues,
   mark,
+  parameterReadsLabel,
   rateLimitLabel,
   rateLimitReachLabel,
   SEVERITY_CLASSES,
@@ -64,7 +65,14 @@ import {
 } from './runtime-values';
 import { statusClass } from '../../shared/status';
 
-export { rateLimitLabel, streamingLabel };
+// TWO MORE NAMES SINCE 2026-09-05, AND THE REASON IS THE ONE THIS PACKAGE ALREADY GIVES FOR THE
+// FIRST TWO. `@openref/agent` writes the same facts into `llms-full.txt` that these functions write
+// onto the page, and each of these two carries a RULING rather than a format: what
+// `rateLimitReachLabel` says is that a budget it prints is not this route's, and what
+// `parameterReadsLabel` keeps apart is a statement about the handler from a statement about the
+// scan. A second spelling of either in another package is two answers to one question, which is
+// exactly what the header of `llms-text.ts` refuses for a title and an address.
+export { parameterReadsLabel, rateLimitLabel, rateLimitReachLabel, streamingLabel };
 
 /**
  * THE SHAPES THESE FUNCTIONS BUILD LIVE IN `@openref/vue`, since `TX-SLOTWIRE`.

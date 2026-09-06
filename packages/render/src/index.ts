@@ -163,7 +163,9 @@ export type { PageModelOptions } from './page/domain/page-model';
 export {
   buildHealthModel,
   buildRuntimeModel,
+  parameterReadsLabel,
   rateLimitLabel,
+  rateLimitReachLabel,
   streamingLabel,
 } from './page/domain/runtime-model';
 export {

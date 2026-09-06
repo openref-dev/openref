@@ -31,8 +31,8 @@ import type { Gate, GateFinding, GateResult } from '../types.js';
  * IT IS THE ASSERTION AND NOT A PRECAUTION. This gate shells out to `pnpm publish`, and a rule this
  * repository holds everywhere else is that a check makes no external request. Pointing the child at
  * `127.0.0.1:1` turns that from a claim about pnpm's behaviour into a property of the run: a dry run
- * that needed the registry fails here rather than quietly reaching it. Measured 2026-09-01, it
- * prints all eleven lines and exits 0.
+ * that needed the registry fails here rather than quietly reaching it. Measured 2026-09-01 at
+ * eleven lines and re-measured 2026-09-05 at sixteen, it prints every one of them and exits 0.
  */
 export const UNREACHABLE_REGISTRY = 'http://127.0.0.1:1/';
 

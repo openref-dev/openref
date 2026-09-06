@@ -1510,6 +1510,11 @@ describe('the volume of the artefact', () => {
     // figure that had already moved. One published package name, 51 bytes, took it over. THE
     // CEILING DID NOT MOVE FOR IT: `PROJECTION_ARTEFACT_BUDGET.limitBytes` is untouched, and what
     // is now read live is the cost this bound is stated in multiples of.
+    //
+    // AND ON 2026-09-05 IT WENT OVER, BY 22 BYTES, AND THE CEILING DID NOT MOVE FOR THAT EITHER.
+    // Three published package names at once, 145 bytes, against 16,076 of headroom and 16,098 of
+    // reserve. The case below carries the whole measurement and what would settle it; both answers
+    // are the maintainer's, and neither was taken here.
     expect(scan.bytes).toBe(bytes);
     expect(scan.bytes).toBeGreaterThan(100_000);
     expect(scan.findings).toEqual([]);
@@ -2056,6 +2061,21 @@ describe('the figures this code states about this repository', () => {
     // `ai-docs/PROJECT_STATE.md` crossed a megabyte while that session was recorded in it: the
     // artefact carries each required document's size, and 996,227 is six digits where 1,005,378 is
     // seven. A digit is not a leaf, so the leaf count is unchanged and the corridor is unmoved.
+    //
+    // 131,380 OVER 649 SINCE 2026-09-05, AND THIS IS THE FIRST ARRIVAL THE BYTE CORRIDOR CANNOT
+    // TAKE. The three collectors of `TX-REDISX-POLICIES` were published, so SPEC 4's ecosystem list
+    // gained `@openref/collector-redisx-cache`, `@openref/collector-redisx-circuit-breaker` and
+    // `@openref/collector-redisx-locks`: three leaves and 145 bytes, which is the whole of the
+    // move, because the prose those packages also gained in SPEC 4 is not projected at all.
+    // MEASURED, AND STATED RATHER THAN SMOOTHED OVER: the headroom is 16,076 and two milestones
+    // cost 16,098, so the reserve is 22 BYTES SHORT and the assertion below is red on that fact.
+    // NOTHING WAS MOVED FOR IT. `PROJECTION_ARTEFACT_BUDGET.limitBytes` is untouched at 144 KB, no
+    // document was cut to buy the bytes back, and the multiplier is still two because the plan
+    // still has RELEASE and POST-1.0 left in it. What would settle it is one of two things and both
+    // are the maintainer's: 145 KB, which is 147,478 needed against 148,480 available and the same
+    // derivation this case names, or 22 bytes out of the artefact. The 22 is inside the derivation's
+    // own rounding, since `milestoneCost` rounds three quotients whose multipliers total 28, and
+    // that is a reason to have the maintainer re-derive rather than a reason to call it green.
     const read = readProjection(repoRoot);
     expect(read.ok).toBe(true);
     const data = read.ok ? read.projection.data : undefined;
@@ -2072,7 +2092,7 @@ describe('the figures this code states about this repository', () => {
 
     // Then each figure the budget's derivation states is the one the artefact gives, and the
     // headroom really is two milestones of it
-    expect([scan.bytes, scan.leaves]).toEqual([131_235, 646]);
+    expect([scan.bytes, scan.leaves]).toEqual([131_380, 649]);
     expect([perHeading, perTask, perRow]).toEqual([421, 126, 224]);
     expect(milestone).toBe(8_049);
     expect(PROJECTION_ARTEFACT_BUDGET.limitBytes - scan.bytes).toBeGreaterThanOrEqual(
@@ -2347,14 +2367,18 @@ describe('the projection privacy gate', () => {
     // list, and 146 and 154 since `TX-REDISX-IDEMPOTENCY`, whose one leaf is
     // `@openref/collector-redisx-idempotency` joining the same list, and that is this case working:
     // a thirteenth published package is exactly the kind of decision these two numbers exist to
-    // make somebody take on purpose. NEITHER END OF THE CORRIDOR MOVED ON ANY OF THE FIVE
-    // OCCASIONS: the floor is still PROJECTION_LEAF_FLOOR and the budget is still
+    // make somebody take on purpose. It reads 149 and 151 since the three collectors of
+    // `TX-REDISX-POLICIES` were published on 2026-09-05, which is three leaves in that same list at
+    // once and the largest single arrival it has taken. NEITHER END OF THE CORRIDOR MOVED ON ANY OF
+    // THE SIX OCCASIONS: the floor is still PROJECTION_LEAF_FLOOR and the budget is still
     // PROJECTION_ARTEFACT_BUDGET.leaves, and what these two numbers record is where the reading now
-    // stands between them.
+    // stands between them. THE LEAF CORRIDOR IS THE HALF THAT STILL HOLDS; the byte corridor of
+    // `should derive the file budget from the artefact rather than from a round number` does not,
+    // and that case says by how much.
     expect(scan.leaves).toBeGreaterThan(PROJECTION_LEAF_FLOOR);
     expect(scan.leaves).toBeLessThan(PROJECTION_ARTEFACT_BUDGET.leaves);
-    expect(scan.leaves - PROJECTION_LEAF_FLOOR).toBe(146);
-    expect(PROJECTION_ARTEFACT_BUDGET.leaves - scan.leaves).toBe(154);
+    expect(scan.leaves - PROJECTION_LEAF_FLOOR).toBe(149);
+    expect(PROJECTION_ARTEFACT_BUDGET.leaves - scan.leaves).toBe(151);
   });
 
   it('should be in the gate list, since a gate nothing runs is a rule with no runner', () => {

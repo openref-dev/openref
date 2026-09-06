@@ -20,8 +20,8 @@
  *
  * THE PACKAGE LIST IS DERIVED AND NOT LISTED, per the rule that produced `readPackageDirs`. The
  * published set comes from the manifests through {@link resolveShippedPackages}, the same
- * derivation the `publish-list` gate compares against SPEC 4, so a twelfth published package is in
- * this check from the moment its manifest loses `private`.
+ * derivation the `publish-list` gate compares against SPEC 4, so a sixteenth published package is
+ * in this check from the moment its manifest loses `private`.
  *
  * A MISSING BUILD IS A FAILURE AND NEVER A SKIP, and an empty read cannot pass: the shared set is
  * asserted non-empty and asserted to contain names that are genuinely shared today, because two
@@ -305,8 +305,8 @@ const MEASURED_MAXIMUM_MS = 7_850;
  *
  * F25, AND THE CLASS IS THE ONE `vitest.spawn-timeout.ts` NAMES rather than the class vitest's
  * five second default was chosen for. The case below writes 186 assignment probes and asks a
- * TypeScript program to check every one of them against thirteen declaration entry points of
- * twelve published packages. What that costs is set by the compiler and by the size of the
+ * TypeScript program to check every one of them against one declaration entry point per published
+ * package and two for `@openref/vue`, over the whole published set. What that costs is set by the compiler and by the size of the
  * declaration graph, and neither is a property of the agreement being asserted; the assertion
  * itself is a comparison of two arrays.
  *

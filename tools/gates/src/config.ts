@@ -69,17 +69,29 @@ export const DATA_ONLY_ATTESTATIONS: readonly DataOnlyAttestation[] = [
  * SPEC 4 recorded it, `PROJECT-STANDARDS.md` 3.1 did not, and for five milestones nothing read
  * either. The comparison is what makes a fourth copy safe.
  *
- * THIRTEEN NAMES. Eight from SPEC 4's published table, five ecosystem collectors. It read eleven
+ * SIXTEEN NAMES. Eight from SPEC 4's published table, eight ecosystem collectors. It read eleven
  * until `TX-REDISX-RATELIMIT` added `@openref/collector-redisx-rate-limit` and twelve until
  * `TX-REDISX-IDEMPOTENCY` added `@openref/collector-redisx-idempotency`; the published table did
- * not move either time, because a collector is an ecosystem package and never a row in it.
+ * not move either time, because a collector is an ecosystem package and never a row in it, and it
+ * did not move for the three below either.
  * `@openref/action` is not among them and never was: a composite GitHub Action is consumed by git
  * ref rather than installed, so it stays private and is versioned in lockstep with the CLI it runs.
+ *
+ * THE THREE OF `TX-REDISX-POLICIES` LANDED `private` AND ARE PUBLISHED HERE, WHICH IS A DECISION
+ * AND NOT A TIDY UP. They were built in a worktree with no `ai-docs/`, no `CLAUDE.md` and no
+ * `PROJECT-STANDARDS.md`, so the session that wrote them could reach neither SPEC 4 nor the
+ * projection that carries it, and marking them private was the only honest state a checkout without
+ * the documents could leave them in. What that state cost is what this list exists to measure: a
+ * collector nobody can install supports nobody, and SPEC 4's own rule for publishing is a named
+ * consumer who cannot reach the package any other way. Each of the three has one.
  */
 export const PUBLISHED_PACKAGES: readonly string[] = [
   '@openref/collector-access-control',
   '@openref/collector-casl',
+  '@openref/collector-redisx-cache',
+  '@openref/collector-redisx-circuit-breaker',
   '@openref/collector-redisx-idempotency',
+  '@openref/collector-redisx-locks',
   '@openref/collector-redisx-rate-limit',
   '@openref/collector-throttler',
   '@openref/core',
@@ -579,6 +591,19 @@ export const COVERAGE_FLOORS: Readonly<Record<string, number>> = {
   // the same day as the package rather than after it. A thirteenth published package landing with
   // no floor reopens what `T065` closed, and `[floor-ungoverned]` would say so.
   'collector-redisx-idempotency': 90,
+  // THE THREE OF `TX-REDISX-POLICIES`, ADDED WITH THE PUBLICATION RATHER THAN WITH THE PACKAGES,
+  // and the difference is worth stating because it is the one case the two rows above do not
+  // describe. Those two set a floor on the day the package landed; these three landed `private` in
+  // a worktree that could not read STANDARDS 9.1 at all, so they were governed by nothing for as
+  // long as they were installable by nobody, which is the only arrangement in which that is not a
+  // defect. Publishing them ends it, so the floors arrive in the same change. 90 by the margin
+  // doctrine the eleven rows above follow, and the readings are stated with their date in
+  // STANDARDS 9.1. `collector-redisx-cache` carries the thinnest margin of the three at 96.19 of
+  // lines, and it is thin because the package is the largest of the three rather than because the
+  // doctrine bent.
+  'collector-redisx-cache': 90,
+  'collector-redisx-circuit-breaker': 90,
+  'collector-redisx-locks': 90,
   // THE ONE ROW TAKEN EXPLICITLY RATHER THAN BY ROUNDING, because rounding gives two wrong answers
   // here. At 77.20 of lines and 74.20 of statements, 80 would be red on the day it lands and a
   // floor at the measurement would govern nothing. 70 is the step that governs: it is a real floor

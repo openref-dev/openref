@@ -478,13 +478,14 @@ const PATH_BOUND: Extent = { chars: 120, segments: 16, perToken: 12, capitals: 1
  * A package name, published, internal or ecosystem, all three being the same kind.
  *
  * WHAT SETS THE FLOOR: `@openref/collector-throttler` is 28 characters and was over the bound the
- * published list carried; `@openref/collector-redisx-idempotency` is 37 over 5 segments and is the
- * longest name SPEC 4 states, which `@openref/collector-redisx-rate-limit` was at 36 until
- * `TX-REDISX-IDEMPOTENCY` and `@openref/collector-access-control` was at 33 until
+ * published list carried; `@openref/collector-redisx-circuit-breaker` is 41 over 5 segments and is
+ * the longest name SPEC 4 states, which `@openref/collector-redisx-idempotency` was at 37 until the
+ * three of `TX-REDISX-POLICIES` were published, `@openref/collector-redisx-rate-limit` at 36 until
+ * `TX-REDISX-IDEMPOTENCY` and `@openref/collector-access-control` at 33 until
  * `TX-REDISX-RATELIMIT`. The grammar admits no capital at all, so the capitals bound is zero and
- * costs nothing. THE BOUND ITSELF DID NOT MOVE FOR EITHER, and that is the bound working rather
- * than being lucky: 48 characters was chosen to hold a package name of this kind, and the longest
- * one anybody has written still sits eleven characters under it.
+ * costs nothing. THE BOUND ITSELF DID NOT MOVE FOR ANY OF THEM, and that is the bound working
+ * rather than being lucky: 48 characters was chosen to hold a package name of this kind, and four
+ * arrivals later the longest one anybody has written still sits seven characters under it.
  */
 const PACKAGE_BOUND: Extent = { chars: 48, segments: 8, perToken: 6, capitals: 0 };
 
@@ -1114,8 +1115,8 @@ export const CITED_READINGS: readonly {
   {
     path: 'data.spec.packages.ecosystem[]',
     measure: 'chars',
-    reading: 37,
-    cited: 'PACKAGE_BOUND, @openref/collector-redisx-idempotency',
+    reading: 41,
+    cited: 'PACKAGE_BOUND, @openref/collector-redisx-circuit-breaker',
   },
   { path: 'data.spec.readerPages[]', measure: 'chars', reading: 27, cited: 'ROUTE_BOUND' },
   {
@@ -1174,7 +1175,7 @@ export const ACKNOWLEDGED_RESIDUE: readonly string[] = [
     'written as one path segment fits inside it',
   'data.spec.packages.published[], data.spec.packages.internal[], ' +
     'data.spec.packages.ecosystem[] and data.spec.packages.heldBack[]: a scoped name of up to six hyphenated parts, because an ' +
-    'ecosystem collector already writes three. Closed by the `publish-list` gate, which holds the ' +
+    'ecosystem collector already writes four. Closed by the `publish-list` gate, which holds the ' +
     'first three lists to what npm would publish and the fourth to what it deliberately would not',
   'data.spec.suiteRows.*: two camel cased words, because a row called `RuntimeFacts` is exactly ' +
     'that and `Observability` has to be green',
