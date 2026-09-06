@@ -258,6 +258,93 @@ describe('scanHandlerReads', () => {
     if (result.kind === 'blind') expect(result.reason).toContain('custom parameter decorator');
   });
 
+  it('should report the reads when a custom decorator sits beside full named coverage', () => {
+    // Given `@Auth() auth, @Param('id') id, @Query('debug') debug`: a factory this scan cannot
+    // follow, and every declared parameter bound by a name in the signature all the same
+    const controller = controllerWith({
+      'abc123__customRouteArgs__:0': { index: 0 },
+      '5:1': { index: 1, data: 'id' },
+      '4:2': { index: 2, data: 'debug' },
+    });
+    const handler: HandlerLike = function list(auth: unknown, id: unknown, debug: unknown) {
+      return [auth, id, debug];
+    };
+
+    // When
+    const result = scanHandlerReads(
+      reflect,
+      controller,
+      'list',
+      handler,
+      declared({ in: 'path', name: 'id' }, { in: 'query', name: 'debug' }),
+    );
+
+    // Then: a factory can add an access path and cannot unbind an argument the signature binds,
+    // so the reads are known and the row is measured rather than silent
+    expect(result).toEqual({
+      kind: 'scanned',
+      parameters: [
+        { in: 'path', name: 'id', verdict: 'read' },
+        { in: 'query', name: 'debug', verdict: 'read' },
+      ],
+    });
+  });
+
+  it('should still be blind where a whole object binding covers a parameter beside a custom one', () => {
+    // Given `@Auth() auth, @Query() q`, which is the crux rather than a detail: a factory doing
+    // ctx.switchToHttp().getRequest().query.sort is exactly the access path this file refuses to
+    // conclude over, and calling `sort` unread would tell a reader to delete a parameter that is
+    // read. A whole object binding is not a name, so it does not cover anything.
+    const controller = controllerWith({
+      'abc123__customRouteArgs__:0': { index: 0 },
+      '4:1': { index: 1 },
+    });
+    const handler: HandlerLike = function list(auth: unknown, q: Record<string, unknown>) {
+      return [auth, q.page];
+    };
+
+    // When
+    const result = scanHandlerReads(
+      reflect,
+      controller,
+      'list',
+      handler,
+      declared({ in: 'query', name: 'sort' }),
+    );
+
+    // Then, and the reason names the parameter nothing binds rather than the handler
+    expect(result.kind).toBe('blind');
+    if (result.kind === 'blind') {
+      expect(result.reason).toBe(
+        'a custom parameter decorator reads the request, so whether sort is read cannot be seen',
+      );
+      expect(result.detail).toContain('covered only by a whole object binding');
+    }
+  });
+
+  it('should still be blind on @Req written after a custom decorator, which comes later in the key order', () => {
+    // Given both, with the custom key first: route argument keys are walked in insertion order,
+    // so an answer given at the custom key would be given before the `@Req` binding was seen. The
+    // named coverage is complete, which is what makes the custom half alone say nothing.
+    const result = scanHandlerReads(
+      reflect,
+      controllerWith({
+        'abc123__customRouteArgs__:0': { index: 0 },
+        '4:1': { index: 1, data: 'sort' },
+        '0:2': { index: 2 },
+      }),
+      'list',
+      function list(auth: unknown, sort: unknown, req: unknown) {
+        return [auth, sort, req];
+      },
+      declared({ in: 'query', name: 'sort' }),
+    );
+
+    // Then the request binding is what answers, not the coverage
+    expect(result.kind).toBe('blind');
+    if (result.kind === 'blind') expect(result.reason).toContain('request or response');
+  });
+
   it('should be blind on a request scoped controller, whose fields can hold the request', () => {
     // Given `@Controller({ scope: Scope.REQUEST })`, which is 2 on both supported majors
     const result = scanHandlerReads(

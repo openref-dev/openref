@@ -8,6 +8,16 @@
  * scanning the emitted function source for property access on that argument. Everything else is
  * a reason to refuse.
  *
+ * A CUSTOM PARAMETER DECORATOR IS THE ONE REFUSAL A NAME CAN SURVIVE. The factory behind
+ * `createParamDecorator` receives the whole execution context and may add any access path, which
+ * is why it is refused; what it cannot do is take away a binding the signature already carries.
+ * So where every declared parameter of the route is bound by an explicit name, the reads are known
+ * whatever the factory does, and the scan reports them. Where a parameter is covered by nothing, or
+ * covered only by a whole object binding, the factory may be the thing reading it and the refusal
+ * stands, because calling such a parameter unread would tell a reader to delete one that is read.
+ * `@Req`, `@Res` and a request scoped controller are refused whatever the coverage, since through
+ * those every parameter is reachable with no binding at all.
+ *
  * EVERY ERROR THE SCAN CAN MAKE IS MADE IN THE SAFE DIRECTION, and that is a design property
  * rather than luck. The source is scanned raw, without stripping strings or comments, so a name
  * inside a string can be over-counted as a read, and a strange use can be over-counted as
@@ -97,6 +107,27 @@ export function scanHandlerReads(
 
   const bindings = bindingsOf(reflect, controller, handlerName);
   if (bindings.kind === 'blind') return bindings;
+
+  // A NAME SURVIVES A CUSTOM DECORATOR AND NOTHING ELSE DOES, per the header. This is asked before
+  // the source is parsed so that a handler carrying both a factory and a whole object binding
+  // answers with the factory, which is the older and larger doubt of the two.
+  if (bindings.custom) {
+    const unnamed = declared.filter((parameter) => !namedBound(parameter, bindings.entries));
+    if (unnamed.length > 0) {
+      return {
+        kind: 'blind',
+        reason:
+          'a custom parameter decorator reads the request, so whether ' +
+          `${unnamed.map((parameter) => parameter.name).join(', ')} is read cannot be seen`,
+        detail:
+          'The factory behind a custom parameter decorator receives the whole execution context ' +
+          'and may take anything out of it, which is an access path no scan of the handler body ' +
+          'can follow. A parameter the signature binds by name is read whatever the factory does; ' +
+          'one covered by nothing, or covered only by a whole object binding, could be the one ' +
+          'the factory reads, and reporting it as unread would be reporting a guess.',
+      };
+    }
+  }
 
   // THE SOURCE IS PARSED ONLY WHEN A WHOLE OBJECT BINDING NEEDS IT. A handler whose every
   // binding is by name is fully accounted for by metadata alone, and parsing nothing keeps the
@@ -196,8 +227,39 @@ interface Binding {
 
 /** The bindings, or the reason they cannot be trusted. */
 type BindingsResult =
-  | { readonly kind: 'bindings'; readonly entries: readonly Binding[] }
+  | {
+      readonly kind: 'bindings';
+      readonly entries: readonly Binding[];
+      /** True when a custom parameter decorator holds one of the arguments. */
+      readonly custom: boolean;
+    }
   | { readonly kind: 'blind'; readonly reason: string; readonly detail: string };
+
+/**
+ * Whether one declared parameter is bound by an explicit name in the handler signature.
+ *
+ * THE FOLDING IS THE ONE THE VERDICTS USE, header names to lower case and nothing else, so that a
+ * parameter counted as covered here is the same parameter that comes out `read` below. A cookie is
+ * covered by nothing, since no NestJS binding names one, and that is what the caller wants: a
+ * declared cookie beside a custom decorator keeps the refusal.
+ *
+ * @param parameter - The declared parameter
+ * @param entries - The handler's bindings
+ * @returns True when some binding names exactly this parameter of this location
+ */
+function namedBound(parameter: DeclaredParameter, entries: readonly Binding[]): boolean {
+  const type = LOCATION_TYPES.find(([location]) => location === parameter.in)?.[1];
+  if (type === undefined) return false;
+
+  const key = parameter.in === 'header' ? parameter.name.toLowerCase() : parameter.name;
+
+  return entries.some(
+    (entry) =>
+      entry.type === type &&
+      entry.data !== undefined &&
+      (parameter.in === 'header' ? entry.data.toLowerCase() : entry.data) === key,
+  );
+}
 
 /**
  * Reads and classifies the route argument metadata of one handler.
@@ -213,7 +275,7 @@ function bindingsOf(
   handlerName: string,
 ): BindingsResult {
   const raw = reflect.getMetadata(NEST_ROUTE_ARGS_METADATA, controller, handlerName);
-  if (raw === undefined || raw === null) return { kind: 'bindings', entries: [] };
+  if (raw === undefined || raw === null) return { kind: 'bindings', entries: [], custom: false };
   if (typeof raw !== 'object') {
     return {
       kind: 'blind',
@@ -225,20 +287,18 @@ function bindingsOf(
   }
 
   const entries: Binding[] = [];
+  let custom = false;
 
   for (const [key, value] of Object.entries(raw)) {
+    // RECORDED AND WALKED PAST RATHER THAN ANSWERED HERE, and the position is load bearing twice.
+    // The key a custom decorator writes is a uuid and a marker joined to an index, so `Number` of
+    // its first half is NaN and the shape check below would refuse it in the wrong words; and the
+    // keys arrive in insertion order, so an answer given here would be given before a later `@Req`
+    // binding had been seen. What this doubt means is decided by the caller, which is the only
+    // place that knows what the document declares.
     if (key.includes(NEST_CUSTOM_ROUTE_ARGS_MARKER)) {
-      return {
-        kind: 'blind',
-        reason:
-          'a custom parameter decorator reads the request itself, so what the handler reads ' +
-          'cannot be seen',
-        detail:
-          'The factory behind a custom parameter decorator receives the whole execution context ' +
-          'and may take anything out of it, which is an access path no scan of the handler body ' +
-          'can follow. Reporting the bindings that are visible would report them as the ' +
-          'complete set.',
-      };
+      custom = true;
+      continue;
     }
 
     const [typeText, indexText] = key.split(':');
@@ -291,7 +351,7 @@ function bindingsOf(
     });
   }
 
-  return { kind: 'bindings', entries };
+  return { kind: 'bindings', entries, custom };
 }
 
 /** The handler source, split once into parameters and body. */

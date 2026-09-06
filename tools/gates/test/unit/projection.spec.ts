@@ -2076,6 +2076,17 @@ describe('the figures this code states about this repository', () => {
     // derivation this case names, or 22 bytes out of the artefact. The 22 is inside the derivation's
     // own rounding, since `milestoneCost` rounds three quotients whose multipliers total 28, and
     // that is a reason to have the maintainer re-derive rather than a reason to call it green.
+    //
+    // 132,195 OVER 661 SINCE 2026-09-06, AND THE SHORTFALL IS 759 WHERE IT WAS 22. Two POST-1.0
+    // entries, `TX-PARAM-DECORATOR-READS` and `TX-PARAM-NAME-MATCH`, with their headings, their
+    // `**Milestone:**` lines and their two markers in SPEC 6.2.1, plus the record of the pass in
+    // `PROJECT_STATE.md`: 815 bytes and 12 leaves. THE COST OF A MILESTONE MOVED WITH IT, DOWNWARD,
+    // which is why the shortfall is not 815 more than 22: `perHeading` reads 418 where it read 421,
+    // because the two new headings are short beside the prose under them, so the reserve this case
+    // demands fell from 16,098 to 16,020 while the headroom fell from 16,076 to 15,261. NOTHING
+    // MOVED FOR IT HERE EITHER: the ceiling is untouched at 144 KB, no document was cut, and the two
+    // entries were filed because a question owed to nobody is the class SPEC 0 ends on. The answer
+    // is still one of the maintainer's two, and it is now worth 759 bytes rather than 22.
     const read = readProjection(repoRoot);
     expect(read.ok).toBe(true);
     const data = read.ok ? read.projection.data : undefined;
@@ -2092,9 +2103,9 @@ describe('the figures this code states about this repository', () => {
 
     // Then each figure the budget's derivation states is the one the artefact gives, and the
     // headroom really is two milestones of it
-    expect([scan.bytes, scan.leaves]).toEqual([131_380, 649]);
-    expect([perHeading, perTask, perRow]).toEqual([421, 126, 224]);
-    expect(milestone).toBe(8_049);
+    expect([scan.bytes, scan.leaves]).toEqual([132_195, 661]);
+    expect([perHeading, perTask, perRow]).toEqual([418, 126, 224]);
+    expect(milestone).toBe(8_010);
     expect(PROJECTION_ARTEFACT_BUDGET.limitBytes - scan.bytes).toBeGreaterThanOrEqual(
       2 * milestone,
     );
@@ -2369,16 +2380,19 @@ describe('the projection privacy gate', () => {
     // a thirteenth published package is exactly the kind of decision these two numbers exist to
     // make somebody take on purpose. It reads 149 and 151 since the three collectors of
     // `TX-REDISX-POLICIES` were published on 2026-09-05, which is three leaves in that same list at
-    // once and the largest single arrival it has taken. NEITHER END OF THE CORRIDOR MOVED ON ANY OF
-    // THE SIX OCCASIONS: the floor is still PROJECTION_LEAF_FLOOR and the budget is still
+    // once and the largest single arrival it has taken. It reads 161 and 139 since 2026-09-06, and
+    // that arrival is larger again: two POST-1.0 entries filed at once put twelve leaves in, their
+    // two headings, their `**Milestone:**` lines and the fields each entry declares, plus the two
+    // markers they are held by in SPEC 6.2.1. NEITHER END OF THE CORRIDOR MOVED ON ANY OF THE SEVEN
+    // OCCASIONS: the floor is still PROJECTION_LEAF_FLOOR and the budget is still
     // PROJECTION_ARTEFACT_BUDGET.leaves, and what these two numbers record is where the reading now
     // stands between them. THE LEAF CORRIDOR IS THE HALF THAT STILL HOLDS; the byte corridor of
     // `should derive the file budget from the artefact rather than from a round number` does not,
     // and that case says by how much.
     expect(scan.leaves).toBeGreaterThan(PROJECTION_LEAF_FLOOR);
     expect(scan.leaves).toBeLessThan(PROJECTION_ARTEFACT_BUDGET.leaves);
-    expect(scan.leaves - PROJECTION_LEAF_FLOOR).toBe(149);
-    expect(PROJECTION_ARTEFACT_BUDGET.leaves - scan.leaves).toBe(151);
+    expect(scan.leaves - PROJECTION_LEAF_FLOOR).toBe(161);
+    expect(PROJECTION_ARTEFACT_BUDGET.leaves - scan.leaves).toBe(139);
   });
 
   it('should be in the gate list, since a gate nothing runs is a rule with no runner', () => {

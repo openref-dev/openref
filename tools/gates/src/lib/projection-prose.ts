@@ -538,8 +538,10 @@ const TX_CAPITALS = 16;
 /**
  * An amendment entry id, being a retrofit id or a `TX-` id.
  *
- * WHAT SETS THE FLOOR: `TX-SURFACE-REGISTER` is 19 characters over 3 segments with a run of 8
- * capitals. The capitals bound is {@link TX_CAPITALS}, which is the kind's and not this position's.
+ * WHAT SETS THE FLOOR: `TX-PARAM-DECORATOR-READS`, filed 2026-09-06, is 24 characters over 4
+ * segments with a run of 9 capitals, in `DECORATOR`. It replaced `TX-SURFACE-REGISTER`, 19
+ * characters over 3 segments with a run of 8. The capitals bound is {@link TX_CAPITALS}, which is
+ * the kind's and not this position's.
  */
 const ENTRY_BOUND: Extent = { chars: 32, segments: 6, perToken: 6, capitals: TX_CAPITALS };
 
@@ -629,12 +631,15 @@ const BUILD_LINE_BOUND: Extent = { chars: 48, segments: 8, perToken: 4, capitals
 /**
  * One line of a surrogate `BUILD-AMENDMENTS.md`.
  *
- * THE LONGEST LINE IS 31 CHARACTERS AND IT IS NOT THE ONE THIS COMMENT USED TO NAME. With its
- * digests and their spaces removed it is `### [ ] \`TX-EVENT-PAYLOAD-DIFF\``; the
- * `### [x] \`TX-GLOBALGUARD\`` this comment called the maximum is 24 and is nowhere near it. The
- * figure is in {@link CITED_READINGS} and a case derives it from the artefact rather than trusting
- * this sentence. Capitals are {@link TX_CAPITALS}, which is the entry id's kind and not this
- * position's, so the same id cannot be admitted here and refused where it stands alone.
+ * THE LONGEST LINE IS 34 CHARACTERS AND IT HAS NOW BEEN THE WRONG ONE IN THIS COMMENT TWICE. With
+ * its digests and their spaces removed it is `### [ ] \`TX-PARAM-DECORATOR-READS\``, filed
+ * 2026-09-06; the `### [ ] \`TX-EVENT-PAYLOAD-DIFF\`` this sentence named is 31 and had already been
+ * passed by `### [ ] \`TX-CANONICAL-POSITIONS\`` at 32, which is what the case was actually holding
+ * while the sentence said 31. The `### [x] \`TX-GLOBALGUARD\`` named before that is 24. The figure
+ * is in {@link CITED_READINGS} and a case derives it from the artefact rather than trusting this
+ * sentence, which is the only reason either mistake was visible. Capitals are {@link TX_CAPITALS},
+ * which is the entry id's kind and not this position's, so the same id cannot be admitted here and
+ * refused where it stands alone.
  */
 const AMENDMENT_LINE_BOUND: Extent = {
   chars: 96,
@@ -647,7 +652,7 @@ const AMENDMENT_LINE_BOUND: Extent = {
  * How many digests the whole artefact may carry.
  *
  * A VOLUME BOUND AND NOTHING MORE, stated as one. A digest is eight bytes a reader cannot read, and
- * the artefact carries 2,918 of them today, which is 23 KB of bits that only the generator
+ * the artefact carries 2,928 of them today, which is 23 KB of bits that only the generator
  * decides the meaning of. This bound permits four times that. It does not make the digests safe; it
  * makes a generator mistake finite. Most of them are the prefix digests of amendment headings, which
  * grow with the document, so the room is real rather than decorative.
@@ -663,7 +668,7 @@ const AMENDMENT_LINE_BOUND: Extent = {
  * tighter on the quantity the bound exists for, and looser on one line taken alone.
  *
  * IT TRACKS THE DOCUMENT RATHER THAN A KIND, AND THAT IS SAID PLAINLY HERE INSTEAD OF BEING FOUND
- * LATER. 12,000 is four times the 2,918 the artefact carries, and the number it is four times moves
+ * LATER. 12,000 is four times the 2,928 the artefact carries, and the number it is four times moves
  * with ordinary writing: most of them are the prefix digests of amendment headings, one per word
  * boundary of a title, so one entry with a long title adds forty and a milestone of writing adds
  * several hundred. There is no property of the KIND that says how many digests a reading of four
@@ -1083,7 +1088,7 @@ export const CITED_READINGS: readonly {
 }[] = [
   { path: 'data.build', measure: 'chars', reading: 24, cited: 'BUILD_LINE_BOUND' },
   { path: 'data.build', measure: 'capitals', reading: 7, cited: 'BUILD_LINE_BOUND, RELEASE' },
-  { path: 'data.amendments', measure: 'chars', reading: 32, cited: 'AMENDMENT_LINE_BOUND' },
+  { path: 'data.amendments', measure: 'chars', reading: 34, cited: 'AMENDMENT_LINE_BOUND' },
   {
     path: 'data.amendments',
     measure: 'capitals',
@@ -1093,8 +1098,8 @@ export const CITED_READINGS: readonly {
   {
     path: 'data.markers[].entry',
     measure: 'capitals',
-    reading: 8,
-    cited: 'ENTRY_BOUND, TX-SURFACE-REGISTER',
+    reading: 9,
+    cited: 'ENTRY_BOUND, TX-PARAM-DECORATOR-READS',
   },
   {
     path: 'data.claimMap[].id',
