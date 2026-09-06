@@ -17,11 +17,17 @@
 import { execFileSync } from 'node:child_process';
 import { mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 import { gzipSync } from 'node:zlib';
 import { DIGEST_LENGTH } from '@openref/render';
 import { beforeAll, describe, expect, it } from 'vitest';
-import { CLIENT_JS_ENTRY, SIZE_BUDGETS, THEME_CSS_ROOTS } from '../../src/config';
+import {
+  CLIENT_JS_ENTRY,
+  CLIENT_JS_GESTURES,
+  SHIPPED_CLIENT_BUNDLES,
+  SIZE_BUDGETS,
+  THEME_CSS_ROOTS,
+} from '../../src/config';
 import {
   BASELINE_INPUT_PATHS,
   baselineFreshness,
@@ -32,76 +38,80 @@ import { collectBudgetOutcomes } from '../../src/lib/budget-report';
 import type { BudgetOutcome } from '../../src/lib/budget-report';
 import { formatBytes } from '../../src/lib/budgets';
 import { countCommitsSince } from '../../src/lib/git';
+import type { ModuleGraphPartition } from '../../src/lib/module-graph';
+import { partitionByGesture, partitionModuleGraph } from '../../src/lib/module-graph';
 import { forgetPublishedForm, readPublishedForm } from '../../src/lib/published-form';
+import { collectFiles } from '../../src/lib/walk';
 
 const REPO_ROOT = join(import.meta.dirname, '..', '..', '..', '..');
 
 /**
- * The six files the first paint compiles, in the order the entry names them.
+ * The files the first paint compiles, walked out of the entry rather than written down.
  *
- * SIX OF THESE NAMES MOVED AND A SEVENTH FILE APPEARED AT `TX-SOCKET-CONSOLE`, and the reason is
- * the same mechanism one level down. A chunk's name is its content digest, so one more deferred
- * entry point changes which modules each initial chunk holds and every name with it, and the
- * region the notice kinds live in became a chunk of its own because the set of entry points that
- * reach it changed. The names are re-read here rather than kept; the figures below are what the
- * file is about.
+ * THIS WAS A HAND WRITTEN LIST OF SEVEN CHUNK NAMES UNTIL 2026-09-05, AND IT HAD GONE STALE NINE
+ * TIMES BEFORE IT BROKE. A chunk's name is a digest over the modules that went into it, so it moves
+ * whenever anything upstream of it moves, whether or not a byte of the chunk itself changes. Nine
+ * paragraphs stood here narrating nine such rotations. The tenth is the one nobody retyped in time:
+ * `e2f4000` turned `chunk-NQKJDTAZ` into `chunk-YOKCG3IN` and `chunk-DJLSRFLZ` into
+ * `chunk-MOA7QWC2`, and six of this file's ten cases died on `the catalog has no asset named
+ * chunk-NQKJDTAZ.js` rather than on anything about the artefact.
  *
- * ONE OF THESE NAMES MOVED ON 2026-09-03 AND ITS SIZE MOVED WITH IT, which is the other case and
- * the reason both are written down. `chunk-3BFRF6WF` became `chunk-FMGVZQY6` and grew from 1,093 to
- * 1,418 bytes, because `T065` put `nodeSegmentOf` and the twenty one names a mount claims into
- * `links.ts`, which that chunk holds. The list ships by necessity: a served page carries node ids
- * and the browser builds the link, so a rule the bundle does not have is a theme linking to an
- * address the server does not serve. SPEC 20 records the arrival and the cap did not move.
+ * NOT ONE BYTE MOVED WITH THEM, WHICH IS WHY THE LIST WAS NEVER THE SUBJECT. Measured by building
+ * the tree at `466722f`, at `c49b17c` and at `HEAD`: the published first paint is 114,327 bytes at
+ * all three, both rotated chunks weigh exactly what they weighed, 5,089 and 2,352, and `openref.js`
+ * is 22,859 throughout. Ten rounds of retyping digests bought ten chances to be wrong about an
+ * artefact that had not changed, and bought no fact.
  *
- * THAT SAME NAME MOVED AGAIN ON 2026-09-03 AND ITS SIZE STILL DID NOT. `chunk-CRGLGLGA` became
- * `chunk-DC7HAQCY` when the operation article began stating the refusal of a language that could
- * not write the request, so a reader can tell a vanished tab from a language the page never had.
- * Same mechanism, same 5,089 bytes, and the whole of the change is again in `openref.js`.
+ * SO IT IS WALKED, BY THE FUNCTION THE `client-js-raw` BUDGET ITSELF WALKS WITH, and that function
+ * had already written the rule down: "a hand written list of which chunks are deferred is a second
+ * copy of a fact the bundler already decided, and it would go stale the first time a chunk was
+ * renamed by its content hash, which is every time its content changes." The same sentence was true
+ * of the initial side and of this copy of it. Reading the partition here also makes a divergence
+ * between this file and the budget impossible by construction, which is the argument
+ * `readPublishedForm` already makes for calling the catalog rather than describing it.
  *
- * ONE OF THESE NAMES MOVED ON 2026-09-03 AND ITS SIZE DID NOT, which is the plain form of the
- * mechanism. `chunk-IF2D2VIE` became `chunk-CRGLGLGA` when the operation article gained the
- * sentence naming the three SPEC 18 languages the page does not draw: the chunk imports the module
- * that changed, so its digest moved while its content did not, and it weighs 5,089 bytes either
- * way. Every byte of that change is in `openref.js`, and the figure below says how many.
- *
- * ONE OF THESE NAMES MOVED ON 2026-09-05 AND ITS SIZE MOVED WITH IT. `chunk-MPK3G3AA` became
- * `chunk-NNVNJ4ZN` and grew from 656 to 760 bytes: it is the chunk the notice kinds live in, and
- * `StateNotice` gained the shapes of `runtime-missing` and `drift-missing`. `chunk-Q4YE3IPE` did
- * not move at all this time, name or size, which is the first round in a while where a change to
- * the article left an initial chunk alone. The rest of that slice is in `openref.js`, which went
- * from 21,280 to 22,215, and the four things that spent it are itemised in the figure below.
- *
- * TWO OF THESE NAMES MOVED ON 2026-09-04 AND NEITHER SIZE DID, WHICH IS THE PLAIN MECHANISM AGAIN.
- * `chunk-DC7HAQCY` became `chunk-Q4YE3IPE` and `chunk-FYRWH3QL` became `chunk-TBC2TEML` when the
- * operation article gained the third sentence under the tabs, the one saying what is true of the
- * samples it did draw. Both weigh exactly what they weighed, 5,089 and 2,352, and the whole of the
- * change is again in `openref.js`.
- *
- * TWO OF THESE NAMES MOVED ON 2026-09-05 AND NOT ONE BYTE OF THE ARTEFACT DID, WHICH IS THE PLAIN
- * MECHANISM AT ITS PUREST. `chunk-D45QPAC7` became `chunk-NQKJDTAZ` and `chunk-ZSSABZO4` became
- * `chunk-DJLSRFLZ` when the node page lookup and the health heading were changed: both are server
- * side modules, and what reached the bundle is nothing at all. Every one of the seven initial files
- * weighs exactly what it weighed, `openref.js` included at 22,604, and so does every deferred chunk;
- * the digest moved because it is taken over the modules that went in rather than over the bytes that
- * came out, and comments are stripped on the way. The one figure that moved anywhere is the gzip row
- * of the telltale entry, by 11 bytes, and the entry below says why.
- *
- * TWO OF THESE NAMES MOVED ON 2026-09-02 AND NOT ONE OF THE SIZES DID. A chunk's name is its
- * content digest, so renaming a published constant moves it and every chunk that imports it:
- * `chunk-TEAI3FZD` became `chunk-5LRQ4D6P` when `@openref/vue`'s `DEFAULT_THEME_NAME` became
- * `FALLBACK_THEME_NAME`, and `chunk-KW7NTLUC` became `chunk-BV3VPU5E` because it imports the
- * first. Both weigh exactly what they weighed, and so does the total, which is the property the
- * figures below are actually about.
+ * WHAT IS DERIVED IS WHICH FILES ARE WEIGHED. WHAT THEY WEIGH IS STILL WRITTEN DOWN, because that
+ * is the drift this file exists to catch: a figure nobody can derive from the thing it measures.
  */
-const INITIAL = [
-  'openref.js',
-  'chunk-EJ4XQ22A.js',
-  'chunk-FMGVZQY6.js',
-  'chunk-NQKJDTAZ.js',
-  'chunk-GKCAFBE4.js',
-  'chunk-DJLSRFLZ.js',
-  'chunk-NNVNJ4ZN.js',
-] as const;
+function firstPaint(): {
+  readonly partition: ModuleGraphPartition;
+  readonly names: readonly string[];
+} {
+  const bundle = SHIPPED_CLIENT_BUNDLES.find((entry) => entry.file === CLIENT_JS_ENTRY);
+  if (bundle === undefined) {
+    throw new Error(
+      `no shipped bundle is declared for ${CLIENT_JS_ENTRY}, so the first paint of the default ` +
+        'reference cannot be walked and nothing here would describe what a reader downloads',
+    );
+  }
+
+  const present = bundle.roots.flatMap((root) =>
+    collectFiles(join(REPO_ROOT, root), ['.js', '.mjs'], REPO_ROOT),
+  );
+
+  const partition = partitionModuleGraph(REPO_ROOT, CLIENT_JS_ENTRY, present);
+
+  return { partition, names: partition.initial.map((file) => basename(file)) };
+}
+
+const FIRST_PAINT = firstPaint();
+
+/** Repository relative paths of the files the first paint compiles, sorted by the walk. */
+const INITIAL_FILES = FIRST_PAINT.partition.initial;
+
+/** The same files under the name the catalog keys them by, which is their name on disk. */
+const INITIAL = FIRST_PAINT.names;
+
+/** The entry, named from the configuration, which is the one name here that cannot rotate. */
+const ENTRY = basename(CLIENT_JS_ENTRY);
+
+/**
+ * The deferred half divided by the gesture that downloads it, so no gesture's chunks are retyped.
+ *
+ * `partitionByGesture` refuses a declared root that matches nothing and a deferred chunk no gesture
+ * claims, so this side of the bundle is already checked in both directions where it is declared.
+ */
+const SIGN_IN_RETURN = partitionByGesture(REPO_ROOT, FIRST_PAINT.partition, CLIENT_JS_GESTURES);
 
 /** The telltale themed entry, which is a second served reference and a second published form. */
 const THEME_ENTRY = 'packages/theme-telltale/dist/entry/entry.js';
@@ -117,9 +127,16 @@ describe('the published form of this tree', () => {
     published = readPublishedForm(REPO_ROOT);
   });
 
+  // THE MESSAGE LISTS THE CATALOG, because the one time this threw it named only what was absent.
+  // A chunk name is a digest and the answer to a missing one is almost always the same rotation, so
+  // a message that shows what is there turns a lookup into a diagnosis in one reading.
   const sizeOf = (name: string): number => {
     const bytes = published.get(name);
-    if (bytes === undefined) throw new Error(`the catalog has no asset named ${name}`);
+    if (bytes === undefined) {
+      throw new Error(
+        `the catalog has no asset named ${name}; it holds ${[...published.keys()].sort().join(', ')}`,
+      );
+    }
 
     return bytes.byteLength;
   };
@@ -130,6 +147,16 @@ describe('the published form of this tree', () => {
     expect(THEME_CSS_ROOTS).toEqual(['packages/theme/dist', 'packages/theme/fonts']);
     expect(CLIENT_JS_ENTRY).toBe('packages/nest/dist/browser/openref.js');
     for (const name of [...STYLESHEETS, ...INITIAL]) expect(published.has(name)).toBe(true);
+
+    // And the walk that produced the list reached everything under the roots, which is what makes
+    // the sums below trustworthy. `partitionModuleGraph` reports the third set on purpose: a
+    // specifier its parser stopped understanding would silently shrink the first paint to the entry
+    // alone and report the smallest bundle this project has ever built, and every figure below
+    // would follow it down without a single case going red. The entry is in its own closure and the
+    // count is seven, which is the figure that moves when a chunk arrives, merges or splits.
+    expect(FIRST_PAINT.partition.unaccounted).toEqual([]);
+    expect(INITIAL).toContain(ENTRY);
+    expect(INITIAL).toHaveLength(7);
   });
 
   it('should weigh the three stylesheets at the figure SPEC 20 re-derived the cap from', () => {
@@ -253,24 +280,32 @@ describe('the published form of this tree', () => {
     // AND WHERE THE 0 WENT ON 2026-09-05, WHICH IS THE CASE THIS LINE EXISTS FOR. The node page
     // lookup and the health heading are decided on the server, so nothing arrived: the entry is
     // 22,859 either way, the notice chunk is 760 either way, the six files beside the entry are
-    // 90,708 either way, and the total is the same 114,327. Two chunk names rotated and are
-    // re-read above, because a digest is taken over the modules that went in.
-    expect(sizeOf('openref.js')).toBe(22_859);
-    expect(sizeOf('chunk-NNVNJ4ZN.js')).toBe(760);
-    expect(total - sizeOf('openref.js') - sizeOf('chunk-NNVNJ4ZN.js')).toBe(90_708);
-    expect(sizeOf('chunk-NQKJDTAZ.js')).toBe(5_089);
+    // 90,708 either way, and the total is the same 114,327. Two chunk names rotated, and since
+    // 2026-09-05 they rotate without anything here having to be retyped.
+    expect(sizeOf(ENTRY)).toBe(22_859);
+    expect(total - sizeOf(ENTRY)).toBe(91_468);
+
+    // AND EVERY FILE'S OWN FIGURE, AS A SORTED LIST OF WEIGHTS RATHER THAN AS A LIST OF NAMES.
+    // Three lines stood here naming two chunks by their digests, `chunk-NNVNJ4ZN` at 760 and
+    // `chunk-NQKJDTAZ` at 5,089, and the second is the name that broke this file. A digest cannot
+    // be asserted about, because it carries no fact about the artefact: both of the names that
+    // rotated at `e2f4000` weigh exactly what they weighed. What does carry a fact is the weight,
+    // so the weights are compared as a multiset. This is strictly stronger than the three lines it
+    // replaces, which pinned three of seven figures and let the other four move inside the total:
+    // 760 and 5,089 are still here, and so are the five that were never checked.
+    const weights = INITIAL.map((name) => sizeOf(name)).sort((left, right) => left - right);
+    expect(weights).toEqual([760, 1_418, 1_961, 2_352, 5_089, 22_859, 79_888]);
   });
 
   it('should account for every byte of both deltas as a rewritten reference', () => {
     // Given the files on disk, which is the form the caps used to be taken on
     const onDisk = (relativePath: string): number =>
       readFileSync(join(REPO_ROOT, relativePath)).byteLength;
-    const browser = 'packages/nest/dist/browser';
 
-    // When
+    // When, over the paths the walk returned rather than over a directory joined to a name
     const cssDelta = sizeOf('fonts.css') - onDisk('packages/theme/fonts/fonts.css');
-    const jsDelta = INITIAL.reduce(
-      (sum, name) => sum + sizeOf(name) - onDisk(`${browser}/${name}`),
+    const jsDelta = INITIAL_FILES.reduce(
+      (sum, file) => sum + sizeOf(basename(file)) - onDisk(file),
       0,
     );
 
@@ -283,11 +318,21 @@ describe('the published form of this tree', () => {
   });
 
   it('should weigh the cheapest deferred gesture at what the JS property is checked with', () => {
-    // Given the two files a return from an authorization server downloads
-    // When
-    const total = sizeOf('oauth-landing-VRHHK533.js') + sizeOf('chunk-FI2DNV2T.js');
+    // Given the two files a return from an authorization server downloads, taken from the gesture
+    // declaration rather than named here. THE SAME DEFECT WAS LOADED HERE AND HAD NOT FIRED YET:
+    // `oauth-landing-VRHHK533.js` and `chunk-FI2DNV2T.js` are digests, and a rotation of either
+    // would have killed this case exactly as `chunk-NQKJDTAZ` killed the six above. Which chunks a
+    // gesture downloads is a fact `CLIENT_JS_GESTURES` already declares and `partitionByGesture`
+    // already resolves, checked in both directions there, so there was never a second copy to keep.
+    const gesture = SIGN_IN_RETURN.byGesture.get('sign-in-return');
+    if (gesture === undefined) throw new Error('no sign-in-return gesture is declared');
 
-    // Then
+    // When
+    const total = gesture.files.reduce((sum, file) => sum + sizeOf(basename(file)), 0);
+
+    // Then, the two files and what they weigh, both off this tree
+    expect(gesture.files).toHaveLength(2);
+    expect(gesture.missingRoots).toEqual([]);
     expect(total).toBe(1_468);
   });
 
@@ -376,12 +421,25 @@ describe('the published form of this tree', () => {
     // compresses, so eleven bytes of the deflate window read differently and the raw row, which
     // compresses nothing, is byte identical at 264,410. The cap did not move and the headroom below
     // is taken off the measurement.
+    //
+    // 0 RAW AND MINUS 29 GZIP AT `e2f4000`, WHICH IS THE SAME FINDING A SECOND TIME AND THE REASON
+    // THE LIST AT THE TOP OF THIS FILE IS NOW WALKED. Nothing arrived in this bundle either: the
+    // raw row is the same 264,410 byte for byte, and the first paint of the default reference is
+    // the same 114,327, measured by building the tree at `466722f`, at `c49b17c` and at `HEAD`. What
+    // moved is two chunk digests, `chunk-NQKJDTAZ` to `chunk-YOKCG3IN` and `chunk-DJLSRFLZ` to
+    // `chunk-MOA7QWC2`, and both of those chunks are in this entry's directory too. Their names sit
+    // inside the import statements of the files this row compresses, and a digest is sixteen
+    // characters either way, so the raw row cannot see the change and the deflate window reads 29
+    // bytes shorter. THE CAP DID NOT MOVE, the headroom grew by the same 29, and this figure is
+    // re-recorded rather than derived for the reason it exists: a drift detector cannot take its
+    // expected value from the thing it is watching. It is the one figure in this file that a
+    // rotation still moves, and it is now the only one.
     expect(onDisk).toBe(264_410);
-    expect(gzip).toBe(98_130);
+    expect(gzip).toBe(98_101);
 
     // And the headroom each row actually has, against caps neither of which moved
     expect(281 * 1024 - onDisk).toBe(23_334);
-    expect(97 * 1024 - gzip).toBe(1_198);
+    expect(97 * 1024 - gzip).toBe(1_227);
   });
 
   it('should leave the caps where the two derivations put them', () => {
@@ -410,7 +468,13 @@ describe('the published form of this tree', () => {
     // arithmetic on two stale literals in the file whose own header calls a literal describing a
     // vanished artefact the class it exists to prevent. Both operands are now read from the tree.
     const initial = INITIAL.reduce((sum, name) => sum + sizeOf(name), 0);
-    const signInReturn = sizeOf('oauth-landing-VRHHK533.js') + sizeOf('chunk-FI2DNV2T.js');
+    // AND THE GESTURE FROM ITS DECLARATION, NOT FROM TWO DIGESTS TYPED HERE, for the reason the
+    // list above is walked: a rotation of either name would have failed the cap derivation on a
+    // question about a file name rather than on a question about the artefact.
+    const signInReturn = (SIGN_IN_RETURN.byGesture.get('sign-in-return')?.files ?? []).reduce(
+      (sum, file) => sum + sizeOf(basename(file)),
+      0,
+    );
 
     // FOUR BYTES OVER ON 2026-09-04, REPORTED RED RATHER THAN PAID FOR, AND THEN RULED ON. The third
     // sentence under the tabs delivers two results the generator had always computed and the
