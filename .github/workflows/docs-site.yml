@@ -1,0 +1,93 @@
+name: Docs site
+
+# THE SITE DEPLOYS FROM THE RUN THAT PROVED IT. A push to main rebuilds docs/dist with the
+# shipped openref binary, reruns the suites docs/README.md names as what holds the site to
+# the product, and publishes the exact bytes those suites saw. The same suites already run
+# in ci.yml on every branch push; this file exists so a deploy cannot happen without them.
+#
+# The artifact route is load bearing, not a convenience: the built site links every asset
+# from the root (/_assets/..., /get-docs) and keeps them in underscore directories. A branch
+# based Pages deploy runs Jekyll, which drops underscore directories, and a project subpath
+# (openref-dev.github.io/openref/) breaks every rooted link. Deploying the artifact skips
+# Jekyll, and the custom domain serves the site at a root. Both halves are required.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# One deploy in flight at a time, and never cancelled mid flight: Pages serves whatever
+# deployment finished last, and cancelling a running pair can leave an older build live.
+concurrency:
+  group: docs-site
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: build docs/dist and rerun the suites that hold it to the product
+    runs-on: ubuntu-latest
+    # The wall matches ci.yml's verify job, whose comment carries the measurement. This job
+    # runs a subset of that work, so the bound that holds the whole holds the subset.
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '^24.15.0'
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      # docs:build runs the shipped openref binary out of dist, and the docs suites type
+      # check every example against built declaration output, so the packages build first.
+      - name: Build
+        run: pnpm run build
+
+      - name: Build the site
+        run: pnpm run docs:build
+
+      # The suites from docs/README.md, scoped to the two directories that own them. The
+      # browser spec launches the runner's system Chrome through the chrome channel, the
+      # same way it does under ci.yml; OPENREF_CHROME_PATH overrides the path elsewhere.
+      - name: Docs suites
+        run: pnpm exec vitest run tools/docs-site/test tools/browser-budget/test/integration/documentation-site.spec.ts
+
+      - name: Upload the site as the Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs/dist
+
+  deploy:
+    name: deploy to GitHub Pages
+    # workflow_dispatch can run from any ref; a dispatch from a branch builds and proves
+    # but never publishes.
+    if: github.ref == 'refs/heads/main'
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      # enablement creates the Pages site on the first run, so turning Pages on is not a
+      # click in the UI that a fork or a fresh clone of the repository silently lacks.
+      - name: Ensure Pages is enabled
+        uses: actions/configure-pages@v5
+        with:
+          enablement: true
+
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@v4
