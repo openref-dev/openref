@@ -1538,7 +1538,8 @@ a.oref-topology-name {
   margin: 2px 0 0;
 }
 
-.oref-rule-head {
+.oref-rule-head,
+.oref-suppression-head {
   cursor: pointer;
 }
 
@@ -2059,7 +2060,8 @@ a.oref-topology-name {
   color: #ffb020;
 }
 
-.oref-rule-summary {
+.oref-rule-summary,
+.oref-suppressed-reason {
   color: #93a4b3;
   font-size: 13px;
 }
@@ -2073,6 +2075,17 @@ a.oref-topology-name {
 .oref-rule-zero .oref-drift-code,
 .oref-rule-zero .oref-rule-summary {
   color: #79899a;
+}
+
+.oref-suppression,
+.oref-suppressed {
+  color: #79899a;
+  padding: 4px 0;
+}
+
+.oref-suppression {
+  border-top: 1px solid #161f28;
+  margin-top: 10px;
 }
 
 .oref-schema-readonly {

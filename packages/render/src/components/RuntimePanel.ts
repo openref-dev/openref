@@ -188,6 +188,25 @@ export const RuntimePanel = defineComponent({
           { class: 'oref-drift-list' },
           remainder.map((issue) => h(drift.value, { issue })),
         ),
+        // THE SUPPRESSED HALF, CLOSED, AND ONLY WHEN THIS NODE HAS ONE. The header counts what is
+        // drawn, so a node whose only findings were suppressed would otherwise be pixel identical
+        // to a node with none, and the product's own thesis would be made silently in the wrong
+        // direction. It is the same `details` the health page uses and for the same reasons: it
+        // survives the static build, it works with no JavaScript, and it authorizes nothing.
+        runtime.suppressed.length === 0
+          ? null
+          : h('details', { class: 'oref-suppression' }, [
+              h(
+                'summary',
+                { class: 'oref-suppression-head' },
+                `${String(runtime.suppressed.length)} suppressed on this operation`,
+              ),
+              h(
+                'ul',
+                { class: 'oref-drift-list' },
+                runtime.suppressed.map((issue) => h(drift.value, { issue })),
+              ),
+            ]),
       ]);
     };
   },

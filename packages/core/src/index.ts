@@ -110,7 +110,12 @@ export type {
   IRTimeout,
 } from './ir/domain/runtime.types';
 
-export type { IRHealthCheck, IRHealthReport } from './ir/domain/health.types';
+export type {
+  IRHealthCheck,
+  IRHealthReport,
+  IRHealthSuppressedClass,
+  IRHealthSuppression,
+} from './ir/domain/health.types';
 
 export type {
   IRRelationship,
@@ -328,9 +333,19 @@ export {
   driftForNode,
   groupDriftByCause,
   groupDriftByRule,
+  healthPrimaryScore,
   healthScore,
+  healthScoreMark,
+  healthSuppression,
+  healthSuppressionNote,
 } from './drift/domain/health';
-export type { DriftCauseGroup, DriftRuleGroup, HealthReportOptions } from './drift/domain/health';
+export type {
+  DriftCauseGroup,
+  DriftRuleGroup,
+  HealthReportOptions,
+  HealthScoreMarkSource,
+  HealthSuppression,
+} from './drift/domain/health';
 export {
   buildDoctorReport,
   DOCTOR_REPORT_VERSION,
@@ -341,6 +356,8 @@ export type {
   IRDoctorCheck,
   IRDoctorFinding,
   IRDoctorReport,
+  IRDoctorSuppressedClass,
+  IRDoctorSuppression,
 } from './drift/domain/doctor-report';
 export { proxyServers } from './ir/domain/proxy-servers';
 export { buildDiffReport } from './diff/domain/diff-report';

@@ -21,6 +21,7 @@ import {
   orderRelationships,
   withRuntimeErrorContracts,
   type DriftObservation,
+  type HealthSuppression,
   type IRDocument,
   type IRNode,
   type IRNodeRuntime,
@@ -54,6 +55,16 @@ export interface RuntimePassOptions extends CollectorRegistryOptions {
   readonly discovery: DiscoveryServiceLike;
   /** Guard class name to security scheme id, per SPEC 13.2, for `security-drift`. */
   readonly guardSecuritySchemes?: Readonly<Record<string, string>>;
+  /**
+   * The finding classes the host decided not to fix, per SPEC 7.2.
+   *
+   * IT REACHES THE DOCUMENT THROUGH THE HEALTH REPORT AND NOWHERE ELSE, which is what keeps the
+   * whole feature in one place. This pass hands it to `buildHealthReport` below and
+   * `finalizeDocument` hashes afterwards, so the suppression is inside the hashed document. The
+   * hash moving is correct and deliberate: it invalidates the SSR cache instead of serving a page
+   * built before the host decided.
+   */
+  readonly suppress?: readonly HealthSuppression[];
   /**
    * Channel nodes already paired with the handler that serves them, per SPEC 8.3.
    *
@@ -363,7 +374,11 @@ export function runRuntimePass(
     // reasons. After, because every rule of SPEC 7.1 reads a fact a collector attached above.
     // Before, because the report is part of the document a reader is served, and a document whose
     // hash predates its own health panel is a cache key that never changes when the panel does.
-    health: buildHealthReport(documented, { observation, checks: [registry.healthCheck()] }),
+    health: buildHealthReport(documented, {
+      observation,
+      checks: [registry.healthCheck()],
+      ...(options.suppress === undefined ? {} : { suppress: options.suppress }),
+    }),
   };
 
   return {

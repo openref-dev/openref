@@ -186,8 +186,29 @@ describe('the published form of this tree', () => {
     // the message above it does. THE CAP DID NOT MOVE and the headroom is 353 bytes, asserted
     // below. What the two names cost the reader's first paint is zero: the health panel is server
     // markup the browser adopts, and the initial JS figure below is byte identical.
-    expect(total).toBe(63_135);
-    expect(sizeOf('theme.css')).toBe(49_047);
+    //
+    // 289 BYTES MORE ON 2026-09-07, AND THEY ARE FOUR NEW NAMES IN TWO NEW RULES. Host side
+    // suppression of SPEC 7.2 draws a closed disclosure under the rule groups and again on a node
+    // page: `.oref-suppression` and `.oref-suppression-head` are the disclosure, `.oref-suppressed`
+    // is one class inside it and `.oref-suppressed-reason` is the reason the host gave, which is
+    // the field that makes the row a decision rather than a list somebody pasted. Both are
+    // `details` elements, so the opening costs no script and survives the strict CSP of SPEC 19.
+    //
+    // WRITTEN AS FOUR SEPARATE RULES IT MEASURED 554 AND PUT THIS ROW 201 BYTES OVER ITS CAP. The
+    // cap was not moved and no other row was raided; the rules were written again against the
+    // headroom that exists. Two of the four names say exactly what a name already in this
+    // stylesheet says, so they are joined to it rather than restated: the summary to
+    // `.oref-rule-head`, which is the same `cursor: pointer` on the same element, and the reason
+    // to `.oref-rule-summary`, which is the same secondary colour at the same step of the scale.
+    // Nothing was dropped and no rule lost its ink. THE CAP DID NOT MOVE and the headroom is 64
+    // bytes, asserted below.
+    //
+    // WHAT THE FOUR NAMES COST THE READER'S FIRST PAINT IS ZERO. The health panel is server markup
+    // the browser adopts, and no suppression code reaches the browser bundle at all, which was
+    // checked by grepping the built `packages/nest/dist/browser` for the word and finding it in
+    // none of its twenty files.
+    expect(total).toBe(63_424);
+    expect(sizeOf('theme.css')).toBe(49_336);
     expect(sizeOf('tokens.css')).toBe(9_707);
     expect(sizeOf('fonts.css')).toBe(4_381);
   });
@@ -259,7 +280,20 @@ describe('the published form of this tree', () => {
     // call samples block, 470. The cap held 451 when the fourth arrived and it cost 470. Nothing
     // was trimmed to fit, no other row was raided, and the cap is the maintainer's to rule on, the
     // way the four bytes of 2026-09-04 were ruled on.
-    expect(total).toBe(114_327);
+    //
+    // 5 BYTES ON 2026-09-07, AND NOT ONE OF THEM IS CODE THIS SLICE WROTE. Host side suppression
+    // of SPEC 7.2 puts nothing in the browser at all: the health panel is server markup the
+    // browser adopts, and the built `packages/nest/dist/browser` was grepped for the word
+    // `suppress` across all twenty files and matched in none of them. What moved is the minifier's
+    // identifier allocation. Measured by building the tree twice and diffing the directory
+    // listing: nineteen of the twenty files are byte for byte the same length, ten under rotated
+    // digests, and the whole of the change is `chunk-ZW2USI7L` at 2,352 becoming `chunk-OZ6MCSON`
+    // at 2,357. The first divergence inside it is at byte 346 and it is a rename, `f` and `l`
+    // swapping and `I` becoming `h`, because `@openref/core` gained four exports and the order the
+    // bundler walks its modules in decides which short names are still free. THE CAP DID NOT MOVE
+    // and the row is now 668 over rather than 663, which is the same red the maintainer already
+    // holds and five bytes deeper into it, reported rather than paid for out of anywhere else.
+    expect(total).toBe(114_332);
 
     // AND ALL 57 ARE IN THE ENTRY, WHICH IS DERIVED HERE RATHER THAN RESTATED, exactly as the 26
     // and the 181 before them were. The six files beside the entry weighed 91,364 before the change
@@ -282,8 +316,12 @@ describe('the published form of this tree', () => {
     // 22,859 either way, the notice chunk is 760 either way, the six files beside the entry are
     // 90,708 either way, and the total is the same 114,327. Two chunk names rotated, and since
     // 2026-09-05 they rotate without anything here having to be retyped.
+    // AND WHERE THE 5 WENT ON 2026-09-07, WHICH IS THE OTHER SIDE OF THE SAME LINE. Not the entry:
+    // it is 22,859 either way, because nothing this slice wrote runs in the browser. All five are
+    // in the six files beside it, 91,468 becoming 91,473, and they are one chunk's minified
+    // identifier table rather than any statement.
     expect(sizeOf(ENTRY)).toBe(22_859);
-    expect(total - sizeOf(ENTRY)).toBe(91_468);
+    expect(total - sizeOf(ENTRY)).toBe(91_473);
 
     // AND EVERY FILE'S OWN FIGURE, AS A SORTED LIST OF WEIGHTS RATHER THAN AS A LIST OF NAMES.
     // Three lines stood here naming two chunks by their digests, `chunk-NNVNJ4ZN` at 760 and
@@ -294,7 +332,9 @@ describe('the published form of this tree', () => {
     // replaces, which pinned three of seven figures and let the other four move inside the total:
     // 760 and 5,089 are still here, and so are the five that were never checked.
     const weights = INITIAL.map((name) => sizeOf(name)).sort((left, right) => left - right);
-    expect(weights).toEqual([760, 1_418, 1_961, 2_352, 5_089, 22_859, 79_888]);
+    // The 2,352 became 2,357 on 2026-09-07, which is the whole of that day's five bytes and is
+    // recorded on the total above: a minified identifier table, not a statement.
+    expect(weights).toEqual([760, 1_418, 1_961, 2_357, 5_089, 22_859, 79_888]);
   });
 
   it('should account for every byte of both deltas as a rewritten reference', () => {
@@ -448,12 +488,20 @@ describe('the published form of this tree', () => {
     // deflate window reads ten bytes longer. THE CAP DID NOT MOVE, the headroom shrank by the same
     // ten, and this figure is re-recorded rather than derived for the reason it exists: a drift
     // detector cannot take its expected value from the thing it is watching.
-    expect(onDisk).toBe(264_410);
-    expect(gzip).toBe(98_111);
+    //
+    // 390 RAW ON 2026-09-07, AND THEY ARE THIS THEME'S OWN ANSWER TO SUPPRESSION rather than a
+    // knock-on. telltale replaces both positions that draw it, `HealthScore` and `RuntimePanel`,
+    // so a theme that drew only `health.rules` would show a reader 69 rows under a heading saying
+    // 111 more were found and taken out. What arrived is the disclosure in `HealthScore.ts` and
+    // three rules in the stylesheet, `tt-health-suppressed` and its two siblings. The marked score
+    // and the heading cost this row nothing, because both arrive assembled in the model. THE CAP
+    // DID NOT MOVE and the headroom is asserted below.
+    expect(onDisk).toBe(264_800);
+    expect(gzip).toBe(98_169);
 
     // And the headroom each row actually has, against caps neither of which moved
-    expect(281 * 1024 - onDisk).toBe(23_334);
-    expect(97 * 1024 - gzip).toBe(1_217);
+    expect(281 * 1024 - onDisk).toBe(22_944);
+    expect(97 * 1024 - gzip).toBe(1_159);
   });
 
   it('should leave the caps where the two derivations put them', () => {
@@ -553,7 +601,13 @@ describe('the published form of this tree', () => {
     // was raided, and no part of any of the four was trimmed to fit, which is the trade this
     // project forbids and the reason the four bytes of 2026-09-04 were reported the same way.
     // What the maintainer decides is whether the cap moves or a fix comes back out.
-    expect(capOf('client-js-raw') - initial).toBe(-663);
+    //
+    // 668 OVER ON 2026-09-07, WHICH IS THE SAME RULING FIVE BYTES DEEPER AND NOT A NEW ONE. The
+    // five are the minifier's identifier allocation shifting after `@openref/core` gained four
+    // exports, recorded in full on the initial files case above; no suppression code reaches this
+    // bundle. THE CAP DID NOT MOVE, no other row was raided, nothing was trimmed to fit, and the
+    // row stays red for the maintainer to rule on exactly as it was.
+    expect(capOf('client-js-raw') - initial).toBe(-668);
 
     // AND THE PROPERTY THE CAP WAS DERIVED BY, WHICH CANNOT BE RE-TAKEN WHILE THE ROW IS OVER.
     // The derivation is the smallest whole KB step the artefact fits under at which the cheapest
@@ -564,7 +618,7 @@ describe('the published form of this tree', () => {
     // are read off the tree, so a fix that brought the row back under the cap turns this red and
     // the property above it goes back in.
     expect(initial).toBeGreaterThan(capOf('client-js-raw'));
-    expect(initial - capOf('client-js-raw')).toBe(663);
+    expect(initial - capOf('client-js-raw')).toBe(668);
     expect(initial + signInReturn).toBeGreaterThan(112 * 1024);
 
     expect(capOf('theme-entry-raw')).toBe(281 * 1024);

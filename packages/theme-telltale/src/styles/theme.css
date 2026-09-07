@@ -903,6 +903,26 @@
   color: var(--oref-color-fg-muted);
 }
 
+/* What the host suppressed, per SPEC 7.2: the same disclosure anatomy as a rule group, muted,
+ * because it is the half a reader is not being asked to act on. */
+.tt-health-suppressed {
+  border-top: var(--oref-border-hair) solid var(--oref-color-line);
+  color: var(--oref-color-fg-muted);
+  margin-top: var(--oref-space-400);
+}
+
+.tt-health-suppressed-class {
+  display: flex;
+  align-items: center;
+  gap: var(--oref-space-300);
+  height: var(--oref-layout-row);
+}
+
+/* The reason the host gave, which is the field that makes this a decision rather than a list. */
+.tt-health-suppressed-reason {
+  color: var(--oref-color-fg-secondary);
+}
+
 .tt-notice {
   display: flex;
   align-items: center;

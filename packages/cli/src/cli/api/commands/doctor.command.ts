@@ -11,7 +11,11 @@ import { EXIT_CODE } from '../../domain/exit-code.constants';
 import { FAIL_ON_LEVELS, isFailOnLevel, meetsFailOnThreshold } from '../../domain/fail-on';
 import { parseArgs, stringFlag, unknownFlagRefusal } from '../argv';
 import { DOCTOR_USAGE } from '../help';
-import { renderDoctorFindings, renderDoctorSummary } from './doctor-report-text';
+import {
+  renderDoctorFindings,
+  renderDoctorSummary,
+  renderSuppressedFindings,
+} from './doctor-report-text';
 import { renderFixSummary } from './fix-report-text';
 
 /**
@@ -32,7 +36,7 @@ export async function runDoctor(context: CommandContext): Promise<CommandOutcome
   const { flags, unknown } = parseArgs(
     context.args,
     ['from-nest', 'fail-on'],
-    ['json', 'fix', 'dry-run'],
+    ['json', 'fix', 'dry-run', 'show-suppressed'],
   );
 
   if (flags.has('help')) {
@@ -66,6 +70,7 @@ export async function runDoctor(context: CommandContext): Promise<CommandOutcome
   const json = flags.has('json');
   const fix = flags.has('fix');
   const dryRun = flags.has('dry-run');
+  const showSuppressed = flags.has('show-suppressed');
 
   // A FLAG THAT SILENTLY DOES NOTHING IS THE DEFECT SPEC 17 NAMES AT `T043`. `--dry-run` previews
   // a fix run, so on its own there is nothing for it to preview, and accepting it would let a
@@ -96,6 +101,15 @@ export async function runDoctor(context: CommandContext): Promise<CommandOutcome
       context.stdout(`${renderDoctorSummary(report, title, document.runtime?.skipped ?? [])}\n`);
       if (report.findings.length > 0)
         context.stdout(`\n${renderDoctorFindings(report.findings)}\n`);
+
+      // THE FLAG GOVERNS THE FINDINGS AND NEVER THE FACT THAT THEY WERE TAKEN OUT. The summary
+      // above already names every suppressed class, its reason and its count, per SPEC 7.2; what
+      // this adds is the volume, which is exactly what a host suppressed a class to stop reading
+      // and exactly what they need when they come back to decide whether they still mean it.
+      if (showSuppressed) {
+        const block = renderSuppressedFindings(report.suppressedFindings ?? []);
+        if (block !== '') context.stdout(`\n${block}\n`);
+      }
     }
 
     if (tree !== undefined) {

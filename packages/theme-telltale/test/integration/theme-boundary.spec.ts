@@ -479,9 +479,9 @@ describe('the markup a complete L2 theme does not own', () => {
     // Then the subject is present before anything is said about absence: the renderer emits names,
     // the sweep reaches names, and the sweep reaches fewer.
     expect(emitted.files).toBe(79);
-    expect(emitted.literals).toHaveLength(361);
+    expect(emitted.literals).toHaveLength(365);
     expect(emitted.prefixes).toHaveLength(11);
-    expect(emitted.names).toHaveLength(350);
+    expect(emitted.names).toHaveLength(354);
     expect(surviving.length).toBeLessThan(emitted.names.length);
 
     // And the partition is pinned, both ways. 245 emitted names no fixture provokes is the number
@@ -507,9 +507,19 @@ describe('the markup a complete L2 theme does not own', () => {
     // attribute here for the third time for the same reason. The control's own row is
     // `.oref-tryit-actions`, a name this list already carries, which is why a control that grew a
     // sibling element added nothing to the boundary a theme has to style.
+    //
+    // It went from 246 to 250 on 2026-09-07, four arrivals and no departure, all of them host
+    // side suppression of SPEC 7.2: `oref-suppression` and `oref-suppression-head` are the closed
+    // disclosure the reference draws under the rule groups and again on a node page, and
+    // `oref-suppressed` and `oref-suppressed-reason` are one class inside it. No fixture provokes
+    // any of the four, because no fixture configures `runtime.suppress`, and this theme replaces
+    // both positions that draw them, `HealthScore` and `RuntimePanel`. All four are styled here
+    // all the same, under `tt-health-suppressed` and its two siblings, for the reason
+    // `tt-drift-subjects` is: this theme draws the same thing, and a theme that drew none of it
+    // would show a reader 69 rows under a heading saying 111 more were found and taken out.
     const emittedNotSwept = emitted.names.filter((name) => !surviving.includes(name));
     const sweptNotEmitted = surviving.filter((name) => !emitted.names.includes(name));
-    expect(emittedNotSwept).toHaveLength(246);
+    expect(emittedNotSwept).toHaveLength(250);
     expect(sweptNotEmitted).toEqual([
       'oref-method-get',
       'oref-method-post',

@@ -618,7 +618,11 @@ export { buildContentSecurityPolicy } from '@openref/render';
 // a host typing the list it is handed named a type it could not import. The same measurement found
 // it: the built declaration imports the name, and the case re-derives the list rather than
 // repeating it.
+// IT BECAME THIRTEEN ON 2026-09-07 WITH `HealthSuppression`, and by the same reading a third time.
+// `OpenRefRuntimeOptions.suppress` is typed in it, so a host writing the classes it decided not to
+// fix named a type it could not import, and the same measurement found it before a host did.
 export type {
+  HealthSuppression,
   IRConfidence,
   IRDiscoveryProblem,
   IRDocument,

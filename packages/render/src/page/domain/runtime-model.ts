@@ -28,6 +28,8 @@ import {
   groupDriftByCause,
   groupDriftByRule,
   hasRuntimeFacts,
+  healthScoreMark,
+  healthSuppressionNote,
   type IRDocument,
   type IRDriftIssue,
   type IRDriftRule,
@@ -45,6 +47,7 @@ import type {
   ErrorContractGroupModel,
   ErrorContractItemModel,
   HealthModel,
+  HealthSuppressionModel,
   ResponseMarkModel,
   RuntimeModel,
   RuntimeRowKind,
@@ -600,6 +603,12 @@ export function buildRuntimeModel(
   return {
     rows: rowsOf(runtime, document.runtime?.sourceLinkTemplate),
     drift: found.map((issue) => driftModel(issue, document, basePath, false)),
+    // THE HEADER COUNTS `drift` AND THIS IS WHAT IT DOES NOT COUNT, per SPEC 7.2. A node whose
+    // only findings were suppressed would otherwise be pixel identical to a node with none, which
+    // is the product's own thesis made silently and in the wrong direction.
+    suppressed: driftForNode(document.health?.suppression?.findings ?? [], nodeId).map((issue) =>
+      driftModel(issue, document, basePath, false),
+    ),
     // THE SCALE IS AN OPERATION'S, per SPEC 6.3: a channel keeps the labelled rows until M5
     // designs one, and a component that finds `parity` empty draws `rows` the way it always did.
     parity: node.kind === 'operation' ? buildParityRows(document, node, found, basePath) : [],
@@ -640,6 +649,7 @@ export function buildHealthModel(
 
   const operations = String(report.operationCount);
   const findings = String(report.drift.length);
+  const note = healthSuppressionNote(report);
 
   // THE SENTENCE AND THE SEVERITY OF A RULE COME FROM ITS OWN CHECK, so no second vocabulary
   // exists to drift: the check's label is the catalogue's sentence, per SPEC 7.1, and its id
@@ -699,8 +709,18 @@ export function buildHealthModel(
   const covered = causes === report.drift.length ? '' : ` in ${String(causes)} causes`;
 
   return {
-    title: `Documentation health, ${operations} operations, ${findings} findings${covered}`,
-    score: `${String(report.score)}%`,
+    // THE HEADING NAMES WHAT IS DRAWN AND THEN WHAT IS NOT, in that order and separated the same
+    // way, per SPEC 7.2. `69 findings, 111 suppressed by 2 classes` is a reader being told the
+    // size of the list they are looking at and the size of the one they are not; naming only the
+    // first is the page a host gets today when they stop reading a report of 180.
+    title:
+      `Documentation health, ${operations} operations, ${findings} findings${covered}` +
+      (note === '' ? '' : `, ${note}`),
+    // THE MARKED STRING AND NEVER THE BARE NUMBER, built once in `@openref/core`. Under the
+    // inversion of SPEC 7.2 the primary is the unsuppressed percentage, so a page that formatted
+    // `report.score` itself would still be honest and a page that formatted a component figure
+    // would not; assembling it here a second time is the divergence this call removes.
+    score: healthScoreMark(report),
     // THE TRIPLE IS THE REPORT REREAD AND NEVER A NEW COUNT: operations is the report's own
     // figure, and the two severities are the drift list partitioned, per `TX-PARITY-UI`.
     kpi: {
@@ -721,5 +741,52 @@ export function buildHealthModel(
         count: `${String(check.passed)} / ${String(check.total)}`,
       })),
     rules,
+    suppression: suppressionModel(report, document, basePath),
+  };
+}
+
+/**
+ * The suppression disclosure of SPEC 7.2, or null when the host suppressed nothing.
+ *
+ * NULL AND AN EMPTY LIST ARE DIFFERENT STATEMENTS, the way they are everywhere else in this file.
+ * Null is a document nobody suppressed anything on; a class present with a count of zero is a
+ * suppression that matched nothing on this deployment, which is a thing a reader has to be able to
+ * find out before the class comes back.
+ *
+ * THE FINDINGS ARE FOLDED BY CAUSE, exactly as the drawn rules are. The suppressed half is where
+ * the volume is by definition, since a class is suppressed for being large, so handing a reader
+ * who opens it a hundred copies of one sentence would reproduce inside the disclosure the problem
+ * the disclosure exists to solve.
+ *
+ * @param report - The report being drawn
+ * @param document - The normalized document, so a finding can name its subject
+ * @param basePath - Mount point, so a finding can be jumped to
+ * @returns The disclosure, or null
+ */
+function suppressionModel(
+  report: IRHealthReport,
+  document: IRDocument,
+  basePath: string,
+): HealthSuppressionModel | null {
+  const suppression = report.suppression;
+  if (suppression === undefined) return null;
+
+  const byRule = new Map<IRDriftRule, readonly IRDriftIssue[]>(
+    groupDriftByRule(suppression.findings).map((group) => [group.rule, group.issues]),
+  );
+
+  return {
+    note: healthSuppressionNote(report),
+    inverted: suppression.inverted,
+    classes: suppression.classes.map((entry) => ({
+      rule: entry.rule,
+      code: DRIFT_RULE_CODES[entry.rule],
+      severityClass: SEVERITY_CLASSES[entry.severity],
+      reason: entry.reason,
+      count: String(entry.matched),
+      findings: groupDriftByCause(byRule.get(entry.rule) ?? []).map((cause) =>
+        causeModel(cause.issue, cause.issues, document, basePath, true),
+      ),
+    })),
   };
 }

@@ -1857,7 +1857,8 @@ a.oref-topology-name {
   margin: var(--oref-space-100) 0 0;
 }
 
-.oref-rule-head {
+.oref-rule-head,
+.oref-suppression-head {
   cursor: pointer;
 }
 
@@ -2459,7 +2460,8 @@ a.oref-topology-name {
 }
 
 /* The rule row's sentence, the catalogue's own label beside the code and the kebab. */
-.oref-rule-summary {
+.oref-rule-summary,
+.oref-suppressed-reason {
   color: var(--oref-color-fg-secondary);
   font-size: var(--oref-font-size-300);
 }
@@ -2475,6 +2477,21 @@ a.oref-topology-name {
 .oref-rule-zero .oref-drift-code,
 .oref-rule-zero .oref-rule-summary {
   color: var(--oref-color-fg-muted);
+}
+
+/* What the host suppressed, per SPEC 7.2: a closed disclosure of muted rows, which is the
+ * zero rule row's vocabulary because both are rows a reader reads rather than acts on. Its
+ * summary and its reason are joined to the two rules above that already say exactly this,
+ * because `theme-css-raw` had 353 bytes of headroom and four new rules do not fit in them. */
+.oref-suppression,
+.oref-suppressed {
+  color: var(--oref-color-fg-muted);
+  padding: var(--oref-space-200) 0;
+}
+
+.oref-suppression {
+  border-top: var(--oref-border-hair) solid var(--oref-color-line);
+  margin-top: var(--oref-space-400);
 }
 
 /* The read only mark of the schema tree, the muted vocabulary of the deprecated badge. */

@@ -19,7 +19,7 @@
  */
 
 import { expandSourceLink, type SourceLinkExpansion } from '../../source-link/domain/source-link';
-import { buildHealthReport } from './health';
+import { buildHealthReport, healthScoreMark } from './health';
 import { DRIFT_RULE_CODES } from './rule-codes';
 import type { IRConfidence } from '../../ir/domain/confidence.types';
 import type { IRDocument } from '../../ir/domain/document.types';
@@ -111,13 +111,53 @@ export interface IRDoctorFinding {
   readonly sourceLink?: SourceLinkExpansion;
 }
 
+/** One suppressed class, with the code a reader cites beside the id the host wrote. */
+export interface IRDoctorSuppressedClass {
+  readonly rule: IRDriftRule;
+  /** Display code of SPEC 7.1, so a reader recognises the class by the name the page prints. */
+  readonly code: string;
+  readonly severity: IRDriftSeverity;
+  readonly reason: string;
+  /** How many findings it took out. Zero is reported, never dropped, per SPEC 7.2. */
+  readonly matched: number;
+}
+
+/** What suppression did, as `doctor` reports it. */
+export interface IRDoctorSuppression {
+  readonly classes: readonly IRDoctorSuppressedClass[];
+  readonly suppressedScore: number;
+  readonly unsuppressedScore: number;
+  /** True while any suppressed class is severity `error`, which is why `score` reads as it does. */
+  readonly inverted: boolean;
+}
+
 /** The whole of SPEC 7.2, self contained and versioned. */
 export interface IRDoctorReport {
   readonly version: number;
+  /**
+   * The primary percentage, per {@link IRHealthReport.score} and SPEC 7.2.
+   *
+   * A `--fail-on` GATE READS THIS AND IS MEANT TO. Suppression is what a host uses to stop a class
+   * they decided not to fix from failing every build, and that is the whole purpose; what it can
+   * never do is flatter the number, because while any suppressed class is severity `error` this
+   * member carries the UNSUPPRESSED score.
+   */
   readonly score: number;
+  /**
+   * The score as every surface prints it, from `healthScoreMark`.
+   *
+   * IT IS IN THE REPORT SO THAT NO CONSUMER BUILDS THE SENTENCE ITSELF. A reader that formats
+   * `score` on its own loses the parenthesis, and a reader that computes a score of its own from
+   * the finding counts diverges from the page by construction. Both are what this member closes.
+   */
+  readonly scoreText: string;
   readonly operationCount: number;
   readonly checks: readonly IRDoctorCheck[];
   readonly findings: readonly IRDoctorFinding[];
+  /** What the host suppressed, when anything was. Absent means nothing was configured. */
+  readonly suppression?: IRDoctorSuppression;
+  /** The findings that moved out of `findings`, which `doctor --show-suppressed` prints. */
+  readonly suppressedFindings?: readonly IRDoctorFinding[];
 }
 
 /** What {@link readDoctorReport} returns: the report, or the reason it refused to hand one over. */
@@ -283,14 +323,42 @@ function doctorFinding(document: IRDocument, issue: IRDriftIssue): IRDoctorFindi
 export function buildDoctorReport(document: IRDocument): IRDoctorReport {
   const report = document.health ?? buildHealthReport(document);
 
+  // THE SUPPRESSION IS CARRIED ACROSS AND NEVER RECOMPUTED, exactly as the score is. What this
+  // layer adds is the display code beside each class, because a reader who suppressed `DX030`
+  // recognises it by that name and the id is what they had to write.
+  const suppression =
+    report.suppression === undefined
+      ? undefined
+      : {
+          classes: report.suppression.classes.map((entry) => ({
+            rule: entry.rule,
+            code: DRIFT_RULE_CODES[entry.rule],
+            severity: entry.severity,
+            reason: entry.reason,
+            matched: entry.matched,
+          })),
+          suppressedScore: report.suppression.suppressedScore,
+          unsuppressedScore: report.suppression.unsuppressedScore,
+          inverted: report.suppression.inverted,
+        };
+
   return {
     version: DOCTOR_REPORT_VERSION,
     score: report.score,
+    scoreText: healthScoreMark(report),
     operationCount: report.operationCount,
     checks: report.checks.map((check) => ({
       ...check,
       ...(check.id in DRIFT_RULE_CODES ? { code: DRIFT_RULE_CODES[check.id as IRDriftRule] } : {}),
     })),
     findings: report.drift.map((issue) => doctorFinding(document, issue)),
+    ...(suppression === undefined ? {} : { suppression }),
+    ...(report.suppression === undefined
+      ? {}
+      : {
+          suppressedFindings: report.suppression.findings.map((issue) =>
+            doctorFinding(document, issue),
+          ),
+        }),
   };
 }

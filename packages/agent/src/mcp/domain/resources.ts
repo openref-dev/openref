@@ -22,7 +22,9 @@
 import {
   buildDoctorReport,
   canonicalize,
+  healthScoreMark,
   type IRDoctorReport,
+  type IRDoctorSuppression,
   type IRDocument,
 } from '@openref/core';
 import { agentExposure } from './exposure';
@@ -73,15 +75,72 @@ export function agentHealthReport(document: IRDocument): AgentHealthReport {
     (finding) => finding.nodeId === undefined || !withheld.has(finding.nodeId),
   );
 
+  // THE SCORE IS THE SCORE OF WHAT IS SHOWN. `buildDoctorReport` computes over every finding,
+  // and handing that number back beside a shorter list would be a figure nothing in the payload
+  // supports. Rounded the way SPEC 7.2 rounds it, and 100 when there is nothing left to say.
+  const filtered = report.findings.length !== findings.length;
+  const suppression = filtered ? shrinkSuppression(report, findings) : report.suppression;
+  const score = filtered ? primaryOf(report, findings, suppression) : report.score;
+
   return {
     ...report,
-    // THE SCORE IS THE SCORE OF WHAT IS SHOWN. `buildDoctorReport` computes over every finding,
-    // and handing that number back beside a shorter list would be a figure nothing in the payload
-    // supports. Rounded the way SPEC 7.2 rounds it, and 100 when there is nothing left to say.
-    score: report.findings.length === findings.length ? report.score : scoreOf(report, findings),
+    score,
+    // THE MARKED STRING IS REBUILT FROM THIS REPORT'S OWN FIGURES AND NEVER COPIED, which is the
+    // one thing this surface must not get wrong. The page and this endpoint print one string about
+    // one document by both calling `healthScoreMark`; copying the document's string across a
+    // filter that moved the number would put a primary in front of a parenthesis that is no longer
+    // about it, which is the same divergence in a quieter form.
+    scoreText: healthScoreMark({ score, ...(suppression === undefined ? {} : { suppression }) }),
+    ...(suppression === undefined ? {} : { suppression }),
     findings,
     withheldFindings: report.findings.length - findings.length,
   };
+}
+
+/**
+ * The two suppression figures moved by the audience filter, so both sit on the same scale.
+ *
+ * THE APPROXIMATION IS APPLIED TO BOTH OR TO NEITHER. Moving the primary and leaving the
+ * parenthesis where it was would print two numbers taken over different populations and invite
+ * exactly the comparison they cannot bear. Applying it uniformly keeps the pair comparable and
+ * keeps the inversion of SPEC 7.2 meaningful, which is the property that must survive a filter.
+ *
+ * @param report - The whole report, whose finding list is not empty
+ * @param findings - The findings that survive the filter
+ * @returns The suppression with both figures moved, or nothing when none was configured
+ */
+function shrinkSuppression(
+  report: IRDoctorReport,
+  findings: readonly unknown[],
+): IRDoctorSuppression | undefined {
+  const suppression = report.suppression;
+  if (suppression === undefined) return undefined;
+
+  const share = findings.length / report.findings.length;
+
+  return {
+    ...suppression,
+    suppressedScore: Math.round(100 - (100 - suppression.suppressedScore) * share),
+    unsuppressedScore: Math.round(100 - (100 - suppression.unsuppressedScore) * share),
+  };
+}
+
+/**
+ * Which number the filtered report leads with, per SPEC 7.2's inversion.
+ *
+ * @param report - The whole report, whose finding list is not empty
+ * @param findings - The findings that survive the filter
+ * @param suppression - The suppression already moved onto the filtered scale
+ * @returns The primary percentage for the exposed subset
+ */
+function primaryOf(
+  report: IRDoctorReport,
+  findings: readonly unknown[],
+  suppression: IRDoctorSuppression | undefined,
+): number {
+  if (suppression === undefined) return scoreOf(report, findings);
+
+  return suppression.inverted ? suppression.unsuppressedScore : suppression.suppressedScore;
 }
 
 /**

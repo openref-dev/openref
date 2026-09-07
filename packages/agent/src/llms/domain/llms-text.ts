@@ -36,6 +36,8 @@
  */
 
 import {
+  healthScoreMark,
+  healthSuppressionNote,
   plainArtefactText,
   RUNTIME_FACT_FIELDS,
   type IRDocument,
@@ -117,6 +119,19 @@ function nodeRow(node: IRNode, document: IRDocument, basePath: string): string {
 }
 
 /**
+ * What the health row says about suppression, or nothing at all.
+ *
+ * @param document - The normalized document
+ * @returns The clause to append to the health row, empty when nothing was suppressed
+ */
+function healthNote(document: IRDocument): string {
+  const report = document.health;
+  if (report?.suppression === undefined) return '';
+
+  return `: ${healthScoreMark(report)}, ${healthSuppressionNote(report)}`;
+}
+
+/**
  * The machine readable addresses this mount answers on, as list rows.
  *
  * ONLY WHAT IS ACTUALLY SWITCHED ON IS OFFERED. The index is read by something that will follow
@@ -134,7 +149,16 @@ function machineRows(document: IRDocument, options: LlmsTextOptions): readonly s
   const family = events ? 'asyncapi' : 'openapi';
   const rows = [
     `- [${events ? 'AsyncAPI' : 'OpenAPI'} document](${at(`${family}.json`)})`,
-    `- [Documentation Health report](${at('health')})`,
+    // THE HEALTH ROW GAINS A CLAUSE ONLY WHEN A CLASS WAS SUPPRESSED, per SPEC 7.2. An agent
+    // reading this file is exactly the reader who cannot tell a clean reference from a filtered
+    // one by looking, so the count of what was taken out and the unsuppressed percentage have to
+    // reach it here rather than only on a page it is not going to open. The two figures come from
+    // the report through `healthScoreMark`, which is the same string the page prints.
+    //
+    // NOTHING IS ADDED WHEN NOTHING WAS SUPPRESSED, deliberately, so the artefact of every host
+    // that has not configured the option does not move by one byte and its determinism cases,
+    // its byte budgets and its `two-text-files` gate all stay exactly where they were.
+    `- [Documentation Health report](${at('health')})${healthNote(document)}`,
   ];
 
   if (options.agent.llmsTxt) {

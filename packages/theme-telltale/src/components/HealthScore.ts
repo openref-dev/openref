@@ -64,6 +64,22 @@ export default function HealthScore(props: { readonly health: HealthModel }): VN
           ]),
         ),
       ),
+      // THE SUPPRESSED HALF, per SPEC 7.2. This theme replaces the whole position, so a theme
+      // that drew only `health.rules` would show a reader 69 rows under a heading saying 180 were
+      // found and say nothing about where the other 111 went. The marked score and the heading
+      // arrive already assembled in the model, so what a theme has to choose to draw is this.
+      health.suppression === null
+        ? null
+        : h('details', { class: 'tt-health-suppressed' }, [
+            h('summary', { class: 'tt-health-rule-head' }, health.suppression.note),
+            ...health.suppression.classes.map((entry) =>
+              h('div', { class: 'tt-health-suppressed-class', key: entry.rule }, [
+                h('span', { class: 'tt-health-rule-name' }, entry.rule),
+                h('span', { class: 'tt-health-rule-count' }, entry.count),
+                h('span', { class: 'tt-health-suppressed-reason' }, entry.reason),
+              ]),
+            ),
+          ]),
     ]),
   ]);
 }

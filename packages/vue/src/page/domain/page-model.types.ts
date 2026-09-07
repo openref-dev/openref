@@ -940,6 +940,15 @@ export interface RuntimeModel {
   readonly rows: readonly RuntimeRowModel[];
   readonly drift: readonly DriftModel[];
   /**
+   * This node's findings that the host suppressed, per SPEC 7.2.
+   *
+   * THE COUNT IN THE HEADER IS `drift` AND THIS IS WHAT IS MISSING FROM IT. A node page that
+   * counted only the unsuppressed findings and said nothing else would be a page a reader cannot
+   * tell apart from a clean one, which is the failure the whole feature is careful about. Empty on
+   * every node of a document nothing was suppressed on.
+   */
+  readonly suppressed: readonly DriftModel[];
+  /**
    * The parity scale of an operation page, per SPEC 6.3, in the design's row order.
    *
    * Empty for a channel, which keeps the labelled row block until M5 designs one, and a
@@ -998,16 +1007,68 @@ export interface HealthKpiModel {
   readonly warnings: number;
 }
 
+/** One class the host suppressed, as the disclosure of SPEC 7.2 draws it. */
+export interface HealthSuppressedClassModel {
+  /** The kebab rule id, which is what the host wrote in `runtime.suppress`. */
+  readonly rule: string;
+  /** Display code of SPEC 7.1, which is what the reader recognises the class by. */
+  readonly code: string;
+  readonly severityClass: string;
+  /** Why the host decided not to fix it, which is refused at boot when it is absent. */
+  readonly reason: string;
+  /**
+   * How many findings this class took out, as text.
+   *
+   * `0` IS DRAWN AND IS THE POINT OF THE ROW. A class that matched nothing did not refuse boot,
+   * because a class is legitimately empty on some deployments, so the only place a reader can
+   * find out is here, before the day it comes back and starts suppressing in silence.
+   */
+  readonly count: string;
+  /** The findings it took out, folded by cause exactly as the drawn rules are folded. */
+  readonly findings: readonly DriftModel[];
+}
+
+/**
+ * What suppression did, as the health page discloses it, per SPEC 7.2.
+ *
+ * A CLOSED `details` AND NOT A QUERY PARAMETER, deliberately. The disclosure survives a static
+ * build and a page whose JavaScript never arrives, it costs the strict CSP nothing because there
+ * is no handler to authorize, and it leaves the `#oref-rule-<kebab>` anchors of the drawn rules
+ * exactly where a FixBar expects them.
+ */
+export interface HealthSuppressionModel {
+  /** `111 suppressed by 2 classes`, built once in `@openref/core` and read rather than counted. */
+  readonly note: string;
+  readonly classes: readonly HealthSuppressedClassModel[];
+  /**
+   * True while any suppressed class is severity `error`, per SPEC 7.2.
+   *
+   * IT IS WHY {@link HealthModel.score} READS AS IT DOES. Under the inversion the primary is the
+   * unsuppressed percentage and the suppressed one is in the parenthesis, so suppressing an error
+   * buys a cleaner list and no better headline.
+   */
+  readonly inverted: boolean;
+}
+
 /** The Health panel of SPEC 7.2, which the health page carries. */
 export interface HealthModel {
   /** Heading of the panel, carrying what was asked and how much came back. */
   readonly title: string;
-  /** The percentage of SPEC 7.2, as it is printed. */
+  /**
+   * The percentage of SPEC 7.2, as it is printed, INCLUDING THE SUPPRESSION PARENTHESIS.
+   *
+   * THE MARKED STRING IS BUILT ONCE IN `@openref/core` AND THIS MEMBER CARRIES IT WHOLE, so no
+   * theme can print the bare number by accident: `88% (77% unsuppressed)` and `77% (100%
+   * suppressed)` arrive here already assembled, and a theme that renders this member renders both
+   * halves or neither.
+   */
   readonly score: string;
   /** The head's triple, derived from the report, per `TX-PARITY-UI`. */
   readonly kpi: HealthKpiModel;
   readonly checks: readonly HealthCheckModel[];
   readonly rules: readonly HealthRuleModel[];
+  /** What the host suppressed, or null when nothing was, which is not the same as nothing found. */
+  readonly suppression: HealthSuppressionModel | null;
 }
 
 /**

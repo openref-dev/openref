@@ -128,6 +128,8 @@ export type {
   HealthKpiModel,
   HealthModel,
   HealthRuleModel,
+  HealthSuppressedClassModel,
+  HealthSuppressionModel,
   MediaTypeModel,
   MessageBodyModel,
   MessageExampleModel,
