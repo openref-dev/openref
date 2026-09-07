@@ -10,6 +10,17 @@ import type { CodeSampleModel } from '@openref/vue';
  * one side only.
  *
  * The source arrives already highlighted, on the server, per SPEC 12. Nothing here parses code.
+ *
+ * NO STRIP IS DRAWN WHERE THERE IS NO TAB, since 2026-09-03. An operation whose every language
+ * refused the request reaches this with an empty list, and an empty `role="tablist"` under the
+ * heading announces a control that is not there. What the section says in that case is the refusal,
+ * which `NodePanel` prints under this and no theme can take out.
+ *
+ * THE EMPTY LABEL GUARD THAT STOOD HERE IS GONE, AND THE FALLBACK IS ONE PLACE NOW. This drew
+ * `sample.lang` where the label was empty and the default theme drew the empty string, which is
+ * two themes answering one question differently. `label: ""` cannot reach a model any more: the
+ * normalizer falls back to the language where SPEC 18 always said it did, so this file draws the
+ * label it is given and a theme author has nothing to remember.
  */
 export default function CodeSample(props: {
   readonly samples: readonly CodeSampleModel[];
@@ -21,26 +32,28 @@ export default function CodeSample(props: {
 
   return h('section', { class: 'tt-samples' }, [
     h('h2', { class: 'tt-strip-head' }, 'CALL'),
-    h(
-      'div',
-      { class: 'tt-sample-tabs', role: 'tablist' },
-      props.samples.map((sample) =>
-        h(
-          'button',
-          {
-            type: 'button',
-            role: 'tab',
-            key: sample.lang,
-            class: ['tt-sample-tab', sample === active ? 'tt-sample-current' : null],
-            'aria-selected': sample === active ? 'true' : 'false',
-            onClick: (): void => {
-              props.onSelect(sample.lang);
-            },
-          },
-          sample.label === '' ? sample.lang : sample.label,
+    props.samples.length === 0
+      ? null
+      : h(
+          'div',
+          { class: 'tt-sample-tabs', role: 'tablist' },
+          props.samples.map((sample) =>
+            h(
+              'button',
+              {
+                type: 'button',
+                role: 'tab',
+                key: sample.lang,
+                class: ['tt-sample-tab', sample === active ? 'tt-sample-current' : null],
+                'aria-selected': sample === active ? 'true' : 'false',
+                onClick: (): void => {
+                  props.onSelect(sample.lang);
+                },
+              },
+              sample.label,
+            ),
+          ),
         ),
-      ),
-    ),
     active === undefined
       ? null
       : h('div', { class: 'tt-sample-body', innerHTML: active.sourceHtml }),

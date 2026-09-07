@@ -39,7 +39,7 @@ accepted here, per SPEC 17's own command surface.
   --help         print this message
 `;
 
-export const DOCTOR_USAGE = `Usage: openref doctor --from-nest <path> [--fail-on=drift|warn|error] [--json] [--fix] [--dry-run]
+export const DOCTOR_USAGE = `Usage: openref doctor --from-nest <path> [--fail-on=drift|warn|error] [--json] [--fix] [--dry-run] [--show-suppressed]
 
 Boots a NestJS application and reports on documentation health. --from-nest is required:
 doctor compares the specification against the running application, and there is nothing to
@@ -52,6 +52,9 @@ compare a document on disk against itself.
   --fix               write the findings the report classifies as silence into source as new
                        decorators. Adds only, never alters, and refuses a dirty working tree
   --dry-run           with --fix, print the same edits and write nothing
+  --show-suppressed   print the findings runtime.suppress took out of the report. The classes,
+                       their reasons and their counts are printed either way, per SPEC 7.2; this
+                       adds the findings themselves, which is the volume
   --help              print this message
 `;
 

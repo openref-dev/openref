@@ -35,7 +35,14 @@ export interface PackageCoverage {
 /** A package whose coverage is below its floor, or whose coverage was never measured. */
 export interface CoverageFinding {
   readonly packageDir: string;
-  readonly metric: 'lines' | 'statements' | 'files';
+  /**
+   * Which fact this finding is about.
+   *
+   * `lines` and `statements` are measurements under a floor. `files` is a package that was rolled
+   * up and contributed no file. `undetermined` is a floor with no roll up at all, which is a fact
+   * the run could not establish rather than a measurement.
+   */
+  readonly metric: 'lines' | 'statements' | 'files' | 'undetermined';
   readonly actualPct: number;
   readonly floorPct: number;
 }
@@ -101,15 +108,42 @@ export function aggregateByPackage(
 /**
  * Compares rolled up coverage against the floors.
  *
+ * THE LOOP OVER THE ROLL UP IS NOT THE WHOLE COMPARISON AND USED TO BE. `aggregateByPackage` maps
+ * over the package directories it is handed, which the gate reads off the disk, so a floor naming a
+ * directory that is not there produced no roll up entry and this function iterated past it: the
+ * floor was compared with nothing and the run went green. Executed against the real library, floors
+ * of `{core, ghost}` over directories of `['core']` returned `failed: false` on a green suite and
+ * named `ghost` nowhere. The STANDARDS 9.1 reconciliation would have caught it in the other
+ * direction, but that half needs `ai-docs/`, which is git excluded and no clone restores, so on a
+ * clone nothing anywhere named it. It is the same class as the zero over zero reading below and one
+ * step earlier: a package with no files at least reached a comparison.
+ *
+ * A FLOOR WITH NOTHING TO MEASURE IS UNDETERMINED AND UNDETERMINED FAILS. The two are reported
+ * separately because they have two causes: `files` is a directory that was rolled up and gave
+ * nothing, `undetermined` is a directory that was never rolled up at all, and a message naming the
+ * wrong one sends a reader to the wrong place.
+ *
  * @param coverage - Per package coverage
  * @param floors - Floor percentage per package directory
- * @returns One finding per metric below its floor
+ * @returns One finding per metric below its floor, and one per floor nothing measured
  */
 export function checkCoverageFloors(
   coverage: readonly PackageCoverage[],
   floors: Readonly<Record<string, number>>,
 ): CoverageFinding[] {
   const findings: CoverageFinding[] = [];
+  const rolledUp = new Set(coverage.map((entry) => entry.packageDir));
+
+  for (const packageDir of Object.keys(floors).sort()) {
+    if (rolledUp.has(packageDir)) continue;
+
+    findings.push({
+      packageDir,
+      metric: 'undetermined',
+      actualPct: 0,
+      floorPct: floors[packageDir] ?? 0,
+    });
+  }
 
   for (const entry of coverage) {
     const floorPct = floors[entry.packageDir];
@@ -144,6 +178,126 @@ export function checkCoverageFloors(
   }
 
   return findings;
+}
+
+/**
+ * One finding as the line a reader gets, with the three causes told apart.
+ *
+ * THE THIRD LINE IS THE ONE THAT DID NOT EXIST. A floor over a directory nothing rolled up says so
+ * in the word the rule uses: a check that cannot determine a fact reports it as undetermined and
+ * never defaults to the answer that means success.
+ *
+ * @param violation - The finding
+ * @returns The line
+ */
+function messageFor(violation: CoverageFinding): string {
+  if (violation.metric === 'undetermined') {
+    return (
+      `${violation.packageDir}: its floor of ${String(violation.floorPct)}% is UNDETERMINED, not ` +
+      `met: no packages/${violation.packageDir}/ directory was rolled up by this run, so nothing ` +
+      `was compared with the floor at all`
+    );
+  }
+
+  if (violation.metric === 'files') {
+    return (
+      `${violation.packageDir}: no file was measured at all, so its floor of ` +
+      `${String(violation.floorPct)}% was met by measuring none of it`
+    );
+  }
+
+  return (
+    `${violation.packageDir}: ${violation.metric} ${violation.actualPct.toFixed(2)}% is ` +
+    `below the floor of ${String(violation.floorPct)}%`
+  );
+}
+
+/** What one run of the suite under coverage left behind. */
+export interface CoverageRun {
+  /** Whether every case passed. */
+  readonly suitePassed: boolean;
+  /** What the suite printed, for the line that reports a failure. */
+  readonly output: string;
+  /** The summary this run wrote, or null when this run wrote none. */
+  readonly summary: CoverageSummary | null;
+}
+
+/** What the coverage half of the gate has to say about one run. */
+export interface CoverageVerdict {
+  /** Lines that report a measurement, printed whether or not anything failed. */
+  readonly notes: readonly string[];
+  /** Lines that fail the gate. */
+  readonly errors: readonly string[];
+  /** Whether this half found anything. */
+  readonly failed: boolean;
+}
+
+/**
+ * Everything one coverage run establishes: the failure if there was one, the coverage it measured,
+ * and every floor that is under.
+ *
+ * THIS FUNCTION EXISTS BECAUSE THE GATE USED TO RETURN BEFORE ANY OF THE SECOND AND THIRD. A run
+ * with one red case reported that one red case and nothing else: the summary was never read, the
+ * per package percentages were never printed, and no floor was compared with anything. So one red
+ * budget case blinded every coverage floor in the repository at once, and the gate went quiet at
+ * exactly the moment something was wrong, which is this project's own worst defect class. A red
+ * suite and a floor under water are two different facts and a run can carry both.
+ *
+ * THE SUITE WAS ALSO WITHHOLDING THE DATA, WHICH IS THE HALF AN EARLY RETURN HID. Vitest's
+ * `coverage.reportOnFailure` defaults to false, so a failing run writes no `coverage-summary.json`
+ * at all: even a gate that read the file after a failure would have found the previous run's
+ * numbers or none. The caller passes the flag that turns that off, and this function is given the
+ * summary or null rather than a path, so a caller that cannot prove the file belongs to this run
+ * hands over null instead of reading whatever is on disk.
+ *
+ * @param run - What the run did and what it wrote
+ * @param packageDirs - Package directory names to roll coverage up by
+ * @param floors - Floor percentage per package directory
+ * @param summaryPath - Repository relative path of the summary, named in the message when absent
+ * @returns The measurement, the violations and the failure, all three of them
+ */
+export function reportCoverageRun(
+  run: CoverageRun,
+  packageDirs: readonly string[],
+  floors: Readonly<Record<string, number>>,
+  summaryPath: string,
+): CoverageVerdict {
+  const notes: string[] = [];
+  const errors: string[] = [];
+
+  if (!run.suitePassed) {
+    errors.push(`test run with coverage failed: ${run.output}`);
+  }
+
+  if (run.summary === null) {
+    errors.push(
+      `${summaryPath} was not written by this run, so NO FLOOR WAS CHECKED AGAINST THIS TREE. ` +
+        (run.suitePassed
+          ? 'The suite passed, so the json-summary reporter is not configured'
+          : 'The suite failed before the reporter ran, so the failure above is the only thing ' +
+            'this run establishes and the coverage of every package is unknown rather than met'),
+    );
+
+    return { notes, errors, failed: true };
+  }
+
+  const perPackage = aggregateByPackage(run.summary, packageDirs);
+  const violations = checkCoverageFloors(perPackage, floors);
+
+  for (const entry of perPackage) {
+    const floor = floors[entry.packageDir];
+    const floorText = floor === undefined ? 'no floor yet' : `floor ${String(floor)}%`;
+    notes.push(
+      `${entry.packageDir}: lines ${entry.linesPct.toFixed(2)}%, statements ` +
+        `${entry.statementsPct.toFixed(2)}%, ${String(entry.fileCount)} file(s), ${floorText}`,
+    );
+  }
+
+  for (const violation of violations) {
+    errors.push(messageFor(violation));
+  }
+
+  return { notes, errors, failed: !run.suitePassed || violations.length > 0 };
 }
 
 /**

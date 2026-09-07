@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { loadDefaultAssets, runnerOperationOf } from '@openref/render';
-import { withGeneratedSamples } from '@openref/samples';
+import {
+  OFF_PAGE_SAMPLE_LANGUAGES,
+  PAGE_SAMPLE_LANGUAGES,
+  withGeneratedSamples,
+} from '@openref/samples';
 import { finalizeDocument, normalizeOpenApiDocument } from '@openref/core';
 import type { IROperation } from '@openref/core';
 import { replyText } from '../../src/http/domain/reply';
@@ -62,6 +66,29 @@ function specification(
       },
     },
   };
+}
+
+/**
+ * The same specification with one required cookie parameter added.
+ *
+ * A DOCUMENT ANY AUTHOR MAY WRITE. `buildRequest` throws a `SerializationError` for it by name,
+ * because `Cookie` is a forbidden header and a browser will not let a script set one, so every one
+ * of the fifteen emitters is unreachable for this operation.
+ */
+function cookieSpecification(): Record<string, unknown> {
+  const withCookie = specification();
+  const paths = withCookie.paths as Record<string, Record<string, Record<string, unknown>>>;
+  const post = paths['/orders/{orderId}/items']?.post;
+  expect(post).toBeDefined();
+  (post!.parameters as Record<string, unknown>[]).push({
+    name: 'session',
+    in: 'cookie',
+    required: true,
+    schema: { type: 'string' },
+    example: 'abc',
+  });
+
+  return withCookie;
 }
 
 function service(declared?: readonly Readonly<Record<string, string>>[]): ReferenceService {
@@ -136,24 +163,63 @@ describe('an operation page of a served reference', () => {
     expect(html).toContain('Call it');
   });
 
-  it('should offer a tab for every language SPEC 18 writes', async () => {
+  it('should offer a tab for each of the twelve SPEC 18 draws', async () => {
     // Given, When
     const section = samplesSection(await page(service()));
 
-    // Then
-    for (const label of [
-      'cURL',
-      'TypeScript',
-      'Python',
-      'Go',
+    // Then: the tab strip is the twelve, read off the declared set rather than off a list typed
+    // here, so moving a language between the two placements reddens this and nothing has to be
+    // remembered.
+    for (const language of PAGE_SAMPLE_LANGUAGES) {
+      expect(section, language.label).toContain(`>${language.label}</button>`);
+    }
+  });
+
+  it('should draw no tab for the three it holds back', async () => {
+    // Given, When
+    const section = samplesSection(await page(service()));
+
+    // Then: no button, which is the byte saving, and it is asserted rather than assumed.
+    for (const language of OFF_PAGE_SAMPLE_LANGUAGES) {
+      expect(section, language.label).not.toContain(`>${language.label}</button>`);
+    }
+  });
+
+  it('should name the three it holds back, so a reader can tell absent from unavailable', async () => {
+    // Given, When
+    const html = await page(service());
+
+    // Then: the sentence, on the page, naming all three. The maintainer's requirement is exactly
+    // this: a reader must be able to tell a language this page does not have from one it can
+    // produce, and silence cannot say that.
+    expect(html).toContain('Generated for this operation and not drawn here: PHP, Java, Ruby.');
+    expect(html).toContain('A build that asks for them draws them.');
+    expect(OFF_PAGE_SAMPLE_LANGUAGES.map((language) => language.label)).toEqual([
       'PHP',
       'Java',
-      'C#',
       'Ruby',
-      'Rust',
-    ]) {
-      expect(textOf(section), label).toContain(label);
+    ]);
+  });
+
+  it('should say nothing once the three are on the page', async () => {
+    // Given a document that writes its own PHP, Java and Ruby. Level 3 outranks the generator, so
+    // all three get a tab, and this is one of the two ways SPEC 18 says a held back language
+    // reaches a page. The presence half is the case above: on the default page the sentence is
+    // there and names all three.
+    const declared = [
+      { lang: 'php', label: 'PHP', source: '<?php $r = curl_init();' },
+      { lang: 'java', label: 'Java', source: 'HttpClient client = HttpClient.newHttpClient();' },
+      { lang: 'ruby', label: 'Ruby', source: 'Net::HTTP.post(uri, body)' },
+    ];
+
+    // When
+    const html = await page(service(declared));
+
+    // Then: three tabs and no sentence, because nothing is being held back from this page.
+    for (const language of OFF_PAGE_SAMPLE_LANGUAGES) {
+      expect(html, language.label).toContain(`>${language.label}</button>`);
     }
+    expect(html).not.toContain('Generated for this operation and not drawn here');
   });
 
   it('should carry the generated cURL the transform wrote, character for character', async () => {
@@ -192,7 +258,7 @@ describe('an operation page of a served reference', () => {
     expect(section.indexOf('Ours')).toBeLessThan(section.indexOf('TypeScript'));
   });
 
-  it('should draw no section at all for an operation with nowhere to send', async () => {
+  it('should state the refusal for an operation with nowhere to send, rather than say nothing', async () => {
     // Given a document with no server, which a written OpenAPI file cannot be, because the
     // specification's own default supplies `/`. It reaches a mount through the federated `ir`
     // path of SPEC 15.3, where the document arrives already normalized.
@@ -211,9 +277,182 @@ describe('an operation page of a served reference', () => {
 
     // When
     const html = await page(reference);
+    const section = samplesSection(html);
 
-    // Then: an empty tab strip is worse than no section, and `drawnOf` already says so.
-    expect(html).not.toContain('oref-section-samples');
+    // Then. WHAT THIS CASE ASSERTED BEFORE, AND WHY IT WAS WRONG: it asserted the page carried no
+    // `oref-section-samples` at all, on the grounds that an empty tab strip is worse than no
+    // section. The first half is right and is a case of its own below; the conclusion drawn from
+    // it was that fifteen languages may vanish with nothing said, which is precisely the silence
+    // SPEC 18's standing rule forbids. The section is drawn, it carries no strip, and it says why.
+    expect(section).toContain('Call it');
+    expect(section).not.toContain('role="tablist"');
+    expect(section).toContain('No sample for this request in cURL, HTTPie, wget');
+    expect(section).toContain('no server');
+  });
+
+  it('should say so on an ordinary document the runner refuses to build a request from', async () => {
+    // Given a plain OpenAPI document with one required cookie parameter, nothing federated and
+    // nothing hand built: `buildRequest` refuses it by name, because `Cookie` is a header a browser
+    // will not let a script set. Until this the whole refusal was swallowed and the page carried no
+    // samples section at all.
+    const reference = new ReferenceService({
+      document: cookieSpecification(),
+      basePath: '/docs',
+      assets: loadDefaultAssets(),
+    });
+
+    // When
+    const html = await page(reference);
+    const section = samplesSection(html);
+
+    // Then: all fifteen named under the one reason, and the reason is the runner's own words
+    for (const language of [...PAGE_SAMPLE_LANGUAGES, ...OFF_PAGE_SAMPLE_LANGUAGES]) {
+      expect(section, language.label).toContain(language.label);
+      expect(section, language.label).not.toContain(`>${language.label}</button>`);
+    }
+    expect(section).toContain('cookie parameter');
+  });
+
+  it('should draw no empty tab strip, which the page model calls worse than no section', async () => {
+    // Given the same document, whose every language refused
+    // When
+    const section = samplesSection(
+      await page(
+        new ReferenceService({
+          document: cookieSpecification(),
+          basePath: '/docs',
+          assets: loadDefaultAssets(),
+        }),
+      ),
+    );
+
+    // Then, the subject first: this is the samples section, and it says what it is
+    expect(section).toContain('Call it');
+
+    // And it carries no strip, empty or otherwise, because there is not one tab to put in it
+    expect(section).not.toContain('role="tablist"');
+    expect(section).not.toContain('oref-sample-tabs');
+  });
+
+  it('should cost the state block 24 bytes on a page with no refusal at all', async () => {
+    // Given the ordinary page, whose request all fifteen languages can write. SPEC 20 recorded
+    // this arrival as costing the page "zero where there are no refusals"; measured, it costs the
+    // empty list, on every node page, and the figure is pinned here so the sentence has a runner.
+    const html = await page(service());
+
+    // Then, the subject first: this really is a page with nothing refused on it
+    expect(html).not.toContain('No sample for this request in');
+
+    // And the member still crosses, because the samples section is the one part of the article the
+    // client redraws, so it reads the list rather than the markup. It cannot be left out: the
+    // member is required on `NodeModel` on purpose, and `readPageState` is a bare `JSON.parse`
+    // with no defaults, so an absent key is an exception during hydration rather than an empty
+    // list. What that costs is this, and it is 24 bytes rather than nothing.
+    expect(html).toContain(',"codeSamplesRefused":[]');
+    expect(Buffer.byteLength(',"codeSamplesRefused":[]', 'utf8')).toBe(24);
+  });
+
+  it('should keep both notices inside the section they belong to', async () => {
+    // Given the ordinary page, which draws twelve tabs and names three languages beside them
+    const html = await page(service());
+
+    // When
+    const section = samplesSection(html);
+
+    // Then, the subject first: the sentence is on the page at all
+    expect(html).toContain('Generated for this operation and not drawn here: PHP, Java, Ruby.');
+
+    // And it is inside the samples section rather than a sibling after its closing tag, which is
+    // where a reader looking at the tab strip reads it and where a theme's section styling reaches.
+    expect(section).toContain('Generated for this operation and not drawn here: PHP, Java, Ruby.');
+  });
+
+  it('should say a language refused this request rather than let its tab vanish', async () => {
+    // Given a request thirteen of the fifteen refuse: a header value outside US-ASCII, which
+    // SPEC 18 allows only the two clients measured putting the runner's own octets on the wire.
+    // Before this, ten of the twelve drawn languages simply had no tab, and a missing tab is
+    // indistinguishable from a language this page never had.
+    const withHeader = specification();
+    const paths = withHeader.paths as Record<string, Record<string, Record<string, unknown>>>;
+    const post = paths['/orders/{orderId}/items']?.post;
+    expect(post).toBeDefined();
+    (post!.parameters as Record<string, unknown>[]).push({
+      name: 'X-Note',
+      in: 'header',
+      schema: { type: 'string' },
+      example: 'caf\u00e9',
+    });
+    const reference = new ReferenceService({
+      document: withHeader,
+      basePath: '/docs',
+      assets: loadDefaultAssets(),
+    });
+
+    // When
+    const html = await page(reference);
+    const section = samplesSection(html);
+
+    // Then, the subject first: the two that can write it have their tabs
+    expect(section).toContain('>TypeScript</button>');
+    expect(section).toContain('>Swift</button>');
+
+    // And the ten drawn languages that refused are named with the reason, rather than absent
+    for (const label of ['cURL', 'HTTPie', 'wget', 'PowerShell', 'Python', 'Go', 'C#', 'Rust']) {
+      expect(section, label).not.toContain(`>${label}</button>`);
+    }
+    expect(html).toContain('No sample for this request in cURL, HTTPie, wget, PowerShell');
+    expect(html).toContain('outside US-ASCII');
+  });
+
+  it('should say how four of its own tabs treat a redirect, which it used to compute and drop', async () => {
+    // Given the ordinary page, whose twelve tabs are all correct. `GeneratedSamples.notes` has
+    // carried the measured redirect divergence of cURL, HTTPie, PowerShell and Swift since the
+    // generator was built, and the transform destructured two of the three members, so it reached
+    // no reader on any page at all.
+    const html = await page(service());
+    const section = samplesSection(html);
+
+    // Then, the subject first: all four have tabs, so these are notes about samples a reader can
+    // see rather than about languages that are missing
+    for (const label of ['cURL', 'HTTPie', 'PowerShell', 'Swift']) {
+      expect(section, label).toContain(`>${label}</button>`);
+    }
+
+    // And each pair is named with what it does, inside the section, grouped by the sentence
+    expect(section).toContain('In cURL, HTTPie: this client stops at the first response');
+    expect(section).toContain('In PowerShell, Swift: this client follows a redirect');
+  });
+
+  it('should say that no sample carries a credential no request can carry', async () => {
+    // Given an operation behind mutualTLS, whose credential the browser chooses during the TLS
+    // handshake and which travels in no request at all. `placeholderCredentials` has returned that
+    // fact since the generator was built and the transform threw it away, so such a page drew
+    // twelve commands that cannot authenticate and said nothing about it.
+    const mutual = specification();
+    const components = mutual.components as Record<string, Record<string, unknown>>;
+    components.securitySchemes = { mtls: { type: 'mutualTLS' } };
+    mutual.security = [{ mtls: [] }];
+    const reference = new ReferenceService({
+      document: mutual,
+      basePath: '/docs',
+      assets: loadDefaultAssets(),
+    });
+
+    // When
+    const section = samplesSection(await page(reference));
+
+    // Then, the subject first: the tabs are there and they are correct
+    expect(section).toContain('>cURL</button>');
+    expect(section).not.toContain('No sample for this request in');
+
+    // And the page says what they cannot do, naming the scheme so a reader can find it. The
+    // scheme id arrives escaped, because it is a document's string reaching markup and SPEC 19.1
+    // keeps a document's text out of the interface's namespace; the assertion reads what the
+    // browser receives rather than what the constant says.
+    expect(section).toContain(
+      'no sample carries a credential for the security scheme &quot;mtls&quot;',
+    );
+    expect(section).toContain('will not authenticate');
   });
 });
 

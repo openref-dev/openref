@@ -369,10 +369,10 @@ describe('a message payload whose declared dialect does not match its content', 
     // Given the other direction: an Avro record body declared as JSON Schema. MEASURED 2026-08-29
     // AND REFUSED SINCE 2026-08-30, by the seventh row of SPEC 5.4's disposition table. It was
     // written as a measurement rather than as a regression because it had no owner: the comment
-    // pointed at a debt list that was a sentence in `ai-docs/PROJECT_STATE.md`, which is SPEC 0's
-    // ninth class. The maintainer pulled the row into a directed slice, SPEC 5.4 moved first, and
-    // the schema normalizer keeping only the keywords it knows now ends in a refusal rather than in
-    // a payload that constrains nothing with no finding anywhere.
+    // pointed at a debt list that was only a sentence of prose, which is SPEC 0's ninth class. The
+    // maintainer pulled the row into a directed slice, SPEC 5.4 moved first, and the schema
+    // normalizer keeping only the keywords it knows now ends in a refusal rather than in a payload
+    // that constrains nothing with no finding anywhere.
     const mislabelled = {
       ch: {
         address: 'a',
@@ -568,7 +568,10 @@ describe('a message payload whose declared dialect does not match its content', 
     // And it reaches the reader through `discovery-incomplete`, which SPEC 7.1 widened to this
     // reader rather than gaining a second code for the same question
     const finding = buildDoctorReport(document).findings.find((entry) => entry.code === 'RT070');
-    expect(finding?.message).toContain('channel-a.messages.m.payload');
+    // THE SUBJECT IS ITS OWN MEMBER AND NOT A PREFIX ON THE MESSAGE, per SPEC 7.2 since
+    // 2026-09-05: it used to be glued to the front of every `discovery-incomplete` message and
+    // printed a second time as the suggestion.
+    expect(finding?.subject).toContain('channel-a.messages.m.payload');
     expect(finding?.message).toContain('contentEncoding, contentMediaType');
   });
 

@@ -125,6 +125,93 @@ export interface IRCodeSample {
   /** What the tab says. Defaults to the language when the document names none. */
   readonly label: string;
   readonly source: string;
+  /**
+   * True when `withGeneratedSamples` wrote this sample, absent when the document did.
+   *
+   * WITHOUT IT A SECOND PASS CANNOT RECOMPUTE WHAT THE FIRST WROTE, and that is a wire correctness
+   * defect rather than a tidiness one. `composeCodeSamples` reads whatever is on the operation as
+   * level 3, so after one pass a generated sample is indistinguishable from one an author typed;
+   * a host that changed the document's servers between two passes then kept twelve samples
+   * addressed to the old origin, which `buildRequest` would refuse to build for. Measured on a
+   * document whose server was removed between the passes: twelve tabs, all carrying the origin
+   * that was taken away.
+   *
+   * ADDITIVE AND OPTIONAL, so a document that never met the generator carries nothing new and no
+   * reader of {@link IRCodeSample} has to know about it. It never reaches a page: `CodeSampleModel`
+   * names its three members, and this is not one of them.
+   */
+  readonly generated?: true;
+}
+
+/**
+ * A language whose sample this operation has, where the page is not carrying it.
+ *
+ * WHY THE SOURCE IS ABSENT AND THAT IS THE POINT. The whole reason a language lands here rather
+ * than in {@link IRCodeSample} is that its source is what costs the page, so carrying the source
+ * would be carrying the cost and naming it as saved. What travels is a name and a label, which is
+ * everything a reader needs to know the language exists and everything a caller needs to ask for
+ * it.
+ *
+ * IT IS WRITTEN PER OPERATION AND NOT PER DOCUMENT, WHICH IS THE HONEST HALF. A language is named
+ * here only where its emitter actually produced a sample for this request. An operation whose body
+ * is multipart gets no entry for the nine templates that refuse it, because for that operation
+ * they produce nothing and telling a reader otherwise would be the failure SPEC 18 exists to
+ * prevent, moved one level out from the samples to the list of them.
+ */
+export interface IRCodeSampleLanguage {
+  /** Language identifier, as {@link IRCodeSample.lang} spells it. */
+  readonly lang: string;
+  /** What a tab would have said. */
+  readonly label: string;
+}
+
+/**
+ * Languages that could not write this request at all, and the one reason they gave.
+ *
+ * A VANISHED TAB AND A LANGUAGE THE PAGE NEVER HAD ARE THE SAME SILENCE, AND THIS ENDS IT. SPEC 18
+ * holds a standing rule: where a request cannot be expressed faithfully, the sample says so rather
+ * than emitting something that looks right and sends something else. Until this member the rule
+ * was kept for the languages the page holds back and broken for the ones it draws: a language whose
+ * emitter refused simply had no tab, and the reason travelled to the caller as
+ * `GeneratedSamples.omitted` and to nobody else.
+ *
+ * GROUPED BY REASON RATHER THAN LISTED PER LANGUAGE, AND THE REASON IS BYTES. One refusal is
+ * usually shared, a multipart body being refused by nine templates in the same words, and a reason
+ * repeated per language would carry that sentence nine times into a page state block that SPEC 20
+ * already reports over its cap. The group is one sentence and the names that gave it.
+ */
+export interface IRCodeSampleRefusal {
+  /** Why none of these languages could write this request, in the emitter's own words. */
+  readonly reason: string;
+  /** The languages that gave this reason, in the order the page would have met them. */
+  readonly languages: readonly IRCodeSampleLanguage[];
+}
+
+/**
+ * Something true about a sample that is drawn and correct, per SPEC 18.
+ *
+ * NOT A WEAKER REFUSAL, AND SPEC 18 KEEPS THE TWO APART DELIBERATELY. A refusal says the sample
+ * would have sent something other than the plan, so there is no sample. A note says the sample
+ * sends exactly the plan and a reader still has to know one more thing: the client follows a
+ * redirect where the console does not, the credential this operation needs travels in no request
+ * at all, or the document wrote two samples under one language and a tab strip keyed by `lang` can
+ * show one of them. Folding the two together would either hide a real divergence or take away
+ * tabs that are correct.
+ *
+ * COMPUTED SINCE THE FIRST GENERATOR AND DELIVERED SINCE 2026-09-04. `GeneratedSamples.notes` and
+ * `PlaceholderCredentials.unsendable` were both produced and both discarded by the transform, so
+ * the divergence of four clients and an operation whose credential no request carries reached no
+ * reader at all. That is the same silence the other two members exist to end, one layer down.
+ *
+ * GROUPED BY SENTENCE FOR THE REASON {@link IRCodeSampleRefusal} IS GROUPED BY REASON: four clients
+ * share two sentences, and repeating each per language would carry it into a page state block SPEC
+ * 20 already reports over its cap.
+ */
+export interface IRCodeSampleNote {
+  /** What a reader has to know about these samples, in the words of whoever measured it. */
+  readonly note: string;
+  /** The languages it is true of, in the order the page would have met them. */
+  readonly languages: readonly IRCodeSampleLanguage[];
 }
 
 /** An HTTP operation. */
@@ -152,6 +239,34 @@ export interface IROperation {
   readonly callbacks?: Readonly<Record<string, readonly string[]>>;
   /** Call samples the document wrote, in the order it wrote them. Absent when it wrote none. */
   readonly codeSamples?: readonly IRCodeSample[];
+  /**
+   * Languages this operation has a sample in that the page is not carrying, per SPEC 18.
+   *
+   * ADDITIVE AND OPTIONAL, and absent on every document a normalizer produces. It is written by
+   * `withGeneratedSamples` in `@openref/samples` and by nothing else, because it is the only place
+   * that knows both which languages were asked onto the page and which of the rest actually
+   * produced a sample for this request.
+   */
+  readonly codeSamplesElsewhere?: readonly IRCodeSampleLanguage[];
+  /**
+   * Languages that produced no sample for this request, with the reason, per SPEC 18.
+   *
+   * ADDITIVE AND OPTIONAL, AND WRITTEN BY THE SAME ONE PLACE `codeSamplesElsewhere` IS. Together
+   * the three members account for every language a caller asked for: drawn in
+   * {@link IROperation.codeSamples}, named here as held back, or named there as unable. A language
+   * missing from all three would be a language nobody decided about, which is the state the two
+   * lists exist to end.
+   */
+  readonly codeSamplesRefused?: readonly IRCodeSampleRefusal[];
+  /**
+   * What a reader has to know about the samples that are drawn, per SPEC 18.
+   *
+   * ADDITIVE AND OPTIONAL, AND WRITTEN BY THE SAME ONE PLACE THE TWO ABOVE ARE. The three lists
+   * above account for every language a caller asked about; this one is orthogonal to them and says
+   * what is true of the ones that ended up drawn. It is the delivery of two results the generator
+   * already computed and the transform used to throw away.
+   */
+  readonly codeSamplesNotes?: readonly IRCodeSampleNote[];
   readonly runtime?: IRNodeRuntime;
   readonly extensions?: Readonly<Record<string, IRJsonValue>>;
   /**
@@ -308,10 +423,10 @@ export interface IRChannel {
    * Variables of a templated address, keyed by the name written between the braces.
    *
    * ADDITIVE AND OPTIONAL, added 2026-08-29 by the maintainer's ruling ahead of `T049` and
-   * recorded in SPEC 8.2 and `ai-docs/design/CONTRACT.md`. An address like `orders/{tenant}`
-   * stops being readable without them: the braces name a variable and say nothing about what
-   * goes in it, so dropping the block loses the half of the address that explains the other.
-   * Absent on a channel whose address is not templated, and on one whose document wrote none.
+   * recorded in SPEC 8.2. An address like `orders/{tenant}` stops being readable without them:
+   * the braces name a variable and say nothing about what goes in it, so dropping the block
+   * loses the half of the address that explains the other. Absent on a channel whose address is
+   * not templated, and on one whose document wrote none.
    */
   readonly parameters?: Readonly<Record<string, IRChannelParameter>>;
   readonly servers: readonly IRServerOverride[];

@@ -1,7 +1,7 @@
 import { defineConfig } from 'tsup';
 
 export default defineConfig({
-  entry: ['src/index.ts', 'src/baseline-api.ts'],
+  entry: ['src/index.ts', 'src/baseline-api.ts', 'src/projection.ts'],
   format: ['esm'],
   target: 'node20',
   // TYPES FOR THE LIBRARY ENTRY ONLY. `tools/browser-budget` imports the baseline record and

@@ -69,13 +69,30 @@ export const DATA_ONLY_ATTESTATIONS: readonly DataOnlyAttestation[] = [
  * SPEC 4 recorded it, `PROJECT-STANDARDS.md` 3.1 did not, and for five milestones nothing read
  * either. The comparison is what makes a fourth copy safe.
  *
- * ELEVEN NAMES. Eight from SPEC 4's published table, three ecosystem collectors. `@openref/action`
- * is not among them and never was: a composite GitHub Action is consumed by git ref rather than
- * installed, so it stays private and is versioned in lockstep with the CLI it runs.
+ * SIXTEEN NAMES. Eight from SPEC 4's published table, eight ecosystem collectors. It read eleven
+ * until `TX-REDISX-RATELIMIT` added `@openref/collector-redisx-rate-limit` and twelve until
+ * `TX-REDISX-IDEMPOTENCY` added `@openref/collector-redisx-idempotency`; the published table did
+ * not move either time, because a collector is an ecosystem package and never a row in it, and it
+ * did not move for the three below either.
+ * `@openref/action` is not among them and never was: a composite GitHub Action is consumed by git
+ * ref rather than installed, so it stays private and is versioned in lockstep with the CLI it runs.
+ *
+ * THE THREE OF `TX-REDISX-POLICIES` LANDED `private` AND ARE PUBLISHED HERE, WHICH IS A DECISION
+ * AND NOT A TIDY UP. They were built in a worktree with no `ai-docs/`, no `CLAUDE.md` and no
+ * `PROJECT-STANDARDS.md`, so the session that wrote them could reach neither SPEC 4 nor the
+ * projection that carries it, and marking them private was the only honest state a checkout without
+ * the documents could leave them in. What that state cost is what this list exists to measure: a
+ * collector nobody can install supports nobody, and SPEC 4's own rule for publishing is a named
+ * consumer who cannot reach the package any other way. Each of the three has one.
  */
 export const PUBLISHED_PACKAGES: readonly string[] = [
   '@openref/collector-access-control',
   '@openref/collector-casl',
+  '@openref/collector-redisx-cache',
+  '@openref/collector-redisx-circuit-breaker',
+  '@openref/collector-redisx-idempotency',
+  '@openref/collector-redisx-locks',
+  '@openref/collector-redisx-rate-limit',
   '@openref/collector-throttler',
   '@openref/core',
   '@openref/nest',
@@ -85,6 +102,62 @@ export const PUBLISHED_PACKAGES: readonly string[] = [
   '@openref/theme-telltale',
   '@openref/vue',
   'openref',
+];
+
+/**
+ * The bound on a discovery problem's `reason`, in characters, per SPEC 7.1.
+ *
+ * IT IS THE SECOND WRITING OF ONE NUMBER AND THE TWO ARE RECONCILED RATHER THAN SHARED.
+ * `packages/nest/test/unit/discovery-voice.spec.ts` carries it as `REASON_LIMIT` and measures the
+ * collectors of that package with it; this one measures the ecosystem collector packages, which a
+ * test inside `packages/nest` cannot read. A gate importing a spec file, or a spec file importing a
+ * gate's build output, are both worse than one case that reads the other's literal and fails when
+ * the two numbers stop agreeing, which is what `collector-voice.spec.ts` does.
+ *
+ * MEASURED FROM THE SENTENCE SPEC 7.1 NAMES AS THE STANDARD, `no source link template is
+ * configured, so DevTokenController.login cannot be linked`, which is 88 characters, with room for
+ * one interpolated name longer than `DevTokenController.login`.
+ */
+export const COLLECTOR_REASON_LIMIT = 140;
+
+/** A package that would be published but for a named reason, and the release it waits for. */
+export interface HeldBackPackage {
+  readonly name: string;
+  /** Why it is not in the published set, in one sentence a reader can act on. */
+  readonly reason: string;
+  /** The release it is expected to ship in. */
+  readonly until: string;
+}
+
+/**
+ * Packages deliberately not in the 1.0 publish list, each with the reason and the release.
+ *
+ * AN ABSENCE IS NOT A DECISION UNTIL SOMETHING WRITES IT DOWN. Every other list here answers "what
+ * goes out"; this one answers "what does not, and why", which no set difference can. A package
+ * missing from {@link PUBLISHED_PACKAGES} with nothing beside it is indistinguishable from a package
+ * somebody forgot, and that is not a hypothetical: `@openref/theme-telltale` was absent from one of
+ * the four hand written copies of the published set for five milestones and nothing could tell that
+ * absence from an intention.
+ *
+ * IT IS NOT THE INTERNAL LIST UNDER ANOTHER NAME. An internal package is unpublished because nobody
+ * installs it: it is bundled into a published one and its licence obligations travel inside that
+ * tarball. A held back package has a consumer who cannot reach it any other way, and it is
+ * unpublished for a reason that has a fix and a date. Both are `private`; only one of them is
+ * waiting for something.
+ *
+ * ENFORCED IN BOTH DIRECTIONS, LIKE EVERY OTHER LIST IN THIS FILE. `auditHeldBack` requires each
+ * name here to be a workspace package, to be `private`, to be out of the intended published set and
+ * out of what the dry run would emit, and to be named in each document that states the package
+ * lists; and it requires each name those documents hold to be in here. A registry that can only fail
+ * in one direction is a comment.
+ */
+export const HELD_BACK_PACKAGES: readonly HeldBackPackage[] = [
+  {
+    name: '@openref/nuxt',
+    reason:
+      'its nuxt peer dependency resolves into SPEC 0 zone 1, which the maintainer confirmed on 2026-09-04 is where a resolved peer belongs, and the enlarged closure carries six packages under licences zone 1 forbids: argparse under Python-2.0, caniuse-lite under CC-BY-4.0, lightningcss and lightningcss-darwin-arm64 under MPL-2.0, @speed-highlight/core under CC0-1.0 with no data-only reading, and mdn-data as a merged two version entry no reading matches. Measured on this tree the same day: the production zone goes from 121 packages and no violation to 658 packages and six',
+    until: 'a release after 1.0',
+  },
 ];
 
 /** A package that must never reach a consumer, and the reason it would be a defect if it did. */
@@ -267,6 +340,90 @@ export const BUILD_LINE_COUNT = 1641;
 export const BUILD_TASK_COUNT = 65;
 
 /**
+ * Fewest leaves the committed reading of `ai-docs/` can hold and still be that reading.
+ *
+ * A SCAN OVER NOTHING REPORTS THE SAME EMPTY LIST AS A SCAN OVER A CLEAN FILE, which is the shape
+ * every check in this repository is written against. The floor is far under the count the artefact
+ * actually carries, because its job is to tell a file from an absence rather than to weigh one.
+ *
+ * IT IS THE FLOOR OF A CORRIDOR AND {@link PROJECTION_ARTEFACT_BUDGET} IS THE CEILING. The two are
+ * written beside each other because a reader meets one of them alone, in a red gate, and reads it
+ * as one end of a scale. It is not a scale. THIS FLOOR ASKS WHETHER THERE IS AN ARTEFACT HERE AT
+ * ALL: an emptied or truncated file passes every grammar in `lib/projection-prose.ts`, since every
+ * leaf it still holds is admissible and the leaves it lost cannot be refused, so without a floor an
+ * absence reads as the cleanest run this gate ever has. THE CEILING ASKS WHETHER THERE IS TOO MUCH,
+ * which is the half no per value grammar can see, because a thousand conforming leaves are a
+ * thousand conforming leaves. Both are counted in leaves only because that is the one quantity
+ * either question has to work with.
+ *
+ * TODAY'S READING SITS BETWEEN THEM AT 625, which is 125 above this and 175 under the budget, and
+ * the corridor is narrow BY CONSTRUCTION RATHER THAN BY ACCIDENT. Both numbers are taken from one
+ * artefact of one size asked two different questions, so the gap between them is about as wide as
+ * one artefact is, and it was never going to be wider. A narrow corridor here is not a defect and
+ * not a warning.
+ *
+ * WHAT TO DO WHEN GROWTH REACHES THE CEILING, stated here because otherwise it gets answered with
+ * an edit. RE-DERIVE THE BUDGET THE WAY ITS OWN RECORDED PROPERTY SAYS: price a milestone off the
+ * artefact as it then reads, the way the comment below prices this one, count the milestones the
+ * plan still holds, and set the number to cover them. Never raise it to fit the reading that just
+ * went red, because a budget sized to the thing it is bounding bounds nothing. Editing the cap so
+ * the reading fits is weakening the gate rather than fixing the code.
+ *
+ * AND THIS FLOOR DOES NOT FOLLOW THE CEILING UP. Its subject is emptiness, not volume. It moves
+ * only if the smallest honest artefact changes shape, which is a different event from the artefact
+ * growing; raising it because the reading grew would make it a stale second copy of the reading.
+ */
+export const PROJECTION_LEAF_FLOOR = 500;
+
+/**
+ * What the committed reading of `ai-docs/` may weigh, taken as one file.
+ *
+ * WHY A BUDGET RATHER THAN MORE PER POSITION BOUNDS, WHICH IS THE WHOLE REASON THIS ROW EXISTS.
+ * Every position of `tools/gates/ai-docs-projection.json` bounds how far one value may reach and
+ * how many leaves may stand there, and every one of those numbers is defensible on its own. THEY
+ * MULTIPLY. Measured on 2026-09-03 by filling every position to its own bound and scanning the
+ * result: 4,725,296 bytes over 6,880 leaves, and the scan reported nothing whatever, because no
+ * position was over its own limit. A quantity bounded only a piece at a time is not bounded. This
+ * is the one number that is about the artefact instead of about a position inside it, and the per
+ * position bounds go back to being what they always were, anomaly detection on one value.
+ *
+ * THE BYTES, AND WHY THIS HEADROOM AND NOT ANOTHER. The committed artefact reads 128,068 bytes. A
+ * milestone of ordinary writing is priced off the artefact rather than guessed: the amendments
+ * surrogate costs 429 bytes per heading over its 164 headings, the plan surrogate 126 per task over
+ * 65 tasks, and the claim map 219 per row over 53 rows. This project has averaged eight tasks, five
+ * owned entries and seven claim map rows per milestone over M0 to M7. EACH OF THOSE EIGHT TASKS
+ * COSTS A PLAN ENTRY AND AN AMENDMENT HEADING BOTH, which this sentence used to leave out, so the
+ * arithmetic is 8 x (126 + 429) + 5 x 429 + 7 x 219 and it comes to 8,118 bytes.
+ * 147,456 leaves 19,388 over today's reading, which is two of those, and the plan has exactly two
+ * milestones left in it, RELEASE and POST-1.0. 136 KB covers one and would be re-derived halfway
+ * through the plan; 152 KB covers three, which is more room than the remaining work can use.
+ *
+ * WHAT IT REFUSES, WHICH IS THE HALF THAT MAKES IT A BUDGET. The 4.72 MB above, by a factor of 32.
+ * The amendments surrogate, 70,352 bytes of the file, arriving a second time: that reads 198,420.
+ * And the digest count, which this now binds before `DIGESTS_IN_THE_ARTEFACT` does, since 12,000
+ * digests at seventeen bytes each is 204,000 bytes and does not fit under this at all.
+ *
+ * THE LEAVES ARE THE SECOND NUMBER BECAUSE BYTES ALONE WOULD LET A THOUSAND SHORT ONES THROUGH.
+ * 625 today. 800 leaves 175 of room, which is 29 claim map rows at the six leaves a row costs, or
+ * four milestones at the seven rows a milestone this project has averaged. That leaf count is the
+ * CEILING of the corridor {@link PROJECTION_LEAF_FLOOR} above states in full, and the floor is not
+ * its margin: 500 asks whether there is an artefact here at all and 800 asks whether there is too
+ * much of one, so neither number moves because the other did.
+ *
+ * IT IS NOT A SPEC 20 ROW AND CANNOT BE MADE ONE FROM HERE. `SIZE_BUDGETS` is reconciled against
+ * SPEC 20's table in both directions by the `claims` gate, so a row added there with no row in the
+ * specification is a red gate, and SPEC 20 is the maintainer's document. It sits instead with the
+ * other committed limits in this file that the specification does not state, and it is enforced by
+ * `scanProjectionProse`, by the `projection-privacy` gate and by `projection.spec.ts`.
+ */
+export const PROJECTION_ARTEFACT_BUDGET = {
+  /** Most bytes the whole committed artefact may weigh. */
+  limitBytes: 144 * 1024,
+  /** Most leaves it may hold over every position together. */
+  leaves: 800,
+} as const;
+
+/**
  * THE LIST OF PACKAGES IS NOT IN THIS FILE ANY MORE, and its absence is the fix for F23.
  *
  * It was a hand written array of eight directory names here and another in
@@ -424,6 +581,29 @@ export const COVERAGE_FLOORS: Readonly<Record<string, number>> = {
   'collector-access-control': 90,
   'collector-casl': 90,
   'collector-throttler': 90,
+  // ADDED AT `TX-REDISX-RATELIMIT`, WITH THE PACKAGE AND NOT AFTER IT, which is the whole lesson of
+  // the block above. `T065` closed the case where seven of eleven published packages were governed
+  // by nothing; a twelfth published package landing with no floor would have reopened it on the day
+  // it landed, and `[floor-ungoverned]` says exactly that. 90 by the margin doctrine, on the
+  // reading stated with its date in STANDARDS 9.1.
+  'collector-redisx-rate-limit': 90,
+  // ADDED AT `TX-REDISX-IDEMPOTENCY`, WITH THE PACKAGE, for the reason the row above states and on
+  // the same day as the package rather than after it. A thirteenth published package landing with
+  // no floor reopens what `T065` closed, and `[floor-ungoverned]` would say so.
+  'collector-redisx-idempotency': 90,
+  // THE THREE OF `TX-REDISX-POLICIES`, ADDED WITH THE PUBLICATION RATHER THAN WITH THE PACKAGES,
+  // and the difference is worth stating because it is the one case the two rows above do not
+  // describe. Those two set a floor on the day the package landed; these three landed `private` in
+  // a worktree that could not read STANDARDS 9.1 at all, so they were governed by nothing for as
+  // long as they were installable by nobody, which is the only arrangement in which that is not a
+  // defect. Publishing them ends it, so the floors arrive in the same change. 90 by the margin
+  // doctrine the eleven rows above follow, and the readings are stated with their date in
+  // STANDARDS 9.1. `collector-redisx-cache` carries the thinnest margin of the three at 96.19 of
+  // lines, and it is thin because the package is the largest of the three rather than because the
+  // doctrine bent.
+  'collector-redisx-cache': 90,
+  'collector-redisx-circuit-breaker': 90,
+  'collector-redisx-locks': 90,
   // THE ONE ROW TAKEN EXPLICITLY RATHER THAN BY ROUNDING, because rounding gives two wrong answers
   // here. At 77.20 of lines and 74.20 of statements, 80 would be red on the day it lands and a
   // floor at the measurement would govern nothing. 70 is the step that governs: it is a real floor
@@ -972,7 +1152,44 @@ export const SIZE_BUDGETS: readonly SizeBudget[] = [
     //
     // 489 BYTES IS THE NUMBER TO WATCH NOW. The next 490 bytes the first paint gains fail this
     // budget, and the task that brings them comes to the maintainer with its own measurement.
-    limitBytes: 110 * 1024,
+    //
+    // AND ON 2026-09-04 THEY WERE SPENT AND FOUR MORE WITH THEM. The operation page prints a third
+    // sentence under the tabs, the one that says what is true of the samples it did draw: four
+    // clients treat a redirect unlike the console, an operation whose credential no request can
+    // carry draws samples that will not authenticate, and a document that wrote two samples under
+    // one language has one of them shown. All three were computed before and reached no reader.
+    // Measured on the published form by building the tree twice: 112,644 against 112,587, so 57
+    // bytes against 53 of headroom. THE CAP WAS NOT MOVED BY THE SLICE THAT SPENT THEM AND THE ROW
+    // STOOD RED BY FOUR BYTES. The property that derives this cap was broken in its first half,
+    // since the artefact no longer fitted under 110 KB, and re-deriving it is the maintainer's
+    // decision rather than this file's: a gate edited to make something pass is the one rule this
+    // project protects hardest.
+    //
+    // 111 KB SINCE 2026-09-04, BY THE MAINTAINER'S RULING, AND BY THIS ROW'S OWN PROPERTY RATHER
+    // THAN BY A RULE SHARED WITH ANY OTHER ROW. The three rows nearest this one are derived three
+    // different ways on purpose: `client-js-schema` is its measurement plus ten percent rounded
+    // down to a hundred bytes, `theme-entry-raw` is plus ten percent rounded up to a whole KiB, and
+    // `theme-css-raw` is the smallest whole KB step the artefact fits under. This row's property
+    // has not changed since T011-R: the smallest whole KB step the artefact fits under, at which
+    // the cheapest deferred gesture returning to the first load still fails the budget.
+    //
+    // THE ARITHMETIC, EVERY OPERAND OFF THE TREE. The published first paint weighs 112,644 across
+    // seven files. 110 KB is 112,640 and does not hold it; 109 KB at 111,616 holds it less. 111 KB
+    // is 113,664: the artefact fits with 1,020 bytes. The second half is checked with the same
+    // measurement: `sign-in-return` published is 1,468 raw, 112,644 plus 1,468 is 114,112 against
+    // 113,664, and the budget fails, so the property holds. 112 KB is 114,688 and would let that
+    // same return in without a word, so 112 is what the property forbids and 111 is the one step it
+    // allows. THE PAYER AND THE ARRIVAL ARE RECORDED AND NOT ONLY THE NUMBER: all 57 bytes are in
+    // `openref.js`, which weighs 21,280 while the six files beside it weigh 91,364 before the change
+    // and after it, and the arrival is the third sentence under the tabs, which delivers
+    // `GeneratedSamples.notes` and `placeholderCredentials(...).unsendable`. Both were computed from
+    // the generator's first day and reached no reader. WHAT WAS REFUSED, IN THE MAINTAINER'S OWN
+    // WORDS: shaving a sentence that tells a reader the samples cannot carry required credentials is
+    // trimming the fix under the budget, which is the move this project forbids.
+    //
+    // 1,020 BYTES IS THE NUMBER TO WATCH NOW. The next 1,021 bytes the first paint gains fail this
+    // budget, and the task that brings them comes to the maintainer with its own measurement.
+    limitBytes: 111 * 1024,
     roots: CLIENT_JS_ROOTS,
     extensions: ['.js', '.mjs'],
     quantity: 'parse',
@@ -1557,6 +1774,16 @@ export const SIZE_BUDGETS: readonly SizeBudget[] = [
     // tighter of the two and SPEC 20 said so; after it the gzip row is, by a factor of nine. That
     // is what having two caps on one artefact is for, and it is written down because the sentence
     // it replaces was true when it was written.
+    //
+    // BOTH FIGURES ABOVE DESCRIBE A TREE THAT NO LONGER EXISTS, AND SINCE 2026-09-04 A CASE HOLDS
+    // THE ONES THAT DO. This directory carries a chunk per gesture and the renderer entire, so
+    // every first paint arrival lands in it by construction, and not one of this milestone's was
+    // ever recorded against it, because neither row had a case of any kind. Re-measured: 261,932
+    // raw on disk before the third sentence under the sample tabs and 262,009 after, so headroom
+    // 25,735 rather than 26,897; and 96,816 gzip published before it and 96,838 after, so headroom
+    // 2,490 rather than 2,973. Neither cap moved. The runner is
+    // `tools/gates/test/integration/published-form.spec.ts`, so the next drift reddens instead of
+    // sitting in a comment.
     limitBytes: 281 * 1024,
     quantity: 'parse',
     roots: ['packages/theme-telltale/dist/entry'],
@@ -1707,8 +1934,8 @@ export const MEASURED_BUDGETS: readonly MeasuredBudget[] = [
   {
     id: 'page-bytes',
     label: 'Document, CSS and JS the 1000 node page hands the main thread, raw',
-    limit: '203 KB',
-    enforcedBy: 'T015-R1, re-derived at the close of M2',
+    limit: '221 KB',
+    enforcedBy: 'T015-R1, re-derived at the close of M2 and again on 2026-09-04',
   },
   {
     id: 'client-memory',
@@ -1796,6 +2023,17 @@ export const MEASURED_BUDGETS: readonly MeasuredBudget[] = [
   // understates, because every term of the difference is something a host adds and the harness does
   // not. The browser study was deliberately not extended to this page, since that is a fixture, an
   // app and a Chrome navigation, none of which the threshold needs.
+  //
+  // AND NOTHING HERE BOUNDS A PAGE WHOSE WEIGHT IS ONE DOCUMENT MEMBER
+  // (DEFER POST-1.0, `TX-PAGE-WEIGHT-ROW`). This row's subject is written into its name and its
+  // fixture, and its payer is navigation and topology. A page whose weight is `info.description`
+  // has a different payer and no row at all: the built documentation site read 101,236 bytes on
+  // 2026-09-02 against these 86,016, which breaks nothing because the subjects differ. The class is
+  // wider than a long description, measured the same day: the largest page the default theme
+  // renders over the whole corpus is the node page of `stripe.yaml` at 205,147 bytes, 2.4 times
+  // this cap, and no row here bounds a node page or a schema page of a real document. Whether such
+  // a page gets a row of its own is the maintainer's, and any cap it gets is derived from a
+  // re-taken measurement by the standing rule rather than from either figure above.
   {
     id: 'overview-document',
     label: 'Overview page of the federated corpus, raw bytes, as the renderer produces it',
@@ -1852,21 +2090,37 @@ export const BROWSER_STUDY_WORKFLOW = '.github/workflows/browser-budget-study.ym
  * THERE IS NO `ttiMs` HERE ANY MORE, and its absence is the decision of 2026-08-10 rather than
  * an omission. SPEC 20 keeps the 150 ms as what the product is for and stops checking it,
  * because six studies of one commit across five processors of a pool that swaps them silently
- * measured it between 163.7 and 216.1 ms. Everything below is either a count or a byte count,
- * and no processor moved any of them.
+ * measured it between 163.7 and 216.1 ms. Everything below is either a count or a byte count.
  *
- * `longTaskCount` is 2 because 2 is what all six studies measured, as a median of 25
+ * AND THE SENTENCE THAT USED TO FOLLOW, THAT NO PROCESSOR MOVED ANY OF THEM, IS TRUE OF THE BYTE
+ * COUNTS AND NOT OF THE COUNT. It is corrected here rather than dropped, because a claim that was
+ * measured for one quantity and extended by wording to another is a defect of the kind this file
+ * keeps a list of. THE BYTE COLUMNS HAVE EARNED IT: identical to the byte across five processors
+ * in the studies of 2026-08-10, and again on 2026-09-04 across two browser majors and a different
+ * architecture, where 62,594 and 112,644 came back equal to the published `theme-css-raw` and
+ * `client-js-raw` of the same tree. `longTaskCount` has not: the three records this repository has
+ * kept read 2, then 1, then 0, on three machines and three trees, and no study has ever separated
+ * the machine from the tree for it. What it is safe to say is that the count is coarse and that
+ * its reading is not established to be machine independent; what is NOT safe is to read a fall
+ * from 1 to 0 as the page improving.
+ *
+ * `longTaskCount` is 2 because 2 is what all six studies of 2026-08-10 measured, as a median of 25
  * navigations, and 3 is the smallest step an integer count has. A change that adds one stall to
  * the load fails it. It is a coarse instrument and it says so: it cannot see an existing long
- * task getting worse without splitting.
+ * task getting worse without splitting, and by the paragraph above it cannot tell a faster machine
+ * from a lighter page either.
  *
- * `pageBytes` is 203 KB against 204,818 measured on the runner over the committed tree at
+ * `pageBytes` is 221 KB since 2026-09-04, and the property it is derived by is stated once here
+ * and applied to every measurement below: another region of `theme.css` the size of the page
+ * frame, 3,287 bytes, or of the try-it console, 3,669, has to fail it, and a navigation sized
+ * addition of 2,520 has to fit. The paragraph on the re-derivation carries today's arithmetic.
+ *
+ * IT WAS 203 KB against 204,818 measured on the runner over the committed tree at
  * commit 74510c5, three studies of one dispatch and the workstation identical to the byte:
- * 37,894 document, 59,582 CSS, 107,342 JS. The headroom is 3,054 bytes, and it is derived the
- * way `theme-css-raw` was: another region of `theme.css` the size of the page frame, 3,287
- * bytes, or of the try-it console, 3,669, has to fail it, and a navigation sized addition of
- * 2,520 has to fit; 203 KB is the one whole KB step that keeps the property, 207,338 under
- * 207,872 and 208,105 over it. THIS IS THE TIGHTEST ROW IN THE TABLE AND IT IS MEANT TO BE. It
+ * 37,894 document, 59,582 CSS, 107,342 JS. The headroom was 3,054 bytes, derived the
+ * way `theme-css-raw` was, by the same property: 203 KB was the one whole KB step that kept it,
+ * 207,338 under 207,872 and 208,105 over it. THIS IS THE TIGHTEST ROW IN THE TABLE AND IT IS
+ * MEANT TO BE. It
  * is the only budget measured over what the page actually loads rather than over what the build
  * produced, so it is the only one that can see a resource nobody weighed, and a cap with the
  * usual ten percent of room would let a whole stylesheet in without a word.
@@ -1909,6 +2163,74 @@ export const BROWSER_STUDY_WORKFLOW = '.github/workflows/browser-budget-study.ym
  * re-derived one. The exception is closed into the history below as paid by its payer and
  * closed by this re-derivation.
  *
+ * RE-DERIVED ON 2026-09-04, 203 TO 221 KB, BY THE MAINTAINER'S RULING, AND THE MOVE IS THE ONE
+ * `T062` MADE FOR THE SUBJECT: the row's own property, applied to a measurement taken again rather
+ * than reused. What made the re-derivation necessary is not the samples section. THE ZERO LANGUAGE
+ * READING IS DERIVED AND NOT TAKEN, for the reason the paragraph after next gives, and
+ * `zeroSamplePage` in `lib/browser-baseline.ts` is what derives it: the recorded document column
+ * less the 7,213 bytes the twelve drawn languages were measured to cost together. It reads 40,876
+ * document and 216,114 in total, which is 8,242 over the 207,872 this cap replaced, so the overrun
+ * exists at zero languages and no choice of language count saves this budget. The one code block
+ * the server draws itself is 310 bytes and is charged to no language, so a page with the samples
+ * section gone entirely is at most that much lighter: 215,804 and still 7,932 over. That is a bound
+ * rather than a second measurement, since nothing here has an instrument for taking the section
+ * chrome off, and it is written as a bound. The property is unchanged and is this row's own: the
+ * whole KB step under which a navigation sized addition of 2,520 still fits while a `theme.css`
+ * region the size of the page frame, 3,287, or of the try-it console, 3,669, goes over.
+ *
+ * THE FIGURE ABOVE WAS WRONG WHEN IT WAS FIRST WRITTEN HERE, AND IT WAS THE NINTH HAND WRITTEN
+ * NUMBER IN A ROW TO BE. It said 214,243 stripped, 214,997 with the section chrome and an overrun
+ * of 6,371, all taken on 2026-09-03 against a JS column of 112,151 and 112,380. The column moved to
+ * 112,644 and the three readings stopped holding: the page is over the replaced cap with no code
+ * sample on it at all, and by more than was recorded. The conclusion did not change and got
+ * stronger, which is why this is a correction and not a re-opened argument. WHAT CHANGED IS THAT
+ * NOBODY TYPES IT AGAIN. The three columns live in `tools/browser-budget/baseline.json`, the two
+ * measured costs live in `PAGE_SAMPLE_LANGUAGE_MEASUREMENT` below, everything else is arithmetic
+ * over the two, and a test compares every derived figure against the text of this comment and of
+ * SPEC 20 and fails when they part. The derivation refuses to answer at all when the two records
+ * were taken at different commits, so a re-record that leaves the language cost behind reports an
+ * undetermined figure rather than a confident stale one.
+ *
+ * THE MEASUREMENT, AND WHAT IT REPLACES. Taken 2026-09-04 on an Apple M3 Ultra workstation under
+ * Chrome 152, throttle 4x measured between 4.10x and 4.29x over twenty navigations: 223,327 bytes,
+ * 48,089 document, 62,594 CSS and 112,644 JS, every one of the three columns identical to the byte
+ * across all twenty runs at a standard deviation of zero. It replaces the record of 2026-08-14,
+ * 204,818 taken on an AMD EPYC 7763 runner under Chrome 151 at commit 74510c5, which 69 commits
+ * touching `packages/` or `tools/browser-budget/src` had gone past: the budgets gate printed FROM A
+ * STALE RECORD beside every browser row, and a cap decided on that figure would have been decided
+ * on a page that no longer exists. The difference is itemised rather than asserted: the document
+ * grew 10,195, the stylesheet 3,012 and the JS 5,302, which is 18,509, and 204,818 plus 18,509 is
+ * 223,327 with no unnamed term. TWO OF THE THREE COLUMNS AGREE WITH THE PUBLISHED FORM TO THE BYTE,
+ * MEASURED RATHER THAN ARGUED FROM THE PARAGRAPH THAT SAYS A BROWSER DOWNLOADS IT: the CSS column
+ * is 62,594, which is `theme-css-raw` on this tree, and the JS column is 112,644, which is
+ * `client-js-raw` on it.
+ *
+ * THE ARITHMETIC. 220 KB is 225,280 and 223,327 plus 2,520 is 225,847, so a navigation sized
+ * addition does not fit under it and the property breaks in its first half. 221 KB is 226,304:
+ * 225,847 fits, 223,327 plus 3,287 is 226,614 and fails, 223,327 plus 3,669 is 226,996 and fails.
+ * 222 KB is 227,328, under which 226,614 would pass unremarked, so a whole page frame region would
+ * enter the budget in silence. 221 KB is the one whole KB step the property keeps, and the headroom
+ * is 2,977 bytes.
+ *
+ * AND THE FIVE FIGURES OF THE TWO PARAGRAPHS ABOVE ARE NOT TYPED ANY MORE EITHER, WHICH IS THE
+ * SAME DEFECT ONE LAYER UP. The zero language reading was brought under `zeroSamplePage` while the
+ * three columns, their sum and the headroom stayed hand written here, in the SPEC 20 row and in
+ * the paragraphs beside both, and the only assertions that touched them compared the committed
+ * record with itself. `pageBytesFigures` in `lib/browser-baseline.ts` derives all five from
+ * `tools/browser-budget/baseline.json` and the ceiling above, and `pageBytesFigureIssues` walks
+ * this comment, the SPEC 20 row and the SPEC 20 paragraphs for them, so a re-record that leaves a
+ * prose home behind is red rather than quiet.
+ *
+ * WHICH OF THE FIVE ARE DERIVED FROM SOMETHING INDEPENDENTLY MEASURABLE, AND WHICH ARE ONLY AS
+ * GOOD AS THE RUN THAT WROTE THEM, because they are not equally good and one line for both would
+ * be dressing the weaker up as the stronger. MEASURABLE: 62,594 is `theme-css-raw` of the
+ * published form and 112,644 is `client-js-raw` of it, byte for byte on this tree, and both are
+ * weighed off the built artefacts, so the record's two columns are held against an instrument.
+ * RECORDED: the document column comes from the browser study on its named machine and there is no
+ * second instrument for it here, the total contains it and is therefore no better than it, and the
+ * headroom is arithmetic over the ceiling in force and that total. What holds those three is that
+ * nothing types them twice.
+ *
  * `longTaskCount` STAYS AT 2 AND HAS NO ROOM LEFT, recorded here because a count with no
  * headroom is one change away from a red build and nothing else in this file would say so. The
  * six studies of 2026-08-12 read 2, 2, 2, 0, 1 and 2 against a cap of 2, where the same page
@@ -1921,7 +2243,53 @@ export const BROWSER_CEILINGS = {
   cspViolations: 0,
   servedDocumentBytes: 72 * 1024,
   longTaskCount: 2,
-  pageBytes: 203 * 1024,
+  pageBytes: 221 * 1024,
+} as const;
+
+/**
+ * What the sample languages cost the measured page, which is the one input to the zero language
+ * reading that `tools/browser-budget/baseline.json` does not carry.
+ *
+ * IT IS HERE BECAUSE IT HAD NO HOME AND THAT IS HOW IT WENT STALE. The zero language reading was
+ * written into the `page-bytes` comment above, into SPEC 20 and into the baseline note as three
+ * hand copies of one arithmetic, and when the JS column moved all three were wrong at once with
+ * nothing able to notice. The rule this repository already had for that, and did not apply here,
+ * is T031's: a value written in more than one place has exactly one home, and the other places are
+ * either generated from it or compared with it by something that can fail. This is the home of the
+ * two measured costs; `zeroSamplePage` in `lib/browser-baseline.ts` is the generator, and
+ * `browser-baseline.spec.ts` is the comparison.
+ *
+ * HOW TO RE-TAKE IT, because a record nobody can reproduce is a record nobody can correct. Build
+ * the tree, then `node tools/browser-budget/dist/measure-languages.js`. The `all drawn` row of its
+ * table is `allDrawnDocumentBytes` and the line beneath it is `servedCodeBlockBytes`. It boots the
+ * fixture, serves the same page the study measures, and takes each language off the served text
+ * before the browser sees it, so the costs are measured rather than divided out of a total.
+ *
+ * `commit` IS THE HALF THAT MAKES STALENESS LOUD. It is the tree these two figures were taken on,
+ * and it has to be the tree the baseline record was taken on: a page whose document column moved is
+ * a page whose language costs may have moved too, and deriving across the two would be the same
+ * defect one layer down. The derivation compares them and refuses rather than answering.
+ */
+export const PAGE_SAMPLE_LANGUAGE_MEASUREMENT = {
+  /** Date of the run, as `YYYY-MM-DD`. */
+  measuredAt: '2026-09-04',
+  /** The tree it was taken on, which must be the tree the baseline record was taken on. */
+  commit: 'df41de06e7e153ac0c840cee483995daf9f48894',
+  /** How many languages the page draws, per the maintainer's ruling of 2026-09-03. */
+  languageCount: 12,
+  /** Document bytes the drawn languages cost together, measured by taking all of them off. */
+  allDrawnDocumentBytes: 7213,
+  /**
+   * The one code block the server draws, which the harness charges to no language.
+   *
+   * It is what is left of the samples section's own content once every language is off, so the
+   * page with the section gone entirely is at most this much lighter than the zero language
+   * reading. That makes it a lower bound on the overrun rather than a second measurement, and the
+   * derivation labels it as one.
+   */
+  servedCodeBlockBytes: 310,
+  /** The `page-bytes` ceiling this one replaced, which the overrun is stated against. */
+  replacedPageBytesCap: 203 * 1024,
 } as const;
 
 /**

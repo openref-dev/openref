@@ -24,25 +24,56 @@ OpenRefModule.forRoot({
 });
 ```
 
-| Collector | Reads |
-| --- | --- |
-| `sourceCollector` | where the handler is written, from V8 and the source map |
-| `guardsCollector` | the guard class names in front of the route |
-| `scopesCollector` | scopes, from a metadata key you name |
-| `rolesCollector` | roles, from a metadata key you name |
-| `pipesCollector` | the pipes bound to the route, with their scope |
-| `timeoutCollector` | a timeout, from a metadata key you name |
-| `headersCollector` | required headers, from a metadata key you name |
-| `httpCodeCollector` | the success status `@HttpCode` sets |
-| `streamCollector` | that a route streams, and its item type when declared |
-| `declarationsCollector` | what this package's own decorators declared |
-| `errorsCollector` | error contracts, from catalogs you supply |
-| `handlerScanCollector` | which declared parameters the handler actually binds |
+| Collector               | Reads                                                    |
+| ----------------------- | -------------------------------------------------------- |
+| `sourceCollector`       | where the handler is written, from V8 and the source map |
+| `guardsCollector`       | the guard class names in front of the route              |
+| `scopesCollector`       | scopes, from a metadata key you name                     |
+| `rolesCollector`        | roles, from a metadata key you name                      |
+| `pipesCollector`        | the pipes bound to the route, with their scope           |
+| `timeoutCollector`      | a timeout, from a metadata key you name                  |
+| `headersCollector`      | required headers, from a metadata key you name           |
+| `httpCodeCollector`     | the success status `@HttpCode` sets                      |
+| `streamCollector`       | that a route streams, and its item type when declared    |
+| `declarationsCollector` | what this package's own decorators declared              |
+| `errorsCollector`       | error contracts, from catalogs you supply                |
+| `handlerScanCollector`  | which declared parameters the handler actually binds     |
 
 `throttlerCollector` lives in its own package, `@openref/collector-throttler`, so that
 installing `@openref/nest` never puts a rate limiting library in the dependency closure of an
 application that does not rate limit anything. The same is true of
-`@openref/collector-casl` and `@openref/collector-access-control`.
+`@openref/collector-casl`, `@openref/collector-access-control`,
+`@openref/collector-redisx-rate-limit`, which reads `@nestjs-redisx/rate-limit`,
+`@openref/collector-redisx-idempotency`, which reads `@nestjs-redisx/idempotency`,
+`@openref/collector-redisx-cache`, which reads `@nestjs-redisx/cache`,
+`@openref/collector-redisx-locks`, which reads `@nestjs-redisx/locks`, and
+`@openref/collector-redisx-circuit-breaker`, which reads `@nestjs-redisx/circuit-breaker`.
+
+The last three report a handler policy: what a route declares about caching its own response, about
+what happens when two callers arrive at once, and about what it does when the thing behind it is
+down. Each is a separate package for the reason the first sentence gives, so an application that
+caches nothing does not carry the lock module to learn that it locks nothing either.
+
+The rate limit and idempotency collectors report statuses as well, into the route's runtime derived error
+contracts, so a route that answers something the document does not mention shows up as drift. A
+`@RateLimit` route answers 429 whenever the limit is spent, and answers 503 as well where the
+module declares `errorPolicy: 'fail-closed'`, which is the only place that option can be read; where
+it cannot be read the 503 is left off and `openref doctor` says so rather than assuming it. An
+`@Idempotent` route answers 409, and 422 as well where the plugin compares request fingerprints.
+
+Register at most one collector per fact. Two that report the same fact at the same confidence are
+resolved by registration order, first wins, and the `doctor` report names the pair and the value it
+dropped so the choice is never silent.
+
+### What a collector cannot read, it says
+
+A rate limit written on a route is a fact. A rate limit applied by a guard your application
+registered for everything is not: what that guard decides is in its own code, which no collector
+ever reads. So a route with no limit of its own and a globally registered guard over it does not
+come back empty. It comes back with a line in `openref doctor` naming the guard, and the module wide
+budget if one is configured, and saying that nothing observed connects the two. An unlimited route
+and a route whose limit is unreadable must not look the same, and this is where they stop looking
+the same.
 
 ### Every fact carries where it came from
 

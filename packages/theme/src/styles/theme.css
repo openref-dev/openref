@@ -410,6 +410,12 @@
   margin-left: auto;
 }
 
+/* Words where the count would be, on a document with no health report, per SPEC 7.3. One cell
+ * holds both statements, so null and zero are read in one place instead of two. */
+.oref-nav-stats-missing {
+  margin-left: auto;
+}
+
 /* The drift counter on a group or an item: a warning glyph whose absence asserts nothing. */
 .oref-nav-drift {
   color: var(--oref-drift-crit-fg);
@@ -441,11 +447,11 @@
 
 /* Content */
 
-/* THE FRAME IS THE TRACK AND THE COLUMN DECLARES NO WIDTH, which is finding F17 resolved in
- * `ai-docs/design/vernier/notes.md`. `--oref-layout-measure` bounds a paragraph and was never
- * the frame; applied here it left about four hundred pixels of bare sunken surface at the right
- * of a 1600 px window. The rail, the ruler gutter and this column account for the window between
- * them at every width, and the measure stays where it belongs, on `.oref-description`. */
+/* THE FRAME IS THE TRACK AND THE COLUMN DECLARES NO WIDTH, which is finding F17 resolved.
+ * `--oref-layout-measure` bounds a paragraph and was never the frame; applied here it left
+ * about four hundred pixels of bare sunken surface at the right of a 1600 px window. The rail,
+ * the ruler gutter and this column account for the window between them at every width, and the
+ * measure stays where it belongs, on `.oref-description`. */
 .oref-content {
   background: var(--oref-color-bg);
   grid-column: 3;
@@ -563,8 +569,8 @@
 }
 
 /* A method the contract names no colour for. OpenAPI 3.2 leaves the method set open and the
- * contract stops at seven, so an unrecognised one borrows the neutral colour. Recorded in
- * PROJECT_STATE as a question for the designer rather than settled here. */
+ * contract stops at seven, so an unrecognised one borrows the neutral colour. Left open as a
+ * question for the designer rather than settled here. */
 .oref-badge.oref-method-other {
   background: var(--oref-color-method-event);
 }
@@ -1418,6 +1424,16 @@ a.oref-topology-name {
   text-transform: uppercase;
 }
 
+/* The copy control of the call samples block is the one `.oref-send` that carries no word, so the
+   padding written for a label would draw a wide bar around a small glyph. Selected by the state
+   attribute rather than by a class of its own, for the reason THEME-BOUNDARY.md gives: a class here
+   would be a name every theme has to style for a shape only this control has. */
+.oref-send[data-oref-copy] {
+  display: inline-grid;
+  padding: var(--oref-space-300);
+  place-items: center;
+}
+
 /* Only a live console that cannot send is painted unavailable. The deferred button carries no
    disabling attribute and no muted paint, per the SPEC 11 rule F14 grew into: a press on it is
    the action the notice names, and a control painted inert beside a sentence asking for a press
@@ -1819,7 +1835,30 @@ a.oref-topology-name {
   margin: 0;
 }
 
-.oref-rule-head {
+/* The subject list and the reasoning open with the browser's own disclosure, so neither costs a
+ * byte of script, neither is the first thing a reader reads, and both survive a strict CSP. */
+.oref-drift-subjects,
+.oref-drift-why {
+  color: var(--oref-color-fg-secondary);
+  font-size: var(--oref-font-size-100);
+}
+
+.oref-drift-subjects summary,
+.oref-drift-why summary {
+  cursor: pointer;
+}
+
+.oref-drift-subjects ul {
+  margin: var(--oref-space-100) 0 0;
+  padding-left: var(--oref-space-500);
+}
+
+.oref-drift-why p {
+  margin: var(--oref-space-100) 0 0;
+}
+
+.oref-rule-head,
+.oref-suppression-head {
   cursor: pointer;
 }
 
@@ -1849,6 +1888,7 @@ a.oref-topology-name {
 .oref-drift-message,
 .oref-drift-side,
 .oref-drift-subject,
+.oref-drift-why,
 .oref-example,
 .oref-media-schema,
 .oref-nav-label,
@@ -2420,7 +2460,8 @@ a.oref-topology-name {
 }
 
 /* The rule row's sentence, the catalogue's own label beside the code and the kebab. */
-.oref-rule-summary {
+.oref-rule-summary,
+.oref-suppressed-reason {
   color: var(--oref-color-fg-secondary);
   font-size: var(--oref-font-size-300);
 }
@@ -2436,6 +2477,21 @@ a.oref-topology-name {
 .oref-rule-zero .oref-drift-code,
 .oref-rule-zero .oref-rule-summary {
   color: var(--oref-color-fg-muted);
+}
+
+/* What the host suppressed, per SPEC 7.2: a closed disclosure of muted rows, which is the
+ * zero rule row's vocabulary because both are rows a reader reads rather than acts on. Its
+ * summary and its reason are joined to the two rules above that already say exactly this,
+ * because `theme-css-raw` had 353 bytes of headroom and four new rules do not fit in them. */
+.oref-suppression,
+.oref-suppressed {
+  color: var(--oref-color-fg-muted);
+  padding: var(--oref-space-200) 0;
+}
+
+.oref-suppression {
+  border-top: var(--oref-border-hair) solid var(--oref-color-line);
+  margin-top: var(--oref-space-400);
 }
 
 /* The read only mark of the schema tree, the muted vocabulary of the deprecated badge. */

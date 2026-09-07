@@ -666,7 +666,12 @@ describe('the committed wiring', () => {
     // `T062` added the fifth, the row M7 closes, and named it here for the same reason again.
     expect(order[position + 4]).toBe('m7-suites');
     expect(order[position + 5]).toBe('reader-pages');
-    expect(order.indexOf('coverage')).toBe(position + 6);
+    // `T065` added `test-skips`, and it is named here for the same reason as all five above. It is
+    // not a row gate: it asks of the suites what `skip-accounting.ts` asks of the gates, whether a
+    // case that is present, named and green ever executed on any machine. It sits at the end of
+    // this family and before `coverage`, which stays the end of the run.
+    expect(order[position + 6]).toBe('test-skips');
+    expect(order.indexOf('coverage')).toBe(position + 7);
     expect(order.indexOf('coverage')).toBe(order.length - 1);
   });
 });

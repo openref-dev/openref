@@ -5,7 +5,7 @@ import type { FixRun } from '../../src/cli/application/services/fix.service';
 import type { PlannedEdit, SkippedFinding } from '../../src/cli/domain/fix-plan';
 
 /**
- * The summary, which `ai-docs/REMEDIATION.md` section 4 calls the point of the whole mode.
+ * The summary, which is the point of the whole mode.
  *
  * THE ASSERTIONS ARE ABOUT WHAT A READER CAN ACT ON. A run that fixed three of forty is useful
  * only if the other thirty seven are named with their reasons, so these tests check that every

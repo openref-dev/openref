@@ -302,6 +302,10 @@
   margin-left: auto;
 }
 
+.oref-nav-stats-missing {
+  margin-left: auto;
+}
+
 .oref-nav-drift {
   color: #a92616;
   font-family: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
@@ -1181,6 +1185,12 @@ a.oref-topology-name {
   text-transform: uppercase;
 }
 
+.oref-send[data-oref-copy] {
+  display: inline-grid;
+  padding: 6px;
+  place-items: center;
+}
+
 .oref-send:disabled {
   background: #f6f8fa;
   border-color: #5f6e7a;
@@ -1508,7 +1518,28 @@ a.oref-topology-name {
   margin: 0;
 }
 
-.oref-rule-head {
+.oref-drift-subjects,
+.oref-drift-why {
+  color: #465768;
+  font-size: 11px;
+}
+
+.oref-drift-subjects summary,
+.oref-drift-why summary {
+  cursor: pointer;
+}
+
+.oref-drift-subjects ul {
+  margin: 2px 0 0;
+  padding-left: 14px;
+}
+
+.oref-drift-why p {
+  margin: 2px 0 0;
+}
+
+.oref-rule-head,
+.oref-suppression-head {
   cursor: pointer;
 }
 
@@ -1520,6 +1551,7 @@ a.oref-topology-name {
 .oref-drift-message,
 .oref-drift-side,
 .oref-drift-subject,
+.oref-drift-why,
 .oref-example,
 .oref-media-schema,
 .oref-nav-label,
@@ -2028,7 +2060,8 @@ a.oref-topology-name {
   color: #8a5200;
 }
 
-.oref-rule-summary {
+.oref-rule-summary,
+.oref-suppressed-reason {
   color: #465768;
   font-size: 13px;
 }
@@ -2042,6 +2075,17 @@ a.oref-topology-name {
 .oref-rule-zero .oref-drift-code,
 .oref-rule-zero .oref-rule-summary {
   color: #5f6e7a;
+}
+
+.oref-suppression,
+.oref-suppressed {
+  color: #5f6e7a;
+  padding: 4px 0;
+}
+
+.oref-suppression {
+  border-top: 1px solid #d9dfe5;
+  margin-top: 10px;
 }
 
 .oref-schema-readonly {

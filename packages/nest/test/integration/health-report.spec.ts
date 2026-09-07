@@ -264,9 +264,33 @@ describe('the health report, against the running example application', () => {
       // sends a reader to edit their own code. It is a check, and it is never a finding.
       expect(found.skipped).toEqual([]);
       expect(check(found, 'runtime-collectors')).toMatchObject({ passed: 12, total: 12 });
+
+      // AND EVERY ROW IS ANCHORED TO SOMETHING A READER CAN OPEN, which is what this assertion was
+      // always about and what it now says. It read `nodeId || schemaId` and admitted no third
+      // anchor, which was true of this application until the collectors' own record of what they
+      // could not read began reaching `doctor`: `discovery-incomplete` names its subject in
+      // `IRDriftIssue.subject`, the field T054 added for exactly this rule, and never in `nodeId`.
+      // A row with none of the three is the unanchored row this case exists to refuse.
       expect(
-        found.drift.every((issue) => issue.nodeId !== undefined || issue.schemaId !== undefined),
+        found.drift.every(
+          (issue) =>
+            issue.nodeId !== undefined ||
+            issue.schemaId !== undefined ||
+            issue.subject !== undefined,
+        ),
       ).toBe(true);
+
+      // AND THE ROWS THAT ARRIVED WITH THE DRAIN ARE THE ONES THE EXAMPLE HAS EARNED. Five of its
+      // routes are behind `ScopesGuard` and declare no metadata under the key the host configured,
+      // which is the case SPEC 6.2.1 writes the warning for: the difference between "no scopes
+      // here" and "scopes here, unread" has to be visible. `scopesCollector` recorded all five from
+      // the day it was written and nothing read the list, so this application looked clean on a
+      // question it had never answered.
+      const unreadScopes = found.drift.filter((issue) =>
+        issue.message.includes('scopesCollector: it is guarded by'),
+      );
+      expect(unreadScopes).toHaveLength(5);
+      expect(unreadScopes.every((issue) => issue.rule === 'discovery-incomplete')).toBe(true);
     },
   );
 });

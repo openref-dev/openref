@@ -21,6 +21,7 @@ export const PACKAGE_NAME = '@openref/samples';
 export const UPSTREAM_PACKAGES: readonly string[] = [CORE_PACKAGE, RUNNER_PACKAGE];
 
 export { composeCodeSamples } from './generate/domain/compose';
+export type { ComposedCodeSamples } from './generate/domain/compose';
 export { withGeneratedSamples } from './generate/domain/document-samples';
 export type {
   SampleBodyMediaType,
@@ -34,14 +35,21 @@ export {
   BYTE_BODY_REFUSAL,
   HTTPIE_MULTIPART_REFUSAL,
   HTTPIE_SEPARATOR_REFUSAL,
+  NO_SERVER_REFUSAL,
   NON_ASCII_HEADER_REFUSAL,
+  OFF_PAGE_SAMPLE_LANGUAGES,
   OKHTTP_MISSING_BODY_REFUSAL,
+  PAGE_SAMPLE_LANGUAGES,
   POWERSHELL_MULTIPART_REFUSAL,
   POWERSHELL_TYPED_EMPTY_REFUSAL,
   REDIRECT_CREDENTIAL_DROPPED_NOTE,
   REDIRECT_NOT_FOLLOWED_NOTE,
   SAMPLE_LANGUAGES,
+  SHARED_TAB_NOTE,
+  UNBUILDABLE_REQUEST_REFUSAL,
+  UNREACHABLE_TAB_NOTE,
   UNSENDABLE_PLAN_REFUSAL,
+  unsendableCredentialNote,
   UNTYPED_BODY_REFUSAL,
   WGET_MULTIPART_REFUSAL,
 } from './generate/domain/languages';
@@ -50,6 +58,7 @@ export type {
   SampleLanguage,
   SampleLanguageId,
   SampleLevel,
+  SamplePlacement,
 } from './generate/domain/languages';
 export {
   BASIC_CREDENTIAL_PLACEHOLDER,

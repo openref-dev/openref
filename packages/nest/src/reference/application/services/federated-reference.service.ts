@@ -88,8 +88,8 @@ export class FederatedReferenceService {
     // merges differing only in the order a schema's `properties` were written hash the same, and
     // `serviceFor` below then keeps the inner service it already had, with its cached schema page
     // and its memoized `llms-full.txt` inside it. The claim is corrected rather than the code,
-    // because the gap is in the canonical form rather than here, and it is filed with its measured
-    // blast radius in the `T059` section of `ai-docs/BUILD-AMENDMENTS.md`.
+    // because the gap is in the canonical form rather than here, and it is filed against `T059`
+    // with its measured blast radius.
     this.cache = options.cache ?? createMemoryRenderCache();
     this.catalog = buildAssetCatalog(options.assets.sources);
     this.bridgeService = new BridgeService('the federated reference', options.bridge);

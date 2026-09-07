@@ -34,6 +34,7 @@ import {
   type IRSchemaSlot,
   type IRSchemaView,
   type IRSecurityRequirement,
+  pageNode,
 } from '@openref/core';
 import {
   materializeNode,
@@ -161,6 +162,27 @@ import { reasonPhrase } from '../../shared/status';
  * where it does not. A page cached before this serves a console that sends directly on a host
  * whose proxy is up, which is the defence existing and not being offered.
  *
+ * 22 SINCE THE TWO RESULTS THAT WERE COMPUTED AND DISCARDED WERE DELIVERED. A node carries
+ * `codeSamplesNotes`, the sentences that are true of the samples a reader can see: four clients
+ * measured to treat a redirect unlike the console, a credential this operation needs that travels
+ * in no request at all, and a second sample the document wrote under a language a tab strip keyed
+ * by language cannot show twice. Same mechanism and same failure as the two entries below: a
+ * client reading `undefined` where a list belongs draws nothing, and a note that draws nothing is
+ * the divergence going back to being computed and thrown away.
+ *
+ * 21 SINCE THE REFUSAL WAS GIVEN SOMEWHERE TO STAND. A node carries `codeSamplesRefused`, the
+ * languages that produced no sample for this request and the reason they gave. It is the same
+ * mechanism as the member below and the same failure it prevents, applied to the other silence: a
+ * page cached before this hydrates against a client that walks the list, and a client reading
+ * `undefined` where a list belongs draws nothing, so a language whose emitter refused would go back
+ * to looking like a language the reference never had.
+ *
+ * 20 SINCE THE MAINTAINER'S TWELVE. A node carries `codeSamplesElsewhere`, the languages SPEC 18
+ * generates for this operation that the page did not draw. A page cached before this hydrates
+ * against a client that reads the member, and a client reading `undefined` where a list belongs
+ * draws no notice at all, so the three languages the page is not carrying would go back to being
+ * silently absent, which is the exact state this member exists to end.
+ *
  * 8 SINCE `TX-SLOTWIRE`. Two changes, and both are about what a slot can be handed. A runtime
  * value carries `confidence` and `collector` where it carried `code`, `markClass` and
  * `markTitle`, because `ProvenanceTag` is declared in terms of the two facts and not of the three
@@ -176,7 +198,7 @@ import { reasonPhrase } from '../../shared/status';
  * 6 was T027: `run.bodyMediaTypes`, a list of strings, became `run.body`, a list of media types
  * each carrying the editor its schema asks for and the fields it is made of.
  */
-export const PAGE_MODEL_VERSION = 19;
+export const PAGE_MODEL_VERSION = 22;
 
 /** Media types an example is generated for. */
 const JSON_MEDIA_TYPE = /^application\/(?:[\w.+-]+\+)?json$/i;
@@ -682,21 +704,33 @@ function channelParameterModels(
  * url and a description, and the protocol, the protocol version and the bindings live on the
  * document's own entry for the same url. A url the document does not declare keeps an empty
  * protocol rather than borrowing one, which is the absence rule of SPEC 6.3 applied here.
+ *
+ * A SERVER WITH NO ADDRESS IS NOT ONE OF THEM, per SPEC 8.3, AND THE IR IS LEFT ALONE. A broker
+ * whose host nothing configured reaches the IR with its protocol and an empty url, because the
+ * document really does bind the channel to it; what a reader must not be given is a row that
+ * looks like an address and is not one, and that is a decision about the page, so it lives here.
+ * The channel keeps saying which protocol it speaks on its own `protocol` field, which is built
+ * from the bound servers rather than from their urls, so nothing about the channel is lost. It
+ * also removes the join this function would otherwise have to make on an empty key: two protocols
+ * nobody configured are two servers whose url is the same empty string, and `declared` would hand
+ * both rows whichever of the two it kept.
  */
 function channelServerModels(channel: IRChannel, document: IRDocument): ChannelServerModel[] {
   const declared = new Map(document.servers.map((server) => [server.url, server]));
 
-  return channel.servers.map((override) => {
-    const server = declared.get(override.url);
+  return channel.servers
+    .filter((override) => override.url !== '')
+    .map((override) => {
+      const server = declared.get(override.url);
 
-    return {
-      url: override.url,
-      protocol: server?.protocol ?? '',
-      protocolVersion: server?.protocolVersion ?? '',
-      description: override.description ?? server?.description ?? '',
-      security: securityModels(server?.security ?? [], document),
-    };
-  });
+      return {
+        url: override.url,
+        protocol: server?.protocol ?? '',
+        protocolVersion: server?.protocolVersion ?? '',
+        description: override.description ?? server?.description ?? '',
+        security: securityModels(server?.security ?? [], document),
+      };
+    });
 }
 
 /**
@@ -901,7 +935,8 @@ function servicePageModel(context: ModelContext, serviceId: string): ServicePage
     descriptionHtml: context.markdown.render(service.info.description),
     kind: service.kind,
     prefix: service.prefix ?? '',
-    servers: service.servers.map((server) => server.url),
+    // On the same rule as the document's own list below: a list of addresses lists addresses.
+    servers: service.servers.flatMap((server) => (server.url === '' ? [] : [server.url])),
     documentId: service.documentId,
     documentHash: service.documentHash,
     operations,
@@ -951,7 +986,18 @@ function drawnOf(node: Omit<NodeModel, 'drawn'>): NodeModel['drawn'] {
 
   return [
     'header' as const,
-    ...(node.runtime !== null ? ['runtime' as const] : []),
+    // THE RUNTIME POSITION IS MOUNTED ON AN OPERATION WHETHER OR NOT ANYTHING MEASURED IT, and
+    // that is a correction rather than a widening. It used to mount on `runtime !== null`, so a
+    // page nobody had instrumented was byte identical to a page whose collectors all agreed with
+    // the specification, which is the one distinction this product exists to draw. What fills
+    // the position when there are no facts is the `runtime-missing` sentence, decided in
+    // `eager.ts` where the slot is resolved and where it costs the first paint nothing.
+    //
+    // A CHANNEL STILL GETS NOTHING, per SPEC 6.3 and `RuntimePanel`'s own note: every collector
+    // is HTTP, no channel can carry a fact before M5 builds the event collectors, and a sentence
+    // about a measurement that cannot exist yet is not the same statement as one about a
+    // measurement nobody took.
+    ...(node.runtime !== null || node.channel === null ? ['runtime' as const] : []),
     ...(node.descriptionHtml !== '' ? ['description' as const] : []),
     // The security list draws only when there is no parity scale carrying the same assertion,
     // which is the rule `TX-GUTTER` set: the authentication and scopes rows are where the
@@ -964,7 +1010,30 @@ function drawnOf(node: Omit<NodeModel, 'drawn'>): NodeModel['drawn'] {
     ...(node.responses.length > 0 || marks.length > 0 || contracts.length > 0
       ? ['responses' as const]
       : []),
-    ...(node.codeSamples.length > 0 ? ['samples' as const] : []),
+    // THE SAMPLES SECTION MOUNTS ON THERE BEING SOMETHING TO SAY, AND A TAB IS ONLY ONE OF THE
+    // THREE THINGS IT CAN SAY. It used to mount on `codeSamples` alone, so a node carrying nothing
+    // but the languages it names drew no tab, no sentence and no section: the languages went
+    // silently absent again, which is the one thing the sentence exists to stop.
+    //
+    // THE `languages` PARAMETER IS NOT WHAT MAKES THAT STATE REACHABLE, AND SAYING SO WAS WRONG.
+    // The first edition of this comment justified the fix by naming that parameter as SPEC 18's
+    // supported lever. Measured 2026-09-03: `ReferenceService` and both `@openref/static` entry
+    // points call `withGeneratedSamples` with two arguments, so every shipped surface takes the
+    // default twelve, and a host that transforms a document itself and passes it as `ir:` has it
+    // transformed again over the top. No shipped surface reaches it, which is a finding recorded in
+    // SPEC 18 rather than a claim softened here. What does reach this condition on every surface is
+    // the third list: an operation the runner refuses to build a request for has no tab, no held
+    // back language and one reason, and that reason is the whole of what the page has to say.
+    //
+    // THE FOURTH LIST JOINED THE CONDITION WITH THE MEMBER, AND FOR THE SAME REASON THE THIRD DID.
+    // A note is a sentence the section is there to print, so a node carrying one and nothing else
+    // would draw no section and the sentence would go the way the languages used to.
+    ...(node.codeSamples.length > 0 ||
+    node.codeSamplesElsewhere.length > 0 ||
+    node.codeSamplesRefused.length > 0 ||
+    node.codeSamplesNotes.length > 0
+      ? ['samples' as const]
+      : []),
     // THE THREE CHANNEL SECTIONS OF `T050`, drawn from the same list for the same reason: the
     // client walks `drawn` and never recomputes a condition over a `channel` that arrives null.
     // The facts section draws when the channel says anything about itself beyond its address,
@@ -990,7 +1059,9 @@ function channelFactsDrawn(channel: ChannelModel | null): boolean {
 
 function nodeModel(context: ModelContext, nodeId: string): NodeModel | null {
   const { document, markdown } = context;
-  const node = document.nodes.get(nodeId);
+  // A WEBHOOK IS A PAGE TOO, per SPEC 13.3 as amended 2026-09-05: `pageNode` reads both maps, so
+  // the id the overview's topology and the search index already hand out has something behind it.
+  const node = pageNode(document, nodeId);
   if (node === undefined) return null;
 
   const view = materializeNode(node, document);
@@ -1022,6 +1093,9 @@ function nodeModel(context: ModelContext, nodeId: string): NodeModel | null {
       responses: [],
       security: [],
       codeSamples: [],
+      codeSamplesElsewhere: [],
+      codeSamplesRefused: [],
+      codeSamplesNotes: [],
       run: null,
       channel: channelModel(view.node, context),
       runtime,
@@ -1037,9 +1111,14 @@ function nodeModel(context: ModelContext, nodeId: string): NodeModel | null {
 
   const operation: Omit<NodeModel, 'drawn'> = {
     ...base,
-    // The public operation id of SPEC 5.4: the author's own whenever they wrote a real one,
-    // which is what the kicker quotes.
-    operationId: view.node.operationId ?? '',
+    // THE DOCUMENT'S OWN ID AND NOT THE NORMALIZER'S, per SPEC 11: the kicker draws the author's
+    // `operationId`, and each segment of it only when the document wrote one. `IROperation
+    // .operationId` is the rewritten public id of SPEC 5.4, which is the document's own only when
+    // the document's own was not generated, and is a `<method>-<path-slug>` this package invented
+    // otherwise. So the kicker printed `get-api-v1-health` on a document whose every operation is
+    // named `HealthController_getHealth`, and printed an id on documents that name none at all.
+    // `rawOperationId` is the field that is present exactly when the document wrote something.
+    operationId: view.node.rawOperationId ?? '',
     method: view.node.method.toUpperCase(),
     path: view.node.path,
     address: null,
@@ -1067,7 +1146,30 @@ function nodeModel(context: ModelContext, nodeId: string): NodeModel | null {
       scopes: requirement.scopes,
     })),
     codeSamples: codeSampleModels(view.node, context),
-    run: runnerOperationOf(view.node, document),
+    codeSamplesElsewhere: (view.node.codeSamplesElsewhere ?? []).map((language) => ({
+      lang: language.lang,
+      label: language.label,
+    })),
+    codeSamplesRefused: (view.node.codeSamplesRefused ?? []).map((group) => ({
+      reason: group.reason,
+      languages: group.languages.map((language) => ({
+        lang: language.lang,
+        label: language.label,
+      })),
+    })),
+    codeSamplesNotes: (view.node.codeSamplesNotes ?? []).map((group) => ({
+      note: group.note,
+      languages: group.languages.map((language) => ({
+        lang: language.lang,
+        label: language.label,
+      })),
+    })),
+    // A WEBHOOK HAS NO CONSOLE, AND IT IS THE F14 RULE A CHANNEL ALREADY OBEYS, per SPEC 13.3 as
+    // amended 2026-09-05. A webhook is what the server calls, not what the reader calls, so its
+    // path is a name rather than an address and a send button on it would promise a request that
+    // cannot be made. With `run` empty the frame draws no bench tab, so no bench address is
+    // printed for one and the bench route keeps resolving through `nodes` alone.
+    run: document.nodes.has(nodeId) ? runnerOperationOf(view.node, document) : null,
     channel: null,
     runtime,
   };
@@ -1165,6 +1267,17 @@ function holdsSchema(entry: IRNavNode, schemaId: string): boolean {
 }
 
 /**
+ * Whether a navigation entry files any node under it, at any depth.
+ *
+ * @param entry - The entry
+ * @returns True when its subtree reaches a node
+ */
+function holdsNode(entry: IRNavNode): boolean {
+  if (entry.kind === 'node') return true;
+  return entry.children.some((child) => holdsNode(child));
+}
+
+/**
  * Breadcrumb of the current node, per SPEC 11: the group, then what the node answers on.
  *
  * A SCHEMA'S GROUP IS READ OFF THE NAVIGATION AND NEVER SPELLED HERE, since `TX-MARKUP`
@@ -1204,9 +1317,15 @@ function crumbOf(
 function frameStats(document: IRDocument): FrameStatsModel {
   return {
     operations: document.nodes.size,
-    groups: document.navigation.filter(
-      (entry) => entry.nodeId === undefined && entry.schemaId === undefined,
-    ).length,
+    // A GROUP IS A BUCKET OPERATIONS ARE FILED UNDER, and the Schemas registry is not one. Counting
+    // it is how a document with fourteen tags printed `15 groups` beside `58 operations`. It is a
+    // root of `kind: 'group'` like every tag bucket, so `kind` does not separate them and neither
+    // does the missing `nodeId`, which its children carry as `schemaId` instead. What separates
+    // them is what is inside: a tag bucket holds nodes, the Schemas root holds only schemas. The
+    // untagged `Other` bucket holds nodes, so it counts, which is what a reader looking at the rail
+    // would count too.
+    groups: document.navigation.filter((entry) => entry.kind === 'group' && holdsNode(entry))
+      .length,
     drift: document.health === undefined ? null : document.health.drift.length,
   };
 }
@@ -1416,7 +1535,12 @@ export function buildPageModel(document: IRDocument, options: PageModelOptions):
     ...(options.proxyPath === undefined ? {} : { proxyPath: options.proxyPath }),
     ...(options.directTarget === undefined ? {} : { directTarget: options.directTarget }),
     ...(options.staticProxy === undefined ? {} : { staticProxy: options.staticProxy }),
-    servers: document.servers.map((server) => server.url),
+    // A BROKER WITH NO ADDRESS IS NOT LISTED HERE, per SPEC 8.3: what this member carries is a
+    // list of addresses, a server whose host nothing configured has none, and an empty entry drew
+    // an empty `<code>` in the overview and an empty option in every server select. The fact that
+    // the protocol exists is not lost by this, it is carried by the channel's own `protocol` row
+    // and named by `doctor` under `RT070`.
+    servers: document.servers.flatMap((server) => (server.url === '' ? [] : [server.url])),
     navigation: navigation.entries,
     navigationComplete: navigation.complete,
     navigationRows: navigation.total,

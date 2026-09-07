@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { Controller, Injectable } from '@nestjs/common';
 import { EventPattern, MessagePattern, Transport } from '@nestjs/microservices';
 import { SubscribeMessage, WebSocketGateway } from '@nestjs/websockets';
+import { Subscribe } from '@nestjs-redisx/pubsub';
+import { StreamConsumer } from '@nestjs-redisx/streams';
 import { transformPatternToRoute } from '@nestjs/microservices/utils';
 import type { MsPattern } from '@nestjs/microservices';
 import type { IRChannel } from '@openref/core';
@@ -194,6 +196,40 @@ class DeclaredController {
   }
 }
 
+/**
+ * A plain provider carrying `@ApiChannel`, which is SPEC 8.3's third class kind.
+ *
+ * IT IS NEITHER A CONTROLLER NOR A GATEWAY, and that is the whole of what this fixture is for. A
+ * projector, a saga, a listener a broker library registers: none of them is a `@Controller` and
+ * none implies `@WebSocketGateway`, and until 2026-09-04 the walk read `@ApiChannel` on those two
+ * class kinds alone, so the decorator written here reached nothing at all.
+ */
+@Injectable()
+class OrdersProjector {
+  @ApiChannel({ address: 'orders.projected', protocol: 'kafka', summary: 'An order was projected' })
+  @ApiMessage({ payload: OrderPlacedDto })
+  onProjected(): void {
+    // nothing
+  }
+}
+
+/**
+ * A plain provider carrying a framework pattern and no `@ApiChannel`, which is not a channel.
+ *
+ * THE NARROWING IS THE DECISION AND NOT AN OVERSIGHT. Nest routes `@MessagePattern` off a
+ * controller; a provider carrying one is served by nothing, so a walk that admitted it would put an
+ * address in the reference that no message ever arrives at. What the provider walk admits is the
+ * declaration, because a declaration is a person stating a fact rather than the framework being
+ * read off a class the framework does not route.
+ */
+@Injectable()
+class PatternedProvider {
+  @MessagePattern('providers.unrouted', Transport.KAFKA)
+  unrouted(): void {
+    // nothing
+  }
+}
+
 function channelsOf(document: unknown): IRChannel[] {
   const normalized = normalizeAsyncApiDocument(document);
   return [...normalized.nodes.values()].filter(
@@ -354,6 +390,60 @@ describe('discoverChannels, per SPEC 8.3', () => {
     // shaped produced it
     expect(placed?.address.confidence).toBe('declared');
     expect(placed?.declared?.value.summary).toBe('An order was placed');
+    // And the source names the decorator that produced it rather than one of the two framework
+    // ones. It read `message-pattern` until 2026-09-04, which said a decorator nobody wrote here
+    // had been read off this handler.
+    expect(placed?.source).toBe('api-channel');
+  });
+
+  it('should read a declaration off a plain provider, which is neither controller nor gateway', () => {
+    // Given a provider that is only `@Injectable()`, reported where a gateway would be reported
+    const discovery = discoveryOf([], [OrdersProjector]);
+    expect(discovery.getProviders().map((wrapper) => wrapper.name)).toEqual(['OrdersProjector']);
+
+    // When
+    const { channels, problems } = discoverChannels(discovery);
+
+    // Then the third class kind of SPEC 8.3 reaches the walk, at `declared`, with its message
+    expect(channels.map((channel) => channel.address.value)).toEqual(['orders.projected']);
+    expect(channels[0]?.address.confidence).toBe('declared');
+    expect(channels[0]?.source).toBe('api-channel');
+    expect(channels[0]?.declared?.value.summary).toBe('An order was projected');
+    expect(channels[0]?.message?.value.payload).toBe(OrderPlacedDto);
+    expect(problems).toEqual([]);
+  });
+
+  it('should not read a framework pattern off a provider, which the framework does not route', () => {
+    // Given a provider carrying `@MessagePattern`, which is asserted to be really there before
+    // its absence from the result is claimed to mean anything
+    const discovery = discoveryOf([], [PatternedProvider]);
+    const unrouted: unknown = Object.getOwnPropertyDescriptor(
+      PatternedProvider.prototype,
+      'unrouted',
+    )?.value;
+    expect(Reflect.getMetadata('microservices:pattern', unrouted as object)).toBeDefined();
+
+    // When
+    const { channels, problems } = discoverChannels(discovery);
+
+    // Then nothing, because Nest routes that decorator off a controller and a channel here would
+    // be an address in the reference no message ever arrives at
+    expect(channels).toEqual([]);
+    expect(problems).toEqual([]);
+  });
+
+  it('should read a declaration off a class that is a controller and one that is a provider alike', () => {
+    // Given both class kinds at once, so the two walks are proved not to drop or double either
+    const discovery = discoveryOf([DeclaredController], [OrdersProjector, SilentGateway]);
+
+    // When
+    const { channels } = discoverChannels(discovery);
+
+    // Then one entry per declaration and no entry twice
+    expect(channels.filter((channel) => channel.address.value === 'orders.projected')).toHaveLength(
+      1,
+    );
+    expect(channels.filter((channel) => channel.address.value === 'orders.placed')).toHaveLength(1);
   });
 });
 
@@ -475,6 +565,33 @@ describe('synthesizeEventsDocument, per SPEC 8.3', () => {
     expect(problems.find((problem) => problem.subject === 'the ws broker')?.reason).toContain(
       'no host was configured',
     );
+  });
+
+  it('should name a configured server no channel answers to, and the host that entry carries', () => {
+    // Given an application whose channels speak `ws` alone, and a host who configured a broker
+    // under a protocol nothing speaks, which is what a copied entry with one half edited looks
+    // like. The two halves of SPEC 8.3's broker state are both present here on purpose: the `ws`
+    // protocol has no host and the `kafka` entry has no channel.
+    const { channels } = discoverChannels(discoveryOf([], [ChatGateway]));
+
+    // When
+    const { document, problems } = synthesizeEventsDocument(channels, {
+      title: 'Chat',
+      version: 'runtime',
+      servers: [{ protocol: 'kafka', host: 'kafka.example.com:9092' }],
+    });
+
+    // Then the entry is named, with the host it carries, so the reader who wrote it can find it.
+    // WHAT USED TO HAPPEN: `serversOf` walked the protocols the channels speak and never read a
+    // configured entry nothing asked for, so this said nothing at all, and the only trace of the
+    // mistake was the `ws` broker's empty host, which reads as a different problem.
+    const orphan = problems.find((problem) => problem.subject === 'the configured kafka server');
+    expect(orphan).toBeDefined();
+    expect(orphan?.reason).toContain('kafka.example.com:9092');
+    expect(orphan?.reason).toContain('no channel of this application speaks kafka');
+
+    // And the document really did leave it out, which is what the finding says about it
+    expect(Object.keys(document.servers as Record<string, unknown>)).toEqual(['ws']);
   });
 
   it('should refer a declared payload class to a schema and report a name nothing answers to', () => {
@@ -685,5 +802,146 @@ describe('pairChannels, per SPEC 8.3', () => {
     expect(problems).toHaveLength(1);
     expect(problems[0]?.reason).toContain('ChatGateway.events');
     expect(problems[0]?.reason).toContain('ChatGateway.typing');
+  });
+});
+
+/**
+ * The `@nestjs-redisx` half of SPEC 8.3, from the real decorators to a normalized channel.
+ *
+ * WHY IT IS IN THIS PACKAGE AND NOT IN AN ECOSYSTEM ONE. The collector contract of SPEC 6.2 is
+ * frozen and returns `IRNodeRuntime`, which attaches facts to a node that already exists; nothing
+ * in it can create a channel. A topology source is therefore an edit to this package or it is
+ * nothing, and this one costs a consumer nothing: two `Symbol.for` expressions, no import and no
+ * resolution, read the way `@nestjs/microservices` is already read.
+ */
+@Injectable()
+class RedisxProjector {
+  @Subscribe('orders.created')
+  onCreated(): void {
+    // nothing
+  }
+
+  @Subscribe({ pattern: 'orders.*' })
+  onAny(): void {
+    // nothing
+  }
+
+  @StreamConsumer({ stream: 'orders', group: 'projector' })
+  onStream(): void {
+    // nothing
+  }
+}
+
+@Injectable()
+class RedisxDeclaringProjector {
+  @Subscribe('payments.settled')
+  @ApiChannel({ address: 'app:payments.settled', summary: 'A payment settled' })
+  onSettled(): void {
+    // nothing
+  }
+}
+
+@Injectable()
+class ForeignSymbolProvider {
+  notAChannel(): void {
+    // nothing
+  }
+}
+
+describe('the @nestjs-redisx topology source of SPEC 8.3', () => {
+  it('should read a subscription, a pattern and a stream consumer off a plain provider', () => {
+    // Given a provider carrying the real decorators of two libraries, reported as a provider
+    const discovery = discoveryOf([], [RedisxProjector]);
+    expect(discovery.getProviders().map((wrapper) => wrapper.name)).toEqual(['RedisxProjector']);
+
+    // When
+    const { channels } = discoverChannels(discovery);
+
+    // Then all three are channels the application really subscribes to, at `derived`, over the
+    // protocol the family speaks, and each names the decorator that produced it rather than
+    // `api-channel`, which would say somebody had written it down
+    expect(channels.map((channel) => channel.address.value)).toEqual([
+      'orders.created',
+      'orders.*',
+      'orders',
+    ]);
+    expect(channels.map((channel) => channel.source)).toEqual([
+      'redisx-subscribe',
+      'redisx-subscribe',
+      'redisx-stream-consumer',
+    ]);
+    expect(channels.every((channel) => channel.address.confidence === 'derived')).toBe(true);
+    expect(channels.every((channel) => channel.protocol?.value === 'redis')).toBe(true);
+  });
+
+  it('should say the prefix is not read rather than inventing the wire name', () => {
+    // Given the same provider, whose plugins concatenate a configured prefix this walk never
+    // resolves
+    const discovery = discoveryOf([], [RedisxProjector]);
+
+    // When
+    const { problems } = discoverChannels(discovery);
+
+    // Then one finding per channel says so, and the glob gets a second one of its own, because a
+    // pattern is an address and is not a concrete one
+    expect(problems.map((problem) => problem.subject)).toEqual([
+      'RedisxProjector.onCreated',
+      'RedisxProjector.onAny',
+      'RedisxProjector.onAny',
+      'RedisxProjector.onStream',
+    ]);
+    expect(problems[1]?.reason).toContain('Redis glob');
+    expect(problems.filter((problem) => problem.reason.includes('prefix'))).toHaveLength(3);
+    expect(problems.every((problem) => problem.action !== undefined)).toBe(true);
+  });
+
+  it('should let @ApiChannel outrank the routed address, and file one channel and not two', () => {
+    // Given a handler carrying both, which is the case SPEC 6.1's seniority is about
+    const discovery = discoveryOf([], [RedisxDeclaringProjector]);
+
+    // When
+    const { channels } = discoverChannels(discovery);
+
+    // Then one channel, the declared address, and the source still names what routes it, so a
+    // reader can tell a declaration that overrode a subscription from a declaration alone
+    expect(channels).toHaveLength(1);
+    expect(channels[0]?.address.value).toBe('app:payments.settled');
+    expect(channels[0]?.address.confidence).toBe('declared');
+    expect(channels[0]?.source).toBe('redisx-subscribe');
+    expect(channels[0]?.declared?.value.summary).toBe('A payment settled');
+  });
+
+  it('should refuse an object under the key that is not this family, since the key is global', () => {
+    // Given the same global symbol carrying somebody else's object, asserted written first: a
+    // proof of absence over a key nothing wrote would pass over nothing
+    const handler = Object.getOwnPropertyDescriptor(ForeignSymbolProvider.prototype, 'notAChannel')
+      ?.value as object;
+    Reflect.defineMetadata(Symbol.for('PUBSUB_SUBSCRIBE_METADATA'), { topic: 'not.ours' }, handler);
+    expect(Reflect.getMetadata(Symbol.for('PUBSUB_SUBSCRIBE_METADATA'), handler)).toEqual({
+      topic: 'not.ours',
+    });
+
+    // When
+    const { channels } = discoverChannels(discoveryOf([], [ForeignSymbolProvider]));
+
+    // Then nothing is filed, because the shape and not the key is what admits an object
+    expect(channels).toEqual([]);
+  });
+
+  it('should reach an IRChannel through the synthesis and the normalizer', () => {
+    // Given the whole chain, which is the only proof that a subscription reaches a reader
+    const { channels } = discoverChannels(discoveryOf([], [RedisxProjector]));
+
+    // When
+    const synthesized = synthesizeEventsDocument(channels, { title: 'Orders', version: '1.0.0' });
+    const normalized = channelsOf(synthesized.document);
+
+    // Then
+    expect(normalized.map((channel) => channel.address).sort()).toEqual([
+      'orders',
+      'orders.*',
+      'orders.created',
+    ]);
+    expect(normalized.every((channel) => channel.protocol === 'redis')).toBe(true);
   });
 });

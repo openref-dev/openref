@@ -78,12 +78,34 @@ describe('hasRuntimeFacts', () => {
       rateLimit: {
         rateLimit: { value: { limit: 100, ttlMs: 60_000 }, confidence: 'derived', collector: 't' },
       },
+      rateLimitReach: {
+        rateLimitReach: { value: { kind: 'none' }, confidence: 'derived', collector: 't' },
+      },
       errors: { errors: { declared: [], runtimeDerived: [], global: [] } },
       streaming: {
         streaming: { value: { transport: 'sse' }, confidence: 'declared', collector: 's' },
       },
       pipes: {
         pipes: [{ name: 'TrimPipe', scope: 'route', confidence: 'derived', collector: 'pipes' }],
+      },
+      guardExemption: {
+        guardExemption: {
+          value: { declaredOn: 'handler' },
+          confidence: 'derived',
+          collector: 'publicRouteCollector',
+        },
+      },
+      handlerPolicies: {
+        handlerPolicies: [
+          {
+            kind: 'cache',
+            key: 'orders:{0}',
+            settings: [{ name: 'ttlMs', value: 60_000 }],
+            reach: 'handler',
+            confidence: 'derived',
+            collector: 'redisxCacheCollector',
+          },
+        ],
       },
       timeout: { timeout: { value: { ms: 5000 }, confidence: 'derived', collector: 'timeout' } },
       requiredHeaders: {

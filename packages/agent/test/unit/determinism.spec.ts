@@ -133,8 +133,8 @@ describe('the agent surface is deterministic for a given IR hash', () => {
   });
 
   it('should serialize the health resource to identical bytes on two reads', () => {
-    // Given, a payload a consumer caches and diffs goes through the canonical form, per
-    // CLAUDE.md's rule: `JSON.stringify` over a restructured object shuffles for no reason
+    // Given, a payload a consumer caches and diffs goes through the canonical form, because
+    // `JSON.stringify` over a restructured object shuffles its keys for no reason
     const document = normalizeSpecification(orderSource());
 
     // When

@@ -24,6 +24,7 @@
     "test:integration": "vitest run test/integration",
     "test:packaging": "vitest run test/integration/packaged-attribution.spec.ts",
     "gates": "pnpm --filter @openref/gates run build && node tools/gates/dist/index.js",
+    "gates:projection": "pnpm --filter @openref/gates run build && node tools/gates/dist/projection.js && prettier --write tools/gates/ai-docs-projection.json",
     "gates:licenses": "pnpm --filter @openref/gates run build && node tools/gates/dist/index.js licenses",
     "changeset": "changeset",
     "version-packages": "changeset version"

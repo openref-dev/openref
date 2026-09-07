@@ -51,10 +51,10 @@ export interface ReferenceReply {
    * Text for a document or a payload, bytes for a font, a stream for the bridge of SPEC 14.8.
    *
    * THE STREAM ARM ARRIVED WITH `T056` AND IT WIDENED THIS UNION RATHER THAN ADDING A SIBLING
-   * MEMBER, which is recorded in `ai-docs/design/CONTRACT.md` as a break. An optional `stream`
-   * beside a `body` would leave a consumer that never heard of it writing the empty body and
-   * closing, which is a working response carrying nothing and a defect nothing goes red on. A
-   * widened union in an output position stops that consumer's compile instead.
+   * MEMBER, which is a break rather than an addition. An optional `stream` beside a `body` would
+   * leave a consumer that never heard of it writing the empty body and closing, which is a
+   * working response carrying nothing and a defect nothing goes red on. A widened union in an
+   * output position stops that consumer's compile instead.
    *
    * EVERY OTHER ROUTE STILL ANSWERS IN ONE WRITE, and that is worth keeping true: a page, a
    * specification and a font are values this package already holds whole, so streaming them would

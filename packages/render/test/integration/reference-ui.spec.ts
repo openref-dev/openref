@@ -63,7 +63,54 @@ afterEach(() => {
   mounted?.unmount();
   mounted = null;
   document.body.innerHTML = '';
+  layout?.remove();
+  layout = null;
 });
+
+let layout: HTMLStyleElement | null = null;
+
+/**
+ * Lays the rail out the way the shipped theme lays it out, before anything is mounted.
+ *
+ * WHAT THIS REPLACES IS THE DEFECT THE TWO CASES BELOW USED TO ENCODE. Both of them defined
+ * `scrollTop`, `scrollHeight` and `clientHeight` onto `.oref-nav-scroll` and dispatched a
+ * synthetic `scroll` on it, which fabricated the single assumption the shipped stylesheet
+ * falsifies: that element is `display: block` with a visible overflow, it never scrolls, and a
+ * `scroll` event does not bubble, so nothing on it ever fires. A test that builds its own
+ * subject proves the fabrication and not the product, and these two were green for as long as
+ * the sidebar was broken in every browser.
+ *
+ * The two declarations are the shipped theme's own, at `.oref-sidebar` and at the rule whose
+ * whole body is `display: block` in `packages/theme/src/styles/theme.css`. They are installed
+ * before the mount because the component reads the computed overflow once, when it mounts. What
+ * a real engine says about the real stylesheet is asserted in `tools/browser-budget`, which is
+ * where a claim about computed layout belongs.
+ */
+function layOutLikeTheTheme(): void {
+  layout = document.createElement('style');
+  layout.textContent =
+    '.oref-sidebar { overflow-y: auto; max-height: 640px }' +
+    '.oref-nav-scroll { display: block; overflow-y: visible }';
+  document.head.append(layout);
+}
+
+/** The element the component bound its scroll handler to, which is the only one worth driving. */
+function boundScroller(): Element {
+  const marked = document.querySelector('[data-oref-nav-scroller]');
+  if (marked === null) throw new Error('the navigation bound its scroll handler to nothing');
+
+  return marked;
+}
+
+/** Puts a scroll position on the container the component is listening to, and reports it. */
+function scrollTo(target: Element, top: number): void {
+  Object.defineProperties(target, {
+    scrollTop: { value: top, configurable: true },
+    scrollHeight: { value: 20_200, configurable: true },
+    clientHeight: { value: 200, configurable: true },
+  });
+  target.dispatchEvent(new Event('scroll'));
+}
 
 function press(
   target: Element | Document | null,
@@ -284,22 +331,71 @@ describe('the schema viewer', () => {
   });
 });
 
+describe('the rail stats row', () => {
+  it('should say drift was not measured rather than printing nothing, per SPEC 7.3', () => {
+    // Given a document with no health report behind it, which is every document until one is
+    // asked for. `FrameStatsModel.drift` is null, and zero is a different statement.
+    const page = buildPageModel(smallDocument(), { markdown });
+    expect(
+      page.frame.stats.drift,
+      'the fixture gained a report and this case lost its subject',
+    ).toBe(null);
+
+    // When
+    const host = mount(page);
+
+    // Then the cell says so in words. It used to draw nothing, which is exactly what a measured
+    // clean document would draw if the figure were a warning glyph. It is a count, so it is not.
+    const cell = host.querySelector('.oref-nav-stats .oref-nav-stats-missing');
+    expect(cell?.textContent).toBe('drift not measured');
+    expect(host.querySelector('.oref-nav-stats-drift')).toBeNull();
+  });
+
+  it('should print the figure, zero included, once something has measured it', () => {
+    // Given the same document with a report that found nothing
+    const page = buildPageModel(smallDocument(), { markdown });
+    const measured = {
+      ...page,
+      frame: { ...page.frame, stats: { ...page.frame.stats, drift: 0 } },
+    };
+
+    // When
+    const host = mount(measured);
+
+    // Then the two states are told apart at the same place on the page
+    expect(host.querySelector('.oref-nav-stats-drift')?.textContent).toBe('▲ 0');
+    expect(host.querySelector('.oref-nav-stats-missing')).toBeNull();
+  });
+});
+
 describe('the virtualized sidebar', () => {
+  it('should bind its scroll handler to the element the stylesheet made scrollable', () => {
+    // Given the rail laid out the way the shipped theme lays it out
+    layOutLikeTheTheme();
+
+    // When
+    const host = mount(buildPageModel(largeDocument(1000), { markdown }));
+
+    // Then the handler is on the sidebar and not on the block inside it, which is the element
+    // that was listened to for five milestones and never fired once.
+    const bound = boundScroller();
+    expect(bound.classList.contains('oref-sidebar')).toBe(true);
+    expect(host.querySelector('.oref-nav-scroll')?.hasAttribute('data-oref-nav-scroller')).toBe(
+      false,
+    );
+  });
+
   it('should keep the rows in the document under the ceiling while it is scrolled', async () => {
     // Given, the corpus scale in one document: a thousand operations and their groups.
+    layOutLikeTheTheme();
     const page = buildPageModel(largeDocument(1000), { markdown });
     const host = mount(page);
-    const scroll = host.querySelector('.oref-nav-scroll')!;
+    const scroll = boundScroller();
     const counts: number[] = [];
 
     // When
     for (const fraction of [0, 0.25, 0.5, 0.75, 1]) {
-      Object.defineProperties(scroll, {
-        scrollTop: { value: 20_000 * fraction, configurable: true },
-        scrollHeight: { value: 20_200, configurable: true },
-        clientHeight: { value: 200, configurable: true },
-      });
-      scroll.dispatchEvent(new Event('scroll', { bubbles: true }));
+      scrollTo(scroll, 20_000 * fraction);
       await Promise.resolve();
       counts.push(host.querySelectorAll('.oref-nav-item').length);
     }
@@ -312,11 +408,12 @@ describe('the virtualized sidebar', () => {
   it('should move the window when the container is scrolled', async () => {
     // Given a page deep in the list, so the sidebar carries the whole of one group rather than
     // the twenty one headers an overview carries, which is fewer rows than a chunk.
+    layOutLikeTheTheme();
     const document_ = largeDocument(1000);
     const nodeId = [...document_.nodes.keys()][900] ?? '';
     const page = buildPageModel(document_, { nodeId, markdown });
     const host = mount(page);
-    const scroll = host.querySelector('.oref-nav-scroll')!;
+    const scroll = boundScroller();
 
     // WHICH CHUNKS ARE RENDERED IS WHAT THE WINDOW IS. Comparing the first visible row instead
     // reports a moved window only when it moved far enough to change the row at the top, which
@@ -329,12 +426,7 @@ describe('the virtualized sidebar', () => {
     const before = rendered();
 
     // When the reader scrolls to the bottom
-    Object.defineProperties(scroll, {
-      scrollTop: { value: 20_000, configurable: true },
-      scrollHeight: { value: 20_200, configurable: true },
-      clientHeight: { value: 200, configurable: true },
-    });
-    scroll.dispatchEvent(new Event('scroll', { bubbles: true }));
+    scrollTo(scroll, 20_000);
     await Promise.resolve();
 
     // Then

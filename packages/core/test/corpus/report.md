@@ -25,7 +25,7 @@ site, which is what SPEC 5.1.1 replaced.
 | oai-non-oauth-scopes.yaml | 379 | 798 | 2.11 | 1 | 0 |
 | oai-petstore-expanded.yaml | 5479 | 7155 | 1.31 | 4 | 3 |
 | oai-petstore.yaml | 2772 | 4099 | 1.48 | 3 | 3 |
-| oai-tictactoe.yaml | 6753 | 8027 | 1.19 | 4 | 6 |
+| oai-tictactoe.yaml | 6753 | 8183 | 1.21 | 4 | 6 |
 | oai-uspto.yaml | 7743 | 8619 | 1.11 | 3 | 1 |
 | oai-webhook-example.yaml | 947 | 1212 | 1.28 | 0 | 1 |
 | stripe.yaml | 6364174 | 5546832 | 0.87 | 589 | 1440 |

@@ -1,12 +1,12 @@
 /**
  * The doctor report of SPEC 7.2 and 7.4, made self contained and versioned.
  *
- * `ai-docs/BUILD-AMENDMENTS.md`'s `T037` entry, following `ai-docs/REMEDIATION.md`: `doctor` needs
- * a machine readable form beside the text one, carrying every field T022 already records on a
- * finding, plus what only the document can add: the rule's display code, a human subject for the
- * node or schema the finding is about, and the location by file and line through the source link
- * of T018. `IRDriftIssue` itself stays document relative on purpose, per SPEC 7.1, so this is the
- * join, computed once here rather than reimplemented by every consumer.
+ * The `T037` amendment: `doctor` needs a machine readable form beside the text one, carrying every
+ * field T022 already records on a finding, plus what only the document can add: the rule's display
+ * code, a human subject for the node or schema the finding is about, and the location by file and
+ * line through the source link of T018. `IRDriftIssue` itself stays document relative on purpose,
+ * per SPEC 7.1, so this is the join, computed once here rather than reimplemented by every
+ * consumer.
  *
  * VERSIONED FOR THE SAME REASON THE SEARCH INDEX OF T007 IS. A consumer that pins or caches this
  * shape has to be able to refuse a shape it does not recognise instead of reading it as empty,
@@ -19,7 +19,7 @@
  */
 
 import { expandSourceLink, type SourceLinkExpansion } from '../../source-link/domain/source-link';
-import { buildHealthReport } from './health';
+import { buildHealthReport, healthScoreMark } from './health';
 import { DRIFT_RULE_CODES } from './rule-codes';
 import type { IRConfidence } from '../../ir/domain/confidence.types';
 import type { IRDocument } from '../../ir/domain/document.types';
@@ -51,7 +51,8 @@ import type {
  * total `Record<Union, ...>` is a sanctioned spelling and a total record over a grown union does
  * not compile. `IRDriftRule` is such a union and {@link DRIFT_RULE_CODES} is such a record, in
  * this package, on purpose, so that a rule added without a display code fails the build instead
- * of printing an empty one. `ai-docs/design/CONTRACT.md` carries the ruling.
+ * of printing an empty one. The ruling is that a rule added to `IRDriftRule` is a major version of
+ * this package.
  *
  * WHAT THAT MEANS FOR M4 AND M5, WHICH BOTH ADD RULES. Each new rule leaves this constant at 1
  * and moves the major version of `@openref/core` once the package is published. Nothing is
@@ -91,6 +92,17 @@ export interface IRDoctorFinding {
   /** A human readable name for the subject: `POST /users`, a schema pointer, or `(document)`. */
   readonly subject: string;
   readonly message: string;
+  /**
+   * The longer reasoning behind the finding, per SPEC 7.2, when the rule wrote one.
+   *
+   * IT IS IN THE JSON AND NOT IN THE TEXT FORM, and that is the proportion rather than an
+   * oversight. The text block is the subject, the two sides and one arrow, and a paragraph under
+   * every one of sixty eight findings is the volume SPEC 7.2 already refuses elsewhere. A reader
+   * who wants the reasoning opens it on the health page, where it is a closed disclosure, or reads
+   * it here. Adding it does not move {@link DOCTOR_REPORT_VERSION}: this shape is bumped when a
+   * field is removed or changes meaning, never for an addition.
+   */
+  readonly detail?: string;
   readonly runtimeValue?: string;
   readonly specValue?: string;
   readonly suggestion: string;
@@ -100,13 +112,53 @@ export interface IRDoctorFinding {
   readonly sourceLink?: SourceLinkExpansion;
 }
 
+/** One suppressed class, with the code a reader cites beside the id the host wrote. */
+export interface IRDoctorSuppressedClass {
+  readonly rule: IRDriftRule;
+  /** Display code of SPEC 7.1, so a reader recognises the class by the name the page prints. */
+  readonly code: string;
+  readonly severity: IRDriftSeverity;
+  readonly reason: string;
+  /** How many findings it took out. Zero is reported, never dropped, per SPEC 7.2. */
+  readonly matched: number;
+}
+
+/** What suppression did, as `doctor` reports it. */
+export interface IRDoctorSuppression {
+  readonly classes: readonly IRDoctorSuppressedClass[];
+  readonly suppressedScore: number;
+  readonly unsuppressedScore: number;
+  /** True while any suppressed class is severity `error`, which is why `score` reads as it does. */
+  readonly inverted: boolean;
+}
+
 /** The whole of SPEC 7.2, self contained and versioned. */
 export interface IRDoctorReport {
   readonly version: number;
+  /**
+   * The primary percentage, per {@link IRHealthReport.score} and SPEC 7.2.
+   *
+   * A `--fail-on` GATE READS THIS AND IS MEANT TO. Suppression is what a host uses to stop a class
+   * they decided not to fix from failing every build, and that is the whole purpose; what it can
+   * never do is flatter the number, because while any suppressed class is severity `error` this
+   * member carries the UNSUPPRESSED score.
+   */
   readonly score: number;
+  /**
+   * The score as every surface prints it, from `healthScoreMark`.
+   *
+   * IT IS IN THE REPORT SO THAT NO CONSUMER BUILDS THE SENTENCE ITSELF. A reader that formats
+   * `score` on its own loses the parenthesis, and a reader that computes a score of its own from
+   * the finding counts diverges from the page by construction. Both are what this member closes.
+   */
+  readonly scoreText: string;
   readonly operationCount: number;
   readonly checks: readonly IRDoctorCheck[];
   readonly findings: readonly IRDoctorFinding[];
+  /** What the host suppressed, when anything was. Absent means nothing was configured. */
+  readonly suppression?: IRDoctorSuppression;
+  /** The findings that moved out of `findings`, which `doctor --show-suppressed` prints. */
+  readonly suppressedFindings?: readonly IRDoctorFinding[];
 }
 
 /** What {@link readDoctorReport} returns: the report, or the reason it refused to hand one over. */
@@ -248,6 +300,7 @@ function doctorFinding(document: IRDocument, issue: IRDriftIssue): IRDoctorFindi
     ...(issue.pointer === undefined ? {} : { pointer: issue.pointer }),
     subject: findingSubject(document, issue),
     message: issue.message,
+    ...(issue.detail === undefined ? {} : { detail: issue.detail }),
     ...(issue.runtimeValue === undefined ? {} : { runtimeValue: issue.runtimeValue }),
     ...(issue.specValue === undefined ? {} : { specValue: issue.specValue }),
     suggestion: issue.suggestion,
@@ -256,7 +309,7 @@ function doctorFinding(document: IRDocument, issue: IRDriftIssue): IRDoctorFindi
 }
 
 /**
- * Builds the versioned doctor report of SPEC 7.2, 7.4 and `ai-docs/REMEDIATION.md` section 6.
+ * Builds the versioned doctor report of SPEC 7.2 and 7.4.
  *
  * `document.health` IS USED WHEN PRESENT AND NEVER RECOMPUTED OVER IT, because a live runtime pass
  * already ran every rule against a real `DriftObservation`, and recomputing with none would
@@ -271,14 +324,42 @@ function doctorFinding(document: IRDocument, issue: IRDriftIssue): IRDoctorFindi
 export function buildDoctorReport(document: IRDocument): IRDoctorReport {
   const report = document.health ?? buildHealthReport(document);
 
+  // THE SUPPRESSION IS CARRIED ACROSS AND NEVER RECOMPUTED, exactly as the score is. What this
+  // layer adds is the display code beside each class, because a reader who suppressed `DX030`
+  // recognises it by that name and the id is what they had to write.
+  const suppression =
+    report.suppression === undefined
+      ? undefined
+      : {
+          classes: report.suppression.classes.map((entry) => ({
+            rule: entry.rule,
+            code: DRIFT_RULE_CODES[entry.rule],
+            severity: entry.severity,
+            reason: entry.reason,
+            matched: entry.matched,
+          })),
+          suppressedScore: report.suppression.suppressedScore,
+          unsuppressedScore: report.suppression.unsuppressedScore,
+          inverted: report.suppression.inverted,
+        };
+
   return {
     version: DOCTOR_REPORT_VERSION,
     score: report.score,
+    scoreText: healthScoreMark(report),
     operationCount: report.operationCount,
     checks: report.checks.map((check) => ({
       ...check,
       ...(check.id in DRIFT_RULE_CODES ? { code: DRIFT_RULE_CODES[check.id as IRDriftRule] } : {}),
     })),
     findings: report.drift.map((issue) => doctorFinding(document, issue)),
+    ...(suppression === undefined ? {} : { suppression }),
+    ...(report.suppression === undefined
+      ? {}
+      : {
+          suppressedFindings: report.suppression.findings.map((issue) =>
+            doctorFinding(document, issue),
+          ),
+        }),
   };
 }

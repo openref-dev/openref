@@ -39,7 +39,13 @@ import { useSlot } from '@openref/vue';
 import { h, type Component, type VNode } from 'vue';
 import { DriftCard } from './DriftCard';
 import { severityChip } from './severity';
-import type { HealthCheckModel, HealthModel, HealthRuleModel } from '@openref/vue';
+import type {
+  HealthCheckModel,
+  HealthModel,
+  HealthRuleModel,
+  HealthSuppressedClassModel,
+  HealthSuppressionModel,
+} from '@openref/vue';
 
 /**
  * One check: how many subjects passed it, out of how many it applied to.
@@ -115,6 +121,73 @@ const ruleGroup = (rule: HealthRuleModel, card: Component): VNode => {
 };
 
 /**
+ * One suppressed class, closed, with its reason and its count on the line a reader scans.
+ *
+ * THE COUNT IS DRAWN EVEN WHEN IT IS ZERO, per SPEC 7.2, and that is the only place a reader can
+ * learn that a suppression matched nothing. It did not refuse boot, because a class is
+ * legitimately empty on some deployments, so this row is the whole of the warning.
+ *
+ * A ZERO CLASS IS A PLAIN ROW AND NOT A DISCLOSURE, exactly as a rule that found nothing is: a
+ * `details` with nothing behind it is a control that promises something and opens onto nothing.
+ *
+ * @param entry - The class, its reason and the findings it took out
+ * @param card - The component in the `DriftCard` slot
+ * @returns The disclosure, or the plain row
+ */
+const suppressedGroup = (entry: HealthSuppressedClassModel, card: Component): VNode => {
+  const head = [
+    severityChip(entry.severityClass),
+    ' ',
+    h('span', { class: 'oref-drift-code' }, entry.code),
+    ' ',
+    h('span', { class: 'oref-drift-rule' }, entry.rule),
+    ' ',
+    h('span', { class: 'oref-suppressed-reason' }, entry.reason),
+    ' ',
+    h('span', { class: 'oref-rule-count' }, entry.count),
+  ];
+
+  if (entry.findings.length === 0) {
+    return h('p', { class: 'oref-suppressed oref-rule-zero' }, head);
+  }
+
+  // NO `id` HERE, DELIBERATELY. `#oref-rule-<kebab>` belongs to the drawn group a FixBar links to,
+  // and a suppressed class has no drawn group, so claiming the same id would give one document two
+  // elements with one address and send a FixBar into the closed half.
+  return h('details', { class: 'oref-suppressed' }, [
+    h('summary', { class: 'oref-rule-head' }, head),
+    h(
+      'ul',
+      { class: 'oref-drift-list' },
+      entry.findings.map((issue) => h(card, { issue })),
+    ),
+  ]);
+};
+
+/**
+ * The suppression disclosure of SPEC 7.2, closed, or nothing when the host suppressed nothing.
+ *
+ * A CLOSED `details` AND NOT A QUERY PARAMETER. It survives the static build of SPEC 16, it works
+ * on a page whose JavaScript never arrives, it costs the strict CSP of SPEC 19 nothing because
+ * there is no handler to authorize, and it leaves every `#oref-rule-<kebab>` anchor where it was.
+ *
+ * @param suppression - What was suppressed, or null
+ * @param card - The component in the `DriftCard` slot
+ * @returns The disclosure, or null
+ */
+const suppressionBlock = (
+  suppression: HealthSuppressionModel | null,
+  card: Component,
+): VNode | null => {
+  if (suppression === null) return null;
+
+  return h('details', { class: 'oref-suppression' }, [
+    h('summary', { class: 'oref-suppression-head' }, suppression.note),
+    ...suppression.classes.map((entry) => suppressedGroup(entry, card)),
+  ]);
+};
+
+/**
  * Renders the Health panel of one document.
  *
  * A FUNCTION AND NOT `defineComponent`, WHICH IS THE ONE PLACE IN THIS PACKAGE THAT IS TRUE. It
@@ -166,5 +239,9 @@ export function HealthPanel(props: { readonly health: HealthModel }): VNode {
     ]),
     h('ul', { class: 'oref-check-list' }, health.checks.map(checkRow)),
     ...health.rules.map((rule) => ruleGroup(rule, card.value)),
+    // THE SUPPRESSED HALF COMES AFTER THE DRAWN ONE AND IS CLOSED. What a reader came for is the
+    // findings that are still theirs to act on; what they are owed beside it is the size of the
+    // list that was taken away and who decided, which is a disclosure rather than a section.
+    suppressionBlock(health.suppression, card.value),
   ]);
 }

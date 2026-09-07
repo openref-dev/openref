@@ -14,6 +14,15 @@
  * reads that character as the end of the name. The three command line tools of this revision refuse
  * by the same rule and for reasons taken off a live server rather than off a manual.
  *
+ * EIGHT OF THE FIFTEEN WRITE CODE NOTHING HAS EVER RUN (DEFER POST-1.0, `TX-SAMPLE-WIRE`).
+ * `packages/samples/test/integration/tool-wire-equality.spec.ts` runs the real client for cURL,
+ * wget, HTTPie, PowerShell, Swift, Ruby and C# and compares bytes at a loopback server. Go, PHP,
+ * Java, Rust, TypeScript, Python, Kotlin and Dart have no such case, and the last two are the
+ * uncomfortable half because level 1 builds its own multipart and binary bodies out of the reader's
+ * fields rather than copying the plan's bytes. What unblocks each is named in the entry the marker
+ * names: a network fetch inside a test run for Kotlin, Dart and Python, a measured runner column for
+ * Java, and nothing at all for Go, PHP, Rust and TypeScript, which nobody has attempted.
+ *
  * THE IDS ARE HIGHLIGHTER IDS AND NOT PRODUCT NAMES. `IRCodeSample.lang` reaches
  * `markdown.renderCode` on the server, which passes it to the highlighter, so `csharp` and not
  * `C#`; the product name is the label, which is what the tab says.
@@ -26,6 +35,8 @@
  * writing `shell` already puts out cURL. The clean answer is a tab identity of its own on
  * `IRCodeSample`, which is frozen public API and therefore not this revision's to change.
  */
+
+import type { UnsendableCause } from '@openref/core';
 
 /** Language ids, spelled as the highlighter spells them. */
 export type SampleLanguageId =
@@ -48,12 +59,37 @@ export type SampleLanguageId =
 /** Which of the two generators of SPEC 18 produces a language. */
 export type SampleLevel = 1 | 2;
 
+/**
+ * Where a language's sample is carried, per the maintainer's ruling of 2026-09-03.
+ *
+ * TWO PLACEMENTS AND NOT TWO QUALITIES. Every one of the fifteen is generated, tested and
+ * reachable; what the placement decides is whether the reference page carries the tab inline or
+ * whether a caller asks for it. `page` is the twelve the page draws; `elsewhere` is the three it
+ * names instead, and the page says their names rather than dropping them, because a reader has to
+ * be able to tell a language this reference does not have from a language it can produce.
+ *
+ * THE THREE ARE THE THREE MOST EXPENSIVE AND THAT IS THE WHOLE CRITERION. Measured on the runner,
+ * Ruby 3,122, Java 2,726 and PHP 2,374 bytes of one page against 15,435 for all fifteen: 53 percent
+ * of the sample cost in three of the fifteen tabs. They are expensive by highlighting rather than
+ * by source length, since `HIGHLIGHT_LANGUAGES` carries all three grammars and their source
+ * therefore travels as markup. The figures are in SPEC 18 beside the list, with the machine.
+ */
+export type SamplePlacement = 'page' | 'elsewhere';
+
 /** One language a sample can be written in. */
 export interface SampleLanguage {
   readonly id: SampleLanguageId;
   /** What the tab says. */
   readonly label: string;
   readonly level: SampleLevel;
+  /**
+   * Whether the reference page carries this tab inline.
+   *
+   * REQUIRED RATHER THAN OPTIONAL, so a sixteenth language cannot be added without somebody
+   * deciding what a page does with it. An optional member defaulting to `page` would have made
+   * "nobody decided" and "the page carries it" the same state.
+   */
+  readonly placement: SamplePlacement;
 }
 
 /**
@@ -64,24 +100,53 @@ export interface SampleLanguage {
  * looks like reads a command; the two scripting languages follow; the templates come last, because
  * a reader who wants their own language goes looking for its name rather than reading down. cURL
  * stays at the head of the list, so the tab a page opens on has not moved.
+ *
+ * THE ORDER IS NOT DISTURBED BY THE PLACEMENT, WHICH IS WHY THE THREE ARE LEFT WHERE THEY WERE.
+ * PHP, Java and Ruby sit among the templates in the position SPEC 18 gives them, and
+ * {@link PAGE_SAMPLE_LANGUAGES} is this list with three entries taken out rather than a list of
+ * twelve written in some order of its own. Moving them to the end would have made two orders where
+ * the section states one.
  */
 export const SAMPLE_LANGUAGES: readonly SampleLanguage[] = [
-  { id: 'shell', label: 'cURL', level: 1 },
-  { id: 'bash', label: 'HTTPie', level: 1 },
-  { id: 'sh', label: 'wget', level: 1 },
-  { id: 'powershell', label: 'PowerShell', level: 1 },
-  { id: 'typescript', label: 'TypeScript', level: 1 },
-  { id: 'python', label: 'Python', level: 1 },
-  { id: 'go', label: 'Go', level: 2 },
-  { id: 'php', label: 'PHP', level: 2 },
-  { id: 'java', label: 'Java', level: 2 },
-  { id: 'csharp', label: 'C#', level: 2 },
-  { id: 'ruby', label: 'Ruby', level: 2 },
-  { id: 'rust', label: 'Rust', level: 2 },
-  { id: 'swift', label: 'Swift', level: 2 },
-  { id: 'kotlin', label: 'Kotlin', level: 2 },
-  { id: 'dart', label: 'Dart', level: 2 },
+  { id: 'shell', label: 'cURL', level: 1, placement: 'page' },
+  { id: 'bash', label: 'HTTPie', level: 1, placement: 'page' },
+  { id: 'sh', label: 'wget', level: 1, placement: 'page' },
+  { id: 'powershell', label: 'PowerShell', level: 1, placement: 'page' },
+  { id: 'typescript', label: 'TypeScript', level: 1, placement: 'page' },
+  { id: 'python', label: 'Python', level: 1, placement: 'page' },
+  { id: 'go', label: 'Go', level: 2, placement: 'page' },
+  { id: 'php', label: 'PHP', level: 2, placement: 'elsewhere' },
+  { id: 'java', label: 'Java', level: 2, placement: 'elsewhere' },
+  { id: 'csharp', label: 'C#', level: 2, placement: 'page' },
+  { id: 'ruby', label: 'Ruby', level: 2, placement: 'elsewhere' },
+  { id: 'rust', label: 'Rust', level: 2, placement: 'page' },
+  { id: 'swift', label: 'Swift', level: 2, placement: 'page' },
+  { id: 'kotlin', label: 'Kotlin', level: 2, placement: 'page' },
+  { id: 'dart', label: 'Dart', level: 2, placement: 'page' },
 ];
+
+/**
+ * The twelve tabs the reference page draws, in the order of {@link SAMPLE_LANGUAGES}.
+ *
+ * DERIVED AND NOT WRITTEN OUT, because two hand written lists that have to agree are the shape
+ * this project has now been caught by more than once. There is one list of languages and one
+ * member on each that decides where it is drawn; these two are that member read twice.
+ */
+export const PAGE_SAMPLE_LANGUAGES: readonly SampleLanguage[] = SAMPLE_LANGUAGES.filter(
+  (language) => language.placement === 'page',
+);
+
+/**
+ * The three the page names instead of carrying, in the order of {@link SAMPLE_LANGUAGES}.
+ *
+ * NOT "UNSUPPORTED" AND NOT "OMITTED". The generator writes them, the emitters are the same
+ * emitters, and `withGeneratedSamples` produces them for any caller that asks for them by passing
+ * them in. What this list is, is the answer the page gives a reader looking for Ruby: this
+ * reference writes Ruby, and this page is not carrying it.
+ */
+export const OFF_PAGE_SAMPLE_LANGUAGES: readonly SampleLanguage[] = SAMPLE_LANGUAGES.filter(
+  (language) => language.placement === 'elsewhere',
+);
 
 /**
  * What an emitter answers with: the sample, or the reason there is none.
@@ -212,6 +277,83 @@ export const UNSENDABLE_PLAN_REFUSAL =
   'the runner refuses to send this request at all, so no sample can show it being sent.';
 
 /**
+ * Why no language may write a sample for this request: the runner will not build it either.
+ *
+ * THE SIBLING OF {@link UNSENDABLE_PLAN_REFUSAL} ONE STEP EARLIER IN THE SAME CHAIN, and it exists
+ * because that step was silent. `buildRequest` refuses shapes an ordinary document may declare: a
+ * cookie parameter, which `Cookie` being a forbidden header makes unsendable from a script, a
+ * required parameter with nothing to seed it, a path template naming a parameter the operation does
+ * not declare. Until 2026-09-03 the transform caught that refusal and returned nothing at all, so
+ * the page drew no samples section, all fifteen languages vanished and no reason reached the
+ * reader: exactly the silence SPEC 18's standing rule forbids, arrived at by a `catch`.
+ *
+ * THE SENTENCE THE RUNNER GAVE IS APPENDED TO THIS ONE, for the reason the constant above states.
+ * The refusals differ per document and naming them here would be a second list of them, kept by
+ * hand, beside the one `@openref/runner` already throws by name.
+ */
+export const UNBUILDABLE_REQUEST_REFUSAL =
+  'the runner refuses to build this request at all, so no sample can show it being made.';
+
+/**
+ * Why no language may write a sample for an operation with nowhere to send.
+ *
+ * A REFUSAL RATHER THAN AN ABSENCE, SINCE 2026-09-03. A normalized OpenAPI document always carries
+ * the specification's own default server, so this is the hand built document and the merged one
+ * whose service declared none; writing a sample against an invented origin is the guess this
+ * package exists not to make. What was wrong until that day was the other half: the operation was
+ * handed back untouched, so the page said nothing, which is indistinguishable from a reference that
+ * has no samples at all.
+ */
+/** The environment variable a shell sample reads the missing origin from. */
+export const ORIGIN_VARIABLE = 'OPENREF_ORIGIN';
+
+/** What the shell prints when that variable is unset, in place of curl's rejected URL. */
+export const ORIGIN_PROMPT = 'set this to the origin the API is served from';
+
+/**
+ * The line comment of each language, so a sample can say something about itself.
+ *
+ * A TOTAL RECORD OVER THE FIFTEEN, so a sixteenth language is a compile error here rather than a
+ * sample that silently loses its note. Every one of the fifteen has a line comment; the two forms
+ * are the only two that appear.
+ */
+export const LINE_COMMENT: Readonly<Record<SampleLanguageId, string>> = {
+  shell: '#',
+  bash: '#',
+  sh: '#',
+  powershell: '#',
+  typescript: '//',
+  python: '#',
+  go: '//',
+  php: '//',
+  java: '//',
+  csharp: '//',
+  ruby: '#',
+  rust: '//',
+  swift: '//',
+  kotlin: '//',
+  dart: '//',
+};
+
+/**
+ * What a sample says about itself when the document named no origin to send to.
+ *
+ * IT TRAVELS INSIDE THE SOURCE AND NOT BESIDE IT, which is the whole point. A note drawn next to
+ * the tab is not copied by the copy control, so a reader pastes a command into a terminal and the
+ * explanation stays on the page they have left. This is one line of the language's own comment
+ * syntax, so it survives the paste and costs nothing to a reader who does not need it.
+ */
+export const RELATIVE_ADDRESS_NOTE =
+  'this document declares no server, so the address below has no origin:';
+
+/** The second line, for the three shells, which name the variable that supplies it. */
+export const RELATIVE_ADDRESS_SHELL_NOTE = `${ORIGIN_VARIABLE} supplies it, for example export ${ORIGIN_VARIABLE}=https://api.example.com`;
+
+export const NO_SERVER_REFUSAL =
+  'this operation declares no server to send to, so there is no address a sample could be written ' +
+  'against';
+
+/**
  * Why a client that does not put the runner's octets on the wire may not write a non-ASCII header.
  *
  * THE HTTP SPECIFICATION PUTS THIS FORM OUTSIDE WHAT IS INTEROPERABLE, WHICH IS WHY NOBODY IS
@@ -284,6 +426,86 @@ export const INVENTED_HEADER_REFUSAL =
 export const REDIRECT_CREDENTIAL_DROPPED_NOTE =
   'this client follows a redirect but does not re-send the Authorization header to the new ' +
   'address; the console re-sends it';
+
+/**
+ * What a tab strip keyed by `lang` costs a document that wrote two samples under one language.
+ *
+ * A NOTE RATHER THAN A SILENT DROP, AND THE ALTERNATIVE IS A MAJOR VERSION. `CodeSample` finds the
+ * active sample by `lang` and keys the list by it, so a second entry under one id is a tab a reader
+ * can click and never reach, and which of the two they see depends on list order. Making both
+ * reachable needs a tab identity of its own on `IRCodeSample`, which is frozen public API and is
+ * the same answer SPEC 18 already gives for the three shell aliases. So the second is left out of
+ * the strip and the page says it was, because dropping it in silence is the one thing this whole
+ * section exists to stop.
+ */
+export const UNREACHABLE_TAB_NOTE =
+  'the document writes a second sample under a language it already used, and a tab strip keyed ' +
+  'by language can show one of them, so the first is drawn and this one is not';
+
+/**
+ * What a document writing an alias costs the language that alias is keyed by, said as a sentence.
+ *
+ * THE ALIAS SHARES THE TAB RATHER THAN PUTTING THE OTHER LANGUAGE OUT, which is the maintainer's
+ * ruling of 2026-09-04 and is SPEC 18's since the same day. Tab identity is `lang`, deliberately and
+ * not for want of a field: the invariant over the fifteen already holds by it, and a second identity
+ * on `IRCodeSample` would be a frozen public type gaining a member, which is a major version. What
+ * the ruling costs instead is this sentence, and what it buys is that no language leaves the page
+ * without a word.
+ *
+ * THE MEASURED FAILURE IT CLOSES. A document writing `x-codeSamples` with `lang: "bash"` takes the
+ * id HTTPie is keyed by. Level 3 outranks the generator, so the document's own sample is the tab,
+ * and until this the generated HTTPie sample was dropped by {@link
+ * import('./compose').composeCodeSamples} and appeared in none of the three lists: not drawn, not
+ * held back, not refused. The word HTTPie was nowhere on the page, which is exactly the vanished tab
+ * the whole of SPEC 18 is written against, arriving through the one door left open.
+ *
+ * NOT A REFUSAL AND NOT A HELD BACK LANGUAGE, WHICH IS WHY IT IS A NOTE. The emitter wrote a sample,
+ * so nothing refused; and the page's sentence for a held back language ends "a build that asks for
+ * them draws them", which would be false here, because a build asking for `bash` still gets the
+ * document's tab. What is true is a fact about a tab the reader can see, and that is the fourth
+ * member's whole job.
+ */
+export const SHARED_TAB_NOTE =
+  'the document writes its own sample under this language id, and a tab strip keyed by language ' +
+  'shows one sample per id, so the tab holds what the document wrote and the generated sample ' +
+  'for this language is not drawn beside it';
+
+/** One sentence per cause, for a credential no request can carry at all. */
+const UNSENDABLE_CREDENTIAL_CAUSES: Readonly<Record<UnsendableCause, string>> = {
+  'mutual-tls': 'a client certificate chosen during the TLS handshake',
+  'cookie-api-key': 'a key in a cookie, which is a header a browser will not let a script set',
+  'http-challenge': 'a challenge and response the browser performs itself',
+};
+
+/**
+ * Why every sample for this operation goes without the credential the operation requires.
+ *
+ * THE SAMPLES ARE CORRECT AND THEY WILL NOT AUTHENTICATE, WHICH IS WHY THIS IS A NOTE. Nothing is
+ * wrong with what the emitters wrote: they put on the wire exactly what the console puts on the
+ * wire, and the console cannot carry this credential either, per SPEC 19.7. Refusing the sample
+ * would take away fifteen tabs that show the request faithfully; saying nothing leaves a reader
+ * copying a command that returns 401 with the page having computed the reason and dropped it.
+ * `placeholderCredentials` has returned `unsendable` since the generator was built and the
+ * transform discarded it until 2026-09-04.
+ *
+ * THE CAUSE IS `core`'S AND THE WORDS ARE THIS PACKAGE'S, which is the division `credentials.ts`
+ * in `@openref/runner` already states for the same union: the platform rule has one owner and each
+ * interface says it to its own reader.
+ *
+ * @param schemeId - The scheme as the document names it, so a reader can find it
+ * @param cause - Why a request cannot carry it, from `unsendableSchemeCause`
+ * @returns The sentence the page prints under the tabs
+ *
+ * @example
+ * unsendableCredentialNote('mtls', 'mutual-tls');
+ */
+export function unsendableCredentialNote(schemeId: string, cause: UnsendableCause): string {
+  return (
+    `no sample carries a credential for the security scheme "${schemeId}", because it is ` +
+    `${UNSENDABLE_CREDENTIAL_CAUSES[cause]}; the console cannot send it either, so these samples ` +
+    'show the request faithfully and will not authenticate'
+  );
+}
 
 /**
  * Why the OkHttp half of `permitsRequestBody` needs no refusal of its own any more.

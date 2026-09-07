@@ -584,7 +584,12 @@ describe('sourceCollector', () => {
 
       // Then
       expect(collector.problems()).toEqual([
-        { subject: 'OrdersController.findAll', reason: 'nothing was found' },
+        {
+          subject: 'OrdersController.findAll',
+          reason: 'nothing was found',
+          action:
+            'the page still names the class and the method, so this costs the link and nothing else',
+        },
       ]);
     },
     SPAWNED_PROCESS_TIMEOUT_MS,

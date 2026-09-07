@@ -1,8 +1,12 @@
-import { hash, healthScore } from '@openref/core';
+import { hash, healthPrimaryScore, healthSuppression } from '@openref/core';
 import type {
   IRDocumentKind,
+  IRDriftIssue,
+  IRDriftRule,
   IRHealthCheck,
   IRHealthReport,
+  IRHealthSuppressedClass,
+  IRHealthSuppression,
   IRRelationship,
   IRService,
 } from '@openref/core';
@@ -56,7 +60,36 @@ export function mergeKind(kinds: readonly IRDocumentKind[]): IRDocumentKind {
  * @returns The report, addressing the merged document
  */
 export function rewriteHealthReport(report: IRHealthReport, maps: RewriteMaps): IRHealthReport {
-  return { ...report, drift: report.drift.map((issue) => rewriteDriftIssue(issue, maps)) };
+  return {
+    ...report,
+    drift: rewriteIssues(report.drift, maps),
+    // THE SUPPRESSED HALF IS MOVED WITH THE OTHER ONE, because a suppressed finding is a finding
+    // that is drawn: the disclosure on the service page opens onto it, and a subject id left in
+    // the source spelling there is the same dead link this function exists to prevent, only in the
+    // half nobody looked at.
+    ...(report.suppression === undefined
+      ? {}
+      : {
+          suppression: {
+            ...report.suppression,
+            findings: rewriteIssues(report.suppression.findings, maps),
+          },
+        }),
+  };
+}
+
+/**
+ * Moves a list of findings onto the merged names.
+ *
+ * @param issues - The findings, in report order
+ * @param maps - How that service's names map onto the merged ones
+ * @returns The findings, addressing the merged document, in the order they came in
+ */
+function rewriteIssues(
+  issues: readonly IRDriftIssue[],
+  maps: RewriteMaps,
+): readonly IRDriftIssue[] {
+  return issues.map((issue) => rewriteDriftIssue(issue, maps));
 }
 
 /**
@@ -139,12 +172,63 @@ export function mergeHealth(sources: readonly HealthSource[]): IRHealthReport | 
 
   const merged = [...checks.values()];
 
+  // THE SUPPRESSION IS FOLDED RATHER THAN DROPPED, and dropping it is the defect this exists to
+  // prevent. Each service's checks arrive already subtracted, so the merged score is the merged
+  // SUPPRESSED score; handing that back with no suppression record beside it would print a
+  // federated page reading 88% with nothing saying that 111 findings are not in the list, which is
+  // exactly the silent lie SPEC 7.2 built the option to stop. The two figures and the inversion
+  // come from `core`'s own helper over the merged checks, so the merge asks one question rather
+  // than inventing a second scoring rule.
+  const suppression = mergeSuppression(sources, merged);
+
   return {
-    score: healthScore(merged),
+    score: healthPrimaryScore(suppression, merged),
     operationCount,
     checks: merged,
     drift: sources.flatMap((source) => rewriteHealthReport(source.report, source.maps).drift),
+    ...(suppression === undefined ? {} : { suppression }),
   };
+}
+
+/**
+ * Folds what each service suppressed into one record about the merged document.
+ *
+ * A CLASS IS MATCHED BY RULE AND ITS COUNTS ARE SUMMED, the way a check is. Two services
+ * suppressing one rule are one suppressed class over the federation, and their reasons are joined
+ * rather than one of them chosen, because a reader asking why a class is absent from the merged
+ * list is owed every answer that made it absent.
+ *
+ * @param sources - Each service's report with its rewrite maps, in service order
+ * @param merged - The merged checks, already subtracted
+ * @returns The merged suppression, or nothing when no service suppressed anything
+ */
+function mergeSuppression(
+  sources: readonly HealthSource[],
+  merged: readonly IRHealthCheck[],
+): IRHealthSuppression | undefined {
+  const classes = new Map<
+    IRDriftRule,
+    { -readonly [K in keyof IRHealthSuppressedClass]: IRHealthSuppressedClass[K] }
+  >();
+  const findings: IRDriftIssue[] = [];
+
+  for (const source of sources) {
+    const own = source.report.suppression;
+    if (own === undefined) continue;
+
+    findings.push(...rewriteIssues(own.findings, source.maps));
+    for (const entry of own.classes) {
+      const held = classes.get(entry.rule);
+      if (held === undefined) {
+        classes.set(entry.rule, { ...entry });
+        continue;
+      }
+      held.matched += entry.matched;
+      if (!held.reason.includes(entry.reason)) held.reason = `${held.reason}; ${entry.reason}`;
+    }
+  }
+
+  return healthSuppression(merged, [...classes.values()], findings);
 }
 
 /** One service's edges, with everything needed to move them into the merged address space. */
@@ -288,8 +372,8 @@ export function mergeRelationships(
      *
      * IT IS A `switch` AND NOT AN `if` CHAIN, AND THE REASON IS A PROBE RATHER THAN A STYLE. The
      * chain this replaced ended in a `kind !== 'event'` return, so a fifth member of
-     * `IRRelationshipEndpointKind` would have been absorbed here in silence while
-     * `ai-docs/design/CONTRACT.md` claimed two compile breaks. Measured on 2026-08-29: one.
+     * `IRRelationshipEndpointKind` would have been absorbed here in silence: two compile breaks
+     * were expected for such a member and, measured on 2026-08-29, there was one.
      *
      * @param value - The end, as the declaring service wrote it
      * @param kind - What the edge says the end is

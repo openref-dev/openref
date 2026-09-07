@@ -455,6 +455,62 @@ export interface CodeSampleModel {
 }
 
 /**
+ * One language this operation has a sample in that the page is not carrying, per SPEC 18.
+ *
+ * A NAME WITHOUT A SOURCE, WHICH IS THE WHOLE OF IT. SPEC 18 keeps fifteen languages and the page
+ * draws twelve of them; the three it does not draw are named here rather than dropped, so that a
+ * reader can tell a language this reference does not have from a language it can produce. The
+ * source is exactly what was not carried, so it is not in this shape.
+ */
+export interface CodeSampleLanguageModel {
+  /** Language identifier, as {@link CodeSampleModel.lang} spells it. */
+  readonly lang: string;
+  /** What a tab would have said, for example `Ruby`. */
+  readonly label: string;
+}
+
+/**
+ * Languages that could not write this request at all, and the one reason they gave, per SPEC 18.
+ *
+ * THE OTHER HALF OF {@link CodeSampleLanguageModel}, AND THE HALF THAT WAS MISSING. A language the
+ * page holds back is named beside the tabs; a language whose emitter refused this request simply
+ * had no tab, so a reader met the same silence for two different facts. SPEC 18's standing rule is
+ * that where a request cannot be expressed faithfully the page says so, and this is what it says
+ * it with.
+ *
+ * GROUPED BY REASON, BECAUSE A REFUSAL IS USUALLY SHARED. Nine templates decline a multipart body
+ * in the same words, and repeating that sentence nine times would put it nine times into a page
+ * state block whose size SPEC 20 already reports over its cap.
+ */
+export interface CodeSampleRefusalModel {
+  /** Why none of these languages could write this request, in the emitter's own words. */
+  readonly reason: string;
+  /** The languages that gave this reason, in the order the page would have met them. */
+  readonly languages: readonly CodeSampleLanguageModel[];
+}
+
+/**
+ * Something true about a sample that is drawn and correct, per SPEC 18.
+ *
+ * THE THIRD KIND OF SENTENCE UNDER THE TABS, AND NOT A SOFTER REFUSAL. A refusal says there is no
+ * sample because one would have sent something other than the plan. A note says the sample sends
+ * exactly the plan and there is one more thing to know: this client follows a redirect where the
+ * console does not, the credential this operation needs travels in no request at all, or the
+ * document wrote two samples under one language and a strip keyed by language shows one.
+ *
+ * BOTH OF ITS FIRST TWO SOURCES WERE COMPUTED AND DISCARDED. `GeneratedSamples.notes` and
+ * `PlaceholderCredentials.unsendable` were produced by the generator and dropped by the transform,
+ * so a reader was never told that four of their twelve tabs behave unlike the button, nor that an
+ * operation behind a client certificate draws twelve samples that cannot authenticate.
+ */
+export interface CodeSampleNoteModel {
+  /** What a reader has to know about these samples, in the words of whoever measured it. */
+  readonly note: string;
+  /** The languages it is true of, in the order the page would have met them. */
+  readonly languages: readonly CodeSampleLanguageModel[];
+}
+
+/**
  * The head of a node page: what the operation is, and nothing about what it carries.
  *
  * SEPARATE FROM {@link NodeModel} BECAUSE THE HEADER POSITION IS HANDED THIS AND NOT THAT. The
@@ -507,14 +563,14 @@ export interface NodeHeaderModel {
  * covers both and a fragment never has to be adopted.
  *
  * THREE MARKS ARRIVED AT `T050` FOR THE CHANNEL PAGE, AND THE UNION GROWING IS A BREAKING CHANGE
- * rather than an additive one, by the rule `ai-docs/design/CONTRACT.md` states for
+ * rather than an additive one, by the rule `packages/vue/PUBLIC-API.md` states for
  * `StateNoticeKind` and applies here: the sanctioned total spelling over this union is an
  * exhaustive `switch` with no `default`, the renderer's own composition is written that way on
  * purpose, and a composition spelled that way does not compile until each new mark is drawn. The
  * three are the sections a channel has and an operation does not: `channel` for the address, its
  * variables, the protocol, the servers and the bindings; `channel-operations` for the `send` and
  * `receive` operations with their replies; `messages` for the payloads, headers, correlation
- * expressions and examples. Recorded there and in `packages/vue/PUBLIC-API.md` before the code.
+ * expressions and examples. Recorded there before the code.
  */
 export type NodeSectionMark =
   | 'header'
@@ -548,6 +604,36 @@ export interface NodeModel extends NodeHeaderModel {
   readonly security: readonly SecurityModel[];
   /** Call samples the document wrote, per SPEC 18. Empty when it wrote none. */
   readonly codeSamples: readonly CodeSampleModel[];
+  /**
+   * Languages this operation has a sample in that the page did not draw, per SPEC 18.
+   *
+   * REQUIRED RATHER THAN OPTIONAL, for the reason `NodeModel.channel` states: a member a producer
+   * may leave out is a member whose absence means both "there are none" and "nobody looked", and
+   * the difference here is the whole point of the member. The producer set is the one function
+   * `nodeModel`, and the empty list is the ordinary answer, on every channel and on every page
+   * whose document was never put through `withGeneratedSamples`.
+   */
+  readonly codeSamplesElsewhere: readonly CodeSampleLanguageModel[];
+  /**
+   * Languages that wrote no sample for this request, with the reason, per SPEC 18.
+   *
+   * REQUIRED FOR THE REASON THE MEMBER ABOVE IS, AND ANSWERING THE OTHER HALF OF ONE QUESTION.
+   * Together with `codeSamples` and `codeSamplesElsewhere` it accounts for every language the
+   * generator was asked about: drawn, held back, or unable. The empty list is the ordinary answer,
+   * on every channel, on every page whose document never went through `withGeneratedSamples`, and
+   * on every operation whose request all fifteen can express.
+   */
+  readonly codeSamplesRefused: readonly CodeSampleRefusalModel[];
+  /**
+   * What a reader has to know about the samples that are drawn, per SPEC 18.
+   *
+   * REQUIRED FOR THE REASON THE TWO MEMBERS ABOVE ARE, and orthogonal to both of them. Those three
+   * account for every language the generator was asked about; this says what is true of the ones
+   * that ended up with a tab. The empty list is the ordinary answer, on every channel, on every
+   * page whose document never went through `withGeneratedSamples`, and on every operation whose
+   * credential travels in a header and whose clients agree with the console.
+   */
+  readonly codeSamplesNotes: readonly CodeSampleNoteModel[];
   /**
    * What the try-it console needs to send this operation, or null for a channel.
    *
@@ -620,6 +706,25 @@ export interface RuntimeValueModel {
  * THE THREE ERROR GROUPS ARE THREE KINDS AND NOT ONE, which is T021's decision carried into this
  * field. A promise, an observation and a host wide list are different statements, and a single
  * `errors` kind would let a theme concatenate them without deciding to.
+ *
+ * `handler-policies` IS THE ELEVENTH AND IT IS A BREAKING CHANGE, NOT AN ADDITIVE ONE. It was
+ * recorded as additive by the task that added it and re-decided on 2026-09-05; the ruling and the
+ * whole of its reasoning are in `packages/vue/PUBLIC-API.md` beside `StateNoticeKind`'s, which is
+ * the same event and the same correction. The argument for additive was that a theme RECEIVES rows
+ * and never produces them, and that neither reference theme reads this type at all. Both are true
+ * and neither is the test. The rule of `PUBLIC-API.md` is that widening an exported union is
+ * retyping it, and what decides it is whether a total spelling over the union is SANCTIONED, never
+ * whether anybody has written one yet: a theme is written outside this repository, so absence of a
+ * total record here is evidence about this tree and not about the contract. The sentence at the top
+ * of this comment sanctions it, and `@openref/render` already writes that spelling over the sibling
+ * union in `parity-model.ts`. The migration is the author's and it is one line: add the case.
+ *
+ * The note next to `rate-limit` in `@openref/render`'s row builder still holds for the case it is
+ * about: a SECOND kind for a question a reader already asks under an existing label would be a
+ * major version for nothing, and a cache, a lock and a breaker are not that question under any
+ * existing label. The BROWSER cost is separately zero, and the reason is not the one first written
+ * here: the reference panel draws no labelled runtime row at all, so it spends this type on
+ * nothing.
  */
 export type RuntimeRowKind =
   | 'guards'
@@ -627,6 +732,7 @@ export type RuntimeRowKind =
   | 'scopes'
   | 'roles'
   | 'rate-limit'
+  | 'handler-policies'
   | 'streaming'
   | 'errors-declared'
   | 'errors-runtime-derived'
@@ -648,6 +754,14 @@ export interface DriftModel {
   /** Class carrying the severity, which the design names crit, warn and note. */
   readonly severityClass: string;
   readonly message: string;
+  /**
+   * The longer reasoning behind the finding, per SPEC 7.2. Empty when the rule wrote none.
+   *
+   * A THEME DRAWS IT CLOSED OR NOT AT ALL, and either is a complete finding: everything a reader
+   * needs to act is in {@link message} and {@link suggestion}. It exists so that shortening those
+   * two to one clause each did not have to delete the reasoning behind them.
+   */
+  readonly detail: string;
   /** What each side says, already labelled, so the component draws a list and not two cases. */
   readonly sides: readonly string[];
   readonly suggestion: string;
@@ -655,6 +769,24 @@ export interface DriftModel {
   readonly href: string;
   /** What the finding is about, for a row on a page that is not about it. Empty otherwise. */
   readonly subject: string;
+  /**
+   * Every subject this one cause was found on, per SPEC 7.2. Empty on a page about one subject.
+   *
+   * ONE ROW PER CAUSE AND NOT PER SUBJECT, which is what the health panel draws since 2026-09-05.
+   * {@link subject} and {@link href} stay the first of these, so a theme that reads only those two
+   * draws what it always drew and loses the rest rather than breaking. Measured on the maintainer's
+   * application: 186 findings are 68 causes, one of which holds 54 subjects.
+   */
+  readonly subjects: readonly DriftSubjectModel[];
+  /** How many subjects the cause was found on, as text. `1` for a finding that stands alone. */
+  readonly count: string;
+}
+
+/** One subject of a grouped finding, with the link to it when there is one. */
+export interface DriftSubjectModel {
+  readonly label: string;
+  /** Where the subject is, or empty when the finding names something no page is about. */
+  readonly href: string;
 }
 
 /**
@@ -721,7 +853,15 @@ export interface ParityRowModel {
   readonly label: string;
   readonly spec: ParitySideModel;
   readonly runtime: readonly RuntimeValueModel[];
-  /** Why the runtime side is empty. Empty exactly when `runtime` has values. */
+  /**
+   * Why there is nothing to compare: the empty side, or the missing verdict.
+   *
+   * IT ANSWERS TWO QUESTIONS AND USED TO ANSWER HALF OF ONE. With `runtime` empty it says which of
+   * the two silences of SPEC 6.3 this is, naming the collector that examined the route and found
+   * nothing, or the one that would report the fact and is not registered. With `runtime` full and
+   * `verdict` `unknown` it says that no rule of the catalogue examines this row yet, which was a
+   * fact only an `aria-label` carried. Empty exactly when there is a verdict and a side.
+   */
   readonly reason: string;
   readonly verdict: ParityVerdict;
   /** Severity of the recorded finding. Empty unless `verdict` is `drift`. */
@@ -800,6 +940,15 @@ export interface RuntimeModel {
   readonly rows: readonly RuntimeRowModel[];
   readonly drift: readonly DriftModel[];
   /**
+   * This node's findings that the host suppressed, per SPEC 7.2.
+   *
+   * THE COUNT IN THE HEADER IS `drift` AND THIS IS WHAT IS MISSING FROM IT. A node page that
+   * counted only the unsuppressed findings and said nothing else would be a page a reader cannot
+   * tell apart from a clean one, which is the failure the whole feature is careful about. Empty on
+   * every node of a document nothing was suppressed on.
+   */
+  readonly suppressed: readonly DriftModel[];
+  /**
    * The parity scale of an operation page, per SPEC 6.3, in the design's row order.
    *
    * Empty for a channel, which keeps the labelled row block until M5 designs one, and a
@@ -858,16 +1007,68 @@ export interface HealthKpiModel {
   readonly warnings: number;
 }
 
+/** One class the host suppressed, as the disclosure of SPEC 7.2 draws it. */
+export interface HealthSuppressedClassModel {
+  /** The kebab rule id, which is what the host wrote in `runtime.suppress`. */
+  readonly rule: string;
+  /** Display code of SPEC 7.1, which is what the reader recognises the class by. */
+  readonly code: string;
+  readonly severityClass: string;
+  /** Why the host decided not to fix it, which is refused at boot when it is absent. */
+  readonly reason: string;
+  /**
+   * How many findings this class took out, as text.
+   *
+   * `0` IS DRAWN AND IS THE POINT OF THE ROW. A class that matched nothing did not refuse boot,
+   * because a class is legitimately empty on some deployments, so the only place a reader can
+   * find out is here, before the day it comes back and starts suppressing in silence.
+   */
+  readonly count: string;
+  /** The findings it took out, folded by cause exactly as the drawn rules are folded. */
+  readonly findings: readonly DriftModel[];
+}
+
+/**
+ * What suppression did, as the health page discloses it, per SPEC 7.2.
+ *
+ * A CLOSED `details` AND NOT A QUERY PARAMETER, deliberately. The disclosure survives a static
+ * build and a page whose JavaScript never arrives, it costs the strict CSP nothing because there
+ * is no handler to authorize, and it leaves the `#oref-rule-<kebab>` anchors of the drawn rules
+ * exactly where a FixBar expects them.
+ */
+export interface HealthSuppressionModel {
+  /** `111 suppressed by 2 classes`, built once in `@openref/core` and read rather than counted. */
+  readonly note: string;
+  readonly classes: readonly HealthSuppressedClassModel[];
+  /**
+   * True while any suppressed class is severity `error`, per SPEC 7.2.
+   *
+   * IT IS WHY {@link HealthModel.score} READS AS IT DOES. Under the inversion the primary is the
+   * unsuppressed percentage and the suppressed one is in the parenthesis, so suppressing an error
+   * buys a cleaner list and no better headline.
+   */
+  readonly inverted: boolean;
+}
+
 /** The Health panel of SPEC 7.2, which the health page carries. */
 export interface HealthModel {
   /** Heading of the panel, carrying what was asked and how much came back. */
   readonly title: string;
-  /** The percentage of SPEC 7.2, as it is printed. */
+  /**
+   * The percentage of SPEC 7.2, as it is printed, INCLUDING THE SUPPRESSION PARENTHESIS.
+   *
+   * THE MARKED STRING IS BUILT ONCE IN `@openref/core` AND THIS MEMBER CARRIES IT WHOLE, so no
+   * theme can print the bare number by accident: `88% (77% unsuppressed)` and `77% (100%
+   * suppressed)` arrive here already assembled, and a theme that renders this member renders both
+   * halves or neither.
+   */
   readonly score: string;
   /** The head's triple, derived from the report, per `TX-PARITY-UI`. */
   readonly kpi: HealthKpiModel;
   readonly checks: readonly HealthCheckModel[];
   readonly rules: readonly HealthRuleModel[];
+  /** What the host suppressed, or null when nothing was, which is not the same as nothing found. */
+  readonly suppression: HealthSuppressionModel | null;
 }
 
 /**

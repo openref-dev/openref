@@ -188,10 +188,10 @@ export class AgentSurfaceService {
             version: this.document.info.version,
           },
           // WHAT A CONSUMER MAY RELY ON, SAID BY THE SURFACE AND NOT ONLY BY THE SPECIFICATION.
-          // `ai-docs/REMEDIATION.md` section 6 makes remediation a supported use of this surface,
-          // and a supported use that only a document mentions is one a caller has to be told about
-          // out of band. The three things it may depend on are named here because this is the one
-          // message every MCP client reads before it does anything else.
+          // Remediation is a supported use of this surface, and a supported use that only a
+          // document mentions is one a caller has to be told about out of band. The three things
+          // it may depend on are named here because this is the one message every MCP client reads
+          // before it does anything else.
           instructions:
             'This server answers questions about an API reference. It returns documentation ' +
             'and sends no request to the API it documents. A tool whose requiresConfirmation is ' +

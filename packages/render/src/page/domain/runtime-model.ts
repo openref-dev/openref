@@ -25,8 +25,11 @@ import {
   DRIFT_RULE_CODES,
   driftForNode,
   expandSourceLink,
+  groupDriftByCause,
   groupDriftByRule,
   hasRuntimeFacts,
+  healthScoreMark,
+  healthSuppressionNote,
   type IRDocument,
   type IRDriftIssue,
   type IRDriftRule,
@@ -35,13 +38,16 @@ import {
   type IRGuardScope,
   type IRHealthReport,
   type IRNodeRuntime,
+  pageNode,
 } from '@openref/core';
 import { schemaDisplayName } from '@openref/vue';
 import type {
   DriftModel,
+  DriftSubjectModel,
   ErrorContractGroupModel,
   ErrorContractItemModel,
   HealthModel,
+  HealthSuppressionModel,
   ResponseMarkModel,
   RuntimeModel,
   RuntimeRowKind,
@@ -52,14 +58,24 @@ import { buildParityRows } from './parity-model';
 import {
   EMPTY_VALUE,
   guardValues,
+  handlerPolicyValues,
   mark,
+  parameterReadsLabel,
   rateLimitLabel,
+  rateLimitReachLabel,
   SEVERITY_CLASSES,
   streamingLabel,
 } from './runtime-values';
 import { statusClass } from '../../shared/status';
 
-export { rateLimitLabel, streamingLabel };
+// TWO MORE NAMES SINCE 2026-09-05, AND THE REASON IS THE ONE THIS PACKAGE ALREADY GIVES FOR THE
+// FIRST TWO. `@openref/agent` writes the same facts into `llms-full.txt` that these functions write
+// onto the page, and each of these two carries a RULING rather than a format: what
+// `rateLimitReachLabel` says is that a budget it prints is not this route's, and what
+// `parameterReadsLabel` keeps apart is a statement about the handler from a statement about the
+// scan. A second spelling of either in another package is two answers to one question, which is
+// exactly what the header of `llms-text.ts` refuses for a title and an address.
+export { parameterReadsLabel, rateLimitLabel, rateLimitReachLabel, streamingLabel };
 
 /**
  * THE SHAPES THESE FUNCTIONS BUILD LIVE IN `@openref/vue`, since `TX-SLOTWIRE`.
@@ -112,8 +128,27 @@ const GUARD_SCOPES = [
 function rowsOf(runtime: IRNodeRuntime, template: string | undefined): RuntimeRowModel[] {
   const rows: RuntimeRowModel[] = [];
 
+  // THE EXEMPTION IS DRAWN ON THE ROW IT IS ABOUT AND NOT IN A ROW OF ITS OWN, per SPEC 6.2.1. It
+  // says this route escapes the guard registered for the whole application and says nothing about a
+  // guard written on the route, so it belongs beside the value naming what stands in front of
+  // everything; `RuntimeRowKind` is frozen public API of `@openref/vue`, and a twelfth kind would
+  // be a major version for a distinction a reader draws inside one row. It also keeps the block
+  // from being drawn as an empty scaffold on a route whose only fact is this one, which SPEC 6.3
+  // forbids and which `hasRuntimeFacts` would otherwise allow the moment the fact was added.
+  const exemption = runtime.guardExemption;
+
   for (const [scope, kind, label] of GUARD_SCOPES) {
     const values = guardValues(runtime.guards ?? [], scope);
+
+    if (scope === 'global' && exemption !== undefined) {
+      values.push({
+        ...EMPTY_VALUE,
+        text: 'exempt',
+        note: `marked on the ${exemption.value.declaredOn}`,
+        ...mark(exemption.confidence, exemption.collector),
+      });
+    }
+
     if (values.length > 0) rows.push({ kind, label, values });
   }
 
@@ -140,6 +175,43 @@ function rowsOf(runtime: IRNodeRuntime, template: string | undefined): RuntimeRo
           ...mark(fact.confidence, fact.collector),
         },
       ],
+    });
+  }
+
+  // THE SAME ROW KIND, BECAUSE IT IS THE SAME QUESTION AND `RuntimeRowKind` IS FROZEN. What limits
+  // this route is one row whether the answer is a number, something outside the route, or nothing;
+  // a twelfth kind would be a major version of `@openref/vue` for a distinction a reader does not
+  // draw. It is drawn only where there is no limit of the route's own, so the two can never both
+  // appear and the row keeps one meaning.
+  const reach = runtime.rateLimitReach;
+  if (runtime.rateLimit === undefined && reach !== undefined) {
+    const label = rateLimitReachLabel(reach.value);
+
+    rows.push({
+      kind: 'rate-limit',
+      label: 'Rate limit',
+      values: [
+        {
+          ...EMPTY_VALUE,
+          text: label.value,
+          note: label.note,
+          ...mark(reach.confidence, reach.collector),
+        },
+      ],
+    });
+  }
+
+  // A ROW OF ITS OWN AND NOT A KIND FOLDED INTO ONE ABOVE, which is the opposite of the decision
+  // the reach block just made and rests on the same test. `rateLimitReach` reuses `rate-limit`
+  // because it is a second answer to the question that row already asks; a cache window, a lock
+  // key and a breaker threshold answer none of the ten questions the other rows ask, and putting
+  // them under an existing label would make that label mean two things.
+  const policies = runtime.handlerPolicies;
+  if (policies !== undefined && policies.length > 0) {
+    rows.push({
+      kind: 'handler-policies',
+      label: 'Handler policies',
+      values: handlerPolicyValues(policies),
     });
   }
 
@@ -409,6 +481,56 @@ function contractGroups(
 }
 
 /**
+ * Where one finding's subject is and what it is called, when the page is not already about it.
+ *
+ * A FINDING THAT NAMES ITS OWN SUBJECT IS DRAWN, AND IT WAS NOT UNTIL 2026-09-05. `IRDriftIssue`
+ * gained `subject` at `T054` for exactly the rules whose subject is neither a node nor a schema,
+ * and this function returned the empty string for them, so the reference theme, which draws the
+ * subject only when there is a link, drew none at all. That is why `discovery-incomplete` was
+ * gluing the subject onto the front of its own message: it was the only way the address reached the
+ * page. It reaches the page now, per SPEC 7.2, and unlinked is a normal state rather than an
+ * absence, because a handler that has no operation on it has no page to link to.
+ *
+ * @param issue - The finding
+ * @param document - The document, for the subject's own title
+ * @param basePath - Mount point, so the link is the one the server answers at
+ * @returns The label and the link, either of which may be empty
+ */
+function driftSubject(
+  issue: IRDriftIssue,
+  document: IRDocument,
+  basePath: string,
+): DriftSubjectModel {
+  if (issue.nodeId !== undefined) {
+    const node = pageNode(document, issue.nodeId);
+    // A FINDING THAT NAMES A NODE THIS DOCUMENT DOES NOT HOLD IS NAMED AND NOT LINKED. `nodeId` is
+    // a free string a collector or a federated record fills in, and this built an address out of
+    // it whichever way the lookup went, so a stale id was drawn as a link to a page that does not
+    // exist. `withoutGhostFindings` in `@openref/nest` drops such a finding from a node's own
+    // facts and reports it to `doctor`, but the report on the document reaches this function too,
+    // and one guard here is what makes the two paths agree. It is the shape `contractSchema` above
+    // already uses: found means a link, absent means the words alone.
+    if (node === undefined) return { label: issue.nodeId, href: '' };
+
+    const label =
+      node.kind === 'channel'
+        ? (node.address ?? issue.nodeId)
+        : `${node.method.toUpperCase()} ${node.path}`;
+
+    return { label, href: nodeHref(issue.nodeId, basePath) };
+  }
+
+  if (issue.schemaId !== undefined) {
+    return {
+      label: `${issue.schemaId}${issue.pointer ?? ''}`,
+      href: schemaHref(issue.schemaId, basePath),
+    };
+  }
+
+  return { label: issue.subject ?? '', href: '' };
+}
+
+/**
  * One finding as a row, with a link to its subject when the page is not already about it.
  *
  * @param issue - The finding
@@ -423,42 +545,56 @@ function driftModel(
   basePath: string,
   linked: boolean,
 ): DriftModel {
+  return causeModel(issue, [issue], document, basePath, linked);
+}
+
+/**
+ * One cause as a row, naming every subject it was found on, per SPEC 7.2.
+ *
+ * THE FIRST FINDING SPEAKS FOR THE GROUP AND THAT IS NOT A CHOICE. Every member of a cause group
+ * carries the same rule, severity, message, detail, suggestion and both measured sides, because
+ * those are what the group is keyed by; only the subjects differ, and all of them are here.
+ *
+ * @param issue - Any member of the group, since every member carries the same text
+ * @param members - Every finding in the group, in report order
+ * @param document - The document, for each subject's own title
+ * @param basePath - Mount point, so the links are the ones the server answers at
+ * @param linked - Whether to name the subjects at all, which a page about one of them does not
+ * @returns The row
+ */
+function causeModel(
+  issue: IRDriftIssue,
+  members: readonly IRDriftIssue[],
+  document: IRDocument,
+  basePath: string,
+  linked: boolean,
+): DriftModel {
   const sides: string[] = [];
   if (issue.runtimeValue !== undefined) sides.push(`Runtime: ${issue.runtimeValue}`);
   if (issue.specValue !== undefined) sides.push(`OpenAPI: ${issue.specValue}`);
 
-  const base = {
+  const subjects = linked ? members.map((member) => driftSubject(member, document, basePath)) : [];
+  const first = subjects[0];
+
+  return {
     rule: issue.rule,
     code: DRIFT_RULE_CODES[issue.rule],
     severityClass: SEVERITY_CLASSES[issue.severity],
     message: issue.message,
+    detail: issue.detail ?? '',
     sides,
-    suggestion: issue.suggestion,
+    // A SUGGESTION THAT REPEATS THE MESSAGE IS DROPPED RATHER THAN PRINTED TWICE, per SPEC 7.2.
+    // `openref doctor` prints the suggestion and never the message, so a producer that has not
+    // been moved to the three member voice writes its one sentence into both and must keep doing
+    // it; a page that prints both prints the sentence twice. Seventeen event side producers of
+    // SPEC 8.3 are in exactly that state, so this is where the repeat is closed for all of them at
+    // once rather than in each of them.
+    suggestion: issue.suggestion === issue.message ? '' : issue.suggestion,
+    href: first?.href ?? '',
+    subject: first?.label ?? '',
+    subjects,
+    count: String(members.length),
   };
-
-  if (!linked) return { ...base, href: '', subject: '' };
-
-  if (issue.nodeId !== undefined) {
-    const node = document.nodes.get(issue.nodeId);
-    const subject =
-      node === undefined
-        ? issue.nodeId
-        : node.kind === 'channel'
-          ? (node.address ?? issue.nodeId)
-          : `${node.method.toUpperCase()} ${node.path}`;
-
-    return { ...base, href: nodeHref(issue.nodeId, basePath), subject };
-  }
-
-  if (issue.schemaId !== undefined) {
-    return {
-      ...base,
-      href: schemaHref(issue.schemaId, basePath),
-      subject: `${issue.schemaId}${issue.pointer ?? ''}`,
-    };
-  }
-
-  return { ...base, href: '', subject: '' };
 }
 
 /**
@@ -474,7 +610,7 @@ export function buildRuntimeModel(
   nodeId: string,
   basePath: string,
 ): RuntimeModel | null {
-  const node = document.nodes.get(nodeId);
+  const node = pageNode(document, nodeId);
   const runtime = node?.runtime;
   if (node === undefined || runtime === undefined || !hasRuntimeFacts(runtime)) return null;
 
@@ -486,6 +622,12 @@ export function buildRuntimeModel(
   return {
     rows: rowsOf(runtime, document.runtime?.sourceLinkTemplate),
     drift: found.map((issue) => driftModel(issue, document, basePath, false)),
+    // THE HEADER COUNTS `drift` AND THIS IS WHAT IT DOES NOT COUNT, per SPEC 7.2. A node whose
+    // only findings were suppressed would otherwise be pixel identical to a node with none, which
+    // is the product's own thesis made silently and in the wrong direction.
+    suppressed: driftForNode(document.health?.suppression?.findings ?? [], nodeId).map((issue) =>
+      driftModel(issue, document, basePath, false),
+    ),
     // THE SCALE IS AN OPERATION'S, per SPEC 6.3: a channel keeps the labelled rows until M5
     // designs one, and a component that finds `parity` empty draws `rows` the way it always did.
     parity: node.kind === 'operation' ? buildParityRows(document, node, found, basePath) : [],
@@ -526,6 +668,7 @@ export function buildHealthModel(
 
   const operations = String(report.operationCount);
   const findings = String(report.drift.length);
+  const note = healthSuppressionNote(report);
 
   // THE SENTENCE AND THE SEVERITY OF A RULE COME FROM ITS OWN CHECK, so no second vocabulary
   // exists to drift: the check's label is the catalogue's sentence, per SPEC 7.1, and its id
@@ -538,14 +681,29 @@ export function buildHealthModel(
   const grouped = groupDriftByRule(report.drift);
   const found = new Set(grouped.map((group) => group.rule));
 
-  const rules = grouped.map((group) => ({
-    rule: group.rule,
-    code: DRIFT_RULE_CODES[group.rule],
-    summary: ruleChecks.get(group.rule)?.label ?? '',
-    severityClass: SEVERITY_CLASSES[group.severity],
-    count: String(group.issues.length),
-    findings: group.issues.map((issue) => driftModel(issue, document, basePath, true)),
-  }));
+  // THE HEADING NAMES BOTH QUANTITIES AND THE ROWS UNDER IT ARE THE CAUSES, per SPEC 7.2. Those
+  // are two different questions and a reader asks both: how much is wrong with this document, and
+  // how many different things they have to decide about. Folding the heading count into the causes
+  // would have hidden the volume the panel exists to report; naming only the findings, which is
+  // what this did until 2026-09-05, told a reader who counts the rows two different numbers about
+  // one thing. `causes` is accumulated from the rows themselves rather than counted a second way,
+  // so the sentence cannot disagree with what is drawn under it.
+  let causes = 0;
+  const rules = grouped.map((group) => {
+    const rows = groupDriftByCause(group.issues).map((cause) =>
+      causeModel(cause.issue, cause.issues, document, basePath, true),
+    );
+    causes += rows.length;
+
+    return {
+      rule: group.rule,
+      code: DRIFT_RULE_CODES[group.rule],
+      summary: ruleChecks.get(group.rule)?.label ?? '',
+      severityClass: SEVERITY_CLASSES[group.severity],
+      count: String(group.issues.length),
+      findings: rows,
+    };
+  });
 
   // A RULE THAT EXAMINED AND FOUND NOTHING IS A ROW WITH ITS ZERO, per `TX-PARITY-UI` and the
   // layout; a rule that never examined anything is not drawn at all, per SPEC 7.3's
@@ -565,9 +723,23 @@ export function buildHealthModel(
     });
   }
 
+  // THE SECOND HALF IS LEFT OFF WHEN NOTHING FOLDED, per SPEC 7.2. `6 findings in 6 causes` is not
+  // a contradiction, but it is one quantity written twice, and the clause exists to tell two apart.
+  const covered = causes === report.drift.length ? '' : ` in ${String(causes)} causes`;
+
   return {
-    title: `Documentation health, ${operations} operations, ${findings} findings`,
-    score: `${String(report.score)}%`,
+    // THE HEADING NAMES WHAT IS DRAWN AND THEN WHAT IS NOT, in that order and separated the same
+    // way, per SPEC 7.2. `69 findings, 111 suppressed by 2 classes` is a reader being told the
+    // size of the list they are looking at and the size of the one they are not; naming only the
+    // first is the page a host gets today when they stop reading a report of 180.
+    title:
+      `Documentation health, ${operations} operations, ${findings} findings${covered}` +
+      (note === '' ? '' : `, ${note}`),
+    // THE MARKED STRING AND NEVER THE BARE NUMBER, built once in `@openref/core`. Under the
+    // inversion of SPEC 7.2 the primary is the unsuppressed percentage, so a page that formatted
+    // `report.score` itself would still be honest and a page that formatted a component figure
+    // would not; assembling it here a second time is the divergence this call removes.
+    score: healthScoreMark(report),
     // THE TRIPLE IS THE REPORT REREAD AND NEVER A NEW COUNT: operations is the report's own
     // figure, and the two severities are the drift list partitioned, per `TX-PARITY-UI`.
     kpi: {
@@ -588,5 +760,52 @@ export function buildHealthModel(
         count: `${String(check.passed)} / ${String(check.total)}`,
       })),
     rules,
+    suppression: suppressionModel(report, document, basePath),
+  };
+}
+
+/**
+ * The suppression disclosure of SPEC 7.2, or null when the host suppressed nothing.
+ *
+ * NULL AND AN EMPTY LIST ARE DIFFERENT STATEMENTS, the way they are everywhere else in this file.
+ * Null is a document nobody suppressed anything on; a class present with a count of zero is a
+ * suppression that matched nothing on this deployment, which is a thing a reader has to be able to
+ * find out before the class comes back.
+ *
+ * THE FINDINGS ARE FOLDED BY CAUSE, exactly as the drawn rules are. The suppressed half is where
+ * the volume is by definition, since a class is suppressed for being large, so handing a reader
+ * who opens it a hundred copies of one sentence would reproduce inside the disclosure the problem
+ * the disclosure exists to solve.
+ *
+ * @param report - The report being drawn
+ * @param document - The normalized document, so a finding can name its subject
+ * @param basePath - Mount point, so a finding can be jumped to
+ * @returns The disclosure, or null
+ */
+function suppressionModel(
+  report: IRHealthReport,
+  document: IRDocument,
+  basePath: string,
+): HealthSuppressionModel | null {
+  const suppression = report.suppression;
+  if (suppression === undefined) return null;
+
+  const byRule = new Map<IRDriftRule, readonly IRDriftIssue[]>(
+    groupDriftByRule(suppression.findings).map((group) => [group.rule, group.issues]),
+  );
+
+  return {
+    note: healthSuppressionNote(report),
+    inverted: suppression.inverted,
+    classes: suppression.classes.map((entry) => ({
+      rule: entry.rule,
+      code: DRIFT_RULE_CODES[entry.rule],
+      severityClass: SEVERITY_CLASSES[entry.severity],
+      reason: entry.reason,
+      count: String(entry.matched),
+      findings: groupDriftByCause(byRule.get(entry.rule) ?? []).map((cause) =>
+        causeModel(cause.issue, cause.issues, document, basePath, true),
+      ),
+    })),
   };
 }

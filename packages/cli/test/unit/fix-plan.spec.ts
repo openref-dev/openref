@@ -42,7 +42,7 @@ function finding(
 
 /** A report carrying exactly the findings given, in the order given. */
 function reportOf(findings: readonly IRDoctorFinding[]): IRDoctorReport {
-  return { version: 1, score: 50, operationCount: 1, checks: [], findings };
+  return { version: 1, score: 50, scoreText: '50%', operationCount: 1, checks: [], findings };
 }
 
 describe('planFixes', () => {

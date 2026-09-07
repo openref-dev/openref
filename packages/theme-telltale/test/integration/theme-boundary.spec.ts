@@ -325,6 +325,15 @@ describe('the markup a complete L2 theme does not own', () => {
     // modifiers on families the reference already had, the three `oref-section` ones, the three
     // `oref-media` ones and the two directions on `oref-badge`, which are the same eight the
     // default theme records as modifiers without rules of their own.
+    // ONE ARRIVED ON 2026-09-03 AND IT IS THE SIXTH INSTANCE OF THIS FINDING WITH ONE DIFFERENCE:
+    // `oref-section-samples` did not arrive because a feature was built outside a position, it
+    // arrived because an element moved out of one. The call samples section used to be drawn by
+    // the `CodeSample` position, so a theme replacing that position replaced the element too and
+    // no name survived. The two sentences that name a language the page holds back and a language
+    // whose emitter refused belong inside that element and may not be a slot's to drop, so the
+    // element is `NodePanel`'s now and the slot draws its contents. The price is exactly this one
+    // name, measured here rather than argued: a page cannot both put a guarantee inside a block and
+    // leave the block replaceable.
     expect(surviving).toEqual([
       'oref-badge',
       'oref-bench-actions',
@@ -374,6 +383,8 @@ describe('the markup a complete L2 theme does not own', () => {
       'oref-section-health',
       'oref-section-messages',
       'oref-section-request',
+      'oref-section-runtime',
+      'oref-section-samples',
       'oref-section-security',
       'oref-section-service',
       'oref-section-socket',
@@ -468,17 +479,47 @@ describe('the markup a complete L2 theme does not own', () => {
     // Then the subject is present before anything is said about absence: the renderer emits names,
     // the sweep reaches names, and the sweep reaches fewer.
     expect(emitted.files).toBe(79);
-    expect(emitted.literals).toHaveLength(355);
+    expect(emitted.literals).toHaveLength(365);
     expect(emitted.prefixes).toHaveLength(11);
-    expect(emitted.names).toHaveLength(344);
+    expect(emitted.names).toHaveLength(354);
     expect(surviving.length).toBeLessThan(emitted.names.length);
 
     // And the partition is pinned, both ways. 245 emitted names no fixture provokes is the number
     // the `T062` amendment section carries with the reason for each family; a name arriving on
-    // either side moves one of these and is read rather than absorbed.
+    // either side moves one of these and is read rather than absorbed. It went from 242 to 241 on
+    // 2026-09-03 with no name arriving or leaving the renderer: `oref-section-samples` moved from
+    // inside the `CodeSample` position to `NodePanel`, so the sweep now reaches a name it emitted
+    // all along. It went from 241 to 243 on 2026-09-05, and the arithmetic is four moves rather
+    // than one: `oref-nav-stats-missing`, `oref-nav-scroller` and `oref-copy` arrived in the
+    // renderer and no fixture provokes any of the three, and `oref-section-runtime` left this
+    // side for the swept one, because the reference now draws that section itself on an
+    // operation nothing measured. Two of the three arrivals are data attributes rather than
+    // classes, which is why they can be emitted and never swept: the sweep reads class lists.
+    // It went from 244 to 246 later the same day: `oref-drift-subjects` and `oref-drift-why`
+    // arrived with SPEC 7.2's folded findings and their reasoning below the fold, and this theme
+    // replaces `DriftCard` with one of its own, so neither name can appear in a telltale page.
+    // Both are styled here all the same, under `tt-drift-subjects` and `tt-drift-why`, because
+    // the theme draws the same two things and a theme that drew neither would lose the subjects
+    // of every folded finding.
+    //
+    // It went from 243 to 244 later on 2026-09-05, one arrival and no departure:
+    // `data-oref-copy-said`, the live region beside the copy control, which is the third data
+    // attribute here for the third time for the same reason. The control's own row is
+    // `.oref-tryit-actions`, a name this list already carries, which is why a control that grew a
+    // sibling element added nothing to the boundary a theme has to style.
+    //
+    // It went from 246 to 250 on 2026-09-07, four arrivals and no departure, all of them host
+    // side suppression of SPEC 7.2: `oref-suppression` and `oref-suppression-head` are the closed
+    // disclosure the reference draws under the rule groups and again on a node page, and
+    // `oref-suppressed` and `oref-suppressed-reason` are one class inside it. No fixture provokes
+    // any of the four, because no fixture configures `runtime.suppress`, and this theme replaces
+    // both positions that draw them, `HealthScore` and `RuntimePanel`. All four are styled here
+    // all the same, under `tt-health-suppressed` and its two siblings, for the reason
+    // `tt-drift-subjects` is: this theme draws the same thing, and a theme that drew none of it
+    // would show a reader 69 rows under a heading saying 111 more were found and taken out.
     const emittedNotSwept = emitted.names.filter((name) => !surviving.includes(name));
     const sweptNotEmitted = surviving.filter((name) => !emitted.names.includes(name));
-    expect(emittedNotSwept).toHaveLength(242);
+    expect(emittedNotSwept).toHaveLength(250);
     expect(sweptNotEmitted).toEqual([
       'oref-method-get',
       'oref-method-post',
@@ -543,17 +584,17 @@ describe('the markup a complete L2 theme does not own', () => {
       },
     ];
 
-    // SPEC 10.4 IS THE THIRD DOCUMENT AND IT IS NOT IN EVERY CHECKOUT. `ai-docs/` is git excluded,
-    // so CI never has it, and until the pre-M4 review this case read it unconditionally: measured
-    // by moving the directory aside, the read threw `ENOENT` and took the whole run red, which is
-    // `pnpm test` red on every checkout but the maintainer's. The two committed documents are
-    // checked wherever this runs, and the specification is added when it is there, so a clone
-    // covers two thirds rather than none and the maintainer's tree covers all three. The section
-    // is written in Russian, so its anchor is quoted in the language the sentence is in.
+    // SPEC 10.4 IS THE THIRD DOCUMENT AND IT IS NOT IN EVERY CHECKOUT. The specification is not a
+    // tracked file, so CI never has it, and until the pre-M4 review this case read it
+    // unconditionally: measured by moving it aside, the read threw `ENOENT` and took the whole run
+    // red, which is `pnpm test` red on every checkout but the maintainer's. The two committed
+    // documents are checked wherever this runs, and the specification is added when it is there, so
+    // a clone covers two thirds rather than none and the maintainer's tree covers all three. The
+    // section is written in Russian, so its anchor is quoted in the language the sentence is in.
     const specPath = join(packageRoot, '..', '..', 'ai-docs', 'SPEC.md');
     if (existsSync(specPath)) {
       documents.push({
-        name: 'ai-docs/SPEC.md, section 10.4',
+        name: 'SPEC 10.4',
         text: readFileSync(specPath, 'utf8'),
         anchor: 'имён классов из пространства имён ядра',
         quotes: [`стилизует ${count} имён классов из пространства имён ядра`],

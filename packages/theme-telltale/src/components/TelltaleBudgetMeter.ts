@@ -6,7 +6,7 @@ import { browserDocument, browserPerformance } from '../dom';
  * the other two do not.
  *
  * IT IS A THEME COMPONENT AND NOT A SLOT, and it carries the theme's name in code so that nobody
- * mistakes one for the other. `ai-docs/design/CONTRACT.md` names it, with `TelltaleStatusBar` and
+ * mistakes one for the other. `THEME-BOUNDARY.md` names it, with `TelltaleStatusBar` and
  * `TelltaleSectionIndex`, as this theme's own; no other theme implements it and nothing resolves
  * it through the registry.
  *

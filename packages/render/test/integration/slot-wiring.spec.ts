@@ -400,7 +400,7 @@ describe('every slot of the registry, on the page a reader opens', () => {
    * of everything". `AppShell` arrives through `layout`, which is where a theme writes it, so the
    * probe is one stub per remaining name plus a layout that renders its three regions.
    */
-  it('should resolve four positions on a channel page against an operation page six', async () => {
+  it('should resolve four positions on a channel page against an operation page seven', async () => {
     // Given a theme that fills every position there is, so what the page does not resolve is the
     // page's own doing rather than the theme's
     const components = Object.fromEntries(
@@ -437,8 +437,14 @@ describe('every slot of the registry, on the page a reader opens', () => {
     // three, plus the head, which is keyed by `nodeId` and not by an operation view
     expect(channel).toEqual(['AppShell', 'NavTree', 'CommandPalette', 'OperationHeader']);
 
-    // And the control is the operation page, which resolves those four and two more. Without it
-    // the four above would also be what a probe that resolved nothing anywhere reports.
+    // And the control is the operation page, which resolves those four and three more. Without
+    // it the four above would also be what a probe that resolved nothing anywhere reports.
+    //
+    // `StateNotice` IS THE THIRD, AND IT IS THE SAME AMENDMENT SEEN FROM THE SLOT SIDE. This
+    // fixture carries no runtime facts, so the runtime position draws the `runtime-missing`
+    // sentence rather than a scale, and a sentence is a notice, which is a slot a theme fills.
+    // The channel does not gain it: no collector can reach a channel before M5, so the position
+    // is not mounted there at all.
     expect(operation).toEqual([
       'AppShell',
       'NavTree',
@@ -446,8 +452,9 @@ describe('every slot of the registry, on the page a reader opens', () => {
       'OperationHeader',
       'ParamTable',
       'ResponseList',
+      'StateNotice',
     ]);
-    expect(operation.length - channel.length).toBe(2);
+    expect(operation.length - channel.length).toBe(3);
   });
 
   it('should have a case for every name in the registry, so the freeze rests on evidence', () => {

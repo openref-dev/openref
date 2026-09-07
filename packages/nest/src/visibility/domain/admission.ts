@@ -10,10 +10,10 @@
  * encoding a separation in the type: the wrong version does not compile.
  *
  * WHAT IT IS NOT. It is not a policy of this package. `open()` admits everything and is what a
- * public reference mounts with, which is SPEC 13.1's one line unchanged; `behind()` runs guards the
- * host wrote and this package neither reads nor second guesses them, per CLAUDE.md's rule that
- * arbitrary guard logic is unreadable. The only opinion here is what an answer other than `true`
- * means, and SPEC 19.6 fixes that as a refusal.
+ * public reference mounts with, which is SPEC 13.1's one line unchanged; `behind()` runs guards
+ * the host wrote and this package neither reads nor second guesses them, because what a guard
+ * decides is code and code is not readable as data. The only opinion here is what an answer other
+ * than `true` means, and SPEC 19.6 fixes that as a refusal.
  */
 
 import { ErrorCode, InvalidOptionsError } from '@openref/core';

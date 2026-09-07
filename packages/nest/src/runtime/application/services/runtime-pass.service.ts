@@ -8,7 +8,7 @@
  * THE HASH IS RECOMPUTED, AND THAT IS NOT AN OPTIMIZATION DETAIL. The SPEC 12 cache is keyed by
  * document hash and so is the navigation route, so a document carrying runtime facts under the
  * hash of the document without them would serve a reader a page from before the pass ran, and
- * would keep serving it. `finalizeDocument` takes it and freezes what it measured, per CLAUDE.md.
+ * would keep serving it. `finalizeDocument` takes it and freezes what it measured.
  *
  * FAIL OPEN, LIKE THE REGISTRY IT DRIVES. A collector pass is an augmentation of a document that
  * already renders. If discovery finds nothing, the document is returned unchanged and the report
@@ -21,12 +21,14 @@ import {
   orderRelationships,
   withRuntimeErrorContracts,
   type DriftObservation,
+  type HealthSuppression,
   type IRDocument,
   type IRNode,
   type IRNodeRuntime,
 } from '@openref/core';
 import {
   CollectorRegistry,
+  printableKey,
   type CollectorRegistryOptions,
   type CollectorTarget,
 } from './collector-registry.service';
@@ -35,9 +37,11 @@ import {
   discoverRoutes,
   type DiscoveryProblem,
 } from '../../infrastructure/adapters/controller-discovery.adapter';
+import { publicRouteCollector } from '../../infrastructure/collectors/public-route.collector';
 import { pairRoutes, type PairingResult } from '../../domain/route-pairing';
 import { readGlobalGuards } from '../../domain/guards';
 import { readGlobalPipes } from '../../domain/pipes';
+import { readGlobalPrefix } from '../../domain/global-prefix';
 import {
   declaredRelationships,
   withReadConfidence,
@@ -53,6 +57,26 @@ export interface RuntimePassOptions extends CollectorRegistryOptions {
   readonly discovery: DiscoveryServiceLike;
   /** Guard class name to security scheme id, per SPEC 13.2, for `security-drift`. */
   readonly guardSecuritySchemes?: Readonly<Record<string, string>>;
+  /**
+   * The metadata key this application's global guard reads to exempt a route, per SPEC 13.2.
+   *
+   * IT ARRIVES AS AN OPTION AND LEAVES AS A COLLECTOR, which is the shape the host asked for and
+   * the one the fact needs. A host names one key on the module options rather than registering a
+   * collector, because there is nothing else to configure; what reads it is an ordinary collector
+   * built here, so the fact it produces carries a `confidence` and a `collector` like every other
+   * fact and its `problems()` reach `doctor` through the one channel that already drains them.
+   */
+  readonly publicRouteKey?: string | symbol;
+  /**
+   * The finding classes the host decided not to fix, per SPEC 7.2.
+   *
+   * IT REACHES THE DOCUMENT THROUGH THE HEALTH REPORT AND NOWHERE ELSE, which is what keeps the
+   * whole feature in one place. This pass hands it to `buildHealthReport` below and
+   * `finalizeDocument` hashes afterwards, so the suppression is inside the hashed document. The
+   * hash moving is correct and deliberate: it invalidates the SSR cache instead of serving a page
+   * built before the host decided.
+   */
+  readonly suppress?: readonly HealthSuppression[];
   /**
    * Channel nodes already paired with the handler that serves them, per SPEC 8.3.
    *
@@ -92,10 +116,15 @@ export interface RuntimePassOptions extends CollectorRegistryOptions {
  * What the pass produced.
  *
  * The report is kept whole rather than reduced to a count. A node with no route is what
- * `orphan-operation` fires on, and T022 reads it from here. The other three lists are not drift
- * and deliberately never become findings: a route with no node is what `include` produces on
+ * `orphan-operation` fires on, and T022 reads it from here. None of the three lists becomes a
+ * drift finding, and that is still deliberate: a route with no node is what `include` produces on
  * purpose, and the remaining two are defects in this pass or in the application's own routing,
- * which `doctor` reports as problems rather than as a disagreement between two sides.
+ * which are properties of the instrument rather than a disagreement between two sides. All three
+ * do reach a reader, as discovery problems, which is what `doctor` prints under RT070. Until
+ * `TX-PAIRING` they reached nobody at all: nothing in this package read `ambiguous`,
+ * `routesWithoutNode` or `nodesWithoutRoute`, so a route that matched two operations was
+ * attributed to neither in silence and the operation it should have had was drawn as an
+ * `orphan-operation` saying no handler was found for it.
  */
 export interface RuntimePassResult {
   /** The document with facts attached and its hash retaken. */
@@ -146,9 +175,13 @@ function withoutGhostFindings(
 
     problems.push({
       subject: `the finding "${issue.message}"`,
-      reason:
-        `a collector reported it against node "${issue.nodeId}", which this document does not ` +
-        'hold, so it was dropped rather than drawn as a link to an operation that is not there',
+      reason: `it names node "${issue.nodeId}", which this document does not hold, so it was dropped`,
+      action:
+        'report it to whoever wrote the collector: a finding addressed to a node that is not ' +
+        'here is a defect in the instrument',
+      detail:
+        'Drawing it would have put a link to an operation that does not exist on a page a ' +
+        'reader is meant to act on.',
     });
   }
 
@@ -172,13 +205,31 @@ export function runRuntimePass(
   // its own way to them.
   const global = readGlobalGuards(options.discovery);
   const globalPipes = readGlobalPipes(options.discovery);
-  const registry = new CollectorRegistry(options.collectors, {
+  // THE EXEMPTION READER IS BUILT FROM THE OPTION AND APPENDED, per SPEC 6.2.1. It is appended
+  // rather than prepended so that the host's own registrations keep the positions they had, which
+  // is what `IRRuntimeMeta.collectors` prints and what breaks a tie of equal confidence. A host who
+  // named no key gets no registration at all, so nothing about their pass moves: not the collector
+  // list, not the health check's denominator, not one fact.
+  const exemption = options.publicRouteKey;
+  const collectors =
+    exemption === undefined
+      ? options.collectors
+      : [...options.collectors, publicRouteCollector({ metadataKey: exemption })];
+  const registry = new CollectorRegistry(collectors, {
     ...options,
     globalGuards: global.names,
     globalPipes: globalPipes.names,
   });
   const discovered = discoverRoutes(options.discovery, options.reflector);
-  const pairing = pairRoutes(document.nodes.values(), discovered.routes);
+  // THE PREFIX IS READ OFF THE SAME CONTAINER WALK AND FOR ONE COMPARISON. A controller declares
+  // `/dashboards` and a document written by `@nestjs/swagger` says `/api/v1/dashboards`, so the
+  // pairing's second rule compared two strings that an application with a global prefix can never
+  // make equal. It is never written into the document; see `runtime/domain/global-prefix.ts` for
+  // why that is what separates this read from the one `guards.ts` refuses.
+  const globalPrefix = readGlobalPrefix(options.discovery);
+  const pairing = pairRoutes(document.nodes.values(), discovered.routes, {
+    ...(globalPrefix.prefix === undefined ? {} : { globalPrefix: globalPrefix.prefix }),
+  });
 
   // THE ERROR DERIVATION RUNS HERE AND NOT IN A COLLECTOR, per SPEC 6.4. The runtime derived group
   // follows from a rate limit and from guards, and both of those are produced by other collectors,
@@ -212,20 +263,64 @@ export function runRuntimePass(
   // why it is recorded here and not by the collector. `{ provide: APP_GUARD, useValue: { ... } }`
   // protects every route with something the reference cannot name, and a reader is owed the fact
   // that it is there rather than a row that says `Object`.
+  // WHAT THE COLLECTORS COULD NOT READ, AND THE TIE THIS PASS BROKE FOR THEM, LAND HERE. Both are
+  // subjects the discovery met and could not state, which is what this list is, so `doctor` prints
+  // them under RT070 with no second mechanism. Read after the loop that produces them and before
+  // the meta is built, because a rule cannot count a subject that is not on the document yet.
+  //
+  // THE COLLECTORS' HALF IS NEW AND THE RULE IT SERVES IS NOT. `docs/guide/04-collectors.md` has
+  // always required a fact that cannot be obtained to reach `doctor` rather than be guessed, and
+  // every collector recorded its half faithfully into a `problems()` list nothing ever read. This
+  // is where that list finally arrives; see `CollectorRegistry.problems` for what was measured
+  // before it did.
+  // ALL THREE PAIRING LISTS LAND HERE, AND UNTIL `TX-PAIRING` ALL THREE LANDED NOWHERE. They were
+  // built, returned on this result, and read by nothing: `grep` over this package found no reader
+  // of `ambiguous`, `routesWithoutNode` or `nodesWithoutRoute`, only of `pairing.targets`. So a
+  // route that matched two operations was refused in silence and the operation it should have been
+  // paired with was drawn as an `orphan-operation` saying no handler was found for it, which is the
+  // one thing that had not happened. This is the same shape as the collectors' `problems()` above.
+  const collectorProblems = registry.problems();
+  const unpaired = pairing.routesWithoutNode.length + pairing.ambiguous.length;
   const problems: readonly DiscoveryProblem[] = [
     ...(options.carriedProblems ?? []),
     ...discovered.problems,
     ...ghosts,
+    ...collectorProblems,
     ...declared.problems,
+    ...pairing.ambiguous,
+    ...pairing.routesWithoutNode,
+    ...pairing.nodesWithoutRoute,
+    // SAID ONLY WHEN IT COST SOMETHING, which is the difference between a reason and noise. An
+    // unreadable prefix on an application whose every route paired by name took nothing away from
+    // anybody, and a problem that fires there teaches a reader to stop reading the list.
+    ...(globalPrefix.prefix !== undefined || unpaired === 0
+      ? []
+      : [
+          {
+            subject: 'the application',
+            reason: `the global prefix could not be read, and ${String(unpaired)} route(s) were left unpaired`,
+            action:
+              'mount the reference after setGlobalPrefix; a container holding no ' +
+              'ApplicationConfig cannot be asked at all, and those routes stay unpaired',
+            detail:
+              'The prefix is read off the providers of the container. Without it, a document ' +
+              'path and a controller path can only be compared by asking whether one ends in ' +
+              'the other, which two operations under different prefixes can both answer.',
+          },
+        ]),
     ...(global.anonymous === 0
       ? []
       : [
           {
             subject: 'the application',
             reason:
-              `${String(global.anonymous)} guard(s) are registered under APP_GUARD and have no ` +
-              'class name to report, so they protect every route and are absent from the ' +
-              'reference. A plain object under useValue, or an anonymous class, produces this',
+              `${String(global.anonymous)} guard(s) under APP_GUARD have no class name, so none ` +
+              'is shown on any route',
+            action: 'register a named class under APP_GUARD if these guards should appear by name',
+            detail:
+              'A plain object under useValue, or an anonymous class, has nothing to print. They ' +
+              'protect every route and are absent from the reference, so every page understates ' +
+              'what stands in front of it.',
           },
         ]),
     ...(globalPipes.anonymous === 0
@@ -234,9 +329,13 @@ export function runRuntimePass(
           {
             subject: 'the application',
             reason:
-              `${String(globalPipes.anonymous)} pipe(s) are registered under APP_PIPE and have ` +
-              'no class name to report, so they stand on every route and are absent from the ' +
-              'reference. A plain object under useValue, or an anonymous class, produces this',
+              `${String(globalPipes.anonymous)} pipe(s) under APP_PIPE have no class name, so ` +
+              'none is shown on any route',
+            action: 'register a named class under APP_PIPE if these pipes should appear by name',
+            detail:
+              'A plain object under useValue, or an anonymous class, has nothing to print. They ' +
+              'stand on every route and are absent from the reference, so every page understates ' +
+              'what runs before it.',
           },
         ]),
   ];
@@ -260,6 +359,10 @@ export function runRuntimePass(
     ...(options.guardSecuritySchemes === undefined
       ? {}
       : { guardSchemes: new Map(Object.entries(options.guardSecuritySchemes)) }),
+    // WHAT DECIDES WHICH OF `security-drift`'s TWO SOFTENED SENTENCES IS TRUE, per SPEC 7.1. It is
+    // the same string that goes into the meta below, so the report built here and the report a
+    // renderer re-asks of the served document cannot answer differently.
+    ...(exemption === undefined ? {} : { publicRouteKey: printableKey(exemption) }),
   };
 
   // THE EDGES ARE CORRECTED FIRST AND ADDED SECOND, in that order because the two do different
@@ -298,7 +401,11 @@ export function runRuntimePass(
     // reasons. After, because every rule of SPEC 7.1 reads a fact a collector attached above.
     // Before, because the report is part of the document a reader is served, and a document whose
     // hash predates its own health panel is a cache key that never changes when the panel does.
-    health: buildHealthReport(documented, { observation, checks: [registry.healthCheck()] }),
+    health: buildHealthReport(documented, {
+      observation,
+      checks: [registry.healthCheck()],
+      ...(options.suppress === undefined ? {} : { suppress: options.suppress }),
+    }),
   };
 
   return {

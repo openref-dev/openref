@@ -1,5 +1,3 @@
-import { readFileSync, statSync } from 'node:fs';
-import { join } from 'node:path';
 import {
   BUILD_AMENDMENTS_FILE,
   BUILD_FILE,
@@ -8,7 +6,7 @@ import {
   REQUIRED_DOC_MIN_BYTES,
   REQUIRED_DOCS,
 } from '../config.js';
-import { aiDocsAbsentMessage, aiDocsPresent } from '../lib/ai-docs.js';
+import { aiDocsPresent } from '../lib/ai-docs.js';
 import {
   checkAmendmentSections,
   checkBuildManifest,
@@ -20,6 +18,14 @@ import {
   parseOwnedEntries,
   splitLines,
 } from '../lib/build-manifest.js';
+import {
+  PROJECTION_COMMAND,
+  PROJECTION_FILE,
+  projectFromDisk,
+  readProjection,
+  staleSections,
+} from '../lib/projection.js';
+import { projectionRequest } from '../lib/projection-request.js';
 import type { Gate, GateFinding, GateResult } from '../types.js';
 
 /**
@@ -29,6 +35,21 @@ import type { Gate, GateFinding, GateResult } from '../types.js';
  * Runs before every other gate, and in that order within itself: a shifted BUILD.md means the
  * session read the wrong task, and a missing SPEC.md means it had nothing to read at all.
  * Either makes the rest of the run a report on the wrong work.
+ *
+ * IT READS THE COMMITTED PROJECTION AND NOT THE DOCUMENTS, since the artefact arrived. `ai-docs/`
+ * is excluded from git and no clone restores it, so a gate that opened `BUILD.md` was a gate that
+ * skipped on every CI run. What it opens now is `tools/gates/ai-docs-projection.json`, which
+ * carries the line count, the CONTENTS ranges, the boxes and the heading positions with every
+ * title replaced by a digest, and every check below runs over it unchanged.
+ *
+ * AND IT IS WHERE A STALE ARTEFACT GOES RED. This gate runs first, so it is the one that says the
+ * reading the other eleven are about to trust is still the reading the documents give. Where
+ * `ai-docs/` is present the projection is regenerated in memory and compared with the committed
+ * one; a difference is an error naming the sections that moved and the command that fixes them.
+ * Where `ai-docs/` is absent that comparison cannot be made by anybody, and the gate says which
+ * question went unasked rather than passing on it, in a warning that does not colour the verdict:
+ * the artefact's own integrity digest is checked on every checkout, so a hand edited artefact
+ * fails everywhere, and only a document edited without regenerating needs the maintainer's tree.
  */
 export const buildManifestGate: Gate = {
   id: 'build-manifest',
@@ -38,31 +59,64 @@ export const buildManifestGate: Gate = {
     const findings: GateFinding[] = [];
     let failed = false;
 
-    if (!aiDocsPresent(context.repoRoot)) {
+    const read = readProjection(context.repoRoot);
+
+    if (!read.ok) {
       return Promise.resolve({
         id: buildManifestGate.id,
         title: buildManifestGate.title,
-        status: 'skip',
-        skipReason: 'ai-docs-absent',
-        findings: [
-          {
-            level: 'warning',
-            message: aiDocsAbsentMessage(
-              buildManifestGate.title,
-              REQUIRED_DOCS.map((doc) => doc.file),
-            ),
-          },
-        ],
+        status: 'fail',
+        findings: [{ level: 'error', message: `[projection-unreadable] ${read.reason}` }],
       });
     }
 
-    const docs = checkRequiredDocs(REQUIRED_DOCS, REQUIRED_DOC_MIN_BYTES, (file) => {
-      try {
-        return statSync(join(context.repoRoot, file)).size;
-      } catch {
-        return undefined;
+    const projection = read.projection;
+
+    // THE FRESHNESS QUESTION FIRST, because every finding below is a reading of this artefact and
+    // a reader is owed the answer to "is this artefact what the documents say" before any of them.
+    if (aiDocsPresent(context.repoRoot)) {
+      const stale = staleSections(
+        projection.data,
+        projectFromDisk(context.repoRoot, projectionRequest()).data,
+      );
+
+      if (stale.length > 0) {
+        failed = true;
+        findings.push({
+          level: 'error',
+          message:
+            `[projection-stale] ${PROJECTION_FILE} no longer says what ai-docs/ says. ` +
+            `Section(s) that moved: ${stale.join(', ')}. A document changed and the artefact the ` +
+            `gates read was not regenerated, so every check below is reporting on the previous ` +
+            `reading. Run ${PROJECTION_COMMAND} and commit the result`,
+        });
+      } else {
+        findings.push({
+          level: 'info',
+          message: `${PROJECTION_FILE} matches ai-docs/ as it stands on this machine`,
+        });
       }
-    });
+    } else {
+      findings.push({
+        level: 'warning',
+        message:
+          `ai-docs/ is not in this checkout, so ${PROJECTION_FILE} was not compared with the ` +
+          `documents it is generated from and this run proves nothing about whether it is ` +
+          `current. Its own integrity digest was checked and holds, so it is the artefact that ` +
+          `was generated rather than one edited by hand; what is unanswered here is whether a ` +
+          `document moved since. That question can only be asked where the documents are, and ` +
+          `ai-docs/ is excluded from git in .git/info/exclude, so a checkout without it is ` +
+          `expected rather than broken`,
+      });
+    }
+
+    const sizes = new Map(projection.data.documents.map((doc) => [doc.file, doc.bytes]));
+
+    const docs = checkRequiredDocs(
+      REQUIRED_DOCS,
+      REQUIRED_DOC_MIN_BYTES,
+      (file) => sizes.get(file) ?? undefined,
+    );
 
     for (const doc of docs) {
       if (doc.presence === 'missing') {
@@ -90,12 +144,12 @@ export const buildManifestGate: Gate = {
       });
     }
 
-    const path = join(context.repoRoot, BUILD_FILE);
-    let text: string;
-    try {
-      text = readFileSync(path, 'utf8');
-    } catch {
-      findings.push({ level: 'error', message: `${BUILD_FILE} could not be read` });
+    const text = projection.data.build;
+    if (text === null) {
+      findings.push({
+        level: 'error',
+        message: `${BUILD_FILE} was not readable when ${PROJECTION_FILE} was generated`,
+      });
       return Promise.resolve({
         id: buildManifestGate.id,
         title: buildManifestGate.title,
@@ -121,13 +175,11 @@ export const buildManifestGate: Gate = {
     // AND WHETHER ANY TASK WAS TICKED OVER WORK ADDRESSED TO IT, per SPEC 0's ninth class. The two
     // files are read together here rather than by a gate of their own, because this is the same
     // question the checks above ask: whether the plan still says what the sessions read it as.
-    let amendments: string;
-    try {
-      amendments = readFileSync(join(context.repoRoot, BUILD_AMENDMENTS_FILE), 'utf8');
-    } catch {
+    const amendments = projection.data.amendments;
+    if (amendments === null) {
       findings.push({
         level: 'error',
-        message: `${BUILD_AMENDMENTS_FILE} could not be read, so nothing is known about the work addressed to closed tasks`,
+        message: `${BUILD_AMENDMENTS_FILE} was not readable when ${PROJECTION_FILE} was generated, so nothing is known about the work addressed to closed tasks`,
       });
 
       return Promise.resolve({

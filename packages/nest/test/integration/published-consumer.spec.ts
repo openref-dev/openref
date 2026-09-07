@@ -32,7 +32,7 @@
  * THE METHOD IS NOT CHANGED, A SECOND CHECK IS ADDED, AND BOTH RUN. Rewriting these cases to use a
  * compiler would lose the one thing they exist to prove. So `should typecheck every packed
  * declaration in a tree holding only what a consumer installs` runs `tsc` with `skipLibCheck: false`
- * over all eleven declarations in this same tree, `should go red when a declaration names a package
+ * over all sixteen declarations in this same tree, `should go red when a declaration names a package
  * the consumer cannot install` proves that check can fail, and `should name no private workspace
  * package in any shipped file of any tarball` covers the half a compiler still cannot see, which is
  * the JavaScript. SPEC 0 records the class: a check whose method excludes a class of defect by
@@ -67,10 +67,10 @@ const REPO_ROOT = join(import.meta.dirname, '..', '..', '..', '..');
  * rule is exactly what this list exists to exercise: if one of them stopped resolving, the
  * workspace would not notice and a consumer would fail on first import.
  *
- * IT IS FIVE OF ELEVEN AND THE OTHER SIX ARE NOT OUTSIDE THIS FILE, they are outside this tree.
+ * IT IS FIVE OF SIXTEEN AND THE OTHER ELEVEN ARE NOT OUTSIDE THIS FILE, they are outside this tree.
  * Assembling a consumer needs every third party module a package imports linked into place, and
- * six of the eleven are installed by nobody who runs the first minute. What all eleven do owe is
- * their licence text, and that is a fact about the tarball rather than about a consumer tree, so
+ * eleven of the sixteen are installed by nobody who runs the first minute. What all sixteen do owe
+ * is their licence text, and that is a fact about the tarball rather than about a consumer tree, so
  * every one of them is packed and read below. See {@link publishedDirectories}.
  */
 const PUBLISHED = ['nest', 'core', 'theme', 'vue', 'runner'] as const;
@@ -453,10 +453,24 @@ function guidePackagesToInstall(): { readonly file: string; readonly name: strin
   return found;
 }
 
-/** Every published package as a consumer would import it, by the name npm installs it under. */
+/**
+ * Every published package as a consumer would import it, by the name npm installs it under.
+ *
+ * IT IS RECONCILED AGAINST THE PACKED SET RATHER THAN TRUSTED, since 2026-09-05, and the two names
+ * that reconciliation added are why it exists. `@openref/collector-redisx-rate-limit` was published
+ * at `TX-REDISX-RATELIMIT` and never reached this list; `TX-REDISX-IDEMPOTENCY` then matched its own
+ * package to that absence rather than to the four lists the `publish-list` gate reconciles, so two
+ * published names were packed and licence checked here and imported by nothing. See `should hold
+ * every packed package in IMPORTABLE`.
+ */
 const IMPORTABLE = [
   '@openref/collector-access-control',
   '@openref/collector-casl',
+  '@openref/collector-redisx-cache',
+  '@openref/collector-redisx-circuit-breaker',
+  '@openref/collector-redisx-idempotency',
+  '@openref/collector-redisx-locks',
+  '@openref/collector-redisx-rate-limit',
   '@openref/collector-throttler',
   '@openref/core',
   '@openref/nest',
@@ -526,6 +540,11 @@ describe('a consumer holding only what npm pack produced', () => {
     expect(present).toEqual([
       'collector-access-control',
       'collector-casl',
+      'collector-redisx-cache',
+      'collector-redisx-circuit-breaker',
+      'collector-redisx-idempotency',
+      'collector-redisx-locks',
+      'collector-redisx-rate-limit',
       'collector-throttler',
       'core',
       'nest',
@@ -538,21 +557,44 @@ describe('a consumer holding only what npm pack produced', () => {
     expect(existsSync(join(consumer, 'node_modules', 'openref'))).toBe(true);
   });
 
-  it('should have packed all eleven published packages, before the licence case asserts anything', () => {
+  it('should hold every packed package in IMPORTABLE, so none of them is proved importable by nothing', () => {
+    // Given, the hole this case closes rather than the property it states. `IMPORTABLE` is a hand
+    // written list and the packed set is derived from the manifests, and nothing compared the two:
+    // `@openref/collector-redisx-rate-limit` was absent from it from the day that package was
+    // published, `@openref/collector-redisx-idempotency` was matched to that absence rather than to
+    // the four lists the `publish-list` gate reconciles, and both were packed, licence checked and
+    // never once imported. This suite is the only place a published name is proved importable at
+    // all, so a name missing from here is a package nobody proves a consumer can use.
+    //
+    // The subject is asserted present first: an empty packed set would satisfy the comparison.
+    expect(unpacked.size).toBeGreaterThan(0);
+
+    // When
+    const packed = [...unpacked.values()].sort();
+
+    // Then, in both directions. A packed name absent from `IMPORTABLE` is never typechecked; an
+    // `IMPORTABLE` name nothing packed would be typechecked against a package that is not there.
+    expect([...IMPORTABLE].sort()).toEqual(packed);
+  });
+
+  it('should have packed all sixteen published packages, before the licence case asserts anything', () => {
     // Given, the case below is a proof of absence over a set, so the set has to be present first.
-    // Eleven is SPEC 4's eight plus the three ecosystem collectors, and it is asserted as a number
+    // Sixteen is SPEC 4's eight plus the eight ecosystem collectors, and it is asserted as a number
     // rather than derived twice, so a package that quietly stopped being publishable shows here.
+    // It read eleven until `TX-REDISX-RATELIMIT` added `@openref/collector-redisx-rate-limit`,
+    // twelve until `TX-REDISX-IDEMPOTENCY` added `@openref/collector-redisx-idempotency`, and
+    // thirteen until the three of `TX-REDISX-POLICIES` were published together.
     // When
     const packedNames = [...unpacked.values()].sort();
 
     // Then
-    expect(packedNames).toHaveLength(11);
+    expect(packedNames).toHaveLength(16);
     expect(packedNames).toContain('openref');
     expect(packedNames).toContain('@openref/theme-kit');
     expect(packedNames).toContain('@openref/collector-casl');
   });
 
-  it('should carry the MIT licence text inside every published tarball, all eleven of them', () => {
+  it('should carry the MIT licence text inside every published tarball, all sixteen of them', () => {
     // Given, SPEC 0: the text travels with the files. A reader who installs one package never
     // sees this repository, so a licence at the root discharges nothing, and neither does one in
     // the working tree: what a reader receives is the tarball, so the tarball is what is opened.
@@ -570,9 +612,9 @@ describe('a consumer holding only what npm pack produced', () => {
     expect(missing).toEqual([]);
   });
 
-  it('should carry that text in the six tarballs no consumer tree here assembles', () => {
-    // Given, five of the eleven are unpacked into the consumer tree above and six are not, and it
-    // was those six the working tree stood in for. Named rather than counted, so a case that
+  it('should carry that text in the eleven tarballs no consumer tree here assembles', () => {
+    // Given, five of the sixteen are unpacked into the consumer tree above and eleven are not, and
+    // it was those eleven the working tree stood in for. Named rather than counted, so a case that
     // silently stopped reading them cannot report what a clean one does.
     const canonical = readFileSync(join(REPO_ROOT, 'LICENSE'), 'utf8');
     const beyondTheConsumer = [...unpacked.keys()].filter(
@@ -589,6 +631,11 @@ describe('a consumer holding only what npm pack produced', () => {
       'cli',
       'collector-access-control',
       'collector-casl',
+      'collector-redisx-cache',
+      'collector-redisx-circuit-breaker',
+      'collector-redisx-idempotency',
+      'collector-redisx-locks',
+      'collector-redisx-rate-limit',
       'collector-throttler',
       'theme-kit',
       'theme-telltale',

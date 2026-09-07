@@ -7,6 +7,7 @@ import {
   checkCoverageFloors,
   checkFloorTable,
   parseFloorTable,
+  reportCoverageRun,
   type CoverageEntry,
   type CoverageSummary,
 } from '../../src/lib/coverage';
@@ -134,8 +135,12 @@ describe('checkCoverageFloors', () => {
   });
 
   it('should leave a package with no floor and no files alone', () => {
-    // Given a package the floors do not name, which is not this gate's business either way
-    const coverage = [{ packageDir: 'theme', fileCount: 0, linesPct: 100, statementsPct: 100 }];
+    // Given a package the floors do not name, which is not this gate's business either way. The
+    // floored package is rolled up and clear, so this case is about `theme` and nothing else.
+    const coverage = [
+      { packageDir: 'core', fileCount: 1, linesPct: 100, statementsPct: 100 },
+      { packageDir: 'theme', fileCount: 0, linesPct: 100, statementsPct: 100 },
+    ];
 
     // When
     const findings = checkCoverageFloors(coverage, { core: 90 });
@@ -145,14 +150,47 @@ describe('checkCoverageFloors', () => {
   });
 
   it('should skip a package that has no floor yet', () => {
-    // Given
-    const coverage = [{ packageDir: 'theme', fileCount: 1, linesPct: 0, statementsPct: 0 }];
+    // Given, with the floored package rolled up and clear for the same reason as above
+    const coverage = [
+      { packageDir: 'core', fileCount: 1, linesPct: 100, statementsPct: 100 },
+      { packageDir: 'theme', fileCount: 1, linesPct: 0, statementsPct: 0 },
+    ];
 
     // When
     const findings = checkCoverageFloors(coverage, { core: 90 });
 
     // Then
     expect(findings).toEqual([]);
+  });
+
+  it('should refuse a floor whose package was never rolled up at all', () => {
+    // Given a floor over a directory that is not on the disk. `aggregateByPackage` maps over the
+    // package directories it was handed, so such a floor produces no roll up entry, and a loop over
+    // the roll up compares it with nothing. THE SUBJECT IS ASSERTED PRESENT FIRST: `ghost` is in the
+    // floors and is not in the coverage, which is the whole condition.
+    const coverage = [{ packageDir: 'core', fileCount: 1, linesPct: 100, statementsPct: 100 }];
+    const floors = { core: 90, ghost: 90 };
+    expect(floors.ghost).toBe(90);
+    expect(coverage.map((entry) => entry.packageDir)).not.toContain('ghost');
+
+    // When
+    const findings = checkCoverageFloors(coverage, floors);
+
+    // Then it is undetermined rather than met, and it is one finding naming the cause
+    expect(findings).toEqual([
+      { packageDir: 'ghost', metric: 'undetermined', actualPct: 0, floorPct: 90 },
+    ]);
+  });
+
+  it('should report an undetermined floor once and in floor name order', () => {
+    // Given two floors with nothing on the disk under either, so the order is the floors' own
+    const coverage = [{ packageDir: 'core', fileCount: 1, linesPct: 100, statementsPct: 100 }];
+
+    // When
+    const findings = checkCoverageFloors(coverage, { core: 90, zeta: 80, alpha: 70 });
+
+    // Then
+    expect(findings.map((finding) => finding.packageDir)).toEqual(['alpha', 'zeta']);
   });
 });
 
@@ -251,5 +289,150 @@ describe('checkFloorTable', () => {
     expect(documented, `${STANDARDS_FILE} section 9.1 was not readable`).not.toBeNull();
     expect(Object.keys(documented ?? {}).length).toBeGreaterThan(3);
     expect(checkFloorTable(documented ?? {}, COVERAGE_FLOORS)).toEqual([]);
+  });
+});
+
+describe('reportCoverageRun', () => {
+  /** A summary putting one package well under any floor and one comfortably over. */
+  const summary: CoverageSummary = {
+    total: entry(0, 0),
+    '/repo/packages/core/src/a.ts': entry(1, 10),
+    '/repo/packages/runner/src/c.ts': entry(10, 10),
+  };
+  const floors = { core: 90, runner: 85 };
+
+  it('should report the coverage it measured and the breached floor when a case is red', () => {
+    // Given a run with a red case, which is the case that used to report the failure and nothing
+    // else. THE DEFECT THIS PINS: a gate that goes quiet exactly when something is wrong, so one
+    // red case anywhere blinded every coverage floor in the repository at once.
+    const run = {
+      suitePassed: false,
+      output: 'AssertionError: expected 2 to be 999',
+      summary,
+    };
+
+    // When
+    const verdict = reportCoverageRun(run, ['core', 'runner'], floors, 'coverage/summary.json');
+
+    // Then the failure is reported, the coverage it measured is reported beside it, and the floor
+    // that is under water is still named as under water
+    expect(verdict.failed).toBe(true);
+    expect(verdict.errors[0]).toContain('expected 2 to be 999');
+    expect(verdict.notes).toEqual([
+      'core: lines 10.00%, statements 10.00%, 1 file(s), floor 90%',
+      'runner: lines 100.00%, statements 100.00%, 1 file(s), floor 85%',
+    ]);
+    expect(verdict.errors).toContain('core: lines 10.00% is below the floor of 90%');
+    expect(verdict.errors).toContain('core: statements 10.00% is below the floor of 90%');
+  });
+
+  it('should name the same floors on a red run as on a green one', () => {
+    // Given the same summary read once with the suite green and once with it red. A FLOOR THAT IS
+    // BREACHED IS BREACHED WHATEVER ELSE THE RUN DID, and comparing the two is what says so: a fix
+    // that printed the numbers but stopped checking them would pass the case above.
+    // When
+    const green = reportCoverageRun(
+      { suitePassed: true, output: '', summary },
+      ['core', 'runner'],
+      floors,
+      'coverage/summary.json',
+    );
+    const red = reportCoverageRun(
+      { suitePassed: false, output: 'one case failed', summary },
+      ['core', 'runner'],
+      floors,
+      'coverage/summary.json',
+    );
+
+    // Then
+    expect(red.notes).toEqual(green.notes);
+    expect(red.errors.filter((message) => message.startsWith('core:'))).toEqual(
+      green.errors.filter((message) => message.startsWith('core:')),
+    );
+    expect(green.failed).toBe(true);
+    expect(red.errors.length).toBe(green.errors.length + 1);
+  });
+
+  it('should say that no floor was checked when the run wrote no summary at all', () => {
+    // Given a run that died before the reporter, which is the state a stale file used to be read
+    // in. THE HALF NO CONTROL FLOW COULD FIX: Vitest's `coverage.reportOnFailure` defaults to
+    // false, so a red run wrote nothing, and reading the path would have found an earlier run's
+    // numbers or none. Unknown coverage is reported as unknown rather than as met.
+    // When
+    const verdict = reportCoverageRun(
+      { suitePassed: false, output: 'the suite crashed', summary: null },
+      ['core'],
+      floors,
+      'coverage/summary.json',
+    );
+
+    // Then
+    expect(verdict.failed).toBe(true);
+    expect(verdict.notes).toEqual([]);
+    expect(verdict.errors[0]).toContain('the suite crashed');
+    expect(verdict.errors[1]).toContain('NO FLOOR WAS CHECKED AGAINST THIS TREE');
+    expect(verdict.errors[1]).toContain('unknown rather than met');
+  });
+
+  it('should call an absent summary a reporter fault when the suite passed', () => {
+    // Given, because the two absences have two causes and one message for both would name the
+    // wrong one half the time
+    // When
+    const verdict = reportCoverageRun(
+      { suitePassed: true, output: '', summary: null },
+      ['core'],
+      floors,
+      'coverage/summary.json',
+    );
+
+    // Then
+    expect(verdict.failed).toBe(true);
+    expect(verdict.errors).toHaveLength(1);
+    expect(verdict.errors[0]).toContain('json-summary reporter is not configured');
+  });
+
+  it('should fail a green run whose floor names a directory that is not on the disk', () => {
+    // Given the reviewer's own case, and the shape a renamed, moved or never created package
+    // directory makes on a clone: `readPackageDirs` finds `core` and nothing else, so `ghost` is
+    // rolled up nowhere and the loop over the roll up compares it with nothing. THE SUBJECT IS
+    // ASSERTED PRESENT FIRST: the floors carry `ghost` and the directories do not.
+    const packageDirs = ['core'];
+    const withGhost = { core: 90, ghost: 90 };
+    expect(withGhost.ghost).toBe(90);
+    expect(packageDirs).not.toContain('ghost');
+
+    // When, on a suite where every case passed and every measured file is over its floor
+    const verdict = reportCoverageRun(
+      { suitePassed: true, output: '', summary: { '/repo/packages/core/src/a.ts': entry(10, 10) } },
+      packageDirs,
+      withGhost,
+      'coverage/summary.json',
+    );
+
+    // Then the run fails and the message names `ghost`, rather than the gate reporting a green
+    // suite with a floor nothing ever measured. THE STANDARDS 9.1 RECONCILIATION CANNOT COVER THIS:
+    // it needs `ai-docs/`, which no clone restores, so without this nothing anywhere names it.
+    expect(verdict.failed).toBe(true);
+    expect(verdict.errors.join('\n')).toContain('ghost');
+    expect(verdict.errors).toContain(
+      'ghost: its floor of 90% is UNDETERMINED, not met: no packages/ghost/ directory was rolled ' +
+        'up by this run, so nothing was compared with the floor at all',
+    );
+  });
+
+  it('should still fail on a floor met by measuring none of the package', () => {
+    // Given a package named in the floors that contributed no measured file, on a red run
+    // When
+    const verdict = reportCoverageRun(
+      { suitePassed: false, output: 'one case failed', summary },
+      ['core', 'runner', 'vue'],
+      { ...floors, vue: 70 },
+      'coverage/summary.json',
+    );
+
+    // Then the zero over zero reading is still caught, rather than being lost behind the failure
+    expect(verdict.errors).toContain(
+      'vue: no file was measured at all, so its floor of 70% was met by measuring none of it',
+    );
   });
 });

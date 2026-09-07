@@ -3,8 +3,7 @@ import type { FixRun } from '../../application/services/fix.service';
 import type { FixSkipReason, PlannedEdit, SkippedFinding } from '../../domain/fix-plan';
 
 /**
- * The summary `doctor --fix` prints, which `ai-docs/REMEDIATION.md` section 4 calls the point of
- * the whole mode.
+ * The summary `doctor --fix` prints, which is the point of the whole mode.
  *
  * A RUN THAT FIXES THREE OF FORTY AND SAYS WHAT THE OTHER THIRTY SEVEN ARE IS USEFUL; ONE THAT
  * FIXES FORTY AND SAYS NOTHING IS A LIABILITY. So every finding the run did not write appears

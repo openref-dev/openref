@@ -10,7 +10,8 @@ import { runCommand } from '../../src/lib/exec';
  *
  * WHAT IT IS ABOUT. Every publishable manifest here says `0.0.0`, which is not a version but the
  * placeholder for "never released", and `.changeset/` holds no changeset. A `v*` tag would have run
- * `changeset publish` over all eleven at `0.0.0` and put that on the registry with nothing red,
+ * `changeset publish` over every one of them at `0.0.0` and put that on the registry with nothing
+ * red,
  * because `0.0.0` is a valid semantic version and the gate suite asks what publishes rather than at
  * what version. The done-when clause "a fresh consumer installs from npm" was therefore unverified.
  *

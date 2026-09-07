@@ -58,6 +58,9 @@ function readBody(request: IncomingMessage): Promise<Buffer> {
   });
 }
 
+/** What the one non JSON path answers with, asserted character for character below. */
+const NOT_JSON_BODY = '<!doctype html>\n<html><body><h1>502 Bad Gateway</h1></body></html>';
+
 beforeAll(async () => {
   server = createServer((request: IncomingMessage, response: ServerResponse) => {
     void readBody(request).then((raw) => {
@@ -73,6 +76,18 @@ beforeAll(async () => {
         body: raw.toString('utf8'),
         raw,
       });
+
+      // ONE PATH ANSWERS WITH SOMETHING THAT IS NOT JSON, because a gateway page and a stack
+      // trace are what a console meets on a bad day and they are what a formatter that assumed
+      // would corrupt. The rest of the fixture is unchanged.
+      if ((request.url ?? '').includes('notjson')) {
+        response.writeHead(502, {
+          'content-type': 'text/html; charset=utf-8',
+          'access-control-allow-origin': '*',
+        });
+        response.end(NOT_JSON_BODY);
+        return;
+      }
 
       response.writeHead(200, {
         'content-type': 'application/json',
@@ -470,6 +485,63 @@ describe('the try-it console, end to end against a real server', () => {
     expect(raw.toString('latin1')).toContain('filename="logo.png"');
     expect(raw.toString('latin1')).toContain('Content-Type: image/png');
     expect(raw.includes(Buffer.from(bytes))).toBe(true);
+  });
+
+  it('should draw a JSON response body indented rather than as one wire line', async () => {
+    // Given the console on an operation whose server answers JSON, which arrives minified
+    seen = [];
+    await openPage('get-orders-id', origin);
+    const runner = createRunner({
+      visibility: 'internal',
+      storage: 'memory',
+      transport: new FetchHttpTransport({ fetch: globalThis.fetch }),
+    });
+    hydrateReference({ runner });
+    await settle();
+    await reachForConsole(consoleIsLive, 'the send button never became active');
+
+    // When
+    type(fieldId('get-orders-id', 'path', 'id'), '42');
+    await settle();
+    document.querySelector<HTMLButtonElement>('.oref-send')?.click();
+    const result = await waitForResult();
+
+    // Then it is laid out, which is what the request body example beside it always was. The
+    // wire string was `{"echoed":"/orders/42","sawBody":""}` on one line, and this case is red
+    // against the renderer that drew it that way.
+    const drawn = result.querySelector('.oref-run-body')?.textContent ?? '';
+    expect(drawn).toContain('\n');
+    expect(drawn).toContain('"echoed": "/orders/42"');
+    expect(JSON.parse(drawn)).toEqual({ echoed: '/orders/42', sawBody: '' });
+
+    // And it is still text with no markup on the path, which is what makes indenting safe
+    expect(result.querySelector('.oref-run-body code')?.classList.contains('oref-code')).toBe(true);
+  });
+
+  it('should hand back a body that is not JSON exactly as it arrived', async () => {
+    // Given the same console pointed at the path that answers with a gateway page
+    seen = [];
+    await openPage('get-orders-id', origin);
+    const runner = createRunner({
+      visibility: 'internal',
+      storage: 'memory',
+      transport: new FetchHttpTransport({ fetch: globalThis.fetch }),
+    });
+    hydrateReference({ runner });
+    await settle();
+    await reachForConsole(consoleIsLive, 'the send button never became active');
+
+    // When
+    type(fieldId('get-orders-id', 'path', 'id'), 'notjson');
+    await settle();
+    document.querySelector<HTMLButtonElement>('.oref-send')?.click();
+    const result = await waitForResult();
+
+    // Then, the subject first: the request really reached the path that answers HTML
+    expect(seen[0]?.url).toContain('notjson');
+
+    // And the body is character for character what the server sent, newline and all
+    expect(result.querySelector('.oref-run-body')?.textContent).toBe(NOT_JSON_BODY);
   });
 
   it('should render a hostile response body as text rather than as markup', async () => {

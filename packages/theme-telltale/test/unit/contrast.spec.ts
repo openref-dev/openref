@@ -5,12 +5,12 @@ import { describe, expect, it } from 'vitest';
 /**
  * Contrast is computed here, not claimed in a handoff.
  *
- * THE HANDOFF SHIPPED A MEASURED FAILURE AND SAID SO. `ai-docs/design/telltale/notes.md` recorded
- * `--oref-color-fg-muted` at 4.24 on the light background and 3.82 on the dark surface, against a
- * threshold of 4.5, and named it as the ink that could least afford to be borderline because it
- * carries the micro labels at 10 px. The value was raised before this package was written. This
- * file is what stops it drifting back, and it recomputes rather than reading the corrected numbers
- * out of the notes, because a number transcribed from a document is a number nothing checks.
+ * THE HANDOFF SHIPPED A MEASURED FAILURE AND SAID SO. It recorded `--oref-color-fg-muted` at 4.24
+ * on the light background and 3.82 on the dark surface, against a threshold of 4.5, and named it
+ * as the ink that could least afford to be borderline because it carries the micro labels at
+ * 10 px. The value was raised before this package was written. This file is what stops it drifting
+ * back, and it recomputes rather than reading the corrected numbers out of the notes, because a
+ * number transcribed from a document is a number nothing checks.
  *
  * THE ARITHMETIC IS HERE RATHER THAN IMPORTED. `@openref/theme` has it and is not a package a
  * theme may depend on: the dependency rule gives a theme the contract and the IR types and nothing

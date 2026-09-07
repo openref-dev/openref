@@ -31,7 +31,7 @@ import type { SchemaTreeNode } from '../../state/domain/schema-expansion';
 import type { StateNoticeKind, StreamCounts } from './slot-value.types';
 
 /**
- * The fixed slot registry, per SPEC 10.4 and `ai-docs/design/CONTRACT.md`.
+ * The fixed slot registry, per SPEC 10.4.
  *
  * These props are public API. A theme written against them keeps working until a major
  * version, which is the whole point of the L1 level: replace a piece of markup without

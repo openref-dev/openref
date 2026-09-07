@@ -19,7 +19,7 @@ way: the boundary is wider than when this file was written, not narrower. One of
 finding 4. The other five stay open, each now naming who would close it and what closing it costs,
 and two of them gained the check they were missing.
 
-## 1. 106 class names the theme did not write, and cannot replace
+## 1. 108 class names the theme did not write, and cannot replace
 
 Measured on the eight kinds of page a reader can open, the reader page family of SPEC 13.3, 15
 renders in all, with all 21 positions overridden. **The list is not repeated here.** It lives in
@@ -51,12 +51,14 @@ Where the arrivals came from, each with the task that drew them:
 | `T054`              | plus 13 | The shapes page again, and **not one of the thirteen is markup this task wrote**: every one was already emitted by `packages/render/src` and reached by no fixture. The swept schema was a flat object, so the rows a variant, a conditional requirement, a pattern key and an empty body draw were never asked for. This is the fourth instance of the same failure and the first that a record over pages cannot see at all, because the missing thing is not a page: the kind had been swept since the pre-`T049` slice. The sweep answers with two more renders, `Payment` and `Empty`, rather than a wider record                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | channel security    | plus 1  | `oref-security-where`, where a key travels, arriving with the channel security rows of 2026-08-29. It is one name rather than a family because the requirement rows borrow the security family the operation page already draws, which is the rule at the head of `ChannelSections.ts`: `theme-css-raw` had 166 bytes of headroom under its cap when this landed and has 122 after it, so a second family for the same subject is a cost with nothing bought. The gzip cap beside it is not tight, 8.7 KB of 15, and naming both as tight would have been half true. **The name reaches this list through the operation page rather than through the channel page**, since the swept operation fixture declares an `apiKey` scheme with a location and the sweep would have caught it either way                                                                                                                                                                                                                                                                                                                                             |
 | `TX-SOCKET-CONSOLE` | plus 6  | The interactive socket console of SPEC 14.7, 2026-09-02. `T055` built the engine and no page opened a socket; this draws one on the channel page, outside every position. **Five of the six are names the reference already emitted and this theme had never met**, because the position that emitted them is `TryItPanel`, which this theme overrides: `oref-send`, `oref-tryit-actions`, `oref-tryit-notice` and `oref-run-result`, with `oref-section-socket` the one name the console invents. This is the fifth instance of the row above. The console invents no other name: its fields are the `oref-field` family, its counters the `oref-facts` family, its direction marks the two `oref-badge` modifiers the channel page already draws, and its log and entry modifiers ride `oref-run-result` and `oref-run-body`, which is why the default theme needs no rule for any of the three and `theme-css-raw` did not move at all. `oref-socket-entry` is styled here and is not one of the six: the window is empty until a session has received something, so no server render emits it and no sweep of server markup can reach it |
+| samples section     | plus 1  | The call samples section element, 2026-09-03. `oref-section-samples` is not a name the tree gained: the reference has emitted it since `TX-SLOTWIRE` and it never survived a sweep, because the element carrying it was drawn by the `CodeSample` position, which this theme overrides. It survives now because the element moved out of that position and into `NodePanel`, and the reason is a guarantee rather than a layout: the two sentences naming a language the page holds back and a language whose emitter refused belong inside the block a reader is looking at, and a theme that could replace them could remove the difference between "no Ruby here" and "no Ruby at all". **This is the one row of this table that is a cost paid deliberately rather than an omission found**, and the price is exactly one name: a page cannot both put a guarantee inside a block and leave the block replaceable                                                                                                                                                                                                                        |
+| runtime notice      | plus 1  | The runtime section element, 2026-09-05, and it is the second row of this table that is a price rather than a find. `oref-section-runtime` is not a name the tree gained either: the reference has emitted it since the parity scale, and it never survived a sweep, because the element carrying it was drawn by the `RuntimePanel` position, which this theme overrides. It survives now in exactly one state. An operation no collector reached used to draw nothing at all, so a reference nobody had instrumented was pixel identical to one instrumented and found in perfect agreement with its specification, which is this product's own thesis made silently and backwards. The `runtime-missing` sentence fills the position instead, and a sentence a theme could drop would be a sentence that says nothing, so the section around it is the reference's. Same shape as the row above and the same price: exactly one name                                                                                                                                                                                                      |
 
 SPEC 10.1 says an L2 theme is "a package with its own layout; the core contributes no styles". The
 core contributes no _stylesheet_. It contributes _markup_, under its own class names, and a theme
 that does not style them ships a page with unstyled regions on every operation. So the last block
 of `src/styles/theme.css` styles class names from somebody else's namespace, which is the opposite
-of what a frozen contract is for. 105 of the 106 are styled here; the one that is not,
+of what a frozen contract is for. 107 of the 108 are styled here; the one that is not,
 `oref-section-health`, is finding 5 below.
 
 **What it costs a theme author, said plainly.** This list is not part of the frozen contract. A
@@ -97,11 +99,10 @@ page heads TX-FRAME already put there.
 
 ## 2. This theme cannot express block order, and its thesis got expressed for it
 
-`ai-docs/design/telltale/components.md` opens with what this direction does that the other two do
-not: **the runtime block precedes the specification rather than following it.** That order is
-decided inside `NodePanel`, which is not a slot, and `AppShell` is handed the page as opaque
-children through the default slot. No position of the contract can reorder them. That is still
-true, and it is the half that stays open.
+This direction leads with what it does that the other two do not: **the runtime block precedes the
+specification rather than following it.** That order is decided inside `NodePanel`, which is not a
+slot, and `AppShell` is handed the page as opaque children through the default slot. No position of
+the contract can reorder them. That is still true, and it is the half that stays open.
 
 `SlotPropsMap.AppShell` said block order "is the shell's business in the same way the two columns
 are". As built it is nobody's business except `NodePanel`'s, which walks `NodeModel.drawn`. That
@@ -209,9 +210,9 @@ finding 3, `T064`, and the same reason for waiting.
 
 ## What the design asked for that the registry no longer has
 
-The inventory in `ai-docs/design/telltale/components.md` was written against the 25 name registry.
-Six of those names were removed by `TX-SLOTWIRE` and each removal has its reason in SPEC 10.4. Where
-this theme wanted one, it used what replaced it rather than asking for the name back:
+The design inventory this theme was drawn from was written against the 25 name registry. Six of
+those names were removed by `TX-SLOTWIRE` and each removal has its reason in SPEC 10.4. Where this
+theme wanted one, it used what replaced it rather than asking for the name back:
 
 | Design named                                | What this theme did instead                                                  |
 | ------------------------------------------- | ---------------------------------------------------------------------------- |
@@ -221,7 +222,9 @@ this theme wanted one, it used what replaced it rather than asking for the name 
 | `ThemeToggle`                               | no control, and the reason is a product decision with a cost, in SPEC 10.4   |
 
 `StatusBar`, `SectionIndex` and `BudgetMeter` were the three the design proposed as new slots. They
-are this theme's own components, prefixed, exactly as `ai-docs/design/CONTRACT.md` resolved.
-`TelltaleSectionIndex` is the one that argues for itself: an index of the sections on the page has
-to read the DOM after mount to learn what is on the page, because the shell is handed the content
-as children it cannot look inside. That is finding 2 again, from the other side.
+are this theme's own components, prefixed, which is how the three were resolved: a name enters the
+frozen registry when a theme needs to draw a region of the reference differently, and these three
+are markup only this theme draws. `TelltaleSectionIndex` is the one that argues for itself: an index
+of the sections on the page has to read the DOM after mount to learn what is on the page, because
+the shell is handed the content as children it cannot look inside. That is finding 2 again, from the
+other side.

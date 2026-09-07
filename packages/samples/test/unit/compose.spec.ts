@@ -27,10 +27,10 @@ describe('composeCodeSamples', () => {
     expect(produced[0]?.lang).toBe('shell');
 
     // When
-    const composed = composeCodeSamples(DECLARED, produced);
+    const { samples } = composeCodeSamples(DECLARED, produced);
 
     // Then
-    expect(composed.slice(0, 2)).toEqual(DECLARED);
+    expect(samples.slice(0, 2)).toEqual(DECLARED);
   });
 
   it('should drop the generated sample for a language the document already wrote', () => {
@@ -39,16 +39,16 @@ describe('composeCodeSamples', () => {
     expect(produced.filter((sample) => sample.lang === 'shell')).toHaveLength(1);
 
     // When
-    const composed = composeCodeSamples(DECLARED, produced);
+    const { samples } = composeCodeSamples(DECLARED, produced);
 
     // Then
-    expect(composed.filter((sample) => sample.lang === 'shell')).toEqual([DECLARED[0]]);
+    expect(samples.filter((sample) => sample.lang === 'shell')).toEqual([DECLARED[0]]);
   });
 
   it('should leave one sample per language, since a tab is found by its language', () => {
     // Given, When
-    const composed = composeCodeSamples(DECLARED, generated());
-    const langs = composed.map((sample) => sample.lang);
+    const { samples } = composeCodeSamples(DECLARED, generated());
+    const langs = samples.map((sample) => sample.lang);
 
     // Then
     expect(new Set(langs).size).toBe(langs.length);
@@ -79,7 +79,8 @@ describe('composeCodeSamples', () => {
     const composed = composeCodeSamples(undefined, produced);
 
     // Then
-    expect(composed).toEqual(produced);
+    expect(composed.samples).toEqual(produced);
+    expect(composed.unreachable).toEqual([]);
   });
 
   it('should return the document samples alone when the generator produced none', () => {
@@ -87,6 +88,25 @@ describe('composeCodeSamples', () => {
     const composed = composeCodeSamples(DECLARED, []);
 
     // Then
-    expect(composed).toEqual(DECLARED);
+    expect(composed.samples).toEqual(DECLARED);
+    expect(composed.unreachable).toEqual([]);
+  });
+
+  it('should keep the first of two document samples under one language and return the rest', () => {
+    // Given a document that wrote two samples under one language, of which a tab strip keyed by
+    // `lang` can show one. The first edition deduplicated the generated list against the declared
+    // one and never the declared list against itself.
+    const twice: readonly IRCodeSample[] = [
+      ...DECLARED,
+      { lang: 'shell', label: 'cURL, verbose', source: 'curl -v https://docs.example.com' },
+    ];
+
+    // When
+    const composed = composeCodeSamples(twice, []);
+
+    // Then the first is the tab and the second is handed back rather than dropped, so the caller
+    // can say what the document wrote and the page cannot show.
+    expect(composed.samples).toEqual(DECLARED);
+    expect(composed.unreachable).toEqual([twice[2]]);
   });
 });

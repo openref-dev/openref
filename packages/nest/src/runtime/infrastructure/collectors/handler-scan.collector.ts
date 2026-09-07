@@ -27,7 +27,12 @@ export const HANDLER_SCAN_COLLECTOR_NAME = 'handlerScanCollector';
 export interface HandlerScanProblem {
   /** `OrdersController.list`, as a reader recognises it. */
   readonly subject: string;
+  /** The cause and what is not known because of it, in one clause, per SPEC 7.1. */
   readonly reason: string;
+  /** That there is nothing to do and why the finding is recorded anyway, per SPEC 7.1. */
+  readonly action: string;
+  /** Why this handler cannot be accounted for, for a reader who opens it. */
+  readonly detail: string;
 }
 
 /** The collector, with the record of every handler it refused. */
@@ -64,11 +69,20 @@ export function handlerScanCollector(): HandlerScanCollector {
       );
 
       if (result.kind === 'blind') {
+        // THE CAUSE, THE ACTION AND THE REASONING ARE THREE MEMBERS, per SPEC 7.1. They were one
+        // sentence, and on the maintainer's application that sentence ran to fifty words and was
+        // then printed twice in every finding, once with the subject glued to the front of it.
+        // `scanHandlerReads` writes the short half and the long one beside each other so the two
+        // cannot come to describe different refusals.
         problems.push({
           subject: `${context.declaredOn.name}.${context.handlerName}`,
-          reason:
-            `${result.reason}. No parameter read fact was reported for this route: a scan ` +
-            'that cannot account for the handler says nothing rather than guessing',
+          reason: result.reason,
+          action:
+            'nothing to do here: this route reports no unread parameters, and the finding is ' +
+            'what says the row is unmeasured rather than clean',
+          detail:
+            `${result.detail} No parameter read fact was reported for this route, because a ` +
+            'scan that cannot account for the handler says nothing rather than guessing.',
         });
 
         return undefined;

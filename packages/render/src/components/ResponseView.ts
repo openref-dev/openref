@@ -11,6 +11,7 @@
  * silent second of delay otherwise reads as a slow API.
  */
 
+import { prettyResponseBody } from '@openref/vue/runner';
 import { h, type VNode } from 'vue';
 import { statusClass } from '../shared/status';
 import type { RunnerResult } from '@openref/vue';
@@ -81,6 +82,12 @@ export function ResponseView(props: {
             h('dd', { class: 'oref-run-header-value', key: `v:${header.name}` }, header.value),
           ]),
         ),
-    h('pre', { class: 'oref-run-body' }, [h('code', {}, result.body)]),
+    // THE BODY IS INDENTED AND STILL A TEXT CHILD, per SPEC 14. `prettyResponseBody` re-indents
+    // JSON and hands anything else back exactly as it arrived, and `.oref-code` is the class a
+    // block of code already has here, following the socket console's own log entry. Nothing on
+    // this path highlights and nothing on it produces markup.
+    h('pre', { class: 'oref-run-body' }, [
+      h('code', { class: 'oref-code' }, prettyResponseBody(result.body)),
+    ]),
   ]);
 }

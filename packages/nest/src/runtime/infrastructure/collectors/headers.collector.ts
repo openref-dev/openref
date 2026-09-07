@@ -34,7 +34,12 @@ export interface HeadersCollectorOptions {
 export interface HeadersCollectorProblem {
   /** `OrdersController.list`, as a reader recognises it. */
   readonly subject: string;
+  /** The cause and what is not known because of it, in one clause, per SPEC 7.1. */
   readonly reason: string;
+  /** The action, or that there is none and why the finding is recorded anyway, per SPEC 7.1. */
+  readonly action: string;
+  /** The reasoning behind it, for a reader who opens it. Absent where the cause is its own. */
+  readonly detail?: string;
 }
 
 /** The collector, with the record of what it could not read. */
@@ -80,9 +85,11 @@ export function headersCollector(options: HeadersCollectorOptions): HeadersColle
       if (names === undefined || names.length === 0) {
         problems.push({
           subject: `${context.declaredOn.name}.${context.handlerName}`,
-          reason:
-            `the metadata under ${describe(key)} is not a non-empty list of header names, so ` +
-            'nothing was reported for this route rather than a coerced value',
+          reason: `the metadata under ${describe(key)} is not a list of header names, so none is known`,
+          action: 'write a non-empty list of header names under that key, or stop writing the key',
+          detail:
+            'Nothing was reported for this route rather than a coerced value, because a coerced ' +
+            'value would put a header name in the reference that no guard ever asked for.',
         });
 
         return undefined;

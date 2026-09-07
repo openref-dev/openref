@@ -605,6 +605,22 @@
   color: var(--oref-color-accent-runtime);
 }
 
+.tt-drift-subjects {
+  margin: var(--oref-space-100) 0 0;
+  padding-left: var(--oref-space-500);
+  color: var(--oref-color-fg-secondary);
+}
+
+.tt-drift-why {
+  margin-top: var(--oref-space-100);
+  color: var(--oref-color-fg-secondary);
+  font-size: var(--oref-font-size-100);
+}
+
+.tt-drift-why summary {
+  cursor: pointer;
+}
+
 /* -- tables -------------------------------------------------------------------------------- */
 
 .tt-table {
@@ -887,6 +903,26 @@
   color: var(--oref-color-fg-muted);
 }
 
+/* What the host suppressed, per SPEC 7.2: the same disclosure anatomy as a rule group, muted,
+ * because it is the half a reader is not being asked to act on. */
+.tt-health-suppressed {
+  border-top: var(--oref-border-hair) solid var(--oref-color-line);
+  color: var(--oref-color-fg-muted);
+  margin-top: var(--oref-space-400);
+}
+
+.tt-health-suppressed-class {
+  display: flex;
+  align-items: center;
+  gap: var(--oref-space-300);
+  height: var(--oref-layout-row);
+}
+
+/* The reason the host gave, which is the field that makes this a decision rather than a list. */
+.tt-health-suppressed-reason {
+  color: var(--oref-color-fg-secondary);
+}
+
 .tt-notice {
   display: flex;
   align-items: center;
@@ -1082,10 +1118,14 @@
   margin-bottom: var(--oref-space-600);
 }
 
-/* The three modifiers are named rather than left to the base rule, so that the list of what this
-   theme has to style is the list of what the reference leaves behind, with nothing implied. */
+/* The four modifiers are named rather than left to the base rule, so that the list of what this
+   theme has to style is the list of what the reference leaves behind, with nothing implied.
+   `oref-section-runtime` joined them on 2026-09-05 and only in one state: the reference draws
+   this section itself on an operation nothing measured, so that the sentence saying so cannot be
+   dropped by a theme, and on a measured page the block is this theme's own `RuntimePanel`. */
 .oref-section-security,
 .oref-section-request,
+.oref-section-runtime,
 .oref-section-tryit {
   border-top: var(--oref-border-hair) solid var(--oref-color-line);
   padding-top: var(--oref-space-300);
@@ -1226,6 +1266,14 @@
   font-size: var(--oref-font-size-100);
   letter-spacing: var(--oref-font-tracking-wide);
   text-transform: uppercase;
+}
+
+/* The copy control carries a glyph and no word, so the label padding would draw a wide bar around
+   it. The attribute rather than a class, per THEME-BOUNDARY.md. */
+.oref-send[data-oref-copy] {
+  display: inline-grid;
+  padding: var(--oref-space-100);
+  place-items: center;
 }
 
 .oref-run-result {
@@ -1561,6 +1609,15 @@
 .oref-section-channel,
 .oref-section-channel-operations,
 .oref-section-messages {
+  display: block;
+}
+
+/* The call samples wrapper, named for the same reason the three above are. The reference draws it
+   around this theme's own `CodeSample`, because the two sentences that name a held back language
+   and a refused one live inside it and are not a position's to drop. The block itself is
+   `tt-samples`, so what is left for this rule is the base section spacing, which `oref-section`
+   already gives it. */
+.oref-section-samples {
   display: block;
 }
 

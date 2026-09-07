@@ -168,8 +168,9 @@ describe('the errors collector, declared group', () => {
     expect(collector.problems()).toHaveLength(1);
     expect(collector.problems()[0]?.subject).toBe('OrdersController.read');
     expect(collector.problems()[0]?.reason).toContain('NotFoundError');
-    expect(collector.problems()[0]?.reason).toContain('catalogs');
-    expect(collector.problems()[0]?.reason).toContain('never taken from a class name');
+    expect(collector.problems()[0]?.reason).toContain('so no contract was built for it');
+    expect(collector.problems()[0]?.action).toContain('errorsCollector({ catalogs })');
+    expect(collector.problems()[0]?.detail).toContain('never taken from a class name');
   });
 
   it('should refuse anything that is not a named class, and name what it got', () => {

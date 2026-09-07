@@ -17,6 +17,22 @@ import { fixtureAssets } from '../mocks/documents';
  * BOTH DIRECTIONS, because the two failures are opposite. A fold that is too weak loses a page in
  * silence; one that is too strong refuses a document that would have been fine. The first is the
  * one that must never happen, and SPEC 16.1 records why the second is the error to have.
+ *
+ * WHOSE PROPERTY EACH ASSERTION IS, SEPARATED 2026-09-03 BECAUSE ext4 SEPARATED IT. The first
+ * edition asked the volume as a precondition of every case, and so wrote "this volume folds case"
+ * where it meant "the product folds case". On APFS both read alike and the suite was green for two
+ * milestones; on the runner's ext4 the six folding cases failed on the precondition alone, with
+ * `caseFoldForFilesystem` answering correctly throughout. That is the direction SPEC 16.1 chooses
+ * in as many words: where a volume folds less than Unicode, a legal document is refused, and a
+ * case-sensitive volume is that case taken to its limit. So the fold and the build's refusal are
+ * asserted on every platform, since they are facts about the product and hold wherever it runs,
+ * and the comparison with the volume is one case of its own that says when it cannot be taken.
+ *
+ * THE VACUOUS HALF IS WHY THAT COMPARISON IS ONE CASE AND NOT ELEVEN. `keeps them apart` was the
+ * half that did not go red on ext4, because a case-sensitive volume keeps every pair apart and the
+ * precondition passed for the wrong reason on all five. A suite where one half fails honestly and
+ * the other passes vacuously is worse than one that fails twice, and the same probe now decides
+ * both.
  */
 describe('the page fold against a real volume', () => {
   let root = '';
@@ -63,17 +79,28 @@ describe('the page fold against a real volume', () => {
     }
   }
 
-  it.each([
+  /** The pairs the fold puts together, so the build must refuse the document carrying both. */
+  const FOLDED: readonly (readonly [string, string, string])[] = [
     ['the capital sharp s, whose upper case is itself', 'ss', 'ẞ'],
     ['the small sharp s', 'ss', 'ß'],
     ['the two sharp s spellings', 'ß', 'ẞ'],
     ['the long s', 'sample', 'ſample'],
     ['a ligature', 'fi', 'ﬁ'],
     ['the Kelvin sign', 'k', 'K'],
-  ])('should refuse a pair this volume stores as one entry: %s', async (_name, left, right) => {
-    // Then, before the build: the volume really does fold them, so a build that wrote both
-    // would leave one file holding one of the two documents.
-    expect(await volumeFolds(left, right)).toBe(true);
+  ];
+
+  /** The pairs the fold keeps apart, so the build must accept the document carrying both. */
+  const DISTINCT: readonly (readonly [string, string, string])[] = [
+    ['the dotless i, whose upper case is I', 'i', 'ı'],
+    ['the dotted capital I', 'i', 'İ'],
+    ['a diaeresis', 'a', 'ä'],
+    ['a Greek letter', 'omega', 'Ω'],
+    ['a final sigma', 'sigma', 'ς'],
+  ];
+
+  it.each(FOLDED)('should refuse a pair the fold puts together: %s', async (_name, left, right) => {
+    // Then, before the build: the fold really does put them together, so a build that wrote
+    // both would leave one file holding one of the two documents on a volume that folds case.
     expect(caseFoldForFilesystem(left)).toBe(caseFoldForFilesystem(right));
 
     // When
@@ -83,15 +110,8 @@ describe('the page fold against a real volume', () => {
     expect(accepted).toBe(false);
   });
 
-  it.each([
-    ['the dotless i, whose upper case is I', 'i', 'ı'],
-    ['the dotted capital I', 'i', 'İ'],
-    ['a diaeresis', 'a', 'ä'],
-    ['a Greek letter', 'omega', 'Ω'],
-    ['a final sigma', 'sigma', 'ς'],
-  ])('should build a pair this volume keeps apart: %s', async (_name, left, right) => {
-    // Then, before the build: the volume really does keep them apart.
-    expect(await volumeFolds(left, right)).toBe(false);
+  it.each(DISTINCT)('should build a pair the fold keeps apart: %s', async (_name, left, right) => {
+    // Then, before the build: the fold really does keep them apart.
     expect(caseFoldForFilesystem(left)).not.toBe(caseFoldForFilesystem(right));
 
     // When
@@ -99,5 +119,36 @@ describe('the page fold against a real volume', () => {
 
     // Then
     expect(accepted).toBe(true);
+  });
+
+  it('should agree with this volume on every pair, or say the volume cannot be asked', async ({
+    skip,
+  }) => {
+    // Given: whether this volume folds case at all, measured on the plainest pair there is
+    // rather than assumed from the name of the platform. A machine can mount either kind.
+    const foldsCase = await volumeFolds('a', 'A');
+
+    // A check that cannot run says so and never passes silently: on a case-sensitive volume
+    // every pair is two entries, so this comparison would agree with nothing and read green.
+    // The volume is the subject here, and a case-sensitive one is not the subject SPEC 16.1
+    // is about. Mounting a case-insensitive volume is not something a checkout can do, so on
+    // such a machine this is the one thing in the suite that goes unmeasured, by name.
+    if (!foldsCase) {
+      skip(
+        'this volume is case sensitive, so it cannot answer whether two names are one entry. ' +
+          'The fold and the build refusal were checked above and hold on every platform; only ' +
+          'the comparison with a case insensitive volume was not taken, and it needs one mounted.',
+      );
+      return;
+    }
+
+    // When, Then: on the volume this rule is about, the fold and the volume answer alike on
+    // all eleven pairs. SPEC 16.1: a divergence with the volume is a failing test here, which
+    // is the whole reason the pairs are held in both directions rather than in one.
+    for (const [name, left, right] of [...FOLDED, ...DISTINCT]) {
+      expect(await volumeFolds(left, right), `${name}: ${left} and ${right} on this volume`).toBe(
+        caseFoldForFilesystem(left) === caseFoldForFilesystem(right),
+      );
+    }
   });
 });

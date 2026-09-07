@@ -20,7 +20,7 @@ import type {
 } from '../../src/index';
 
 /**
- * The collector contract is public API, per SPEC 6.2 and CLAUDE.md rule 10.
+ * The collector contract is public API, per SPEC 6.2 and `packages/vue/PUBLIC-API.md`.
  *
  * THIS FILE IS THE PIN, and `pnpm lint` typechecks the test tree, so changing the contract makes
  * these assertions fail to compile rather than silently breaking every ecosystem collector built
@@ -141,10 +141,20 @@ describe('the merge partition', () => {
       {
         collector: 'testCollector',
         runtime: {
+          guardExemption: {
+            value: { declaredOn: 'handler' },
+            confidence: 'derived',
+            collector: 'testCollector',
+          },
           scopes: { value: ['a'], confidence: 'declared', collector: 'testCollector' },
           roles: { value: ['b'], confidence: 'declared', collector: 'testCollector' },
           rateLimit: {
             value: { limit: 1, ttlMs: 2 },
+            confidence: 'derived',
+            collector: 'testCollector',
+          },
+          rateLimitReach: {
+            value: { kind: 'external', by: ['GlobalRateLimitGuard'] },
             confidence: 'derived',
             collector: 'testCollector',
           },
@@ -195,6 +205,16 @@ describe('the merge partition', () => {
               collector: 'testCollector',
             },
           ],
+          handlerPolicies: [
+            {
+              kind: 'lock',
+              key: 'order:{0}',
+              settings: [{ name: 'onFailure', value: 'throw' }],
+              reach: 'handler',
+              confidence: 'derived',
+              collector: 'testCollector',
+            },
+          ],
           drift: [
             {
               rule: 'scope-drift',
@@ -212,6 +232,90 @@ describe('the merge partition', () => {
 
     // Then
     expect(Object.keys(everything ?? {}).sort()).toEqual([...LIST_FIELDS].sort());
+  });
+
+  it('should let a purpose join a guard another collector already named, whatever the order', () => {
+    // Given the two readings of one guard: `guardsCollector` sees `@UseGuards` and can say only
+    // that the class stands here, and a collector that reads the library the class comes from can
+    // say what it was installed to do. They arrive in registration order, and `guardsCollector` is
+    // registered first, so plain deduplication kept the reading with no purpose and dropped the
+    // other; `security-drift` then went on reading a rate limiter as an authorisation guard.
+    const named = {
+      name: 'RateLimitGuard',
+      scope: 'route',
+      confidence: 'derived',
+      collector: 'guardsCollector',
+    } as const;
+
+    // When both orders are folded
+    const first = mergeContributions([
+      { collector: 'guardsCollector', runtime: { guards: [named] } },
+      {
+        collector: 'redisxRateLimitCollector',
+        runtime: { guards: [{ ...named, purpose: 'rate-limit' }] },
+      },
+    ]);
+    const second = mergeContributions([
+      {
+        collector: 'redisxRateLimitCollector',
+        runtime: { guards: [{ ...named, purpose: 'rate-limit' }] },
+      },
+      { collector: 'guardsCollector', runtime: { guards: [named] } },
+    ]);
+
+    // Then one guard, carrying the purpose, either way. The `collector` is the first reader's,
+    // which is the precedence the rest of the merge gives registration order.
+    expect(first?.guards).toEqual([{ ...named, purpose: 'rate-limit' }]);
+    expect(second?.guards).toEqual([
+      { ...named, purpose: 'rate-limit', collector: 'redisxRateLimitCollector' },
+    ]);
+  });
+
+  it('should keep two scopes of one class apart, which a purpose must not merge', () => {
+    // Given the same class both under APP_GUARD and named in @UseGuards, which per SPEC 6.2.1 is
+    // two registrations, with the purpose claimed at one of them
+    const guards = mergeContributions([
+      {
+        collector: 'guardsCollector',
+        runtime: {
+          guards: [
+            {
+              name: 'ThrottlerGuard',
+              scope: 'route',
+              confidence: 'derived',
+              collector: 'guardsCollector',
+            },
+            {
+              name: 'ThrottlerGuard',
+              scope: 'global',
+              confidence: 'derived',
+              collector: 'guardsCollector',
+            },
+          ],
+        },
+      },
+      {
+        collector: 'throttlerCollector',
+        runtime: {
+          guards: [
+            {
+              name: 'ThrottlerGuard',
+              scope: 'route',
+              purpose: 'rate-limit',
+              confidence: 'derived',
+              collector: 'throttlerCollector',
+            },
+          ],
+        },
+      },
+    ])?.guards;
+
+    // Then
+    expect(guards).toHaveLength(2);
+    expect(guards?.map((guard) => [guard.scope, guard.purpose])).toEqual([
+      ['route', 'rate-limit'],
+      ['global', undefined],
+    ]);
   });
 
   it('should fold each named grouped field, which is the third shape a runtime field has', () => {

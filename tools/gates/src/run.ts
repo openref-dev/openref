@@ -14,14 +14,18 @@ import { eventsSuitesGate } from './gates/events-suites.gate.js';
 import { federationSuitesGate } from './gates/federation-suites.gate.js';
 import { m6SuitesGate } from './gates/m6-suites.gate.js';
 import { m7SuitesGate } from './gates/m7-suites.gate.js';
+import { privateDocsGate } from './gates/private-docs.gate.js';
+import { projectionPrivacyGate } from './gates/projection-privacy.gate.js';
 import { readerPagesGate } from './gates/reader-pages.gate.js';
 import { fixtureLicensesGate } from './gates/fixture-licenses.gate.js';
 import { formatGate } from './gates/format.gate.js';
 import { licensesGate } from './gates/licenses.gate.js';
 import { publishListGate } from './gates/publish-list.gate.js';
 import { staticSuitesGate } from './gates/static-suites.gate.js';
+import { testSkipsGate } from './gates/test-skips.gate.js';
 import { themeFontsGate } from './gates/theme-fonts.gate.js';
 import { themeMotionGate } from './gates/theme-motion.gate.js';
+import { collectorVoiceGate } from './gates/collector-voice.gate.js';
 import { textSourceGate } from './gates/text-source.gate.js';
 import { themeTokensGate } from './gates/theme-tokens.gate.js';
 import type { Gate, GateResult } from './types.js';
@@ -119,6 +123,14 @@ import type { Gate, GateResult } from './types.js';
  * tool can read the file at all, which is the condition every sweep this project has run silently
  * assumed. It runs before the gates that read artifacts because it needs none.
  *
+ * The collector voice gate sits immediately after the text source one, in the same family and for
+ * the same reason: it reads source text and needs nothing built. It is a gate rather than a test
+ * because the thing it measures is spread across packages. `discovery-voice.spec.ts` sweeps the
+ * collectors inside `packages/nest` and its header states the hole it cannot reach, that an
+ * ecosystem collector in its own package could ship in the old voice with nothing to say so. A gate
+ * derives the collector set from the disk the way `cspScanRoots` does, so the hole closes for every
+ * collector that will ever be added rather than for the ones somebody remembered to list.
+ *
  * The deferrals gate sits immediately after the build manifest, and the pair is one question asked
  * of two registers. That one holds every entry filed against a task to the milestone it declares;
  * this holds every deferral written into the documents and into the source to the milestone it
@@ -126,12 +138,30 @@ import type { Gate, GateResult } from './types.js';
  * deferred event channels with a parenthesis, the milestone closed at `T054`, ten tasks closed
  * over it and nothing anywhere could see the marker. It needs nothing built, for the reason the
  * two below it need nothing built.
+ *
+ * The projection privacy gate sits third, and it is the pair to the build manifest for the third
+ * time in this list: that one asks whether the committed reading of `ai-docs/` still agrees with
+ * the documents, wherever they are, and this asks what that reading carries, everywhere. It reads
+ * nothing but the committed artefact, so it runs before anything is built and gives the same
+ * verdict on a clone as on the maintainer's machine. It is here at all because the scan was a unit
+ * case only, and `pnpm gates` is the command every session is told to run before declaring a slice
+ * done, so that command proved nothing about the guarantee the artefact exists for.
+ *
+ * The test skip gate runs after every gate that asks whether a named suite exists and is green,
+ * because it asks the question none of them can: whether a case that is present, named and green
+ * ever executed on any machine at all. `skip-accounting.ts` asks it of the gates below the summary;
+ * this asks it of the suites, which is where the nginx case that ran nowhere for two milestones
+ * lived. It sits before `coverage` and not after it, because four committed cases hold coverage to
+ * being the last gate in this list and that decision is not this gate's to move.
  */
 export const GATES: readonly Gate[] = [
   buildManifestGate,
   deferralsGate,
+  projectionPrivacyGate,
+  privateDocsGate,
   formatGate,
   textSourceGate,
+  collectorVoiceGate,
   dependencyGraphGate,
   enginesFloorGate,
   licensesGate,
@@ -153,6 +183,7 @@ export const GATES: readonly Gate[] = [
   m6SuitesGate,
   m7SuitesGate,
   readerPagesGate,
+  testSkipsGate,
   coverageGate,
 ];
 

@@ -24,6 +24,7 @@ import {
   IR_VERSION,
   isAsyncApiSource,
   normalizeSpecification,
+  pageNodes,
   parseSpecification,
   proxyServers,
   ProxyBlockedError,
@@ -339,7 +340,10 @@ export class ReferenceService {
       basePath: this.basePath,
       ...(options.agent === undefined ? {} : { agent: options.agent }),
     });
-    this.nodeIdBySegment = segmentIndex(this.document.nodes.keys(), nodeSegmentOf);
+    // `pageNodes` AND NOT `nodes`, per SPEC 13.3 as amended 2026-09-05: a webhook is a node with a
+    // page, its id is a resolvable topology end by SPEC 9.5 and the search index of SPEC 11 stores
+    // it, so an index built from `nodes` alone 404s on an address the overview itself printed.
+    this.nodeIdBySegment = segmentIndex(pageNodes(this.document).keys(), nodeSegmentOf);
     this.schemaIdBySegment = segmentIndex(this.document.schemas.keys());
     this.serviceIdBySegment = segmentIndex(
       (this.document.services ?? []).map((service) => service.id),
@@ -453,8 +457,11 @@ export class ReferenceService {
     if (schemaSegment !== null && schemaId === null) return notFoundReply('schema');
     if (kind === 'service' && serviceId === null) return this.serviceNotFound();
 
-    // A CHANNEL HAS NO BENCH. Nothing links here for one, per SPEC 11's dead link rule, so a
-    // reader arrives only by hand and the honest answer is that the address holds nothing.
+    // A CHANNEL HAS NO BENCH, AND SINCE 2026-09-05 NEITHER HAS A WEBHOOK. Nothing links here for
+    // either, per SPEC 11's dead link rule and SPEC 13.3's webhook rule, so a reader arrives only
+    // by hand and the honest answer is that the address holds nothing. The lookup is `nodes` and
+    // deliberately not `pageNodes`: a webhook is a node with a page and not a node with a console,
+    // and that difference is exactly this line.
     if (kind === 'bench' && this.document.nodes.get(nodeId ?? '')?.kind !== 'operation') {
       return notFoundReply('bench');
     }
@@ -811,13 +818,33 @@ export class ReferenceService {
    * It answers what a probe can use honestly: that the reference is up, and which document
    * it is serving.
    *
+   * `ok` MEANS UP AND SERVICEABLE, AND A REFERENCE WITH NO NODES IS ONLY THE FIRST. Two words
+   * since 2026-09-04, per SPEC 13.3: a document whose `nodes` map is empty describes nothing, and
+   * answering `ok` for it made the one surface a reader checks report health for exactly the state
+   * it exists to surface. Measured on the built `examples/events`, which answered
+   * `{"status":"ok", ..., "nodes":0}` for two milestones. The HTTP status stays 200 in both cases,
+   * because the process is up and a probe that fails a deployment over a documentation defect is
+   * the worse of the two wrong answers; what changes is the word.
+   *
+   * IT ALSO SAYS WHY RUNTIME IS ABSENT, since the `runtime-missing` notice was added. The page
+   * can say that nothing measured an operation; it cannot say whether that is a host who
+   * registered no collector or a collector that ran and reported nothing, because the page
+   * holds one node. This holds the document, so it answers with the count.
+   *
    * @returns The report
    */
   private status(): ReferenceReply {
+    // HOW MANY NODES ANY COLLECTOR REACHED, counted here because this is the one surface that
+    // can answer it without a reader opening a page. Every operation of a document with none
+    // now draws the `runtime-missing` sentence, and a reader who sees it on every page is owed
+    // a way to tell a reference nobody instrumented from one whose collectors were skipped.
+    let measured = 0;
+    for (const node of this.document.nodes.values()) if (node.runtime !== undefined) measured += 1;
+
     // A literal object, serialized as written, per SPEC 12. Sorting it would put `document`
     // before `status` for no reason a reader of this route benefits from.
     const body = JSON.stringify({
-      status: 'ok',
+      status: this.document.nodes.size === 0 ? 'empty' : 'ok',
       document: {
         id: this.document.id,
         title: this.document.info.title,
@@ -826,6 +853,9 @@ export class ReferenceService {
         nodes: this.document.nodes.size,
         schemas: this.document.schemas.size,
       },
+      // NOT A SCORE AND NOT A VERDICT, per SPEC 13.3: how many nodes carry facts, against how
+      // many there are. Zero of a thousand is why the pages say nothing measured them.
+      runtime: { measured, of: this.document.nodes.size },
       versions: {
         ir: IR_VERSION,
         pageModel: PAGE_MODEL_VERSION,

@@ -87,11 +87,27 @@ export interface SourceCollectorOptions {
   readonly locate?: (handler: HandlerLike) => FunctionLocationResult;
 }
 
+/**
+ * What a reader does about a link that cannot be built, which is the same thing every time.
+ *
+ * THE VOICE SPEC 7.1 SETS ITS STANDARD BY IS THIS ROW'S. `no source link template is configured,
+ * so DevTokenController.login cannot be linked` is the sentence the maintainer named as the one a
+ * finding should read like: the cause, what is therefore not available, and no further words. The
+ * five refusals below are written to it, and this is the action each of them shares.
+ */
+const NO_LINK_ACTION =
+  'the page still names the class and the method, so this costs the link and nothing else';
+
 /** What the collector could not do, kept per node so that T022 can report it. */
 export interface SourceCollectorProblem {
   /** `OrdersController.list`, as a reader recognises it. */
   readonly subject: string;
+  /** The cause and what is not known because of it, in one clause, per SPEC 7.1. */
   readonly reason: string;
+  /** The action, or that there is none and why the finding is recorded anyway, per SPEC 7.1. */
+  readonly action: string;
+  /** The reasoning behind it, for a reader who opens it. Absent where the cause is its own. */
+  readonly detail?: string;
 }
 
 /** The collector, with the record of everything it could not resolve. */
@@ -153,13 +169,25 @@ function sourceFor(
 
   const found = locate(context.handler);
   if (found.location === undefined) {
-    problems.push({ subject, reason: found.reason ?? 'the handler could not be located' });
+    problems.push({
+      subject,
+      reason: found.reason ?? `the handler could not be located, so ${subject} cannot be linked`,
+      action: NO_LINK_ACTION,
+      ...(found.detail === undefined ? {} : { detail: found.detail }),
+    });
     return named;
   }
 
   // A locator that found a file and no line reports both: the file is usable and the reason names
   // what is missing, so the record says the link is a file link on purpose.
-  if (found.reason !== undefined) problems.push({ subject, reason: found.reason });
+  if (found.reason !== undefined) {
+    problems.push({
+      subject,
+      reason: found.reason,
+      action: NO_LINK_ACTION,
+      ...(found.detail === undefined ? {} : { detail: found.detail }),
+    });
+  }
 
   const machine = machinePosition(found.location, options.absolutePath === true);
   const configuredRoot = options.repositoryRoot;
@@ -168,11 +196,13 @@ function sourceFor(
   if (root === undefined) {
     problems.push({
       subject,
-      reason:
-        `no .git was found above "${found.location.file}", so the path cannot be expressed ` +
-        'relative to a repository and no forge link can be built. Set repositoryRoot on ' +
-        'sourceCollector when the build has no git directory, or use the editor form of SPEC 6.3, ' +
-        'which needs no repository at all',
+      reason: `no .git was found above "${found.location.file}", so ${subject} cannot be linked`,
+      action:
+        'set repositoryRoot on sourceCollector when the build has no git directory, or use the ' +
+        'editor form of SPEC 6.3, which needs no repository at all',
+      detail:
+        'A forge link is built from a path relative to a repository root, and without a root ' +
+        'there is no such path to substitute into the template.',
     });
     return { ...named, ...machine };
   }
@@ -181,9 +211,11 @@ function sourceFor(
   if (file === undefined) {
     problems.push({
       subject,
-      reason:
-        `the handler is at "${found.location.file}", which is outside the repository at ` +
-        `"${root}". A link built from it would leave the forge's own tree`,
+      reason: `the handler is outside the repository, so ${subject} cannot be linked`,
+      action: 'set repositoryRoot on sourceCollector to the repository this handler is really in',
+      detail:
+        `It is at "${found.location.file}" and the repository is at "${root}". A link built ` +
+        "from that would leave the forge's own tree and resolve to nothing.",
     });
     return { ...named, ...machine };
   }
@@ -194,10 +226,12 @@ function sourceFor(
   if (configuredRoot === undefined && isSubmoduleRoot(root)) {
     problems.push({
       subject,
-      reason:
-        `the handler is inside the submodule at "${root}", whose paths and revision belong to a ` +
-        'different repository than the one sourceLink names. Set repositoryRoot on ' +
-        'sourceCollector, or configure a template for that repository',
+      reason: `the handler is inside a submodule, so ${subject} cannot be linked`,
+      action: 'set repositoryRoot on sourceCollector, or configure a template for that repository',
+      detail:
+        `The submodule at "${root}" has paths and a revision of its own, and both would be ` +
+        'substituted into the superproject template, so the link would name a different ' +
+        "repository's file or none at all.",
     });
     return { ...named, ...machine };
   }

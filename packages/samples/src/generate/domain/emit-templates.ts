@@ -313,6 +313,15 @@ export function emitRust(request: SampleRequest): EmitOutcome {
  * about `URLSessionConfiguration.httpAdditionalHeaders`, not about `setValue(_:forHTTPHeaderField:)`,
  * and `Content-Length` is a header no client here lets a caller state, `fetch` included.
  *
+ * `FoundationNetworking` IS NOT OPTIONAL AND IS NOT A macOS DETAIL. `swift-corelibs-foundation`
+ * split the URL loading system into its own module in Swift 5.4, so on Linux `import Foundation`
+ * alone leaves `URLRequest` undeclared and `URLSession` an empty `AnyObject` with no `shared`. The
+ * sample this function emitted did not compile on Linux at all, which is the platform most readers
+ * of the Swift tab deploy to; it was green here for two milestones because the only machine that
+ * ever ran it was a Mac, where the module does not exist and the whole question is invisible.
+ * `canImport` is the form Apple's own portable code uses, and it is the reason the block costs
+ * nothing on Darwin: the condition is resolved by the compiler, not at runtime.
+ *
  * @param request - The request the runner would send
  * @returns The snippet, or the refusal
  */
@@ -323,6 +332,9 @@ export function emitSwift(request: SampleRequest): EmitOutcome {
   const text = textBodyOf(request);
   const lines = [
     'import Foundation',
+    '#if canImport(FoundationNetworking)',
+    'import FoundationNetworking',
+    '#endif',
     '',
     `var request = URLRequest(url: URL(string: ${quoteSwift(request.plan.url)})!)`,
     `request.httpMethod = ${quoteSwift(request.plan.method)}`,

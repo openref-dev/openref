@@ -1,4 +1,11 @@
-import { normalizeOpenApiDocument, type IRDocument, type IRNode } from '@openref/core';
+import {
+  buildHealthReport,
+  groupDriftByCause,
+  groupDriftByRule,
+  normalizeOpenApiDocument,
+  type IRDocument,
+  type IRNode,
+} from '@openref/core';
 import { describe, expect, it } from 'vitest';
 import {
   buildHealthModel,
@@ -28,6 +35,55 @@ function withRuntime(id: string, runtime: NonNullable<IRNode['runtime']>): IRDoc
   if (node !== undefined) nodes.set(id, { ...node, runtime });
 
   return { ...base, nodes };
+}
+
+/** One operation, with a response body and with or without the example that stops a finding. */
+function operation(index: number, example: boolean): Record<string, unknown> {
+  const schema = { type: 'object', properties: { name: { type: 'string' } } };
+  const media = example ? { schema, example: { name: 'a' } } : { schema };
+
+  return {
+    get: {
+      operationId: `ThingsController_read${String(index)}`,
+      summary: 'Read a thing',
+      responses: { '200': { description: 'ok', content: { 'application/json': media } } },
+    },
+  };
+}
+
+/** A document measured by the drift rules, with one operation per path. */
+function measured(count: number, example: boolean): IRDocument {
+  const paths: Record<string, unknown> = {};
+  for (let index = 0; index < count; index += 1)
+    paths[`/thing-${String(index)}`] = operation(index, example);
+
+  const document = normalizeOpenApiDocument({
+    openapi: '3.1.0',
+    info: { title: 'Things', version: '1.0.0' },
+    paths,
+  });
+
+  return {
+    ...document,
+    health: buildHealthReport(document, {
+      observation: { handledNodeIds: new Set(document.nodes.keys()) },
+    }),
+  };
+}
+
+/**
+ * A document whose findings fold: several operations miss an example for one identical reason.
+ *
+ * The fold is what makes the heading's two counts differ, so a fixture that does not fold would
+ * assert nothing about the sentence under test.
+ */
+function foldedDocument(): IRDocument {
+  return measured(3, false);
+}
+
+/** A document where every finding names its own subject and so stands alone. */
+function unfoldedDocument(): IRDocument {
+  return measured(3, true);
 }
 
 describe('buildRuntimeModel', () => {
@@ -85,6 +141,84 @@ describe('buildRuntimeModel', () => {
 
     // Then
     expect(labels).toEqual(['Errors, declared']);
+  });
+
+  it('should draw one handler policy row holding every policy, each with its own mark', () => {
+    // Given a handler carrying a cache from one collector and a lock from another, which is the
+    // case the IR member is a list for
+    const document = withRuntime(NODE, {
+      handlerPolicies: [
+        {
+          kind: 'cache',
+          key: 'orders:{0}',
+          settings: [
+            { name: 'ttlMs', value: 60_000 },
+            { name: 'tags', value: ['orders', 'lists'] },
+          ],
+          reach: 'handler',
+          confidence: 'derived',
+          collector: 'redisxCacheCollector',
+        },
+        {
+          kind: 'lock',
+          key: 'order:{0}',
+          settings: [{ name: 'onFailure', value: 'throw' }],
+          reach: 'handler',
+          confidence: 'derived',
+          collector: 'redisxLockCollector',
+        },
+      ],
+    });
+
+    // When
+    const row = buildRuntimeModel(document, NODE, '')?.rows.find(
+      (candidate) => candidate.label === 'Handler policies',
+    );
+
+    // Then two values and NOT one joined line, which is where this parts company with the guard
+    // row: two behaviours with two sets of numbers cannot share a text
+    expect(row?.kind).toBe('handler-policies');
+    expect(row?.values.map((value) => value.text)).toEqual([
+      'Cached on orders:{0}',
+      'Locked on order:{0}',
+    ]);
+    expect(row?.values.map((value) => value.note)).toEqual([
+      'ttlMs 60000, tags orders, lists',
+      'onFailure throw',
+    ]);
+    expect(row?.values.map((value) => value.collector)).toEqual([
+      'redisxCacheCollector',
+      'redisxLockCollector',
+    ]);
+  });
+
+  it('should say on the row that an unbound declaration binds nothing today', () => {
+    // Given the half of `@nestjs-redisx/cache` whose interceptor the library registers nowhere.
+    // A ttl beside it would be read as a window this route's responses are served in, so the
+    // collector reports no settings and the row leads with the sentence.
+    const document = withRuntime(NODE, {
+      handlerPolicies: [
+        {
+          kind: 'cache',
+          settings: [{ name: 'declaredBy', value: '@Cacheable' }],
+          reach: 'unbound',
+          confidence: 'derived',
+          collector: 'redisxCacheCollector',
+        },
+      ],
+    });
+
+    // When
+    const row = buildRuntimeModel(document, NODE, '')?.rows.find(
+      (candidate) => candidate.label === 'Handler policies',
+    );
+
+    // Then the value names the behaviour with no key after it, and the note refuses it
+    expect(row?.values[0]?.text).toBe('Cached');
+    expect(row?.values[0]?.note).toBe(
+      'Declared and bound by nothing here, so this route does not behave this way today. ' +
+        'declaredBy @Cacheable',
+    );
   });
 
   it('should show a detail two contracts share once, on the first of them', () => {
@@ -320,17 +454,27 @@ describe('buildHealthModel', () => {
 
   it('should print the count a closed group stands for, so nothing is hidden by folding it', () => {
     // Given, the panel folds and never truncates: a group that showed the first twenty of its
-    // findings would read as coverage while hiding the tail.
+    // findings would read as coverage while hiding the tail. Since SPEC 7.2 the rows inside a
+    // group are its causes rather than its findings, so the heading's count is the sum of the
+    // rows' counts rather than the number of rows.
     const document = runtimeDocument();
 
     // When
     const model = buildHealthModel(document, '');
 
-    // Then
+    // Then. The subject is asserted present first: there really are groups here to be folded.
+    expect((model?.rules ?? []).length).toBeGreaterThan(0);
     const mismatched = (model?.rules ?? []).filter(
-      (rule) => rule.count !== String(rule.findings.length),
+      (rule) =>
+        rule.count !==
+        String(rule.findings.reduce((total, finding) => total + Number(finding.count), 0)),
     );
     expect(mismatched).toEqual([]);
+
+    // And every row names as many subjects as it stands for, so nothing folded away
+    const rows = (model?.rules ?? []).flatMap((rule) => rule.findings);
+    expect(rows.length).toBeGreaterThan(0);
+    expect(rows.every((row) => row.subjects.length === Number(row.count))).toBe(true);
   });
 
   it('should keep a failed collector among the checks and out of the findings', () => {
@@ -384,6 +528,55 @@ describe('buildHealthModel', () => {
     const drawn = rows.map((row) => row.label);
     for (const label of empty) expect(drawn).not.toContain(label);
     for (const row of rows) expect(row.count).toMatch(/^\d+ \/ \d+$/);
+  });
+
+  it('should name the causes it draws beside the findings they cover, so two counts cannot disagree', () => {
+    // Given a document whose findings fold, which is the state the heading contradicted: SPEC 7.2
+    // folds findings of one cause into one row and deliberately leaves `IRHealthReport.drift` a
+    // flat list, so on the maintainer's application the heading said 186 findings above 68 rows
+    // and a reader who counted was told two different numbers by one page.
+    const document = foldedDocument();
+    const report = document.health;
+    const findings = report?.drift ?? [];
+    const causes = groupDriftByRule(findings).flatMap((group) => groupDriftByCause(group.issues));
+
+    // Then the subject is present before anything is claimed about it: this document really does
+    // fold, so the two counts really are different here.
+    expect(findings.length).toBeGreaterThan(causes.length);
+
+    // When
+    const model = buildHealthModel(document, '');
+
+    // Then the heading states both quantities and the rows a reader can count are the causes it
+    // names, so neither number is a lie and neither has to be reconciled against the other.
+    expect(model?.title).toBe(
+      `Documentation health, ${String(report?.operationCount ?? 0)} operations, ` +
+        `${String(findings.length)} findings in ${String(causes.length)} causes`,
+    );
+    expect((model?.rules ?? []).flatMap((rule) => rule.findings)).toHaveLength(causes.length);
+  });
+
+  it('should say findings once when nothing folded, rather than print one number twice', () => {
+    // Given a document where every finding is its own cause, which is the ordinary small case.
+    // "6 findings in 6 causes" is not a contradiction, but it is one quantity written twice, and
+    // the clause exists to tell two quantities apart.
+    const document = unfoldedDocument();
+    const report = document.health;
+    const findings = report?.drift ?? [];
+    const causes = groupDriftByRule(findings).flatMap((group) => groupDriftByCause(group.issues));
+
+    // Then the subject is present: there are findings here, and none of them folded
+    expect(findings.length).toBeGreaterThan(0);
+    expect(causes).toHaveLength(findings.length);
+
+    // When
+    const model = buildHealthModel(document, '');
+
+    // Then
+    expect(model?.title).toBe(
+      `Documentation health, ${String(report?.operationCount ?? 0)} operations, ` +
+        `${String(findings.length)} findings`,
+    );
   });
 });
 

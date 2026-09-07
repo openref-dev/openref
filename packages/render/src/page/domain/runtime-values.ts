@@ -13,10 +13,14 @@ import type {
   IRDriftSeverity,
   IRGuard,
   IRGuardScope,
+  IRHandlerPolicy,
+  IRHandlerPolicyKind,
+  IRHandlerPolicySetting,
   IRParameterReads,
   IRPipe,
   IRPipeScope,
   IRRateLimit,
+  IRRateLimitReach,
   IRStreaming,
   IRTimeout,
 } from '@openref/core';
@@ -81,6 +85,45 @@ export function rateLimitLabel(limit: IRRateLimit): string {
   const suffix = limit.name === undefined || limit.name === '' ? '' : ` (${limit.name})`;
 
   return `${String(limit.limit)} / ${window}${suffix}`;
+}
+
+/**
+ * What a route with no limit of its own is told, in the two lines a cell draws.
+ *
+ * THE WORDS ARE BUILT ONCE HERE AND BY NO COLLECTOR, which is what makes {@link IRRateLimitReach}
+ * a generalisation rather than one library's special case. `@nestjs/throttler` behind a global
+ * guard and `@nestjs-redisx/rate-limit` behind one report the same shape and read the same on the
+ * page; a collector supplies only what it observed, the names and, where it read one, the budget.
+ *
+ * THE SECOND LINE REFUSES THE ATTRIBUTION IN THE SAME BREATH AS IT GIVES THE NUMBER, per SPEC 6.1
+ * and 6.2.3. A budget printed on its own reads as this route's limit, which is precisely what
+ * nothing observed, so the sentence that names the figure is the sentence that says whose it is
+ * not. Where nothing states a figure the line says that instead, because "no budget anywhere" and
+ * "a budget that is not this route's" are two different things a reader acts on differently.
+ *
+ * @param reach - The fact's value
+ * @returns The value line and the note line
+ */
+export function rateLimitReachLabel(reach: IRRateLimitReach): { value: string; note: string } {
+  if (reach.kind === 'none') {
+    return {
+      value: 'Not rate limited',
+      note: 'This route declares no limit and nothing stands in front of the whole application.',
+    };
+  }
+
+  const where = reach.budgetSource === undefined ? '' : `, read from ${reach.budgetSource}`;
+  const budget =
+    reach.budget === undefined
+      ? 'Nothing states a budget anywhere.'
+      : `The module budget is ${rateLimitLabel(reach.budget)}${where}.`;
+
+  return {
+    value: `No limit of its own; governed from outside by ${reach.by.join(', ')}`,
+    note:
+      `${budget} Whether this route is exempt, and at what budget, is decided inside guard ` +
+      'code, which is never read.',
+  };
 }
 
 /**
@@ -197,6 +240,65 @@ export function parameterReadsLabel(reads: IRParameterReads): { value: string; n
     value: `${String(read)} of ${String(total)} seen read`,
     note: notes.join('; '),
   };
+}
+
+/**
+ * What each policy kind is called on the page, in a reader's words rather than a library's.
+ *
+ * NAMED FOR THE BEHAVIOUR AND NOT FOR THE DECORATOR, because a second library that caches the same
+ * way produces the same kind and must read the same. The decorator's own name reaches the reader
+ * where it matters, in the `declaredBy` setting an unbound declaration carries.
+ */
+const POLICY_LABELS: Readonly<Record<IRHandlerPolicyKind, string>> = {
+  cache: 'Cached',
+  lock: 'Locked',
+  'circuit-breaker': 'Circuit breaker',
+};
+
+/**
+ * One setting as `name value`, with a list joined rather than printed as an array.
+ *
+ * @param setting - The declared setting
+ * @returns `ttlMs 60000`, `tags orders, users`
+ */
+function settingText(setting: IRHandlerPolicySetting): string {
+  const value = Array.isArray(setting.value) ? setting.value.join(', ') : String(setting.value);
+
+  return `${setting.name} ${value}`;
+}
+
+/**
+ * Handler policies as values, one per policy, in the order the collectors reported them.
+ *
+ * NOT MERGED BY PROVENANCE, WHICH IS WHERE THIS PARTS COMPANY WITH {@link guardValues}. Three
+ * guards from one collector are three names for one observation and read as noise apart; a cache
+ * and a lock from two collectors are two different behaviours with two different sets of numbers,
+ * and joining their texts would produce a line no reader could parse.
+ *
+ * THE UNBOUND ONES SAY SO ON THE ROW AND NOT ONLY IN THE REPORT, per {@link IRHandlerPolicyReach}.
+ * A ttl beside a declaration nothing binds is the exact defect this member exists to prevent, so
+ * the note is written before anything else in the line and the collector reports no settings for
+ * that case at all.
+ *
+ * @param policies - What the collectors attached to the node
+ * @returns One value per policy, empty when there are none
+ */
+export function handlerPolicyValues(policies: readonly IRHandlerPolicy[]): RuntimeValueModel[] {
+  return policies.map((policy) => {
+    const scope = policy.key === undefined || policy.key === '' ? '' : ` on ${policy.key}`;
+    const settings = policy.settings.map(settingText).join(', ');
+    const unbound =
+      policy.reach === 'unbound'
+        ? 'Declared and bound by nothing here, so this route does not behave this way today. '
+        : '';
+
+    return {
+      ...EMPTY_VALUE,
+      text: `${POLICY_LABELS[policy.kind]}${scope}`,
+      note: `${unbound}${settings}`,
+      ...mark(policy.confidence, policy.collector),
+    };
+  });
 }
 
 /**

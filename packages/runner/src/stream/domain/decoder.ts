@@ -46,9 +46,9 @@ export const DEFAULT_MAX_ELEMENT_CHARS = 1024 * 1024;
  * Thrown by the decoder when one element passes the limit it was built with.
  *
  * IT EXTENDS `StreamError` SINCE `T065`, AND IT EXTENDED `Error` BEFORE THAT, WHICH WAS A RULE
- * VIOLATION IN THE PUBLISHED SURFACE. STANDARDS and `CLAUDE.md` both say every error of this
- * project extends `OpenRefError` and carries an `ErrorCode`, and the hierarchy already had the
- * exact place for this one, `RunnerError -> StreamError`. This is the only error class
+ * VIOLATION IN THE PUBLISHED SURFACE. STANDARDS says every error of this project extends
+ * `OpenRefError` and carries an `ErrorCode`, and the hierarchy already had the exact place for
+ * this one, `RunnerError -> StreamError`. This is the only error class
  * `@openref/runner`, `@openref/nest` and `@openref/vue` export at all, so the one that reached a
  * consumer was the one that broke the rule: a caller doing `error instanceof OpenRefError` or
  * reading `error.code` got neither, and a `@throws` tag named a shape the rest of the surface does

@@ -1,11 +1,10 @@
 /*
- * telltale design tokens, per SPEC 10.1, STANDARDS 4.4 and ai-docs/design/CONTRACT.md.
+ * telltale design tokens, per SPEC 10.1 and STANDARDS 4.4.
  *
  * The 122 names of the core token set in both colour modes, 109 until the syntax group landed
  * on 2026-08-14, plus six this theme adds for positions no other theme has. Values come from
- * the design handoff filed at ai-docs/design/telltale/tokens.css; tokens.spec.ts holds this
- * file to the contract and to the cascade, and contrast.spec.ts holds the ink to 4.5:1 on
- * every surface it is used on.
+ * this theme's design handoff; tokens.spec.ts holds this file to the contract and to the
+ * cascade, and contrast.spec.ts holds the ink to 4.5:1 on every surface it is used on.
  *
  * Four blocks, in this order and for this reason: the light values are the defaults, the system
  * preference applies the dark values, an explicit attribute overrides both, and the reduced

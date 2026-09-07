@@ -27,7 +27,12 @@ export const PIPES_COLLECTOR_NAME = 'pipesCollector';
 export interface PipesCollectorProblem {
   /** `OrdersController.list`, as a reader recognises it. */
   readonly subject: string;
+  /** The cause and what is not known because of it, in one clause, per SPEC 7.1. */
   readonly reason: string;
+  /** The action, or that there is none and why the finding is recorded anyway, per SPEC 7.1. */
+  readonly action: string;
+  /** The reasoning behind it, for a reader who opens it. Absent where the cause is its own. */
+  readonly detail?: string;
 }
 
 /** The collector, with the record of what it could not name. */
@@ -60,10 +65,12 @@ export function pipesCollector(): PipesCollector {
       if (anonymous > 0) {
         problems.push({
           subject,
-          reason:
-            `${String(anonymous)} pipe(s) are applied and have no class name to report, so ` +
-            'they are counted here and absent from the reference. An anonymous class or a ' +
-            'plain object passed to @UsePipes or a parameter decorator produces this',
+          reason: `${String(anonymous)} pipe(s) here have no class name, so none is shown`,
+          action: 'pass a named class to @UsePipes if these pipes should appear by name',
+          detail:
+            'An anonymous class or a plain object passed to @UsePipes or to a parameter ' +
+            'decorator has nothing to print. They are counted here so the route is not read as ' +
+            'carrying fewer pipes than it does.',
         });
       }
 

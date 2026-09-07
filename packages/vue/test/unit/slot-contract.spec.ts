@@ -37,7 +37,7 @@ import type {
 import { SLOT_NAMES } from '../../src/index';
 
 /**
- * The slot props are public API, per SPEC 10.4 and CLAUDE.md rule 10.
+ * The slot props are public API, per SPEC 10.4 and `packages/vue/PUBLIC-API.md`.
  *
  * This file is the pin. `pnpm lint` typechecks the test tree, so changing a slot's props makes
  * these assertions fail to compile rather than silently breaking every theme built against
@@ -296,6 +296,11 @@ describe('slot registry contract', () => {
       | 'schema-missing'
       | 'no-schema'
       | 'health-missing'
+      // The two siblings `health-missing` shipped without. Same class of change and the same
+      // migration: a total record over this union gains two cases. Recorded in SPEC 6.3, SPEC
+      // 7.3, PUBLIC-API.md and CONTRACT.md before the code.
+      | 'runtime-missing'
+      | 'drift-missing'
     >();
   });
 

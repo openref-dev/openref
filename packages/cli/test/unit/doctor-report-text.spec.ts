@@ -12,9 +12,24 @@ import {
   renderDoctorSummary,
 } from '../../src/cli/api/commands/doctor-report-text';
 
-/** A minimal, otherwise clean report, so each test overrides only what it is about. */
+/**
+ * A minimal, otherwise clean report, so each test overrides only what it is about.
+ *
+ * `scoreText` IS DERIVED FROM `score` RATHER THAN OVERRIDDEN SEPARATELY, so a case that moves the
+ * percentage cannot leave the printed sentence behind. On a report with no suppression the marked
+ * string is the bare percentage, which is what every case here is about.
+ */
 function report(overrides: Partial<IRDoctorReport> = {}): IRDoctorReport {
-  return { version: 1, score: 100, operationCount: 1, checks: [], findings: [], ...overrides };
+  const built = {
+    version: 1,
+    score: 100,
+    operationCount: 1,
+    checks: [],
+    findings: [],
+    ...overrides,
+  };
+
+  return { ...built, scoreText: overrides.scoreText ?? `${String(built.score)}%` };
 }
 
 /** A minimal finding, so each test overrides only what it is about. */

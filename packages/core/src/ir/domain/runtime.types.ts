@@ -61,11 +61,71 @@ export interface IRSourceLocation {
  */
 export type IRGuardScope = 'route' | 'global';
 
+/**
+ * What a guard was installed to do, where a collector reading the library that ships it can say.
+ *
+ * IT IS NOT A READING OF GUARD LOGIC AND MUST NEVER BECOME ONE, per SPEC 6.1. Nothing here is
+ * worked out from a class name: a value lands on a guard only when a collector whose whole subject
+ * is the library that defines that guard has read the metadata the library's own decorator wrote.
+ * `@RateLimit` is `applyDecorators(SetMetadata(key), UseGuards(RateLimitGuard))`, so the key's
+ * presence is proof of the guard's presence and of what it is; `@nestjs/throttler` names
+ * `ThrottlerGuard` as its limiter, so a guard of that name standing on a route the throttler
+ * collector is reading is that limiter. A collector that decided a class "sounds like" a limiter
+ * would be making exactly the inference `IRRateLimitReach.by` already refuses.
+ *
+ * ONE VALUE, AND THE ABSENCE IS THE ORDINARY CASE. Absent means nobody who could say has said, not
+ * that the guard authorises: `security-drift` reads the field to rule a guard OUT of an
+ * authorisation claim it never had grounds for, and never to rule one in.
+ */
+export type IRGuardPurpose = 'rate-limit';
+
+/**
+ * Where the host wrote the mark that exempts a route from its application wide guard.
+ *
+ * TWO VALUES BECAUSE THEY ARE TWO SIZES OF CLAIM, AND `IRGuardScope` DELIBERATELY MERGES THE SAME
+ * PAIR. There the question is "was this decided about the route", which a controller and a handler
+ * answer identically. Here the question is "how much did the host exempt", and a mark on the
+ * controller class exempts every route in that controller while a mark on the handler exempts one.
+ * A reader deciding whether a public controller is public on purpose needs to know which they are
+ * looking at.
+ */
+export type IRGuardExemptionSource = 'handler' | 'controller';
+
+/**
+ * The host's own assertion that a route escapes the guard registered for the whole application.
+ *
+ * WHAT IT SAYS AND WHAT IT DOES NOT, STATED HERE BECAUSE THE WIDER READING IS THE TEMPTING ONE. It
+ * says: the host wrote a mark this route's global guard reads, under a key the host named, and that
+ * guard lets a marked route through. It does NOT say the route is unauthenticated in every sense,
+ * it says nothing about a gateway in front of the process, and it never silences a guard written on
+ * the route itself: `@UseGuards(AdminGuard)` on a marked handler is a second decision with a second
+ * cause, and `security-drift` reports it at full strength.
+ *
+ * IT IS NOT A READING OF GUARD LOGIC AND CANNOT BECOME ONE, per SPEC 6.1. The mark is metadata
+ * under an explicitly named key, which is the one thing that section allows; what the guard does
+ * with it beyond the ordinary `if (isPublic) return true` is unread, and a function under the key
+ * produces a `doctor` record rather than a fact, because what a function answers is decided by
+ * calling it.
+ */
+export interface IRGuardExemption {
+  /** Whether the mark was written on the handler or on the controller class it belongs to. */
+  readonly declaredOn: IRGuardExemptionSource;
+}
+
 /** A guard observed on a route. Only the class name is knowable, never the logic. */
 export interface IRGuard {
   readonly name: string;
   /** Whether it was declared on this route or registered for the whole application. */
   readonly scope: IRGuardScope;
+  /**
+   * What it was installed to do, where a collector that reads its library could say.
+   *
+   * ABSENT ON EVERY GUARD `guardsCollector` REPORTS, AND THAT IS RIGHT. That collector reads
+   * `@UseGuards` and the container, which say a class stands here and nothing about why; the
+   * purpose arrives from a collector that read the library, and the merge folds it onto the guard
+   * this one already named.
+   */
+  readonly purpose?: IRGuardPurpose;
   readonly confidence: IRConfidence;
   readonly collector: string;
 }
@@ -76,6 +136,65 @@ export interface IRRateLimit {
   readonly ttlMs: number;
   readonly name?: string;
 }
+
+/**
+ * How far rate limiting reaches a route that declares none of its own, per SPEC 6.2.3.
+ *
+ * THREE STATES, AND ONLY ONE OF THEM HAD A REPRESENTATION. A reader of one operation has to be
+ * able to tell apart: this route declares its own limit, which is {@link IRRateLimit} on
+ * `rateLimit` and always could be said; a limit governs it from outside its own declaration, which
+ * is `external` here; and nothing anywhere rate limits it, which is `none`. Until this type the
+ * second and third were one absent field, so a page told a route covered by a globally registered
+ * limiter the same thing it told an unlimited route, and pointed both at a different report on a
+ * different page to find out which. That is the defect measured on an application where four of
+ * fifty eight routes carry a decorator and a guard registered under `APP_GUARD` stands in front of
+ * all fifty eight.
+ *
+ * IT IS NOT A LIMIT AND MUST NEVER BE READ AS ONE. `external` says what stands in front and what
+ * budget was configured for it; it does not say that the budget applies to this route, because
+ * whether it does is decided inside guard code, and guard logic is never read, per SPEC 6.1. The
+ * two are kept in separate members for that reason: anything that wants "the limit this route
+ * enforces" reads `rateLimit`, and no reading of this member can be mistaken for one.
+ *
+ * IT IS GENERAL AND NOT ONE LIBRARY'S. `@nestjs/throttler` behind an `APP_GUARD` and
+ * `@nestjs-redisx/rate-limit` behind one are the same three states, and so is any collector that
+ * can see a limiter it cannot attribute to a route. The collector fills in the names and the
+ * budget it managed to read; the words a reader sees are built once, from this shape.
+ */
+export type IRRateLimitReach =
+  | {
+      /** Something limits from outside the route, and this route declares nothing of its own. */
+      readonly kind: 'external';
+      /**
+       * What stands in front, by class name, exactly as it was registered.
+       *
+       * EVERY GLOBAL REGISTRATION AND NOT THE ONES THAT LIMIT, because which of them limits is the
+       * thing that cannot be read. A collector that filtered this list by guessing which class name
+       * sounds like a rate limiter would be making the inference SPEC 6.1 forbids, so the list is
+       * what was registered and the sentence beside it refuses to say what each one does.
+       */
+      readonly by: readonly string[];
+      /**
+       * The budget whatever governs it was configured with, where a configuration states one.
+       *
+       * ABSENT IS A REAL ANSWER: nothing anywhere states a number, which is different from a number
+       * that exists and is not this route's. Present is not an attribution either, per the note
+       * above; it is the figure a reader would otherwise have to go and find.
+       */
+      readonly budget?: IRRateLimit;
+      /** Where the budget was read, named so a reader can look at the same place. */
+      readonly budgetSource?: string;
+    }
+  | {
+      /**
+       * Nothing rate limits this route: it declares none and nothing stands in front of it.
+       *
+       * A STATEMENT AND NOT A SILENCE, which is the whole reason this member exists. It is the
+       * answer `hasRuntimeFacts` counts, so a route carrying only this still draws its scale: a
+       * reader who registered a rate limit collector asked a question, and "nothing" is the reply.
+       */
+      readonly kind: 'none';
+    };
 
 /**
  * How widely a pipe was registered, per SPEC 6.2.1 and `TX-COLLECTORS`.
@@ -108,6 +227,95 @@ export interface IRPipe {
  */
 export interface IRTimeout {
   readonly ms: number;
+}
+
+/**
+ * Which behaviour a handler declared around itself, per SPEC 6.2.
+ *
+ * THREE KINDS BECAUSE THREE LIBRARIES WRITE THEM AND A READER ASKS THREE QUESTIONS. Is this
+ * response served from a cache and for how long; is this route serialized under a lock; is this
+ * route behind a breaker and what trips it. They are one member of {@link IRNodeRuntime} rather
+ * than three because they are one shape, a list whose members each carry their own provenance, and
+ * because three members would be three fact fields, three collector tables and three rows for a
+ * distinction the shape itself already draws.
+ */
+export type IRHandlerPolicyKind = 'cache' | 'lock' | 'circuit-breaker';
+
+/**
+ * How far a declared policy reaches the response a caller receives, per SPEC 6.1.
+ *
+ * THE DECLARATION IS THE FACT AND ITS REACH IS A SECOND FACT, and until both are said the first one
+ * is a half truth a reader cannot act on. `@nestjs-redisx/cache` ships two families of decorator
+ * under one name: `@Cached` replaces the method with a wrapper the moment it is applied, so the
+ * behaviour is bound by the decorator itself; `@Cacheable`, `@CachePut` and `@CacheEvict` are bare
+ * `SetMetadata` calls read by an interceptor the library registers nowhere, so the same page would
+ * otherwise show a ttl for a route that caches nothing at all.
+ *
+ * IT IS NOT A CONFIDENCE AND MUST NOT BE READ AS ONE. Both readings are `derived`: the value came
+ * from metadata under a key this project knows, which is exactly what SPEC 6.1 means by the level.
+ * What differs is not how well the fact was read but what the fact is about, and folding the two
+ * into one scale would say the unbound declaration was read less well rather than that it binds
+ * nothing.
+ */
+export type IRHandlerPolicyReach =
+  /** The decorator wrapped the handler, so every call to the route goes through the behaviour. */
+  | 'handler'
+  /** The decorator recorded an intention and nothing observed here binds it to a served response. */
+  | 'unbound';
+
+/**
+ * One setting of a policy, in the value the decorator stored.
+ *
+ * A NAME AND A VALUE RATHER THAN A SCHEMA PER LIBRARY, and the choice is the one
+ * `IRRateLimitReach` makes for its own contents: what only a collector can supply is which knobs
+ * the application set and to what, and the words a reader sees are built once from this shape.
+ * Three declared schemas would be three copies of somebody else's option object, each of which
+ * this project would then have to keep in step with a library it does not own.
+ *
+ * THE NAME CARRIES THE UNIT AND IS NOT ALWAYS THE DECORATOR'S OWN. `@Cached({ ttl })` is seconds
+ * and `@WithLock({ ttl })` is milliseconds, so a member called `ttl` on both would put two
+ * quantities under one word on one page. Milliseconds throughout, for the reason
+ * {@link IRRateLimit} is milliseconds, and a collector that converts says so where it converts.
+ */
+export interface IRHandlerPolicySetting {
+  /** What was declared, named for a reader, with its unit where the value has one. */
+  readonly name: string;
+  /** The value as the decorator stored it, converted only where {@link name} says so. */
+  readonly value: string | number | boolean | readonly string[];
+}
+
+/**
+ * A behaviour a handler declares around itself that the specification carries no field for.
+ *
+ * A LIST WHOSE MEMBERS EACH CARRY PROVENANCE, LIKE `guards` AND `pipes` AND UNLIKE `rateLimit`.
+ * Three collectors can report on one route at once, and a cache, a lock and a breaker on one
+ * handler are three facts rather than one fact three collectors disagree about, so they accumulate
+ * and no tie is possible. An `IRFact` here would have made the second collector on a route contest
+ * the first and lose in silence.
+ *
+ * NOTHING HERE IS AN ERROR CONTRACT, AND THAT WAS MEASURED RATHER THAN PREFERRED. None of the three
+ * libraries this exists to read contains an `ExceptionFilter`, an `HttpException` or an `HttpStatus`
+ * anywhere in its source: a lock that cannot be acquired throws a plain `Error` subclass and a
+ * breaker that is open throws another, and what status a caller sees is whatever the host's own
+ * filter does with it. Putting a status in `IRErrorContracts.runtimeDerived` would have been the
+ * cheaper home and would have been a guess in place of a fact none of them produces.
+ */
+export interface IRHandlerPolicy {
+  readonly kind: IRHandlerPolicyKind;
+  /**
+   * The key or key template the behaviour is scoped by, when it is a literal string.
+   *
+   * ABSENT WHERE THE KEY IS A FUNCTION, per SPEC 6.1: a function under a key is never read, so
+   * what the cache varies by or what the lock serializes on cannot be stated. The collector that
+   * met one records it for `doctor` rather than leaving the absence to be read as "no key".
+   */
+  readonly key?: string;
+  /** What the decorator declared, in the order the collector reads its options. */
+  readonly settings: readonly IRHandlerPolicySetting[];
+  /** How far the declaration reaches the response a caller receives. */
+  readonly reach: IRHandlerPolicyReach;
+  readonly confidence: IRConfidence;
+  readonly collector: string;
 }
 
 /**
@@ -255,6 +463,24 @@ export type IRDriftEdit =
   | 'conflicting-assertion'
   /** A change reaching inside an assertion that already exists. */
   | 'narrowed-assertion'
+  /**
+   * A fact about the whole application that does not say whether this subject is inside it.
+   *
+   * THE FACT IS REAL AND ITS REACH IS NOT OBSERVABLE, which is a third thing beside having a fact
+   * and having none. A guard registered under `APP_GUARD` stands in front of every route, and
+   * whether one route escapes it is a second question this fact does not answer. Writing the
+   * assertion would state a requirement about a route nothing measured; withholding the finding
+   * would hide a guard the reader can see running. So it is reported, and it is a person's to
+   * settle.
+   *
+   * IT STAYS THIS SHAPE EVEN WHERE THE EXEMPTION KEY IS NAMED, per SPEC 7.1 as amended by
+   * `TX-PUBLIC-ROUTE-KEY`. A route that CARRIES the host's mark produces no finding at all, so this
+   * shape is only ever reached by an unmarked one, and the absence of a mark under one key does not
+   * establish that the guard admits this route: it may exempt it on grounds it computes itself,
+   * which is still the fact SPEC 6.1 forbids guessing at. What the key changes is the sentence and
+   * the action, not what a fix mode may write.
+   */
+  | 'unscoped-assertion'
   /** A deletion of an existing assertion, which is the only edit that would satisfy the rule. */
   | 'deleted-assertion'
   /** The source already asserts it; the gap is in the generated document, which is never written. */
@@ -309,7 +535,7 @@ export type IRDriftBasis =
   | { readonly kind: 'unobserved' };
 
 /**
- * Why a finding needs a person, per `ai-docs/REMEDIATION.md` section 2.
+ * Why a finding needs a person.
  *
  * Three different things put a finding here and they age differently: `confidence-starvation` can
  * become `silence` when a collector improves, and the other two cannot.
@@ -353,7 +579,25 @@ export interface IRDriftIssue {
    * before.
    */
   readonly subject?: string;
+  /**
+   * What is wrong, in one clause, without the subject in front of it and without the fix in it.
+   *
+   * BOTH HALVES OF THAT SENTENCE WERE BROKEN BY ONE RULE AND ARE NOW STATED, per SPEC 7.2.
+   * `discovery-incomplete` built this as `${subject}: ${reason}` and then set `suggestion` to the
+   * same `reason`, so every reader of the health page was shown one sentence twice, once with the
+   * subject glued to the front of it. The subject travels in {@link subject}, the action travels in
+   * `suggestion`, and neither is repeated here.
+   */
   readonly message: string;
+  /**
+   * The longer reasoning behind the finding, for a reader who opens it, per SPEC 7.2.
+   *
+   * IT IS NOT A SECOND MESSAGE AND A RENDERER MAY LEAVE IT CLOSED. Everything a reader must have to
+   * act is in {@link message} and `suggestion`; this is why the fact is unobtainable rather than
+   * merely missing, which is the difference between a finding a reader can fix and one they should
+   * stop trying to.
+   */
+  readonly detail?: string;
   /** What the runtime says, rendered for display. */
   readonly runtimeValue?: string;
   /** What the specification says, rendered for display. */
@@ -374,11 +618,37 @@ export interface IRDriftIssue {
 export interface IRNodeRuntime {
   readonly source?: IRSourceLocation;
   readonly guards?: readonly IRGuard[];
+  /**
+   * The host's mark saying this route escapes the application wide guard, per SPEC 6.2.1.
+   *
+   * ABSENT MEANS UNMARKED AND NEVER MEANS "NOT EXEMPT", which is the same distinction every other
+   * optional member here draws. A host who named no key has no marks anywhere, so the field is
+   * absent on every route of that application and nothing may read a claim out of that.
+   */
+  readonly guardExemption?: IRFact<IRGuardExemption>;
   readonly pipes?: readonly IRPipe[];
   readonly scopes?: IRFact<readonly string[]>;
   readonly roles?: IRFact<readonly string[]>;
   readonly rateLimit?: IRFact<IRRateLimit>;
+  /**
+   * What limits the route when the route declares nothing, per SPEC 6.2.3.
+   *
+   * A SECOND MEMBER RATHER THAN A WIDER `rateLimit`, for the reason {@link IRRateLimitReach} gives:
+   * a reader of `rateLimit` is reading what this route enforces, and admitting a value that means
+   * "something else might" into that member would put an unattributed budget in front of every
+   * consumer that already reads it, including the drift rule that compares one against a documented
+   * 429. Nothing here is ever compared with the specification.
+   */
+  readonly rateLimitReach?: IRFact<IRRateLimitReach>;
   readonly timeout?: IRFact<IRTimeout>;
+  /**
+   * Behaviours the handler declares around itself, per {@link IRHandlerPolicy}.
+   *
+   * A LIST AND NOT AN `IRFact`, for the reason `guards` is a list: three collectors can report on
+   * one route at once and each of them is reporting a different behaviour, so they accumulate and
+   * carry their own provenance rather than competing for one slot.
+   */
+  readonly handlerPolicies?: readonly IRHandlerPolicy[];
   readonly requiredHeaders?: IRFact<readonly string[]>;
   readonly parameterReads?: IRFact<IRParameterReads>;
   readonly statusCode?: IRFact<number>;
@@ -392,16 +662,52 @@ export interface IRNodeRuntime {
  *
  * IT IS NOT AN ERROR AND IT IS NOT A GUESS AVOIDED SILENTLY. A pattern no address can be made
  * from, a gateway that declares no event, a protocol whose host nobody configured, a class name no
- * supplied schema answers to: each is a fact the reference would have carried and cannot, and
- * CLAUDE.md's rule is that such a fact reaches `doctor` rather than being invented. The subject is
- * named the way a reader of `doctor` would recognise it, and the reason is one sentence that says
- * both what happened and what to write instead.
+ * supplied schema answers to: each is a fact the reference would have carried and cannot, and such
+ * a fact reaches `doctor` rather than being invented. The subject is named the way a reader of
+ * `doctor` would recognise it.
+ *
+ * THE REASON IS THE SHORT CLAUSE AND THE REASONING IS BELOW IT, SINCE 2026-09-05 AND SPEC 7.1. It
+ * was one sentence carrying both what happened and what to write instead, which on the first real
+ * reader ran to fifty words of the product explaining itself with no action in it. What a reader
+ * gets first now names the cause and what is therefore not known, in the voice of the `source` row
+ * SPEC 7.1 sets as the standard, and {@link detail} carries everything that used to be crammed in
+ * beside it.
  */
 export interface IRDiscoveryProblem {
   /** What was skipped: a handler, a gateway, a broker, a channel address. */
   readonly subject: string;
-  /** Why, in a sentence. */
+  /**
+   * The cause and what is not known because of it, in one clause, per SPEC 7.1.
+   *
+   * IT IS WHAT A READER SEES FIRST AND IT IS THE WHOLE OF WHAT SOME READERS SEE, so it is not an
+   * abbreviation of {@link detail} that assumes the rest will be opened. The action goes here too
+   * when there is one, and when there is none this says so plainly rather than leaving a reader to
+   * work out that the record is only a record.
+   */
   readonly reason: string;
+  /**
+   * What the reader is to do, or that there is nothing to do and why the finding exists anyway.
+   *
+   * SEPARATE FROM {@link reason} BECAUSE THEY LAND IN DIFFERENT PLACES. A browser theme draws the
+   * reason and the action one under the other, and `openref doctor` draws the subject and the
+   * action and never the reason, so one string in both slots is one sentence printed twice on one
+   * surface and the wrong half printed on the other.
+   *
+   * OPTIONAL ONLY FOR THE PRODUCERS THAT HAVE NOT MOVED. A producer that leaves it out has its
+   * reason used for both, which is what every producer did before SPEC 7.1 asked for the split; the
+   * collectors of SPEC 6.2 all set it.
+   */
+  readonly action?: string;
+  /**
+   * Why the fact is unobtainable rather than merely absent, for a reader who asks.
+   *
+   * OPTIONAL BECAUSE SOME CAUSES ARE THEIR OWN EXPLANATION. A metadata key that holds the wrong
+   * type needs no second paragraph; a scan that will not guess past a custom parameter decorator
+   * does, and deleting that reasoning to make the first line short would trade one defect for
+   * another. Nothing is required to read it, and a consumer that does not is showing a complete
+   * finding rather than a truncated one.
+   */
+  readonly detail?: string;
 }
 
 /** Document wide runtime metadata: which collectors ran, and how to link to source. */
@@ -415,6 +721,35 @@ export interface IRRuntimeMeta {
   readonly sourceLinkTemplate?: string;
   /** Collectors that were skipped, with the reason, for `doctor` to report. */
   readonly skipped?: readonly { readonly collector: string; readonly reason: string }[];
+  /**
+   * Guard class name to security scheme id, exactly as the host configured it, per SPEC 13.2.
+   *
+   * IT TRAVELS WITH THE DOCUMENT BECAUSE THE COMPARISON IT DECIDES IS RE-ASKED AFTER THE PASS ENDS.
+   * `security-drift` is out of scope without it, per its own rule, so a renderer re-asking the rule
+   * with no mapping answered `out-of-scope` for every guarded operation whose security the document
+   * does state, and drew `?` on the parity scale over the same operations the health report had
+   * already counted as passed. The gutter and the report then said different things about one
+   * comparison, which is the class of defect this field closes: one input, one answer, wherever the
+   * question is asked from.
+   *
+   * A `Record` and not a `Map`, unlike `DriftObservation.guardSchemes`, because this one is part of
+   * a document that is serialized and hashed rather than part of a call.
+   */
+  readonly guardSchemes?: Readonly<Record<string, string>>;
+  /**
+   * The metadata key the host named as its global guard's exemption, per SPEC 6.2.1 and 13.2.
+   *
+   * IT TRAVELS WITH THE DOCUMENT FOR THE REASON {@link guardSchemes} DOES. It decides which of the
+   * two sentences the softened branch of `security-drift` prints, per SPEC 7.1, so a caller that
+   * re-asks the rule from a served document and did not carry it would print the sentence that says
+   * the decision is unreadable over an application where it was read. One input, one answer,
+   * wherever the question is asked from.
+   *
+   * A STRING RATHER THAN `string | symbol`, BECAUSE THIS DOCUMENT IS SERIALIZED AND A SYMBOL IS
+   * NOT. What travels is the key's printable form, and the two things anything reads out of it are
+   * that a key was named at all and what to print to a reader looking for their own decorator.
+   */
+  readonly publicRouteKey?: string;
   /**
    * What the discovery of the running application found and could not state, per SPEC 8.3.
    *

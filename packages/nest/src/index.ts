@@ -69,7 +69,9 @@ export type {
   DiscoveryResult,
 } from './runtime/infrastructure/adapters/controller-discovery.adapter';
 export { pairRoutes } from './runtime/domain/route-pairing';
-export type { PairingProblem, PairingResult } from './runtime/domain/route-pairing';
+export type { PairingOptions, PairingProblem, PairingResult } from './runtime/domain/route-pairing';
+export { readGlobalPrefix } from './runtime/domain/global-prefix';
+export type { GlobalPrefixReading } from './runtime/domain/global-prefix';
 
 // The event collectors of SPEC 8.3, built in T051. A channel is discovered from the container,
 // synthesized into an AsyncAPI 3.1 document, and read by the same normalizer a hand written file
@@ -145,6 +147,20 @@ export type {
   MetadataCollectorProblem,
   MetadataCollectorRegistration,
 } from './runtime/infrastructure/collectors/metadata.collector';
+// The exemption reader of `TX-PUBLIC-ROUTE-KEY`, per SPEC 6.2.1. A host does not register it: it
+// is built by the pass from `runtime.publicRouteKey`, because one key is the whole of what there is
+// to configure. It is exported anyway, so a host driving the pass directly can build the same
+// collector rather than a second reading of the same key.
+export {
+  publicRouteCollector,
+  PUBLIC_ROUTE_COLLECTOR_NAME,
+} from './runtime/infrastructure/collectors/public-route.collector';
+export type {
+  PublicRouteCollector,
+  PublicRouteCollectorOptions,
+  PublicRouteCollectorProblem,
+  PublicRouteCollectorRegistration,
+} from './runtime/infrastructure/collectors/public-route.collector';
 export { readGuards } from './runtime/domain/guards';
 export type { GuardReading } from './runtime/domain/guards';
 
@@ -519,6 +535,12 @@ export {
   isCanActivateLike,
   isHttpExceptionLike,
   NEST_CORE_VALUE_NAMES,
+  // PUBLIC SO AN ECOSYSTEM COLLECTOR CAN ASK WHETHER ITS OWN LIBRARY'S GUARD STANDS ON A ROUTE.
+  // `@openref/collector-throttler` has to know whether `ThrottlerGuard` was applied here before it
+  // may say that the guard on this route is a rate limiter, and the alternative was a second copy
+  // of the literal in another package, which is the shape that comes to disagree. It is pinned
+  // against the real `@UseGuards` by `test/unit/nest-value-surface.spec.ts`.
+  NEST_GUARD_METADATA,
   NEST_REQUEST_METHODS,
   NEST_ROUTE_METADATA,
 } from './shared/types/nest-surface';
@@ -565,7 +587,7 @@ export {
   LIST_FIELDS,
   mergeContributions,
 } from './runtime/domain/merge';
-export type { Contribution } from './runtime/domain/merge';
+export type { Contribution, FactContest, FactField } from './runtime/domain/merge';
 
 // The policy of SPEC 19.2, re-exported so a Nest host can call it from the package it installed.
 // THE HOST SETS THE POLICY AND THIS MODULE SETS NO HEADER. Nothing here writes a
@@ -605,8 +627,18 @@ export { buildContentSecurityPolicy } from '@openref/render';
 //
 // A NAME ADDED HERE IS A MINOR VERSION AND A NAME REMOVED IS A MAJOR ONE, per `PUBLIC-API.md`.
 // That asymmetry is the whole price of the decision.
+// IT BECAME TWELVE ON 2026-09-05 WITH `IRDiscoveryProblem`, and by the same reading. The registry
+// drains a collector's `problems()` into that shape and `CollectorRegistry.problems` returns it, so
+// a host typing the list it is handed named a type it could not import. The same measurement found
+// it: the built declaration imports the name, and the case re-derives the list rather than
+// repeating it.
+// IT BECAME THIRTEEN ON 2026-09-07 WITH `HealthSuppression`, and by the same reading a third time.
+// `OpenRefRuntimeOptions.suppress` is typed in it, so a host writing the classes it decided not to
+// fix named a type it could not import, and the same measurement found it before a host did.
 export type {
+  HealthSuppression,
   IRConfidence,
+  IRDiscoveryProblem,
   IRDocument,
   IRFact,
   IRHealthCheck,

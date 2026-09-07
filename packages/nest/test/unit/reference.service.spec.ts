@@ -274,6 +274,25 @@ describe('ReferenceService, search index and health', () => {
     expect(reply.headers['cache-control']).toBe('no-store');
   });
 
+  it('should say how many nodes any collector reached, so the page saying none has a reason', async () => {
+    // Given a document normalized outside any application, which is what every page that draws
+    // the `runtime-missing` sentence is drawn from
+    const reference = service();
+
+    // When
+    const reply = await reference.handle('status', request());
+    const parsed = JSON.parse(replyText(reply)) as {
+      runtime?: { measured?: number; of?: number };
+    };
+
+    // Then the count is there and it is a count rather than a verdict. The page holds one node
+    // and cannot tell a host who registered no collector from a collector that found nothing;
+    // this holds the document, so it answers with both numbers.
+    expect(parsed.runtime?.of).toBe(reference.document.nodes.size);
+    expect(parsed.runtime?.of).toBeGreaterThan(0);
+    expect(parsed.runtime?.measured).toBe(0);
+  });
+
   it('should serve the health page at the address the liveness JSON left', async () => {
     // Given
     const reference = service();

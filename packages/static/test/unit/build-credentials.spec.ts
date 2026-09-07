@@ -9,13 +9,12 @@ import { fixtureAssets, MemoryOutputStore } from '../mocks/documents';
  * typed credential is shown held by the runner and absent from the document. This file is the
  * static half, `19.7b`.
  *
- * THE SEPARATION IS THE PROMISE, SO THE PROOF IS THE TYPE, per the standing rule in
- * `ai-docs/BUILD-AMENDMENTS.md`: a credential lives with a runner behind the storage policy of
- * SPEC 14.4, and the build has no doorway a runner or a credential can enter by.
- * `BuildSiteOptions` is the whole doorway, this package depends on `core`, `render` and `search`
- * and never on `@openref/runner`, and the wrong version does not compile. The compile refusals
- * below are `@ts-expect-error`, which fails the build the day the refusal stops, and the root
- * tsconfig typechecks this tree, so `pnpm lint` is what arms them.
+ * THE SEPARATION IS THE PROMISE, SO THE PROOF IS THE TYPE. A credential lives with a runner behind
+ * the storage policy of SPEC 14.4, and the build has no doorway a runner or a credential can enter
+ * by. `BuildSiteOptions` is the whole doorway, this package depends on `core`, `render` and
+ * `search` and never on `@openref/runner`, and the wrong version does not compile. The compile
+ * refusals below are `@ts-expect-error`, which fails the build the day the refusal stops, and the
+ * root tsconfig typechecks this tree, so `pnpm lint` is what arms them.
  *
  * WHAT THE BYTE WALK PROVES AND WHAT IT CANNOT. The walk asserts the subject present before it
  * asserts absence, because a proof of absence whose subject was never present proves nothing:

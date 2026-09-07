@@ -21,6 +21,7 @@ import {
   caseFoldForFilesystem,
   ErrorCode,
   InvalidOptionsError,
+  pageNodes,
   type IRDocument,
   type IRNode,
 } from '@openref/core';
@@ -193,13 +194,18 @@ export function planPages(document: IRDocument, basePath: string): readonly Plan
     );
   }
 
-  for (const [nodeId, node] of document.nodes) {
+  // `pageNodes` AND NOT `nodes`, per SPEC 13.3 as amended 2026-09-05: a webhook has a page, the
+  // overview's topology and the search index both link to it, and a build that wrote no file for
+  // one would put the served mount's own defect into a directory of files.
+  for (const [nodeId, node] of pageNodes(document)) {
     // `nodeSegmentOf`, so the file this build writes is the file `nodeHref` links. A node id equal
     // to a reserved mount name is escaped there and must be escaped here too.
     const segment = nodeSegmentOf(nodeId);
     add('node', nodeHref(nodeId, basePath), [segment], node, nodeId, null);
 
-    if (node.kind === 'operation') {
+    // THE BENCH IS `nodes` AND NOT `pageNodes`, which is the same asymmetry the served mount has:
+    // a webhook is what the server calls, so it draws no console and nothing links its bench.
+    if (node.kind === 'operation' && document.nodes.has(nodeId)) {
       add('bench', benchHref(nodeId, basePath), ['bench', segment], node, nodeId, null);
     }
   }

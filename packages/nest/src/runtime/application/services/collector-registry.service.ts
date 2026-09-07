@@ -1,5 +1,6 @@
 import type {
   IRConfidence,
+  IRDiscoveryProblem,
   IRFact,
   IRHealthCheck,
   IRNodeRuntime,
@@ -11,7 +12,7 @@ import type {
   IRuntimeCollector,
 } from '../ports/collector.port';
 import { isRuntimeCollector, isSkippedCollector } from '../ports/collector.port';
-import { mergeContributions, type Contribution } from '../../domain/merge';
+import { mergeContributions, type Contribution, type FactContest } from '../../domain/merge';
 import type {
   ControllerLike,
   HandlerLike,
@@ -66,6 +67,24 @@ export interface CollectorRegistryOptions {
   readonly globalPipes?: readonly string[];
   /** Template for the source link of SPEC 6.3, carried through to the document meta. */
   readonly sourceLinkTemplate?: string;
+  /**
+   * Guard class to security scheme, per SPEC 13.2, carried through to the document meta.
+   *
+   * IT IS CARRIED RATHER THAN CONSUMED HERE. No collector reads it; `security-drift` does, and so
+   * does anything that re-asks that rule from the served document afterwards. See
+   * `IRRuntimeMeta.guardSchemes` for what went wrong while only the pass had it.
+   */
+  readonly guardSecuritySchemes?: Readonly<Record<string, string>>;
+  /**
+   * The exemption key the host named, per SPEC 6.2.1, carried through to the document meta.
+   *
+   * IT IS CARRIED RATHER THAN CONSUMED HERE, exactly as the mapping above is. The collector that
+   * reads the key is built from the option by the pass and arrives in the ordinary registration
+   * list; what this carries is the fact that a key was named at all, which is what decides the two
+   * sentences of `security-drift` in SPEC 7.1 wherever that rule is re-asked. It goes into the
+   * document through {@link printableKey}, because a document is serialized and a symbol is not.
+   */
+  readonly publicRouteKey?: string | symbol;
   /** Version of NestJS the host is running, for the document meta. */
   readonly nestVersion?: string;
   /** ISO 8601 instant to record as the collection time. Injected so the meta is reproducible. */
@@ -80,14 +99,90 @@ interface Retirement {
   missed: number;
 }
 
+/** One pair of collectors that tied over one field, and every route where they did. */
+interface ContestRecord {
+  readonly contest: FactContest;
+  /** The first route it happened on, which is the one a reader is sent to look at. */
+  readonly firstSubject: string;
+  /** How many routes in all, so the record says how wide the disagreement is. */
+  routes: number;
+}
+
 /** The health check this registry owns, per SPEC 7.2. */
 export const COLLECTOR_HEALTH_CHECK_ID = 'runtime-collectors';
+
+/**
+ * Reads one entry of a collector's problem list, when it is one.
+ *
+ * A THIRD PARTY COLLECTOR'S LIST IS NOT TYPE CHECKED BY ANYTHING. `problems()` is not on the frozen
+ * contract, so nothing between that collector and this line agreed on what it holds, and a document
+ * carrying `[object Object]` in a `doctor` report would be this package's defect and not theirs.
+ *
+ * @param entry - One element of whatever `problems()` returned
+ * @returns The problem, or undefined when the element is not one
+ */
+function asProblem(entry: unknown): IRDiscoveryProblem | undefined {
+  if (typeof entry !== 'object' || entry === null) return undefined;
+
+  const { subject, reason, action, detail } = entry as {
+    subject?: unknown;
+    reason?: unknown;
+    action?: unknown;
+    detail?: unknown;
+  };
+  if (typeof subject !== 'string' || typeof reason !== 'string') return undefined;
+  if (subject === '' || reason === '') return undefined;
+
+  // THE TWO OPTIONAL HALVES OF SPEC 7.1's VOICE, EACH READ ON ITS OWN. A collector that supplies
+  // neither is exactly where it was: its one sentence lands in both slots, which is what every
+  // producer did before the split. A collector that supplies one and not the other is not a
+  // defect either, since a cause can have an action and no reasoning worth opening.
+  return {
+    subject,
+    reason,
+    ...(typeof action === 'string' && action !== '' ? { action } : {}),
+    ...(typeof detail === 'string' && detail !== '' ? { detail } : {}),
+  };
+}
+
+/**
+ * The key as a document can carry it.
+ *
+ * A SYMBOL DOES NOT SERIALIZE AND ITS DESCRIPTION DOES. `String(Symbol('IS_PUBLIC'))` is
+ * `Symbol(IS_PUBLIC)`, which is what a host recognises and what every message in this repository
+ * already prints for a symbol key. Exported so the pass fills `DriftObservation.publicRouteKey` and
+ * `IRRuntimeMeta.publicRouteKey` from one spelling rather than two.
+ *
+ * @param key - The key the host named
+ * @returns Its printable form
+ */
+export function printableKey(key: string | symbol): string {
+  return typeof key === 'string' ? key : String(key);
+}
 
 export class CollectorRegistry {
   private readonly collectors: readonly IRuntimeCollector[];
   private readonly registeredNames: readonly string[];
   private readonly declined: readonly { readonly collector: string; readonly reason: string }[];
   private readonly retired = new Map<string, Retirement>();
+  /**
+   * Ties of equal confidence, one record per pair of collectors and field rather than per route.
+   *
+   * KEYED SO THE REPORT IS READABLE, by the same doctrine that retires a throwing collector after
+   * one record: two collectors that tie over `rateLimit` on one route tie over it on every route
+   * they both see, and a thousand copies of one sentence is a report nobody reads. The count of
+   * routes rides along, so the record says how wide the disagreement is rather than only that
+   * there was one.
+   */
+  private readonly contested = new Map<string, ContestRecord>();
+  /**
+   * Collectors that returned facts about at least one node, which is what the check counts.
+   *
+   * A NAME IS ADDED WHEN SOMETHING CAME BACK, not when the collector was called. A collector is
+   * called on every node and returns `undefined` on the ones it has nothing to say about, so being
+   * called says only that the pass reached it.
+   */
+  private readonly reported = new Set<string>();
   private readonly options: CollectorRegistryOptions;
   /**
    * The global guard names, frozen once, because every context is handed this same array.
@@ -154,11 +249,17 @@ export class CollectorRegistry {
         continue;
       }
 
-      if (produced !== undefined)
+      if (produced !== undefined) {
+        this.reported.add(collector.name);
         contributions.push({ collector: collector.name, runtime: produced });
+      }
     }
 
-    return mergeContributions(contributions);
+    const contests: FactContest[] = [];
+    const merged = mergeContributions(contributions, contests);
+    this.recordContests(contests, `${target.controller.name}.${target.handlerName}`);
+
+    return merged;
   }
 
   /**
@@ -185,8 +286,128 @@ export class CollectorRegistry {
       ...(this.options.sourceLinkTemplate === undefined
         ? {}
         : { sourceLinkTemplate: this.options.sourceLinkTemplate }),
+      ...(this.options.guardSecuritySchemes === undefined
+        ? {}
+        : { guardSchemes: this.options.guardSecuritySchemes }),
+      ...(this.options.publicRouteKey === undefined
+        ? {}
+        : { publicRouteKey: printableKey(this.options.publicRouteKey) }),
       ...(skipped.length === 0 ? {} : { skipped }),
     };
+  }
+
+  /**
+   * Everything the collectors could not read, and everything this pass decided for them.
+   *
+   * TWO SOURCES AND ONE CHANNEL, because a reader of `doctor` has one question and it is not "which
+   * layer noticed". The first is the collectors' own record of what they met and could not turn
+   * into a fact; the second is {@link contests}, this registry's record of a tie it broke.
+   *
+   * WHY THE COLLECTORS' RECORD HAD TO BE DRAINED HERE. The rule of `docs/guide/04-collectors.md`
+   * is that a fact which cannot be obtained produces a `doctor` warning and never a guess, and
+   * every collector in this repository and in all four ecosystem packages honours the first half
+   * by keeping a `problems()` list. Nothing read it. Measured before this change:
+   * `grep -rn '\\.problems()'` outside `test/` returned zero hits, so fifteen collectors were
+   * writing warnings into an accumulator whose only reader was their own unit tests, and a third
+   * party collector had no route into `doctor` at all. A rule with no runner is the shape SPEC 0
+   * is written against.
+   *
+   * IT IS READ STRUCTURALLY AND `IRuntimeCollector` DOES NOT MOVE. The contract is two members and
+   * frozen as public API, so `problems()` cannot become a third one without a major version; what
+   * this does is offer a channel to a collector that already has the method, which every one of
+   * ours does and any third party may. A collector without it is not asked and loses nothing.
+   *
+   * IT IS FAIL OPEN LIKE EVERYTHING ELSE HERE. `problems()` is somebody else's code running after
+   * the pass: a throw is caught and reported as its own problem rather than taking the boot down,
+   * and an entry that is not a pair of strings is skipped rather than printed as `[object Object]`.
+   *
+   * @returns One entry per problem, named by the collector that reported it
+   */
+  problems(): readonly IRDiscoveryProblem[] {
+    return [...this.collectorProblems(), ...this.contests()];
+  }
+
+  /**
+   * Drains the problem list of every collector that keeps one.
+   *
+   * @returns What the collectors could not read, prefixed with the name that could not read it
+   */
+  private collectorProblems(): readonly IRDiscoveryProblem[] {
+    const drained: IRDiscoveryProblem[] = [];
+
+    for (const collector of this.collectors) {
+      const method = (collector as { problems?: unknown }).problems;
+      if (typeof method !== 'function') continue;
+
+      let found: unknown;
+      try {
+        found = (method as () => unknown).call(collector);
+      } catch (cause) {
+        drained.push({
+          subject: collector.name,
+          reason: 'it threw when asked for the problems it recorded, so they are unreported',
+          action:
+            'report it to whoever wrote the collector: this is a defect in the instrument and ' +
+            'not in the application',
+          detail:
+            'The throw was: ' +
+            `${cause instanceof Error ? cause.message : String(cause)}. Whatever this collector ` +
+            'could not read is therefore missing from this report as well as from the reference.',
+        });
+        continue;
+      }
+
+      if (!Array.isArray(found)) continue;
+
+      for (const entry of found as readonly unknown[]) {
+        const problem = asProblem(entry);
+        if (problem === undefined) continue;
+
+        // THE COLLECTOR'S NAME GOES IN FRONT, as it does for a skipped one. Every reason in this
+        // repository is written as a continuation of its subject, so without the name a reader of
+        // `doctor` is told a route has an unreadable policy and not by which instrument. It
+        // survived the sentence being cut to a clause on purpose, per SPEC 7.1: shortening the
+        // text may not cost the provenance, and this word is the whole of it.
+        drained.push({ ...problem, reason: `${collector.name}: ${problem.reason}` });
+      }
+    }
+
+    return drained;
+  }
+
+  /**
+   * The ties of equal confidence this pass resolved by registration order, phrased for `doctor`.
+   *
+   * A TIE IS DETERMINISTIC AND WAS INVISIBLE, WHICH IS TWO PROPERTIES AND NOT ONE. SPEC 6.2 states
+   * the rule and T017 has always enforced it, so the same input has always produced the same
+   * document; what nothing said was that a second collector had reported a different value for a
+   * fact a reader is looking at. The page draws the winner's provenance, so the reader could not
+   * tell one report from two. It stayed unreachable while every fact field had a single producer in
+   * the shipped set, and the second producer of `rateLimit` reaches it.
+   *
+   * IT IS A PROBLEM AND NOT A DRIFT ISSUE, by the argument {@link healthCheck} already makes about
+   * the other direction: drift is the specification and the application disagreeing, per SPEC 7.1,
+   * and this is two instruments disagreeing. `IRRuntimeMeta.problems` is where a fact the reference
+   * would have carried and cannot goes, and the dropped value is exactly that.
+   *
+   * @returns One entry per pair of collectors and field, in the order the ties first happened
+   */
+  contests(): readonly IRDiscoveryProblem[] {
+    return [...this.contested.values()].map((record) => ({
+      subject: record.firstSubject,
+      reason:
+        `two collectors reported ${record.contest.field}, so ${record.contest.dropped} was ` +
+        'dropped and the reference carries one of the two readings',
+      action:
+        `register only ${record.contest.kept} or ${record.contest.dropped}, whichever reads the ` +
+        'mechanism this application runs, or put it first, because the first registration wins',
+      detail:
+        `Both reported at "${record.contest.confidence}", and equal confidence is broken by ` +
+        `registration order, so ${record.contest.kept} is in the reference${
+          record.routes === 1 ? '' : ` on this and ${String(record.routes - 1)} further route(s)`
+        }. Nothing anywhere says the two agreed, which is why this is recorded rather than left ` +
+        'to the deterministic rule that resolved it.',
+    }));
   }
 
   /**
@@ -197,17 +418,24 @@ export class CollectorRegistry {
    * instrument failing rather than the two sides differing. Reporting it as drift would put a
    * defect in this package into a list a reader is meant to act on by editing their own code.
    *
-   * @returns How many of the registered collectors contributed
+   * IT COUNTS WHAT CAME BACK, NOT WHAT WAS TYPED. Until this it counted registrations minus the
+   * ones that declined or threw, so on every run where nothing crashed it read `5 / 5`, and it is
+   * the only line about collectors a reader of the health page sees. A registration is the host's
+   * own input, so a check whose numerator and denominator both come from it answers a question
+   * nobody asked. A collector that was reached on every node and never once had anything to say is
+   * the ordinary shape of a misconfiguration, a metadata key that does not match or a package the
+   * application does not actually use, and it was invisible. It is a `warning` because the other
+   * reading is also possible and also fine: an application with no streaming endpoint gives
+   * `streamCollector` nothing to report, and that is worth a reader's glance rather than an alarm.
+   *
+   * @returns How many of the registered collectors reported a fact about at least one node
    */
   healthCheck(): IRHealthCheck {
-    const total = this.registeredNames.length;
-    const lost = this.declined.length + this.retired.size;
-
     return {
       id: COLLECTOR_HEALTH_CHECK_ID,
-      label: 'Runtime collectors that ran',
-      passed: total - lost,
-      total,
+      label: 'Runtime collectors that reported a fact',
+      passed: this.registeredNames.filter((name) => this.reported.has(name)).length,
+      total: this.registeredNames.length,
       severity: 'warning',
     };
   }
@@ -251,6 +479,26 @@ export class CollectorRegistry {
         collector: collector.name,
       }),
     };
+  }
+
+  /**
+   * Folds one node's ties into the pass wide record.
+   *
+   * @param contests - What the merge decided by order on this node
+   * @param subject - The route, as a reader of `doctor` recognises it
+   */
+  private recordContests(contests: readonly FactContest[], subject: string): void {
+    for (const contest of contests) {
+      const key = `${contest.field}\0${contest.kept}\0${contest.dropped}\0${contest.confidence}`;
+      const held = this.contested.get(key);
+
+      if (held === undefined) {
+        this.contested.set(key, { contest, firstSubject: subject, routes: 1 });
+        continue;
+      }
+
+      held.routes += 1;
+    }
   }
 
   /**

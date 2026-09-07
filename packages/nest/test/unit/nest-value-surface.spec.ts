@@ -27,7 +27,10 @@ import {
   NestFactory,
 } from '@nestjs/core';
 import { EventPattern, MessagePattern, Transport } from '@nestjs/microservices';
+import { ApiOperation, DECORATORS } from '@nestjs/swagger';
 import { SubscribeMessage, WebSocketGateway } from '@nestjs/websockets';
+import { PUBSUB_SUBSCRIBE_METADATA, Subscribe } from '@nestjs-redisx/pubsub';
+import { STREAM_CONSUMER_METADATA, StreamConsumer } from '@nestjs-redisx/streams';
 import type { Observable } from 'rxjs';
 import {
   NEST_CORE_VALUE_NAMES,
@@ -48,8 +51,12 @@ import {
   NEST_TRANSPORT_NAMES,
   NEST_TRANSPORT_PROTOCOLS,
   NEST_WEBSOCKET_METADATA,
+  REDISX_EVENT_METADATA,
+  SWAGGER_EXTENSION_METADATA,
+  SWAGGER_OPERATION_METADATA,
 } from '../../src/shared/types/nest-surface';
 import { readGlobalGuards } from '../../src/runtime/domain/guards';
+import { readGlobalPrefix } from '../../src/runtime/domain/global-prefix';
 import {
   loadNestCore,
   nestCoreVersion,
@@ -176,6 +183,37 @@ describe('the metadata keys the discovery pass reads', () => {
     expect(controllerPath).toBe('orders');
     expect(handlerPath).toBe(':id');
     expect(handlerMethod).toBe(RequestMethod.GET);
+  });
+
+  it('should be where @ApiOperation writes, which is where a written operationId is', () => {
+    // Given the key pairing rule one probes with. `createMethodDecorator` in `@nestjs/swagger`
+    // calls `Reflect.defineMetadata(metakey, value, descriptor.value)`, so the object is on the
+    // handler function, which is the target `NEST_ROUTE_METADATA.method` is already read from.
+    @Controller('dashboards')
+    class DashboardController {
+      @Get()
+      @ApiOperation({ operationId: 'getNavigation', summary: 'Navigation' })
+      navigation(): string {
+        return 'navigation';
+      }
+    }
+
+    // When
+    const descriptor = Object.getOwnPropertyDescriptor(DashboardController.prototype, 'navigation');
+    const handler = descriptor?.value as object;
+    const operation = Reflect.getMetadata(SWAGGER_OPERATION_METADATA, handler) as
+      { operationId?: unknown } | undefined;
+
+    // Then, against the installed package rather than against memory
+    expect(SWAGGER_OPERATION_METADATA).toBe(DECORATORS.API_OPERATION);
+    expect(operation?.operationId).toBe('getNavigation');
+  });
+
+  it('should be where @ApiExtension writes, which is the key already read beside it', () => {
+    // Given the neighbouring literal, pinned for the first time here. It was probed end to end
+    // through a real `SwaggerModule.createDocument` and then written from memory; the package is a
+    // devDependency now, so the two live in one assertion rather than in a comment.
+    expect(SWAGGER_EXTENSION_METADATA).toBe(DECORATORS.API_EXTENSION);
   });
 
   it('should be where @UseGuards writes, at both levels, on the real decorator', () => {
@@ -410,6 +448,53 @@ describe('the metadata keys the event discovery of SPEC 8.3 reads', () => {
     expect(Reflect.getMetadata(NEST_WEBSOCKET_METADATA.messageMapping, handler)).toBe(true);
     expect(Reflect.getMetadata(NEST_WEBSOCKET_METADATA.message, handler)).toBe('events');
   });
+
+  it('should be where @Subscribe and @StreamConsumer write, on the real decorators', () => {
+    // Given the two `@nestjs-redisx` keys, measured on the real decorators rather than assumed.
+    // Neither package is a dependency of this one, for the reason the microservice keys are not:
+    // an application that subscribes to nothing over Redis carries neither key.
+    class OrdersProjector {
+      @Subscribe('orders.created')
+      onCreated(): void {
+        // nothing
+      }
+
+      @Subscribe({ pattern: 'orders.*' })
+      onAny(): void {
+        // nothing
+      }
+
+      @StreamConsumer({ stream: 'orders', group: 'projector' })
+      onStream(): void {
+        // nothing
+      }
+    }
+
+    // When
+    const created = Object.getOwnPropertyDescriptor(OrdersProjector.prototype, 'onCreated')
+      ?.value as object;
+    const any = Object.getOwnPropertyDescriptor(OrdersProjector.prototype, 'onAny')
+      ?.value as object;
+    const stream = Object.getOwnPropertyDescriptor(OrdersProjector.prototype, 'onStream')
+      ?.value as object;
+
+    // Then the symbols this package names are the ones the libraries export, and each holds the
+    // decorator's own object. `@StreamConsumer` adds the method name to what it stores, which this
+    // package never reads and which is recorded here so a reader of the table is not surprised.
+    expect(REDISX_EVENT_METADATA.subscribe).toBe(PUBSUB_SUBSCRIBE_METADATA);
+    expect(REDISX_EVENT_METADATA.streamConsumer).toBe(STREAM_CONSUMER_METADATA);
+    expect(Reflect.getMetadata(REDISX_EVENT_METADATA.subscribe, created)).toEqual({
+      channel: 'orders.created',
+    });
+    expect(Reflect.getMetadata(REDISX_EVENT_METADATA.subscribe, any)).toEqual({
+      pattern: 'orders.*',
+    });
+    expect(Reflect.getMetadata(REDISX_EVENT_METADATA.streamConsumer, stream)).toEqual({
+      stream: 'orders',
+      group: 'projector',
+      methodName: 'onStream',
+    });
+  });
 });
 
 describe('the global enhancer registrations, asked of a real container', () => {
@@ -545,6 +630,48 @@ describe('the global enhancer registrations, asked of a real container', () => {
     try {
       // Then
       expect(readGlobalGuards(app.get(DiscoveryService))).toEqual({ names: [], anonymous: 0 });
+    } finally {
+      await app.close();
+    }
+  });
+});
+
+describe('the global prefix, asked of a real application', () => {
+  it('should be readable off the providers the container already enumerates', async () => {
+    // Given an application that calls `setGlobalPrefix`, which is what puts `/api/v1` in front of
+    // every document path while the controller still declares `/orders`. The reading is a walk of
+    // `DiscoveryService.getProviders`, so this is the case that says `ApplicationConfig` is in that
+    // enumeration on the installed framework rather than that it was in it once.
+    @Module({ imports: [DiscoveryModule] })
+    // eslint-disable-next-line @typescript-eslint/no-extraneous-class
+    class AppModule {}
+
+    const app = await NestFactory.create(AppModule, { logger: false });
+    app.setGlobalPrefix('api/v1');
+
+    try {
+      // When
+      const reading = readGlobalPrefix(app.get(DiscoveryService));
+
+      // Then
+      expect(reading.prefix).toBe('/api/v1');
+    } finally {
+      await app.close();
+    }
+  });
+
+  it('should read the empty string from an application that sets no prefix', async () => {
+    // Given, so that "read and there is none" is a measurement and not an assumption
+    @Module({ imports: [DiscoveryModule] })
+    // eslint-disable-next-line @typescript-eslint/no-extraneous-class
+    class AppModule {}
+
+    const app = await NestFactory.create(AppModule, { logger: false });
+
+    try {
+      // When, Then. The pass reports an unreadable prefix and says nothing about an absent one,
+      // so the two answers have to stay distinguishable here.
+      expect(readGlobalPrefix(app.get(DiscoveryService)).prefix).toBe('');
     } finally {
       await app.close();
     }

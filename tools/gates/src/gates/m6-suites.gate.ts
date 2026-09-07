@@ -1,21 +1,13 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import {
-  M6_MILESTONE,
-  M6_MILESTONE_CLAUSES,
-  M6_SUITE_COVERAGE,
-  M6_SUITE_ROWS,
-  SPEC_FILE,
-} from '../config.js';
-import { AI_DOCS_DIR, aiDocsPresent } from '../lib/ai-docs.js';
+import { M6_MILESTONE, M6_MILESTONE_CLAUSES, M6_SUITE_COVERAGE, M6_SUITE_ROWS } from '../config.js';
+import { readSpecHalf } from '../lib/projected-spec.js';
 import { runCommand } from '../lib/exec.js';
 import {
   assertionlessCaseTitlesIn,
   caseTitlesIn,
   checkMilestoneClauses,
   checkStaticCoverage,
-  milestoneClausesOf,
-  suiteRowOf,
   type StaticSuiteIssue,
 } from '../lib/static-suites.js';
 import type { Gate, GateContext, GateFinding, GateResult } from '../types.js';
@@ -48,9 +40,13 @@ export function runM6SuitesGate(context: GateContext): GateResult {
 
   const files = [...new Set(M6_SUITE_COVERAGE.flatMap((coverage) => coverage.files))].sort();
 
-  const specPath = join(context.repoRoot, SPEC_FILE);
-  const haveSpec = aiDocsPresent(context.repoRoot) && existsSync(specPath);
-  const spec = haveSpec ? readFileSync(specPath, 'utf8') : '';
+  const half = readSpecHalf(context.repoRoot, {
+    rows: M6_SUITE_ROWS,
+    milestone: M6_MILESTONE,
+    coverageNames: M6_SUITE_COVERAGE.map((coverage) => coverage.spec),
+    clauseNames: M6_MILESTONE_CLAUSES.map((clause) => clause.spec),
+  });
+  const haveSpec = half.read;
   const repository = {
     exists: (path: string): boolean => existsSync(join(context.repoRoot, path)),
     casesIn: (path: string): readonly string[] => {
@@ -81,7 +77,7 @@ export function runM6SuitesGate(context: GateContext): GateResult {
   const missingRows: string[] = [];
   if (haveSpec) {
     for (const row of M6_SUITE_ROWS) {
-      const names = suiteRowOf(spec, row);
+      const names = half.rows.get(row) ?? null;
       if (names === null) missingRows.push(row);
       else rowNames.push(...names);
     }
@@ -103,7 +99,7 @@ export function runM6SuitesGate(context: GateContext): GateResult {
   issues.push(
     ...checkMilestoneClauses(M6_MILESTONE_CLAUSES, {
       milestone: M6_MILESTONE,
-      clauses: haveSpec ? milestoneClausesOf(spec, M6_MILESTONE) : [],
+      clauses: haveSpec ? half.clauses : [],
       specNames: [],
       ...repository,
       compareWithSpec: haveSpec,
@@ -116,7 +112,7 @@ export function runM6SuitesGate(context: GateContext): GateResult {
       message: `SPEC 21 rows ${M6_SUITE_ROWS.join(', ')} state ${String(rowNames.length)} coverage(s): ${rowNames.join(', ')}`,
     });
 
-    const clauses = milestoneClausesOf(spec, M6_MILESTONE);
+    const clauses = half.clauses;
     findings.push({
       level: 'info',
       message:
@@ -124,21 +120,9 @@ export function runM6SuitesGate(context: GateContext): GateResult {
           ? `SPEC 22 states no definition of done for ${M6_MILESTONE}`
           : `SPEC 22 ${M6_MILESTONE} is done when ${String(clauses.length)} clause(s) hold, each answered by named cases: ${clauses.join(' | ')}`,
     });
-  } else {
-    findings.push({
-      level: 'warning',
-      message:
-        `SKIPPED, NOT PASSED, AND THE SKIP COVERS THE SPEC HALF ONLY: ${AI_DOCS_DIR}/ is not ` +
-        `present, so the four SPEC 21 rows ${M6_SUITE_ROWS.join(', ')} and the SPEC 22 ` +
-        `${M6_MILESTONE} definition of done were not compared with this wiring, and this run ` +
-        `proves nothing about either document. The suite half still ran and can still fail: every ` +
-        `named suite file must be there, every named case must be present and assert something, ` +
-        `and the coverage suites are run, the bridge soak among them. ${AI_DOCS_DIR}/ is excluded ` +
-        `from git in .git/info/exclude and no clone restores it, so a checkout without it is ` +
-        `expected rather than broken. AWAITING THE MAINTAINER'S DECISION on how ${AI_DOCS_DIR}/ ` +
-        `is versioned; until it is made, the document half can only run where the documents are.`,
-    });
   }
+
+  for (const message of half.errors) findings.push({ level: 'error', message });
 
   for (const issue of issues) {
     findings.push({ level: 'error', message: `[${issue.rule}] ${issue.message}` });
@@ -173,11 +157,7 @@ export function runM6SuitesGate(context: GateContext): GateResult {
   return {
     id: m6SuitesGate.id,
     title: m6SuitesGate.title,
-    ...(failed
-      ? { status: 'fail' as const }
-      : haveSpec
-        ? { status: 'pass' as const }
-        : { status: 'skip' as const, skipReason: 'ai-docs-absent' as const }),
+    status: failed ? 'fail' : 'pass',
     findings,
   };
 }

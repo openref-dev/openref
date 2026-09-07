@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import {
   BUDGET_SPEC_ROWS,
@@ -10,19 +10,17 @@ import {
   SPEC_20_BUDGET_IDS,
   SPEC_FILE,
 } from '../config.js';
-import { aiDocsAbsentMessage, aiDocsPresent } from '../lib/ai-docs.js';
 import { planTaskIds } from '../lib/build-manifest.js';
 import {
   checkClaimFigures,
   checkClaimMap,
   checkClaimQuotes,
   compareBudgetValues,
-  parseBudgetRows,
-  parseClaimMap,
-  parseSecurityClaims,
   thresholdOfCell,
+  type BudgetRow,
   type ConfigThreshold,
 } from '../lib/claims.js';
+import { digestOf, PROJECTION_FILE, readProjection } from '../lib/projection.js';
 import type { Gate, GateFinding, GateResult } from '../types.js';
 
 /**
@@ -77,6 +75,18 @@ export function configThresholds(): ConfigThreshold[] {
  * gain a task without being regenerated, which is the maintainer's call, so scheduled work with
  * no task there lives under TASKS NOT YET IN BUILD.md in `ai-docs/BUILD-AMENDMENTS.md`. Both are
  * real owners; a claim owned by neither is a claim nobody will come back to.
+ *
+ * BOTH DOCUMENTS ARRIVE THROUGH THE COMMITTED PROJECTION, AND THE PROMISES ARRIVE AS DIGESTS.
+ * SPEC 19 is a list of sentences and the claim map quotes each of them word for word, so the
+ * comparison this gate makes is an equality between two texts, and an equality survives a digest
+ * exactly while the words do not survive it at all. What that costs is the message: where a quote
+ * has drifted, a clone can say which row drifted and not what it now says, and a reader opens the
+ * two documents. What it buys is that the drift is caught at all, which before the artefact
+ * happened on one machine.
+ *
+ * THE FIGURES SURVIVE AS FIGURES. A SPEC 20 threshold cell is a bound followed by paragraphs of
+ * history, and only the bound is read, so only the bound ships. A claim map bounds cell is prose
+ * carrying numbers, and only the numbers are read, so only the numbers ship.
  */
 export const claimsGate: Gate = {
   id: 'claims',
@@ -85,50 +95,38 @@ export const claimsGate: Gate = {
   run(context): Promise<GateResult> {
     const findings: GateFinding[] = [];
 
-    if (!aiDocsPresent(context.repoRoot)) {
+    const read = readProjection(context.repoRoot);
+
+    if (!read.ok) {
       return Promise.resolve({
         id: claimsGate.id,
         title: claimsGate.title,
-        status: 'skip',
-        skipReason: 'ai-docs-absent',
-        findings: [
-          {
-            level: 'warning',
-            message: aiDocsAbsentMessage(claimsGate.title, [
-              SPEC_FILE,
-              CLAIM_MAP_FILE,
-              BUILD_FILE,
-              'ai-docs/BUILD-AMENDMENTS.md',
-            ]),
-          },
-        ],
+        status: 'fail',
+        findings: [{ level: 'error', message: `[projection-unreadable] ${read.reason}` }],
       });
     }
 
-    const read = (file: string): string | null => {
-      try {
-        return readFileSync(join(context.repoRoot, file), 'utf8');
-      } catch {
-        return null;
-      }
-    };
+    const data = read.projection.data;
+    const securityClaims = data.spec.securityClaims;
+    const rows = data.claimMap;
+    const projectedRows = data.spec.budgetRows;
+    const build = data.build;
+    const amendments = data.amendments;
 
-    const spec = read(SPEC_FILE);
-    const map = read(CLAIM_MAP_FILE);
-    const build = read(BUILD_FILE);
-    const amendments = read('ai-docs/BUILD-AMENDMENTS.md');
-
-    for (const [file, text] of [
-      [SPEC_FILE, spec],
-      [CLAIM_MAP_FILE, map],
-      [BUILD_FILE, build],
+    for (const [file, present] of [
+      [SPEC_FILE, securityClaims !== null && projectedRows !== null],
+      [CLAIM_MAP_FILE, rows !== null],
+      [BUILD_FILE, build !== null],
     ] as const) {
-      if (text !== null) continue;
+      if (present) continue;
 
-      findings.push({ level: 'error', message: `${file} could not be read` });
+      findings.push({
+        level: 'error',
+        message: `${file} was not readable when ${PROJECTION_FILE} was generated, or the section this gate reads was not in it`,
+      });
     }
 
-    if (spec === null || map === null || build === null) {
+    if (securityClaims === null || projectedRows === null || rows === null || build === null) {
       return Promise.resolve({
         id: claimsGate.id,
         title: claimsGate.title,
@@ -137,9 +135,19 @@ export const claimsGate: Gate = {
       });
     }
 
-    const securityClaims = parseSecurityClaims(spec);
-    const rows = parseClaimMap(map);
-    const budgetRows = parseBudgetRows(spec);
+    // THE LABEL COMES BACK OUT OF THE CONFIGURATION AND NOT OUT OF THE ARTEFACT. `BUDGET_SPEC_ROWS`
+    // already carries the row label each budget answers, word for word and committed, so a digest
+    // that matches one of them can be printed as the words it stands for. A digest that matches
+    // none is a row the configuration does not name, which is the failure being reported, and
+    // there is nothing committed to print for it.
+    const labels = new Map(
+      Object.values(BUDGET_SPEC_ROWS).map((label) => [digestOf(label), label]),
+    );
+    const budgetRows: BudgetRow[] = projectedRows.map((row) => ({
+      label: labels.get(row.label) ?? `${row.label} (a SPEC 20 row no budget names)`,
+      threshold: row.threshold,
+    }));
+
     const thresholds = configThresholds();
 
     const issues = checkClaimMap({

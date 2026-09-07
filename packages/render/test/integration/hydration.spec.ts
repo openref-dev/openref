@@ -355,8 +355,20 @@ describe('readPageState', () => {
     // article whose client walk finds marks it cannot draw, or draws nothing under the header
     // where the server drew the address variables, the operations and the messages. T052 added
     // `topology`, the graph of SPEC 9 the overview draws, and that is 19: a page cached before
-    // it hydrates an overview whose client walk finds no graph where the server drew one.
-    expect(state?.pageModelVersion).toBe(19);
+    // it hydrates an overview whose client walk finds no graph where the server drew one. The
+    // maintainer's twelve added `codeSamplesElsewhere`, the SPEC 18 languages generated for an
+    // operation and not drawn on its page, and that is 20: a page cached before it hydrates an
+    // article whose client walk reads no list where the server named three languages, so the
+    // three go back to being silently absent, which is the state the member exists to end. The
+    // same slice added `codeSamplesRefused`, the languages that wrote nothing for this request
+    // and the reason they gave, and that is 21: a page cached before it hydrates an article whose
+    // client walk reads no list where the server stated a refusal, so a vanished tab goes back to
+    // looking like a language the reference never had. The third round of that slice added
+    // `codeSamplesNotes`, what is true of the samples the page did draw, and that is 22: a page
+    // cached before it hydrates an article whose client walk reads no list where the server said
+    // that four of its twelve clients treat a redirect unlike the console, or that no sample on
+    // the page carries the credential the operation needs.
+    expect(state?.pageModelVersion).toBe(22);
   });
 });
 

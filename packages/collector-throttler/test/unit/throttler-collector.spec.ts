@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { Controller, Get, UseGuards } from '@nestjs/common';
 import { SkipThrottle, Throttle } from '@nestjs/throttler';
+import { RUNTIME_FACT_COLLECTORS } from '@openref/core';
 import type { IRConfidence, IRFact, IRNode } from '@openref/core';
 import type { CollectorContext } from '@openref/nest';
 import { isRuntimeCollector } from '@openref/nest';
@@ -45,8 +46,13 @@ function readerOf(table: ReadonlyMap<unknown, ReadonlyMap<string, unknown>>): Me
   };
 }
 
-/** A context over one route. */
-function contextOf(): CollectorContext {
+/**
+ * A context over one route.
+ *
+ * @param globalGuards - Class names registered for the whole application, per SPEC 6.2.1
+ * @returns The context
+ */
+function contextOf(globalGuards: readonly string[] = []): CollectorContext {
   return {
     node: { id: 'orders.list' } as unknown as IRNode,
     controller: OrdersController,
@@ -55,7 +61,7 @@ function contextOf(): CollectorContext {
     handlerName: 'list',
     reflector: { get: () => undefined, getAllAndOverride: () => undefined },
     moduleRef: { get: () => undefined },
-    globalGuards: [],
+    globalGuards,
     globalPipes: [],
     fact: <T>(value: T, confidence: IRConfidence): IRFact<T> => ({
       value,
@@ -237,6 +243,79 @@ describe('throttlerCollector', () => {
     expect(collector.problems()[0]?.reason).toContain('no ttl');
   });
 
+  it('should say a route behind a global guard is governed from outside, not unlimited', () => {
+    // Given the ordinary installation of this package: `ThrottlerGuard` under `APP_GUARD`, and a
+    // route carrying no `@Throttle` of its own. Before SPEC 6.2.3 this produced nothing, so the
+    // page told such a route the same thing it told a route nothing limits.
+    const collector = collectorOver(new Map());
+
+    // When
+    const produced = collector.collect(contextOf(['ThrottlerGuard']));
+
+    // Then, and no budget travels: no reachable reading of `ThrottlerModule.forRoot` has been
+    // measured for this package, and a number nobody measured is the guess SPEC 6.1 forbids.
+    expect(produced?.rateLimit).toBeUndefined();
+    expect(produced?.rateLimitReach).toEqual({
+      value: { kind: 'external', by: ['ThrottlerGuard'] },
+      confidence: 'derived',
+      collector: THROTTLER_COLLECTOR_NAME,
+    });
+  });
+
+  it('should say a route with nothing in front of it is not rate limited at all', () => {
+    // Given no `@Throttle` and no globally registered guard
+    const collector = collectorOver(new Map());
+
+    // When
+    const produced = collector.collect(contextOf());
+
+    // Then the third state of SPEC 6.2.3, which is an answer rather than a silence
+    expect(produced?.rateLimitReach?.value).toEqual({ kind: 'none' });
+  });
+
+  it('should claim no reach for a route that opted out, since that is its own decision', () => {
+    // Given `@SkipThrottle()` on a route behind a global guard. The route decided something; an
+    // opt out of one throttler is not an observation about everything else standing in front.
+    const collector = collectorOver(
+      new Map([
+        [list, new Map<string, unknown>([[`${THROTTLER_KEY_PREFIXES.skip}default`, true]])],
+      ]),
+    );
+
+    // When
+    const produced = collector.collect(contextOf(['ThrottlerGuard']));
+
+    // Then, and the guard standing in front of it is still named, because that is a separate
+    // reading and the opt out did not withdraw it
+    expect(produced?.rateLimitReach).toBeUndefined();
+    expect(produced?.rateLimit).toBeUndefined();
+    expect(produced?.guards).toEqual([
+      {
+        name: 'ThrottlerGuard',
+        scope: 'global',
+        purpose: 'rate-limit',
+        confidence: 'derived',
+        collector: THROTTLER_COLLECTOR_NAME,
+      },
+    ]);
+  });
+
+  it('should claim no reach for a route whose declared throttler could not be read', () => {
+    // Given a limit with no ttl, behind a global guard. `problems` already says what was unread,
+    // and calling the route governed or unlimited would state something nothing observed.
+    const collector = collectorOver(
+      new Map([[list, new Map<string, unknown>([[`${THROTTLER_KEY_PREFIXES.limit}default`, 3]])]]),
+    );
+
+    // When
+    const produced = collector.collect(contextOf(['ThrottlerGuard']));
+
+    // Then
+    expect(produced?.rateLimitReach).toBeUndefined();
+    expect(produced?.rateLimit).toBeUndefined();
+    expect(collector.problems()[0]?.reason).toContain('no ttl');
+  });
+
   it('should record the throttlers it could not carry when several apply', () => {
     // Given two named throttlers on one route, against one IRRateLimit field
     const collector = collectorOver(
@@ -256,9 +335,15 @@ describe('throttlerCollector', () => {
     // When
     const produced = collector.collect(contextOf());
 
-    // Then
+    // Then the count is the cause, the one the row carries is the action, and the names of the
+    // ones it does not carry are the reasoning, per SPEC 7.1
     expect(produced?.rateLimit?.value.name).toBe('short');
-    expect(collector.problems()[0]?.reason).toContain('"long"');
+    const problem = collector.problems()[0];
+    expect(problem?.reason).toContain('2 named throttlers apply here');
+    expect(problem?.reason).toContain('the reference carries one');
+    expect(problem?.action).toContain('"short"');
+    expect(problem?.detail).toContain('"long"');
+    expect(problem?.detail).toContain('guard logic is never read');
   });
 
   it('should skip rather than fail the build when the package is not installed', () => {
@@ -287,5 +372,122 @@ describe('throttlerCollector', () => {
 
     // When, Then
     expect(isRuntimeCollector(registration)).toBe(true);
+  });
+});
+
+/**
+ * The name this collector stamps is the name `@openref/core` names for its fact.
+ *
+ * IT IS ASSERTED HERE BECAUSE THE TWO LISTS LIVE IN TWO PACKAGES. `@openref/render` writes the
+ * sentence "no registered collector reports X" against a table in `core`, and cannot import this
+ * package to check it. A name that drifted would offer a reader an instrument that does not exist.
+ */
+describe('the name `@openref/core` names for this fact', () => {
+  it('should be the name this collector stamps', () => {
+    // Given, the subject is present: core names something for the fact
+    expect(RUNTIME_FACT_COLLECTORS.rateLimit.length).toBeGreaterThan(0);
+
+    // When, Then
+    expect(RUNTIME_FACT_COLLECTORS.rateLimit).toContain(THROTTLER_COLLECTOR_NAME);
+  });
+});
+
+/**
+ * The guard is named as a limiter wherever it was seen, and nowhere else.
+ *
+ * WHY THIS COLLECTOR SAYS IT AT ALL. `guardsCollector` reads `@UseGuards` and the container, so it
+ * knows `ThrottlerGuard` stands here and nothing about what it is for; `security-drift` then chose
+ * between an error and a warning on the guard's SCOPE alone and read a rate limiter as an
+ * authorisation guard. `@UseGuards(ThrottlerGuard)` on a handler is a pattern this project's own
+ * documentation shows, so the defect is reachable through this package exactly as it is through
+ * `@openref/collector-redisx-rate-limit`.
+ *
+ * WHY IT IS OBSERVED RATHER THAN ASSUMED. `@Throttle` applies no guard, unlike the redisx
+ * decorator, so nothing about a route's metadata proves the guard is in front of it. A claim made
+ * without looking would put a guard on a route that has none.
+ */
+describe('the throttler guard, named as the limiter it is', () => {
+  it('should name it at route scope where @UseGuards put it on the handler', () => {
+    // Given the real guard class under the key `@UseGuards` writes
+    class ThrottlerGuard {
+      canActivate(): boolean {
+        return true;
+      }
+    }
+    const collector = collectorOver(
+      new Map([[list, new Map<string, unknown>([['__guards__', [ThrottlerGuard]]])]]),
+    );
+
+    // When
+    const produced = collector.collect(contextOf());
+
+    // Then
+    expect(produced?.guards).toEqual([
+      {
+        name: 'ThrottlerGuard',
+        scope: 'route',
+        purpose: 'rate-limit',
+        confidence: 'derived',
+        collector: THROTTLER_COLLECTOR_NAME,
+      },
+    ]);
+  });
+
+  it('should name it at both scopes where it was registered at both', () => {
+    // Given `@UseGuards(ThrottlerGuard)` on the controller and the same class under APP_GUARD,
+    // which per SPEC 6.2.1 is two registrations and not one
+    class ThrottlerGuard {
+      canActivate(): boolean {
+        return true;
+      }
+    }
+    const collector = collectorOver(
+      new Map([[OrdersController, new Map<string, unknown>([['__guards__', [ThrottlerGuard]]])]]),
+    );
+
+    // When
+    const produced = collector.collect(contextOf(['ThrottlerGuard']));
+
+    // Then
+    expect(produced?.guards?.map((guard) => guard.scope)).toEqual(['route', 'global']);
+    expect(produced?.guards?.every((guard) => guard.purpose === 'rate-limit')).toBe(true);
+  });
+
+  it('should read an instance as readily as a class, since both are ordinary usage', () => {
+    // Given `@UseGuards(new ThrottlerGuard(...))`
+    class ThrottlerGuard {
+      canActivate(): boolean {
+        return true;
+      }
+    }
+    const collector = collectorOver(
+      new Map([[list, new Map<string, unknown>([['__guards__', [new ThrottlerGuard()]]])]]),
+    );
+
+    // When
+    const produced = collector.collect(contextOf());
+
+    // Then
+    expect(produced?.guards?.[0]?.name).toBe('ThrottlerGuard');
+  });
+
+  it('should name nothing where the guard was seen at neither scope', () => {
+    // Given a route guarded by somebody else's guard and no APP_GUARD registration. Asserting the
+    // subject first: the key IS read, and it holds a guard.
+    class JwtAuthGuard {
+      canActivate(): boolean {
+        return true;
+      }
+    }
+    const collector = collectorOver(
+      new Map([[list, new Map<string, unknown>([['__guards__', [JwtAuthGuard]]])]]),
+    );
+
+    // When
+    const produced = collector.collect(contextOf());
+
+    // Then this package says nothing about a guard that is not its own
+    expect(produced?.guards).toBeUndefined();
+    expect(produced?.rateLimitReach?.value).toEqual({ kind: 'none' });
   });
 });

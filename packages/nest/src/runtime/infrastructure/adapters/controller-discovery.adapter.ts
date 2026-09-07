@@ -5,22 +5,29 @@
  * shape it feeds: `CollectorTarget { node, controller, handler }`. Nothing produced one until
  * now, which is why this landed as its own entry rather than inside T018.
  *
- * IT READS METADATA AND NOTHING ELSE, per CLAUDE.md's rule against runtime magic. A handler's
- * path and method are written on it by `@Controller` and `@Get`, under keys the framework has
- * used since NestJS 5 and which `shared/types/nest-surface.ts` declares. Nothing here inspects a
- * function body, and a route whose method is not in the table is reported rather than guessed at.
+ * IT READS METADATA AND NOTHING ELSE, per the rule against runtime magic in
+ * `docs/guide/04-collectors.md`. A handler's path and method are written on it by `@Controller`
+ * and `@Get`, under keys the framework has used since NestJS 5 and which
+ * `shared/types/nest-surface.ts` declares. Nothing here inspects a function body, and a route
+ * whose method is not in the table is reported rather than guessed at.
  *
  * THE GLOBAL PREFIX IS NOT APPLIED HERE, and that is deliberate rather than missing. A prefix is
  * set on the application, `@nestjs/swagger` writes it into the document by default, and the
- * pairing in `runtime/domain/route-pairing.ts` is what reconciles the two. Reading it here would
- * need a sixth value from the framework in order to produce a string the pairing would have to
- * be able to cope without anyway, since a host may equally have generated the document with
- * `ignoreGlobalPrefix`.
+ * pairing in `runtime/domain/route-pairing.ts` is what reconciles the two. Applying it here would
+ * produce a path the pairing has to be able to cope without anyway, since a host may equally have
+ * generated the document with `ignoreGlobalPrefix`. It is read once for the application by
+ * `runtime/domain/global-prefix.ts` and handed to the pairing as a second key rather than baked
+ * into the only one.
+ *
+ * THE WRITTEN OPERATION ID IS READ HERE, because this is where the reflector is. `pairRoutes` is a
+ * pure function of two lists and has no way to ask a handler anything, so the one value it needs
+ * off the framework rides on `DiscoveredRoute` like the path and the method do.
  */
 
 import {
   NEST_REQUEST_METHODS,
   NEST_ROUTE_METADATA,
+  SWAGGER_OPERATION_METADATA,
   type ControllerLike,
   type DiscoveryServiceLike,
   type HandlerLike,
@@ -49,6 +56,14 @@ export interface DiscoveredRoute {
   readonly method: string;
   /** Path in the document's dialect: leading slash, `{name}` parameters, no trailing slash. */
   readonly path: string;
+  /**
+   * The `operationId` the handler was given by `@ApiOperation`, when a person wrote one.
+   *
+   * ABSENT MEANS NOBODY WROTE ONE, which is the ordinary case: `@nestjs/swagger` then derives
+   * `Controller_handler` and the pairing's own derivation of that string is the right probe.
+   * Present, it is the name the document carries, and it is the only one that matches.
+   */
+  readonly operationId?: string;
 }
 
 /**
@@ -61,8 +76,18 @@ export interface DiscoveredRoute {
 export interface DiscoveryProblem {
   /** What was skipped, named the way a reader of `doctor` would recognise it. */
   readonly subject: string;
-  /** Why, in a sentence. */
+  /** The cause and what is not known because of it, in one clause, per SPEC 7.1. */
   readonly reason: string;
+  /**
+   * The action, or that there is none and why the record exists anyway, per SPEC 7.1.
+   *
+   * OPTIONAL, AND ABSENT MEANS THE REASON IS USED FOR BOTH, which is where every producer of this
+   * shape stood before the split. The collectors of SPEC 6.2 set it; the event side producers of
+   * SPEC 8.3 have not been moved yet and are named as the remainder rather than changed quietly.
+   */
+  readonly action?: string;
+  /** The reasoning behind it, for a reader who opens it, per SPEC 7.1. */
+  readonly detail?: string;
 }
 
 /** What one pass produced. */
@@ -155,6 +180,8 @@ function collectController(
       continue;
     }
 
+    const operationId = writtenOperationId(reflector.get(SWAGGER_OPERATION_METADATA, handler));
+
     for (const prefix of prefixes) {
       for (const suffix of pathsOf(reflector.get(NEST_ROUTE_METADATA.path, handler))) {
         routes.push({
@@ -165,6 +192,7 @@ function collectController(
           handlerName,
           method,
           path: joinPath(prefix, suffix),
+          ...(operationId === undefined ? {} : { operationId }),
         });
       }
     }
@@ -217,6 +245,25 @@ function handlersOf(start: object, controller: ControllerLike): readonly FoundHa
   }
 
   return found;
+}
+
+/**
+ * Reads the `operationId` out of whatever `@ApiOperation` left on a handler.
+ *
+ * ONE MEMBER OF ONE OBJECT, AND A STRING OR NOTHING. The decorator takes the whole operation
+ * object, so summaries, tags and deprecation flags come through the same key; every one of those
+ * belongs to the document rather than to the pairing, and the document already carries them. An
+ * empty string is refused because it is not a name a document can be indexed by.
+ *
+ * @param metadata - Whatever was under {@link SWAGGER_OPERATION_METADATA}
+ * @returns The written id, or undefined when the handler carries none
+ */
+function writtenOperationId(metadata: unknown): string | undefined {
+  if (typeof metadata !== 'object' || metadata === null) return undefined;
+
+  const written: unknown = (metadata as { operationId?: unknown }).operationId;
+
+  return typeof written === 'string' && written !== '' ? written : undefined;
 }
 
 /**

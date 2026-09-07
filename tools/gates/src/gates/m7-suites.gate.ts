@@ -10,18 +10,16 @@ import {
   M7_SUITE_COVERAGE,
   M7_SUITE_ROWS,
   M7_TASKS,
-  SPEC_FILE,
 } from '../config.js';
-import { AI_DOCS_DIR, aiDocsPresent } from '../lib/ai-docs.js';
 import { parseAmendmentSections, parseMilestones, splitLines } from '../lib/build-manifest.js';
+import { readSpecHalf } from '../lib/projected-spec.js';
+import { digestOf, PROJECTION_FILE, readProjection } from '../lib/projection.js';
 import { runCommand } from '../lib/exec.js';
 import {
   assertionlessCaseTitlesIn,
   caseTitlesIn,
   checkMilestoneClauses,
   checkStaticCoverage,
-  milestoneClausesOf,
-  suiteRowOf,
   type StaticSuiteIssue,
 } from '../lib/static-suites.js';
 import type { Gate, GateContext, GateFinding, GateResult } from '../types.js';
@@ -53,9 +51,13 @@ export function runM7SuitesGate(context: GateContext): GateResult {
 
   const files = [...new Set(M7_SUITE_COVERAGE.flatMap((coverage) => coverage.files))].sort();
 
-  const specPath = join(context.repoRoot, SPEC_FILE);
-  const haveSpec = aiDocsPresent(context.repoRoot) && existsSync(specPath);
-  const spec = haveSpec ? readFileSync(specPath, 'utf8') : '';
+  const half = readSpecHalf(context.repoRoot, {
+    rows: M7_SUITE_ROWS,
+    milestone: M7_MILESTONE,
+    coverageNames: M7_SUITE_COVERAGE.map((coverage) => coverage.spec),
+    clauseNames: M7_MILESTONE_CLAUSES.map((clause) => clause.spec),
+  });
+  const haveSpec = half.read;
   const repository = {
     exists: (path: string): boolean => existsSync(join(context.repoRoot, path)),
     casesIn: (path: string): readonly string[] => {
@@ -78,7 +80,7 @@ export function runM7SuitesGate(context: GateContext): GateResult {
   const missingRows: string[] = [];
   if (haveSpec) {
     for (const row of M7_SUITE_ROWS) {
-      const names = suiteRowOf(spec, row);
+      const names = half.rows.get(row) ?? null;
       if (names === null) missingRows.push(row);
       else rowNames.push(...names);
     }
@@ -100,7 +102,7 @@ export function runM7SuitesGate(context: GateContext): GateResult {
   issues.push(
     ...checkMilestoneClauses(M7_MILESTONE_CLAUSES, {
       milestone: M7_MILESTONE,
-      clauses: haveSpec ? milestoneClausesOf(spec, M7_MILESTONE) : [],
+      clauses: haveSpec ? half.clauses : [],
       specNames: [],
       ...repository,
       compareWithSpec: haveSpec,
@@ -115,7 +117,7 @@ export function runM7SuitesGate(context: GateContext): GateResult {
       message: `SPEC 21 row ${M7_SUITE_ROWS.join(', ')} states ${String(rowNames.length)} coverage(s): ${rowNames.join(', ')}`,
     });
 
-    const clauses = milestoneClausesOf(spec, M7_MILESTONE);
+    const clauses = half.clauses;
     findings.push({
       level: 'info',
       message:
@@ -123,21 +125,9 @@ export function runM7SuitesGate(context: GateContext): GateResult {
           ? `SPEC 22 states no definition of done for ${M7_MILESTONE}`
           : `SPEC 22 ${M7_MILESTONE} is done when ${String(clauses.length)} clause(s) hold, each answered by named cases: ${clauses.join(' | ')}`,
     });
-  } else {
-    findings.push({
-      level: 'warning',
-      message:
-        `SKIPPED, NOT PASSED, AND THE SKIP COVERS THE SPEC HALF ONLY: ${AI_DOCS_DIR}/ is not ` +
-        `present, so the SPEC 21 ${M7_SUITE_ROWS.join(', ')} row and the SPEC 22 ${M7_MILESTONE} ` +
-        `definition of done were not compared with this wiring, and this run proves nothing about ` +
-        `either document. The suite half still ran and can still fail: every named suite file must ` +
-        `be there, every named case must be present and assert something, and the coverage suites ` +
-        `are run, the real Nuxt build among them. ${AI_DOCS_DIR}/ is excluded from git in ` +
-        `.git/info/exclude and no clone restores it, so a checkout without it is expected rather ` +
-        `than broken. AWAITING THE MAINTAINER'S DECISION on how ${AI_DOCS_DIR}/ is versioned; ` +
-        `until it is made, the document half can only run where the documents are.`,
-    });
   }
+
+  for (const message of half.errors) findings.push({ level: 'error', message });
 
   for (const issue of issues) {
     findings.push({ level: 'error', message: `[${issue.rule}] ${issue.message}` });
@@ -170,11 +160,7 @@ export function runM7SuitesGate(context: GateContext): GateResult {
   return {
     id: m7SuitesGate.id,
     title: m7SuitesGate.title,
-    ...(failed
-      ? { status: 'fail' as const }
-      : haveSpec
-        ? { status: 'pass' as const }
-        : { status: 'skip' as const, skipReason: 'ai-docs-absent' as const }),
+    status: failed ? 'fail' : 'pass',
     findings,
   };
 }
@@ -193,22 +179,28 @@ export function runM7SuitesGate(context: GateContext): GateResult {
  * @returns Findings, one of them the reading itself
  */
 function milestoneScope(context: GateContext): GateFinding[] {
-  const buildPath = join(context.repoRoot, BUILD_FILE);
-  const amendmentsPath = join(context.repoRoot, BUILD_AMENDMENTS_FILE);
+  const read = readProjection(context.repoRoot);
 
-  if (!aiDocsPresent(context.repoRoot) || !existsSync(buildPath) || !existsSync(amendmentsPath)) {
+  if (!read.ok) {
+    return [{ level: 'error', message: `[projection-unreadable] ${read.reason}` }];
+  }
+
+  const build = read.projection.data.build;
+  const amendments = read.projection.data.amendments;
+
+  if (build === null || amendments === null) {
     return [
       {
-        level: 'warning',
+        level: 'error',
         message:
-          `the ${M7_MILESTONE} scope was not read: ${BUILD_FILE} or ${BUILD_AMENDMENTS_FILE} is ` +
-          `not present in this checkout, so this run says nothing about which tasks ${M7_MILESTONE} ` +
-          'closes over. It is not a pass on that question',
+          `the ${M7_MILESTONE} scope was not read: ${BUILD_FILE} or ${BUILD_AMENDMENTS_FILE} was ` +
+          `not readable when ${PROJECTION_FILE} was generated, so nothing here says which tasks ` +
+          `${M7_MILESTONE} closes over`,
       },
     ];
   }
 
-  const milestone = parseMilestones(splitLines(readFileSync(buildPath, 'utf8'))).find(
+  const milestone = parseMilestones(splitLines(build)).find(
     (candidate) => candidate.id === M7_MILESTONE,
   );
 
@@ -240,11 +232,18 @@ function milestoneScope(context: GateContext): GateFinding[] {
   // THE TITLE IS PART OF THE MATCH, AND THE REASON IS A RED RUN THAT CAME OUT GREEN. `T060` has
   // more than one open section, so looking for any of them let the L3 one be closed with this gate
   // still passing, which is the silence it exists against.
-  const section = parseAmendmentSections(splitLines(readFileSync(amendmentsPath, 'utf8'))).find(
+  //
+  // IT ASKS THE TITLE THROUGH A DIGEST, SINCE THE PROJECTION. No heading of the private documents
+  // ships, so the artefact carries the digest of every prefix of a heading that ends where a word
+  // ends, and "does this heading begin with that phrase" becomes "is the phrase's digest among
+  // them". The two answers differ only on a phrase that ends inside a word, where this says no and
+  // `startsWith` said yes: red rather than green, which is the direction a gate may err in.
+  const declinedSection = digestOf(M7_DECLINED_SECTION);
+  const section = parseAmendmentSections(splitLines(amendments)).find(
     (candidate) =>
       candidate.taskId === M7_DECLINED_TASK &&
       !candidate.done &&
-      candidate.title.startsWith(M7_DECLINED_SECTION),
+      candidate.title.includes(declinedSection),
   );
 
   if (section === undefined) {
@@ -256,7 +255,7 @@ function milestoneScope(context: GateContext): GateFinding[] {
 
   findings.push({
     level: 'info',
-    message: `${M7_MILESTONE} closes over ${M7_TASKS.join(' and ')}; ${M7_DECLINED_TASK} is not counted, and the reason is the open section at ${BUILD_AMENDMENTS_FILE} L${String(section?.line ?? 0)}: "${section?.title ?? ''}"`,
+    message: `${M7_MILESTONE} closes over ${M7_TASKS.join(' and ')}; ${M7_DECLINED_TASK} is not counted, and the reason is the open section titled "${M7_DECLINED_SECTION}..." at ${BUILD_AMENDMENTS_FILE} L${String(section?.line ?? 0)}`,
   });
 
   return findings;

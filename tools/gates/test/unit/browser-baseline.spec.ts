@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { BROWSER_CEILINGS, MEASURED_BUDGETS } from '../../src/config';
+import {
+  BROWSER_CEILINGS,
+  MEASURED_BUDGETS,
+  PAGE_SAMPLE_LANGUAGE_MEASUREMENT,
+} from '../../src/config';
 import {
   ASSERTED_FIGURES,
   BASELINE_ANSWERED_BUDGET_IDS,
@@ -8,15 +12,57 @@ import {
   baselineFreshness,
   checkCeilings,
   compareToBaseline,
+  pageBytesFigureIssues,
+  pageBytesFigures,
   pageBytesOf,
   readBaseline,
   readBrowserBaseline,
   recordedFigure,
+  statesNumber,
+  zeroSampleFigureIssues,
+  zeroSamplePage,
   type BrowserBaseline,
 } from '../../src/lib/browser-baseline';
+import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const repoRoot = join(import.meta.dirname, '..', '..', '..', '..');
+
+/**
+ * The three regions the `page-bytes` property is stated in, as SPEC 20 has written them since the
+ * cap was first derived.
+ *
+ * THEY ARE THE PROPERTY AND NOT AN ILLUSTRATION OF IT. The cap is not the measurement plus a
+ * percentage: it is the whole KB step under which an addition the size of the navigation region
+ * still fits while one the size of the page frame or of the try-it console goes over. Every
+ * derivation this row has had was taken that way, which `derivesTheRecordedCaps` below checks by
+ * reproducing all four of them from their own measurements.
+ */
+const NAVIGATION_REGION_BYTES = 2_520;
+const PAGE_FRAME_REGION_BYTES = 3_287;
+const TRY_IT_CONSOLE_REGION_BYTES = 3_669;
+
+/**
+ * The whole KB step the `page-bytes` property picks for one measurement.
+ *
+ * @param measuredBytes - What the page handed the main thread
+ * @returns The cap in whole kilobytes
+ * @throws {Error} When no whole KB step keeps both halves of the property
+ */
+function pageBytesStepFor(measuredBytes: number): number {
+  for (let kilobytes = 1; kilobytes <= 4096; kilobytes += 1) {
+    const step = kilobytes * 1024;
+    if (
+      measuredBytes + NAVIGATION_REGION_BYTES <= step &&
+      measuredBytes + PAGE_FRAME_REGION_BYTES > step &&
+      measuredBytes + TRY_IT_CONSOLE_REGION_BYTES > step
+    ) {
+      return kilobytes;
+    }
+  }
+
+  throw new Error('no whole KB step keeps the property');
+}
 
 const spread = (median: number, standardDeviation = 10) => ({
   samples: 25,
@@ -131,11 +177,15 @@ describe('checkCeilings', () => {
   });
 
   it('should sum the three byte columns and refuse a page frame sized addition', () => {
-    // Given the derivation the cap was chosen by, re-derived at the close of M2 from the runner
-    // measurement of 204,818: another region of `theme.css` the size of the page frame, 3,287
+    // Given the derivation the cap was chosen by, re-derived 2026-09-04 from the workstation
+    // measurement of 223,327: another region of `theme.css` the size of the page frame, 3,287
     // bytes, has to fail
     const record = baseline({
-      parsedBytes: { documentBytes: 37_894, cssBytes: 59_582 + 3_287, jsBytes: 107_342 },
+      parsedBytes: {
+        documentBytes: 48_089,
+        cssBytes: 62_594 + PAGE_FRAME_REGION_BYTES,
+        jsBytes: 112_644,
+      },
     });
 
     // When
@@ -146,10 +196,30 @@ describe('checkCeilings', () => {
     expect(issues[0]?.message).toContain('document');
   });
 
+  it('should refuse a try-it console sized addition, which is the other half of the property', () => {
+    // Given the second region the derivation names, larger than the first and asserted separately
+    // so that a cap keeping only the cheaper half could not read as keeping the property
+    const record = baseline({
+      parsedBytes: {
+        documentBytes: 48_089,
+        cssBytes: 62_594 + TRY_IT_CONSOLE_REGION_BYTES,
+        jsBytes: 112_644,
+      },
+    });
+
+    // When
+    // Then
+    expect(checkCeilings(record).map((issue) => issue.budget)).toEqual(['page-bytes']);
+  });
+
   it('should let a navigation sized addition through, which is the room ordinary work gets', () => {
     // Given, the same allowance `theme-css-raw` was derived with, over the same re-derived base
     const record = baseline({
-      parsedBytes: { documentBytes: 37_894, cssBytes: 59_582 + 2_520, jsBytes: 107_342 },
+      parsedBytes: {
+        documentBytes: 48_089,
+        cssBytes: 62_594 + NAVIGATION_REGION_BYTES,
+        jsBytes: 112_644,
+      },
     });
 
     // When
@@ -226,10 +296,16 @@ describe('compareToBaseline', () => {
 
   it('should fail a fresh study on the two counts, which do not move with the machine', () => {
     // Given, the half of the pair that gates: these are what a regression has to trip
+    // The JS column is taken off the ceiling rather than written down, so this case says one byte
+    // over whatever the cap is instead of one byte over whatever it was when the case was written.
     const study = {
       ...measured,
       longTaskMedian: 3,
-      parsedBytes: { documentBytes: 65_326, cssBytes: 32_264, jsBytes: 120_000 },
+      parsedBytes: {
+        documentBytes: 65_326,
+        cssBytes: 32_264,
+        jsBytes: BROWSER_CEILINGS.pageBytes - 65_326 - 32_264 + 1,
+      },
     };
 
     // When
@@ -482,37 +558,503 @@ describe('the committed baseline', () => {
   });
 
   it('should hold the figures the three gated caps are judged against', () => {
-    // Given, so the derivation in `config.ts` is checked against the record rather than
-    // remembered. The record is the close-of-M2 study over the committed tree at 74510c5, and
-    // the cap is 203 KB, re-derived at that close for the sanctioned stylesheet arrivals of the
-    // TX chain after TX-ADOPT paid what adoption can reach. The deficit era, 2026-08-11 to the
-    // close of M2 with the cap standing at 194 KB, is recorded in the closed `page-bytes` entry
-    // of `BUDGET_EXCEPTION_HISTORY`.
+    // Given, so the derivation in `config.ts` is checked against the record rather than remembered.
+    // The record is the workstation study of 2026-09-04 at commit df41de0, and the cap is 221 KB,
+    // re-derived by the maintainer's ruling from a measurement taken again rather than reused. IT
+    // REPLACES THE RECORD OF 2026-08-14, the close-of-M2 study at 74510c5 whose 204,818 stood while
+    // 69 commits touching `packages/` or `tools/browser-budget/src` landed past it and the gate
+    // printed FROM A STALE RECORD beside every browser row. The deficit era, 2026-08-11 to the close
+    // of M2 with the cap standing at 194 KB, is recorded in the closed `page-bytes` entry of
+    // `BUDGET_EXCEPTION_HISTORY`.
     const { baseline: record } = readBrowserBaseline(repoRoot);
     if (record === null) throw new Error('no baseline');
 
     // When
     const bytes = pageBytesOf(record.parsedBytes);
 
-    // Then, 204,818 against 207,872 with 3,054 of headroom: enough for a navigation sized
-    // addition of 2,520, not enough for a page frame sized region of 3,287, which is the
-    // property both prior derivations of this cap kept and the ceiling cases above hold.
-    expect(bytes).toBe(204_818);
-    expect(BROWSER_CEILINGS.pageBytes - bytes).toBe(3_054);
+    // Then, 223,327 against 226,304 with 2,977 of headroom: enough for a navigation sized addition
+    // of 2,520, not enough for a page frame sized region of 3,287 nor a console sized one of 3,669,
+    // which is the property every derivation of this cap has kept and the ceiling cases above hold.
+    expect(bytes).toBe(223_327);
+    expect(BROWSER_CEILINGS.pageBytes - bytes).toBe(2_977);
+    expect(record.recordedAt).toBe('2026-09-04');
 
-    // And the served document, 37,894 with 35,834 of headroom, DOWN 26,847 from the record this
-    // replaced: the compact response index and the state block redaction of TX-ADOPT. It is
-    // derived loosely on purpose: the regression it exists to catch is the navigation blob
-    // returning, and this document's is 546,162 bytes, so a fifth of it fails this cap twice
-    // over.
-    expect(record.parsedBytes.documentBytes).toBe(37_894);
-    expect(BROWSER_CEILINGS.servedDocumentBytes - record.parsedBytes.documentBytes).toBe(35_834);
+    // And the served document, 48,089 with 25,639 of headroom. It is derived loosely on purpose:
+    // the regression it exists to catch is the navigation blob returning, and this document's is
+    // 546,162 bytes, so a fifth of it fails this cap twice over.
+    expect(record.parsedBytes.documentBytes).toBe(48_089);
+    expect(BROWSER_CEILINGS.servedDocumentBytes - record.parsedBytes.documentBytes).toBe(25_639);
 
-    // And the count that has run out of room without going over. It is pinned to what the record
-    // says and checked against the cap, rather than asserted equal to it: the two have been the
-    // same number and have been different, and reading either as the contract would fail the
-    // build for a page that got better. Every study of this dispatch read a median of 1.
-    expect(record.longTaskCount.median).toBe(1);
+    // And the count, pinned to what the record says and checked against the cap rather than
+    // asserted equal to it: the two have been the same number and have been different, and reading
+    // either as the contract would fail the build for a page that got better. This study read a
+    // median of 0 over twenty navigations on a workstation, where the runner record read 1.
+    expect(record.longTaskCount.median).toBe(0);
     expect(record.longTaskCount.max).toBeLessThanOrEqual(BROWSER_CEILINGS.longTaskCount);
   });
+
+  it('should be the cap this row own property picks, on this record and on every earlier one', () => {
+    // Given the record and the three measurements the earlier derivations of this cap were taken
+    // from. ONE MEASUREMENT AND ONE CAP AGREE WITH ANY RULE THAT HAPPENS TO HIT THAT NUMBER ONCE,
+    // which is why the earlier three are here: what the maintainer ruled was that this row
+    // re-derives by ITS OWN property, so a rule that chose 221 today and disagreed with any of the
+    // recorded three would not be the rule this row has ever been derived by.
+    const { baseline: record } = readBrowserBaseline(repoRoot);
+    if (record === null) throw new Error('no baseline');
+
+    // When
+    const fromTheRecord = pageBytesStepFor(pageBytesOf(record.parsedBytes));
+
+    // Then, 159 KB from the T011-R measurement of 160,070, 194 from T016's 195,783 on the input it
+    // replaced the fixture with, 203 from the close-of-M2 runner figure of 204,818, and 221 now
+    expect([160_070, 195_783, 204_818].map(pageBytesStepFor)).toEqual([159, 194, 203]);
+    expect(fromTheRecord).toBe(221);
+    expect(BROWSER_CEILINGS.pageBytes).toBe(221 * 1024);
+  });
+});
+
+/**
+ * The two texts that state the zero language reading in prose, sliced to the paragraphs that do.
+ *
+ * SLICED RATHER THAN READ WHOLE, because a scan of all of `config.ts` would find every figure it
+ * looks for somewhere and agree with anything. The anchors are the sentences the two paragraphs
+ * open and close on, and a slice that cannot find its anchors fails rather than returning nothing:
+ * a check that cannot determine its fact says so.
+ *
+ * @param text - The whole file
+ * @param from - Text the region starts at
+ * @param to - Text the region ends before
+ * @param what - What this region is, for the failure
+ * @returns The region
+ */
+function sliceBetween(text: string, from: string, to: string, what: string): string {
+  const start = text.indexOf(from);
+  const end = text.indexOf(to, start + 1);
+
+  if (start === -1 || end === -1) {
+    throw new Error(
+      `${what} could not be located: the anchors "${from}" and "${to}" are not both in the file, ` +
+        `so nothing was compared with the derivation`,
+    );
+  }
+
+  return text.slice(start, end);
+}
+
+describe('zeroSamplePage', () => {
+  it('should derive the zero language reading from the record and the measured language cost', () => {
+    // Given a record whose three columns are known, and the committed language costs
+    const record = baseline({
+      commit: PAGE_SAMPLE_LANGUAGE_MEASUREMENT.commit,
+      parsedBytes: { documentBytes: 48_089, cssBytes: 62_594, jsBytes: 112_644 },
+    });
+    const cost = PAGE_SAMPLE_LANGUAGE_MEASUREMENT;
+
+    // When
+    const derived = zeroSamplePage(record);
+
+    // Then every field is the arithmetic over the two records and nothing is typed twice
+    expect(derived.determined).toBe(true);
+    if (!derived.determined) return;
+    const document = record.parsedBytes.documentBytes - cost.allDrawnDocumentBytes;
+    const page = document + record.parsedBytes.cssBytes + record.parsedBytes.jsBytes;
+    expect(derived.figures).toEqual({
+      documentBytes: document,
+      pageBytes: page,
+      replacedCapBytes: cost.replacedPageBytesCap,
+      overrunBytes: page - cost.replacedPageBytesCap,
+      withoutServedBlockPageBytes: page - cost.servedCodeBlockBytes,
+      withoutServedBlockOverrunBytes: page - cost.servedCodeBlockBytes - cost.replacedPageBytesCap,
+    });
+  });
+
+  it('should refuse to derive across two trees rather than answering', () => {
+    // Given a record re-taken at a commit the language costs were not measured on, which is the
+    // exact shape the reading this replaces went stale in: it was taken when the JS column stood at
+    // 112,151 and was still being quoted after the column moved
+    const record = baseline({ commit: `not-${PAGE_SAMPLE_LANGUAGE_MEASUREMENT.commit}` });
+    expect(record.commit).not.toBe(PAGE_SAMPLE_LANGUAGE_MEASUREMENT.commit);
+
+    // When
+    const derived = zeroSamplePage(record);
+
+    // Then
+    expect(derived.determined).toBe(false);
+    if (derived.determined) return;
+    expect(derived.reason).toContain('UNDETERMINED');
+    expect(derived.reason).toContain('measure-languages');
+  });
+});
+
+describe('statesNumber', () => {
+  it('should read a number in each of the three spellings the two documents use', () => {
+    // Given the English comment convention, the Russian document convention and a bare figure
+    // When, Then
+    expect(statesNumber('reads 216,114 in total', 216_114)).toBe(true);
+    expect(statesNumber('весит 216 114 всего', 216_114)).toBe(true);
+    expect(statesNumber('pageBytes: 216114,', 216_114)).toBe(true);
+  });
+
+  it('should not find a figure inside a longer one', () => {
+    // Given the false positive a substring match would produce, which would let a removed figure
+    // read as present
+    // When, Then
+    expect(statesNumber('the block is 3,310 bytes', 310)).toBe(false);
+    expect(statesNumber('1310 bytes', 310)).toBe(false);
+    expect(statesNumber('310,500 bytes', 310)).toBe(false);
+  });
+
+  it('should refuse an ambiguous run rather than guessing which numbers are in it', () => {
+    // Given two space separated figures with nothing between them, which reads equally well as one
+    // eleven digit number. THE FIRST EDITION OF THIS HELPER READ IT GREEDILY AS ONE, which is the
+    // same defect class as the figures it checks. Refusing reports the figure as unstated, so the
+    // check goes red rather than passing on text it could not parse.
+    // When, Then
+    expect(statesNumber('40 876 216 114', 40_876)).toBe(false);
+    expect(statesNumber('40 876 216 114', 216_114)).toBe(false);
+    expect(statesNumber('40 876 и 216 114', 40_876)).toBe(true);
+    expect(statesNumber('40 876 и 216 114', 216_114)).toBe(true);
+  });
+});
+
+describe('zeroSampleFigureIssues', () => {
+  const derived = zeroSamplePage(
+    baseline({
+      commit: PAGE_SAMPLE_LANGUAGE_MEASUREMENT.commit,
+      parsedBytes: { documentBytes: 48_089, cssBytes: 62_594, jsBytes: 112_644 },
+    }),
+  );
+
+  it('should name every derived figure a stale copy no longer states', () => {
+    // Given the paragraph as it read before this correction, which stated the reading taken when
+    // the JS column was 112,151 and 112,380
+    expect(derived.determined).toBe(true);
+    if (!derived.determined) return;
+    const stale =
+      'a page drawing no sample at all measures 214,243 stripped and 214,997 with the section ' +
+      'chrome, so the 6,371 byte overrun exists at zero languages';
+
+    // When
+    const issues = zeroSampleFigureIssues('the old paragraph', stale, derived.figures);
+
+    // Then it is red, and it names the figure the derivation produces rather than the one written
+    expect(issues.length).toBeGreaterThan(0);
+    expect(issues.join('\n')).toContain(String(derived.figures.pageBytes));
+  });
+
+  it('should say nothing about a text that states every derived figure', () => {
+    // Given
+    expect(derived.determined).toBe(true);
+    if (!derived.determined) return;
+    const stated = [
+      ...Object.values(derived.figures),
+      PAGE_SAMPLE_LANGUAGE_MEASUREMENT.allDrawnDocumentBytes,
+      PAGE_SAMPLE_LANGUAGE_MEASUREMENT.servedCodeBlockBytes,
+    ].join(' and ');
+
+    // When, Then
+    expect(zeroSampleFigureIssues('a current paragraph', stated, derived.figures)).toEqual([]);
+  });
+});
+
+describe('the committed zero language reading', () => {
+  const read = readBrowserBaseline(repoRoot);
+  const derived = read.baseline === null ? null : zeroSamplePage(read.baseline);
+
+  it('should be derivable from the committed record and the committed language cost', () => {
+    // Given the real record, asserted present before anything is concluded from it
+    expect(read.baseline, read.reason).not.toBeNull();
+
+    // When, Then
+    expect(derived).not.toBeNull();
+    expect(derived?.determined, derived?.determined === false ? derived.reason : '').toBe(true);
+  });
+
+  it('should be stated by the page-bytes comment in config.ts', () => {
+    // Given the paragraph that carries it, sliced by its own anchors so the scan is about that
+    // paragraph and not about every number in a 2,000 line file
+    if (!derived?.determined) throw new Error('the derivation is undetermined');
+    const source = readFileSync(join(repoRoot, 'tools/gates/src/config.ts'), 'utf8');
+    const region = sliceBetween(
+      source,
+      'RE-DERIVED ON 2026-09-04, 203 TO 221 KB',
+      'export const BROWSER_CEILINGS',
+      'the page-bytes comment in config.ts',
+    );
+
+    // When, Then. THIS IS THE RUNNER THE FIGURE NEVER HAD: nine consecutive rounds of hand written
+    // numbers here were wrong, the ninth because the JS column moved under a reading nobody re-took.
+    expect(
+      zeroSampleFigureIssues('the page-bytes comment in config.ts', region, derived.figures),
+    ).toEqual([]);
+  });
+
+  it('should be stated by SPEC 20 where this checkout has ai-docs', () => {
+    // Given, and `ai-docs/` is git excluded so no clone restores it. The absence is asserted rather
+    // than assumed: where the file is there the paragraph is compared, and where it is not this
+    // says which fact went unchecked.
+    if (!derived?.determined) throw new Error('the derivation is undetermined');
+
+    let spec: string | null;
+    try {
+      spec = readFileSync(join(repoRoot, 'ai-docs/SPEC.md'), 'utf8');
+    } catch {
+      spec = null;
+    }
+
+    if (spec === null) {
+      expect(spec).toBeNull();
+      return;
+    }
+
+    // When
+    const region = sliceBetween(
+      spec,
+      '**Арифметика перевывода целиком.**',
+      '**Перевывод, каждый своим записанным свойством.**',
+      'the page-bytes re-derivation paragraphs of SPEC 20',
+    );
+
+    // Then
+    expect(
+      zeroSampleFigureIssues('the page-bytes paragraphs of SPEC 20', region, derived.figures),
+    ).toEqual([]);
+  });
+
+  it('should be stated by the SPEC 18 samples paragraph where this checkout has ai-docs', () => {
+    // Given the THIRD prose home of this one arithmetic, which is the copy nothing was over. While
+    // the other two were being corrected it went on saying 229,935 with fifteen languages, 214,500
+    // at zero and an overrun of 6,628, in the present tense, against a ceiling that had already
+    // been replaced. Same absence rule as above: `ai-docs/` is git excluded, so where the file is
+    // there the paragraph is compared, and where it is not this says which fact went unchecked.
+    if (!derived?.determined) throw new Error('the derivation is undetermined');
+
+    let spec: string | null;
+    try {
+      spec = readFileSync(join(repoRoot, 'ai-docs/SPEC.md'), 'utf8');
+    } catch {
+      spec = null;
+    }
+
+    if (spec === null) {
+      expect(spec).toBeNull();
+      return;
+    }
+
+    // When
+    const region = sliceBetween(
+      spec,
+      '**Цена названа числом и измерена сборкой дерева с этим и без этого.**',
+      '**Владелец проводки назван, а не подразумевается.**',
+      'the samples cost paragraph of SPEC 18',
+    );
+
+    // Then
+    expect(
+      zeroSampleFigureIssues('the samples cost paragraph of SPEC 18', region, derived.figures),
+    ).toEqual([]);
+
+    // AND THE CEILING IN FORCE IS NAMED, not only the replaced one the overrun is measured against.
+    // This paragraph keeps a dated comparison on purpose, and the figure that decided the ruling
+    // was a comparison against a cap that has since moved, so a reader arriving later must be able
+    // to see both numbers. Holding it against `BROWSER_CEILINGS` means the next move of the cap
+    // reddens here instead of leaving the paragraph quietly describing a page nobody measures.
+    expect(
+      statesNumber(region, BROWSER_CEILINGS.pageBytes),
+      `the SPEC 18 samples paragraph does not state the page-bytes ceiling in force, ` +
+        `${String(BROWSER_CEILINGS.pageBytes)}, so a reader meeting its overrun over the replaced ` +
+        `${String(derived.figures.replacedCapBytes)} has nothing there telling them the comparison is dated`,
+    ).toBe(true);
+  });
+});
+
+describe('pageBytesFigures', () => {
+  it('should derive the three columns, their sum and the headroom from the record and the cap', () => {
+    // Given a record whose columns are known, and the ceiling in force rather than a literal
+    const record = baseline({
+      parsedBytes: { documentBytes: 48_089, cssBytes: 62_594, jsBytes: 112_644 },
+    });
+
+    // When
+    const figures = pageBytesFigures(record);
+
+    // Then every value is arithmetic over the record and the cap, and none of the five is typed
+    const valueOf = (what: string): number | undefined =>
+      figures.find((figure) => figure.what === what)?.value;
+    const total = pageBytesOf(record.parsedBytes);
+
+    expect(valueOf('the document column')).toBe(record.parsedBytes.documentBytes);
+    expect(valueOf('the stylesheet column')).toBe(record.parsedBytes.cssBytes);
+    expect(valueOf('the bundle column')).toBe(record.parsedBytes.jsBytes);
+    expect(valueOf('the page total')).toBe(total);
+    expect(valueOf('the headroom under the ceiling in force')).toBe(
+      BROWSER_CEILINGS.pageBytes - total,
+    );
+  });
+
+  it('should say of each figure whether an instrument can take it again, or only the study can', () => {
+    // Given the honest limit this derivation has: two of the three columns equal a published
+    // figure this repository weighs off a built tree, and the document column comes from a browser
+    // study on a named machine that no check here can rerun. Dressing the second up as the first
+    // is the defect, so the standing is data rather than prose.
+    // When
+    const figures = pageBytesFigures(baseline());
+
+    // Then
+    const standingOf = (what: string): string | undefined =>
+      figures.find((figure) => figure.what === what)?.standing;
+
+    expect(standingOf('the stylesheet column')).toBe('measurable');
+    expect(standingOf('the bundle column')).toBe('measurable');
+    expect(standingOf('the document column')).toBe('recorded');
+    expect(standingOf('the page total')).toBe('recorded');
+    expect(standingOf('the headroom under the ceiling in force')).toBe('recorded');
+
+    // And every one of them names what holds it, because a standing with no reason beside it is
+    // the same absence as no standing at all
+    for (const figure of figures) {
+      expect(figure.heldBy.length).toBeGreaterThan(20);
+      expect(figure.heldBy).toContain(figure.standing === 'measurable' ? 'MEASURABLE' : 'RECORDED');
+    }
+  });
+
+  it('should move every figure a re-record moves, which is the whole point of deriving them', () => {
+    // Given the same record with one byte added to each column, which is the smallest re-record
+    const before = baseline({
+      parsedBytes: { documentBytes: 48_089, cssBytes: 62_594, jsBytes: 112_644 },
+    });
+    const after = baseline({
+      parsedBytes: { documentBytes: 48_090, cssBytes: 62_595, jsBytes: 112_645 },
+    });
+
+    // When
+    const moved = pageBytesFigures(before)
+      .map((figure, index) => figure.value !== pageBytesFigures(after)[index]?.value)
+      .filter(Boolean);
+
+    // Then all five, the headroom included: it is the cap less a total that moved
+    expect(moved).toHaveLength(5);
+  });
+});
+
+/**
+ * The three prose homes of the `page-bytes` columns, sliced by their own anchors.
+ *
+ * THE ROW IS ONE OF THEM AND IT WAS THE ONE NOTHING WATCHED. SPEC 20's table row states all five
+ * figures in its own text, the re-derivation paragraphs state them again, and the
+ * `BROWSER_CEILINGS` comment a third time, so a re-record of `baseline.json` moved four numbers and
+ * left three documents to be corrected by hand.
+ */
+const PAGE_BYTES_PROSE = [
+  {
+    label: 'the page-bytes row of SPEC 20',
+    file: 'ai-docs/SPEC.md',
+    from: '| Документ, CSS и JS, отданные главному потоку',
+    to: '| Статическая сборка, 1000 узлов, 4 ядра',
+  },
+  {
+    label: 'the page-bytes re-derivation paragraphs of SPEC 20',
+    file: 'ai-docs/SPEC.md',
+    from: '**Перевывод `page-bytes` с 203 на 221 КБ',
+    to: '**Перевывод, каждый своим записанным свойством.**',
+  },
+  {
+    label: 'the page-bytes comment in config.ts',
+    file: 'tools/gates/src/config.ts',
+    from: 'RE-DERIVED ON 2026-09-04, 203 TO 221 KB',
+    to: 'export const BROWSER_CEILINGS',
+  },
+] as const;
+
+/**
+ * One prose home's text, or null where this checkout does not have the file.
+ *
+ * `ai-docs/` is git excluded, so a clone has two of these three and not the third. The absence is
+ * reported rather than assumed, the way the zero language cases above report it.
+ *
+ * @param repoRoot - Absolute repository root
+ * @param home - Which region to read
+ * @returns The region, or null when the file is not in this checkout
+ */
+function proseRegion(repoRoot: string, home: (typeof PAGE_BYTES_PROSE)[number]): string | null {
+  let text: string;
+  try {
+    text = readFileSync(join(repoRoot, home.file), 'utf8');
+  } catch {
+    return null;
+  }
+
+  return sliceBetween(text, home.from, home.to, home.label);
+}
+
+describe('the committed page-bytes columns', () => {
+  const { baseline: record } = readBrowserBaseline(repoRoot);
+
+  it('should be derivable from the committed record before anything is concluded from them', () => {
+    // Given the real file, asserted present first: a proof that a prose home has gone stale is
+    // worth nothing unless the figure it is missing was really derived
+    expect(record).not.toBeNull();
+    if (record === null) return;
+
+    // When, Then
+    expect(pageBytesFigures(record)).toHaveLength(5);
+  });
+
+  for (const home of PAGE_BYTES_PROSE) {
+    it(`should each be stated by ${home.label}`, () => {
+      if (record === null) throw new Error('no baseline');
+      const region = proseRegion(repoRoot, home);
+
+      if (region === null) {
+        // `ai-docs/` is not in this checkout, and which fact went unchecked is said rather than
+        // passed over in silence
+        expect(home.file.startsWith('ai-docs/')).toBe(true);
+        return;
+      }
+
+      // When, Then, figure by figure, so a failure names the one that went stale and its standing
+      for (const figure of pageBytesFigures(record)) {
+        expect(
+          statesNumber(region, figure.value),
+          `${home.label} does not state ${figure.what}, ${String(figure.value)}. ${figure.heldBy}`,
+        ).toBe(true);
+      }
+
+      expect(pageBytesFigureIssues(home.label, region, record)).toEqual([]);
+    });
+
+    it(`should redden ${home.label} when the record moves under it`, () => {
+      // Given the falsification this whole mechanism is for: one byte added to each column, which
+      // is the smallest re-record `baseline.json` can receive. Before this, the four numbers moved
+      // and the prose stayed, and nothing anywhere went red.
+      if (record === null) throw new Error('no baseline');
+      const region = proseRegion(repoRoot, home);
+
+      if (region === null) {
+        expect(home.file.startsWith('ai-docs/')).toBe(true);
+        return;
+      }
+
+      const reRecorded: BrowserBaseline = {
+        ...record,
+        parsedBytes: {
+          documentBytes: record.parsedBytes.documentBytes + 1,
+          cssBytes: record.parsedBytes.cssBytes + 1,
+          jsBytes: record.parsedBytes.jsBytes + 1,
+        },
+      };
+
+      // When
+      const issues = pageBytesFigureIssues(home.label, region, reRecorded);
+
+      // Then all five, and each message carries the figure the derivation now produces and how
+      // good that figure is, so a reader knows whether to re-run an instrument or the study
+      expect(issues).toHaveLength(5);
+      for (const figure of pageBytesFigures(reRecorded)) {
+        expect(issues.join('\n')).toContain(String(figure.value));
+      }
+      expect(issues.join('\n')).toContain('MEASURABLE');
+      expect(issues.join('\n')).toContain('RECORDED');
+    });
+  }
 });

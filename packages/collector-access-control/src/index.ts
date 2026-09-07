@@ -43,7 +43,12 @@ export interface AccessControlCollectorOptions {
 export interface AccessControlCollectorProblem {
   /** `OrdersController.list`, as a reader recognises it. */
   readonly subject: string;
+  /** The cause and what is not known because of it, in one clause, per SPEC 7.1. */
   readonly reason: string;
+  /** The action, or that there is none and why the finding is recorded anyway, per SPEC 7.1. */
+  readonly action: string;
+  /** The reasoning behind it, for a reader who opens it. Absent where the cause is its own. */
+  readonly detail?: string;
 }
 
 /** The collector, with the record of what it could not read. */
@@ -118,19 +123,22 @@ export function accessControlCollector(
       if (functions > 0) {
         problems.push({
           subject,
-          reason:
-            `${String(functions)} grant(s) are declared here as functions. A permission computed ` +
-            'in code is guard logic, which is never read, per SPEC 6.1. Declare the role as data ' +
-            'if it should appear in the reference',
+          reason: `${String(functions)} grant(s) here are functions, so the roles they name are not known`,
+          action: 'declare the role as data if it should appear in the reference',
+          detail:
+            'A permission computed in code is guard logic, which is never read, per SPEC 6.1. ' +
+            'What a function grants is decided at request time and has no value to read here.',
         });
       }
 
       if (roleless > 0) {
         problems.push({
           subject,
-          reason:
-            `${String(roleless)} grant(s) name no role, so nothing was taken from them. A grant ` +
-            'that names only a resource and an action says who may not do it rather than who may',
+          reason: `${String(roleless)} grant(s) name no role, so nothing was taken from them`,
+          action: 'name the role on the grant if it should appear in the reference',
+          detail:
+            'A grant that names only a resource and an action says who may not do it rather ' +
+            'than who may, and the reference reports who may.',
         });
       }
 

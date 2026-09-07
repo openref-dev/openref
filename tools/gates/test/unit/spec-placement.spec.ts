@@ -10,7 +10,7 @@ import { findSpecFiles, findUncollectedSpecs, isCollected } from '../../src/lib/
  * THE FAILURE THIS PREVENTS IS SILENCE. `vitest.shared.ts` collects `test/unit/**` and
  * `test/integration/**` and nothing else, so a `.spec.ts` written one directory out is never
  * run, never reported, and never distinguishable from a suite that passes. The rule has been in
- * STANDARDS and in `CLAUDE.md` since the beginning; what was missing was anything that could go
+ * force since the beginning; what was missing was anything that could go
  * red when it was broken. Noted in session 29, written on 2026-08-11.
  *
  * PLANTED BOTH WAYS on a synthetic tree, because a check that only reads the real repository is

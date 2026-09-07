@@ -72,9 +72,8 @@ describe('buildParityRows', () => {
     const rows = buildParityRows(document, operation, issues, '');
     const empty = rows.filter((row) => row.runtime.length === 0);
 
-    // Then, the absence is drawn and says why. The phrase stopped naming a missing instrument
-    // in TX-COLLECTORS, because the instruments exist: an absent fact is an observed silence,
-    // and the row answers `?` because the comparison cannot have run without a fact.
+    // Then, the absence is drawn and says which of the two silences it is. This fixture's meta
+    // registers no collector for any of the four, so each names what would report it.
     expect(empty.map((row) => row.kind)).toEqual([
       'required-headers',
       'validation',
@@ -82,10 +81,14 @@ describe('buildParityRows', () => {
       'unread-parameters',
     ]);
     for (const row of empty) {
-      expect(row.reason).toBe('Nothing observed here.');
+      expect(row.reason).toContain('No registered collector reports');
       expect(row.verdict).toBe('unknown');
       expect(row.fix).toBeNull();
     }
+    expect(empty.find((row) => row.kind === 'validation')?.reason).toBe(
+      'No registered collector reports pipes. Add pipesCollector to the collectors option, or ' +
+        'write one that does.',
+    );
   });
 
   it('should answer drift with the FixBar exactly where a finding is recorded', () => {
@@ -268,9 +271,12 @@ describe('buildParityRows, the rows TX-COLLECTORS filled', () => {
       ['CurrencyPipe', 'parameter level'],
       ['ValidationPipe', 'application wide'],
     ]);
-    expect(validation?.reason).toBe('');
-    // And no rule examines it yet, so the fact stands under `?`, the roles precedent
+    // And no rule examines it yet, so the fact stands under `?`, the roles precedent, and since
+    // `TX-INSTRUMENT` the row says that in words rather than only in an `aria-label`
     expect(validation?.verdict).toBe('unknown');
+    expect(validation?.reason).toBe(
+      'No rule of the drift catalogue examines this row yet, so neither side is judged.',
+    );
 
     // And the timeout row draws the milliseconds at derived, under `?` for the same reason
     const timeout = byKind.get('timeout');

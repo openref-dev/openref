@@ -178,7 +178,16 @@ export function runShell(command: string, cwd: string): Promise<ShellRun> {
  * to the value the plan states, so a header parameter called `Accept-Language` is compared on both
  * sides exactly as any other is. A case pins that.
  *
- * A `content-type` is never exempt here, which is what catches a client inventing one.
+ * `content-type` IS EXEMPT IN EXACTLY ONE PLACE, A MULTIPART BODY, AND THE CALLER HAS TO ASK FOR
+ * IT. Everywhere else it is compared, which is what catches a client inventing one. The earlier
+ * sentence here said it was never exempt; that was false of this harness on the day it was written,
+ * because `curl-wire-equality.spec.ts` already passed it in for the multipart case. What the
+ * exemption buys is that the field is not compared as a string, since the boundary inside it is
+ * chosen by whoever frames the body and cannot match; what stands in its place is stronger than the
+ * comparison it replaces on everything except the boundary: {@link withoutBoundary} holds the media
+ * type and every other parameter of the field to the plan's, and the body is then compared part by
+ * part. So a client adding `charset` to a multipart content type is caught, which the `startsWith`
+ * form this replaced could not see.
  *
  * `content-length` IS EXEMPT IN EXACTLY TWO PLACES AND THE CALLER HAS TO ASK FOR IT, which is why it
  * is a parameter rather than a member of this list. It is framing rather than content, and it is
@@ -197,6 +206,117 @@ export const CLIENT_IDENTITY_HEADERS: readonly string[] = [
   'sec-fetch-mode',
   'user-agent',
 ];
+
+/**
+ * One content type with its `boundary` parameter taken off, so two framings can be compared.
+ *
+ * THE BOUNDARY IS THE WHOLE OF WHAT IS EXCUSED, AND THIS IS WHAT MAKES THAT TRUE RATHER THAN
+ * CLAIMED. Whoever frames a multipart body picks its boundary, so the runner's and the tool's
+ * differ by construction and no comparison of the field as a string can pass. Everything else in
+ * the field is a fact about the content and is compared: the media type, and any parameter a client
+ * added of its own.
+ *
+ * IT SPLITS ON `;` LIKE `boundaryOf` DOES, and the limit is the same one. A boundary written as a
+ * quoted string containing a semicolon would be cut in the wrong place; no client here writes one,
+ * and inventing a parameter parser for a form nothing produces would be a second implementation of
+ * the grammar with nothing holding it to the first.
+ *
+ * @param contentType - The field as one side sent it
+ * @returns The field with the boundary parameter removed, parameters otherwise in their order
+ */
+export function withoutBoundary(contentType: string): string {
+  return contentType
+    .split(';')
+    .map((part) => part.trim())
+    .filter((part) => part !== '' && !/^boundary=/iu.test(part))
+    .join('; ');
+}
+
+/**
+ * The boundary a multipart content type declares, or the empty string when it declares none.
+ *
+ * @param contentType - The field as one side sent it
+ * @returns The boundary, without quotes stripped, since no client here writes a quoted one
+ */
+export function boundaryOf(contentType: string): string {
+  return /boundary=(?<boundary>[^;]+)/u.exec(contentType)?.groups?.boundary ?? '';
+}
+
+/** One part of a multipart body, as the framing carried it. */
+export interface Part {
+  /**
+   * Every header of the part head, `name: value` with the name lowercased, sorted by field name.
+   *
+   * EVERY ONE OF THEM, WHICH IS THE WHOLE OF THE FIX AND THE REASON THIS TYPE HAS NO OTHER MEMBER.
+   * Until 2026-09-03 this carried `disposition` and `contentType` and nothing else, so a header a
+   * client put on a part of its own was outside what any case could see, one level below the same
+   * blindness `comparableHeaders` was rewritten to end. Measured by putting
+   * `Content-Transfer-Encoding: binary` on one part of one side: the two bodies compared equal.
+   * Naming two fields and dropping the rest is an exemption, and an exemption this harness does not
+   * state is one it cannot bound, so there is no list here to keep.
+   *
+   * SORTED BY NAME, WHICH IS A NORMALIZATION AND NOT AN EXEMPTION. HTTP gives no meaning to the
+   * order of two differently named fields, both sides are held to the same order, and a field
+   * repeated with two values keeps both entries, so nothing is dropped or merged by the sort.
+   */
+  readonly headers: readonly string[];
+  readonly body: Buffer;
+}
+
+/** One part head, as a sorted list of normalized field lines. */
+function headLines(head: string): readonly string[] {
+  return head
+    .split('\r\n')
+    .map((line) => line.trim())
+    .filter((line) => line !== '')
+    .map((line) => {
+      const at = line.indexOf(':');
+      if (at === -1) return line.toLowerCase();
+
+      return `${line.slice(0, at).trim().toLowerCase()}: ${line.slice(at + 1).trim()}`;
+    })
+    .sort((left, right) => (left < right ? -1 : left > right ? 1 : 0));
+}
+
+/**
+ * Splits a multipart body into its parts, by the boundary its content type declares.
+ *
+ * @param wire - One recorded request whose body is multipart
+ * @returns One entry per part, head and body both
+ * @throws Error when the content type declares no boundary, because a harness that cannot find the
+ *   framing must not report the two sides equal
+ */
+export function partsOf(wire: Wire): readonly Part[] {
+  const boundary = boundaryOf(wire.headers['content-type'] ?? '');
+  if (boundary === '') {
+    throw new Error(`no boundary in ${wire.headers['content-type'] ?? '(no content type)'}`);
+  }
+
+  return wire.body
+    .toString('binary')
+    .split(`--${boundary}`)
+    .filter((section) => section !== '' && section !== '--\r\n' && section !== '--')
+    .map((section) => {
+      const cut = section.indexOf('\r\n\r\n');
+      const head = section.slice(0, cut);
+      const body = section.slice(cut + 4, section.length - 2);
+
+      return { headers: headLines(head), body: Buffer.from(body, 'binary') };
+    });
+}
+
+/**
+ * One header of one part, by name, for a case that is about that field.
+ *
+ * @param part - The part
+ * @param name - Field name, in any case
+ * @returns Its value, or the empty string when the part carries no such field
+ */
+export function partHeader(part: Part | undefined, name: string): string {
+  const prefix = `${name.toLowerCase()}: `;
+
+  return (part?.headers ?? []).find((line) => line.startsWith(prefix))?.slice(prefix.length) ?? '';
+}
 
 /**
  * Every header of one request that is the request rather than the client that sent it.
@@ -224,8 +344,9 @@ export function comparableHeaders(
  *
  * A SUITE THAT CANNOT DETERMINE ITS FACT SAYS SO RATHER THAN PASSING, which is why this returns an
  * answer instead of throwing. cURL is required by its own suite because every machine this project
- * builds on has it; the five this guards, wget, HTTPie, PowerShell, Swift and Ruby, are not, so
- * their cases skip with the reason named rather than going green on a machine that proved nothing.
+ * builds on has it; the six this guards, wget, HTTPie, PowerShell, Swift, Ruby and the .NET SDK,
+ * are not, so their cases skip with the reason named rather than going green on a machine that
+ * proved nothing.
  *
  * @param probe - A command that succeeds when the tool is installed
  * @returns True when it ran and exited zero

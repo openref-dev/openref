@@ -41,6 +41,11 @@ const DOCUMENT_TEXT_CLASSES: readonly string[] = [
   'oref-drift-message',
   'oref-drift-side',
   'oref-drift-subject',
+  // The reasoning a finding carries below the fold, added 2026-09-05 with SPEC 7.2's short first
+  // line. It is the same class of text as the message above it: a collector's own sentence with
+  // an address, a key name or a guard class interpolated into it, none of which this project
+  // writes, so an override in one of them reorders the disclosure it lives in.
+  'oref-drift-why',
   'oref-example',
   'oref-media-schema',
   'oref-nav-label',

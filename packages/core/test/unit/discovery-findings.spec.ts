@@ -83,17 +83,54 @@ describe('discovery-incomplete', () => {
     expect(found[0]?.severity).toBe('warning');
   });
 
-  it('should carry the subject and the reason in the message as one sentence', () => {
-    // Given the same document. The message is what `--json` carries and what the render side
-    // groups by, and it has to stand on its own without the subject beside it.
+  it('should say the reason once, with the subject beside it rather than inside it', () => {
+    // Given the same document. WHAT USED TO HAPPEN, and what this case exists to keep from coming
+    // back: `message` was built as `${subject}: ${reason}` and `suggestion` was set to the same
+    // `reason`, on the reading that `openref doctor` prints the subject and the suggestion and
+    // never the message. It does; every browser theme prints the message and the suggestion one
+    // under the other, so a reader of the health page was shown one sentence twice in every
+    // finding, once with the subject glued to the front of it. Measured on the maintainer's
+    // application: 68 findings carrying 136 copies of five sentences.
     const finding = buildDoctorReport(documentWith(PROBLEMS)).findings.find(
       (candidate) => candidate.rule === 'discovery-incomplete',
     );
 
-    // When, Then
+    // When, Then the subject is present and is the finding's own member, the message is the reason
+    // and nothing else, and neither string contains the other.
     const first = PROBLEMS[0];
     expect(first).toBeDefined();
-    expect(finding?.message).toBe(`${String(first?.subject)}: ${String(first?.reason)}`);
+    expect(finding?.subject).toBe(first?.subject);
+    expect(finding?.message).toBe(first?.reason);
+    expect(finding?.message).not.toContain(String(first?.subject));
+  });
+
+  it('should print the action a producer wrote rather than repeating its reason', () => {
+    // Given one problem written to SPEC 7.1's voice, with the three parts in three members, and
+    // one written the way every producer wrote them before the split
+    const split: IRDiscoveryProblem = {
+      subject: 'OrdersController.list',
+      reason: 'a custom parameter decorator reads the request itself, so what it reads is unknown',
+      action: 'nothing to do here: no better instrument can see through the decorator',
+      detail: 'The factory receives the whole execution context and may take anything out of it.',
+    };
+    const unsplit = PROBLEMS[1];
+    expect(unsplit).toBeDefined();
+    if (unsplit === undefined) return;
+
+    // When
+    const found = buildDoctorReport(documentWith([split, unsplit])).findings.filter(
+      (finding) => finding.rule === 'discovery-incomplete',
+    );
+
+    // Then the split one carries three different strings, and the unsplit one is exactly where it
+    // was: `renderDoctorFinding` prints the suggestion and never the message, so a fallback of
+    // anything but the reason would have emptied `doctor` for every producer not yet moved.
+    expect(found).toHaveLength(2);
+    expect(found[0]?.message).toBe(split.reason);
+    expect(found[0]?.suggestion).toBe(split.action);
+    expect(found[0]?.message).not.toBe(found[0]?.suggestion);
+    expect(found[1]?.message).toBe(unsplit.reason);
+    expect(found[1]?.suggestion).toBe(unsplit.reason);
   });
 
   it('should move no existing score when the discovery stated everything it found', () => {

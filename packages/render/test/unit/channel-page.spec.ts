@@ -16,7 +16,7 @@ import {
   runtimeDocument,
   smallDocument,
 } from '../mocks/documents';
-import type { IRDocument } from '@openref/core';
+import { normalizeAsyncApiDocument, type IRDocument } from '@openref/core';
 import type { ChannelModel, NodeModel, PageKind, PageModel } from '@openref/vue';
 
 /**
@@ -175,6 +175,45 @@ describe('the channel model', () => {
         security: [{ schemeId: 'saslScram', type: 'scramSha256', in: '', name: '', scopes: [] }],
       },
     ]);
+  });
+
+  it('should draw no address for a broker whose host nothing configured, degraded or otherwise', async () => {
+    // Given the document SPEC 8.3's synthesis writes when a protocol was configured for nothing:
+    // the server is kept, because a channel with no server is a channel with no protocol, and its
+    // host is empty because a deployment address is not a fact an application has
+    const document = normalizeAsyncApiDocument({
+      asyncapi: '3.1.0',
+      info: { title: 'Orders', version: 'runtime' },
+      servers: { kafka: { host: '', protocol: 'kafka' } },
+      channels: { created: { address: 'orders.created', servers: [{ $ref: '#/servers/kafka' }] } },
+      operations: { onCreated: { action: 'receive', channel: { $ref: '#/channels/created' } } },
+    });
+
+    // The subjects are asserted present before their absence on the page is claimed: the document
+    // really does declare that broker, the IR really does keep it, and the channel really is
+    // bound to it, so what is measured below is a page decision and not a missing fixture.
+    expect(document.servers).toEqual([{ url: '', protocol: 'kafka' }]);
+    const node = [...document.nodes.values()][0];
+    expect(node?.kind).toBe('channel');
+    expect(node?.kind === 'channel' ? node.servers : []).toEqual([{ url: '' }]);
+
+    // When
+    const page = buildPageModel(document, { nodeId: node?.id ?? '', markdown });
+    const markup = await html(ChannelFacts, { channel: page.node?.channel });
+
+    // Then nothing that reads like an address reaches the reader, and nothing empty stands where
+    // one would be. WHAT USED TO HAPPEN, measured on the built `examples/events` on 2026-09-04:
+    // the url was assembled as `kafka://`, the overview list drew it, this section drew it, and
+    // the console joined it to the address and offered `kafka://orders.created` as a target.
+    expect(page.servers).toEqual([]);
+    expect(page.node?.channel?.servers).toEqual([]);
+    expect(markup).not.toContain('kafka://');
+    expect(markup).not.toContain('<code></code>');
+
+    // And the one fact the discovery does know is still on the page, which is why the server is
+    // kept in the IR at all
+    expect(page.node?.channel?.protocol).toBe('kafka');
+    expect(text(markup)).toContain('kafka');
   });
 
   it('should carry the reply as its three members rather than as one line', () => {

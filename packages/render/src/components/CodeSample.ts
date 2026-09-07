@@ -26,15 +26,27 @@
  * left in it. The modifiers are hooks for a theme that wants to tell a sample from a response.
  */
 
-import { h, type VNode } from 'vue';
+import { Fragment, h, type VNode } from 'vue';
 import { MarkdownBlock } from './MarkdownBlock';
 import type { CodeSampleModel } from '@openref/vue';
 
 /**
  * Renders the call samples block.
  *
+ * THE SECTION ELEMENT IS `NodePanel`'s AND THE CONTENTS ARE THIS SLOT'S, since 2026-09-03. The two
+ * sentences that name a language the page holds back and a language whose emitter refused belong
+ * inside the block a reader is looking at, and they may not be a slot's to drop, so the element
+ * that holds all three is drawn one level up and this returns its children. What a theme replacing
+ * this slot decides is still everything about how a sample looks, its own heading included.
+ *
+ * AN EMPTY STRIP IS NOT DRAWN, AND THAT IS THE OTHER HALF. An operation whose every language
+ * refused has no tab to put in a strip, and `<div role="tablist"></div>` under a heading is the
+ * shape the page model's own comment calls worse than no section at all: it announces a control
+ * that is not there. The heading stays, because the section still has something to say, and what it
+ * says is the refusal `NodePanel` prints under this.
+ *
  * @param props - The samples, which one is showing, and how to change that
- * @returns The section
+ * @returns The heading, the tab strip when there is one, and the sample showing
  */
 export function CodeSample(props: {
   readonly samples: readonly CodeSampleModel[];
@@ -44,32 +56,34 @@ export function CodeSample(props: {
   const active =
     props.samples.find((sample) => sample.lang === props.activeLang) ?? props.samples[0];
 
-  return h('section', { class: 'oref-section oref-section-samples' }, [
+  return h(Fragment, [
     h('h2', { class: 'oref-section-title' }, 'Call it'),
-    h(
-      'div',
-      { class: 'oref-tryit-actions oref-sample-tabs', role: 'tablist' },
-      props.samples.map((sample) =>
-        h(
-          'button',
-          {
-            class: [
-              'oref-send',
-              'oref-sample-tab',
-              sample.lang === active?.lang ? 'oref-active' : '',
-            ],
-            key: sample.lang,
-            type: 'button',
-            role: 'tab',
-            'aria-selected': sample.lang === active?.lang ? 'true' : 'false',
-            onClick: (): void => {
-              props.onSelect(sample.lang);
-            },
-          },
-          sample.label,
+    props.samples.length === 0
+      ? null
+      : h(
+          'div',
+          { class: 'oref-tryit-actions oref-sample-tabs', role: 'tablist' },
+          props.samples.map((sample) =>
+            h(
+              'button',
+              {
+                class: [
+                  'oref-send',
+                  'oref-sample-tab',
+                  sample.lang === active?.lang ? 'oref-active' : '',
+                ],
+                key: sample.lang,
+                type: 'button',
+                role: 'tab',
+                'aria-selected': sample.lang === active?.lang ? 'true' : 'false',
+                onClick: (): void => {
+                  props.onSelect(sample.lang);
+                },
+              },
+              sample.label,
+            ),
+          ),
         ),
-      ),
-    ),
     active === undefined
       ? null
       : h(MarkdownBlock, { html: active.sourceHtml, className: 'oref-example oref-sample' }),

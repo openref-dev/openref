@@ -17,6 +17,7 @@ import {
   headersOf,
   headersWithoutContentType,
   multipartFieldsOf,
+  shellUrl,
   textBodyOf,
 } from './plan-parts';
 import type { SampleRequest } from './sample-request';
@@ -181,7 +182,7 @@ export function emitCurl(request: SampleRequest): EmitOutcome {
   if (body.kind === 'refused') return { kind: 'refused', reason: body.reason };
 
   const parts = [
-    `curl -X ${request.plan.method} ${quoteShell(request.plan.url)}`,
+    `curl -X ${request.plan.method} ${shellUrl(request.plan.url)}`,
     ...headerArguments(headers),
     ...body.args,
   ];

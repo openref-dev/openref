@@ -21,8 +21,16 @@ that channel. That edge is the thing neither document states on its own: the spe
 describes shapes, and only the application knows that this endpoint is what puts a message on that
 topic.
 
-Both channels here are declared with `@ApiChannel`. A handler carrying
+Both channels here are declared with `@ApiChannel`, on `OrdersProjector`, which is a plain
+`@Injectable()` provider and neither a controller nor a WebSocket gateway. That is the third class
+kind SPEC 8.3 reads the decorator on, and until 2026-09-04 it was the one kind the walk did not
+reach: this example served `"channels":{}` while this page said otherwise. A handler carrying
 `@MessagePattern('orders.created', Transport.KAFKA)` is discovered from the framework's own
 metadata with no decorator of ours, and that form is left out only so this example installs
 nothing the others do not. What no form can discover is the payload type, which is why
 `@ApiMessage({ payload: OrderDto })` exists.
+
+`GET /docs/events/asyncapi.json` answers with both channels on it, `orders.created` on the kafka
+server and `orders.shipped` on the amqp one, which is what
+`tools/docs-site/test/integration/example-applications.spec.ts` asserts about this example rather
+than only that a page comes back.

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { RUNTIME_FACT_COLLECTORS } from '@openref/core';
 import type { IRConfidence, IRFact, IRNode } from '@openref/core';
 import type { CollectorContext } from '@openref/nest';
 import { isRuntimeCollector } from '@openref/nest';
@@ -148,7 +149,11 @@ describe('caslCollector', () => {
     // Then
     expect(produced).toBeUndefined();
     expect(collector.problems()[0]?.subject).toBe('OrdersController.list');
-    expect(collector.problems()[0]?.reason).toContain('never read');
+    expect(collector.problems()[0]?.reason).toContain(
+      'are functions, so what they allow is not known',
+    );
+    expect(collector.problems()[0]?.action).toContain('declare the action and the subject as data');
+    expect(collector.problems()[0]?.detail).toContain('never read');
   });
 
   it('should keep the readable abilities and report the unreadable ones beside them', () => {
@@ -186,5 +191,22 @@ describe('caslCollector', () => {
 
     // Then
     expect(produced).toBeUndefined();
+  });
+});
+
+/**
+ * The name this collector stamps is the name `@openref/core` names for its fact.
+ *
+ * IT IS ASSERTED HERE BECAUSE THE TWO LISTS LIVE IN TWO PACKAGES. `@openref/render` writes the
+ * sentence "no registered collector reports X" against a table in `core`, and cannot import this
+ * package to check it. A name that drifted would offer a reader an instrument that does not exist.
+ */
+describe('the name `@openref/core` names for this fact', () => {
+  it('should be the name this collector stamps', () => {
+    // Given, the subject is present: core names something for the fact
+    expect(RUNTIME_FACT_COLLECTORS.scopes.length).toBeGreaterThan(0);
+
+    // When, Then
+    expect(RUNTIME_FACT_COLLECTORS.scopes).toContain(CASL_COLLECTOR_NAME);
   });
 });

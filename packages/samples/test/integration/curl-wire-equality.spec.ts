@@ -24,15 +24,16 @@ import { SPAWNED_PROCESS_TIMEOUT_MS } from '../../../../vitest.spawn-timeout';
 import { buildSampleRequest, generateCodeSamples } from '../../src/index';
 import type { SampleRequest } from '../../src/index';
 import { pngFile } from '../mocks/operations';
-import { comparableHeaders, runShell, startWireServer } from '../mocks/wire';
+import {
+  boundaryOf,
+  comparableHeaders,
+  partHeader,
+  partsOf,
+  runShell,
+  startWireServer,
+  withoutBoundary,
+} from '../mocks/wire';
 import type { Wire, WireServer } from '../mocks/wire';
-
-/** One part of a multipart body, as the framing carried it. */
-interface Part {
-  readonly disposition: string;
-  readonly contentType: string;
-  readonly body: Buffer;
-}
 
 let wire: WireServer;
 let origin = '';
@@ -84,39 +85,18 @@ async function bothWays(request: SampleRequest): Promise<readonly [Wire, Wire]> 
   return [wire.seen[0]!, wire.seen[1]!];
 }
 
-/** The boundary a multipart content type declares. */
-function boundaryOf(contentType: string): string {
-  const match = /boundary=(?<boundary>[^;]+)/.exec(contentType);
-  expect(match?.groups?.boundary, `no boundary in ${contentType}`).toBeDefined();
-
-  return match?.groups?.boundary ?? '';
-}
-
-/** Splits a multipart body into its parts, by the boundary its content type declares. */
-function partsOf(wire: Wire): readonly Part[] {
-  const boundary = boundaryOf(wire.headers['content-type'] ?? '');
-  const sections = wire.body.toString('binary').split(`--${boundary}`);
-
-  return sections
-    .filter((section) => section !== '' && section !== '--\r\n' && section !== '--')
-    .map((section) => {
-      const cut = section.indexOf('\r\n\r\n');
-      const head = section.slice(0, cut);
-      const body = section.slice(cut + 4, section.length - 2);
-      const disposition = /content-disposition: ([^\r\n]+)/i.exec(head)?.[1] ?? '';
-      const contentType = /content-type: ([^\r\n]+)/i.exec(head)?.[1] ?? '';
-
-      return { disposition, contentType, body: Buffer.from(body, 'binary') };
-    });
-}
-
 /**
  * Compares two wires over everything the request declares.
  *
- * A MULTIPART CONTENT TYPE IS COMPARED AS A MEDIA TYPE AND ITS PARTS, not as a string, and that
- * is the one difference this suite accepts. The boundary is chosen by whoever frames the body,
- * so the runner's and curl's differ by construction; what has to match is every part the reader
- * supplied, byte for byte.
+ * A MULTIPART CONTENT TYPE IS COMPARED WITHOUT ITS BOUNDARY, not as a string and not as a prefix,
+ * and that is the one difference this suite accepts. The boundary is chosen by whoever frames the
+ * body, so the runner's and curl's differ by construction; the rest of the field is held to the
+ * plan's and every part the reader supplied has to match byte for byte.
+ *
+ * A PART IS COMPARED OVER EVERY HEADER IT CARRIES, SINCE 2026-09-03, and the reader of it lives in
+ * `test/mocks/wire.ts` beside the other one. The reader here named two fields and dropped the rest,
+ * so a header a client added to a part of its own was invisible by construction, the same class one
+ * level down from the one `comparableHeaders` was rewritten to end.
  */
 function expectSameWire(request: SampleRequest, runner: Wire, curl: Wire): void {
   expect(curl.method).toBe(runner.method);
@@ -145,7 +125,13 @@ function expectSameWire(request: SampleRequest, runner: Wire, curl: Wire): void 
     expect(runner.headers[field], `runner dropped ${name}`).toBeDefined();
 
     if (multipart && field === 'content-type') {
-      expect(curl.headers[field]?.startsWith('multipart/form-data;')).toBe(true);
+      // THE BOUNDARY IS EXCUSED AND NOTHING ELSE IN THE FIELD IS, which is what the corrected
+      // SPEC 18 sentence states. Reading the field as a prefix left everything after
+      // `multipart/form-data;` unlooked at, so a client adding a `charset` of its own would have
+      // passed: the exemption is narrow enough to name, and this is it named.
+      expect(withoutBoundary(curl.headers[field] ?? '')).toBe(withoutBoundary(value));
+      expect(withoutBoundary(runner.headers[field] ?? '')).toBe(withoutBoundary(value));
+      expect(boundaryOf(curl.headers[field] ?? '')).not.toBe('');
       continue;
     }
 
@@ -349,9 +335,9 @@ describe('the generated cURL and the runner send one request', () => {
       // Then
       expectSameWire(request, runner, curl);
       const parts = partsOf(curl);
-      expect(parts[0]?.contentType).toBe('text/plain');
+      expect(partHeader(parts[0], 'content-type')).toBe('text/plain');
       expect(parts[0]?.body.toString('utf8')).toBe('@home; said "hi" \\ ok');
-      expect(parts[1]?.contentType).toBe('');
+      expect(partHeader(parts[1], 'content-type')).toBe('');
     },
     SPAWNED_PROCESS_TIMEOUT_MS,
   );

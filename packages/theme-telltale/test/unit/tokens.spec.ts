@@ -7,9 +7,9 @@ import { CONTRACT_TOKEN_NAMES, THEME_SPECIFIC_TOKENS } from '../mocks/contract-t
  * The token stylesheet this theme ships, against the contract it answers.
  *
  * WHAT IS CHECKED IS WHETHER A NAME RESOLVES IN EACH MODE, NOT WHETHER IT IS DECLARED TWICE.
- * `ai-docs/design/CONTRACT.md` was amended on 2026-08-10 for exactly this: a token declared in the
- * light block and not overridden in the dark one does have a value in dark mode, because that is
- * what the cascade is for, and the requirement is on the resolved value. So this file applies the
+ * The design contract was amended on 2026-08-10 for exactly this: a token declared in the light
+ * block and not overridden in the dark one does have a value in dark mode, because that is what
+ * the cascade is for, and the requirement is on the resolved value. So this file applies the
  * cascade rather than counting declarations, and the two cases a declaration count would pass and
  * a resolution check fails, an empty value and a `var()` chain with no terminal, are cases here.
  *
@@ -145,7 +145,7 @@ describe('the token stylesheet telltale ships', () => {
   });
 
   it('should carry `--oref-color-accent-signal`, which the contract gives this theme alone', () => {
-    // Given, `ai-docs/design/CONTRACT.md` says it is telltale's own and must not appear in vernier
+    // Given, the design contract says it is telltale's own and must not appear in vernier
     // or forge. This theme has one accent where vernier has two, so `accent-spec` and
     // `accent-runtime` are the same value here, deliberately, and the separation is carried by
     // position and by the provenance mark instead.

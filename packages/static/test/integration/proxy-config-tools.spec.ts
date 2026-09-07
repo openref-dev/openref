@@ -28,8 +28,27 @@ const OPTIONS = {
   forwardCookies: false,
 };
 
-function contentOf(target: Parameters<typeof generateProxyFiles>[0]): string {
-  const [file] = generateProxyFiles(target, OPTIONS);
+/**
+ * The same options with upstreams that resolve, for the one validator that resolves them.
+ *
+ * `nginx -t` RESOLVES EVERY LITERAL `proxy_pass` HOST WHILE IT PARSES, and fails the whole test
+ * with `host not found in upstream` when one does not exist. `api.example.com` does not: the
+ * reserved name is `example.com` itself and it carries no wildcard, so the check above was asking
+ * a DNS question it thought was a syntax question. `localhost` answers from the hosts file on
+ * every platform with no network at all. Which host stands in `proxy_pass` is not what this case
+ * asserts, and the two cases that do pin the host, netlify and vercel, keep `OPTIONS` unchanged.
+ */
+const RESOLVABLE_OPTIONS = {
+  upstreams: ['https://localhost/v1', 'http://localhost:8080'],
+  basePath: '/docs',
+  forwardCookies: false,
+};
+
+function contentOf(
+  target: Parameters<typeof generateProxyFiles>[0],
+  options: typeof OPTIONS = OPTIONS,
+): string {
+  const [file] = generateProxyFiles(target, options);
   if (file === undefined) throw new Error(`no file generated for ${target}`);
   return file.content;
 }
@@ -163,21 +182,48 @@ describe('the nginx snippet through nginx -t, where a machine has nginx', () => 
       }
 
       const snippet = join(directory, 'openref-proxy.nginx.conf');
-      await writeFile(snippet, contentOf('nginx'));
+      await writeFile(snippet, contentOf('nginx', RESOLVABLE_OPTIONS));
       const conf = join(directory, 'nginx.conf');
-      await writeFile(
-        conf,
+      // A REAL PORT IN THE SCAFFOLD, BECAUSE PORT 0 IS NOT ONE TO nginx. This wrapper is the
+      // test's own, not the generated snippet, and it used to say `listen 127.0.0.1:0` on the
+      // assumption that zero reads as "any port" the way it does to bind(2). nginx parses the
+      // directive itself and refuses: `invalid port in "127.0.0.1:0"`, which is measured the same
+      // on nginx 1.31.5 on macOS and on the runner's, so this was never a platform difference.
+      // The case had simply never executed: the workstation has no nginx, so it skipped on every
+      // run for two milestones and first ran on the first push to CI. `-t` parses without
+      // binding, so the port only has to be a port.
+      //
+      // AND EVERY PATH nginx WOULD OTHERWISE TAKE FROM ITS COMPILE TIME DEFAULTS. `-t` does not
+      // only parse. Having said `syntax is ok` it runs the same cycle init a start does, minus
+      // the listening sockets: it opens the pid file, opens every log, and creates every temp
+      // path. Undeclared, those are the paths the binary was built with, and the two builds
+      // disagree about who owns them. Homebrew puts them under its own prefix, which this user
+      // owns; the distribution packages use `/run/nginx.pid`, `/var/log/nginx` and `/var/lib/nginx`,
+      // which root owns. So the runner failed on `Permission denied` twice in a row, each time
+      // after passing the check this case is actually about, and each time one layer further in.
+      // Declaring all of them into the test's own directory ends the class rather than the top
+      // layer of it: measured here, `-t` creates all five temp directories, so the distribution
+      // defaults for those were next. This is the fourth environment assumption in one wrapper,
+      // which is what a scaffold nobody ever ran is made of.
+      const wrapper = (body: string): string =>
         [
           'events {}',
+          `pid ${join(directory, 'nginx.pid')};`,
           'http {',
+          '  access_log off;',
+          `  client_body_temp_path ${join(directory, 'client-body')};`,
+          `  proxy_temp_path ${join(directory, 'proxy')};`,
+          `  fastcgi_temp_path ${join(directory, 'fastcgi')};`,
+          `  uwsgi_temp_path ${join(directory, 'uwsgi')};`,
+          `  scgi_temp_path ${join(directory, 'scgi')};`,
           '  server {',
-          '    listen 127.0.0.1:0;',
-          `    include ${snippet};`,
+          body,
           '  }',
           '}',
           '',
-        ].join('\n'),
-      );
+        ].join('\n');
+
+      await writeFile(conf, wrapper(`    listen 127.0.0.1:8080;\n    include ${snippet};`));
 
       // When, Then: -t parses without starting, and a planted broken include fails.
       await run('nginx', ['-t', '-c', conf, '-p', directory, '-e', join(directory, 'error.log')]);
@@ -185,13 +231,15 @@ describe('the nginx snippet through nginx -t, where a machine has nginx', () => 
       const brokenSnippet = join(directory, 'broken.nginx.conf');
       await writeFile(brokenSnippet, 'location { nonsense');
       const brokenConf = join(directory, 'nginx-broken.conf');
-      await writeFile(
-        brokenConf,
-        `events {}\nhttp {\n  server {\n    include ${brokenSnippet};\n  }\n}\n`,
-      );
+      await writeFile(brokenConf, wrapper(`    include ${brokenSnippet};`));
+      // THE CONTROL HAS TO FAIL ON THE PLANT AND NOT ON THE MACHINE, which is why the message is
+      // named rather than only the rejection. The pid defect above made this half throw for a
+      // reason that had nothing to do with the planted garbage, so a bare `toThrow` would have
+      // gone green on a scaffold that never validated anything at all, which is the failure the
+      // header of this file calls a green lie.
       await expect(
         run('nginx', ['-t', '-c', brokenConf, '-p', directory, '-e', join(directory, 'error.log')]),
-      ).rejects.toThrow();
+      ).rejects.toThrow(/"location" directive/);
     },
     SPAWNED_PROCESS_TIMEOUT_MS,
   );

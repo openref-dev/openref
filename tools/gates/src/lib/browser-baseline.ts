@@ -31,11 +31,32 @@
  * the same violations failed the study job, and the field sitting in the file read as coverage.
  * SPEC 0 calls the class measured but never asserted. A figure recorded here is either checked
  * or listed as unchecked with the reason, and there is no third state.
+ *
+ * AND HOW GOOD A FIGURE IS, IS DATA HERE TOO, in `pageBytesFigures`. The three byte columns, their
+ * sum and the headroom under the ceiling were hand written into the SPEC 20 row, into the
+ * `BROWSER_CEILINGS` comment and into this repository's prose, and the only assertions that touched
+ * them compared the committed record with itself, which proves the comparison and not the
+ * construction. They are derived from the record and the live ceiling now, and each one says which
+ * of two things it is, because they are not equally good and writing them as one line would be the
+ * dressing up this file exists to stop:
+ *
+ * - MEASURABLE. The stylesheet and bundle columns equal `theme-css-raw` and `client-js-raw` of the
+ *   published form byte for byte, and this repository weighs both off a built tree, so the record's
+ *   two columns are held against an instrument rather than believed.
+ * - RECORDED. The document column comes from a browser study on a named machine and nothing here
+ *   can take it again, so it is as good as that run and no better. The total contains it and is
+ *   therefore recorded too, and the headroom is arithmetic over the live ceiling and that total.
+ *   What holds all three is that they are typed nowhere: every prose home is compared with the
+ *   derivation, so a re-record that leaves one behind is red rather than quiet.
  */
 
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { BROWSER_BASELINE_FILE, BROWSER_CEILINGS } from '../config.js';
+import {
+  BROWSER_BASELINE_FILE,
+  BROWSER_CEILINGS,
+  PAGE_SAMPLE_LANGUAGE_MEASUREMENT,
+} from '../config.js';
 
 /** What one figure looked like across the runs of a study. */
 export interface BaselineSpread {
@@ -614,4 +635,297 @@ export function recordedFigure(baseline: BrowserBaseline, budgetId: string): str
     default:
       return null;
   }
+}
+
+/**
+ * The zero language reading of the measured page, derived rather than recorded.
+ *
+ * Every field is arithmetic over the committed record and `PAGE_SAMPLE_LANGUAGE_MEASUREMENT`.
+ * Nothing here is typed by hand anywhere, which is the point of the shape.
+ */
+export interface ZeroSamplePage {
+  /** Document bytes with every drawn language off, section and server drawn block still there. */
+  readonly documentBytes: number;
+  /** That document plus the recorded stylesheet and bundle, which is what `page-bytes` counts. */
+  readonly pageBytes: number;
+  /** The ceiling the current one replaced, which the overrun is stated against. */
+  readonly replacedCapBytes: number;
+  /** How far the zero language page is over that ceiling. */
+  readonly overrunBytes: number;
+  /**
+   * The same page with the one server drawn code block off as well.
+   *
+   * A LOWER BOUND AND LABELLED AS ONE. The harness has no instrument for taking the section chrome
+   * off, so this is as light as the page can be shown to get rather than a second measurement, and
+   * a figure presented as measured when it is bounded is the class of defect this file is full of.
+   */
+  readonly withoutServedBlockPageBytes: number;
+  /** How far even that page is over the replaced ceiling. */
+  readonly withoutServedBlockOverrunBytes: number;
+}
+
+/** The derivation, or the reason it could not be made. */
+export type ZeroSampleDerivation =
+  | { readonly determined: true; readonly figures: ZeroSamplePage }
+  | { readonly determined: false; readonly reason: string };
+
+/**
+ * The zero language reading, derived from the committed record and the recorded language cost.
+ *
+ * IT REFUSES RATHER THAN ANSWERING ACROSS TWO TREES. The language costs were measured on one
+ * commit and the three columns on another, and subtracting one from the other would produce a
+ * confident number about a page that never existed. That is exactly how the reading this replaces
+ * went stale: it was taken when the JS column stood at 112,151 and was still being quoted after the
+ * column moved to 112,644. A check that cannot determine a fact says so and never defaults to the
+ * answer that means success.
+ *
+ * @param baseline - The committed browser record
+ * @returns The derived figures, or why they could not be derived
+ */
+export function zeroSamplePage(baseline: BrowserBaseline): ZeroSampleDerivation {
+  const measurement = PAGE_SAMPLE_LANGUAGE_MEASUREMENT;
+
+  if (baseline.commit !== measurement.commit) {
+    return {
+      determined: false,
+      reason:
+        `the browser record was taken at ${baseline.commit} and the language costs in ` +
+        `PAGE_SAMPLE_LANGUAGE_MEASUREMENT at ${measurement.commit}, so the zero language reading ` +
+        `is UNDETERMINED rather than stale: re-run tools/browser-budget/dist/measure-languages.js ` +
+        `on the recorded tree and put its two figures in the constant`,
+    };
+  }
+
+  const documentBytes = baseline.parsedBytes.documentBytes - measurement.allDrawnDocumentBytes;
+  const pageBytes = documentBytes + baseline.parsedBytes.cssBytes + baseline.parsedBytes.jsBytes;
+  const withoutServedBlockPageBytes = pageBytes - measurement.servedCodeBlockBytes;
+
+  return {
+    determined: true,
+    figures: {
+      documentBytes,
+      pageBytes,
+      replacedCapBytes: measurement.replacedPageBytesCap,
+      overrunBytes: pageBytes - measurement.replacedPageBytesCap,
+      withoutServedBlockPageBytes,
+      withoutServedBlockOverrunBytes:
+        withoutServedBlockPageBytes - measurement.replacedPageBytesCap,
+    },
+  };
+}
+
+/**
+ * Whether a text states one whole number, whichever way it separates thousands.
+ *
+ * THREE SPELLINGS AND ONE REFUSAL. The two documents this reads write thousands differently, so
+ * `216,114`, `216 114` and `216114` all count. What does not count is a digit group that touches
+ * another one: `40 876 216 114` could be read as two numbers or as one, and a check that guessed
+ * would either miss a stale figure or invent a present one. It matches neither, so an ambiguous
+ * run reports the figure as unstated, which fails loudly instead of passing quietly.
+ *
+ * MY OWN CASE CAUGHT THIS. The first edition matched every separated run greedily and read
+ * `40 876 216 114` as one eleven digit number, which is the same class of defect as the figures
+ * this file exists to keep honest: an instrument that reports confidently on input it cannot parse.
+ *
+ * @param text - The prose to read
+ * @param value - The number to look for
+ * @returns Whether the text states it unambiguously
+ */
+export function statesNumber(text: string, value: number): boolean {
+  const digits = String(value);
+  const grouped = digits.replace(/\B(?=(\d{3})+(?!\d))/gu, '#');
+  const spellings = [digits, grouped.replace(/#/gu, ','), grouped.replace(/#/gu, ' ')];
+
+  return [...new Set(spellings)].some((spelling) =>
+    new RegExp(`(?<!\\d)(?<!\\d[,. ])${spelling}(?!\\d)(?![,. ]\\d)`, 'u').test(text),
+  );
+}
+
+/** One figure a prose home has to state, and what a reader should do when it does not. */
+export interface RequiredFigure {
+  /** What the figure is, as a noun phrase, for the message. */
+  readonly what: string;
+  readonly value: number;
+  /** How good this figure is and what holds it, named in the failure. Optional. */
+  readonly heldBy?: string;
+}
+
+/**
+ * The figures a text is supposed to state, checked against what it actually states.
+ *
+ * PRESENCE IS THE WHOLE CHECK AND IT IS ENOUGH FOR THE DEFECT. A copy that has gone stale states
+ * the old figure and not the new one, so the new one is missing and this reports it. It does not
+ * complain about a superseded figure that a paragraph deliberately keeps beside the correction,
+ * which is what the files here all do.
+ *
+ * ONE MECHANISM AND NOT THREE. Both callers below walk a prose region for a list of numbers that
+ * something else derived, so they share this rather than each growing a copy of the same loop: a
+ * second copy would be the very thing the derived figures were brought under a runner to stop.
+ *
+ * @param label - Which text this is, for the message
+ * @param text - The text
+ * @param required - What the text has to state
+ * @param source - What produced these figures, named so a reader knows what to re-run
+ * @returns One message per figure the text does not state
+ */
+export function statedFigureIssues(
+  label: string,
+  text: string,
+  required: readonly RequiredFigure[],
+  source: string,
+): string[] {
+  return required
+    .filter((figure) => !statesNumber(text, figure.value))
+    .map(
+      (figure) =>
+        `${label} does not state ${figure.what}, ${String(figure.value)}, which the derivation ` +
+        `over ${source} produces. A figure written by hand that the derivation no longer agrees ` +
+        `with is the defect this check exists for` +
+        (figure.heldBy === undefined ? '' : `. ${figure.heldBy}`),
+    );
+}
+
+/**
+ * The zero language figures a text is supposed to state, checked against what it states.
+ *
+ * @param label - Which text this is, for the message
+ * @param text - The text
+ * @param figures - What the derivation produced
+ * @returns One message per derived figure the text does not state
+ */
+export function zeroSampleFigureIssues(
+  label: string,
+  text: string,
+  figures: ZeroSamplePage,
+): string[] {
+  const required: readonly RequiredFigure[] = [
+    { what: 'the zero language document column', value: figures.documentBytes },
+    { what: 'the zero language page total', value: figures.pageBytes },
+    { what: 'the replaced ceiling', value: figures.replacedCapBytes },
+    { what: 'the overrun over it', value: figures.overrunBytes },
+    {
+      what: 'the bound with the server drawn block off',
+      value: figures.withoutServedBlockPageBytes,
+    },
+    { what: 'the overrun of that bound', value: figures.withoutServedBlockOverrunBytes },
+    {
+      what: 'the cost of the drawn languages',
+      value: PAGE_SAMPLE_LANGUAGE_MEASUREMENT.allDrawnDocumentBytes,
+    },
+    {
+      what: 'the server drawn code block',
+      value: PAGE_SAMPLE_LANGUAGE_MEASUREMENT.servedCodeBlockBytes,
+    },
+  ];
+
+  return statedFigureIssues(
+    label,
+    text,
+    required,
+    `${BROWSER_BASELINE_FILE} and PAGE_SAMPLE_LANGUAGE_MEASUREMENT`,
+  );
+}
+
+/**
+ * How good one page figure is, which is a different question from where it is written.
+ *
+ * `measurable` means an instrument in this repository takes the same quantity again off a built
+ * tree, so the recorded column is compared with that instrument rather than believed. `recorded`
+ * means the browser study on its named machine is the only instrument there is, so the figure is
+ * as good as that run and no better. THE TWO ARE NOT INTERCHANGEABLE AND MUST NOT BE PRINTED AS
+ * ONE: presenting a recorded figure as a derived one is how a number nobody can re-take comes to
+ * read as a number somebody checked.
+ */
+export type PageFigureStanding = 'measurable' | 'recorded';
+
+/** One of the `page-bytes` figures, with its standing attached rather than assumed. */
+export interface PageFigure extends RequiredFigure {
+  readonly standing: PageFigureStanding;
+  /** Required here: a figure without its standing named is the thing this type exists against. */
+  readonly heldBy: string;
+}
+
+/**
+ * The `page-bytes` columns, their sum and the headroom, derived from the record and the ceiling.
+ *
+ * NOTHING HERE IS TYPED BY HAND, WHICH IS THE WHOLE OF THE CHANGE. Every one of these five lived
+ * as a literal in the SPEC 20 row, in the `BROWSER_CEILINGS` comment and in the paragraphs beside
+ * them, so re-recording `baseline.json` moved all five and left every prose home to be corrected
+ * by hand, silently. That is how nine hand written figures in a row went stale.
+ *
+ * THE HEADROOM GOES NEGATIVE WHEN THE RECORD IS OVER THE CEILING, and that is left alone rather
+ * than clamped. A record over its ceiling is `checkCeilings`'s finding first, and its prose has to
+ * be rewritten in either case, so the honest reading of a negative headroom is that no paragraph
+ * states it and every home is red.
+ *
+ * @param baseline - The committed browser record
+ * @returns The five figures, each carrying whether an instrument can take it again
+ */
+export function pageBytesFigures(baseline: BrowserBaseline): readonly PageFigure[] {
+  const bytes = baseline.parsedBytes;
+  const total = pageBytesOf(bytes);
+
+  return [
+    {
+      what: 'the document column',
+      value: bytes.documentBytes,
+      standing: 'recorded',
+      heldBy:
+        'RECORDED: it comes from the browser study on its named machine and nothing here can ' +
+        'take it again, so what holds it is that it is typed in no prose home at all',
+    },
+    {
+      what: 'the stylesheet column',
+      value: bytes.cssBytes,
+      standing: 'measurable',
+      heldBy:
+        'MEASURABLE: it is `theme-css-raw` of the published form byte for byte, which this ' +
+        'repository weighs off a built tree, so the record is held against that instrument',
+    },
+    {
+      what: 'the bundle column',
+      value: bytes.jsBytes,
+      standing: 'measurable',
+      heldBy:
+        'MEASURABLE: it is `client-js-raw` of the published form byte for byte, which this ' +
+        'repository weighs off a built tree, so the record is held against that instrument',
+    },
+    {
+      what: 'the page total',
+      value: total,
+      standing: 'recorded',
+      heldBy:
+        'RECORDED: it is the sum of the three columns and one of them comes from the study, so ' +
+        'the sum is as good as that run and no better however measurable the other two are',
+    },
+    {
+      what: 'the headroom under the ceiling in force',
+      value: BROWSER_CEILINGS.pageBytes - total,
+      standing: 'recorded',
+      heldBy:
+        'RECORDED: arithmetic over the live ceiling and a recorded total, so it moves when either ' +
+        'moves and belongs in neither prose home as a literal',
+    },
+  ];
+}
+
+/**
+ * The `page-bytes` figures a text is supposed to state, checked against what it states.
+ *
+ * @param label - Which text this is, for the message
+ * @param text - The text
+ * @param baseline - The committed browser record the figures are derived from
+ * @returns One message per figure the text does not state
+ */
+export function pageBytesFigureIssues(
+  label: string,
+  text: string,
+  baseline: BrowserBaseline,
+): string[] {
+  return statedFigureIssues(
+    label,
+    text,
+    pageBytesFigures(baseline),
+    `${BROWSER_BASELINE_FILE} and the BROWSER_CEILINGS.pageBytes in force`,
+  );
 }

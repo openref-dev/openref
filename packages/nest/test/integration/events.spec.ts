@@ -110,6 +110,13 @@ class ShippingController {
           servers: [
             { protocol: 'kafka', host: 'kafka.example.com:9092' },
             { protocol: 'amqp', host: 'rabbit.example.com:5672' },
+            // THE THIRD ENTRY MATCHES NO CHANNEL, AND IT IS HERE ON PURPOSE. No handler in this
+            // module speaks `ws`, so this entry contributes no member of the document, and until
+            // 2026-09-04 it contributed no word anywhere either: the protocol list below stayed
+            // `['amqp','kafka']` and said nothing, which is exactly how a host's edited copy of
+            // one entry goes unnoticed until a reader is shown a broker address with no host in
+            // it. It is now SPEC 8.3's seventh finding, and the case below is what reads it.
+            { protocol: 'ws', host: 'chat.example.com:8080' },
           ],
         },
       ],
@@ -343,6 +350,45 @@ for (const platform of PLATFORMS) {
       expect(ambiguity[0]?.suggestion).toContain('2 handlers serve it');
     });
 
+    it('should print the configured server no channel answers to, with the host it carries', async () => {
+      // Given the application above, whose `servers` list holds one entry for a protocol none of
+      // its handlers speaks
+      const url = await boot(platform);
+      const mounted = references().get('events');
+      const document = mounted?.service.document;
+
+      // The subject is asserted present before anything is claimed about where it reaches: the
+      // entry really is configured, and the document really does leave it out, which is the pair
+      // that made the old silence invisible. `['amqp','kafka']` is the assertion that stayed
+      // green through the whole defect and it is repeated here for that reason.
+      expect(document?.servers.map((server) => server.protocol).sort()).toEqual(['amqp', 'kafka']);
+
+      // When the document is read the way the CLI reads it
+      expect(document).toBeDefined();
+      const printed = buildDoctorReport(document!).findings.filter(
+        (finding) => finding.subject === 'the configured ws server',
+      );
+
+      // Then the entry is a printed finding under SPEC 7.1's display code, naming the host it
+      // carries, so the reader who wrote it can find the line to fix
+      expect(printed).toHaveLength(1);
+      expect(printed[0]?.code).toBe('RT070');
+      expect(printed[0]?.severity).toBe('warning');
+      expect(printed[0]?.suggestion).toContain('chat.example.com:8080');
+      expect(printed[0]?.suggestion).toContain('no channel of this application speaks ws');
+
+      // And no page of this reference shows a broker address with no host in it, which is the
+      // half of the defect a reader actually met
+      const overview = await fetch(`${url}/docs/events`);
+      const channel = await fetch(`${url}/docs/events/channel-orders-get`);
+      const overviewHtml = await overview.text();
+      const channelHtml = await channel.text();
+      expect(overview.status).toBe(200);
+      expect(channel.status).toBe(200);
+      expect(overviewHtml).toContain('kafka://kafka.example.com:9092');
+      expect(channelHtml).not.toContain('ws://');
+    });
+
     it('should carry the ambiguity of a channel two handlers serve into the problems', async () => {
       // Given the application above, whose `shipping.updated` is answered twice. The channel is
       // asserted present and factless first, so the problem below explains a real state rather
@@ -368,6 +414,152 @@ for (const platform of PLATFORMS) {
     });
   });
 }
+
+/**
+ * SPEC 8.3's third class kind, booted: a plain provider is the only thing declaring a channel.
+ *
+ * WHAT ONLY THIS FILE CAN PROVE, and it is not the walk. `event-discovery.spec.ts` hands the walk a
+ * `DiscoveryService` this project wrote; what nothing proved until 2026-09-04 is that Nest's own
+ * `DiscoveryService.getProviders()` reports a plain `@Injectable()` at the moment `onModuleInit`
+ * runs, and that a channel produced from it reaches the served document, its broker and its runtime
+ * facts. Every case in this file until now put `@ApiChannel` on a `@Controller`, which is the one
+ * class kind `collectPatterns` already reached, so the form the shipped example and five prose
+ * surfaces present as ordinary was proved nowhere.
+ *
+ * NOTHING HERE IS A CONTROLLER, WHICH IS THE POINT. `ProjectorOnlyModule` registers no controller
+ * at all, so a channel in its document came from the provider walk and from nowhere else.
+ */
+@Injectable()
+class OrdersProjector {
+  @ApiScopes('orders:project')
+  @ApiChannel({
+    address: 'orders.projected',
+    protocol: 'kafka',
+    direction: 'receive',
+    summary: 'An order was projected',
+  })
+  @ApiMessage({ payload: { type: 'object', properties: { id: { type: 'string' } } } })
+  onProjected(): void {
+    // nothing
+  }
+}
+
+@Module({
+  providers: [OrdersProjector],
+  imports: [
+    OpenRefModule.forRoot({
+      documents: [
+        {
+          id: 'events',
+          route: '/docs/events',
+          kind: 'events',
+          title: 'Projected events',
+          assetPlan: assetPlan(),
+          servers: [{ protocol: 'kafka', host: 'kafka.example.com:9092' }],
+        },
+      ],
+      runtime: { collectors: [declarationsCollector()] },
+    }),
+  ],
+})
+// eslint-disable-next-line @typescript-eslint/no-extraneous-class
+class ProjectorOnlyModule {}
+
+describe('a NestJS application whose only channel is declared on a plain provider', () => {
+  it('should discover it, serve it, bind it to its broker and give it its runtime facts', async () => {
+    // Given an application with no controller and no gateway anywhere in it
+    const app = await NestFactory.create(ProjectorOnlyModule as never, {
+      logger: false,
+      abortOnError: false,
+    });
+    running = app;
+    await app.listen(0, '127.0.0.1');
+    const url = await app.getUrl();
+
+    // The subject is asserted present before anything is proved about it: this module really does
+    // register the provider, and really does register no controller.
+    const mounted = references().get('events');
+    const document = mounted?.service.document;
+    expect(document?.kind).toBe('events');
+
+    // When
+    const channels = [...(document?.nodes.values() ?? [])].filter(
+      (node) => node.kind === 'channel',
+    );
+    const served = await fetch(`${url}/docs/events/asyncapi.json`);
+    const parsed = (await served.json()) as {
+      channels?: Record<string, { address?: string }>;
+      servers?: Record<string, { protocol?: string }>;
+    };
+
+    // Then the channel exists, at the address the decorator gave it, in the document a reader gets
+    expect(channels.map((node) => node.address)).toEqual(['orders.projected']);
+    expect(served.status).toBe(200);
+    expect(Object.values(parsed.channels ?? {}).map((channel) => channel.address)).toEqual([
+      'orders.projected',
+    ]);
+
+    // And the broker the mount configured reaches the document, which it could not while there
+    // were no channels to name a protocol
+    expect(Object.values(parsed.servers ?? {}).map((server) => server.protocol)).toEqual(['kafka']);
+
+    // And the runtime pass visits it, so the collectors configured on this mount contribute to a
+    // node instead of running over an empty map
+    expect(channels[0]?.runtime?.scopes).toEqual({
+      value: ['orders:project'],
+      confidence: 'declared',
+      collector: 'declarationsCollector',
+    });
+  });
+
+  it('should stop reporting a liveness of ok for a reference that describes nothing', async () => {
+    // Given an application whose events mount has no channel at all, which is the state
+    // `examples/events` served for two milestones while `_health` answered `ok`
+    @Injectable()
+    class SilentProjector {
+      onNothing(): void {
+        // no @ApiChannel anywhere
+      }
+    }
+
+    @Module({
+      providers: [SilentProjector],
+      imports: [
+        OpenRefModule.forRoot({
+          documents: [
+            {
+              id: 'events',
+              route: '/docs/events',
+              kind: 'events',
+              title: 'No events at all',
+              assetPlan: assetPlan(),
+            },
+          ],
+        }),
+      ],
+    })
+    // eslint-disable-next-line @typescript-eslint/no-extraneous-class
+    class EmptyEventsModule {}
+
+    const app = await NestFactory.create(EmptyEventsModule as never, {
+      logger: false,
+      abortOnError: false,
+    });
+    running = app;
+    await app.listen(0, '127.0.0.1');
+    const url = await app.getUrl();
+
+    // When
+    const reply = await fetch(`${url}/docs/events/_health`);
+    const health = (await reply.json()) as { status?: string; document?: { nodes?: number } };
+
+    // Then the probe still answers, because the process is up, and the word it answers with is not
+    // the word that means the reference is serviceable, per SPEC 13.3
+    expect(reply.status).toBe(200);
+    expect(health.document?.nodes).toBe(0);
+    expect(health.status).toBe('empty');
+  });
+});
 
 /**
  * The HTTP half of the same problem list, which had no end-to-end case until the review of `T054`.

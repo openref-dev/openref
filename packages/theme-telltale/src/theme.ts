@@ -22,7 +22,7 @@ import StreamLog from './components/StreamLog';
 import type { ThemeDefinition } from '@openref/vue';
 
 /**
- * telltale, a level 2 theme, per SPEC 10.1 and `ai-docs/design/telltale`.
+ * telltale, a level 2 theme, per SPEC 10.1.
  *
  * An instrument rather than a document: everything is monospace, every row sits on a 21 px grid,
  * provenance is a three letter code that survives a monochrome print, and the frame carries a

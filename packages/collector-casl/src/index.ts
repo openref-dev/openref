@@ -50,7 +50,12 @@ export interface CaslCollectorOptions {
 export interface CaslCollectorProblem {
   /** `OrdersController.list`, as a reader recognises it. */
   readonly subject: string;
+  /** The cause and what is not known because of it, in one clause, per SPEC 7.1. */
   readonly reason: string;
+  /** The action, or that there is none and why the finding is recorded anyway, per SPEC 7.1. */
+  readonly action: string;
+  /** The reasoning behind it, for a reader who opens it. Absent where the cause is its own. */
+  readonly detail?: string;
 }
 
 /** The collector, with the record of what it could not read. */
@@ -118,10 +123,11 @@ export function caslCollector(options: CaslCollectorOptions): CaslCollectorRegis
       if (functions > 0) {
         problems.push({
           subject,
-          reason:
-            `${String(functions)} policy handler(s) are declared here as functions. A policy ` +
-            'written in code is guard logic, which is never read, per SPEC 6.1. Declare the ' +
-            'action and subject as data if it should appear in the reference',
+          reason: `${String(functions)} policy handler(s) here are functions, so what they allow is not known`,
+          action: 'declare the action and the subject as data if they should be in the reference',
+          detail:
+            'A policy written in code is guard logic, which is never read, per SPEC 6.1. What a ' +
+            'function checks is decided at request time against an ability nothing here has.',
         });
       }
 

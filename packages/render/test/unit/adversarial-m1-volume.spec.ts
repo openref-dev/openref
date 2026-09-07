@@ -72,10 +72,26 @@ describe('T025 attack: an application where nearly every operation drifts', () =
     // When
     const model = buildHealthModel(built, '');
 
-    // Then a reader scans four lines and no group is truncated, which is what T023 promised
+    // Then a reader scans four lines, no group is truncated, and the rows inside a group are its
+    // causes rather than its findings, per SPEC 7.2. The heading still carries the finding count,
+    // because how much is wrong and how many different things to decide about are two questions a
+    // reader asks and the panel answers both.
     expect(built.health?.drift.length).toBeGreaterThan(500);
     expect(model?.rules).toHaveLength(4);
-    expect(model?.rules.reduce((total, rule) => total + rule.findings.length, 0)).toBe(
+    expect(model?.rules.map((rule) => rule.count).map(Number)).toEqual([73, 73, 359, 73]);
+    expect(model?.rules.reduce((total, rule) => total + Number(rule.count), 0)).toBe(
+      built.health?.drift.length,
+    );
+
+    // And every subject is still named: 578 findings fold to 76 rows and the rows between them
+    // carry 578 subjects, so folding hid nothing. WHAT USED TO HAPPEN: one sentence per subject,
+    // 578 rows, of which 359 were `dto-field-undescribed` printing the same sentence 359 times.
+    const rows = model?.rules.flatMap((rule) => rule.findings) ?? [];
+    expect(rows).toHaveLength(76);
+    expect(rows.reduce((total, row) => total + row.subjects.length, 0)).toBe(
+      built.health?.drift.length,
+    );
+    expect(rows.reduce((total, row) => total + Number(row.count), 0)).toBe(
       built.health?.drift.length,
     );
   });
@@ -105,11 +121,13 @@ describe('T025 attack: an application where nearly every operation drifts', () =
   });
 
   it('should still cost what the markup costs, which is the number the maintainer decides on', async () => {
-    // Given the same document. THIS ASSERTS THE REMAINING COST RATHER THAN A LIMIT THAT WAS MET:
-    // 578 findings are 217 KB of markup inside four disclosures a reader has not opened, against
-    // the SPEC 20 served-document ceiling of 72 KB. That ceiling is stated for the 1000 node
-    // fixture and not for this document, so the comparison is an order of magnitude and not a
-    // failed gate; the decision about whether a closed group ships its contents is SPEC 7.2's.
+    // Given the same document. THIS ASSERTS THE REMAINING COST RATHER THAN A LIMIT THAT WAS MET.
+    // It read 190 to 240 KB while every finding was its own row: 578 sentences inside four
+    // disclosures a reader has not opened, against the SPEC 20 served-document ceiling of 72 KB.
+    // Folding by cause, per SPEC 7.2, took the same page to 86 KB, because 359 copies of one
+    // `dto-field-undescribed` sentence became one sentence and 359 links. The ceiling is stated
+    // for the 1000 node fixture and not for this document, so the comparison is an order of
+    // magnitude and not a failed gate, and the page is still over it.
     const built = document(false);
 
     // When, on the page that carries the panel since TX-FRAME
@@ -119,8 +137,8 @@ describe('T025 attack: an application where nearly every operation drifts', () =
     // that halving or doubling the markup reddens it
     const bytes =
       Buffer.byteLength(page.appHtml, 'utf8') + Buffer.byteLength(page.stateJson, 'utf8');
-    expect(bytes).toBeGreaterThan(190_000);
-    expect(bytes).toBeLessThan(240_000);
+    expect(bytes).toBeGreaterThan(70_000);
+    expect(bytes).toBeLessThan(110_000);
   });
 });
 

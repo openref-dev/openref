@@ -51,6 +51,9 @@ export type {
   IRChannelParameter,
   IRChannelReply,
   IRCodeSample,
+  IRCodeSampleLanguage,
+  IRCodeSampleNote,
+  IRCodeSampleRefusal,
   IREncoding,
   IRExample,
   IRHeader,
@@ -69,6 +72,7 @@ export type {
   IRStandardHttpMethod,
 } from './ir/domain/node.types';
 export { AUDIENCE_EXTENSION, INTERNAL_AUDIENCE, isInternalAudience } from './ir/domain/audience';
+export { pageNode, pageNodes } from './ir/domain/page-nodes';
 
 export type {
   IRDiscoveryProblem,
@@ -85,7 +89,14 @@ export type {
   IRErrorContractOrigin,
   IRErrorContracts,
   IRGuard,
+  IRGuardExemption,
+  IRGuardExemptionSource,
+  IRGuardPurpose,
   IRGuardScope,
+  IRHandlerPolicy,
+  IRHandlerPolicyKind,
+  IRHandlerPolicyReach,
+  IRHandlerPolicySetting,
   IRNodeRuntime,
   IRParameterRead,
   IRParameterReads,
@@ -93,6 +104,7 @@ export type {
   IRPipe,
   IRPipeScope,
   IRRateLimit,
+  IRRateLimitReach,
   IRRuntimeMeta,
   IRSourceLocation,
   IRStreaming,
@@ -100,7 +112,12 @@ export type {
   IRTimeout,
 } from './ir/domain/runtime.types';
 
-export type { IRHealthCheck, IRHealthReport } from './ir/domain/health.types';
+export type {
+  IRHealthCheck,
+  IRHealthReport,
+  IRHealthSuppressedClass,
+  IRHealthSuppression,
+} from './ir/domain/health.types';
 
 export type {
   IRRelationship,
@@ -316,10 +333,21 @@ export {
   buildHealthReport,
   collectDrift,
   driftForNode,
+  groupDriftByCause,
   groupDriftByRule,
+  healthPrimaryScore,
   healthScore,
+  healthScoreMark,
+  healthSuppression,
+  healthSuppressionNote,
 } from './drift/domain/health';
-export type { DriftRuleGroup, HealthReportOptions } from './drift/domain/health';
+export type {
+  DriftCauseGroup,
+  DriftRuleGroup,
+  HealthReportOptions,
+  HealthScoreMarkSource,
+  HealthSuppression,
+} from './drift/domain/health';
 export {
   buildDoctorReport,
   DOCTOR_REPORT_VERSION,
@@ -330,6 +358,8 @@ export type {
   IRDoctorCheck,
   IRDoctorFinding,
   IRDoctorReport,
+  IRDoctorSuppressedClass,
+  IRDoctorSuppression,
 } from './drift/domain/doctor-report';
 export { proxyServers } from './ir/domain/proxy-servers';
 export { buildDiffReport } from './diff/domain/diff-report';
@@ -340,8 +370,14 @@ export type {
   IRDiffReport,
 } from './diff/domain/diff-report';
 
-export { hasRuntimeFacts, RUNTIME_FACT_FIELDS } from './runtime/domain/runtime-view';
-export type { RuntimeFactField } from './runtime/domain/runtime-view';
+export {
+  hasRuntimeFacts,
+  observedFactCollectors,
+  RUNTIME_FACT_COLLECTORS,
+  RUNTIME_FACT_FIELDS,
+  runtimeInstrument,
+} from './runtime/domain/runtime-view';
+export type { RuntimeFactField, RuntimeInstrument } from './runtime/domain/runtime-view';
 
 export {
   deriveRuntimeErrorContracts,

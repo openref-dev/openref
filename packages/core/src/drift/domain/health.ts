@@ -1,12 +1,18 @@
 /**
  * The Documentation Health report of SPEC 7.2: a percentage, a line per rule, and the findings.
  *
- * THE SCORE IS THE MEAN OF THE PER CHECK RATIOS AND NOT ONE POOLED RATIO, per SPEC 7.2. Each check
+ * THE SCORE IS A MEAN OF THE PER CHECK RATIOS AND NOT ONE POOLED RATIO, per SPEC 7.2. Each check
  * is one question about the document, and the score answers how many of those questions the
  * document answers well. Pooling every subject into one fraction would let the rule with the
  * largest denominator decide for the rest: five hundred DTO fields would outvote a hundred and
  * twenty seven operations, and a document with no described endpoint at all would score well for
  * having described its fields.
+ *
+ * THE MEAN IS WEIGHTED, SINCE 2026-09-05, BY SEVERITY AND BY THE ROOT OF THE SUBJECT COUNT. Both
+ * halves close a defect measured on a real application rather than reasoned about, and both are
+ * recorded on {@link healthScore} and the two helpers above it. The unweighted mean is the shape
+ * this paragraph defends and the weights are what stopped it lying about which findings are loud
+ * and how many of them there are.
  *
  * A CHECK WITH NOTHING TO COUNT IS LEFT OUT RATHER THAN COUNTED AS PERFECT. A document with no
  * streaming endpoint is scored on the questions it can be asked; giving it the tenth question for
@@ -19,8 +25,36 @@
 
 import { runDriftRules, type DriftObservation, type RuleResult } from './drift-rules';
 import type { IRDocument } from '../../ir/domain/document.types';
-import type { IRHealthCheck, IRHealthReport } from '../../ir/domain/health.types';
+import type {
+  IRHealthCheck,
+  IRHealthReport,
+  IRHealthSuppressedClass,
+  IRHealthSuppression,
+} from '../../ir/domain/health.types';
 import type { IRDriftIssue, IRDriftRule, IRDriftSeverity } from '../../ir/domain/runtime.types';
+
+/**
+ * One class the host decided not to fix, exactly as `runtime.suppress` of SPEC 13.2 writes it.
+ *
+ * NODE LEVEL SUPPRESSION IS NOT IMPLEMENTED IN THIS VERSION, AND THAT IS A LIMITATION RATHER THAN
+ * A DEFERRAL. Suppression acts on a whole class: naming a rule here suppresses it ACROSS THE
+ * ENTIRE DOCUMENT, including subjects the host was not thinking about when they wrote the reason.
+ * The shape a node level suppression would take is a `nodes` member on this same entry, which
+ * costs no breaking change to add, but until it exists the sentence above is the whole of the
+ * behaviour and is repeated verbatim on the host facing option.
+ */
+export interface HealthSuppression {
+  /**
+   * The rule, by its kebab id.
+   *
+   * TYPED IN THE CLOSED UNION SO A TYPO CANNOT COMPILE, which is the difference between this and
+   * an ignore list of bare strings. `'DX030'` is the display code and not the id, so it fails
+   * here; the boot check that reads this names the id that carries the code the host wrote.
+   */
+  readonly rule: IRDriftRule;
+  /** Why, which is refused at boot when it is missing or empty. */
+  readonly reason: string;
+}
 
 /** What a caller supplies beyond the document itself. */
 export interface HealthReportOptions {
@@ -34,10 +68,81 @@ export interface HealthReportOptions {
    * reading the rest.
    */
   readonly checks?: readonly IRHealthCheck[];
+  /**
+   * The finding classes the host decided not to fix, per SPEC 7.2.
+   *
+   * THIS IS THE ONE PLACE SUPPRESSION HAPPENS, AND THAT IS THE WHOLE DESIGN. The findings move
+   * out of `drift` and into the report's second array here and nowhere else, so every counter
+   * downstream that recomputes a length follows for free and no consumer has to be taught the
+   * rule. An empty list and an absent one are the same thing and neither produces a
+   * {@link IRHealthReport.suppression}.
+   */
+  readonly suppress?: readonly HealthSuppression[];
+}
+
+/**
+ * How loud a check is, per SPEC 7.2, as an integer multiplier on its weight.
+ *
+ * IT ENTERED THE SCORE ON 2026-09-05 AND UNTIL THEN IT DID NOT ENTER AT ALL. Measured on the
+ * maintainer's application: four `security-drift` findings, a rule whose severity is `error`, cost
+ * the score 0.63 points, while fifty three `missing-example` findings, a rule whose severity is
+ * `info`, cost 9.09. Per finding that is 0.157 against 0.171, so the quiet finding was the more
+ * expensive one and a reader watching the number was being told the opposite of the report.
+ */
+const SEVERITY_WEIGHT: Readonly<Record<IRDriftSeverity, number>> = {
+  error: 4,
+  warning: 2,
+  info: 1,
+};
+
+/**
+ * The integer square root, which is how the number of subjects enters a check's weight.
+ *
+ * `Math.sqrt` IS AN IMPLEMENTATION APPROXIMATED VALUE IN ECMASCRIPT AND THE SCORE IS HASHED. The
+ * whole report rides in `IRDocument.health`, so a figure that two engines may disagree about in the
+ * last bit is a figure that can give one document two hashes. This is exact integer arithmetic and
+ * terminates for every non-negative input.
+ *
+ * @param value - The number of subjects a check asked about, which is never negative
+ * @returns The largest integer whose square does not exceed it, and never less than one
+ */
+function integerRoot(value: number): number {
+  if (value <= 1) return 1;
+
+  let guess = value;
+  let next = Math.floor((guess + 1) / 2);
+  while (next < guess) {
+    guess = next;
+    next = Math.floor((guess + Math.floor(value / guess)) / 2);
+  }
+
+  return guess;
+}
+
+/**
+ * What one check is worth in the score, per SPEC 7.2.
+ *
+ * THE ROOT AND NOT THE COUNT, BECAUSE THE PARAGRAPH ABOVE STAYS TRUE. Weighting by the subject
+ * count outright is the pooled ratio wearing a different name, and five hundred DTO fields would
+ * decide for a hundred and twenty seven operations. Measured on the maintainer's application: 466
+ * described fields weigh 21 and a `warning` check over 58 operations weighs 14, so the one large
+ * quiet check is worth one and a half ordinary checks rather than eight.
+ *
+ * @param check - The check, which has at least one subject
+ * @returns Its weight, a positive integer
+ */
+function checkWeight(check: IRHealthCheck): number {
+  return SEVERITY_WEIGHT[check.severity] * integerRoot(check.total);
 }
 
 /**
  * Computes the percentage of SPEC 7.2 from the checks it is made of.
+ *
+ * IT IS A WEIGHTED MEAN OF THE PER CHECK RATIOS SINCE 2026-09-05, AND STILL NOT ONE POOLED RATIO.
+ * The module header says why the mean; {@link checkWeight} and {@link SEVERITY_WEIGHT} say why the
+ * weights. The second defect they close is that a plain mean charges the same for a check that
+ * failed nine subjects and one that failed sixty eight, so the number a reader watches did not move
+ * when the count of unanswered subjects went up sixfold.
  *
  * @param checks - Every check in the report
  * @returns Whole percentage points, 0 to 100, and 100 when nothing could be asked
@@ -46,9 +151,153 @@ export function healthScore(checks: readonly IRHealthCheck[]): number {
   const asked = checks.filter((check) => check.total > 0);
   if (asked.length === 0) return 100;
 
-  const total = asked.reduce((sum, check) => sum + check.passed / check.total, 0);
+  let weighted = 0;
+  let weight = 0;
+  for (const check of asked) {
+    const own = checkWeight(check);
+    weighted += own * (check.passed / check.total);
+    weight += own;
+  }
 
-  return Math.round((total / asked.length) * 100);
+  return Math.round((weighted / weight) * 100);
+}
+
+/**
+ * What a report needs to carry for its headline to be printable: the primary and what made it.
+ *
+ * STRUCTURAL RATHER THAN NOMINAL, so that {@link IRHealthReport} and the doctor report of SPEC 7.4
+ * both satisfy it without either importing the other. It is what makes the marked string one
+ * function in one package rather than a sentence each surface reassembles.
+ */
+export interface HealthScoreMarkSource {
+  /** The primary number, per {@link IRHealthReport.score}. */
+  readonly score: number;
+  /** The two component figures and which way round they go, when anything was suppressed. */
+  readonly suppression?: {
+    readonly suppressedScore: number;
+    readonly unsuppressedScore: number;
+    readonly inverted: boolean;
+  };
+}
+
+/**
+ * The percentage as every surface prints it, per SPEC 7.2.
+ *
+ * BUILT ONCE HERE AND READ EVERYWHERE, which is the point of it. The health page, the node page,
+ * `doctor`, the MCP health resource and `llms.txt` all print this string rather than assembling
+ * their own, so a reader cannot be handed two different sentences about one document, and a
+ * surface added tomorrow gets the inversion without being told about it.
+ *
+ * THE SECOND FIGURE IS LABELLED BY WHICH ONE IT IS AND NOT BY WHICH ONE IS FIRST. Under the
+ * inversion the primary is the unsuppressed score and the parenthesis holds the suppressed one, so
+ * the word has to move with the number: `88% (77% unsuppressed)` and `77% (100% suppressed)` are
+ * both true readings and neither can be produced by swapping the numbers alone.
+ *
+ * @param source - The report, or anything carrying its score and its suppression figures
+ * @returns The primary with its percent sign, and the other figure in parentheses when there is one
+ */
+export function healthScoreMark(source: HealthScoreMarkSource): string {
+  const primary = `${String(source.score)}%`;
+  const suppression = source.suppression;
+  if (suppression === undefined) return primary;
+
+  return suppression.inverted
+    ? `${primary} (${String(suppression.suppressedScore)}% suppressed)`
+    : `${primary} (${String(suppression.unsuppressedScore)}% unsuppressed)`;
+}
+
+/**
+ * How much was suppressed and by how many classes, as every heading prints it.
+ *
+ * ONE SENTENCE BUILT FROM THE REPORT'S OWN ARRAYS, so the count in the heading and the rows in the
+ * disclosure under it cannot disagree: both are lengths of the same two lists.
+ *
+ * @param report - The report
+ * @returns The sentence, or the empty string when nothing was suppressed
+ */
+export function healthSuppressionNote(report: {
+  readonly suppression?: Pick<IRHealthSuppression, 'classes' | 'findings'>;
+}): string {
+  const suppression = report.suppression;
+  if (suppression === undefined) return '';
+
+  const classes = suppression.classes.length;
+
+  return (
+    `${String(suppression.findings.length)} suppressed by ${String(classes)} ` +
+    `class${classes === 1 ? '' : 'es'}`
+  );
+}
+
+/**
+ * The checks with the suppressed findings counted back in, for the unsuppressed score.
+ *
+ * SUPPRESSION IS EXPRESSED BY SUBTRACTION, so putting it back is addition on `total` alone. A
+ * suppressed finding is a subject whose question the host stopped asking; the subjects that passed
+ * never moved, which is why `passed` is untouched in both directions. On a class that failed every
+ * subject this is the same as removing the check, and on a partly answered one, `missing-example`
+ * at five of fifty eight, it is the difference between 5/5 and nothing at all.
+ *
+ * @param checks - The checks as the report carries them, already subtracted
+ * @param classes - What was suppressed, carrying the count each class took
+ * @returns The checks as they would read with nothing suppressed
+ */
+function withSuppressionRestored(
+  checks: readonly IRHealthCheck[],
+  classes: readonly IRHealthSuppressedClass[],
+): readonly IRHealthCheck[] {
+  const matched = new Map(classes.map((entry) => [entry.rule as string, entry.matched]));
+
+  return checks.map((check) => {
+    const back = matched.get(check.id);
+
+    return back === undefined || back === 0 ? check : { ...check, total: check.total + back };
+  });
+}
+
+/**
+ * The two figures and the inversion, computed from one place so no caller does its own arithmetic.
+ *
+ * THE MERGE OF SPEC 15.3 NEEDS THE SAME ANSWER FROM DIFFERENT INPUTS, which is why this takes
+ * checks and classes rather than a report. A federated document folds several services' checks and
+ * has to state the same two numbers about the result; recomputing them there would be a second
+ * scoring rule, which is exactly what SPEC 7.2 refuses.
+ *
+ * @param checks - The report's checks, already subtracted by the suppressed counts
+ * @param classes - The suppressed classes, with their severities and match counts
+ * @param findings - The findings that moved, in report order
+ * @returns The whole suppression record, or nothing when no class was named
+ */
+export function healthSuppression(
+  checks: readonly IRHealthCheck[],
+  classes: readonly IRHealthSuppressedClass[],
+  findings: readonly IRDriftIssue[],
+): IRHealthSuppression | undefined {
+  if (classes.length === 0) return undefined;
+
+  return {
+    classes,
+    findings,
+    suppressedScore: healthScore(checks),
+    unsuppressedScore: healthScore(withSuppressionRestored(checks, classes)),
+    inverted: classes.some((entry) => entry.severity === 'error'),
+  };
+}
+
+/**
+ * Which number a report leads with, per SPEC 7.2.
+ *
+ * @param suppression - What was suppressed, or nothing
+ * @param checks - The report's checks, for the ordinary case where nothing was
+ * @returns The primary percentage
+ */
+export function healthPrimaryScore(
+  suppression: IRHealthSuppression | undefined,
+  checks: readonly IRHealthCheck[],
+): number {
+  if (suppression === undefined) return healthScore(checks);
+
+  return suppression.inverted ? suppression.unsuppressedScore : suppression.suppressedScore;
 }
 
 /**
@@ -136,6 +385,85 @@ export function groupDriftByRule(issues: readonly IRDriftIssue[]): readonly Drif
     });
 }
 
+/** Every finding that says the same thing about a different subject, per SPEC 7.2. */
+export interface DriftCauseGroup {
+  /**
+   * The first finding of the group, which speaks for all of them.
+   *
+   * IT IS A MEMBER AND NOT A SUMMARY. Every finding here carries the same rule, severity, message,
+   * detail, suggestion and both measured sides, because those are what the group is keyed by, so
+   * reading any one of them reads the cause. It is a named member rather than `issues[0]` so that
+   * no consumer has to write a fallback for a group that cannot be empty.
+   */
+  readonly issue: IRDriftIssue;
+  /** The findings, in report order, never fewer than one and never truncated. */
+  readonly issues: readonly IRDriftIssue[];
+  /** How many subjects this one cause was found on, which is `issues.length`. */
+  readonly count: number;
+}
+
+/**
+ * The whole of a finding except which subject it is about, as one comparable string.
+ *
+ * THE MEASURED SIDES ARE IN THE KEY AND THAT IS WHERE THE CLASS ENDS. A finding whose runtime or
+ * specification side names something that differs per subject cannot be a copy of another, so it
+ * groups with nothing and stays itself. Measured on the maintainer's application: `missing-example`
+ * has no side and its 53 findings are one sentence 53 times, while `missing-operation-id` prints
+ * each operation's own `Controller.handler` and its 58 stay 58. Nothing here decides which of those
+ * is right; the presence of a measured side decides it, which is the property rather than a list.
+ *
+ * @param issue - The finding
+ * @returns A key equal for two findings a reader could not tell apart but by their subject
+ */
+function causeKey(issue: IRDriftIssue): string {
+  return [
+    issue.rule,
+    issue.severity,
+    issue.message,
+    issue.detail ?? '',
+    issue.suggestion,
+    issue.runtimeValue ?? '',
+    issue.specValue ?? '',
+  ].join('\u0000');
+}
+
+/**
+ * Folds findings that differ only in their subject into one, per SPEC 7.2.
+ *
+ * GROUPING BY RULE WAS NOT ENOUGH AND THIS IS THE SECOND HALF OF IT. {@link groupDriftByRule} keeps
+ * the panel to ten rows a reader scans; inside one of those rows a reader was still handed a
+ * hundred copies of one sentence. Measured on the maintainer's application, where the reader was
+ * shown 186 findings: 53 of them are `missing-example` with byte identical text, and 68 are
+ * `discovery-incomplete` from five causes. The same list is 68 rows once folded.
+ *
+ * IT IS PRESENTATION AND IT DOES NOT TOUCH THE REPORT, which is why it lives beside
+ * {@link groupDriftByRule} rather than inside {@link buildHealthReport}. `IRHealthReport.drift`
+ * stays one finding per subject because {@link driftForNode} draws a node's own findings on that
+ * node's page, and a group covering fifty three operations belongs to none of them.
+ *
+ * ORDER IS THE ORDER OF FIRST APPEARANCE, so a folded list is the report's own order with the
+ * repeats removed, and it is as fixed as the report is.
+ *
+ * @param issues - Findings from {@link IRHealthReport.drift}, in report order
+ * @returns One group per distinct cause, each carrying its count and every subject
+ */
+export function groupDriftByCause(issues: readonly IRDriftIssue[]): readonly DriftCauseGroup[] {
+  const groups = new Map<string, { first: IRDriftIssue; found: IRDriftIssue[] }>();
+
+  for (const issue of issues) {
+    const key = causeKey(issue);
+    const held = groups.get(key);
+    if (held === undefined) groups.set(key, { first: issue, found: [issue] });
+    else held.found.push(issue);
+  }
+
+  return [...groups.values()].map((group) => ({
+    issue: group.first,
+    issues: group.found,
+    count: group.found.length,
+  }));
+}
+
 /**
  * Builds the whole health report.
  *
@@ -148,13 +476,24 @@ export function buildHealthReport(
   options: HealthReportOptions = {},
 ): IRHealthReport {
   const results = runDriftRules(document, options.observation);
+
+  // THE SUPPRESSED COUNT PER RULE IS TAKEN FROM THE RESULTS AND NOT FROM THE ORDERED LIST, because
+  // a rule's own result is where its severity and its subject count both live, and a class that
+  // matched nothing has to be able to say so with the right severity.
+  const suppress = options.suppress ?? [];
+  const suppressed = new Map(suppress.map((entry) => [entry.rule, entry.reason]));
+  const counts = new Map<IRDriftRule, number>();
+  for (const result of results) {
+    if (suppressed.has(result.rule)) counts.set(result.rule, result.issues.length);
+  }
+
   const checks: readonly IRHealthCheck[] = [
     ...(options.checks ?? []),
     ...results.map((result) => ({
       id: result.rule,
       label: result.label,
       passed: result.passed,
-      total: result.total,
+      total: result.total - (counts.get(result.rule) ?? 0),
       severity: result.severity,
     })),
   ];
@@ -162,11 +501,30 @@ export function buildHealthReport(
   let operationCount = 0;
   for (const node of document.nodes.values()) if (node.kind === 'operation') operationCount += 1;
 
+  // THE ORDER IS TAKEN ONCE AND THEN PARTITIONED, never taken twice. Both halves are the report's
+  // own order with the other half removed, so a disclosure of suppressed findings reads in the
+  // same order as the panel it hangs under, and `drift` is what it always was minus the move.
+  const ordered = orderIssues(document, results);
+  const drift =
+    suppressed.size === 0 ? ordered : ordered.filter((issue) => !suppressed.has(issue.rule));
+  const moved = suppressed.size === 0 ? [] : ordered.filter((issue) => suppressed.has(issue.rule));
+
+  const severities = new Map(results.map((result) => [result.rule, result.severity]));
+  const classes: readonly IRHealthSuppressedClass[] = suppress.map((entry) => ({
+    rule: entry.rule,
+    reason: entry.reason,
+    severity: severities.get(entry.rule) ?? 'info',
+    matched: counts.get(entry.rule) ?? 0,
+  }));
+
+  const suppression = healthSuppression(checks, classes, moved);
+
   return {
-    score: healthScore(checks),
+    score: healthPrimaryScore(suppression, checks),
     operationCount,
     checks,
-    drift: orderIssues(document, results),
+    drift,
+    ...(suppression === undefined ? {} : { suppression }),
   };
 }
 

@@ -33,8 +33,8 @@
  */
 
 import type { AgentOptions } from '@openref/agent';
-import { ErrorCode, InvalidOptionsError } from '@openref/core';
-import type { IRServer } from '@openref/core';
+import { DRIFT_RULE_CODES, ErrorCode, InvalidOptionsError } from '@openref/core';
+import type { HealthSuppression, IRDriftRule, IRServer } from '@openref/core';
 import type {
   FederationConflictMode,
   FederationFailureMode,
@@ -216,6 +216,62 @@ export interface OpenRefRuntimeOptions {
    * 6.1 refuses. Without this the rule reports only the silence state, which needs no mapping.
    */
   readonly guardSecuritySchemes?: Readonly<Record<string, string>>;
+  /**
+   * The metadata key this application's global guard reads to exempt a route, per SPEC 6.2.1.
+   *
+   * WHAT IT BUYS. `security-drift` softens to a warning on every route whose only guard is
+   * registered under `APP_GUARD`, and it says a route level escape may already exempt it, which is
+   * a finding whose own text says it may be clean. Nothing could clear it: the edit is
+   * `unscoped-assertion`, which no fix mode may apply, and the only edit that removed the row was a
+   * security requirement the specification would then be lying about. Name the key and a marked
+   * route answers `clean` instead.
+   *
+   * THERE IS NO DEFAULT AND NONE IS GUESSED, exactly as for the `metadataKey` of the five metadata
+   * collectors. `IS_PUBLIC_KEY`, `isPublic` and a symbol are all somebody's key and none of them is
+   * this package's; a candidate list would be the same guess with a longer spelling, and it fails by
+   * finding somebody else's key. A host that sets nothing behaves exactly as before: no fact, no
+   * moved finding, and the rule's existing sentence unchanged.
+   *
+   * WHAT THE MARK MEANS IS NARROW. It says this host asserts the route is exempt from its own
+   * application wide guard. It does not say the route is unauthenticated in every sense, and it
+   * never silences a guard written on the route itself, which is a different finding with a
+   * different cause.
+   *
+   * @example
+   * // apps/api/src/common/decorators/public.decorator.ts
+   * // export const IS_PUBLIC_KEY = 'isPublic';
+   * // export const Public = () => SetMetadata(IS_PUBLIC_KEY, true);
+   * runtime: { publicRouteKey: IS_PUBLIC_KEY }
+   */
+  readonly publicRouteKey?: string | symbol;
+  /**
+   * The finding classes this application decided not to fix, per SPEC 7.2.
+   *
+   * WHAT IT IS FOR. A class nobody intends to fix enters the score and the list on every run, so
+   * a reader stops reading the output and the findings that matter drown. Measured on the
+   * maintainer's application: 180 findings, 111 of them two classes, both decided against.
+   *
+   * SUPPRESSION ACTS ON A WHOLE CLASS, AND NODE LEVEL SUPPRESSION IS NOT IMPLEMENTED IN THIS
+   * VERSION. Naming a rule here suppresses it ACROSS THE ENTIRE DOCUMENT, including operations
+   * and schemas the host was not thinking about when they wrote the reason. This is a stated
+   * limitation of this version and not a thing that happens to be missing.
+   *
+   * WHAT IT CANNOT BUY IS A BETTER HEADLINE FOR A SUPPRESSED ERROR. Suppressing `security-drift`
+   * is allowed, because a host whose authorisation is enforced by a gateway this package cannot
+   * see has no other escape; while any suppressed class is severity `error` the reference leads
+   * with the UNSUPPRESSED percentage and prints the suppressed one second.
+   *
+   * THREE REFUSALS AT BOOT, per SPEC 7.2: an unknown rule id, and a missing or empty reason. A
+   * suppression that matches nothing does NOT refuse, because a class is legitimately empty on
+   * some deployments; it is reported with `matched: 0` on the page and by `doctor`.
+   *
+   * @example
+   * suppress: [
+   *   { rule: 'missing-operation-id', reason: 'ids are generated, decided 2026-08 not to fix' },
+   *   { rule: 'missing-example', reason: 'examples live in the client SDK repository' },
+   * ]
+   */
+  readonly suppress?: readonly HealthSuppression[];
   /** Whether the health route of SPEC 13.3 answers. Defaults to true. */
   readonly health?: boolean;
 }
@@ -424,6 +480,8 @@ export function assertRootOptions(options: OpenRefRootOptions): void {
   // than a document that renders with no links and no explanation.
   readSourceLink(options.runtime?.sourceLink);
   assertGuardSecuritySchemes(options.runtime?.guardSecuritySchemes);
+  assertPublicRouteKey(options.runtime?.publicRouteKey);
+  assertSuppressions(options.runtime?.suppress);
   assertFederationOptions(options.federation, ids, routes, options.agent);
 }
 
@@ -511,6 +569,96 @@ function assertGuardSecuritySchemes(mapping: Readonly<Record<string, string>> | 
           'that stands for no scheme is left out of the map instead, which is what says so',
       );
     }
+  }
+}
+
+/**
+ * Refuses an exemption key that could only ever match nothing.
+ *
+ * THE EMPTY STRING IS THE ONE SHAPE WORTH REFUSING, and it is refused rather than skipped because
+ * of what it looks like from the inside. It is what a missing constant becomes after it has been
+ * imported from a module that does not export it, and metadata under `''` is absent on every route,
+ * so the collector would run, exempt nobody, and report a dead declaration for a key the host is
+ * certain they set. A host who means to configure nothing omits the option, which is what says so.
+ *
+ * A SYMBOL IS ALWAYS USABLE and needs no check: it is unforgeable and cannot be empty.
+ *
+ * @param key - Whatever the host configured, if anything
+ * @throws {InvalidOptionsError} When the key is an empty string
+ */
+function assertPublicRouteKey(key: string | symbol | undefined): void {
+  if (key === undefined || typeof key === 'symbol') return;
+
+  if (typeof key !== 'string' || key === '') {
+    throw invalid(
+      'runtime.publicRouteKey is an empty string, and metadata under it is absent on every ' +
+        'route. Pass the key your own guard reads, or omit the option, which is what says the ' +
+        'application has no exemption marker',
+    );
+  }
+}
+
+/**
+ * Display code to the rule id that carries it, so a refusal can name the id a host meant.
+ *
+ * A HOST REACHES FOR `DX030` FIRST AND IS NOT WRONG TO. It is what the health page prints, what
+ * the FixBar closes with and what they would cite to a colleague; the kebab id is what this option
+ * is keyed by, per SPEC 7.2, and it lives in source. So the refusal for a display code is not
+ * "that is not a rule" but "the rule with that code is this one", which is the difference between
+ * an error a host can act on and one they have to go looking for the answer to.
+ */
+const RULE_BY_CODE: ReadonlyMap<string, IRDriftRule> = new Map(
+  Object.entries(DRIFT_RULE_CODES).map(([rule, code]) => [code, rule as IRDriftRule]),
+);
+
+/**
+ * Refuses a suppression that cannot mean what its author meant, per SPEC 7.2.
+ *
+ * TWO REFUSALS AND ONE DELIBERATE NON REFUSAL. An id nothing recognises and a reason nobody wrote
+ * are both a host having written something with no meaning. A class that will match nothing is a
+ * host having written something with a perfectly good meaning on a deployment where the class
+ * happens to be empty, so it boots and the report says `matched: 0` instead.
+ *
+ * THE DUPLICATE IS THE THIRD REFUSAL AND IT IS NOT IN SPEC 7.2's LIST BECAUSE IT IS NOT A CLASS OF
+ * ITS OWN. One rule named twice produces two rows in the disclosure, one of which matched
+ * everything and one of which matched nothing, so a reader is shown a class that half worked and a
+ * reason that did nothing. There is no reading of two entries that is better than refusing them.
+ *
+ * @param suppress - Whatever the host configured
+ * @throws {InvalidOptionsError} When a rule id is unknown, a reason is missing, or a rule repeats
+ */
+function assertSuppressions(suppress: readonly HealthSuppression[] | undefined): void {
+  if (suppress === undefined) return;
+
+  const seen = new Set<string>();
+  for (const entry of suppress) {
+    const rule: string = entry.rule;
+    if (!(rule in DRIFT_RULE_CODES)) {
+      const meant = RULE_BY_CODE.get(rule);
+      throw invalid(
+        meant === undefined
+          ? `runtime.suppress names "${rule}", which is not a drift rule. The rule ids are the ` +
+              `kebab names of SPEC 7.1: ${Object.keys(DRIFT_RULE_CODES).join(', ')}`
+          : `runtime.suppress names "${rule}", which is the display code and not the rule id. ` +
+              `The rule that prints "${rule}" is "${meant}", which is what this option is keyed by`,
+      );
+    }
+
+    if (typeof entry.reason !== 'string' || entry.reason.trim() === '') {
+      throw invalid(
+        `runtime.suppress needs a reason for "${rule}". A suppression without one is exactly the ` +
+          'silent lie this option exists to prevent: a class removed from the report and the ' +
+          'score with nothing on the page saying who decided that, or why',
+      );
+    }
+
+    if (seen.has(rule)) {
+      throw invalid(
+        `runtime.suppress names "${rule}" twice. One rule is one class, so the second entry can ` +
+          'only match nothing and would print as a suppression that did not work',
+      );
+    }
+    seen.add(rule);
   }
 }
 

@@ -2,7 +2,7 @@
  * The bucket of SPEC 7.4, computed per finding from the state of the thing it is about.
  *
  * THERE IS NO TABLE FROM RULE ID TO BUCKET HERE OR ANYWHERE ELSE, AND ITS ABSENCE IS THE POINT OF
- * THIS FILE. `ai-docs/REMEDIATION.md` section 2 records the correction: the rule name selects
+ * THIS FILE. The correction it enforces is that the rule name selects
  * which check runs, and the state of the node decides which bucket the finding lands in, so one
  * rule produces silence findings and contradiction findings in the same run. Classifying by rule
  * name looks like it works until the first node where the specification already asserts something,
@@ -38,7 +38,16 @@ export function classifyDrift(edit: IRDriftEdit, basis: IRDriftBasis): IRDriftCl
     return { bucket: 'contradiction' };
   }
 
-  if (edit === 'narrowed-assertion' || edit === 'already-asserted') {
+  // `unscoped-assertion` JOINS THESE TWO AND NOT THE `nothing-to-write` LINE BELOW. There is an
+  // observed fact behind it, so calling it `no-observed-fact` would be false; what is ambiguous is
+  // whether the fact reaches this subject, and that is a structure a person reads and no collector
+  // can. It must never become fixable by a better collector, which is what would happen if it were
+  // filed as confidence starvation.
+  if (
+    edit === 'narrowed-assertion' ||
+    edit === 'already-asserted' ||
+    edit === 'unscoped-assertion'
+  ) {
     return { bucket: 'manual', reason: 'structural-ambiguity' };
   }
 

@@ -8,7 +8,12 @@
  * in, exactly as the served side uses it.
  */
 
-import { normalizeSpecification, type IRDocument, type IRNode } from '@openref/core';
+import {
+  normalizeSpecification,
+  type IRDocument,
+  type IRNode,
+  type IRNodeRuntime,
+} from '@openref/core';
 
 /**
  * The bidirectional override of SPEC 19.1, written as an escape because a literal is refused.
@@ -145,42 +150,55 @@ export function channelDocument(): IRDocument {
  * @returns The document, with facts on GET /orders and a runtime meta on the document
  */
 export function documentWithFacts(): IRDocument {
+  return documentCarrying({
+    scopes: { value: ['orders:read'], confidence: 'declared', collector: 'scopesCollector' },
+    roles: { value: ['support'], confidence: 'derived', collector: 'rolesCollector' },
+    rateLimit: {
+      value: { limit: 10, ttlMs: 60000 },
+      confidence: 'derived',
+      collector: 'throttlerCollector',
+    },
+    timeout: { value: { ms: 5000 }, confidence: 'derived', collector: 'timeoutCollector' },
+    requiredHeaders: {
+      value: ['x-tenant'],
+      confidence: 'derived',
+      collector: 'headersCollector',
+    },
+    statusCode: { value: 200, confidence: 'declared', collector: 'declarationsCollector' },
+    streaming: {
+      value: { transport: 'sse', itemSchema: { kind: 'named', schemaId: 'Order' } },
+      confidence: 'declared',
+      collector: 'streamCollector',
+    },
+    guards: [
+      {
+        name: 'JwtAuthGuard',
+        scope: 'route',
+        confidence: 'derived',
+        collector: 'guardsCollector',
+      },
+    ],
+  });
+}
+
+/**
+ * The order document with one arbitrary runtime record attached to `GET /orders`.
+ *
+ * EXTRACTED FROM {@link documentWithFacts} SO ONE FACT AT A TIME CAN BE FED THROUGH THE SAME SHAPE.
+ * The surface that prints these files is asked, per field of `RUNTIME_FACT_FIELDS`, whether it
+ * prints anything at all, and a fixture that could only carry the eight facts one test happened to
+ * write is a fixture no such sweep can use. Everything else about the document is unchanged, so a
+ * record carrying nothing produces exactly the "a pass ran and said nothing" case.
+ *
+ * @param runtime - Whatever a collector pass is being pretended to have produced
+ * @returns The document, with that record on `get-orders` and a runtime meta on the document
+ */
+export function documentCarrying(runtime: IRNodeRuntime): IRDocument {
   const document = orderDocument();
   const node = document.nodes.get('get-orders');
   if (node?.kind !== 'operation') throw new Error('the fixture lost the node');
 
-  const withFacts: IRNode = {
-    ...node,
-    runtime: {
-      scopes: { value: ['orders:read'], confidence: 'declared', collector: 'scopesCollector' },
-      roles: { value: ['support'], confidence: 'derived', collector: 'rolesCollector' },
-      rateLimit: {
-        value: { limit: 10, ttlMs: 60000 },
-        confidence: 'derived',
-        collector: 'throttlerCollector',
-      },
-      timeout: { value: { ms: 5000 }, confidence: 'derived', collector: 'timeoutCollector' },
-      requiredHeaders: {
-        value: ['x-tenant'],
-        confidence: 'derived',
-        collector: 'headersCollector',
-      },
-      statusCode: { value: 200, confidence: 'declared', collector: 'declarationsCollector' },
-      streaming: {
-        value: { transport: 'sse', itemSchema: { kind: 'named', schemaId: 'Order' } },
-        confidence: 'declared',
-        collector: 'streamCollector',
-      },
-      guards: [
-        {
-          name: 'JwtAuthGuard',
-          scope: 'route',
-          confidence: 'derived',
-          collector: 'guardsCollector',
-        },
-      ],
-    },
-  };
+  const withFacts: IRNode = { ...node, runtime };
 
   return {
     ...document,

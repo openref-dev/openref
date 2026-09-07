@@ -1,14 +1,13 @@
-import { existsSync, readFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
   BROWSER_MODULE_EXTENSIONS,
-  BUILD_AMENDMENTS_FILE,
   BUILD_FILE,
   CAPABILITY_DEBTS,
   SHIPPED_CLIENT_BUNDLES,
 } from '../config.js';
-import { aiDocsAbsentMessage, aiDocsPresent } from '../lib/ai-docs.js';
 import { parseMilestones, planTaskIds, splitLines } from '../lib/build-manifest.js';
+import { PROJECTION_FILE, readProjection } from '../lib/projection.js';
 import { checkCapabilityDebts, describeCapabilityDebt } from '../lib/capability-debts.js';
 import type { CapabilityDebt } from '../lib/capability-debts.js';
 import {
@@ -75,9 +74,10 @@ export function runCapabilityDebtsGate(
     findings.push({ level: 'error', message: emptyReadingMessage(reading) });
   }
 
-  // THE ARTEFACT HALF RUNS WHETHER OR NOT THE PLAN IS HERE, because it needs nothing from
-  // `ai-docs/`. A checkout with no private documents can still be told that the marker of a
-  // live entry has appeared, which is the half that says the record has rotted.
+  // THE ARTEFACT HALF READS THE BUILT BUNDLE AND THE PLAN HALF READS THE COMMITTED PROJECTION.
+  // Neither needs `ai-docs/` any more: a debt's owner is a task id and its expiry is a milestone
+  // with a box beside each of its tasks, which is data, so both ship. Until the projection this
+  // gate skipped on every clone with only the marker half answered.
   const sources = new Map<string, string>();
   for (const file of files) {
     sources.set(file, readFileSync(join(context.repoRoot, file), 'utf8'));
@@ -106,32 +106,16 @@ export function runCapabilityDebtsGate(
     );
   }
 
-  if (!aiDocsPresent(context.repoRoot)) {
-    const issues = checkCapabilityDebts(debts, {
-      taskIds: [],
-      milestones: [],
-      markerFound,
-    }).filter((issue) => issue.rule === 'stale');
+  const read = readProjection(context.repoRoot);
 
+  if (!read.ok) {
     return {
       id: capabilityDebtsGate.id,
       title: capabilityDebtsGate.title,
-      ...(issues.length === 0 && !unreadable
-        ? { status: 'skip' as const, skipReason: 'ai-docs-absent' as const }
-        : { status: 'fail' as const }),
+      status: 'fail',
       findings: [
         ...findings,
-        ...issues.map((issue) => ({
-          level: 'error' as const,
-          message: `[${issue.rule}] ${issue.message}`,
-        })),
-        {
-          level: 'warning',
-          message: aiDocsAbsentMessage(capabilityDebtsGate.title, [
-            BUILD_FILE,
-            BUILD_AMENDMENTS_FILE,
-          ]),
-        },
+        { level: 'error', message: `[projection-unreadable] ${read.reason}` },
         ...debts.map((entry: CapabilityDebt) => ({
           level: 'warning' as const,
           message: `UNVALIDATED ${describeCapabilityDebt(entry)}`,
@@ -140,9 +124,27 @@ export function runCapabilityDebtsGate(
     };
   }
 
-  const build = readFileSync(join(context.repoRoot, BUILD_FILE), 'utf8');
-  const amendmentsPath = join(context.repoRoot, BUILD_AMENDMENTS_FILE);
-  const amendments = existsSync(amendmentsPath) ? readFileSync(amendmentsPath, 'utf8') : '';
+  const build = read.projection.data.build;
+  const amendments = read.projection.data.amendments ?? '';
+
+  if (build === null) {
+    return {
+      id: capabilityDebtsGate.id,
+      title: capabilityDebtsGate.title,
+      status: 'fail',
+      findings: [
+        ...findings,
+        {
+          level: 'error',
+          message: `${BUILD_FILE} was not readable when ${PROJECTION_FILE} was generated, so no debt can be told from a stale one`,
+        },
+        ...debts.map((entry: CapabilityDebt) => ({
+          level: 'warning' as const,
+          message: `UNVALIDATED ${describeCapabilityDebt(entry)}`,
+        })),
+      ],
+    };
+  }
 
   const issues = checkCapabilityDebts(debts, {
     taskIds: planTaskIds(build, amendments),

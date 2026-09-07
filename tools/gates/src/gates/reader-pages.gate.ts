@@ -1,52 +1,11 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { PAGE_KIND_SOURCE, READER_PAGE_KINDS, READER_PAGES_PREFIX, SPEC_FILE } from '../config.js';
-import { AI_DOCS_DIR, aiDocsPresent } from '../lib/ai-docs.js';
+import { pageKindsOf } from '../lib/reader-pages.js';
+import { PROJECTION_FILE, readProjection } from '../lib/projection.js';
 import type { Gate, GateContext, GateFinding, GateResult } from '../types.js';
 
-/**
- * The routes SPEC 13.3 lists as reader pages, read out of the specification's own line.
- *
- * THE LINE IS FOUND BY ITS PREFIX AND THE ENTRIES BY THEIR BACKTICKS, which is how the document
- * writes them: one line, a Russian label, then the routes separated by a middle dot and each one
- * in code. Reading the backticked spans rather than splitting on the separator is what keeps a
- * changed separator from silently producing one long entry that matches nothing.
- *
- * @param spec - Full text of `ai-docs/SPEC.md`
- * @returns The routes, or null when section 13.3 or its reader page line is absent
- */
-export function readerPagesOf(spec: string): string[] | null {
-  const section = /^### 13\.3\. /m.exec(spec);
-  if (section === null) return null;
-
-  const rest = spec.slice(section.index);
-  const end = /^#{2,3} \d+/m.exec(rest.slice(section[0].length));
-  const body = end === null ? rest : rest.slice(0, section[0].length + end.index);
-
-  for (const line of body.split('\n')) {
-    const trimmed = line.trim();
-    if (!trimmed.startsWith(READER_PAGES_PREFIX)) continue;
-
-    const routes = [...trimmed.matchAll(/`([^`]+)`/g)].map((match) => match[1] ?? '');
-    return routes.filter((route) => route !== '');
-  }
-
-  return null;
-}
-
-/**
- * The members of the `PageKind` union, read out of its declaration.
- *
- * @param source - Full text of the file that declares it
- * @returns The members, or null when the declaration is not there to read
- */
-export function pageKindsOf(source: string): string[] | null {
-  const declaration = /export type PageKind =([^;]*);/.exec(source);
-  if (declaration === null) return null;
-
-  const members = [...(declaration[1] ?? '').matchAll(/'([^']+)'/g)].map((match) => match[1] ?? '');
-  return members.length === 0 ? null : members;
-}
+export { pageKindsOf, readerPagesOf } from '../lib/reader-pages.js';
 
 /**
  * SPEC 13.3's reader page list and the `PageKind` union, reconciled in both directions.
@@ -54,15 +13,13 @@ export function pageKindsOf(source: string): string[] | null {
  * WHY IT IS A GATE AND NOT A TEST, in the words the section addressed to `T054` uses. A test
  * inside `packages/theme-telltale` cannot read `ai-docs/SPEC.md`, which is git excluded and absent
  * from every clone; the boundary count case next door already handles that by checking the two
- * committed documents always and the specification only when it is there. A gate runs on the
- * maintainer's tree where the specification exists, has the `ai-docs-absent` skip built for
- * exactly this, and is where the other prose against code reconciliations in this repository live.
+ * committed documents always and the specification only when it is there. A gate is where the
+ * other prose against code reconciliations in this repository live.
  *
- * THE HALF THAT NEEDS NO DOCUMENT STILL RUNS ON A CLONE. `READER_PAGE_KINDS` names kinds, and
- * whether every one of them is a member of the union is a question about two committed files, so
- * it is asked whether or not `ai-docs/` is there. What the skip covers is the specification half
- * alone, which is the direction the section says must be real: a page added to SPEC 13.3 with no
- * `PageKind` member fails, and that comparison needs the document.
+ * IT USED TO SKIP ON EVERY CLONE AND NOW RUNS ON ONE. The routes SPEC 13.3 lists are routes, which
+ * is data, so they travel in the committed projection of `ai-docs/` and both directions of the
+ * reconciliation are asked wherever the gates run. What the specification says about them is not
+ * in the artefact and is not needed: the check is which routes the line names.
  *
  * WHAT THIS GATE DELIBERATELY DOES NOT DO IS TIE EITHER SIDE TO THE SWEEP, because two total
  * records already do and a third copy is the failure mode this whole family of checks exists on.
@@ -118,16 +75,18 @@ export function runReaderPagesGate(context: GateContext): GateResult {
     });
   }
 
-  const specPath = join(context.repoRoot, SPEC_FILE);
-  const haveSpec = aiDocsPresent(context.repoRoot) && existsSync(specPath);
+  const read = readProjection(context.repoRoot);
 
-  if (haveSpec) {
-    const routes = readerPagesOf(readFileSync(specPath, 'utf8'));
+  if (!read.ok) {
+    errors.push(`[projection-unreadable] ${read.reason}`);
+  } else {
+    const routes = read.projection.data.spec.readerPages;
 
     if (routes === null) {
       errors.push(
         `[reader-pages-unreadable] ${SPEC_FILE} carries no section 13.3 reader page line behind ` +
-          `"${READER_PAGES_PREFIX}", so the direction this gate exists for could not be checked`,
+          `"${READER_PAGES_PREFIX}", as read into ${PROJECTION_FILE}, so the direction this gate ` +
+          `exists for could not be checked`,
       );
     } else {
       for (const route of routes) {
@@ -154,18 +113,6 @@ export function runReaderPagesGate(context: GateContext): GateResult {
         message: `SPEC 13.3 lists ${String(routes.length)} reader page(s): ${routes.join(' ')}`,
       });
     }
-  } else {
-    findings.push({
-      level: 'warning',
-      message:
-        `SKIPPED, NOT PASSED, AND THE SKIP COVERS THE SPECIFICATION HALF ONLY: ${AI_DOCS_DIR}/ is ` +
-        `not present, so SPEC 13.3's reader page list was not compared with the PageKind union ` +
-        `and this run proves nothing about that document. The half that reads two committed ` +
-        `files still ran and can still fail: every page kind the reader page table names must be ` +
-        `a member of the union, and every member of the union must be named by it. ` +
-        `${AI_DOCS_DIR}/ is excluded from git in .git/info/exclude and no clone restores it, so ` +
-        `a checkout without it is expected rather than broken.`,
-    });
   }
 
   for (const message of errors) findings.push({ level: 'error', message });
@@ -173,11 +120,7 @@ export function runReaderPagesGate(context: GateContext): GateResult {
   return {
     id: readerPagesGate.id,
     title: readerPagesGate.title,
-    ...(errors.length > 0
-      ? { status: 'fail' as const }
-      : haveSpec
-        ? { status: 'pass' as const }
-        : { status: 'skip' as const, skipReason: 'ai-docs-absent' as const }),
+    status: errors.length > 0 ? 'fail' : 'pass',
     findings,
   };
 }

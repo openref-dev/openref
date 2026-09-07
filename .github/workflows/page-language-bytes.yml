@@ -1,0 +1,71 @@
+name: Page bytes and the per language cost
+
+# ONE JOB, ONE QUESTION: what the measured page weighs, and what each of the fifteen sample
+# languages of SPEC 18 costs it. Both figures come off the same browser on the same machine in the
+# same run, because two numbers taken in two places are two measurements and the decision they feed
+# compares them with each other.
+#
+# ON THE RUNNER, NOT ON A WORKSTATION, and for a narrower reason than the study beside it. The byte
+# columns are the one class of figure no processor moves, so the machine is not what makes them
+# comparable; the browser is. A page measured under a Chrome the runner will never ship is a figure
+# about a browser nobody here runs, and the record this feeds names the browser in its own identity.
+#
+# THE IMAGE IS PINNED, for the reason `browser-budget-study.yml` pins it: `ubuntu-latest` moves, and
+# a figure taken on an image that moves is a figure whose conditions cannot be written down.
+#
+# WHY A PUSH TRIGGER ON A RESERVED PREFIX, WRITTEN DOWN RATHER THAN LEFT TO BE REDISCOVERED.
+# `workflow_dispatch` exists only for workflows already on the default branch, so a measurement
+# workflow that has never been merged cannot be dispatched at all. That is the same condition the
+# study met before main was real, and the same answer: a branch prefix nothing else uses. The
+# dispatch trigger is here beside it so that the day this file is on the default branch the prefix
+# stops being the only way in, exactly as it did for the study.
+
+on:
+  push:
+    branches: ['page-bytes/**']
+  workflow_dispatch:
+
+jobs:
+  measure:
+    name: page bytes, and what each language costs
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '^24.15.0'
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm run build
+
+      # In the log as well as in the report, because the log is what a maintainer reads when a
+      # figure moves and the first question is always which browser it was.
+      - name: Report the browser
+        run: |
+          google-chrome --version
+          echo "image ${ImageOS:-unknown} version ${ImageVersion:-unknown} arch ${RUNNER_ARCH:-unknown}"
+
+      # NO `--check` AND NO CEILING. This measures and prints; the ceilings belong to the study
+      # beside it, which reads the committed record. A second runner over one budget would be two
+      # gates over one thing, which is the shape SPEC 20 spent a milestone taking apart.
+      - name: Measure
+        run: node tools/browser-budget/dist/measure-languages.js --out=page-language-bytes.json
+
+      - name: Upload the report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: page-language-bytes
+          path: page-language-bytes.json

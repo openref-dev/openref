@@ -91,8 +91,8 @@ describe('the MCP endpoint when it is switched on', () => {
   });
 
   it('should name remediation as a supported use in the message every client reads first', () => {
-    // Given, per `ai-docs/REMEDIATION.md` section 6: remediation is a supported use of this
-    // surface, and a supported use only a document mentions is one a caller learns out of band
+    // Given, remediation is a supported use of this surface, and a supported use only a
+    // document mentions is one a caller learns out of band
     const service = surface({ mcp: true });
 
     // When
@@ -360,7 +360,7 @@ describe('the tools of SPEC 18', () => {
   });
 });
 
-describe('the resources of REMEDIATION section 6', () => {
+describe('the resources a remediation agent reads', () => {
   it('should offer the two text files and the versioned health report', () => {
     // Given
     const service = surface({ mcp: true });
@@ -377,7 +377,7 @@ describe('the resources of REMEDIATION section 6', () => {
   });
 
   it('should expose the report version rather than implying it', () => {
-    // Given, per REMEDIATION section 6: a consumer that pins or caches has to be able to refuse
+    // Given: a consumer that pins or caches has to be able to refuse
     // a shape it does not read, and an empty report that means "I could not read this" is the
     // worst output this tool can produce
     const service = surface({ mcp: true });

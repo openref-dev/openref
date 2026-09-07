@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { buildPageModel } from '../../src/page/domain/page-model';
 import { createMarkdownRenderer } from '../../src/markdown/domain/markdown';
 import { renderPage } from '../../src/render/application/services/render.service';
+import { normalizeOpenApiDocument } from '@openref/core';
 import { authDocument } from '../mocks/documents';
 
 /**
@@ -113,5 +114,44 @@ describe('the server rendered console', () => {
     // Then
     expect(html).not.toContain('Bearer ');
     expect(html).toMatch(/type="password"[^>]*value=""|type="password"(?![^>]*value=")/);
+  });
+});
+
+describe('the label of an http scheme', () => {
+  it('should name the credential the way a reader writes it, not the way RFC 7235 registers it', async () => {
+    // Given a document whose bearer scheme is spelled the way every document spells it, because
+    // RFC 7235 registers the auth scheme name in lower case
+    const document = normalizeOpenApiDocument({
+      openapi: '3.1.0',
+      info: { title: 'Orders', version: '1' },
+      servers: [{ url: 'https://api.example.com' }],
+      components: {
+        securitySchemes: {
+          bearerAuth: { type: 'http', scheme: 'bearer' },
+          basicAuth: { type: 'http', scheme: 'basic' },
+        },
+      },
+      paths: {
+        '/orders': {
+          get: {
+            operationId: 'listOrders',
+            security: [{ bearerAuth: [] }, { basicAuth: [] }],
+            responses: { '200': { description: 'ok' } },
+          },
+        },
+      },
+    });
+
+    // When
+    const page = await renderPage(document, { page: 'bench', nodeId: 'get-orders' });
+    const labels = [...page.appHtml.matchAll(/class="oref-field-label"[^>]*>([^<]+)</g)].map(
+      (match) => match[1],
+    );
+
+    // Then, which is what the comment over `credentialLabel` already said and the code did not
+    expect(labels).toContain('Bearer token');
+    expect(labels).not.toContain('bearer token');
+    // And the one scheme whose label is not a token keeps its own words
+    expect(labels).toContain('user:password');
   });
 });

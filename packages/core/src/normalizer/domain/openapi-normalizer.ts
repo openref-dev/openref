@@ -52,6 +52,7 @@ import { followStructuralReference } from './json-pointer';
 import { buildNavigation } from './navigation';
 import {
   assignOperationIdentities,
+  isGeneratedOperationId,
   isStandardHttpMethod,
   operationNodeId,
   pathSlug,
@@ -207,6 +208,13 @@ function readExamples(raw: unknown): Readonly<Record<string, IRExample>> | undef
  * label falls back to the language, because a tab has to say something and the language is what
  * the author already told us.
  *
+ * AN EMPTY LABEL IS NO LABEL, AND WRITING THAT AS `?? lang` MADE THE FALLBACK NEVER FIRE. An empty
+ * string is a string, so `label: ""` reached the IR as `""` and the two shipped themes then
+ * disagreed about it: telltale drew the language and the default theme drew the empty string, so
+ * on the default theme a Ruby sample arrived as a nameless button and the word Ruby appeared
+ * nowhere on the page. It is fixed here rather than in either theme, because a theme guarding a
+ * value the IR should never have carried is the second answer that drifts from the first.
+ *
  * @param source - The operation object as the document wrote it
  * @returns The samples in document order, or nothing when there are none worth drawing
  */
@@ -223,7 +231,8 @@ function readCodeSamples(source: Record<string, unknown>): IRCodeSample[] | unde
     const code = asString(entry.source);
     if (lang === undefined || code === undefined || code === '') continue;
 
-    samples.push({ lang, label: asString(entry.label) ?? lang, source: code });
+    const label = asString(entry.label);
+    samples.push({ lang, label: label === undefined || label === '' ? lang : label, source: code });
   }
 
   return samples.length > 0 ? samples : undefined;
@@ -941,7 +950,7 @@ function readCallbacks(
         suffix += 1;
       }
       taken.add(id);
-      nodes.push(readOperation(call, context, id));
+      nodes.push(keepWrittenOperationId(readOperation(call, context, id), call.source.operationId));
       ids.push(id);
     }
 
@@ -949,6 +958,37 @@ function readCallbacks(
   }
 
   return { byName, nodes, unread };
+}
+
+/**
+ * Keeps the `operationId` a document wrote on an operation outside `paths`.
+ *
+ * WEBHOOKS AND CALLBACKS NEVER READ IT AT ALL UNTIL NOW, and `readOperation` does not write either
+ * id field for any caller: the `paths` pass re-attaches them afterwards through
+ * `assignOperationIdentities` and the other two passes had nothing in that position, so a webhook a
+ * document named `orderShipped` reached the reference with no name and was counted by
+ * `missing-operation-id` as a document that gave none. That is the same class as
+ * `IRStreaming.terminator` before T030: a field the type declares and one pass forgot to fill.
+ *
+ * ONLY THE AUTHOR'S OWN NAME BECOMES THE PUBLIC ONE, per SPEC 5.4. A generated `Controller_method`
+ * is kept in `rawOperationId`, where the rule and the operation header read it, and does not become
+ * the public id. Nothing derives a public id for these two positions: the `paths` pass disambiguates
+ * derived ids against each other and a fourth pool of derived names would have to be disambiguated
+ * against all of them, which is a wider change than the drop this closes.
+ *
+ * @param operation - The operation as `readOperation` built it
+ * @param written - `operationId` exactly as the source object carried it, whatever type that is
+ * @returns The operation, carrying whatever the document actually wrote
+ */
+function keepWrittenOperationId(operation: IROperation, written: unknown): IROperation {
+  const raw = asString(written);
+  if (raw === undefined || raw === '') return operation;
+
+  return {
+    ...operation,
+    ...(isGeneratedOperationId(raw) ? {} : { operationId: raw }),
+    rawOperationId: raw,
+  };
 }
 
 function readOperation(entry: RawOperation, context: Context, id: string): IROperation {
@@ -1113,7 +1153,10 @@ export function normalizeOpenApiDocument(
     rawWebhooks.map((entry) => ({ method: entry.method, path: entry.path })),
   );
   const webhookOperations = rawWebhooks.map((entry, index) =>
-    readOperation(entry, context, `webhook-${webhookIdentities[index]?.id ?? entry.method}`),
+    keepWrittenOperationId(
+      readOperation(entry, context, `webhook-${webhookIdentities[index]?.id ?? entry.method}`),
+      entry.source.operationId,
+    ),
   );
 
   const documentId = options.documentId ?? documentSlug(info.title);

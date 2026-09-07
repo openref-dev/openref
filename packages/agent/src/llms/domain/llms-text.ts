@@ -36,13 +36,26 @@
  */
 
 import {
+  healthScoreMark,
+  healthSuppressionNote,
   plainArtefactText,
+  RUNTIME_FACT_FIELDS,
   type IRDocument,
+  type IRErrorContract,
+  type IRHandlerPolicy,
   type IRNode,
+  type IRNodeRuntime,
   type IRSchema,
   type IRSchemaSlot,
+  type RuntimeFactField,
 } from '@openref/core';
-import { materializeNode, nodeHref, schemaHref } from '@openref/render';
+import {
+  materializeNode,
+  nodeHref,
+  parameterReadsLabel,
+  rateLimitReachLabel,
+  schemaHref,
+} from '@openref/render';
 import { oneLine, plainSummary } from './summary';
 import { agentExposure, isMutatingMethod } from '../../mcp/domain/exposure';
 import type { ResolvedAgentOptions } from '../../mcp/domain/agent-options';
@@ -106,6 +119,19 @@ function nodeRow(node: IRNode, document: IRDocument, basePath: string): string {
 }
 
 /**
+ * What the health row says about suppression, or nothing at all.
+ *
+ * @param document - The normalized document
+ * @returns The clause to append to the health row, empty when nothing was suppressed
+ */
+function healthNote(document: IRDocument): string {
+  const report = document.health;
+  if (report?.suppression === undefined) return '';
+
+  return `: ${healthScoreMark(report)}, ${healthSuppressionNote(report)}`;
+}
+
+/**
  * The machine readable addresses this mount answers on, as list rows.
  *
  * ONLY WHAT IS ACTUALLY SWITCHED ON IS OFFERED. The index is read by something that will follow
@@ -123,7 +149,16 @@ function machineRows(document: IRDocument, options: LlmsTextOptions): readonly s
   const family = events ? 'asyncapi' : 'openapi';
   const rows = [
     `- [${events ? 'AsyncAPI' : 'OpenAPI'} document](${at(`${family}.json`)})`,
-    `- [Documentation Health report](${at('health')})`,
+    // THE HEALTH ROW GAINS A CLAUSE ONLY WHEN A CLASS WAS SUPPRESSED, per SPEC 7.2. An agent
+    // reading this file is exactly the reader who cannot tell a clean reference from a filtered
+    // one by looking, so the count of what was taken out and the unsuppressed percentage have to
+    // reach it here rather than only on a page it is not going to open. The two figures come from
+    // the report through `healthScoreMark`, which is the same string the page prints.
+    //
+    // NOTHING IS ADDED WHEN NOTHING WAS SUPPRESSED, deliberately, so the artefact of every host
+    // that has not configured the option does not move by one byte and its determinism cases,
+    // its byte budgets and its `two-text-files` gate all stay exactly where they were.
+    `- [Documentation Health report](${at('health')})${healthNote(document)}`,
   ];
 
   if (options.agent.llmsTxt) {
@@ -202,11 +237,259 @@ function slotName(slot: IRSchemaSlot | undefined): string | null {
 }
 
 /**
+ * One fact line, with the provenance that makes it worth reading.
+ *
+ * @param label - What the fact is called here
+ * @param value - The fact, already flattened to one line
+ * @param confidence - `declared`, `derived` or `inferred`
+ * @param collector - Who produced it
+ * @returns The line
+ */
+function factLine(label: string, value: string, confidence: string, collector: string): string {
+  return `- ${label}: ${oneLine(value)} (${confidence}, ${oneLine(collector)})`;
+}
+
+/** One error contract as a line, in the group's own words. */
+function errorLine(group: string, contract: IRErrorContract): string {
+  const title = contract.title === '' ? '' : ` ${contract.title}`;
+
+  return factLine(
+    group,
+    `${String(contract.status)}${title}`,
+    contract.confidence,
+    contract.collector,
+  );
+}
+
+/** One handler policy as a line, saying first when it is bound to nothing. */
+function policyLine(policy: IRHandlerPolicy): string {
+  const on = policy.key === undefined || policy.key === '' ? '' : ` on ${policy.key}`;
+  const settings = policy.settings
+    .map(
+      (setting) =>
+        `${setting.name} ${Array.isArray(setting.value) ? setting.value.join(', ') : String(setting.value)}`,
+    )
+    .join(', ');
+  const unbound = policy.reach === 'unbound' ? 'declared and bound by nothing here; ' : '';
+  const detail = settings === '' ? 'no readable setting' : settings;
+
+  return factLine(
+    'handler policy',
+    `${policy.kind}${on} (${unbound}${detail})`,
+    policy.confidence,
+    policy.collector,
+  );
+}
+
+/**
+ * How each runtime fact of the IR is written here, one entry per member of the IR's own set.
+ *
+ * THE SET IS DERIVED AND NOT LISTED, WHICH IS THE DEFECT THIS RECORD CLOSES. Until 2026-09-05 this
+ * file spelled seven `if` blocks and a `guards` loop, so it printed eight of the fourteen facts
+ * `RUNTIME_FACT_FIELDS` names and nothing anywhere could tell that from completeness. Six were
+ * missing: `source`, `pipes`, `rateLimitReach`, `handlerPolicies`, `parameterReads` and `errors`.
+ * Two of those six had been added to the IR since this function was last touched, and each arrived
+ * with a page row, a collector and tests of its own, so the only surface that silently missed them
+ * was this one. It is exactly the class SPEC 0 names: a hand list standing against a growing union,
+ * green on the day it stops being complete.
+ *
+ * A TOTAL `Record` OVER {@link RuntimeFactField} IS WHAT MAKES A FIFTEENTH IMPOSSIBLE TO MISS, in
+ * the same shape `RUNTIME_FACT_COLLECTORS` in `@openref/core` already uses for the same union. A
+ * field added to `IRNodeRuntime` extends `RUNTIME_FACT_FIELDS`, which core's own
+ * `RUNTIME_FIELDS_ARE_PARTITIONED` requires of it, and a `Record` over the widened union with an
+ * entry missing does not compile. So the failure is a red build in this package on the day the fact
+ * lands, not an absence a reader has to notice.
+ *
+ * `drift` IS NOT HERE AND THAT IS CORE'S PARTITION RATHER THAN THIS FILE'S CHOICE. A finding is a
+ * statement about two documents disagreeing, not an observation of the application, and
+ * `RUNTIME_FACT_FIELDS` excludes it for that reason.
+ *
+ * TWO OF THE FOURTEEN ARE PHRASED BY `@openref/render` AND NOT HERE. `rateLimitReachLabel` and
+ * `parameterReadsLabel` carry rulings rather than formats, the first refusing to attribute a budget
+ * it prints and the second keeping a statement about the handler apart from a statement about the
+ * scan, so a second spelling of either would be two answers to one question.
+ */
+const RUNTIME_FACT_LINES: Readonly<
+  Record<RuntimeFactField, (runtime: IRNodeRuntime) => readonly string[]>
+> = {
+  // NO CONFIDENCE AND NO COLLECTOR, BECAUSE `IRSourceLocation` CARRIES NEITHER, which is the type's
+  // own shape and not an omission here: a handler was found or it was not, and there is nothing to
+  // be uncertain about. `runtime-view.ts` says the same where it answers the empty string for this
+  // field. The line is therefore written without the pair rather than with an invented one.
+  source: (runtime) => {
+    const source = runtime.source;
+    if (source === undefined) return [];
+    const at = source.file === undefined ? '' : ` at ${source.file}`;
+    const line = source.line === undefined ? '' : `:${String(source.line)}`;
+
+    return [`- source: ${oneLine(`${source.controller}.${source.handler}()${at}${line}`)}`];
+  },
+  guards: (runtime) =>
+    (runtime.guards ?? []).map((guard) =>
+      factLine(
+        guard.scope === 'global' ? 'guard, global' : 'guard',
+        guard.name,
+        guard.confidence,
+        guard.collector,
+      ),
+    ),
+  // THE WORD SAYS WHAT THE MARK MEANS AND NOT MORE, per SPEC 6.2.1. An agent reading `public` here
+  // would carry away that the route is unauthenticated in every sense, which the mark does not say;
+  // what it says is that the host asserts this route escapes the guard registered for the whole
+  // application, and where the host wrote it.
+  guardExemption: (runtime) =>
+    runtime.guardExemption === undefined
+      ? []
+      : [
+          factLine(
+            'exempt from the application wide guard',
+            `marked on the ${runtime.guardExemption.value.declaredOn}`,
+            runtime.guardExemption.confidence,
+            runtime.guardExemption.collector,
+          ),
+        ],
+  pipes: (runtime) =>
+    (runtime.pipes ?? []).map((pipe) =>
+      factLine(`pipe, ${pipe.scope}`, pipe.name, pipe.confidence, pipe.collector),
+    ),
+  scopes: (runtime) =>
+    runtime.scopes === undefined
+      ? []
+      : [
+          factLine(
+            'scopes',
+            runtime.scopes.value.join(', '),
+            runtime.scopes.confidence,
+            runtime.scopes.collector,
+          ),
+        ],
+  roles: (runtime) =>
+    runtime.roles === undefined
+      ? []
+      : [
+          factLine(
+            'roles',
+            runtime.roles.value.join(', '),
+            runtime.roles.confidence,
+            runtime.roles.collector,
+          ),
+        ],
+  rateLimit: (runtime) =>
+    runtime.rateLimit === undefined
+      ? []
+      : [
+          factLine(
+            'rate limit',
+            `${String(runtime.rateLimit.value.limit)} per ${String(runtime.rateLimit.value.ttlMs)} ms`,
+            runtime.rateLimit.confidence,
+            runtime.rateLimit.collector,
+          ),
+        ],
+  // PRINTED WHATEVER THE ROUTE'S OWN LIMIT SAYS, WHICH IS WHERE THIS PARTS COMPANY WITH THE PAGE.
+  // The reference draws one row for the question "what limits this route", so it suppresses the
+  // reach when a limit of the route's own answers it. These files are read line by line by a
+  // machine with no row to collide with, and the two facts are two observations: a declared limit
+  // and a list of what stands in front of it are not the same sentence.
+  rateLimitReach: (runtime) => {
+    const reach = runtime.rateLimitReach;
+    if (reach === undefined) return [];
+    const label = rateLimitReachLabel(reach.value);
+
+    return [
+      factLine(
+        'rate limit reach',
+        `${label.value}. ${label.note}`,
+        reach.confidence,
+        reach.collector,
+      ),
+    ];
+  },
+  handlerPolicies: (runtime) => (runtime.handlerPolicies ?? []).map(policyLine),
+  timeout: (runtime) =>
+    runtime.timeout === undefined
+      ? []
+      : [
+          factLine(
+            'timeout',
+            `${String(runtime.timeout.value.ms)} ms`,
+            runtime.timeout.confidence,
+            runtime.timeout.collector,
+          ),
+        ],
+  requiredHeaders: (runtime) =>
+    runtime.requiredHeaders === undefined
+      ? []
+      : [
+          factLine(
+            'required headers',
+            runtime.requiredHeaders.value.join(', '),
+            runtime.requiredHeaders.confidence,
+            runtime.requiredHeaders.collector,
+          ),
+        ],
+  parameterReads: (runtime) => {
+    const reads = runtime.parameterReads;
+    if (reads === undefined) return [];
+    const label = parameterReadsLabel(reads.value);
+    const note = label.note === '' ? '' : `. ${label.note}`;
+
+    return [
+      factLine('parameter reads', `${label.value}${note}`, reads.confidence, reads.collector),
+    ];
+  },
+  statusCode: (runtime) =>
+    runtime.statusCode === undefined
+      ? []
+      : [
+          factLine(
+            'success status',
+            String(runtime.statusCode.value),
+            runtime.statusCode.confidence,
+            runtime.statusCode.collector,
+          ),
+        ],
+  // THE THREE GROUPS STAY APART, per SPEC 7.4 and the reason `ERROR_GROUPS` gives on the page: a
+  // promise the document made, an observation of the application and a policy of the host are
+  // three different things a reader acts on differently, and one label over all three would lose
+  // the distinction the group names carry.
+  errors: (runtime) => {
+    const errors = runtime.errors;
+    if (errors === undefined) return [];
+
+    return [
+      ...errors.declared.map((contract) => errorLine('error, declared', contract)),
+      ...errors.runtimeDerived.map((contract) => errorLine('error, runtime-derived', contract)),
+      ...errors.global.map((contract) => errorLine('error, global', contract)),
+    ];
+  },
+  streaming: (runtime) => {
+    const streaming = runtime.streaming;
+    if (streaming === undefined) return [];
+    const item = slotName(streaming.value.itemSchema);
+
+    return [
+      factLine(
+        'streaming',
+        `${streaming.value.transport}${item === null ? '' : ` of ${item}`}`,
+        streaming.confidence,
+        streaming.collector,
+      ),
+    ];
+  },
+};
+
+/**
  * Every runtime fact one node carries, each with its confidence and its collector.
  *
- * NOTHING IS PRINTED WITHOUT ITS PROVENANCE, which is CLAUDE.md's rule and is the whole reason
- * this file exists rather than a JSON dump: a machine reader of these lines is deciding what to
- * trust, and a scope printed without `declared` beside it is a claim this project does not make.
+ * NOTHING IS PRINTED WITHOUT ITS PROVENANCE, since every runtime fact carries its confidence and
+ * its collector, and that is the whole reason this file exists rather than a JSON dump: a machine
+ * reader of these lines is deciding what to trust, and a scope printed without `declared` beside
+ * it is a claim this project does not make.
+ * The one field with no pair to print is `source`, and {@link RUNTIME_FACT_LINES} says why.
+ *
+ * THE ORDER IS `RUNTIME_FACT_FIELDS`' OWN AND NOT ONE WRITTEN HERE, so these files order the facts
+ * the way every other reader of that list does, and a fact added to the IR takes its place without
+ * this file deciding where.
  *
  * @param node - The node
  * @returns The lines, empty when no collector said anything about it
@@ -215,74 +498,7 @@ function runtimeLines(node: IRNode): readonly string[] {
   const runtime = node.runtime;
   if (runtime === undefined) return [];
 
-  const lines: string[] = [];
-  const fact = (label: string, value: string, confidence: string, collector: string): void => {
-    lines.push(`- ${label}: ${oneLine(value)} (${confidence}, ${oneLine(collector)})`);
-  };
-
-  if (runtime.scopes !== undefined) {
-    fact(
-      'scopes',
-      runtime.scopes.value.join(', '),
-      runtime.scopes.confidence,
-      runtime.scopes.collector,
-    );
-  }
-  if (runtime.roles !== undefined) {
-    fact(
-      'roles',
-      runtime.roles.value.join(', '),
-      runtime.roles.confidence,
-      runtime.roles.collector,
-    );
-  }
-  if (runtime.rateLimit !== undefined) {
-    const limit = runtime.rateLimit.value;
-    fact(
-      'rate limit',
-      `${String(limit.limit)} per ${String(limit.ttlMs)} ms`,
-      runtime.rateLimit.confidence,
-      runtime.rateLimit.collector,
-    );
-  }
-  if (runtime.timeout !== undefined) {
-    fact(
-      'timeout',
-      `${String(runtime.timeout.value.ms)} ms`,
-      runtime.timeout.confidence,
-      runtime.timeout.collector,
-    );
-  }
-  if (runtime.requiredHeaders !== undefined) {
-    fact(
-      'required headers',
-      runtime.requiredHeaders.value.join(', '),
-      runtime.requiredHeaders.confidence,
-      runtime.requiredHeaders.collector,
-    );
-  }
-  if (runtime.statusCode !== undefined) {
-    fact(
-      'success status',
-      String(runtime.statusCode.value),
-      runtime.statusCode.confidence,
-      runtime.statusCode.collector,
-    );
-  }
-  if (runtime.streaming !== undefined) {
-    const streaming = runtime.streaming.value;
-    fact(
-      'streaming',
-      `${streaming.transport}${slotName(streaming.itemSchema) === null ? '' : ` of ${String(slotName(streaming.itemSchema))}`}`,
-      runtime.streaming.confidence,
-      runtime.streaming.collector,
-    );
-  }
-  for (const guard of runtime.guards ?? []) {
-    lines.push(
-      `- guard: ${oneLine(guard.name)} (${guard.confidence}, ${oneLine(guard.collector)})`,
-    );
-  }
+  const lines = RUNTIME_FACT_FIELDS.flatMap((field) => RUNTIME_FACT_LINES[field](runtime));
 
   return lines.length === 0 ? [] : ['Runtime:', ...lines];
 }

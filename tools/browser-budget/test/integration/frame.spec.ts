@@ -9,9 +9,8 @@ import type { Page } from 'playwright-core';
  * WHAT WENT WRONG WAS A TOKEN DOING A JOB IT WAS NOT FOR. `--oref-layout-measure`, 78ch, bounds a
  * paragraph, and it was applied to the content column. On a 1600 px window that left the column
  * at about 1200 px, neither filling the window nor centred in it, with the sunken surface behind
- * the page bare to the right of it. The resolution is recorded in
- * `ai-docs/design/vernier/notes.md`: the third grid track is the frame, the column declares no
- * width of its own, and the measure stays on prose.
+ * the page bare to the right of it. The resolution is that the third grid track is the frame, the
+ * column declares no width of its own, and the measure stays on prose.
  *
  * THIS IS A BROWSER TEST AND CANNOT BE ANYTHING ELSE. A width is produced by layout, and jsdom
  * performs none: every box there is zero wide, so an assertion about a column filling a window is
@@ -428,6 +427,30 @@ describe('the tab bar of the frame', () => {
       for (const target of ['/health', '/states', '/schema/OrderDto', '/shapes/OrderDto']) {
         // When the reader arrives on a page that has no operation of its own
         await page.goto(`${app.url}${EXAMPLE_BASE_PATH}${target}`, { waitUntil: 'load' });
+
+        // TWO OF THE THREE EFFECTS ARE SYNCHRONOUS AND THE RAIL IS NOT, which is what this wait
+        // is about and why it is only here. The tab and the crumb are drawn from the memory on
+        // the render that applies it, but `NavigationTree` can only put `aria-current` on a row
+        // it has drawn, and on these pages the operation's row is not in the slice the page
+        // shipped: it arrives with the navigation fetch the host starts when it applies the
+        // memory. Reading all three in one `evaluate` at `load` therefore asked an asynchronous
+        // question synchronously, and the answer depended on whether a fetch had landed. It won
+        // that race on the workstation for two milestones and lost it on `/states` on the
+        // runner, with `/health` in the same loop passing. Polling for the row keeps the
+        // assertions below exactly as strong: a rail that never reaches the operation still
+        // fails, on the timeout, and one that reaches the wrong row still fails on the value.
+        await expect
+          .poll(
+            () =>
+              page
+                .locator(
+                  `.oref-nav-item[aria-current="page"][href="${EXAMPLE_BASE_PATH}/get-orders"]`,
+                )
+                .count(),
+            { timeout: 30_000 },
+          )
+          .toBe(1);
+
         const state = await page.evaluate(() => {
           interface ElementLike {
             readonly textContent: string | null;

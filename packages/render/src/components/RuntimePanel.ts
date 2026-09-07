@@ -108,6 +108,15 @@ function parityRow(row: ParityRowModel, tag: Component): VNode {
             {
               class: ['oref-verdict', variant, suffix === '' ? '' : `oref-verdict-${suffix}`],
               'aria-label': name,
+              // THE REASON REACHES A READER WHO IS NOT USING A SCREEN READER. `?` carried
+              // `comparison not run` in `aria-label` and nothing else, so a sighted reader saw a
+              // glyph with no way to ask what it meant, on rows the model can now explain
+              // precisely. `title` because it is the one native affordance that needs no script
+              // and no inline style, both of which the strict CSP of SPEC 19 forbids. Only on the
+              // unknown verdict: `=` and `≠` are answers, and a tooltip on an answer is noise.
+              // `undefined` rather than a spread, because Vue omits the attribute either way and
+              // this is a branch in the bundle every reader downloads.
+              title: row.verdict === 'unknown' ? row.reason : undefined,
             },
             glyph,
           ),
@@ -179,6 +188,25 @@ export const RuntimePanel = defineComponent({
           { class: 'oref-drift-list' },
           remainder.map((issue) => h(drift.value, { issue })),
         ),
+        // THE SUPPRESSED HALF, CLOSED, AND ONLY WHEN THIS NODE HAS ONE. The header counts what is
+        // drawn, so a node whose only findings were suppressed would otherwise be pixel identical
+        // to a node with none, and the product's own thesis would be made silently in the wrong
+        // direction. It is the same `details` the health page uses and for the same reasons: it
+        // survives the static build, it works with no JavaScript, and it authorizes nothing.
+        runtime.suppressed.length === 0
+          ? null
+          : h('details', { class: 'oref-suppression' }, [
+              h(
+                'summary',
+                { class: 'oref-suppression-head' },
+                `${String(runtime.suppressed.length)} suppressed on this operation`,
+              ),
+              h(
+                'ul',
+                { class: 'oref-drift-list' },
+                runtime.suppressed.map((issue) => h(drift.value, { issue })),
+              ),
+            ]),
       ]);
     };
   },

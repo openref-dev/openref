@@ -167,7 +167,10 @@ describe('the four levels of SPEC 13.6, in order', () => {
     expect(runtime?.streaming?.value.itemSchema).toBeUndefined();
     expect(collector.problems()).toHaveLength(1);
     expect(collector.problems()[0]?.subject).toBe('JobsController.watch');
-    expect(collector.problems()[0]?.reason).toMatch(/@ApiStream/);
+    expect(collector.problems()[0]?.reason).toContain('nothing says what it streams');
+    expect(collector.problems()[0]?.action).toMatch(/@ApiStream/);
+    expect(collector.problems()[0]?.action).toContain('itemSchema on the response');
+    expect(collector.problems()[0]?.detail).toContain('generics do not survive compilation');
   });
 
   it('should ignore an itemSchema that belongs to an error response', () => {

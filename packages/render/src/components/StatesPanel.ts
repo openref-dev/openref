@@ -53,6 +53,11 @@ const SPECIMENS: readonly (readonly [StateNoticeKind, string])[] = [
     'health-missing',
     'No health report exists for this document. Specimen of a page nothing measured.',
   ],
+  [
+    'runtime-missing',
+    'No collector has reported on this operation. Specimen of an operation nothing measured.',
+  ],
+  ['drift-missing', 'drift not measured. Specimen of the rail with no health report behind it.'],
 ];
 
 /** The kinds whose default element is a list item, which is only valid inside a list. */

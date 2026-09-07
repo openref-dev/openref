@@ -4,6 +4,7 @@ import type {
   IRErrorContract,
   IRFact,
   IRGuard,
+  IRHandlerPolicy,
   IRNodeRuntime,
   IRPipe,
 } from '@openref/core';
@@ -28,6 +29,21 @@ import type {
  * reader expects the strongest claim. It also means adding a collector to the end of the list
  * cannot change any fact that already existed, which is the property that makes the list safe
  * to extend.
+ *
+ * AND A TIE IS NOW SAID OUT LOUD, WHICH IS THE HALF THAT WAS MISSING FROM T017. The rule above was
+ * written, enforced and tested from the day it landed, and the loser still vanished without trace:
+ * the page draws the winner's provenance, so a reader looking at a rate limit could not tell "this
+ * is the only thing anybody reported" from "this is one of two, and the other said a different
+ * number". It stayed unreachable because every field of {@link FACT_FIELDS} had exactly one
+ * producer in the shipped set; the second producer of `rateLimit` makes it reachable for the first
+ * time, and a silent tie break on a fact a reader trusts is this project's own worst class.
+ * {@link mergeContributions} records each one in an accumulator the registry drains into
+ * `IRRuntimeMeta.problems`, so `doctor` names the field, both collectors and the confidence.
+ *
+ * ONLY THE TIE IS RECORDED, NOT EVERY LOSS. A `derived` fact beaten by a `declared` one lost by the
+ * rule of SPEC 6.1, and the reader holds the evidence: the winning fact carries the confidence that
+ * won. A tie of equal confidence is the only case whose resolution comes from somewhere the fact
+ * itself cannot show.
  */
 
 /** Rank of each level, high wins. There is no fourth, per SPEC 6.1. */
@@ -37,17 +53,58 @@ const CONFIDENCE_RANK: Readonly<Record<IRConfidence, number>> = {
   inferred: 1,
 };
 
-/**
- * Reports whether an incoming fact displaces one already held.
- *
- * @param held - What the merge has so far, or undefined
- * @param incoming - What a later collector produced
- * @returns True when the incoming fact wins
- */
-function displaces<T>(held: IRFact<T> | undefined, incoming: IRFact<T>): boolean {
-  if (held === undefined) return true;
+/** One field two collectors reported at the same confidence, and how it was decided. */
+export interface FactContest {
+  /** Which fact was contested, as {@link FACT_FIELDS} names it. */
+  readonly field: FactField;
+  /** The collector whose value is in the document, which is the earlier registration. */
+  readonly kept: string;
+  /** The collector whose value was dropped. */
+  readonly dropped: string;
+  /** The level both of them claimed, which is why order had to decide. */
+  readonly confidence: IRConfidence;
+}
 
-  return CONFIDENCE_RANK[incoming.confidence] > CONFIDENCE_RANK[held.confidence];
+/** One of the fact valued fields, named by {@link FACT_FIELDS}. */
+export type FactField = (typeof FACT_FIELDS)[number];
+
+/**
+ * Resolves one fact field between what is held and what a later collector produced.
+ *
+ * @param field - Which fact, for the contest record
+ * @param held - What the merge has so far, or undefined
+ * @param incoming - What this collector produced for the same field, or undefined
+ * @param collector - Name of the collector that produced it
+ * @param contests - Accumulator for a tie of equal confidence
+ * @returns Whichever fact wins, attributed to whoever produced it
+ */
+function resolve<T>(
+  field: FactField,
+  held: IRFact<T> | undefined,
+  incoming: IRFact<T> | undefined,
+  collector: string,
+  contests: FactContest[],
+): IRFact<T> | undefined {
+  if (incoming === undefined) return held;
+  if (held === undefined) return stamp(incoming, collector);
+
+  if (CONFIDENCE_RANK[incoming.confidence] > CONFIDENCE_RANK[held.confidence]) {
+    return stamp(incoming, collector);
+  }
+
+  // THE HELD FACT IS ALREADY STAMPED, so `held.collector` names the winner rather than whatever
+  // the collector wrote into its own literal. That matters here more than anywhere: a contest
+  // record that named the wrong side would be worse than no record.
+  if (incoming.confidence === held.confidence) {
+    contests.push({
+      field,
+      kept: held.collector,
+      dropped: collector,
+      confidence: held.confidence,
+    });
+  }
+
+  return held;
 }
 
 /**
@@ -69,9 +126,11 @@ function stamp<T>(fact: IRFact<T>, collector: string): IRFact<T> {
 
 /** The fact valued fields, named once so the merge and its test cannot drift apart. */
 export const FACT_FIELDS = [
+  'guardExemption',
   'scopes',
   'roles',
   'rateLimit',
+  'rateLimitReach',
   'timeout',
   'requiredHeaders',
   'parameterReads',
@@ -79,8 +138,17 @@ export const FACT_FIELDS = [
   'streaming',
 ] as const;
 
-/** The list valued fields, which accumulate rather than compete. */
-export const LIST_FIELDS = ['guards', 'pipes', 'drift'] as const;
+/**
+ * The list valued fields, which accumulate rather than compete.
+ *
+ * `handlerPolicies` JOINED THEM AT `TX-REDISX-POLICIES` AND COULD NOT HAVE BEEN A FACT FIELD. Three
+ * shipped collectors fill it, one per library module, and a cache, a lock and a breaker on one
+ * handler are three behaviours rather than three readings of one. An `IRFact` would have made the
+ * second collector on a route contest the first at equal confidence and lose to registration order,
+ * which is the silent tie {@link FactContest} exists to make audible and which here would be wrong
+ * rather than merely quiet.
+ */
+export const LIST_FIELDS = ['guards', 'pipes', 'handlerPolicies', 'drift'] as const;
 
 /**
  * The fields that are three lists rather than one, per SPEC 6.4.
@@ -106,23 +174,28 @@ export interface Contribution {
  * Folds every collector's output for one node into a single runtime record.
  *
  * @param contributions - What each collector returned, in registration order
+ * @param contests - Accumulator for the ties of equal confidence, when a caller wants to see them
  * @returns The merged facts, or undefined when no collector said anything
  */
 export function mergeContributions(
   contributions: readonly Contribution[],
+  contests: FactContest[] = [],
 ): IRNodeRuntime | undefined {
   const merged: {
     source?: IRNodeRuntime['source'];
-    scopes?: IRFact<readonly string[]>;
-    roles?: IRFact<readonly string[]>;
-    rateLimit?: IRNodeRuntime['rateLimit'];
-    timeout?: IRNodeRuntime['timeout'];
-    requiredHeaders?: IRNodeRuntime['requiredHeaders'];
-    parameterReads?: IRNodeRuntime['parameterReads'];
-    statusCode?: IRNodeRuntime['statusCode'];
-    streaming?: IRNodeRuntime['streaming'];
+    guardExemption?: IRNodeRuntime['guardExemption'] | undefined;
+    scopes?: IRFact<readonly string[]> | undefined;
+    roles?: IRFact<readonly string[]> | undefined;
+    rateLimit?: IRNodeRuntime['rateLimit'] | undefined;
+    rateLimitReach?: IRNodeRuntime['rateLimitReach'] | undefined;
+    timeout?: IRNodeRuntime['timeout'] | undefined;
+    requiredHeaders?: IRNodeRuntime['requiredHeaders'] | undefined;
+    parameterReads?: IRNodeRuntime['parameterReads'] | undefined;
+    statusCode?: IRNodeRuntime['statusCode'] | undefined;
+    streaming?: IRNodeRuntime['streaming'] | undefined;
     guards?: IRGuard[];
     pipes?: IRPipe[];
+    handlerPolicies?: IRHandlerPolicy[];
     errors?: {
       declared: IRErrorContract[];
       runtimeDerived: IRErrorContract[];
@@ -137,49 +210,70 @@ export function mergeContributions(
     // cannot move a reader's source link out from under them.
     if (merged.source === undefined && runtime.source !== undefined) merged.source = runtime.source;
 
-    if (runtime.scopes !== undefined && displaces(merged.scopes, runtime.scopes)) {
-      merged.scopes = stamp(runtime.scopes, collector);
-    }
-    if (runtime.roles !== undefined && displaces(merged.roles, runtime.roles)) {
-      merged.roles = stamp(runtime.roles, collector);
-    }
-    if (runtime.rateLimit !== undefined && displaces(merged.rateLimit, runtime.rateLimit)) {
-      merged.rateLimit = stamp(runtime.rateLimit, collector);
-    }
-    if (runtime.timeout !== undefined && displaces(merged.timeout, runtime.timeout)) {
-      merged.timeout = stamp(runtime.timeout, collector);
-    }
-    if (
-      runtime.requiredHeaders !== undefined &&
-      displaces(merged.requiredHeaders, runtime.requiredHeaders)
-    ) {
-      merged.requiredHeaders = stamp(runtime.requiredHeaders, collector);
-    }
-    if (
-      runtime.parameterReads !== undefined &&
-      displaces(merged.parameterReads, runtime.parameterReads)
-    ) {
-      merged.parameterReads = stamp(runtime.parameterReads, collector);
-    }
-    if (runtime.statusCode !== undefined && displaces(merged.statusCode, runtime.statusCode)) {
-      merged.statusCode = stamp(runtime.statusCode, collector);
-    }
-    if (runtime.streaming !== undefined && displaces(merged.streaming, runtime.streaming)) {
-      merged.streaming = stamp(runtime.streaming, collector);
-    }
+    // ONE CALL PER FACT FIELD RATHER THAN A NEAR IDENTICAL BLOCK PER FIELD, and the change is what
+    // made the tie recordable at all: the rule now lives in one place, so a field cannot be added
+    // to the merge with the contest half quietly left out of it.
+    merged.guardExemption = resolve(
+      'guardExemption',
+      merged.guardExemption,
+      runtime.guardExemption,
+      collector,
+      contests,
+    );
+    merged.scopes = resolve('scopes', merged.scopes, runtime.scopes, collector, contests);
+    merged.roles = resolve('roles', merged.roles, runtime.roles, collector, contests);
+    merged.rateLimit = resolve(
+      'rateLimit',
+      merged.rateLimit,
+      runtime.rateLimit,
+      collector,
+      contests,
+    );
+    merged.rateLimitReach = resolve(
+      'rateLimitReach',
+      merged.rateLimitReach,
+      runtime.rateLimitReach,
+      collector,
+      contests,
+    );
+    merged.timeout = resolve('timeout', merged.timeout, runtime.timeout, collector, contests);
+    merged.requiredHeaders = resolve(
+      'requiredHeaders',
+      merged.requiredHeaders,
+      runtime.requiredHeaders,
+      collector,
+      contests,
+    );
+    merged.parameterReads = resolve(
+      'parameterReads',
+      merged.parameterReads,
+      runtime.parameterReads,
+      collector,
+      contests,
+    );
+    merged.statusCode = resolve(
+      'statusCode',
+      merged.statusCode,
+      runtime.statusCode,
+      collector,
+      contests,
+    );
+    merged.streaming = resolve(
+      'streaming',
+      merged.streaming,
+      runtime.streaming,
+      collector,
+      contests,
+    );
 
     // THE LISTS ACCUMULATE, AND TWO COLLECTORS EMITTING GUARDS ARE NOT INDEPENDENT. Order does
     // show in these, and it has to: three guards on a route are three facts, not one fact three
     // collectors disagree about. Duplicates are dropped by the pair that identifies each kind,
     // so registering the same collector twice cannot double a list.
     if (runtime.guards !== undefined) {
-      merged.guards = dedupe(
-        [...(merged.guards ?? []), ...runtime.guards.map((guard) => ({ ...guard, collector }))],
-        // THE SCOPE IS PART OF WHAT MAKES TWO GUARDS THE SAME, per SPEC 6.2.1. One class both
-        // registered under `APP_GUARD` and named in `@UseGuards` on a route is two registrations,
-        // and a key without the scope would keep whichever arrived first and drop the other,
-        // which is the half a reader asking "is this the route's own decision" is asking for.
-        (guard) => `${guard.name}\0${guard.scope}\0${guard.confidence}`,
+      merged.guards = foldGuards(
+        merged.guards ?? [],
+        runtime.guards.map((guard) => ({ ...guard, collector })),
       );
     }
     if (runtime.pipes !== undefined) {
@@ -188,6 +282,22 @@ export function mergeContributions(
         // The scope is part of the identity for the guard reason, with the third value:
         // `TrimPipe` on the route and `TrimPipe` on one parameter are two decisions.
         (pipe) => `${pipe.name}\0${pipe.scope}\0${pipe.confidence}`,
+      );
+    }
+    // THE POLICIES ACCUMULATE THE WAY THE TWO ABOVE DO, AND THE KEY IS WHAT MAKES TWO THE SAME.
+    // A cache and a lock on one handler are two facts; the SAME cache read twice, because a host
+    // registered one collector twice, is one. `kind`, `key` and `reach` identify it: two policies
+    // of one kind on one key at one reach are the same declaration however many settings each
+    // carries, and `@Cached` plus `@InvalidateTags` differ on the key one has and the other does
+    // not. The confidence joins them for the reason it joins guards: two collectors that read the
+    // same declaration at two levels are two observations.
+    if (runtime.handlerPolicies !== undefined) {
+      merged.handlerPolicies = dedupe(
+        [
+          ...(merged.handlerPolicies ?? []),
+          ...runtime.handlerPolicies.map((policy) => ({ ...policy, collector })),
+        ],
+        (policy) => `${policy.kind}\0${policy.key ?? ''}\0${policy.reach}\0${policy.confidence}`,
       );
     }
     // THE GROUPS ACCUMULATE SEPARATELY AND ARE NEVER CONCATENATED, which is what makes SPEC 6.4
@@ -221,9 +331,11 @@ export function mergeContributions(
   // undefined value would be a difference the hash can see and a reader cannot.
   const result: IRNodeRuntime = {
     ...(merged.source === undefined ? {} : { source: merged.source }),
+    ...(merged.guardExemption === undefined ? {} : { guardExemption: merged.guardExemption }),
     ...(merged.scopes === undefined ? {} : { scopes: merged.scopes }),
     ...(merged.roles === undefined ? {} : { roles: merged.roles }),
     ...(merged.rateLimit === undefined ? {} : { rateLimit: merged.rateLimit }),
+    ...(merged.rateLimitReach === undefined ? {} : { rateLimitReach: merged.rateLimitReach }),
     ...(merged.timeout === undefined ? {} : { timeout: merged.timeout }),
     ...(merged.requiredHeaders === undefined ? {} : { requiredHeaders: merged.requiredHeaders }),
     ...(merged.parameterReads === undefined ? {} : { parameterReads: merged.parameterReads }),
@@ -231,11 +343,72 @@ export function mergeContributions(
     ...(merged.streaming === undefined ? {} : { streaming: merged.streaming }),
     ...(merged.guards === undefined ? {} : { guards: merged.guards }),
     ...(merged.pipes === undefined ? {} : { pipes: merged.pipes }),
+    ...(merged.handlerPolicies === undefined ? {} : { handlerPolicies: merged.handlerPolicies }),
     ...(merged.errors === undefined ? {} : { errors: merged.errors }),
     ...(merged.drift === undefined ? {} : { drift: merged.drift }),
   };
 
   return Object.keys(result).length === 0 ? undefined : result;
+}
+
+/**
+ * What makes two guard readings the same guard.
+ *
+ * THE SCOPE IS PART OF IT, per SPEC 6.2.1. One class both registered under `APP_GUARD` and named
+ * in `@UseGuards` on a route is two registrations, and a key without the scope would keep whichever
+ * arrived first and drop the other, which is the half a reader asking "is this the route's own
+ * decision" is asking for. The confidence joins them because two collectors that read the same
+ * declaration at two levels are two observations.
+ *
+ * @param guard - One guard reading
+ * @returns Its identity
+ */
+function guardKey(guard: IRGuard): string {
+  return `${guard.name}\0${guard.scope}\0${guard.confidence}`;
+}
+
+/**
+ * Accumulates guard readings, keeping the first of each and letting a purpose join it.
+ *
+ * IT IS `dedupe` WITH ONE ADDITION, AND THE ADDITION IS WHY IT IS ITS OWN FUNCTION. A guard is
+ * reported by `guardsCollector`, which reads `@UseGuards` and the container and so knows that a
+ * class stands here and nothing about why. {@link IRGuardPurpose} arrives from a collector whose
+ * subject is the library that defines the guard, and that collector reports the same guard, at the
+ * same scope, with the purpose filled in. Plain deduplication would keep whichever arrived first
+ * and drop the other, so on the ordinary registration order the purpose was the half that vanished
+ * and `security-drift` went on reading a rate limiter as an authorisation guard.
+ *
+ * A PURPOSE ONLY EVER JOINS A READING, AND NEVER REPLACES ONE. There is one value in the union, so
+ * two collectors cannot disagree here; if one is ever added, the first claim stands, which is the
+ * same precedence the rest of this file gives registration order.
+ *
+ * @param held - What the merge has so far
+ * @param incoming - What this collector produced, already attributed
+ * @returns The accumulated list, in the order the readings arrived
+ */
+function foldGuards(held: readonly IRGuard[], incoming: readonly IRGuard[]): IRGuard[] {
+  const folded: IRGuard[] = [...held];
+  const at = new Map(folded.map((guard, index) => [guardKey(guard), index]));
+
+  for (const guard of incoming) {
+    const key = guardKey(guard);
+    const index = at.get(key);
+
+    if (index === undefined) {
+      at.set(key, folded.length);
+      folded.push(guard);
+      continue;
+    }
+
+    const standing = folded[index];
+    if (standing === undefined || standing.purpose !== undefined || guard.purpose === undefined) {
+      continue;
+    }
+
+    folded[index] = { ...standing, purpose: guard.purpose };
+  }
+
+  return folded;
 }
 
 /**

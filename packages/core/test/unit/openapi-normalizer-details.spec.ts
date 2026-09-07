@@ -599,6 +599,50 @@ describe('normalizeOpenApiDocument optional members', () => {
   });
 });
 
+describe('the label of a call sample, per SPEC 18', () => {
+  /** A document with one operation whose only sample carries the label the case is about. */
+  function withLabel(label: unknown): IROperation {
+    const source = {
+      openapi: '3.1.0',
+      info: { title: 'Samples', version: '1' },
+      paths: {
+        '/orders': {
+          get: {
+            operationId: 'listOrders',
+            'x-codeSamples': [{ lang: 'ruby', label, source: 'Net::HTTP.get(uri)' }],
+            responses: { '200': { description: 'ok' } },
+          },
+        },
+      },
+    };
+
+    return operationOf(normalizeOpenApiDocument(source), 'get-orders');
+  }
+
+  it('should take the label the document wrote', () => {
+    // Given, When, Then, the subject first: a written label reaches the tab unchanged
+    expect(withLabel('Ruby, with retries').codeSamples?.[0]?.label).toBe('Ruby, with retries');
+  });
+
+  it('should fall back to the language when the document writes an empty label', () => {
+    // Given a document that wrote `label: ""`, which is a label a JSON writer produces without
+    // meaning to. The stated fallback never fired, because it was written as `asString(label) ??
+    // lang` and an empty string is a string: the tab reached both themes with no name in it, and
+    // the two disagreed about what to draw, so on the default theme the word Ruby appeared nowhere
+    // on the page at all.
+    const operation = withLabel('');
+
+    // Then the language, which is what the author already told us
+    expect(operation.codeSamples?.[0]?.label).toBe('ruby');
+  });
+
+  it('should fall back to the language when the document writes no label at all', () => {
+    // Given, When, Then
+    expect(withLabel(undefined).codeSamples?.[0]?.label).toBe('ruby');
+    expect(withLabel(42).codeSamples?.[0]?.label).toBe('ruby');
+  });
+});
+
 describe('the default server', () => {
   it('should give a document that declares no servers the one the specification says it has', () => {
     // Given

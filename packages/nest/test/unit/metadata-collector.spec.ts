@@ -128,7 +128,13 @@ describe('scopesCollector', () => {
     expect(collector.problems()).toHaveLength(1);
     expect(collector.problems()[0]?.subject).toBe('OrdersController.list');
     expect(collector.problems()[0]?.reason).toContain('AuthGuard');
-    expect(collector.problems()[0]?.reason).toContain('never read');
+    expect(collector.problems()[0]?.reason).toContain(
+      'so whatever that guard enforces is not known',
+    );
+    expect(collector.problems()[0]?.action).toContain(
+      'declare the fact with a decorator that writes that key',
+    );
+    expect(collector.problems()[0]?.detail).toContain('never read');
   });
 
   it('should stay silent on an unguarded route with no key, because that is no policy', () => {
@@ -155,7 +161,11 @@ describe('scopesCollector', () => {
 
     // Then
     expect(produced).toBeUndefined();
-    expect(collector.problems()[0]?.reason).toContain('list of strings');
+    expect(collector.problems()[0]?.reason).toContain('so no scopes are known');
+    expect(collector.problems()[0]?.action).toContain('write a list of strings under that key');
+    expect(collector.problems()[0]?.detail).toContain(
+      'in the reference that no guard ever enforced',
+    );
   });
 
   it('should refuse a list holding something other than strings', () => {

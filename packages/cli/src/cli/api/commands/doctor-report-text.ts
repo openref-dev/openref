@@ -56,8 +56,36 @@ export function renderDoctorSummary(
   const operations = `${String(report.operationCount)} operation${report.operationCount === 1 ? '' : 's'}`;
   const checkLines = report.checks.map(renderCheck).filter((line) => line !== undefined);
 
-  const lines = [title, '', `Documentation health: ${String(report.score)}%`, operations];
+  // THE MARKED SCORE AND NEVER THE BARE NUMBER, from the report rather than formatted here. It is
+  // the same string the health page prints, which is what lets a reader compare a build log
+  // against the reference without wondering whether the two figures mean the same thing.
+  const lines = [title, '', `Documentation health: ${report.scoreText}`, operations];
   if (checkLines.length > 0) lines.push('', ...checkLines);
+
+  // THE SUPPRESSED CLASSES ARE PRINTED WITHOUT ANY FLAG, and that is the half that matters. A
+  // reader who never types `--show-suppressed` still learns how much is missing from the list in
+  // front of them and on whose reason, because a report that hides its own filtering is exactly
+  // the report this option exists to stop a host from producing. The flag governs the FINDINGS,
+  // which are the volume, and never the fact that they were taken out.
+  const suppression = report.suppression;
+  if (suppression !== undefined) {
+    lines.push('', 'Suppressed by this application:');
+    for (const entry of suppression.classes) {
+      // `(matched nothing)` IS THE WHOLE OF THE WARNING FOR AN EMPTY CLASS. It did not refuse boot,
+      // because a class is legitimately empty on some deployments, so this is the only place a
+      // reader finds out before the day it comes back and starts suppressing in silence.
+      const empty = entry.matched === 0 ? '  (matched nothing)' : '';
+      lines.push(
+        `  ${entry.code}  ${entry.rule}  ${String(entry.matched)}  ${entry.reason}${empty}`,
+      );
+    }
+    if (suppression.inverted) {
+      lines.push(
+        '  One suppressed class is an error, so the health percentage above is the ' +
+          'UNSUPPRESSED one and the suppressed figure is in the parenthesis.',
+      );
+    }
+  }
 
   // THE SKIPPED COLLECTORS ARE PRINTED HERE AND ARE NOT FINDINGS, per SPEC 7.1 as amended by
   // `T054`. `IRRuntimeMeta.skipped` has said "for `doctor` to report" since `T017` and nothing
@@ -127,4 +155,26 @@ export function renderDoctorFinding(finding: IRDoctorFinding): string {
  */
 export function renderDoctorFindings(findings: readonly IRDoctorFinding[]): string {
   return plainArtefactText(findings.map(renderDoctorFinding).join('\n\n'));
+}
+
+/**
+ * The suppressed findings, for `doctor --show-suppressed`, per SPEC 7.2.
+ *
+ * THE SAME ANATOMY AS A DRAWN FINDING AND NOT A REDUCED ONE. They are the same findings; a second,
+ * shorter shape for the half a host stopped looking at would be a second report, and the reason a
+ * host asks for them at all is to decide whether the class is still one they want suppressed,
+ * which is a decision that needs the subject, both sides and the suggested edit.
+ *
+ * IT PRINTS NO HEADING OVER AN EMPTY LIST. `--show-suppressed` on a document with nothing
+ * suppressed is not an error and has nothing to say.
+ *
+ * @param findings - The suppressed findings, in report order
+ * @returns The blocks joined together, or the empty string when there are none
+ */
+export function renderSuppressedFindings(findings: readonly IRDoctorFinding[]): string {
+  if (findings.length === 0) return '';
+
+  return plainArtefactText(
+    ['Suppressed findings:', '', ...findings.map(renderDoctorFinding)].join('\n\n'),
+  );
 }

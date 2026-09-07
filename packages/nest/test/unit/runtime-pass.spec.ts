@@ -68,6 +68,21 @@ const withGlobalGuard: DiscoveryServiceLike = {
   ],
 };
 
+/**
+ * NestJS's own application configuration, by the name and the accessor the walk matches on.
+ *
+ * The real one is asserted to be in the container's enumeration by `nest-value-surface.spec.ts`,
+ * which boots an application; this stands in for it here for the reason every other double in this
+ * file does, which is that the pass is a pure function of the two structural interfaces.
+ */
+class ApplicationConfig {
+  constructor(private readonly prefix: string) {}
+
+  getGlobalPrefix(): string {
+    return this.prefix;
+  }
+}
+
 /** A collector that reports one scope, so there is something to look for in the IR. */
 const scopes: IRuntimeCollector = {
   name: 'scopesCollector',
@@ -234,7 +249,7 @@ describe('runRuntimePass, the health report', () => {
     // Then a failed collector is a health check and never a drift finding, per SPEC 7
     expect(check).toEqual({
       id: 'runtime-collectors',
-      label: 'Runtime collectors that ran',
+      label: 'Runtime collectors that reported a fact',
       passed: 1,
       total: 2,
       severity: 'warning',
@@ -318,6 +333,25 @@ describe('runRuntimePass, the health report', () => {
     const found = result.document.health?.drift.filter((issue) => issue.rule === 'security-drift');
     expect(found).toHaveLength(1);
     expect(found?.[0]?.classification).toEqual({ bucket: 'contradiction' });
+
+    // And the mapping travels on the document, so a renderer re-asking this rule after the pass
+    // ends compares the same two things the report compared. Without it the parity gutter drew
+    // `?` over the operations the health page had already counted as passed.
+    expect(result.document.runtime?.guardSchemes).toEqual({ JwtAuthGuard: 'bearer' });
+  });
+
+  it('should leave the guard mapping off a document whose host configured none', () => {
+    // Given, an absent field is the claim that there is nothing to compare with, which is what
+    // `security-drift` reads it as
+    const result = runRuntimePass(document(), {
+      collectors: [scopes],
+      discovery,
+      reflector,
+      moduleRef,
+    });
+
+    // Then
+    expect(result.document.runtime?.guardSchemes).toBeUndefined();
   });
 
   it('should put a guard registered under APP_GUARD on a route that declares none', () => {
@@ -415,5 +449,269 @@ describe('runRuntimePass, the health report', () => {
     expect([...result.document.nodes.values()][0]?.runtime?.guards?.map((one) => one.name)).toEqual(
       ['ReadonlyGuard'],
     );
+  });
+});
+
+/**
+ * The three pairing lists, which the pass built and nothing read until `TX-PAIRING`.
+ *
+ * WHAT A READER SAW BEFORE. A route that matched two operations was attributed to neither in
+ * silence, and the operation it should have carried was drawn as `orphan-operation`, severity
+ * `error`, saying no handler was found for it. The handler had been found. It was matched twice
+ * and discarded, and the one sentence a reader was given named the one thing that had not
+ * happened.
+ */
+describe('runRuntimePass, the pairing problems reaching a reader', () => {
+  /** Two operations under different prefixes, which is what makes the suffix rule ambiguous. */
+  function twoPrefixes(): Record<string, unknown> {
+    return {
+      openapi: '3.1.0',
+      info: { title: 'Orders', version: '1.0.0' },
+      paths: {
+        '/public/orders/{id}': {
+          get: { summary: 'Public', responses: { '200': { description: 'ok' } } },
+        },
+        '/internal/orders/{id}': {
+          get: { summary: 'Internal', responses: { '200': { description: 'ok' } } },
+        },
+      },
+    };
+  }
+
+  it('should put an ambiguous pairing on the document, naming both candidates', () => {
+    // Given one route reaching two operations by the last rule, which has no anchor
+    const before = normalizeOpenApiDocument(twoPrefixes());
+
+    // When
+    const result = runRuntimePass(before, {
+      collectors: [scopes],
+      discovery,
+      reflector,
+      moduleRef,
+    });
+
+    // Then the reader is told what happened, rather than being left with a fact that is missing
+    const problems = result.document.runtime?.problems ?? [];
+    const ambiguity = problems.find((problem) => problem.subject === 'GET /orders/{id}');
+    expect(ambiguity?.reason).toContain('it matches 2 operations');
+    expect(ambiguity?.action).toBeDefined();
+    expect(result.nodesWithFacts).toBe(0);
+  });
+
+  it('should say each candidate lost its handler, not that none was found', () => {
+    // Given the same pass
+    const result = runRuntimePass(normalizeOpenApiDocument(twoPrefixes()), {
+      collectors: [scopes],
+      discovery,
+      reflector,
+      moduleRef,
+    });
+
+    // When, reading what is said about the operations themselves rather than about the route
+    const problems = result.document.runtime?.problems ?? [];
+    const nodes = problems.filter((problem) => problem.subject.startsWith('get-'));
+
+    // Then, and the subjects are asserted present first so an empty list cannot pass as a clean one
+    expect(nodes).toHaveLength(2);
+    expect(nodes.map((problem) => problem.reason)).toEqual([
+      'GET /orders/{id} matched it and other operations, so it was attributed to none',
+      'GET /orders/{id} matched it and other operations, so it was attributed to none',
+    ]);
+    expect(nodes.every((problem) => problem.reason.includes('no handler was found'))).toBe(false);
+  });
+
+  it('should report a route the document does not describe, which include produces on purpose', () => {
+    // Given a document holding an operation this controller does not serve
+    const result = runRuntimePass(normalizeOpenApiDocument(twoPrefixes()), {
+      collectors: [scopes],
+      discovery: {
+        getControllers: () => [{ metatype: OrdersController, instance: new OrdersController() }],
+        getProviders: () => [{ instance: new ApplicationConfig('/nowhere') }],
+      },
+      reflector,
+      moduleRef,
+    });
+
+    // Then, with the prefix read, rule two probes `/nowhere/orders/{id}` and the last rule still
+    // matches both, so the route is refused and said to be refused
+    const problems = result.document.runtime?.problems ?? [];
+    expect(problems.map((problem) => problem.subject)).toContain('GET /orders/{id}');
+  });
+
+  it('should say the prefix could not be read only when a route was left unpaired', () => {
+    // Given a container with no ApplicationConfig, which is every double in this file, and a
+    // document whose single operation the controller does serve
+    const paired = runRuntimePass(document(), {
+      collectors: [scopes],
+      discovery,
+      reflector,
+      moduleRef,
+    });
+
+    // When, and then: nothing was lost, so nothing is said
+    expect(paired.discoveryProblems).toEqual([]);
+
+    // When the same container leaves a route unpaired
+    const unpaired = runRuntimePass(normalizeOpenApiDocument(twoPrefixes()), {
+      collectors: [scopes],
+      discovery,
+      reflector,
+      moduleRef,
+    });
+
+    // Then it is named, with the count, and with what to do about it
+    const said = unpaired.discoveryProblems.find(
+      (problem) => problem.subject === 'the application',
+    );
+    expect(said?.reason).toBe(
+      'the global prefix could not be read, and 1 route(s) were left unpaired',
+    );
+    expect(said?.action).toContain('setGlobalPrefix');
+  });
+
+  it('should pair a prefixed application exactly, where the suffix rule refused both', () => {
+    // Given the maintainer's shape: `setGlobalPrefix` on the application and a document written
+    // with it, plus a second operation the unanchored rule cannot tell apart from the first
+    const prefixed: DiscoveryServiceLike = {
+      getControllers: () => [{ metatype: OrdersController, instance: new OrdersController() }],
+      getProviders: () => [{ instance: new ApplicationConfig('public') }],
+    };
+
+    // When
+    const result = runRuntimePass(normalizeOpenApiDocument(twoPrefixes()), {
+      collectors: [scopes],
+      discovery: prefixed,
+      reflector,
+      moduleRef,
+    });
+
+    // Then the right node carries the fact and nothing is reported as ambiguous
+    const withFacts = [...result.document.nodes.values()].filter(
+      (node) => node.runtime?.scopes !== undefined,
+    );
+    expect(withFacts.map((node) => (node.kind === 'operation' ? node.path : node.id))).toEqual([
+      '/public/orders/{id}',
+    ]);
+    expect(result.pairing.ambiguous).toEqual([]);
+  });
+});
+
+/**
+ * The exemption option end to end, per `TX-PUBLIC-ROUTE-KEY`.
+ *
+ * WHAT THIS COVERS THAT THE COLLECTOR'S OWN SUITE CANNOT. That suite hands the collector a context
+ * and asks what it reads. Everything between the host writing one key on the module options and
+ * `security-drift` answering differently is here: the pass building a collector out of an option,
+ * the registry stamping the provenance, the key reaching `DriftObservation` and `IRRuntimeMeta` as
+ * the same string, and the health report being built from a document that carries both.
+ */
+describe('runRuntimePass, the host named exemption key', () => {
+  /** The key the measured application writes, verbatim. */
+  const IS_PUBLIC_KEY = 'isPublic';
+
+  /** A reflector that answers the route metadata above and the exemption key on the handler. */
+  const marked: ReflectorLike = {
+    get: (key, target) =>
+      key === IS_PUBLIC_KEY
+        ? target === prototype.readOrder
+          ? true
+          : undefined
+        : (metadata.get(target)?.[String(key)] ?? undefined),
+    getAllAndOverride: (key, targets) =>
+      key === IS_PUBLIC_KEY && targets.includes(prototype.readOrder) ? true : undefined,
+  };
+
+  /** The security drift findings of a pass result. */
+  function security(result: ReturnType<typeof runRuntimePass>): readonly string[] {
+    return (result.document.health?.drift ?? [])
+      .filter((issue) => issue.rule === 'security-drift')
+      .map((issue) => issue.message);
+  }
+
+  it('should assert the route is a finding while no key is named, before proving it stops being one', () => {
+    // Given the maintainer's shape: one provider under APP_GUARD and a route he marked public,
+    // with no way yet for him to say so
+    const result = runRuntimePass(document(), {
+      collectors: [guardsCollector()],
+      discovery: withGlobalGuard,
+      reflector: marked,
+      moduleRef,
+    });
+
+    // Then the row stands, and it stands with the sentence that says nothing can be done
+    expect(security(result)).toHaveLength(1);
+    expect(security(result)[0]).toContain('not readable');
+    expect(result.document.runtime?.publicRouteKey).toBeUndefined();
+  });
+
+  it('should clear the finding once the host names the key their guard reads', () => {
+    // Given the same application, with `runtime.publicRouteKey` set to its own constant
+    const result = runRuntimePass(document(), {
+      collectors: [guardsCollector()],
+      discovery: withGlobalGuard,
+      reflector: marked,
+      moduleRef,
+      publicRouteKey: IS_PUBLIC_KEY,
+    });
+
+    // Then the row is gone, and the fact behind that carries its provenance
+    expect(security(result)).toEqual([]);
+    const node = [...result.document.nodes.values()][0];
+    expect(node?.runtime?.guardExemption).toEqual({
+      value: { declaredOn: 'handler' },
+      confidence: 'derived',
+      collector: 'publicRouteCollector',
+    });
+  });
+
+  it('should carry the key into the document so a re-ask answers the same way', () => {
+    // Given, per `IRRuntimeMeta.publicRouteKey`: the parity gutter holds no options, only a document
+    const result = runRuntimePass(document(), {
+      collectors: [guardsCollector()],
+      discovery: withGlobalGuard,
+      reflector: marked,
+      moduleRef,
+      publicRouteKey: IS_PUBLIC_KEY,
+    });
+
+    // Then
+    expect(result.document.runtime?.publicRouteKey).toBe(IS_PUBLIC_KEY);
+    expect(result.document.runtime?.collectors).toContain('publicRouteCollector');
+  });
+
+  it('should report a key that marked no route of the whole document', () => {
+    // Given a host who named a key nothing on this application writes, which is what a typo looks
+    // like from the inside and is otherwise indistinguishable from having no public routes
+    const result = runRuntimePass(document(), {
+      collectors: [guardsCollector()],
+      discovery: withGlobalGuard,
+      reflector,
+      moduleRef,
+      publicRouteKey: 'isPubIic',
+    });
+
+    // Then it reaches `doctor` rather than silently doing nothing
+    const dead = result.discoveryProblems.find((problem) =>
+      problem.reason.includes('the exemption key marks nothing'),
+    );
+    expect(dead?.subject).toBe('the application');
+    expect(dead?.reason).toContain('publicRouteCollector: no route of 1');
+    expect(security(result)[0]).toContain('carries no exemption under "isPubIic"');
+  });
+
+  it('should change nothing at all for a host who named no key', () => {
+    // Given the same application twice, once through the option and once without it, so what is
+    // measured is the option's cost to a host who does not use it
+    const without = runRuntimePass(document(), {
+      collectors: [guardsCollector()],
+      discovery: withGlobalGuard,
+      reflector: marked,
+      moduleRef,
+    });
+
+    // Then not one collector name, not one fact, not one moved finding
+    expect(without.document.runtime?.collectors).toEqual(['guardsCollector']);
+    expect([...without.document.nodes.values()][0]?.runtime?.guardExemption).toBeUndefined();
+    expect(without.discoveryProblems).toEqual([]);
   });
 });

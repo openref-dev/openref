@@ -442,7 +442,10 @@ describe('mergeDocuments, health and topology', () => {
       { id: 'operation-summary', label: 'Summaries', passed: 3, total: 4, severity: 'warning' },
       { id: 'operation-id', label: 'Operation ids', passed: 2, total: 2, severity: 'warning' },
     ]);
-    expect(document.health?.score).toBe(88);
+    // The score is the weighted mean of SPEC 7.2: `warning` weighs 2, and the root of 4 is 2
+    // against the root of 2 which is 1, so the four subject check is worth twice the two subject
+    // one and the score is (4 x 0.75 + 2 x 1) / 6 rather than the unweighted (0.75 + 1) / 2.
+    expect(document.health?.score).toBe(83);
 
     // And the finding addresses the node by the name the merged document knows it by
     expect(document.health?.drift[0]?.nodeId).toBe('billing_get-total');
