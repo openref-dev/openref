@@ -595,3 +595,123 @@ describe('runRuntimePass, the pairing problems reaching a reader', () => {
     expect(result.pairing.ambiguous).toEqual([]);
   });
 });
+
+/**
+ * The exemption option end to end, per `TX-PUBLIC-ROUTE-KEY`.
+ *
+ * WHAT THIS COVERS THAT THE COLLECTOR'S OWN SUITE CANNOT. That suite hands the collector a context
+ * and asks what it reads. Everything between the host writing one key on the module options and
+ * `security-drift` answering differently is here: the pass building a collector out of an option,
+ * the registry stamping the provenance, the key reaching `DriftObservation` and `IRRuntimeMeta` as
+ * the same string, and the health report being built from a document that carries both.
+ */
+describe('runRuntimePass, the host named exemption key', () => {
+  /** The key the measured application writes, verbatim. */
+  const IS_PUBLIC_KEY = 'isPublic';
+
+  /** A reflector that answers the route metadata above and the exemption key on the handler. */
+  const marked: ReflectorLike = {
+    get: (key, target) =>
+      key === IS_PUBLIC_KEY
+        ? target === prototype.readOrder
+          ? true
+          : undefined
+        : (metadata.get(target)?.[String(key)] ?? undefined),
+    getAllAndOverride: (key, targets) =>
+      key === IS_PUBLIC_KEY && targets.includes(prototype.readOrder) ? true : undefined,
+  };
+
+  /** The security drift findings of a pass result. */
+  function security(result: ReturnType<typeof runRuntimePass>): readonly string[] {
+    return (result.document.health?.drift ?? [])
+      .filter((issue) => issue.rule === 'security-drift')
+      .map((issue) => issue.message);
+  }
+
+  it('should assert the route is a finding while no key is named, before proving it stops being one', () => {
+    // Given the maintainer's shape: one provider under APP_GUARD and a route he marked public,
+    // with no way yet for him to say so
+    const result = runRuntimePass(document(), {
+      collectors: [guardsCollector()],
+      discovery: withGlobalGuard,
+      reflector: marked,
+      moduleRef,
+    });
+
+    // Then the row stands, and it stands with the sentence that says nothing can be done
+    expect(security(result)).toHaveLength(1);
+    expect(security(result)[0]).toContain('not readable');
+    expect(result.document.runtime?.publicRouteKey).toBeUndefined();
+  });
+
+  it('should clear the finding once the host names the key their guard reads', () => {
+    // Given the same application, with `runtime.publicRouteKey` set to its own constant
+    const result = runRuntimePass(document(), {
+      collectors: [guardsCollector()],
+      discovery: withGlobalGuard,
+      reflector: marked,
+      moduleRef,
+      publicRouteKey: IS_PUBLIC_KEY,
+    });
+
+    // Then the row is gone, and the fact behind that carries its provenance
+    expect(security(result)).toEqual([]);
+    const node = [...result.document.nodes.values()][0];
+    expect(node?.runtime?.guardExemption).toEqual({
+      value: { declaredOn: 'handler' },
+      confidence: 'derived',
+      collector: 'publicRouteCollector',
+    });
+  });
+
+  it('should carry the key into the document so a re-ask answers the same way', () => {
+    // Given, per `IRRuntimeMeta.publicRouteKey`: the parity gutter holds no options, only a document
+    const result = runRuntimePass(document(), {
+      collectors: [guardsCollector()],
+      discovery: withGlobalGuard,
+      reflector: marked,
+      moduleRef,
+      publicRouteKey: IS_PUBLIC_KEY,
+    });
+
+    // Then
+    expect(result.document.runtime?.publicRouteKey).toBe(IS_PUBLIC_KEY);
+    expect(result.document.runtime?.collectors).toContain('publicRouteCollector');
+  });
+
+  it('should report a key that marked no route of the whole document', () => {
+    // Given a host who named a key nothing on this application writes, which is what a typo looks
+    // like from the inside and is otherwise indistinguishable from having no public routes
+    const result = runRuntimePass(document(), {
+      collectors: [guardsCollector()],
+      discovery: withGlobalGuard,
+      reflector,
+      moduleRef,
+      publicRouteKey: 'isPubIic',
+    });
+
+    // Then it reaches `doctor` rather than silently doing nothing
+    const dead = result.discoveryProblems.find((problem) =>
+      problem.reason.includes('the exemption key marks nothing'),
+    );
+    expect(dead?.subject).toBe('the application');
+    expect(dead?.reason).toContain('publicRouteCollector: no route of 1');
+    expect(security(result)[0]).toContain('carries no exemption under "isPubIic"');
+  });
+
+  it('should change nothing at all for a host who named no key', () => {
+    // Given the same application twice, once through the option and once without it, so what is
+    // measured is the option's cost to a host who does not use it
+    const without = runRuntimePass(document(), {
+      collectors: [guardsCollector()],
+      discovery: withGlobalGuard,
+      reflector: marked,
+      moduleRef,
+    });
+
+    // Then not one collector name, not one fact, not one moved finding
+    expect(without.document.runtime?.collectors).toEqual(['guardsCollector']);
+    expect([...without.document.nodes.values()][0]?.runtime?.guardExemption).toBeUndefined();
+    expect(without.discoveryProblems).toEqual([]);
+  });
+});

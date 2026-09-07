@@ -75,6 +75,16 @@ export interface CollectorRegistryOptions {
    * `IRRuntimeMeta.guardSchemes` for what went wrong while only the pass had it.
    */
   readonly guardSecuritySchemes?: Readonly<Record<string, string>>;
+  /**
+   * The exemption key the host named, per SPEC 6.2.1, carried through to the document meta.
+   *
+   * IT IS CARRIED RATHER THAN CONSUMED HERE, exactly as the mapping above is. The collector that
+   * reads the key is built from the option by the pass and arrives in the ordinary registration
+   * list; what this carries is the fact that a key was named at all, which is what decides the two
+   * sentences of `security-drift` in SPEC 7.1 wherever that rule is re-asked. It goes into the
+   * document through {@link printableKey}, because a document is serialized and a symbol is not.
+   */
+  readonly publicRouteKey?: string | symbol;
   /** Version of NestJS the host is running, for the document meta. */
   readonly nestVersion?: string;
   /** ISO 8601 instant to record as the collection time. Injected so the meta is reproducible. */
@@ -133,6 +143,21 @@ function asProblem(entry: unknown): IRDiscoveryProblem | undefined {
     ...(typeof action === 'string' && action !== '' ? { action } : {}),
     ...(typeof detail === 'string' && detail !== '' ? { detail } : {}),
   };
+}
+
+/**
+ * The key as a document can carry it.
+ *
+ * A SYMBOL DOES NOT SERIALIZE AND ITS DESCRIPTION DOES. `String(Symbol('IS_PUBLIC'))` is
+ * `Symbol(IS_PUBLIC)`, which is what a host recognises and what every message in this repository
+ * already prints for a symbol key. Exported so the pass fills `DriftObservation.publicRouteKey` and
+ * `IRRuntimeMeta.publicRouteKey` from one spelling rather than two.
+ *
+ * @param key - The key the host named
+ * @returns Its printable form
+ */
+export function printableKey(key: string | symbol): string {
+  return typeof key === 'string' ? key : String(key);
 }
 
 export class CollectorRegistry {
@@ -264,6 +289,9 @@ export class CollectorRegistry {
       ...(this.options.guardSecuritySchemes === undefined
         ? {}
         : { guardSchemes: this.options.guardSecuritySchemes }),
+      ...(this.options.publicRouteKey === undefined
+        ? {}
+        : { publicRouteKey: printableKey(this.options.publicRouteKey) }),
       ...(skipped.length === 0 ? {} : { skipped }),
     };
   }

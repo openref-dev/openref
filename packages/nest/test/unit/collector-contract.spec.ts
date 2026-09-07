@@ -141,6 +141,11 @@ describe('the merge partition', () => {
       {
         collector: 'testCollector',
         runtime: {
+          guardExemption: {
+            value: { declaredOn: 'handler' },
+            confidence: 'derived',
+            collector: 'testCollector',
+          },
           scopes: { value: ['a'], confidence: 'declared', collector: 'testCollector' },
           roles: { value: ['b'], confidence: 'declared', collector: 'testCollector' },
           rateLimit: {

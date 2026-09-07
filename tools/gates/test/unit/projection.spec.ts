@@ -2103,7 +2103,7 @@ describe('the figures this code states about this repository', () => {
 
     // Then each figure the budget's derivation states is the one the artefact gives, and the
     // headroom really is two milestones of it
-    expect([scan.bytes, scan.leaves]).toEqual([132_413, 661]);
+    expect([scan.bytes, scan.leaves]).toEqual([132_475, 661]);
     expect([perHeading, perTask, perRow]).toEqual([417, 126, 224]);
     expect(milestone).toBe(7_997);
     expect(PROJECTION_ARTEFACT_BUDGET.limitBytes - scan.bytes).toBeGreaterThanOrEqual(

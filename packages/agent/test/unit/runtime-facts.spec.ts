@@ -22,6 +22,13 @@ const ONE_FACT_EACH: Readonly<Record<RuntimeFactField, IRNodeRuntime>> = {
   guards: {
     guards: [{ name: 'JwtAuthGuard', scope: 'route', confidence: 'derived', collector: 'guards' }],
   },
+  guardExemption: {
+    guardExemption: {
+      value: { declaredOn: 'controller' },
+      confidence: 'derived',
+      collector: 'publicRouteCollector',
+    },
+  },
   pipes: {
     pipes: [{ name: 'TrimPipe', scope: 'route', confidence: 'derived', collector: 'pipes' }],
   },
@@ -119,7 +126,7 @@ describe('the runtime facts llms-full.txt prints', () => {
     // `runtimeLines`, naming source, pipes, rateLimitReach, handlerPolicies, parameterReads and
     // errors, which is exactly the six a hand written list had drifted behind.
     expect(Object.keys(ONE_FACT_EACH).sort()).toEqual([...RUNTIME_FACT_FIELDS].sort());
-    expect(RUNTIME_FACT_FIELDS).toHaveLength(14);
+    expect(RUNTIME_FACT_FIELDS).toHaveLength(15);
 
     // When each fact is put on a route on its own and the file is built over it
     const missed = RUNTIME_FACT_FIELDS.filter(
@@ -131,13 +138,13 @@ describe('the runtime facts llms-full.txt prints', () => {
     expect(missed).toEqual([]);
   });
 
-  it('should print all fourteen facts at once, in the order the IR names them', () => {
+  it('should print all fifteen facts at once, in the order the IR names them', () => {
     // Given every fact on one route, which is the shape a fully instrumented application produces
     const everyFact: IRNodeRuntime = Object.assign(
       {},
       ...RUNTIME_FACT_FIELDS.map((field) => ONE_FACT_EACH[field]),
     );
-    expect(Object.keys(everyFact)).toHaveLength(14);
+    expect(Object.keys(everyFact)).toHaveLength(15);
 
     // When
     const lines = factLinesOf(buildLlmsFull(documentCarrying(everyFact), mounted));
@@ -146,6 +153,7 @@ describe('the runtime facts llms-full.txt prints', () => {
     expect(lines).toEqual([
       '- source: OrdersController.findAll() at orders.ts:12',
       '- guard: JwtAuthGuard (derived, guards)',
+      '- exempt from the application wide guard: marked on the controller (derived, publicRouteCollector)',
       '- pipe, route: TrimPipe (derived, pipes)',
       '- scopes: orders:read (declared, scopes)',
       '- roles: admin (derived, roles)',

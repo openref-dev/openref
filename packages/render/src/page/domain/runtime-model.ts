@@ -128,8 +128,27 @@ const GUARD_SCOPES = [
 function rowsOf(runtime: IRNodeRuntime, template: string | undefined): RuntimeRowModel[] {
   const rows: RuntimeRowModel[] = [];
 
+  // THE EXEMPTION IS DRAWN ON THE ROW IT IS ABOUT AND NOT IN A ROW OF ITS OWN, per SPEC 6.2.1. It
+  // says this route escapes the guard registered for the whole application and says nothing about a
+  // guard written on the route, so it belongs beside the value naming what stands in front of
+  // everything; `RuntimeRowKind` is frozen public API of `@openref/vue`, and a twelfth kind would
+  // be a major version for a distinction a reader draws inside one row. It also keeps the block
+  // from being drawn as an empty scaffold on a route whose only fact is this one, which SPEC 6.3
+  // forbids and which `hasRuntimeFacts` would otherwise allow the moment the fact was added.
+  const exemption = runtime.guardExemption;
+
   for (const [scope, kind, label] of GUARD_SCOPES) {
     const values = guardValues(runtime.guards ?? [], scope);
+
+    if (scope === 'global' && exemption !== undefined) {
+      values.push({
+        ...EMPTY_VALUE,
+        text: 'exempt',
+        note: `marked on the ${exemption.value.declaredOn}`,
+        ...mark(exemption.confidence, exemption.collector),
+      });
+    }
+
     if (values.length > 0) rows.push({ kind, label, values });
   }
 

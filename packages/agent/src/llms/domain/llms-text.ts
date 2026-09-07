@@ -333,6 +333,21 @@ const RUNTIME_FACT_LINES: Readonly<
         guard.collector,
       ),
     ),
+  // THE WORD SAYS WHAT THE MARK MEANS AND NOT MORE, per SPEC 6.2.1. An agent reading `public` here
+  // would carry away that the route is unauthenticated in every sense, which the mark does not say;
+  // what it says is that the host asserts this route escapes the guard registered for the whole
+  // application, and where the host wrote it.
+  guardExemption: (runtime) =>
+    runtime.guardExemption === undefined
+      ? []
+      : [
+          factLine(
+            'exempt from the application wide guard',
+            `marked on the ${runtime.guardExemption.value.declaredOn}`,
+            runtime.guardExemption.confidence,
+            runtime.guardExemption.collector,
+          ),
+        ],
   pipes: (runtime) =>
     (runtime.pipes ?? []).map((pipe) =>
       factLine(`pipe, ${pipe.scope}`, pipe.name, pipe.confidence, pipe.collector),

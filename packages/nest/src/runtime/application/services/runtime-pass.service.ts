@@ -28,6 +28,7 @@ import {
 } from '@openref/core';
 import {
   CollectorRegistry,
+  printableKey,
   type CollectorRegistryOptions,
   type CollectorTarget,
 } from './collector-registry.service';
@@ -36,6 +37,7 @@ import {
   discoverRoutes,
   type DiscoveryProblem,
 } from '../../infrastructure/adapters/controller-discovery.adapter';
+import { publicRouteCollector } from '../../infrastructure/collectors/public-route.collector';
 import { pairRoutes, type PairingResult } from '../../domain/route-pairing';
 import { readGlobalGuards } from '../../domain/guards';
 import { readGlobalPipes } from '../../domain/pipes';
@@ -55,6 +57,16 @@ export interface RuntimePassOptions extends CollectorRegistryOptions {
   readonly discovery: DiscoveryServiceLike;
   /** Guard class name to security scheme id, per SPEC 13.2, for `security-drift`. */
   readonly guardSecuritySchemes?: Readonly<Record<string, string>>;
+  /**
+   * The metadata key this application's global guard reads to exempt a route, per SPEC 13.2.
+   *
+   * IT ARRIVES AS AN OPTION AND LEAVES AS A COLLECTOR, which is the shape the host asked for and
+   * the one the fact needs. A host names one key on the module options rather than registering a
+   * collector, because there is nothing else to configure; what reads it is an ordinary collector
+   * built here, so the fact it produces carries a `confidence` and a `collector` like every other
+   * fact and its `problems()` reach `doctor` through the one channel that already drains them.
+   */
+  readonly publicRouteKey?: string | symbol;
   /**
    * The finding classes the host decided not to fix, per SPEC 7.2.
    *
@@ -193,7 +205,17 @@ export function runRuntimePass(
   // its own way to them.
   const global = readGlobalGuards(options.discovery);
   const globalPipes = readGlobalPipes(options.discovery);
-  const registry = new CollectorRegistry(options.collectors, {
+  // THE EXEMPTION READER IS BUILT FROM THE OPTION AND APPENDED, per SPEC 6.2.1. It is appended
+  // rather than prepended so that the host's own registrations keep the positions they had, which
+  // is what `IRRuntimeMeta.collectors` prints and what breaks a tie of equal confidence. A host who
+  // named no key gets no registration at all, so nothing about their pass moves: not the collector
+  // list, not the health check's denominator, not one fact.
+  const exemption = options.publicRouteKey;
+  const collectors =
+    exemption === undefined
+      ? options.collectors
+      : [...options.collectors, publicRouteCollector({ metadataKey: exemption })];
+  const registry = new CollectorRegistry(collectors, {
     ...options,
     globalGuards: global.names,
     globalPipes: globalPipes.names,
@@ -336,6 +358,10 @@ export function runRuntimePass(
     ...(options.guardSecuritySchemes === undefined
       ? {}
       : { guardSchemes: new Map(Object.entries(options.guardSecuritySchemes)) }),
+    // WHAT DECIDES WHICH OF `security-drift`'s TWO SOFTENED SENTENCES IS TRUE, per SPEC 7.1. It is
+    // the same string that goes into the meta below, so the report built here and the report a
+    // renderer re-asks of the served document cannot answer differently.
+    ...(exemption === undefined ? {} : { publicRouteKey: printableKey(exemption) }),
   };
 
   // THE EDGES ARE CORRECTED FIRST AND ADDED SECOND, in that order because the two do different

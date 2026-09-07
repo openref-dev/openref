@@ -659,7 +659,16 @@ function observedFor(document: IRDocument): ReadonlyMap<RuntimeFactField, string
  */
 function observationOf(document: IRDocument): DriftObservation | undefined {
   const schemes = document.runtime?.guardSchemes;
-  if (schemes === undefined) return undefined;
+  // THE EXEMPTION KEY IS THE SECOND INPUT `security-drift` RE-READS, since `TX-PUBLIC-ROUTE-KEY`,
+  // and it is carried here for the reason the mapping is: it decides which of the rule's two
+  // softened sentences is true, so a gutter answering without it would answer a different question
+  // from the one the health report answered. Either input on its own is enough to build an
+  // observation; a document carrying neither still has none.
+  const key = document.runtime?.publicRouteKey;
+  if (schemes === undefined && key === undefined) return undefined;
 
-  return { guardSchemes: new Map(Object.entries(schemes)) };
+  return {
+    ...(schemes === undefined ? {} : { guardSchemes: new Map(Object.entries(schemes)) }),
+    ...(key === undefined ? {} : { publicRouteKey: key }),
+  };
 }

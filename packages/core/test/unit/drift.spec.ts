@@ -541,7 +541,9 @@ describe('orphan-operation', () => {
 
     // Then
     expect(issues).toEqual([]);
-    expectTypeOf<keyof DriftObservation>().toEqualTypeOf<'handledNodeIds' | 'guardSchemes'>();
+    expectTypeOf<keyof DriftObservation>().toEqualTypeOf<
+      'handledNodeIds' | 'guardSchemes' | 'publicRouteKey'
+    >();
   });
 
   it('should stay quiet when no pass ran at all', () => {

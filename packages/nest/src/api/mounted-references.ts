@@ -632,6 +632,7 @@ export class MountedReferences {
       ...(runtime?.guardSecuritySchemes === undefined
         ? {}
         : { guardSecuritySchemes: runtime.guardSecuritySchemes }),
+      ...(runtime?.publicRouteKey === undefined ? {} : { publicRouteKey: runtime.publicRouteKey }),
       ...(runtime?.suppress === undefined ? {} : { suppress: runtime.suppress }),
       ...(channelTargets === undefined ? {} : { channelTargets }),
       ...(directionConfidence === undefined

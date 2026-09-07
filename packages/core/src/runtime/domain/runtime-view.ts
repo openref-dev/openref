@@ -26,6 +26,7 @@ import type { IRNodeRuntime, IRRuntimeMeta } from '../../ir/domain/runtime.types
 export const RUNTIME_FACT_FIELDS = [
   'source',
   'guards',
+  'guardExemption',
   'pipes',
   'scopes',
   'roles',
@@ -86,6 +87,11 @@ export function hasRuntimeFacts(runtime: IRNodeRuntime | undefined): boolean {
 export const RUNTIME_FACT_COLLECTORS: Readonly<Record<RuntimeFactField, readonly string[]>> = {
   source: ['sourceCollector'],
   guards: ['guardsCollector'],
+  // ONE NAME, AND IT IS NOT A COLLECTOR A HOST REGISTERS. It runs only when `runtime.publicRouteKey`
+  // names the key the application's own global guard reads, per SPEC 13.2, so a reader missing this
+  // fact is missing it because no key was named rather than because a package is absent. The list
+  // still carries the name, because what this record answers is "which instrument would fill it".
+  guardExemption: ['publicRouteCollector'],
   pipes: ['pipesCollector'],
   scopes: ['scopesCollector', 'declarationsCollector', 'caslCollector'],
   roles: ['rolesCollector', 'accessControlCollector'],
@@ -170,6 +176,8 @@ function collectorOfFact(runtime: IRNodeRuntime, field: RuntimeFactField): strin
     }
     case 'source':
       return runtime.source === undefined ? undefined : '';
+    case 'guardExemption':
+      return runtime.guardExemption?.collector;
     case 'scopes':
       return runtime.scopes?.collector;
     case 'roles':

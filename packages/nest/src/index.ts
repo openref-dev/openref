@@ -147,6 +147,20 @@ export type {
   MetadataCollectorProblem,
   MetadataCollectorRegistration,
 } from './runtime/infrastructure/collectors/metadata.collector';
+// The exemption reader of `TX-PUBLIC-ROUTE-KEY`, per SPEC 6.2.1. A host does not register it: it
+// is built by the pass from `runtime.publicRouteKey`, because one key is the whole of what there is
+// to configure. It is exported anyway, so a host driving the pass directly can build the same
+// collector rather than a second reading of the same key.
+export {
+  publicRouteCollector,
+  PUBLIC_ROUTE_COLLECTOR_NAME,
+} from './runtime/infrastructure/collectors/public-route.collector';
+export type {
+  PublicRouteCollector,
+  PublicRouteCollectorOptions,
+  PublicRouteCollectorProblem,
+  PublicRouteCollectorRegistration,
+} from './runtime/infrastructure/collectors/public-route.collector';
 export { readGuards } from './runtime/domain/guards';
 export type { GuardReading } from './runtime/domain/guards';
 

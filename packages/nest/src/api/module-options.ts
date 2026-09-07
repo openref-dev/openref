@@ -217,6 +217,34 @@ export interface OpenRefRuntimeOptions {
    */
   readonly guardSecuritySchemes?: Readonly<Record<string, string>>;
   /**
+   * The metadata key this application's global guard reads to exempt a route, per SPEC 6.2.1.
+   *
+   * WHAT IT BUYS. `security-drift` softens to a warning on every route whose only guard is
+   * registered under `APP_GUARD`, and it says a route level escape may already exempt it, which is
+   * a finding whose own text says it may be clean. Nothing could clear it: the edit is
+   * `unscoped-assertion`, which no fix mode may apply, and the only edit that removed the row was a
+   * security requirement the specification would then be lying about. Name the key and a marked
+   * route answers `clean` instead.
+   *
+   * THERE IS NO DEFAULT AND NONE IS GUESSED, exactly as for the `metadataKey` of the five metadata
+   * collectors. `IS_PUBLIC_KEY`, `isPublic` and a symbol are all somebody's key and none of them is
+   * this package's; a candidate list would be the same guess with a longer spelling, and it fails by
+   * finding somebody else's key. A host that sets nothing behaves exactly as before: no fact, no
+   * moved finding, and the rule's existing sentence unchanged.
+   *
+   * WHAT THE MARK MEANS IS NARROW. It says this host asserts the route is exempt from its own
+   * application wide guard. It does not say the route is unauthenticated in every sense, and it
+   * never silences a guard written on the route itself, which is a different finding with a
+   * different cause.
+   *
+   * @example
+   * // apps/api/src/common/decorators/public.decorator.ts
+   * // export const IS_PUBLIC_KEY = 'isPublic';
+   * // export const Public = () => SetMetadata(IS_PUBLIC_KEY, true);
+   * runtime: { publicRouteKey: IS_PUBLIC_KEY }
+   */
+  readonly publicRouteKey?: string | symbol;
+  /**
    * The finding classes this application decided not to fix, per SPEC 7.2.
    *
    * WHAT IT IS FOR. A class nobody intends to fix enters the score and the list on every run, so
@@ -452,6 +480,7 @@ export function assertRootOptions(options: OpenRefRootOptions): void {
   // than a document that renders with no links and no explanation.
   readSourceLink(options.runtime?.sourceLink);
   assertGuardSecuritySchemes(options.runtime?.guardSecuritySchemes);
+  assertPublicRouteKey(options.runtime?.publicRouteKey);
   assertSuppressions(options.runtime?.suppress);
   assertFederationOptions(options.federation, ids, routes, options.agent);
 }
@@ -540,6 +569,32 @@ function assertGuardSecuritySchemes(mapping: Readonly<Record<string, string>> | 
           'that stands for no scheme is left out of the map instead, which is what says so',
       );
     }
+  }
+}
+
+/**
+ * Refuses an exemption key that could only ever match nothing.
+ *
+ * THE EMPTY STRING IS THE ONE SHAPE WORTH REFUSING, and it is refused rather than skipped because
+ * of what it looks like from the inside. It is what a missing constant becomes after it has been
+ * imported from a module that does not export it, and metadata under `''` is absent on every route,
+ * so the collector would run, exempt nobody, and report a dead declaration for a key the host is
+ * certain they set. A host who means to configure nothing omits the option, which is what says so.
+ *
+ * A SYMBOL IS ALWAYS USABLE and needs no check: it is unforgeable and cannot be empty.
+ *
+ * @param key - Whatever the host configured, if anything
+ * @throws {InvalidOptionsError} When the key is an empty string
+ */
+function assertPublicRouteKey(key: string | symbol | undefined): void {
+  if (key === undefined || typeof key === 'symbol') return;
+
+  if (typeof key !== 'string' || key === '') {
+    throw invalid(
+      'runtime.publicRouteKey is an empty string, and metadata under it is absent on every ' +
+        'route. Pass the key your own guard reads, or omit the option, which is what says the ' +
+        'application has no exemption marker',
+    );
   }
 }
 

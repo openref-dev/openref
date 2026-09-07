@@ -126,6 +126,7 @@ function stamp<T>(fact: IRFact<T>, collector: string): IRFact<T> {
 
 /** The fact valued fields, named once so the merge and its test cannot drift apart. */
 export const FACT_FIELDS = [
+  'guardExemption',
   'scopes',
   'roles',
   'rateLimit',
@@ -182,6 +183,7 @@ export function mergeContributions(
 ): IRNodeRuntime | undefined {
   const merged: {
     source?: IRNodeRuntime['source'];
+    guardExemption?: IRNodeRuntime['guardExemption'] | undefined;
     scopes?: IRFact<readonly string[]> | undefined;
     roles?: IRFact<readonly string[]> | undefined;
     rateLimit?: IRNodeRuntime['rateLimit'] | undefined;
@@ -208,9 +210,16 @@ export function mergeContributions(
     // cannot move a reader's source link out from under them.
     if (merged.source === undefined && runtime.source !== undefined) merged.source = runtime.source;
 
-    // EIGHT CALLS TO ONE FUNCTION RATHER THAN EIGHT NEAR IDENTICAL BLOCKS, and the change is what
+    // ONE CALL PER FACT FIELD RATHER THAN A NEAR IDENTICAL BLOCK PER FIELD, and the change is what
     // made the tie recordable at all: the rule now lives in one place, so a field cannot be added
     // to the merge with the contest half quietly left out of it.
+    merged.guardExemption = resolve(
+      'guardExemption',
+      merged.guardExemption,
+      runtime.guardExemption,
+      collector,
+      contests,
+    );
     merged.scopes = resolve('scopes', merged.scopes, runtime.scopes, collector, contests);
     merged.roles = resolve('roles', merged.roles, runtime.roles, collector, contests);
     merged.rateLimit = resolve(
@@ -322,6 +331,7 @@ export function mergeContributions(
   // undefined value would be a difference the hash can see and a reader cannot.
   const result: IRNodeRuntime = {
     ...(merged.source === undefined ? {} : { source: merged.source }),
+    ...(merged.guardExemption === undefined ? {} : { guardExemption: merged.guardExemption }),
     ...(merged.scopes === undefined ? {} : { scopes: merged.scopes }),
     ...(merged.roles === undefined ? {} : { roles: merged.roles }),
     ...(merged.rateLimit === undefined ? {} : { rateLimit: merged.rateLimit }),

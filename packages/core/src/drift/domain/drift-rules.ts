@@ -62,6 +62,16 @@ export interface DriftObservation {
   readonly handledNodeIds?: ReadonlySet<string>;
   /** Guard class name to security scheme id, exactly as the host configured it, per SPEC 13.2. */
   readonly guardSchemes?: ReadonlyMap<string, string>;
+  /**
+   * The metadata key the host named as its global guard's exemption, per SPEC 13.2.
+   *
+   * IT IS WHAT DECIDES WHICH OF TWO SENTENCES `security-drift` PRINTS, per SPEC 7.1, and not
+   * whether the rule fires. Absent means no host named a key, and the rule then says the decision
+   * is inside the guard and unreadable, which is true of a guard that decides without metadata.
+   * Present means the decision was readable and this route carried no mark, which is a different
+   * statement and must not be delivered as the first one.
+   */
+  readonly publicRouteKey?: string;
 }
 
 /** Everything a check may look at. */
@@ -97,10 +107,12 @@ interface Finding {
    * IT ONLY EVER LOWERS, AND IT EXISTS BECAUSE ONE RULE CAN SEE TWO STRENGTHS OF FACT. A guard
    * written on a handler is a decision about that route, and the specification's silence about it
    * is a contradiction. A guard registered under `APP_GUARD` is a decision about the application
-   * that this route inherits, and per SPEC 6.1 nothing can read whether the route escapes it: an
-   * `@Public()` marker sits inside that guard's own logic, which is the class of fact CLAUDE.md
-   * forbids guessing at. Reporting the two at one severity asserted about the second what was only
-   * observed about the first. Absent means the rule's severity, so no existing finding moves.
+   * that this route inherits, and whether the route escapes it is a second question. Since
+   * `TX-PUBLIC-ROUTE-KEY` a host may name the metadata key their own guard reads, and a marked
+   * route is then `clean`; what stays weaker is the unmarked one, because the absence of a mark
+   * under one key does not prove the guard admits this route. Reporting the two at one severity
+   * asserted about the second what was only observed about the first. Absent means the rule's
+   * severity, so no existing finding moves.
    */
   readonly severity?: IRDriftSeverity;
 }
@@ -254,16 +266,38 @@ const SECURITY_DRIFT: OperationRule = {
     // application this was measured against it produced a critical finding on all four routes that
     // are deliberately public.
     //
-    // AND THE SENTENCE THIS BRANCH PRINTS IS TOO STRONG FOR THE COMMON CASE, WHICH IS WHY THE STATE
-    // IS UNRESOLVABLE RATHER THAN MERELY WEAK. It says the decision is inside the guard and not
-    // readable; on the ordinary NestJS escape hatch the decision is handler METADATA, an
-    // `@Public()` marker the guard reads with `getAllAndOverride`, and metadata under a key a host
-    // names is exactly what five collectors already read. Nothing here can be cleared until a host
-    // can declare that key, so this finding stands on every deliberately public route of every
-    // application whose auth is one `APP_GUARD` provider, and the only way to silence it is to
-    // write a security requirement the specification would then be lying about. Owned past 1.0
-    // (DEFER POST-1.0, `TX-PUBLIC-ROUTE-KEY`).
+    // AND THE SENTENCE THIS BRANCH PRINTS WAS TOO STRONG FOR THE COMMON CASE, WHICH IS WHY THE
+    // STATE WAS UNRESOLVABLE RATHER THAN MERELY WEAK. It says the decision is inside the guard and
+    // not readable; on the ordinary NestJS escape hatch the decision is handler and controller
+    // METADATA, a `@Public()` marker the guard reads with `getAllAndOverride`, and metadata under a
+    // key a host names is exactly what five collectors already read. Until `TX-PUBLIC-ROUTE-KEY`
+    // nothing here could be cleared, so the finding stood on every deliberately public route of
+    // every application whose auth is one `APP_GUARD` provider, and the only way to silence it was
+    // to write a security requirement the specification would then be lying about. What the key
+    // buys is below, and it is two things: a marked route is `clean`, and an unmarked one gets the
+    // other sentence.
     const routeGuarded = guards.some((guard) => guard.scope === 'route');
+
+    // THE MARK ANSWERS THE APPLICATION WIDE READING AND NOTHING ELSE, per SPEC 6.2.1. It says the
+    // host asserts this route escapes the guard registered for the whole application; it says
+    // nothing about a guard somebody wrote on this route, so `routeGuarded` is asked first and a
+    // route carrying `@UseGuards(AdminGuard)` under a `@Public()` marker keeps its `error`. That is
+    // the difference between one finding going quiet and the rule learning to read.
+    //
+    // `CLEAN` AND NOT `OUT_OF_SCOPE`, WHICH IS THE STRONGER OF THE TWO AND THE CORRECT ONE. The
+    // rule examined this operation and the two sides agree: a guard runs in front of the
+    // application, the host's own marker exempts this route from it, and the document's silence
+    // about security is therefore right rather than unverifiable. Out of scope would drop the
+    // operation from the health denominator, which would report a comparison that happened as one
+    // that did not.
+    if (!routeGuarded && operation.runtime?.guardExemption !== undefined) return CLEAN;
+
+    // WHICH SENTENCE THE SOFTENED BRANCH PRINTS, DECIDED ONCE HERE. With no key named, the decision
+    // really is inside the guard and the sentence does not move by a word. With a key named, that
+    // sentence is FALSE about this application: the decision is readable, and what was read about
+    // this route is that it carries no mark. A reader who is in the second state must not be handed
+    // the first sentence, because it would tell them there is nothing to be done where there is.
+    const declaredKey = context.observation?.publicRouteKey;
 
     // THE ADVICE NAMES A SCHEME ONLY FROM THE GUARDS ITS OWN FIRMNESS CAME FROM, AND `mapped` IS
     // ASSEMBLED OVER ALL OF THEM. That is a second defect independent of the purpose test above:
@@ -282,9 +316,13 @@ const SECURITY_DRIFT: OperationRule = {
       return found({
         message: routeGuarded
           ? 'A guard stands on this operation and the specification asserts no security.'
-          : 'A guard stands in front of the whole application and the specification asserts no ' +
-            'security here. Whether this route is exempt is decided inside that guard, which is ' +
-            'not readable.',
+          : declaredKey === undefined
+            ? 'A guard stands in front of the whole application and the specification asserts no ' +
+              'security here. Whether this route is exempt is decided inside that guard, which is ' +
+              'not readable.'
+            : 'A guard stands in front of the whole application and the specification asserts no ' +
+              `security here. This route carries no exemption under "${declaredKey}", which is ` +
+              'the key this application names.',
         runtimeValue: named,
         // THE DOCUMENT'S SILENCE IN WORDS AND NOT AS A JAVASCRIPT LITERAL. This string is printed
         // under `OpenAPI:` by `doctor` and inside the drift card, where `security: undefined` reads
@@ -295,8 +333,15 @@ const SECURITY_DRIFT: OperationRule = {
             ? 'add @ApiBearerAuth() or declare security in DocumentBuilder'
             : `add the decorator for the security scheme "${decided[0] ?? ''}" to the handler, ` +
               'for example @ApiBearerAuth(name), or declare it in DocumentBuilder'
-          : 'confirm by hand whether this route is public. If it is protected, declare security ' +
-            'in DocumentBuilder; if a route level escape exempts it, nothing here is wrong',
+          : declaredKey === undefined
+            ? 'confirm by hand whether this route is public. If it is protected, declare security ' +
+              'in DocumentBuilder; if a route level escape exempts it, nothing here is wrong'
+            : // THE ACTION IS DEFINITE HERE AND WAS NOT BEFORE, WHICH IS THE WHOLE POINT OF THE
+              // SECOND SENTENCE. With the key named, "nothing here is wrong" is no longer one of
+              // the two readings: either the route is protected and undocumented, or it is public
+              // and unmarked, and both of those are edits a person makes.
+              'declare security in DocumentBuilder if this route is protected, or mark it with ' +
+              `the decorator that writes "${declaredKey}" if it is public`,
         edit: routeGuarded ? 'new-assertion' : 'unscoped-assertion',
         basis,
         // THE WEAKER OBSERVATION IS REPORTED AS ONE. `--fail-on error` still stops on a route
@@ -1119,10 +1164,21 @@ export function runDriftRules(
     if (node.kind === 'operation') operations.push(node);
   }
 
+  // THE EXEMPTION KEY IS READ OFF THE DOCUMENT WHERE THE CALLER DID NOT CARRY ONE, which is what
+  // stops the two sentences of `security-drift` depending on which entry point asked. It differs
+  // from `guardSchemes` on purpose: that one has to come from the caller because a `ReadonlyMap` is
+  // not the shape a serialized document holds, while this is a string the document already carries,
+  // so a caller holding the document holds the answer whether or not it thought to pass it. The
+  // caller's value wins where both exist, and the runtime pass sets them from the one option.
+  const publicRouteKey = observation?.publicRouteKey ?? document.runtime?.publicRouteKey;
+
   // THE ONE THING A CHECK CANNOT SEE IS COMPUTED HERE, WHERE THE DOCUMENT IS. A check is handed one
   // operation, and `operationId` is unique across the document, so the only place the question can
   // be answered is the loop that already holds every operation.
-  const context: RuleContext = { observation, operationIdClaims: operationIdClaims(operations) };
+  const context: RuleContext = {
+    observation: publicRouteKey === undefined ? observation : { ...observation, publicRouteKey },
+    operationIdClaims: operationIdClaims(operations),
+  };
 
   const results: RuleResult[] = OPERATION_DRIFT_RULES.map((rule) => {
     const issues: IRDriftIssue[] = [];

@@ -79,6 +79,39 @@ export type IRGuardScope = 'route' | 'global';
  */
 export type IRGuardPurpose = 'rate-limit';
 
+/**
+ * Where the host wrote the mark that exempts a route from its application wide guard.
+ *
+ * TWO VALUES BECAUSE THEY ARE TWO SIZES OF CLAIM, AND `IRGuardScope` DELIBERATELY MERGES THE SAME
+ * PAIR. There the question is "was this decided about the route", which a controller and a handler
+ * answer identically. Here the question is "how much did the host exempt", and a mark on the
+ * controller class exempts every route in that controller while a mark on the handler exempts one.
+ * A reader deciding whether a public controller is public on purpose needs to know which they are
+ * looking at.
+ */
+export type IRGuardExemptionSource = 'handler' | 'controller';
+
+/**
+ * The host's own assertion that a route escapes the guard registered for the whole application.
+ *
+ * WHAT IT SAYS AND WHAT IT DOES NOT, STATED HERE BECAUSE THE WIDER READING IS THE TEMPTING ONE. It
+ * says: the host wrote a mark this route's global guard reads, under a key the host named, and that
+ * guard lets a marked route through. It does NOT say the route is unauthenticated in every sense,
+ * it says nothing about a gateway in front of the process, and it never silences a guard written on
+ * the route itself: `@UseGuards(AdminGuard)` on a marked handler is a second decision with a second
+ * cause, and `security-drift` reports it at full strength.
+ *
+ * IT IS NOT A READING OF GUARD LOGIC AND CANNOT BECOME ONE, per SPEC 6.1. The mark is metadata
+ * under an explicitly named key, which is the one thing that section allows; what the guard does
+ * with it beyond the ordinary `if (isPublic) return true` is unread, and a function under the key
+ * produces a `doctor` record rather than a fact, because what a function answers is decided by
+ * calling it.
+ */
+export interface IRGuardExemption {
+  /** Whether the mark was written on the handler or on the controller class it belongs to. */
+  readonly declaredOn: IRGuardExemptionSource;
+}
+
 /** A guard observed on a route. Only the class name is knowable, never the logic. */
 export interface IRGuard {
   readonly name: string;
@@ -435,10 +468,17 @@ export type IRDriftEdit =
    *
    * THE FACT IS REAL AND ITS REACH IS NOT OBSERVABLE, which is a third thing beside having a fact
    * and having none. A guard registered under `APP_GUARD` stands in front of every route, and
-   * whether one route escapes it is decided by metadata that guard reads inside its own logic, per
-   * SPEC 6.1 and CLAUDE.md's rule about guard logic. Writing the assertion would state a
-   * requirement about a route nothing measured; withholding the finding would hide a guard the
-   * reader can see running. So it is reported, and it is a person's to settle.
+   * whether one route escapes it is a second question this fact does not answer. Writing the
+   * assertion would state a requirement about a route nothing measured; withholding the finding
+   * would hide a guard the reader can see running. So it is reported, and it is a person's to
+   * settle.
+   *
+   * IT STAYS THIS SHAPE EVEN WHERE THE EXEMPTION KEY IS NAMED, per SPEC 7.1 as amended by
+   * `TX-PUBLIC-ROUTE-KEY`. A route that CARRIES the host's mark produces no finding at all, so this
+   * shape is only ever reached by an unmarked one, and the absence of a mark under one key does not
+   * establish that the guard admits this route: it may exempt it on grounds it computes itself,
+   * which is still the fact SPEC 6.1 forbids guessing at. What the key changes is the sentence and
+   * the action, not what a fix mode may write.
    */
   | 'unscoped-assertion'
   /** A deletion of an existing assertion, which is the only edit that would satisfy the rule. */
@@ -578,6 +618,14 @@ export interface IRDriftIssue {
 export interface IRNodeRuntime {
   readonly source?: IRSourceLocation;
   readonly guards?: readonly IRGuard[];
+  /**
+   * The host's mark saying this route escapes the application wide guard, per SPEC 6.2.1.
+   *
+   * ABSENT MEANS UNMARKED AND NEVER MEANS "NOT EXEMPT", which is the same distinction every other
+   * optional member here draws. A host who named no key has no marks anywhere, so the field is
+   * absent on every route of that application and nothing may read a claim out of that.
+   */
+  readonly guardExemption?: IRFact<IRGuardExemption>;
   readonly pipes?: readonly IRPipe[];
   readonly scopes?: IRFact<readonly string[]>;
   readonly roles?: IRFact<readonly string[]>;
@@ -688,6 +736,20 @@ export interface IRRuntimeMeta {
    * a document that is serialized and hashed rather than part of a call.
    */
   readonly guardSchemes?: Readonly<Record<string, string>>;
+  /**
+   * The metadata key the host named as its global guard's exemption, per SPEC 6.2.1 and 13.2.
+   *
+   * IT TRAVELS WITH THE DOCUMENT FOR THE REASON {@link guardSchemes} DOES. It decides which of the
+   * two sentences the softened branch of `security-drift` prints, per SPEC 7.1, so a caller that
+   * re-asks the rule from a served document and did not carry it would print the sentence that says
+   * the decision is unreadable over an application where it was read. One input, one answer,
+   * wherever the question is asked from.
+   *
+   * A STRING RATHER THAN `string | symbol`, BECAUSE THIS DOCUMENT IS SERIALIZED AND A SYMBOL IS
+   * NOT. What travels is the key's printable form, and the two things anything reads out of it are
+   * that a key was named at all and what to print to a reader looking for their own decorator.
+   */
+  readonly publicRouteKey?: string;
   /**
    * What the discovery of the running application found and could not state, per SPEC 8.3.
    *

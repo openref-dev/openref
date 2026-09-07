@@ -88,6 +88,13 @@ describe('hasRuntimeFacts', () => {
       pipes: {
         pipes: [{ name: 'TrimPipe', scope: 'route', confidence: 'derived', collector: 'pipes' }],
       },
+      guardExemption: {
+        guardExemption: {
+          value: { declaredOn: 'handler' },
+          confidence: 'derived',
+          collector: 'publicRouteCollector',
+        },
+      },
       handlerPolicies: {
         handlerPolicies: [
           {

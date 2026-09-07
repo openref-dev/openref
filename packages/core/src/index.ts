@@ -89,6 +89,8 @@ export type {
   IRErrorContractOrigin,
   IRErrorContracts,
   IRGuard,
+  IRGuardExemption,
+  IRGuardExemptionSource,
   IRGuardPurpose,
   IRGuardScope,
   IRHandlerPolicy,
