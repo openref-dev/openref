@@ -613,6 +613,56 @@ export const REDISX_PROTOCOL = 'redis';
 export const SWAGGER_EXTENSION_METADATA = 'swagger/apiExtension';
 
 /**
+ * The key `@nestjs/swagger` keeps `@ApiOperation`'s object under, which is where a written
+ * `operationId` is.
+ *
+ * WRITTEN DIRECTLY FOR THE REASON THE KEY ABOVE IS, and it is `DECORATORS.API_OPERATION` of
+ * `@nestjs/swagger`. `createMethodDecorator` calls `Reflect.defineMetadata(key, value,
+ * descriptor.value)`, so the object sits on the handler function itself, which is the same target
+ * `NEST_ROUTE_METADATA.method` is already read from. It is the sixth handler key this package
+ * reads, after path, method, version, guards and the route argument bindings.
+ *
+ * IT IS READ SO THAT PAIRING RULE ONE PROBES THE NAME THE DOCUMENT ACTUALLY CARRIES. The index in
+ * `runtime/domain/route-pairing.ts` is keyed by `IROperation.rawOperationId`, which is whatever the
+ * document wrote; the probe against it used to be the derived `Controller_handler` string alone, so
+ * every host with an `operationId` of its own matched nothing there and fell through. Measured on
+ * the maintainer's application on 2026-09-06: 58 hand written ids, and their intersection with the
+ * derived ids is empty, so rule one paired 0 of 58.
+ *
+ * ONLY A STRING IS TAKEN. `@ApiOperation` accepts a whole operation object, and everything else in
+ * it is the document's business rather than the pairing's. A missing key means the handler carries
+ * no written id, which is the ordinary case and not a problem.
+ *
+ * `test/unit/nest-value-surface.spec.ts` decorates a handler with the real `@ApiOperation` and asks
+ * the installed `@nestjs/swagger` whether `DECORATORS.API_OPERATION` still spells this.
+ */
+export const SWAGGER_OPERATION_METADATA = 'swagger/apiOperation';
+
+/**
+ * The class name NestJS registers its own application configuration under.
+ *
+ * A NAME AND NOT AN IMPORTED TOKEN, for the reason `NEST_CORE_VALUE_NAMES` is a list of five and not
+ * of six: every name on that list is injected or imported by `forRoot`, and this one is neither. It
+ * is found by walking the providers `DiscoveryServiceLike.getProviders` already returns, which is
+ * the same walk `readGlobalGuards` does, so nothing new is loaded from `@nestjs/core` and no host
+ * wiring changes. Probed on NestJS 11 on 2026-09-06: `ApplicationConfig` is in that enumeration.
+ *
+ * WHAT IT IS READ FOR IS NOT A FACT ABOUT AN ENDPOINT, which is what separates it from the standing
+ * refusal in `runtime/domain/guards.ts`. That refusal is about `app.useGlobalGuards`, whose list is
+ * still mutable when `setup` runs, so reading it would put a guard on a page because two lines of
+ * `main.ts` are in one order. The global prefix is read to reconcile two spellings of one path and
+ * is never written into the document; a host that sets it after `setup` reads back the empty prefix
+ * and the pairing declines exactly as it did before, so the failure mode is an unpaired route and
+ * never a fact attributed to the wrong one.
+ */
+export const NEST_APPLICATION_CONFIG_NAME = 'ApplicationConfig';
+
+/** Nest's `ApplicationConfig`, narrowed to the one accessor the pairing reads. */
+export interface ApplicationConfigLike {
+  getGlobalPrefix(): string;
+}
+
+/**
  * The metadata API a decorator needs, which comes from `reflect-metadata` rather than from NestJS.
  *
  * DECLARED HERE FOR THE REASON EVERYTHING ELSE IN THIS FILE IS. It is a coupling to something in

@@ -69,6 +69,12 @@ const SWEPT: readonly string[] = [
   'src/runtime/infrastructure/collectors',
   'src/runtime/application/services/collector-registry.service.ts',
   'src/runtime/application/services/runtime-pass.service.ts',
+  // THE PAIRING WRITES ITS REASONS HERE AND THE PASS ONLY CARRIES THEM. Its three lists became
+  // discovery problems at `TX-PAIRING`, and the sentences are built in the domain file rather than
+  // in the service, so sweeping the service alone would read `...pairing.ambiguous` and measure
+  // nothing. The file is added rather than the reasons moved, because where a sentence is written
+  // is a property of the design and where it is measured has to follow it.
+  'src/runtime/domain/route-pairing.ts',
 ];
 
 /**

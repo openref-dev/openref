@@ -3,7 +3,10 @@ import {
   discoverRoutes,
   joinPath,
 } from '../../src/runtime/infrastructure/adapters/controller-discovery.adapter';
-import { NEST_ROUTE_METADATA } from '../../src/shared/types/nest-surface';
+import {
+  NEST_ROUTE_METADATA,
+  SWAGGER_OPERATION_METADATA,
+} from '../../src/shared/types/nest-surface';
 import type {
   DiscoveryServiceLike,
   InstanceWrapperLike,
@@ -98,6 +101,76 @@ describe('discoverRoutes', () => {
     ]);
     expect(result.routes.map((route) => route.handlerName)).toEqual(['findAll', 'findOne']);
     expect(result.problems).toEqual([]);
+  });
+
+  it('should carry the operationId a person wrote, because the pairing cannot ask the handler', () => {
+    // Given a handler decorated with `@ApiOperation({ operationId })`, which `@nestjs/swagger`
+    // writes on the function itself, under the key `nest-value-surface.spec.ts` pins
+    class DashboardController {
+      navigation(): string {
+        return 'navigation';
+      }
+      layout(): string {
+        return 'layout';
+      }
+    }
+    const prototype = DashboardController.prototype as unknown as Record<string, unknown>;
+    const metadata = new Map<unknown, Record<string, unknown>>([
+      [DashboardController, { [NEST_ROUTE_METADATA.path]: 'dashboards' }],
+      [
+        prototype.navigation,
+        {
+          [NEST_ROUTE_METADATA.method]: 0,
+          [NEST_ROUTE_METADATA.path]: '/',
+          [SWAGGER_OPERATION_METADATA]: { operationId: 'getNavigation', summary: 'Navigation' },
+        },
+      ],
+      // The ordinary handler, which nobody named: absent means absent, not empty
+      [prototype.layout, { [NEST_ROUTE_METADATA.method]: 0, [NEST_ROUTE_METADATA.path]: ':id' }],
+    ]);
+
+    // When
+    const result = discoverRoutes(
+      discoveryOver([{ metatype: DashboardController, instance: new DashboardController() }]),
+      reflectorOver(metadata),
+    );
+
+    // Then
+    expect(result.routes.map((route) => route.operationId)).toEqual(['getNavigation', undefined]);
+  });
+
+  it('should ignore an operation object that carries no id, and an empty one', () => {
+    // Given `@ApiOperation({ summary })`, which is the commonest way the key is present with no
+    // name in it, and the empty string, which is not a name a document can be indexed by
+    class OrdersController {
+      findAll(): string {
+        return 'findAll';
+      }
+      findOne(): string {
+        return 'findOne';
+      }
+    }
+    const prototype = OrdersController.prototype as unknown as Record<string, unknown>;
+    const metadata = new Map<unknown, Record<string, unknown>>([
+      [
+        prototype.findAll,
+        { [NEST_ROUTE_METADATA.method]: 0, [SWAGGER_OPERATION_METADATA]: { summary: 'All' } },
+      ],
+      [
+        prototype.findOne,
+        { [NEST_ROUTE_METADATA.method]: 0, [SWAGGER_OPERATION_METADATA]: { operationId: '' } },
+      ],
+    ]);
+
+    // When
+    const result = discoverRoutes(
+      discoveryOver([{ metatype: OrdersController, instance: new OrdersController() }]),
+      reflectorOver(metadata),
+    );
+
+    // Then, and the routes are asserted present first, so an empty walk cannot pass as a clean one
+    expect(result.routes).toHaveLength(2);
+    expect(result.routes.map((route) => route.operationId)).toEqual([undefined, undefined]);
   });
 
   it('should hand over the handler itself, because that is where the metadata a collector reads sits', () => {

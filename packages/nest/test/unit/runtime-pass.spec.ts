@@ -68,6 +68,21 @@ const withGlobalGuard: DiscoveryServiceLike = {
   ],
 };
 
+/**
+ * NestJS's own application configuration, by the name and the accessor the walk matches on.
+ *
+ * The real one is asserted to be in the container's enumeration by `nest-value-surface.spec.ts`,
+ * which boots an application; this stands in for it here for the reason every other double in this
+ * file does, which is that the pass is a pure function of the two structural interfaces.
+ */
+class ApplicationConfig {
+  constructor(private readonly prefix: string) {}
+
+  getGlobalPrefix(): string {
+    return this.prefix;
+  }
+}
+
 /** A collector that reports one scope, so there is something to look for in the IR. */
 const scopes: IRuntimeCollector = {
   name: 'scopesCollector',
@@ -434,5 +449,149 @@ describe('runRuntimePass, the health report', () => {
     expect([...result.document.nodes.values()][0]?.runtime?.guards?.map((one) => one.name)).toEqual(
       ['ReadonlyGuard'],
     );
+  });
+});
+
+/**
+ * The three pairing lists, which the pass built and nothing read until `TX-PAIRING`.
+ *
+ * WHAT A READER SAW BEFORE. A route that matched two operations was attributed to neither in
+ * silence, and the operation it should have carried was drawn as `orphan-operation`, severity
+ * `error`, saying no handler was found for it. The handler had been found. It was matched twice
+ * and discarded, and the one sentence a reader was given named the one thing that had not
+ * happened.
+ */
+describe('runRuntimePass, the pairing problems reaching a reader', () => {
+  /** Two operations under different prefixes, which is what makes the suffix rule ambiguous. */
+  function twoPrefixes(): Record<string, unknown> {
+    return {
+      openapi: '3.1.0',
+      info: { title: 'Orders', version: '1.0.0' },
+      paths: {
+        '/public/orders/{id}': {
+          get: { summary: 'Public', responses: { '200': { description: 'ok' } } },
+        },
+        '/internal/orders/{id}': {
+          get: { summary: 'Internal', responses: { '200': { description: 'ok' } } },
+        },
+      },
+    };
+  }
+
+  it('should put an ambiguous pairing on the document, naming both candidates', () => {
+    // Given one route reaching two operations by the last rule, which has no anchor
+    const before = normalizeOpenApiDocument(twoPrefixes());
+
+    // When
+    const result = runRuntimePass(before, {
+      collectors: [scopes],
+      discovery,
+      reflector,
+      moduleRef,
+    });
+
+    // Then the reader is told what happened, rather than being left with a fact that is missing
+    const problems = result.document.runtime?.problems ?? [];
+    const ambiguity = problems.find((problem) => problem.subject === 'GET /orders/{id}');
+    expect(ambiguity?.reason).toContain('it matches 2 operations');
+    expect(ambiguity?.action).toBeDefined();
+    expect(result.nodesWithFacts).toBe(0);
+  });
+
+  it('should say each candidate lost its handler, not that none was found', () => {
+    // Given the same pass
+    const result = runRuntimePass(normalizeOpenApiDocument(twoPrefixes()), {
+      collectors: [scopes],
+      discovery,
+      reflector,
+      moduleRef,
+    });
+
+    // When, reading what is said about the operations themselves rather than about the route
+    const problems = result.document.runtime?.problems ?? [];
+    const nodes = problems.filter((problem) => problem.subject.startsWith('get-'));
+
+    // Then, and the subjects are asserted present first so an empty list cannot pass as a clean one
+    expect(nodes).toHaveLength(2);
+    expect(nodes.map((problem) => problem.reason)).toEqual([
+      'GET /orders/{id} matched it and other operations, so it was attributed to none',
+      'GET /orders/{id} matched it and other operations, so it was attributed to none',
+    ]);
+    expect(nodes.every((problem) => problem.reason.includes('no handler was found'))).toBe(false);
+  });
+
+  it('should report a route the document does not describe, which include produces on purpose', () => {
+    // Given a document holding an operation this controller does not serve
+    const result = runRuntimePass(normalizeOpenApiDocument(twoPrefixes()), {
+      collectors: [scopes],
+      discovery: {
+        getControllers: () => [{ metatype: OrdersController, instance: new OrdersController() }],
+        getProviders: () => [{ instance: new ApplicationConfig('/nowhere') }],
+      },
+      reflector,
+      moduleRef,
+    });
+
+    // Then, with the prefix read, rule two probes `/nowhere/orders/{id}` and the last rule still
+    // matches both, so the route is refused and said to be refused
+    const problems = result.document.runtime?.problems ?? [];
+    expect(problems.map((problem) => problem.subject)).toContain('GET /orders/{id}');
+  });
+
+  it('should say the prefix could not be read only when a route was left unpaired', () => {
+    // Given a container with no ApplicationConfig, which is every double in this file, and a
+    // document whose single operation the controller does serve
+    const paired = runRuntimePass(document(), {
+      collectors: [scopes],
+      discovery,
+      reflector,
+      moduleRef,
+    });
+
+    // When, and then: nothing was lost, so nothing is said
+    expect(paired.discoveryProblems).toEqual([]);
+
+    // When the same container leaves a route unpaired
+    const unpaired = runRuntimePass(normalizeOpenApiDocument(twoPrefixes()), {
+      collectors: [scopes],
+      discovery,
+      reflector,
+      moduleRef,
+    });
+
+    // Then it is named, with the count, and with what to do about it
+    const said = unpaired.discoveryProblems.find(
+      (problem) => problem.subject === 'the application',
+    );
+    expect(said?.reason).toBe(
+      'the global prefix could not be read, and 1 route(s) were left unpaired',
+    );
+    expect(said?.action).toContain('setGlobalPrefix');
+  });
+
+  it('should pair a prefixed application exactly, where the suffix rule refused both', () => {
+    // Given the maintainer's shape: `setGlobalPrefix` on the application and a document written
+    // with it, plus a second operation the unanchored rule cannot tell apart from the first
+    const prefixed: DiscoveryServiceLike = {
+      getControllers: () => [{ metatype: OrdersController, instance: new OrdersController() }],
+      getProviders: () => [{ instance: new ApplicationConfig('public') }],
+    };
+
+    // When
+    const result = runRuntimePass(normalizeOpenApiDocument(twoPrefixes()), {
+      collectors: [scopes],
+      discovery: prefixed,
+      reflector,
+      moduleRef,
+    });
+
+    // Then the right node carries the fact and nothing is reported as ambiguous
+    const withFacts = [...result.document.nodes.values()].filter(
+      (node) => node.runtime?.scopes !== undefined,
+    );
+    expect(withFacts.map((node) => (node.kind === 'operation' ? node.path : node.id))).toEqual([
+      '/public/orders/{id}',
+    ]);
+    expect(result.pairing.ambiguous).toEqual([]);
   });
 });

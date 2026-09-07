@@ -69,7 +69,9 @@ export type {
   DiscoveryResult,
 } from './runtime/infrastructure/adapters/controller-discovery.adapter';
 export { pairRoutes } from './runtime/domain/route-pairing';
-export type { PairingProblem, PairingResult } from './runtime/domain/route-pairing';
+export type { PairingOptions, PairingProblem, PairingResult } from './runtime/domain/route-pairing';
+export { readGlobalPrefix } from './runtime/domain/global-prefix';
+export type { GlobalPrefixReading } from './runtime/domain/global-prefix';
 
 // The event collectors of SPEC 8.3, built in T051. A channel is discovered from the container,
 // synthesized into an AsyncAPI 3.1 document, and read by the same normalizer a hand written file

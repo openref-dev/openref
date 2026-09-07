@@ -38,6 +38,7 @@ import {
 import { pairRoutes, type PairingResult } from '../../domain/route-pairing';
 import { readGlobalGuards } from '../../domain/guards';
 import { readGlobalPipes } from '../../domain/pipes';
+import { readGlobalPrefix } from '../../domain/global-prefix';
 import {
   declaredRelationships,
   withReadConfidence,
@@ -92,10 +93,15 @@ export interface RuntimePassOptions extends CollectorRegistryOptions {
  * What the pass produced.
  *
  * The report is kept whole rather than reduced to a count. A node with no route is what
- * `orphan-operation` fires on, and T022 reads it from here. The other three lists are not drift
- * and deliberately never become findings: a route with no node is what `include` produces on
+ * `orphan-operation` fires on, and T022 reads it from here. None of the three lists becomes a
+ * drift finding, and that is still deliberate: a route with no node is what `include` produces on
  * purpose, and the remaining two are defects in this pass or in the application's own routing,
- * which `doctor` reports as problems rather than as a disagreement between two sides.
+ * which are properties of the instrument rather than a disagreement between two sides. All three
+ * do reach a reader, as discovery problems, which is what `doctor` prints under RT070. Until
+ * `TX-PAIRING` they reached nobody at all: nothing in this package read `ambiguous`,
+ * `routesWithoutNode` or `nodesWithoutRoute`, so a route that matched two operations was
+ * attributed to neither in silence and the operation it should have had was drawn as an
+ * `orphan-operation` saying no handler was found for it.
  */
 export interface RuntimePassResult {
   /** The document with facts attached and its hash retaken. */
@@ -182,7 +188,15 @@ export function runRuntimePass(
     globalPipes: globalPipes.names,
   });
   const discovered = discoverRoutes(options.discovery, options.reflector);
-  const pairing = pairRoutes(document.nodes.values(), discovered.routes);
+  // THE PREFIX IS READ OFF THE SAME CONTAINER WALK AND FOR ONE COMPARISON. A controller declares
+  // `/dashboards` and a document written by `@nestjs/swagger` says `/api/v1/dashboards`, so the
+  // pairing's second rule compared two strings that an application with a global prefix can never
+  // make equal. It is never written into the document; see `runtime/domain/global-prefix.ts` for
+  // why that is what separates this read from the one `guards.ts` refuses.
+  const globalPrefix = readGlobalPrefix(options.discovery);
+  const pairing = pairRoutes(document.nodes.values(), discovered.routes, {
+    ...(globalPrefix.prefix === undefined ? {} : { globalPrefix: globalPrefix.prefix }),
+  });
 
   // THE ERROR DERIVATION RUNS HERE AND NOT IN A COLLECTOR, per SPEC 6.4. The runtime derived group
   // follows from a rate limit and from guards, and both of those are produced by other collectors,
@@ -225,13 +239,41 @@ export function runRuntimePass(
   // that cannot be obtained to reach `doctor` rather than be guessed, and every collector recorded
   // its half faithfully into a `problems()` list nothing ever read. This is where that list finally
   // arrives; see `CollectorRegistry.problems` for what was measured before it did.
+  // ALL THREE PAIRING LISTS LAND HERE, AND UNTIL `TX-PAIRING` ALL THREE LANDED NOWHERE. They were
+  // built, returned on this result, and read by nothing: `grep` over this package found no reader
+  // of `ambiguous`, `routesWithoutNode` or `nodesWithoutRoute`, only of `pairing.targets`. So a
+  // route that matched two operations was refused in silence and the operation it should have been
+  // paired with was drawn as an `orphan-operation` saying no handler was found for it, which is the
+  // one thing that had not happened. This is the same shape as the collectors' `problems()` above.
   const collectorProblems = registry.problems();
+  const unpaired = pairing.routesWithoutNode.length + pairing.ambiguous.length;
   const problems: readonly DiscoveryProblem[] = [
     ...(options.carriedProblems ?? []),
     ...discovered.problems,
     ...ghosts,
     ...collectorProblems,
     ...declared.problems,
+    ...pairing.ambiguous,
+    ...pairing.routesWithoutNode,
+    ...pairing.nodesWithoutRoute,
+    // SAID ONLY WHEN IT COST SOMETHING, which is the difference between a reason and noise. An
+    // unreadable prefix on an application whose every route paired by name took nothing away from
+    // anybody, and a problem that fires there teaches a reader to stop reading the list.
+    ...(globalPrefix.prefix !== undefined || unpaired === 0
+      ? []
+      : [
+          {
+            subject: 'the application',
+            reason: `the global prefix could not be read, and ${String(unpaired)} route(s) were left unpaired`,
+            action:
+              'mount the reference after setGlobalPrefix; a container holding no ' +
+              'ApplicationConfig cannot be asked at all, and those routes stay unpaired',
+            detail:
+              'The prefix is read off the providers of the container. Without it, a document ' +
+              'path and a controller path can only be compared by asking whether one ends in ' +
+              'the other, which two operations under different prefixes can both answer.',
+          },
+        ]),
     ...(global.anonymous === 0
       ? []
       : [
