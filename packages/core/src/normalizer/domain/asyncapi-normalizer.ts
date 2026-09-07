@@ -310,11 +310,10 @@ function readBindings(raw: unknown): Record<string, IRJsonValue> | undefined {
  * The presence guard above is satisfied by an empty string, because an empty string is a string,
  * so `{ host: '', protocol: 'kafka' }` assembled `kafka://` and every surface that prints a url
  * printed it: the overview's server list, the channel's server row, and the socket console, which
- * joined it to the address and offered `kafka://orders.created` as a target. That is the class
- * CLAUDE.md rule 5 names, a fact that could not be obtained replaced by a guess, and the guess
- * reached a reader as a broker address. The server itself stays, with its protocol, because SPEC
- * 8.3 keeps it: a channel with no server is a channel with no protocol. What it loses is the url
- * it never had.
+ * joined it to the address and offered `kafka://orders.created` as a target. That is a fact that
+ * could not be obtained replaced by a guess, and the guess reached a reader as a broker address.
+ * The server itself stays, with its protocol, because SPEC 8.3 keeps it: a channel with no server
+ * is a channel with no protocol. What it loses is the url it never had.
  *
  * @param context - The document being normalized, with an empty server map
  * @param raw - The `servers` member, untrusted

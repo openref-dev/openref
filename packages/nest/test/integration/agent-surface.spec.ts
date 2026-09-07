@@ -255,12 +255,11 @@ for (const platform of PLATFORMS) {
 
     it('should reach the JSON-RPC parse error only under a type the framework leaves alone', async () => {
       // Given a malformed body sent twice, under the two content types. Recorded rather than
-      // fixed, in the `T059` section of `ai-docs/BUILD-AMENDMENTS.md`: with `application/json`
-      // the platform's own parser answers before any handler of this package runs, so the -32700
-      // this package produces is reachable over the wire only under a type it does not parse.
-      // `_proxy` has behaved this way since M2 and this address inherits it, which is the
-      // property worth keeping; what it costs a reader is that one of the two 400s they can meet
-      // is not this package's.
+      // fixed, against `T059`: with `application/json` the platform's own parser answers before
+      // any handler of this package runs, so the -32700 this package produces is reachable over
+      // the wire only under a type it does not parse. `_proxy` has behaved this way since M2 and
+      // this address inherits it, which is the property worth keeping; what it costs a reader is
+      // that one of the two 400s they can meet is not this package's.
       const url = await boot(platform, GuardedModule);
       const send = async (contentType: string): Promise<{ status: number; body: string }> => {
         const response = await fetch(`${url}/docs/mcp`, {

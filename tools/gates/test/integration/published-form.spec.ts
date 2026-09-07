@@ -516,7 +516,8 @@ describe('the published form of this tree', () => {
     // 33 SINCE 2026-09-02 AND IT WAS 53, AND THE TWENTY BYTES ARE NAMED RATHER THAN ABSORBED.
     // `T065` made `ElementTooLargeError` extend `StreamError` with an `ErrorCode`, because it is
     // the one error class any of the three published runtime packages exports and it was the one
-    // breaking the rule STANDARDS and `CLAUDE.md` both state. Obeying the rule costs the subclass
+    // breaking the rule that every error extends `OpenRefError` and carries an `ErrorCode`.
+    // Obeying the rule costs the subclass
     // plumbing in the first paint closure. Measured by building the tree twice, with and without
     // that one change: 110,539 against 110,559. THE CAP DID NOT MOVE and is asserted above.
     // 489 SINCE `T065`'s NODE SEGMENT ESCAPE, 814 SINCE `TX-SOCKET-CONSOLE`, AND 33 BEFORE THAT.

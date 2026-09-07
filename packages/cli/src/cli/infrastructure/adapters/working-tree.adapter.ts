@@ -7,10 +7,10 @@ const execFileAsync = promisify(execFile);
 /**
  * The working tree `doctor --fix` is about to write into, read through git and nothing else.
  *
- * A DIRTY TREE IS A REFUSAL AND NOT A WARNING, per SPEC 7.4 and `ai-docs/REMEDIATION.md` section
- * 4. The whole value of a rewriter is that a person reads its output as a diff, and a diff that
- * mixes a tool's edits with somebody's uncommitted work is not reviewable at all. A warning would
- * be a refusal that a pipeline discards.
+ * A DIRTY TREE IS A REFUSAL AND NOT A WARNING, per SPEC 7.4. The whole value of a rewriter is that
+ * a person reads its output as a diff, and a diff that mixes a tool's edits with somebody's
+ * uncommitted work is not reviewable at all. A warning would be a refusal that a pipeline
+ * discards.
  *
  * NO REPOSITORY IS THE SAME REFUSAL FOR A SECOND REASON, and the second one is the stronger of the
  * two: findings carry a repository relative path, so with no repository there is no root to

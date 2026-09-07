@@ -72,7 +72,7 @@ export interface IRServer {
    * reads it off the entry regardless when a document writes one: a reader whose author named the
    * protocol should see it, and deriving one from the url scheme would be a guess. The rule is one
    * way only, so a document that writes nothing leaves this absent, and nothing here invents a
-   * value. Recorded in `ai-docs/design/CONTRACT.md` beside the other project readings.
+   * value. The reading is deliberate and one of several this IR makes beyond what OpenAPI writes.
    *
    * The JSDoc said "for AsyncAPI servers" until 2026-08-29 while `normalizeOpenApiDocument` had
    * been reading it since `T004`, so the documentation described a narrower thing than the code.
@@ -143,8 +143,8 @@ export interface IRNavNode {
  *
  * FOURTEEN NAMES, GROWN FROM FIVE ON 2026-08-29 AT `T051`, and the growth is breaking rather than
  * additive: a consumer holding a total `Record<IRSecuritySchemeType, ...>` or switching over this
- * union exhaustively does not compile against it. Recorded in `ai-docs/design/CONTRACT.md` before
- * the code, beside `IRDiffChangeKind` and `PageKind`, which are the same event.
+ * union exhaustively does not compile against it. Decided before the code, beside
+ * `IRDiffChangeKind` and `PageKind`, which are the same event.
  *
  * FIVE FROM OPENAPI AND THIRTEEN FROM ASYNCAPI, OVERLAPPING IN FOUR. `apiKey`, `http`, `oauth2`
  * and `openIdConnect` are written by both; `mutualTLS` is OpenAPI's alone and the other nine are
@@ -365,9 +365,9 @@ export type IRUnreadKeyPosition =
    * OpenAPI 3.2's `additionalOperations`, where a method the specification enumerates does not
    * belong, per SPEC 5.4's eighth row.
    *
-   * ADDED AT `T059` AND BREAKING, recorded in `ai-docs/design/CONTRACT.md` before the code. Without
-   * it the record is byte-identical to a wrong-case key under `paths`, and the two are fixed in
-   * different members of the document.
+   * ADDED AT `T059` AND BREAKING, decided before the code was written. Without it the record is
+   * byte-identical to a wrong-case key under `paths`, and the two are fixed in different members
+   * of the document.
    */
   | 'additional-operations';
 

@@ -1,7 +1,7 @@
 /**
  * Where a test file has to live for anything to run it.
  *
- * THE RULE IS OLD AND NOTHING ENFORCED IT. STANDARDS and `CLAUDE.md` both say every test lives
+ * THE RULE IS OLD AND NOTHING ENFORCED IT. Every test lives
  * under `test/` at the package root and never inside `src/`, and `vitest.shared.ts` turns that
  * into two include globs, `test/unit/**` and `test/integration/**`. A `.spec.ts` one directory
  * outside them is not reported as misplaced: it is collected by nothing, so it never runs, and a

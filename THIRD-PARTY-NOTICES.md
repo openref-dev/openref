@@ -1,7 +1,8 @@
 # Third party notices
 
 Material in this repository that is not the work of this project and that ships to a user
-inside a published package. Zone 4 of `ai-docs/SPEC.md` section 0.
+inside a published package. Shipping is the test for being listed here: material that reaches
+someone who never sees this repository has to have its attribution carried to them.
 
 **This file is a convenience for someone reading the repository. It is not delivered
 attribution and does not count as any.** What discharges the obligation is the complete licence
@@ -49,8 +50,8 @@ which the licence calls a Modified Version. A Modified Version may not carry a r
 Renaming would have been legal and would have meant rewriting the name table inside every
 woff2 on every version bump, so the family was swapped for JetBrains Mono instead.
 
-The telltale and forge designs are reference material in `ai-docs/design/` and become code in
-T032. Martian Mono and Instrument Sans are not in this repository yet. When they arrive, each
+The telltale and forge designs are held as reference material outside the published packages
+and become code in T032. Martian Mono and Instrument Sans are not in this repository yet. When they arrive, each
 theme package carries its own copy of every font it uses, its own complete licence text per
 family, and its own `NOTICE.md`. JetBrains Mono ends up duplicated across all three theme
 packages, and that is correct rather than waste: a tarball has to be complete on its own.

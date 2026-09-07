@@ -1,5 +1,5 @@
 /**
- * The 122 core token names, transcribed from `ai-docs/design/CONTRACT.md`.
+ * The 122 core token names, transcribed from the design contract.
  *
  * Written out here rather than derived from the token set, because deriving it would make the
  * test compare the token set with itself. This list is the contract; `THEME_TOKENS` is this

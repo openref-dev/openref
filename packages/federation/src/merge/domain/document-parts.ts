@@ -372,8 +372,8 @@ export function mergeRelationships(
      *
      * IT IS A `switch` AND NOT AN `if` CHAIN, AND THE REASON IS A PROBE RATHER THAN A STYLE. The
      * chain this replaced ended in a `kind !== 'event'` return, so a fifth member of
-     * `IRRelationshipEndpointKind` would have been absorbed here in silence while
-     * `ai-docs/design/CONTRACT.md` claimed two compile breaks. Measured on 2026-08-29: one.
+     * `IRRelationshipEndpointKind` would have been absorbed here in silence: two compile breaks
+     * were expected for such a member and, measured on 2026-08-29, there was one.
      *
      * @param value - The end, as the declaring service wrote it
      * @param kind - What the edge says the end is

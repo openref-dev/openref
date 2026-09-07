@@ -571,10 +571,10 @@ function operationSamples(
   // AN OPERATION WITH NOWHERE TO SEND HAS NO SAMPLE AND SAYS WHY, and the refusal is here rather
   // than at `buildRequest` so the reason is nameable. A normalized OpenAPI document always has at
   // least the specification's own default server, so this is the hand built document and the merged
-  // one whose service declared none; writing a sample against an invented origin would be the class
-  // of guess CLAUDE.md's fifth lesson forbids. Returning nothing at all, which is what this line
-  // did until 2026-09-03, is the other forbidden answer: it makes the page silent about fifteen
-  // languages, and a silence is what a reader cannot tell from a reference that has no samples.
+  // one whose service declared none; writing a sample against an invented origin would be inventing
+  // a fact the document does not state. Returning nothing at all, which is what this line did until
+  // 2026-09-03, is the other forbidden answer: it makes the page silent about fifteen languages,
+  // and a silence is what a reader cannot tell from a reference that has no samples.
   const serverUrl = run.servers[0];
   if (serverUrl === undefined) return allRefused(languages, elsewhere, NO_SERVER_REFUSAL);
 

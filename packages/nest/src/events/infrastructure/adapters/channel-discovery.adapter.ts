@@ -35,9 +35,10 @@ import {
  * read different containers as well as different keys. Folding them into one function would make
  * every reader of either hold both vocabularies in mind.
  *
- * NOTHING IS INFERRED FROM A HANDLER BODY, per CLAUDE.md's rule against runtime magic and per SPEC
- * 8.3. Every value here is under a metadata key this package names, and a handler that carries
- * none of them is not an event handler as far as this walk is concerned.
+ * NOTHING IS INFERRED FROM A HANDLER BODY, per the rule against runtime magic in
+ * `docs/guide/04-collectors.md` and per SPEC 8.3. Every value here is under a metadata key this
+ * package names, and a handler that carries none of them is not an event handler as far as this
+ * walk is concerned.
  *
  * WHAT CANNOT BE READ IS REPORTED RATHER THAN GUESSED. A pattern of a shape no address can be made
  * from, a transport number outside the table, a gateway with no `@SubscribeMessage`: each is a

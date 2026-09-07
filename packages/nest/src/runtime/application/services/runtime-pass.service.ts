@@ -8,7 +8,7 @@
  * THE HASH IS RECOMPUTED, AND THAT IS NOT AN OPTIMIZATION DETAIL. The SPEC 12 cache is keyed by
  * document hash and so is the navigation route, so a document carrying runtime facts under the
  * hash of the document without them would serve a reader a page from before the pass ran, and
- * would keep serving it. `finalizeDocument` takes it and freezes what it measured, per CLAUDE.md.
+ * would keep serving it. `finalizeDocument` takes it and freezes what it measured.
  *
  * FAIL OPEN, LIKE THE REGISTRY IT DRIVES. A collector pass is an augmentation of a document that
  * already renders. If discovery finds nothing, the document is returned unchanged and the report
@@ -268,10 +268,11 @@ export function runRuntimePass(
   // them under RT070 with no second mechanism. Read after the loop that produces them and before
   // the meta is built, because a rule cannot count a subject that is not on the document yet.
   //
-  // THE COLLECTORS' HALF IS NEW AND THE RULE IT SERVES IS NOT. CLAUDE.md has always required a fact
-  // that cannot be obtained to reach `doctor` rather than be guessed, and every collector recorded
-  // its half faithfully into a `problems()` list nothing ever read. This is where that list finally
-  // arrives; see `CollectorRegistry.problems` for what was measured before it did.
+  // THE COLLECTORS' HALF IS NEW AND THE RULE IT SERVES IS NOT. `docs/guide/04-collectors.md` has
+  // always required a fact that cannot be obtained to reach `doctor` rather than be guessed, and
+  // every collector recorded its half faithfully into a `problems()` list nothing ever read. This
+  // is where that list finally arrives; see `CollectorRegistry.problems` for what was measured
+  // before it did.
   // ALL THREE PAIRING LISTS LAND HERE, AND UNTIL `TX-PAIRING` ALL THREE LANDED NOWHERE. They were
   // built, returned on this result, and read by nothing: `grep` over this package found no reader
   // of `ambiguous`, `routesWithoutNode` or `nodesWithoutRoute`, only of `pairing.targets`. So a

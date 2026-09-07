@@ -303,13 +303,14 @@ export class CollectorRegistry {
    * layer noticed". The first is the collectors' own record of what they met and could not turn
    * into a fact; the second is {@link contests}, this registry's record of a tie it broke.
    *
-   * WHY THE COLLECTORS' RECORD HAD TO BE DRAINED HERE. CLAUDE.md's rule is that a fact which cannot
-   * be obtained produces a `doctor` warning and never a guess, and every collector in this
-   * repository and in all four ecosystem packages honours the first half by keeping a `problems()`
-   * list. Nothing read it. Measured before this change: `grep -rn '\\.problems()'` outside `test/`
-   * returned zero hits, so fifteen collectors were writing warnings into an accumulator whose only
-   * reader was their own unit tests, and a third party collector had no route into `doctor` at all.
-   * A rule with no runner is the shape SPEC 0 is written against.
+   * WHY THE COLLECTORS' RECORD HAD TO BE DRAINED HERE. The rule of `docs/guide/04-collectors.md`
+   * is that a fact which cannot be obtained produces a `doctor` warning and never a guess, and
+   * every collector in this repository and in all four ecosystem packages honours the first half
+   * by keeping a `problems()` list. Nothing read it. Measured before this change:
+   * `grep -rn '\\.problems()'` outside `test/` returned zero hits, so fifteen collectors were
+   * writing warnings into an accumulator whose only reader was their own unit tests, and a third
+   * party collector had no route into `doctor` at all. A rule with no runner is the shape SPEC 0
+   * is written against.
    *
    * IT IS READ STRUCTURALLY AND `IRuntimeCollector` DOES NOT MOVE. The contract is two members and
    * frozen as public API, so `problems()` cannot become a third one without a major version; what

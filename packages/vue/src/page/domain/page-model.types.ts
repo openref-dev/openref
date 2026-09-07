@@ -563,14 +563,14 @@ export interface NodeHeaderModel {
  * covers both and a fragment never has to be adopted.
  *
  * THREE MARKS ARRIVED AT `T050` FOR THE CHANNEL PAGE, AND THE UNION GROWING IS A BREAKING CHANGE
- * rather than an additive one, by the rule `ai-docs/design/CONTRACT.md` states for
+ * rather than an additive one, by the rule `packages/vue/PUBLIC-API.md` states for
  * `StateNoticeKind` and applies here: the sanctioned total spelling over this union is an
  * exhaustive `switch` with no `default`, the renderer's own composition is written that way on
  * purpose, and a composition spelled that way does not compile until each new mark is drawn. The
  * three are the sections a channel has and an operation does not: `channel` for the address, its
  * variables, the protocol, the servers and the bindings; `channel-operations` for the `send` and
  * `receive` operations with their replies; `messages` for the payloads, headers, correlation
- * expressions and examples. Recorded there and in `packages/vue/PUBLIC-API.md` before the code.
+ * expressions and examples. Recorded there before the code.
  */
 export type NodeSectionMark =
   | 'header'
@@ -709,7 +709,7 @@ export interface RuntimeValueModel {
  *
  * `handler-policies` IS THE ELEVENTH AND IT IS A BREAKING CHANGE, NOT AN ADDITIVE ONE. It was
  * recorded as additive by the task that added it and re-decided on 2026-09-05; the ruling and the
- * whole of its reasoning are in `ai-docs/design/CONTRACT.md` beside `StateNoticeKind`'s, which is
+ * whole of its reasoning are in `packages/vue/PUBLIC-API.md` beside `StateNoticeKind`'s, which is
  * the same event and the same correction. The argument for additive was that a theme RECEIVES rows
  * and never produces them, and that neither reference theme reads this type at all. Both are true
  * and neither is the test. The rule of `PUBLIC-API.md` is that widening an exported union is

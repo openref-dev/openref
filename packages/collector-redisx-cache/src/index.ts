@@ -27,8 +27,8 @@
  * NO ERROR CONTRACT IS REPORTED, AND THAT IS A MEASUREMENT. `@nestjs-redisx/cache` contains no
  * `ExceptionFilter`, no `HttpException` and no `HttpStatus` anywhere in its source; a cache miss
  * runs the method and a cache failure runs it too, per its own fail open policy. There is no status
- * to put in `IRErrorContracts.runtimeDerived`, and inventing one would be the guess CLAUDE.md rule
- * 5 forbids.
+ * to put in `IRErrorContracts.runtimeDerived`, and inventing one would substitute a guess for a
+ * fact the application cannot produce.
  */
 
 import { createRequire } from 'node:module';

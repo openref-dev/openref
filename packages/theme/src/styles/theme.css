@@ -447,11 +447,11 @@
 
 /* Content */
 
-/* THE FRAME IS THE TRACK AND THE COLUMN DECLARES NO WIDTH, which is finding F17 resolved in
- * `ai-docs/design/vernier/notes.md`. `--oref-layout-measure` bounds a paragraph and was never
- * the frame; applied here it left about four hundred pixels of bare sunken surface at the right
- * of a 1600 px window. The rail, the ruler gutter and this column account for the window between
- * them at every width, and the measure stays where it belongs, on `.oref-description`. */
+/* THE FRAME IS THE TRACK AND THE COLUMN DECLARES NO WIDTH, which is finding F17 resolved.
+ * `--oref-layout-measure` bounds a paragraph and was never the frame; applied here it left
+ * about four hundred pixels of bare sunken surface at the right of a 1600 px window. The rail,
+ * the ruler gutter and this column account for the window between them at every width, and the
+ * measure stays where it belongs, on `.oref-description`. */
 .oref-content {
   background: var(--oref-color-bg);
   grid-column: 3;
@@ -569,8 +569,8 @@
 }
 
 /* A method the contract names no colour for. OpenAPI 3.2 leaves the method set open and the
- * contract stops at seven, so an unrecognised one borrows the neutral colour. Recorded in
- * PROJECT_STATE as a question for the designer rather than settled here. */
+ * contract stops at seven, so an unrecognised one borrows the neutral colour. Left open as a
+ * question for the designer rather than settled here. */
 .oref-badge.oref-method-other {
   background: var(--oref-color-method-event);
 }

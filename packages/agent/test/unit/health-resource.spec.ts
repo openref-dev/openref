@@ -92,7 +92,7 @@ describe('readAgentResource', () => {
   });
 
   it('should serialize the health report through the canonical form', () => {
-    // Given, per CLAUDE.md: a payload a consumer caches and diffs goes through `canonicalize`,
+    // Given, a payload a consumer caches and diffs goes through `canonicalize`,
     // so two reads of one unchanged document are byte identical without a JSON aware differ
     const document = orderDocument();
 

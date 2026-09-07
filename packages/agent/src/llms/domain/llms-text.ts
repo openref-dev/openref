@@ -481,9 +481,10 @@ const RUNTIME_FACT_LINES: Readonly<
 /**
  * Every runtime fact one node carries, each with its confidence and its collector.
  *
- * NOTHING IS PRINTED WITHOUT ITS PROVENANCE, which is CLAUDE.md's rule and is the whole reason
- * this file exists rather than a JSON dump: a machine reader of these lines is deciding what to
- * trust, and a scope printed without `declared` beside it is a claim this project does not make.
+ * NOTHING IS PRINTED WITHOUT ITS PROVENANCE, since every runtime fact carries its confidence and
+ * its collector, and that is the whole reason this file exists rather than a JSON dump: a machine
+ * reader of these lines is deciding what to trust, and a scope printed without `declared` beside
+ * it is a claim this project does not make.
  * The one field with no pair to print is `source`, and {@link RUNTIME_FACT_LINES} says why.
  *
  * THE ORDER IS `RUNTIME_FACT_FIELDS`' OWN AND NOT ONE WRITTEN HERE, so these files order the facts

@@ -2,7 +2,7 @@
  * The bucket of SPEC 7.4, computed per finding from the state of the thing it is about.
  *
  * THERE IS NO TABLE FROM RULE ID TO BUCKET HERE OR ANYWHERE ELSE, AND ITS ABSENCE IS THE POINT OF
- * THIS FILE. `ai-docs/REMEDIATION.md` section 2 records the correction: the rule name selects
+ * THIS FILE. The correction it enforces is that the rule name selects
  * which check runs, and the state of the node decides which bucket the finding lands in, so one
  * rule produces silence findings and contradiction findings in the same run. Classifying by rule
  * name looks like it works until the first node where the specification already asserts something,

@@ -23,8 +23,8 @@ name: Coverage timeout study
 # A duration with no machine beside it is not a measurement.
 #
 # THE JOB WALL WAS THE BINDING CONSTRAINT AND THIS FILE REPORTED IT RATHER THAN FIXING IT, because
-# raising a CI job timeout so a job passes is what CLAUDE.md rule 3 forbids and it was the
-# maintainer's call. On 2026-09-03 the Node 22 verify job of `ci.yml` ran 28m55s against its own
+# raising a CI job timeout so a job passes weakens the gate instead of fixing the code, and it was
+# the maintainer's call. On 2026-09-03 the Node 22 verify job of `ci.yml` ran 28m55s against its own
 # `timeout-minutes: 30` while absorbing exactly one 180,000 ms test timeout, which left 65 seconds.
 # Node 24 ran 23m58s in the same run. A second timeout in one job therefore killed the job before any
 # bound in it could report, so every bound in the suite was capped in practice by what one job could

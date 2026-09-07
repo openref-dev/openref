@@ -1,8 +1,8 @@
 /**
  * Expanding a source link template, per SPEC 6.3.
  *
- * IT IS IN `core` AND T018 BUILT IT WHILE NAMING `nest`, which is a task text defect recorded in
- * BUILD-AMENDMENTS.md rather than a deviation. The expansion has two consumers: `nest` puts a link
+ * IT IS IN `core` AND T018 BUILT IT WHILE NAMING `nest`, which is a task text defect recorded as
+ * such rather than a deviation. The expansion has two consumers: `nest` puts a link
  * into the IR and `render` shows it, and the dependency rule is `nest -> render` and never the
  * reverse. An expander written in `nest` is one `render` cannot reach, so `render` grows a second
  * copy, and two copies of a URL builder disagree the first time a forge changes a path. They
@@ -28,10 +28,10 @@
  * - `vscode://file/{absolutePath}:{line}:{column}`
  * - `jetbrains://idea/navigate/reference?path=/{absolutePath}:{line}:{column}`
  *
- * A FAILED EXPANSION SAYS WHY AND PRODUCES NOTHING, per SPEC 0 and CLAUDE.md's rule against
- * guessing. A link with `{file}` still in it, or with `#LNaN` at the end, is worse than no link:
- * it renders as a link, it is clickable, and it lands on a 404 that the reader blames on the
- * repository rather than on the reference.
+ * A FAILED EXPANSION SAYS WHY AND PRODUCES NOTHING, per SPEC 0, because a fact that cannot be
+ * obtained is never guessed at. A link with `{file}` still in it, or with `#LNaN` at the end, is
+ * worse than no link: it renders as a link, it is clickable, and it lands on a 404 that the reader
+ * blames on the repository rather than on the reference.
  *
  * THE SCHEME IS CHECKED AGAINST A LIST AND THAT IS A SECURITY RULE, NOT TIDINESS. What comes out
  * of here goes into an `href`, and an editor URL is one the browser hands to the operating

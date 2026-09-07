@@ -24,10 +24,10 @@
  * constructing one directly avoids `process.setSourceMapsEnabled(true)`, which is a process wide
  * change this package has no business making inside somebody else's application.
  *
- * WHEN THE ANSWER IS NOT AVAILABLE IT SAYS SO, per CLAUDE.md's rule against runtime magic. A
- * source map that maps nothing at this position gives neither a file nor a line in the terms the
- * reader's repository is written in, and reporting the compiled position instead would link a
- * reader to a `dist/` path that is usually not committed at all.
+ * WHEN THE ANSWER IS NOT AVAILABLE IT SAYS SO, per the rule against runtime magic in
+ * `docs/guide/04-collectors.md`. A source map that maps nothing at this position gives neither a
+ * file nor a line in the terms the reader's repository is written in, and reporting the compiled
+ * position instead would link a reader to a `dist/` path that is usually not committed at all.
  */
 
 import { readFileSync } from 'node:fs';

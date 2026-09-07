@@ -24,8 +24,7 @@ import { renderFixSummary } from './fix-report-text';
  *
  * `--fail-on` OMITTED MEANS THIS COMMAND NEVER EXITS 1, whatever it finds. It always reports; a
  * team opts into gating explicitly, at whatever threshold it can act on today. See
- * `../../domain/fail-on.ts` for the reasoning and `ai-docs/PROJECT_STATE.md` for the record of the
- * decision.
+ * `../../domain/fail-on.ts` for the reasoning.
  *
  * `--fix` DOES NOT CHANGE WHAT `--fail-on` COUNTS. The report is taken before a byte is written
  * and describes the application as it booted, so a run that fixes eight findings still exits on

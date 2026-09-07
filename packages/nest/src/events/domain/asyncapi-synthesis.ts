@@ -14,13 +14,13 @@ import { bySeniority, declaredValue, derived, type EventValue } from './event-me
  * that `T048` built rather than a second, weaker path. It also means the `asyncapi.json` route
  * serves a real document that another tool can read.
  *
- * WHAT IS INVENTED HERE IS NOTHING, per SPEC 6.1 and CLAUDE.md. Every address, protocol and
- * payload comes from a metadata key or from a person's decorator, and where a fact is missing the
- * synthesis emits a {@link DiscoveryProblem} and leaves the member out. The one place that is not
- * obvious is the server host, and SPEC 8.3 records the reading: an application knows which
- * protocol it speaks and cannot know the address it is reachable at, so the server it declares
- * carries the protocol and an empty host, and a problem names every protocol whose address the
- * reference cannot state.
+ * WHAT IS INVENTED HERE IS NOTHING, per SPEC 6.1 and `docs/guide/04-collectors.md`. Every
+ * address, protocol and payload comes from a metadata key or from a person's decorator, and
+ * where a fact is missing the synthesis emits a {@link DiscoveryProblem} and leaves the member
+ * out. The one place that is not obvious is the server host, and SPEC 8.3 records the reading:
+ * an application knows which protocol it speaks and cannot know the address it is reachable at,
+ * so the server it declares carries the protocol and an empty host, and a problem names every
+ * protocol whose address the reference cannot state.
  */
 
 /** One broker the host says its application is reachable at, per SPEC 8.3. */

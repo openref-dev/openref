@@ -5,10 +5,11 @@
  * shape it feeds: `CollectorTarget { node, controller, handler }`. Nothing produced one until
  * now, which is why this landed as its own entry rather than inside T018.
  *
- * IT READS METADATA AND NOTHING ELSE, per CLAUDE.md's rule against runtime magic. A handler's
- * path and method are written on it by `@Controller` and `@Get`, under keys the framework has
- * used since NestJS 5 and which `shared/types/nest-surface.ts` declares. Nothing here inspects a
- * function body, and a route whose method is not in the table is reported rather than guessed at.
+ * IT READS METADATA AND NOTHING ELSE, per the rule against runtime magic in
+ * `docs/guide/04-collectors.md`. A handler's path and method are written on it by `@Controller`
+ * and `@Get`, under keys the framework has used since NestJS 5 and which
+ * `shared/types/nest-surface.ts` declares. Nothing here inspects a function body, and a route
+ * whose method is not in the table is reported rather than guessed at.
  *
  * THE GLOBAL PREFIX IS NOT APPLIED HERE, and that is deliberate rather than missing. A prefix is
  * set on the application, `@nestjs/swagger` writes it into the document by default, and the

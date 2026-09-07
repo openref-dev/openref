@@ -512,7 +512,8 @@ describe('normalizeAsyncApiDocument servers', () => {
 
     // Then no address is assembled out of a host that is not there. WHAT USED TO HAPPEN: the
     // presence guard was satisfied by an empty string, the url read `kafka://`, and every surface
-    // that prints a url printed it as a broker address, per CLAUDE.md rule 5.
+    // that prints a url printed it as a broker address, which is a guess in place of a fact the
+    // document never stated.
     expect(kafka?.url).toBe('');
     expect(kafka?.protocol).toBe('kafka');
     expect(document.servers.map((server) => server.url).sort()).toEqual([

@@ -369,10 +369,10 @@ describe('a message payload whose declared dialect does not match its content', 
     // Given the other direction: an Avro record body declared as JSON Schema. MEASURED 2026-08-29
     // AND REFUSED SINCE 2026-08-30, by the seventh row of SPEC 5.4's disposition table. It was
     // written as a measurement rather than as a regression because it had no owner: the comment
-    // pointed at a debt list that was a sentence in `ai-docs/PROJECT_STATE.md`, which is SPEC 0's
-    // ninth class. The maintainer pulled the row into a directed slice, SPEC 5.4 moved first, and
-    // the schema normalizer keeping only the keywords it knows now ends in a refusal rather than in
-    // a payload that constrains nothing with no finding anywhere.
+    // pointed at a debt list that was only a sentence of prose, which is SPEC 0's ninth class. The
+    // maintainer pulled the row into a directed slice, SPEC 5.4 moved first, and the schema
+    // normalizer keeping only the keywords it knows now ends in a refusal rather than in a payload
+    // that constrains nothing with no finding anywhere.
     const mislabelled = {
       ch: {
         address: 'a',

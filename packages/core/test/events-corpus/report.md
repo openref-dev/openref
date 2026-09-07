@@ -89,7 +89,7 @@ were added on these counts as the minor half, an optional member on an interface
 The two marked `T051` are the breaking half: in AsyncAPI 3 both are lists of Security Scheme
 Objects rather than lists of requirements naming a scheme table, so a carrier for either is a
 reading of the thirteen scheme types, which is `IRSecuritySchemeType` growing from five names to
-fourteen, recorded in `ai-docs/design/CONTRACT.md` beside `IRDiffChangeKind` and `PageKind`.
+fourteen, a break taken deliberately, as `IRDiffChangeKind` and `PageKind` were.
 The counts above were re-measured on 2026-08-29 before that growth and had not moved.
 
 ## The thirteen security scheme types, and which of them this corpus reaches

@@ -31,9 +31,9 @@
  *
  * A THIRTEENTH CLAIM WRITTEN BY HAND IS CAUGHT BY REVIEW AND BY NOTHING ELSE, and no mechanism
  * proposed so far makes that impossible. The three paths and the maintainer's ruling that the box
- * stays shut are in `ai-docs/BUILD-AMENDMENTS.md` under the entry the marker above names. If you
- * are about to write a sentence saying a reader will see something, and it is not in the array
- * below, nothing in this repository will check it for you.
+ * stays shut are filed under the marker above. If you are about to write a sentence saying a
+ * reader will see something, and it is not in the array below, nothing in this repository will
+ * check it for you.
  */
 
 /** Which mount a claim is about, and therefore what has to be true for it to hold. */

@@ -366,8 +366,8 @@ export const BUILD_TASK_COUNT = 65;
  * an edit. RE-DERIVE THE BUDGET THE WAY ITS OWN RECORDED PROPERTY SAYS: price a milestone off the
  * artefact as it then reads, the way the comment below prices this one, count the milestones the
  * plan still holds, and set the number to cover them. Never raise it to fit the reading that just
- * went red, because a budget sized to the thing it is bounding bounds nothing, and that is the one
- * move CLAUDE.md's third absolute rule is about.
+ * went red, because a budget sized to the thing it is bounding bounds nothing. Editing the cap so
+ * the reading fits is weakening the gate rather than fixing the code.
  *
  * AND THIS FLOOR DOES NOT FOLLOW THE CEILING UP. Its subject is emptiness, not volume. It moves
  * only if the smallest honest artefact changes shape, which is a different event from the artefact

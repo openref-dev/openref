@@ -40,9 +40,9 @@ const READABLE_DOCUMENT_BYTES = 16 * 1024;
  *
  * IT WAS FOUR UNTIL `T051`. `T049` took the minor half of the maintainer's ruling of 2026-08-29
  * and gave a carrier to the four an optional field could hold; the two `security` members needed
- * `IRSecuritySchemeType` to grow past its five OpenAPI names, which is the breaking half of
- * `ai-docs/design/CONTRACT.md` and was ruled to belong to `T051`. Both now have one, so the
- * comparison below covers the whole of SPEC 8.2's list rather than two thirds of it.
+ * `IRSecuritySchemeType` to grow past its five OpenAPI names, which is the breaking half of that
+ * ruling and was ruled to belong to `T051`. Both now have one, so the comparison below covers the
+ * whole of SPEC 8.2's list rather than two thirds of it.
  */
 const CARRIED: Readonly<Record<string, (document: IRDocument) => number>> = {
   'servers[].bindings': (document) =>
@@ -554,7 +554,7 @@ were added on these counts as the minor half, an optional member on an interface
 The two marked \`T051\` are the breaking half: in AsyncAPI 3 both are lists of Security Scheme
 Objects rather than lists of requirements naming a scheme table, so a carrier for either is a
 reading of the thirteen scheme types, which is \`IRSecuritySchemeType\` growing from five names to
-fourteen, recorded in \`ai-docs/design/CONTRACT.md\` beside \`IRDiffChangeKind\` and \`PageKind\`.
+fourteen, a break taken deliberately, as \`IRDiffChangeKind\` and \`PageKind\` were.
 The counts above were re-measured on 2026-08-29 before that growth and had not moved.
 
 ## The thirteen security scheme types, and which of them this corpus reaches

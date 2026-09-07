@@ -37,7 +37,7 @@ import type {
 import { SLOT_NAMES } from '../../src/index';
 
 /**
- * The slot props are public API, per SPEC 10.4 and CLAUDE.md rule 10.
+ * The slot props are public API, per SPEC 10.4 and `packages/vue/PUBLIC-API.md`.
  *
  * This file is the pin. `pnpm lint` typechecks the test tree, so changing a slot's props makes
  * these assertions fail to compile rather than silently breaking every theme built against

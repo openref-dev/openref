@@ -10,7 +10,7 @@
  * - `@nestjs/swagger` 8 rather than 11. It emits OpenAPI 3.0 where 11 emits 3.1, and the
  *   normalizer uplifts both to one IR. There is no swagger 9 or 10 to test: the package went
  *   from 8 to 11 to line its major up with NestJS, which is a defect in SPEC 23's version
- *   list, recorded in `ai-docs/PROJECT_STATE.md`.
+ *   list.
  * - COMMONJS. `require('@openref/nest')` must not raise `ERR_REQUIRE_ESM`, which SPEC 23 names
  *   as inadmissible. Two of this package's dependencies publish ESM only, so the CJS build
  *   reaches them through dynamic import; this is the consumer that proves it.

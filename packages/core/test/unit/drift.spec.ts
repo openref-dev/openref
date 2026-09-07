@@ -23,10 +23,10 @@ import {
  * has work to show is one a reader stops opening; the only way to know a rule can stay quiet is to
  * hold a document it stays quiet about.
  *
- * THE BUCKET IS CHECKED AGAINST `ai-docs/REMEDIATION.md` SECTION 5, WHICH IS ITS SPECIFICATION.
- * That table is deliberately not in the source: a table from rule id to bucket is exactly the
- * defect the maintainer's correction removed, so it lives here, where it pins the behaviour rather
- * than producing it. The two rules that reach two buckets have a fixture for each state.
+ * THE BUCKET IS CHECKED AGAINST A TABLE THIS FILE HOLDS, AND ITS PLACE IS THE POINT. That table is
+ * deliberately not in the source: a table from rule id to bucket is exactly the defect the
+ * maintainer's correction removed, so it lives here, where it pins the behaviour rather than
+ * producing it. The two rules that reach two buckets have a fixture for each state.
  */
 
 /** The bare operation every fixture starts from: nothing declared, nothing observed. */

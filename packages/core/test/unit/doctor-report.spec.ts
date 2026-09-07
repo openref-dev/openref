@@ -15,7 +15,7 @@ import {
 
 /**
  * The doctor report of SPEC 7.2 and 7.4, made self contained and versioned per the `T037`
- * amendment in `ai-docs/BUILD-AMENDMENTS.md`.
+ * amendment.
  *
  * THE JOIN IS THE THING UNDER TEST, NOT THE RULES THEMSELVES. `drift.spec.ts` and
  * `health-report.spec.ts` already prove the rules and the report they build; this file proves

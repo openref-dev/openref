@@ -5,7 +5,7 @@ import type { PageKind } from '@openref/vue';
 /**
  * The permanent index on the right: the legend, and the sections of whatever is open.
  *
- * A theme component and not a slot, per `ai-docs/design/CONTRACT.md`.
+ * A theme component and not a slot, per `THEME-BOUNDARY.md`.
  *
  * THE LEGEND IS SERVER DRAWN AND THE SECTION LIST IS NOT, AND THE REASON IS THE FINDING THIS THEME
  * WAS WRITTEN TO PRODUCE. An index of the sections on the page needs to know what sections are on

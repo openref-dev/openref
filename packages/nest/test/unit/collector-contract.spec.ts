@@ -20,7 +20,7 @@ import type {
 } from '../../src/index';
 
 /**
- * The collector contract is public API, per SPEC 6.2 and CLAUDE.md rule 10.
+ * The collector contract is public API, per SPEC 6.2 and `packages/vue/PUBLIC-API.md`.
  *
  * THIS FILE IS THE PIN, and `pnpm lint` typechecks the test tree, so changing the contract makes
  * these assertions fail to compile rather than silently breaking every ecosystem collector built

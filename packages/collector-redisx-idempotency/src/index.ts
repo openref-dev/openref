@@ -25,7 +25,7 @@
  * throw site at all because a request with no key is a plain passthrough, and
  * `IdempotencyRecordNotFoundError`, one of the three 409 variants, is guarded by a comment in the
  * filter saying it should be unreachable. Reporting either would put a status on an operation that
- * the application cannot produce, which is the guess CLAUDE.md rule 5 forbids.
+ * the application cannot produce, and a fact the application cannot produce is never guessed.
  */
 
 import { createRequire } from 'node:module';

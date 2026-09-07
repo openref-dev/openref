@@ -99,11 +99,10 @@ page heads TX-FRAME already put there.
 
 ## 2. This theme cannot express block order, and its thesis got expressed for it
 
-`ai-docs/design/telltale/components.md` opens with what this direction does that the other two do
-not: **the runtime block precedes the specification rather than following it.** That order is
-decided inside `NodePanel`, which is not a slot, and `AppShell` is handed the page as opaque
-children through the default slot. No position of the contract can reorder them. That is still
-true, and it is the half that stays open.
+This direction leads with what it does that the other two do not: **the runtime block precedes the
+specification rather than following it.** That order is decided inside `NodePanel`, which is not a
+slot, and `AppShell` is handed the page as opaque children through the default slot. No position of
+the contract can reorder them. That is still true, and it is the half that stays open.
 
 `SlotPropsMap.AppShell` said block order "is the shell's business in the same way the two columns
 are". As built it is nobody's business except `NodePanel`'s, which walks `NodeModel.drawn`. That
@@ -211,9 +210,9 @@ finding 3, `T064`, and the same reason for waiting.
 
 ## What the design asked for that the registry no longer has
 
-The inventory in `ai-docs/design/telltale/components.md` was written against the 25 name registry.
-Six of those names were removed by `TX-SLOTWIRE` and each removal has its reason in SPEC 10.4. Where
-this theme wanted one, it used what replaced it rather than asking for the name back:
+The design inventory this theme was drawn from was written against the 25 name registry. Six of
+those names were removed by `TX-SLOTWIRE` and each removal has its reason in SPEC 10.4. Where this
+theme wanted one, it used what replaced it rather than asking for the name back:
 
 | Design named                                | What this theme did instead                                                  |
 | ------------------------------------------- | ---------------------------------------------------------------------------- |
@@ -223,7 +222,9 @@ this theme wanted one, it used what replaced it rather than asking for the name 
 | `ThemeToggle`                               | no control, and the reason is a product decision with a cost, in SPEC 10.4   |
 
 `StatusBar`, `SectionIndex` and `BudgetMeter` were the three the design proposed as new slots. They
-are this theme's own components, prefixed, exactly as `ai-docs/design/CONTRACT.md` resolved.
-`TelltaleSectionIndex` is the one that argues for itself: an index of the sections on the page has
-to read the DOM after mount to learn what is on the page, because the shell is handed the content
-as children it cannot look inside. That is finding 2 again, from the other side.
+are this theme's own components, prefixed, which is how the three were resolved: a name enters the
+frozen registry when a theme needs to draw a region of the reference differently, and these three
+are markup only this theme draws. `TelltaleSectionIndex` is the one that argues for itself: an index
+of the sections on the page has to read the DOM after mount to learn what is on the page, because
+the shell is handed the content as children it cannot look inside. That is finding 2 again, from the
+other side.

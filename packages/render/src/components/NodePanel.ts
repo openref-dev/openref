@@ -376,7 +376,7 @@ export const NodePanel = defineComponent({
           // nothing hydrates, so the payload is read rather than expanded. See `ChannelSections`.
           case 'channel':
             // TWO POSITIONS UNDER ONE MARK, per `TX-SOCKET-CONSOLE`, and the mark does not grow.
-            // `NodeSectionMark` is frozen by `ai-docs/design/CONTRACT.md` and a twelfth member
+            // `NodeSectionMark` is frozen by `packages/vue/PUBLIC-API.md` and a twelfth member
             // would be a breaking change to say what this one already says: this node is a
             // channel and the server drew its channel section. The facts are adopted and the
             // console is deferred, which is the whole difference between them.

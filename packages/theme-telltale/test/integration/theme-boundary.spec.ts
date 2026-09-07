@@ -584,17 +584,17 @@ describe('the markup a complete L2 theme does not own', () => {
       },
     ];
 
-    // SPEC 10.4 IS THE THIRD DOCUMENT AND IT IS NOT IN EVERY CHECKOUT. `ai-docs/` is git excluded,
-    // so CI never has it, and until the pre-M4 review this case read it unconditionally: measured
-    // by moving the directory aside, the read threw `ENOENT` and took the whole run red, which is
-    // `pnpm test` red on every checkout but the maintainer's. The two committed documents are
-    // checked wherever this runs, and the specification is added when it is there, so a clone
-    // covers two thirds rather than none and the maintainer's tree covers all three. The section
-    // is written in Russian, so its anchor is quoted in the language the sentence is in.
+    // SPEC 10.4 IS THE THIRD DOCUMENT AND IT IS NOT IN EVERY CHECKOUT. The specification is not a
+    // tracked file, so CI never has it, and until the pre-M4 review this case read it
+    // unconditionally: measured by moving it aside, the read threw `ENOENT` and took the whole run
+    // red, which is `pnpm test` red on every checkout but the maintainer's. The two committed
+    // documents are checked wherever this runs, and the specification is added when it is there, so
+    // a clone covers two thirds rather than none and the maintainer's tree covers all three. The
+    // section is written in Russian, so its anchor is quoted in the language the sentence is in.
     const specPath = join(packageRoot, '..', '..', 'ai-docs', 'SPEC.md');
     if (existsSync(specPath)) {
       documents.push({
-        name: 'ai-docs/SPEC.md, section 10.4',
+        name: 'SPEC 10.4',
         text: readFileSync(specPath, 'utf8'),
         anchor: 'имён классов из пространства имён ядра',
         quotes: [`стилизует ${count} имён классов из пространства имён ядра`],

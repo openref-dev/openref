@@ -353,10 +353,11 @@ describe('CollectorRegistry', () => {
  * The channel a collector's own record of what it could not read finally travels down.
  *
  * WHAT WAS MEASURED BEFORE THIS EXISTED. Every collector in this repository and every one of the
- * four ecosystem packages keeps a `problems()` list, because CLAUDE.md requires an unobtainable fact
- * to produce a `doctor` warning rather than a guess. `grep -rn '\.problems()'` outside `test/`
- * returned zero hits: fifteen collectors were writing into an accumulator whose only reader was
- * their own unit tests, and a third party collector had no route into `doctor` at all.
+ * four ecosystem packages keeps a `problems()` list, because `docs/guide/04-collectors.md`
+ * requires an unobtainable fact to produce a `doctor` warning rather than a guess.
+ * `grep -rn '\.problems()'` outside `test/` returned zero hits: fifteen collectors were writing
+ * into an accumulator whose only reader was their own unit tests, and a third party collector had
+ * no route into `doctor` at all.
  */
 describe('CollectorRegistry, the problems a collector recorded', () => {
   it('should drain the problem list of a collector that keeps one', () => {

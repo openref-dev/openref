@@ -3,9 +3,9 @@
  * could not write it and why.
  *
  * THE OMISSIONS ARE RETURNED RATHER THAN SWALLOWED. A generator that quietly produced six samples
- * where fifteen were asked for would leave a caller unable to tell "this language has nothing to say
- * about this request" from "the generator is broken", which is the shape of defect CLAUDE.md's
- * fifth lesson is about. The list is data, so a doctor rule or a page can print it.
+ * where fifteen were asked for would leave a caller unable to tell "this language has nothing to
+ * say about this request" from "the generator is broken", which is what a silently swallowed
+ * omission costs. The list is data, so a doctor rule or a page can print it.
  *
  * THE EMITTER TABLE IS A TOTAL RECORD over {@link SampleLanguageId}, so a sixteenth language is a
  * compile error here rather than a tab that renders nothing.

@@ -1,12 +1,12 @@
 /**
  * The doctor report of SPEC 7.2 and 7.4, made self contained and versioned.
  *
- * `ai-docs/BUILD-AMENDMENTS.md`'s `T037` entry, following `ai-docs/REMEDIATION.md`: `doctor` needs
- * a machine readable form beside the text one, carrying every field T022 already records on a
- * finding, plus what only the document can add: the rule's display code, a human subject for the
- * node or schema the finding is about, and the location by file and line through the source link
- * of T018. `IRDriftIssue` itself stays document relative on purpose, per SPEC 7.1, so this is the
- * join, computed once here rather than reimplemented by every consumer.
+ * The `T037` amendment: `doctor` needs a machine readable form beside the text one, carrying every
+ * field T022 already records on a finding, plus what only the document can add: the rule's display
+ * code, a human subject for the node or schema the finding is about, and the location by file and
+ * line through the source link of T018. `IRDriftIssue` itself stays document relative on purpose,
+ * per SPEC 7.1, so this is the join, computed once here rather than reimplemented by every
+ * consumer.
  *
  * VERSIONED FOR THE SAME REASON THE SEARCH INDEX OF T007 IS. A consumer that pins or caches this
  * shape has to be able to refuse a shape it does not recognise instead of reading it as empty,
@@ -51,7 +51,8 @@ import type {
  * total `Record<Union, ...>` is a sanctioned spelling and a total record over a grown union does
  * not compile. `IRDriftRule` is such a union and {@link DRIFT_RULE_CODES} is such a record, in
  * this package, on purpose, so that a rule added without a display code fails the build instead
- * of printing an empty one. `ai-docs/design/CONTRACT.md` carries the ruling.
+ * of printing an empty one. The ruling is that a rule added to `IRDriftRule` is a major version of
+ * this package.
  *
  * WHAT THAT MEANS FOR M4 AND M5, WHICH BOTH ADD RULES. Each new rule leaves this constant at 1
  * and moves the major version of `@openref/core` once the package is published. Nothing is
@@ -308,7 +309,7 @@ function doctorFinding(document: IRDocument, issue: IRDriftIssue): IRDoctorFindi
 }
 
 /**
- * Builds the versioned doctor report of SPEC 7.2, 7.4 and `ai-docs/REMEDIATION.md` section 6.
+ * Builds the versioned doctor report of SPEC 7.2 and 7.4.
  *
  * `document.health` IS USED WHEN PRESENT AND NEVER RECOMPUTED OVER IT, because a live runtime pass
  * already ran every rule against a real `DriftObservation`, and recomputing with none would

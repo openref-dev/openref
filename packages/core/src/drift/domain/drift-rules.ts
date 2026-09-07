@@ -9,8 +9,8 @@
  *
  * NO RULE DECIDES ITS OWN BUCKET. A check reports what it saw, as the shape of the edit that would
  * be needed and the provenance of the fact behind it; `classifyDrift` turns that into a bucket.
- * That is the correction recorded in `ai-docs/REMEDIATION.md` section 2, and keeping the decision
- * out of the rules is what makes a table from rule id to bucket unwritable rather than forbidden.
+ * Keeping the decision out of the rules is what makes a table from rule id to bucket unwritable
+ * rather than forbidden.
  *
  * EVERYTHING HERE IS A PURE FUNCTION OF THE IR. The runtime side of every rule is a fact some
  * collector already attached to the node, so the engine never asks an application anything and
@@ -500,8 +500,8 @@ const STREAM_UNSPECIFIED: OperationRule = {
       });
     }
 
-    // THE ITEM TYPE IS KNOWN AND ONLY AT `inferred`, which is the confidence starvation of
-    // REMEDIATION section 2 rather than an absence. Writing the plugin's guess into source as an
+    // THE ITEM TYPE IS KNOWN AND ONLY AT `inferred`, which is confidence starvation
+    // rather than an absence. Writing the plugin's guess into source as an
     // explicit decorator would promote it to `declared` irreversibly, per SPEC 7.4.
     return found({
       message: 'The item type of this stream is known only at inferred confidence.',

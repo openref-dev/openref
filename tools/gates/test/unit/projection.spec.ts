@@ -2256,7 +2256,7 @@ describe('the figures this code states about this repository', () => {
  * The scan as a gate, so `pnpm gates` answers the question CI already answered.
  *
  * IT WAS A UNIT CASE AND NOTHING ELSE. CI runs the suite and the gates both, so CI was covered; the
- * command CLAUDE.md tells every session to run before declaring a slice done is `pnpm gates`, and
+ * command every session runs before declaring a slice done is `pnpm gates`, and
  * that command proved nothing about the privacy of the file the whole projection exists to make
  * safe. The gate calls the same function rather than restating the rule.
  */

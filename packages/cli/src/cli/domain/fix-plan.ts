@@ -16,12 +16,11 @@ import type {
  * so the question "could this run ever write something it should not" is answered by reading one
  * pure function rather than by reading a rewriter.
  *
- * THE CLASSIFICATION IS READ, NEVER RECOMPUTED. `ai-docs/REMEDIATION.md` section 2 records the
- * correction this enforces: the bucket belongs to the finding, computed by T022 from the state of
- * the node, and a fix mode that reconstructed it from a table keyed by rule id would hand a
- * conflicting assertion to a rewriter the first time a node already asserted something. There is
- * no such table here. What is keyed by rule below is nothing: the edit is built from
- * {@link IRDriftAssertion}, which the rule that found the drift filled in with values.
+ * THE CLASSIFICATION IS READ, NEVER RECOMPUTED. The bucket belongs to the finding, computed by
+ * T022 from the state of the node, and a fix mode that reconstructed it from a table keyed by rule
+ * id would hand a conflicting assertion to a rewriter the first time a node already asserted
+ * something. There is no such table here. What is keyed by rule below is nothing: the edit is
+ * built from {@link IRDriftAssertion}, which the rule that found the drift filled in with values.
  */
 
 /** The decorator a mechanically fixable finding would have written above its handler. */

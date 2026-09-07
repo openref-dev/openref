@@ -9,9 +9,8 @@ import type { Page } from 'playwright-core';
  * WHAT WENT WRONG WAS A TOKEN DOING A JOB IT WAS NOT FOR. `--oref-layout-measure`, 78ch, bounds a
  * paragraph, and it was applied to the content column. On a 1600 px window that left the column
  * at about 1200 px, neither filling the window nor centred in it, with the sunken surface behind
- * the page bare to the right of it. The resolution is recorded in
- * `ai-docs/design/vernier/notes.md`: the third grid track is the frame, the column declares no
- * width of its own, and the measure stays on prose.
+ * the page bare to the right of it. The resolution is that the third grid track is the frame, the
+ * column declares no width of its own, and the measure stays on prose.
  *
  * THIS IS A BROWSER TEST AND CANNOT BE ANYTHING ELSE. A width is produced by layout, and jsdom
  * performs none: every box there is zero wide, so an assertion about a column filling a window is

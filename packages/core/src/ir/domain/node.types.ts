@@ -423,10 +423,10 @@ export interface IRChannel {
    * Variables of a templated address, keyed by the name written between the braces.
    *
    * ADDITIVE AND OPTIONAL, added 2026-08-29 by the maintainer's ruling ahead of `T049` and
-   * recorded in SPEC 8.2 and `ai-docs/design/CONTRACT.md`. An address like `orders/{tenant}`
-   * stops being readable without them: the braces name a variable and say nothing about what
-   * goes in it, so dropping the block loses the half of the address that explains the other.
-   * Absent on a channel whose address is not templated, and on one whose document wrote none.
+   * recorded in SPEC 8.2. An address like `orders/{tenant}` stops being readable without them:
+   * the braces name a variable and say nothing about what goes in it, so dropping the block
+   * loses the half of the address that explains the other. Absent on a channel whose address is
+   * not templated, and on one whose document wrote none.
    */
   readonly parameters?: Readonly<Record<string, IRChannelParameter>>;
   readonly servers: readonly IRServerOverride[];

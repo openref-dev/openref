@@ -7,11 +7,11 @@
  * two of the three agree and the third is the leak. So the exposed set is computed here and the
  * three consumers read it rather than each asking the question.
  *
- * A DRIFT FINDING ON AN INTERNAL NODE IS AN INTERNAL NODE, per the `T058` amendment in
- * `ai-docs/BUILD-AMENDMENTS.md`. The health report is the one answer where the subject is a node id
- * rather than a node, so it is the one where the filter is easy to forget and impossible to see
- * having been forgotten: a report naming `POST /admin/impersonate` in a `subject` string has
- * exposed the operation just as surely as a tool would have.
+ * A DRIFT FINDING ON AN INTERNAL NODE IS AN INTERNAL NODE, per the `T058` amendment. The health
+ * report is the one answer where the subject is a node id rather than a node, so it is the one
+ * where the filter is easy to forget and impossible to see having been forgotten: a report naming
+ * `POST /admin/impersonate` in a `subject` string has exposed the operation just as surely as a
+ * tool would have.
  *
  * IT IS NOT AN ACCESS CONTROL AND THE DIFFERENCE IS WRITTEN DOWN IN SPEC 18.1. Who may reach the
  * reference at all is `visibility` and the guard of SPEC 19.6; this is a per node documentation
@@ -76,10 +76,10 @@ export const SAFE_HTTP_METHODS: readonly string[] = ['get', 'head', 'options', '
  *
  * THE QUESTION IS ASKED OF THE METHOD AND OF NOTHING ELSE, because the method is the only thing
  * the document states about it. A handler name, a path segment reading `delete` or a summary
- * saying "removes" are prose, and deciding from them would be the guess CLAUDE.md refuses. An
- * unenumerated method, which OpenAPI 3.2's `additionalOperations` allows, is not on the safe list
- * and is therefore treated as mutating: the marking exists so a reader confirms before acting, and
- * the closed direction on an unknown method is to ask.
+ * saying "removes" are prose, and deciding from them would be inventing a fact the document does
+ * not state. An unenumerated method, which OpenAPI 3.2's `additionalOperations` allows, is not on
+ * the safe list and is therefore treated as mutating: the marking exists so a reader confirms
+ * before acting, and the closed direction on an unknown method is to ask.
  *
  * @param method - The operation's method, lowercase as the IR carries it
  * @returns True when the method is not one of the safe ones

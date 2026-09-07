@@ -83,8 +83,8 @@ export interface RunnerBodyFieldView {
    * THE DEFAULT IS THE ONLY PATH A NORMALIZED DOCUMENT REACHES TODAY. `IRMediaType.encoding` is
    * declared in the IR and the OpenAPI normalizer never fills it, found while writing T027 and
    * owned by T028's sweep since: `stripe.yaml` carries encoding blocks on hundreds of operations,
-   * so filling the field moves the corpus digests. It is `T034` in `ai-docs/BUILD-AMENDMENTS.md`,
-   * with done-when clauses, and the defect class is in SPEC 0 as declared but never filled.
+   * so filling the field moves the corpus digests. It is tracked as `T034`, with done-when
+   * clauses, and the defect class is in SPEC 0 as declared but never filled.
    */
   readonly contentType?: string;
 }

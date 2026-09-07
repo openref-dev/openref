@@ -1,5 +1,5 @@
 /**
- * The 122 core token names, transcribed from `ai-docs/design/CONTRACT.md`.
+ * The 122 core token names, transcribed from the design contract.
  *
  * A SECOND TRANSCRIPTION AND NOT A SHARED CONSTANT, which is deliberate and is the same decision
  * `@openref/theme` made for its own copy. The list is the contract, and the two themes are two
@@ -133,7 +133,7 @@ export const CONTRACT_TOKEN_NAMES: readonly string[] = [
 ];
 
 /**
- * The six tokens this theme adds on top of the core set, per `ai-docs/design/CONTRACT.md`.
+ * The six tokens this theme adds on top of the core set, per the design contract.
  *
  * `--oref-color-accent-signal` is named there as telltale's own and forbidden to the other two,
  * because this theme carries one accent where vernier carries two. The five others describe

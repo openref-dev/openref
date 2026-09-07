@@ -14,6 +14,7 @@ import { eventsSuitesGate } from './gates/events-suites.gate.js';
 import { federationSuitesGate } from './gates/federation-suites.gate.js';
 import { m6SuitesGate } from './gates/m6-suites.gate.js';
 import { m7SuitesGate } from './gates/m7-suites.gate.js';
+import { privateDocsGate } from './gates/private-docs.gate.js';
 import { projectionPrivacyGate } from './gates/projection-privacy.gate.js';
 import { readerPagesGate } from './gates/reader-pages.gate.js';
 import { fixtureLicensesGate } from './gates/fixture-licenses.gate.js';
@@ -157,6 +158,7 @@ export const GATES: readonly Gate[] = [
   buildManifestGate,
   deferralsGate,
   projectionPrivacyGate,
+  privateDocsGate,
   formatGate,
   textSourceGate,
   collectorVoiceGate,

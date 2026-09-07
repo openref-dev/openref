@@ -186,7 +186,7 @@ export const CommandPalette = defineComponent({
     // theme with no entry for the fourth kind still prints `message`, which is where the sentence
     // lives, so nothing breaks at runtime; the kind widens `StateNoticeKind` all the same, which
     // is a break of the theme contract rather than a minor version of it, per
-    // `ai-docs/design/CONTRACT.md`. The prop this branch feeds, `CommandPalette.degraded`, is the
+    // `packages/vue/PUBLIC-API.md`. The prop this branch feeds, `CommandPalette.degraded`, is the
     // additive half.
     const degraded = computed(() => search.failed.value);
 

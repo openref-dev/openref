@@ -6,10 +6,10 @@
  * from inside a case that needs a live server and a real binary, and the second cannot be asserted
  * from inside the file it counts.
  *
- * NEITHER FIGURE IS RETYPED FROM `ai-docs/SPEC.md`, AND NEITHER COULD BE. `ai-docs/` is excluded
- * from this repository, so a check that read the document would fail on every clone; what a check
- * here can do is derive the quantity from the tree and hold the recorded figure to it, which is the
- * shape `tools/gates/test/integration/published-form.spec.ts` already uses for byte counts.
+ * NEITHER FIGURE IS RETYPED FROM THE SPECIFICATION DOCUMENT, AND NEITHER COULD BE. That document
+ * is excluded from this repository, so a check that read it would fail on every clone; what a
+ * check here can do is derive the quantity from the tree and hold the recorded figure to it, which
+ * is the shape `tools/gates/test/integration/published-form.spec.ts` already uses for byte counts.
  */
 
 import { readFileSync } from 'node:fs';

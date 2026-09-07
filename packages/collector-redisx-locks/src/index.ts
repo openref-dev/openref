@@ -17,7 +17,8 @@
  * `HttpStatus` anywhere in it. `LockAcquisitionError` extends the library's own `RedisXError`, which
  * extends `Error`, so what a losing caller receives is decided by whatever exception filter the
  * host application registered. Putting a 409 or a 503 in `IRErrorContracts.runtimeDerived` would
- * have been the cheap home and would have been an invented status, which CLAUDE.md rule 5 forbids.
+ * have been the cheap home and would have been an invented status, and an invented status is never
+ * reported in place of a fact the application does not produce.
  *
  * A LOCK ON A SERVICE IS NOT A ROUTE FACT AND IS NEVER DRAWN AS ONE. `@WithLock` is a
  * `MethodDecorator` that wraps a function on any `Injectable`, so most of them in a real

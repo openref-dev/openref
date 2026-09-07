@@ -44,8 +44,8 @@ function largestVolume(scan: ProseScan): string {
  * are the same shape.
  *
  * WHY IT IS A GATE AND NOT ONLY A UNIT CASE, which it was until this pass. CI runs `pnpm test` and
- * `pnpm gates` both, so CI was covered. `pnpm gates` is the command CLAUDE.md tells every session
- * to run before declaring a slice done, and until this gate existed that command proved nothing
+ * `pnpm gates` both, so CI was covered. `pnpm gates` is the command every session runs
+ * before declaring a slice done, and until this gate existed that command proved nothing
  * whatever about the artefact's contents. A guarantee that holds only under the command nobody was
  * told to run is the shape of an absence reading as coverage.
  *

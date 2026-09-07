@@ -16,7 +16,7 @@
  * no `HttpStatus` anywhere in it. `CircuitBreakerOpenError` extends the library's own
  * `RedisXError`, which extends `Error`, and the plugin's `errorFactory` lets a host replace even
  * that with an error of its own. A 503 here would have been the obvious guess and the wrong one,
- * which CLAUDE.md rule 5 forbids.
+ * and a fact that cannot be obtained is never replaced by a guess.
  *
  * A BREAKER ON A SERVICE IS NOT A ROUTE FACT AND IS NEVER DRAWN AS ONE. `@WithCircuitBreaker` is a
  * `MethodDecorator` that wraps a function on any `Injectable`, and the library's own examples put

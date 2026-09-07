@@ -1,8 +1,8 @@
 /**
- * The motion half of the theme contract, per `ai-docs/design/CONTRACT.md`.
+ * The motion half of the theme contract.
  *
  * WHY THIS IS A GATE AND NOT A TEST IN ONE PACKAGE. Only one of the three reference themes is
- * code today; the other two are stylesheets in `ai-docs/design/`. The failure this exists to
+ * code today; the other two are still stylesheets rather than packages. The failure this exists to
  * catch is three themes disagreeing about reduced motion, which no test inside a single package
  * can see. It is also a failure nobody notices by looking: the reader it hurts is the one with
  * a vestibular disorder, and everything renders correctly for everyone else.

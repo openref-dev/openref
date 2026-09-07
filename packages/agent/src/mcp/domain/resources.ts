@@ -1,12 +1,12 @@
 /**
  * The resources the MCP endpoint of SPEC 18 lists, and what reading each one produces.
  *
- * THREE, AND THE THIRD IS WHY `ai-docs/REMEDIATION.md` SECTION 6 NAMES THIS TASK. Remediation is a
- * supported use of this surface, and what a remediation agent needs is the versioned doctor report
- * of `T037`: the classification per finding, the confidence behind it, what the runtime does and
- * what the specification claims. It is served whole, with its `version` member intact, so a
- * consumer that pins a shape refuses one it does not understand instead of reading a changed shape
- * as an empty report, which looks exactly like a clean one.
+ * THREE, AND THE THIRD EXISTS BECAUSE REMEDIATION IS A SUPPORTED USE OF THIS SURFACE. What a
+ * remediation agent needs is the versioned doctor report of `T037`: the classification per finding,
+ * the confidence behind it, what the runtime does and what the specification claims. It is served
+ * whole, with its `version` member intact, so a consumer that pins a shape refuses one it does not
+ * understand instead of reading a changed shape as an empty report, which looks exactly like a
+ * clean one.
  *
  * THE REPORT IS FILTERED AND THE FILTER IS THE SAME ONE THE TOOLS USE. A finding on a node marked
  * `audience: internal` is an internal node: its `subject` is the method and path, so leaving it in
@@ -228,10 +228,11 @@ export type AgentResourceRead =
 /**
  * Reads one resource by uri.
  *
- * THE HEALTH REPORT GOES THROUGH `canonicalize`, per CLAUDE.md's hashing rule applied to a payload
- * a consumer will cache and diff: two reads of one unchanged document produce identical bytes, so
- * a pipeline can compare them without a JSON aware differ. The two text files are already
- * deterministic by construction and are not canonicalized, because they are not JSON.
+ * THE HEALTH REPORT GOES THROUGH `canonicalize`, the same canonical serialization every hash in
+ * this project uses, applied to a payload a consumer will cache and diff: two reads of one
+ * unchanged document produce identical bytes, so a pipeline can compare them without a JSON aware
+ * differ. The two text files are already deterministic by construction and are not canonicalized,
+ * because they are not JSON.
  *
  * THE TWO TEXT FILES GO THROUGH THE SAME BUILDERS THE HTTP ADDRESSES DO, which is what makes the
  * bytes identical on both surfaces rather than similar. The audience filter of SPEC 18.1 lives

@@ -123,7 +123,7 @@ export function renderTokensCss(tokens: readonly ThemeToken[] = ALL_TOKENS): str
   const dark = declarations(tokens, true);
 
   return `/*
- * OPENREF design tokens, per SPEC 10.1, STANDARDS 4.4 and ai-docs/design/CONTRACT.md.
+ * OPENREF design tokens, per SPEC 10.1 and STANDARDS 4.4.
  *
  * Generated from src/tokens/domain/tokens.ts. Do not edit by hand: tokens.spec.ts compares
  * this file with the generator and fails when they disagree.

@@ -298,7 +298,7 @@ export interface IRHandlerPolicySetting {
  * anywhere in its source: a lock that cannot be acquired throws a plain `Error` subclass and a
  * breaker that is open throws another, and what status a caller sees is whatever the host's own
  * filter does with it. Putting a status in `IRErrorContracts.runtimeDerived` would have been the
- * cheaper home and would have been the guess CLAUDE.md rule 5 forbids.
+ * cheaper home and would have been a guess in place of a fact none of them produces.
  */
 export interface IRHandlerPolicy {
   readonly kind: IRHandlerPolicyKind;
@@ -535,7 +535,7 @@ export type IRDriftBasis =
   | { readonly kind: 'unobserved' };
 
 /**
- * Why a finding needs a person, per `ai-docs/REMEDIATION.md` section 2.
+ * Why a finding needs a person.
  *
  * Three different things put a finding here and they age differently: `confidence-starvation` can
  * become `silence` when a collector improves, and the other two cannot.
@@ -662,9 +662,9 @@ export interface IRNodeRuntime {
  *
  * IT IS NOT AN ERROR AND IT IS NOT A GUESS AVOIDED SILENTLY. A pattern no address can be made
  * from, a gateway that declares no event, a protocol whose host nobody configured, a class name no
- * supplied schema answers to: each is a fact the reference would have carried and cannot, and
- * CLAUDE.md's rule is that such a fact reaches `doctor` rather than being invented. The subject is
- * named the way a reader of `doctor` would recognise it.
+ * supplied schema answers to: each is a fact the reference would have carried and cannot, and such
+ * a fact reaches `doctor` rather than being invented. The subject is named the way a reader of
+ * `doctor` would recognise it.
  *
  * THE REASON IS THE SHORT CLAUSE AND THE REASONING IS BELOW IT, SINCE 2026-09-05 AND SPEC 7.1. It
  * was one sentence carrying both what happened and what to write instead, which on the first real

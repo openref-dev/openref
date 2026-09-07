@@ -1,8 +1,8 @@
 import type { ContrastPair, ThemeToken } from './token.types';
 
 /**
- * The core token set: the 122 names of `ai-docs/design/CONTRACT.md`, with the values of the
- * vernier design, which is what `@openref/theme` ships.
+ * The core token set: the 122 names of the design contract, with the values of the vernier
+ * design, which is what `@openref/theme` ships.
  *
  * The names are the contract and are identical in every theme. The values are this theme's.
  * A theme that renames one, omits one, or defines one in a single colour scheme is not a
@@ -1000,7 +1000,7 @@ export const CONTRAST_PAIRS: readonly ContrastPair[] = (
     // light and 2.19 in dark, so it cannot carry the 3:1 that WCAG 1.4.11 asks of the boundary
     // of a control, and this theme therefore does not draw one with it. fg-muted does, and it
     // is claimed at the text threshold two lines above. The palette itself is a question for
-    // the designer, recorded in PROJECT_STATE rather than answered by relabelling the role.
+    // the designer, left open rather than answered by relabelling the role.
     ['--oref-color-line-strong', '--oref-color-bg', 'decorative'],
     ['--oref-focus-color', '--oref-color-bg', 'large'],
     ['--oref-color-line', '--oref-color-bg', 'decorative'],

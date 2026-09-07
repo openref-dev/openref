@@ -25,7 +25,7 @@ import type {
  * The document behind the figures SPEC 7.2 and the drift rules quote, rebuilt so a test can hold it.
  *
  * EVERY NUMBER IN THIS FILE WAS MEASURED BEFORE IT WAS WRITTEN. `health.ts`, `drift-rules.ts` and
- * `REMEDIATION.md` all reason from one application: 58 operations, 180 findings, 53 of them one
+ * the remediation plan all reason from one application: 58 operations, 180 findings, 53 of them one
  * sentence repeated, 58 more naming a generated `Controller_method`, 466 DTO fields of which 34
  * carry no description. Those figures decided the severity weights, the root of the subject count
  * and the folding of findings by cause, and until this fixture existed nothing in the repository

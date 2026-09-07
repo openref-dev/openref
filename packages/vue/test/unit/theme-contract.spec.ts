@@ -11,7 +11,7 @@ import type {
 } from '../../src/index';
 
 /**
- * The theme contract is public API, per SPEC 10.4 and CLAUDE.md rule 10.
+ * The theme contract is public API, per SPEC 10.4 and `packages/vue/PUBLIC-API.md`.
  *
  * THIS FILE IS THE PIN, beside `slot-contract.spec.ts` for the props and
  * `packages/nest/test/unit/collector-contract.spec.ts` for the collector interface. Those three

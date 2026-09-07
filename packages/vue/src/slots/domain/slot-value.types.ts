@@ -44,7 +44,7 @@ export type StateNoticeKind =
   // this kind still prints `message`, which is where the sentence lives, so nothing breaks at
   // runtime; the addition is nonetheless a break of the theme contract, because a total
   // `Record<StateNoticeKind, ...>` is a sanctioned spelling and stops compiling when this union
-  // grows. See `ai-docs/design/CONTRACT.md` for the recording and the one line migration.
+  // grows. See `packages/vue/PUBLIC-API.md` for the recording and the one line migration.
   | 'search-unavailable'
   | 'no-server'
   | 'no-body-fields'
