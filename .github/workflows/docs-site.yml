@@ -10,6 +10,12 @@ name: Docs site
 # based Pages deploy runs Jekyll, which drops underscore directories, and a project subpath
 # (openref-dev.github.io/openref/) breaks every rooted link. Deploying the artifact skips
 # Jekyll, and the custom domain serves the site at a root. Both halves are required.
+#
+# The Pages site itself was created once, by an administrator's token, with
+# `gh api -X POST repos/openref-dev/openref/pages -f build_type=workflow`. The workflow
+# token cannot make that call: creating a Pages site is an administration operation, and
+# the first run here proved it with a 403 out of configure-pages' enablement input. So
+# this file deploys to a site that exists and never claims to be able to create one.
 on:
   push:
     branches: [main]
@@ -81,13 +87,6 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      # enablement creates the Pages site on the first run, so turning Pages on is not a
-      # click in the UI that a fork or a fresh clone of the repository silently lacks.
-      - name: Ensure Pages is enabled
-        uses: actions/configure-pages@v5
-        with:
-          enablement: true
-
       - name: Deploy
         id: deployment
         uses: actions/deploy-pages@v4
