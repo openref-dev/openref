@@ -676,7 +676,7 @@ const AMENDMENT_LINE_BOUND: Extent = {
  * measurement, disclosed as one.
  *
  * WHAT MAKES THAT SAFE IS THAT IT IS NO LONGER THE BINDING NUMBER. 12,000 digests weigh 204,000
- * bytes at seventeen each, and {@link PROJECTION_ARTEFACT_BUDGET} refuses the file above 147,456,
+ * bytes at seventeen each, and {@link PROJECTION_ARTEFACT_BUDGET} refuses the file above 148,480,
  * so the byte budget goes red first and this count now names a channel rather than limiting one.
  */
 export const DIGESTS_IN_THE_ARTEFACT = 12_000;
