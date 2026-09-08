@@ -1514,7 +1514,8 @@ describe('the volume of the artefact', () => {
     // AND ON 2026-09-05 IT WENT OVER, BY 22 BYTES, AND THE CEILING DID NOT MOVE FOR THAT EITHER.
     // Three published package names at once, 145 bytes, against 16,076 of headroom and 16,098 of
     // reserve. The case below carries the whole measurement and what would settle it; both answers
-    // are the maintainer's, and neither was taken here.
+    // are the maintainer's, and neither was taken here. THE FIRST WAS TAKEN ON 2026-09-07, to
+    // 145 KB by the same derivation, and the ledger of it is the case below.
     expect(scan.bytes).toBe(bytes);
     expect(scan.bytes).toBeGreaterThan(100_000);
     expect(scan.findings).toEqual([]);
@@ -2087,6 +2088,16 @@ describe('the figures this code states about this repository', () => {
     // MOVED FOR IT HERE EITHER: the ceiling is untouched at 144 KB, no document was cut, and the two
     // entries were filed because a question owed to nobody is the class SPEC 0 ends on. The answer
     // is still one of the maintainer's two, and it is now worth 759 bytes rather than 22.
+    //
+    // SETTLED ON 2026-09-07, BY THE FIRST OF THE TWO AND NOT SILENTLY. The reading stood at
+    // 132,475 over the same 661 and the shortfall at 1,013 when the answer was taken:
+    // `PROJECTION_ARTEFACT_BUDGET.limitBytes` is 145 KB, which is 148,480 against the 147,478
+    // this derivation prices, taken under the maintainer's standing delegation because it is the
+    // answer the case had already derived, where the second answer edits documents only their
+    // author can weigh. The corridor is untouched and holds from both ends: 16,005 of headroom
+    // is two milestones plus 11 bytes, and is under three milestones by 7,986. ELEVEN BYTES IS
+    // THINNER THAN ONE PUBLISHED PACKAGE NAME, so the next arrival re-opens this ledger, and the
+    // answer to it is priced above rather than left to the session that meets it.
     const read = readProjection(repoRoot);
     expect(read.ok).toBe(true);
     const data = read.ok ? read.projection.data : undefined;

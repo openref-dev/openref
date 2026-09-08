@@ -398,6 +398,16 @@ export const PROJECTION_LEAF_FLOOR = 500;
  * milestones left in it, RELEASE and POST-1.0. 136 KB covers one and would be re-derived halfway
  * through the plan; 152 KB covers three, which is more room than the remaining work can use.
  *
+ * RE-DERIVED TO 145 KB ON 2026-09-07, BY THE ARITHMETIC ABOVE READ OFF TODAY'S ARTEFACT. The
+ * committed artefact reads 132,475 bytes and a milestone, priced live by `projection.spec.ts`,
+ * costs 7,997, so two milestones need 147,478 and 144 KB is 147,456: the corridor went 22 bytes
+ * short on 2026-09-05, was carried red and in the open rather than absorbed, and stood 1,013
+ * short when it was settled. Of the two answers the corridor case names, this is the first,
+ * taken under the maintainer's standing delegation because it is the one the derivation itself
+ * prices; the second, cutting the bytes out of the artefact, edits documents only their author
+ * can weigh. 145 KB is 148,480: 16,005 over today's reading, two milestones plus 11 bytes,
+ * still under three by 7,986, so the corridor holds from both ends and no other number moved.
+ *
  * WHAT IT REFUSES, WHICH IS THE HALF THAT MAKES IT A BUDGET. The 4.72 MB above, by a factor of 32.
  * The amendments surrogate, 70,352 bytes of the file, arriving a second time: that reads 198,420.
  * And the digest count, which this now binds before `DIGESTS_IN_THE_ARTEFACT` does, since 12,000
@@ -418,7 +428,7 @@ export const PROJECTION_LEAF_FLOOR = 500;
  */
 export const PROJECTION_ARTEFACT_BUDGET = {
   /** Most bytes the whole committed artefact may weigh. */
-  limitBytes: 144 * 1024,
+  limitBytes: 145 * 1024,
   /** Most leaves it may hold over every position together. */
   leaves: 800,
 } as const;
