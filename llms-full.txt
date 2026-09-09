@@ -1,0 +1,1693 @@
+# OPENREF
+
+> NestJS-native API reference engine for HTTP, events and runtime contracts. The specification describes how the API looks, the running NestJS application knows how the API behaves, and OPENREF connects the two.
+
+Every package of the repository in full: the README of each of the 24,
+verbatim, in directory order. The index beside this file is llms.txt.
+
+---
+
+# OPENREF API review action
+
+Runs `openref pr` on a pull request: it diffs the working tree against the base ref, builds the
+deterministic static preview when asked, and posts the SPEC 17.2 comment, updating the one it
+posted before rather than adding another.
+
+The action is a single composite step. Everything it does lives in `openref pr`, in the CLI, so
+it is covered by that package's tests, versioned with that package's release, and runnable by
+hand. What is here is the definition, its tests, and this page.
+
+## What it needs
+
+`openref` installed in the repository being reviewed. The action runs the binary that repository
+already pinned and downloads nothing.
+
+## Permissions
+
+`pull-requests: write` for the comment, `contents: read` for the checkout. Nothing else. The
+checkout has to reach the base ref, so `fetch-depth: 0` or an explicit fetch of the base branch
+is required: a shallow clone has no object for `git show` to read.
+
+On a pull request from a fork the token is read only. The action does not attempt the request; it
+prints the comment, writes it to the job summary, and exits 0. `pull_request_target` is refused
+outright, because that event issues a write scoped token while the head belongs to somebody else.
+
+A fork status the run cannot establish is refused rather than assumed: when `GITHUB_EVENT_PATH` is
+set and its payload cannot be read, the step exits 2 instead of posting.
+
+## Which comment gets updated
+
+Only one the API says this token wrote, because a marker is a line anybody can type and the
+previous rule let a contributor's comment be adopted and overwritten.
+
+There are two paths, one per kind of token. A user token or a personal access token is named by
+`GET /user`, and a candidate is adopted when its author's login matches. `${{ github.token }}` is a
+GitHub App installation token, which GitHub refuses that endpoint for; the refusal is what
+identifies it, and a candidate is then adopted when GitHub itself marked the comment as written by
+that app, `user.type` of `Bot` together with a `performed_via_github_app` slug of `github-actions`.
+Neither field is part of a comment body, so no commenter can write them.
+
+Anything else, another failure of the identity request, a missing field, or another app's slug,
+leaves the identity unestablished: the run posts a new comment and says so on stderr rather than
+overwriting one it cannot prove is its own.
+
+## Usage
+
+```yaml
+name: API review
+on: pull_request
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - uses: openref-dev/openref/packages/action@v1
+        with:
+          spec: openapi.json
+          out: dist-docs
+          preview-base: https://docs.example.com/previews
+          fail-on-breaking: 'true'
+```
+
+## Inputs
+
+| Input               | Default                     | What it does                                                                                                                  |
+| ------------------- | --------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `spec`              | required                    | The OpenAPI document, read at the base ref and in the working tree                                                            |
+| `base`              | the event's base            | The ref to compare against                                                                                                    |
+| `out`               | none                        | Build the preview into this directory; empty means no build                                                                   |
+| `preview-base`      | none                        | Where previews are published; `pr-<number>` is appended, and the result is both the build base and the address in the comment |
+| `preview-url`       | none                        | An address somebody else already knows, printed as given                                                                      |
+| `fail-on-breaking`  | `false`                     | Exit 1 on a breaking diff. Off, so the first run reports                                                                      |
+| `dry-run`           | `false`                     | Print the comment instead of posting it                                                                                       |
+| `repository`        | the workflow's              | The `owner/name` to comment on                                                                                                |
+| `pull-request`      | the event's                 | The pull request number                                                                                                       |
+| `working-directory` | `.`                         | Where the command runs                                                                                                        |
+| `openref-bin`       | `node_modules/.bin/openref` | The binary to run                                                                                                             |
+| `token`             | `${{ github.token }}`       | The token the comment is posted with                                                                                          |
+
+## Outputs
+
+`breaking-count`, `change-count`, `preview-url`, `comment-url`.
+
+## Moving the bytes
+
+The action builds the preview and names its address. It does not deploy: it cannot reach an
+arbitrary host and does not pretend to. Publish `out` with whatever the repository already uses,
+and give `preview-base` the root it is published under so the build's links and the address in
+the comment are one derived value rather than two that happen to match.
+
+---
+
+# @openref/agent
+
+The agent surface. For one mounted document it answers `<route>/llms.txt`, `<route>/llms-full.txt`
+and `<route>/mcp`: an index a crawler can follow, the full text of the reference, and a JSON-RPC
+endpoint exposing the document's operations as MCP tools and its two text files and health report as
+MCP resources. It stands on `@openref/core` and `@openref/render`, and the edge to the renderer is
+the address and title authority rather than a convenience: `links.ts` decides where a page lives and
+`materializeNode` decides what a node is called, so a file that spelled either itself would be a
+broken link or a second title for one operation.
+
+It reads and never sends. Every answer is a projection of a document this process already holds: no
+request leaves, no state is kept between calls, and nothing here can reach the API the reference
+describes. Performing a request is the runner and the same-origin proxy, which have an allowlist and
+an SSRF defence.
+
+## Not published
+
+This package is not on npm. It is architecturally separate, it has its own tests, and it ships
+bundled inside `@openref/nest`, because a host configures it with two booleans and calls none of it
+directly.
+
+## What is withheld, and by which function
+
+A node marked `x-openref-audience: internal` is not exposed to an agent, and `agentExposure` is the
+one place that decides it. It is computed once per document, and every agent answer reads that one
+result: the tool list, a tool call, the health report, and both text files. The failure mode of
+writing the rule once per surface is that two of the three agree and the third is the leak.
+
+The filter lives in the file generators rather than on the MCP path, and that placement was bought
+with a finding. Both text files are served twice, at their HTTP address and as an MCP resource, and
+a blind review read `POST /admin/impersonate` back through `resources/read openref://llms-full.txt`
+on a booted, guarded application while `tools/list` on the same address withheld it. Filtering on
+the MCP path alone would have closed that hole and opened another, one document with two spellings,
+so both routes now serve the same bytes because they call the same function.
+
+A drift finding on an internal node is an internal node. The health report is the one answer whose
+subject is a node id rather than a node, so it is where the filter is easy to forget and impossible
+to see having been forgotten: a report naming an internal route in a `subject` string has exposed it
+just as surely as a tool would have. `AgentExposure` therefore carries the ids of everything
+withheld, so a consumer can prove the filter ran rather than assume it.
+
+This is a documentation marking and not an access control. Who may reach the reference at all is
+`visibility` and the guard around the mount. The operation page itself is unchanged and is still
+drawn for any reader that guard admitted, recorded as the price rather than as an oversight: a
+machine crawlable file cannot have a version per reader, so it takes the conservative audience.
+
+---
+
+# openref
+
+The command line. It reads a document, or boots a NestJS application and reads both, and then builds
+a static reference, reports on documentation health, lints a specification, diffs two of them, or
+posts a review comment on a pull request. Everything it renders goes through the same normalizer and
+the same renderer that `@openref/nest` serves from, so a built site and a mounted one are the same
+pages.
+
+## Install
+
+```sh
+npm i -D openref
+```
+
+No peer dependencies. `--from-nest` boots a compiled entry point of your application, so for that
+one source your own build has to exist first.
+
+## Use
+
+```sh
+npx openref build --spec openapi.yaml --out dist-docs --base https://docs.example.com/api
+npx openref doctor --from-nest dist/main.js --fail-on=drift
+```
+
+## The commands
+
+| Command            | What it does                                                                     |
+| ------------------ | -------------------------------------------------------------------------------- |
+| `build`            | Writes a static reference from one source: `--spec`, `--config` or `--from-nest` |
+| `preview`          | Loads a document from `--spec` and reports what is in it                         |
+| `doctor`           | Boots the application and compares it against the specification                  |
+| `lint <spec>`      | Structural problems in a document, with no application involved                  |
+| `diff <old> <new>` | Breaking and non-breaking changes between two documents or two git refs          |
+| `pr`               | Diffs against a base ref and posts the review comment                            |
+
+Exactly one source flag names the document for `build`. `--base` may be a path such as `/docs` or an
+absolute url; only an absolute one can produce `sitemap.xml`, the canonical link and `og:url`, which
+is why the flag takes both. `--target` generates the rewrite rules for a hosting platform that can
+rewrite, and the platforms that cannot get the direct mode warning on the page instead of a
+configuration file that would not work.
+
+`preview` parses `--watch` and does not yet act on it. A rebuilding preview server is not built.
+
+Either side of `diff` may be a path, a `<ref>:<path>`, or a bare git ref whose file comes from
+`--spec`. `pr` is what the GitHub action in `packages/action` runs; every one of its options also
+answers to an environment variable, so a workflow passes them without interpolating anything into a
+shell.
+
+## Three exit codes, and they are frozen
+
+| Code | Meaning                                                                                   |
+| ---- | ----------------------------------------------------------------------------------------- |
+| `0`  | Nothing to report                                                                         |
+| `1`  | The command ran and found something: drift, a lint violation, a breaking diff             |
+| `2`  | The command could not run: a bad flag, a missing file, an application that would not boot |
+
+`doctor` and `pr` exit 0 by default and only report. `--fail-on=drift|warn|error` and
+`--fail-on-breaking` are what turn a finding into exit 1, so the first run of a new pipeline tells you
+what it found rather than failing the build.
+
+## The build is deterministic
+
+Two builds of one document write byte identical output, generated files included, and that is pinned
+by a test that builds twice and compares two independent outputs rather than one output against
+itself. It is what makes a build cacheable, a preview diffable, and a deployment something you can
+reproduce from a tag.
+
+Nothing the built site does at runtime reaches the network: no CDN, no telemetry, no version check.
+Every asset is written under a name carrying the digest of its own bytes.
+
+## `doctor --fix`
+
+`--fix` writes the findings the report classifies as silence back into the source as new decorators.
+It adds and never alters, and it refuses a dirty working tree, so what it wrote is exactly what
+`git diff` shows. `--dry-run` prints the same edits and writes nothing. Findings that are not
+mechanically fixable are never touched: a rule whose remedy is a judgement is reported and left alone.
+
+## Embedding it
+
+`runCli` never throws and turns everything into an exit code. `loadDocument` and
+`loadFromNestApplication` do throw, and the classes they raise, `UsageError`, `NormalizeError`,
+`ApplicationBootError` and `ShutdownTimeoutError`, are exported from this package so a `catch` can
+tell a bad path from a broken document.
+
+---
+
+# @openref/collector-access-control
+
+Reads the `accesscontrol` grants a route declares under a metadata key your application names, and
+reports the roles they name as the roles the endpoint requires. The library ships no decorator of
+its own, so that key belongs to your project: there is no default and no candidate list, and passing
+the key is how you tell the collector where to look.
+
+## Install
+
+```sh
+npm install @openref/collector-access-control @openref/nest accesscontrol
+```
+
+`@openref/core` is a peer as well, for the types the facts are declared in. It arrives with
+`@openref/nest`, so there is nothing extra to install for it.
+
+## Use
+
+```ts
+import { OpenRefModule } from '@openref/nest';
+import { accessControlCollector } from '@openref/collector-access-control';
+import { GRANTS_KEY } from './grants.decorator';
+
+OpenRefModule.forRoot({
+  runtime: {
+    collectors: [accessControlCollector({ metadataKey: GRANTS_KEY })],
+  },
+});
+```
+
+`metadataKey`, a string or a symbol, is the only option and it is required.
+
+## What it reads
+
+The role names, and only those. A grant carries a role, a resource, an action and a possession,
+while `IRNodeRuntime.roles` is a list of strings, so the honest reduction is the role. A bare string
+is accepted too, which is what an application writes when its decorator carries roles and nothing
+else, and `role` as either a string or an array is read. Rendering `admin:read:own:order` instead
+would put a vocabulary this project does not define into a field readers compare against the
+specification's security requirements, and the comparison would never match. The handler's
+declaration overrides the controller's, through Nest's own `getAllAndOverride`.
+
+## The contract
+
+It implements `IRuntimeCollector`, the public collector contract of `@openref/nest`: a `name`, and
+`collect(context)` returning what was read about one node, or `undefined`.
+
+It is fail open. When `accesscontrol` is not installed, or when the collector was registered without
+a metadata key, the factory returns a skip naming what was missing rather than a collector. Nothing
+runs and the reference renders without the fact. The package is resolved and never loaded: nothing
+here executes a line of `accesscontrol`.
+
+Every fact it emits carries a confidence, `derived` here, and the collector name
+`accessControlCollector`, so a reader can tell an observation of the application from a promise
+somebody typed.
+
+What it deliberately never claims:
+
+- A query against the grant table. An `accesscontrol` integration usually asks that table a question
+  at request time, and the question is guard logic, which is never read.
+- A permission computed in code. A grant stored as a function produces no fact.
+- A key it was not given. Guessing one would mean reporting somebody else's metadata as this route's
+  facts.
+
+The detail it drops is not dropped quietly: a grant that is a function and a grant that names no
+role at all are both recorded as findings, out of `problems()`, which the collector registry drains
+into `openref doctor`.
+
+---
+
+# @openref/collector-casl
+
+Reads the declarative CASL abilities a route carries under a metadata key your application names,
+and reports them as the permissions the endpoint requires. CASL ships no decorator of its own, so
+that key belongs to your project in every case: there is no default and no candidate list, and
+passing the key is how you tell the collector where to look.
+
+## Install
+
+```sh
+npm install @openref/collector-casl @openref/nest @casl/ability
+```
+
+`@openref/core` is a peer as well, for the types the facts are declared in. It arrives with
+`@openref/nest`, so there is nothing extra to install for it.
+
+## Use
+
+```ts
+import { OpenRefModule } from '@openref/nest';
+import { caslCollector } from '@openref/collector-casl';
+import { ABILITIES_KEY } from './abilities.decorator';
+
+OpenRefModule.forRoot({
+  runtime: {
+    collectors: [caslCollector({ metadataKey: ABILITIES_KEY })],
+  },
+});
+```
+
+`metadataKey`, a string or a symbol, is the only option and it is required.
+
+## What it reads
+
+Both spellings a CASL integration produces under that key: the object form `{ action: 'read',
+subject: 'Order' }` and the tuple form `['read', 'Order']`. A subject given as a class is named by
+the class, which is how CASL itself addresses one. Each pair is rendered as `action:subject` and the
+list goes into `IRNodeRuntime.scopes`, the field the reference already shows a permission in; no new
+shape was added for a vocabulary difference. The handler's declaration overrides the controller's,
+through Nest's own `getAllAndOverride`.
+
+## The contract
+
+It implements `IRuntimeCollector`, the public collector contract of `@openref/nest`: a `name`, and
+`collect(context)` returning what was read about one node, or `undefined`.
+
+It is fail open. When `@casl/ability` is not installed, or when the collector was registered without
+a metadata key, the factory returns a skip naming what was missing rather than a collector. Nothing
+runs and the reference renders without the fact. The package is resolved and never loaded: nothing
+here executes a line of CASL.
+
+Every fact it emits carries a confidence, `derived` here, and the collector name `caslCollector`, so
+a reader can tell an observation of the application from a promise somebody typed.
+
+What it deliberately never claims:
+
+- A policy handler. The usual CASL integration stores a function of the ability and the request
+  under the same key. That function is guard logic and is never read, so it produces no fact at all.
+  Such a handler usually looks like `(ability) => ability.can('read', Order)`, and a parser over
+  that string would be right most of the time and silently wrong the rest, which is worse than
+  silence.
+- A key it was not given. Guessing one would mean reporting somebody else's metadata as this route's
+  facts.
+
+Where a fact cannot be obtained it records a finding instead of guessing, naming how many policy
+handlers on the route were functions and what is therefore unknown. Those come out of `problems()`,
+which the collector registry drains into `openref doctor`.
+
+---
+
+# @openref/collector-redisx-cache
+
+Reads `@nestjs-redisx/cache` and reports what a handler declares about caching its own response: the
+window it is served for, the tags it carries, the layers it uses, and which cached reads it drops
+when it succeeds. The facts land in `IRNodeRuntime.handlerPolicies` as policies of kind `cache`, and
+none of it is anything an OpenAPI field can carry.
+
+## Install
+
+```sh
+npm install @openref/collector-redisx-cache @openref/nest @nestjs-redisx/cache
+```
+
+`@openref/core` is a peer as well, for the types the facts are declared in. It arrives with
+`@openref/nest`, so there is nothing extra to install for it.
+
+## Use
+
+```ts
+import { OpenRefModule } from '@openref/nest';
+import { redisxCacheCollector } from '@openref/collector-redisx-cache';
+
+OpenRefModule.forRoot({
+  runtime: {
+    collectors: [redisxCacheCollector()],
+  },
+});
+```
+
+The factory takes no options.
+
+## What it reads
+
+Six decorators, in two families that are not the same fact. `@Cached`, `@InvalidateTags` and
+`@InvalidateOn` replace the method with a wrapper the instant they are applied, so their key on the
+handler is proof the behaviour is bound to the route, and they are reported at `handler` reach.
+`@Cacheable`, `@CachePut` and `@CacheEvict` are bare metadata whose interceptor the library
+registers nowhere, so they are reported at `unbound` reach, which says the declaration exists and
+that nothing caches because of it. Every one of the six is a method decorator, so only the handler
+is read.
+
+`@Cached({ ttl })` is written in seconds and is converted, which is why the setting is named
+`ttlMs`: `@WithLock({ ttl })` in the library beside it is milliseconds, and one column cannot hold
+two units.
+
+## The contract
+
+It implements `IRuntimeCollector`, the public collector contract of `@openref/nest`: a `name`, and
+`collect(context)` returning what was read about one node, or `undefined`.
+
+It is fail open. When `@nestjs-redisx/cache` is not installed, or when the runtime offers no
+metadata reflection, the factory returns a skip naming what was missing rather than a collector.
+Nothing runs and the reference renders without the fact. The package is resolved and never loaded.
+
+Every policy it emits carries a confidence, `derived` here, its reach, and the collector name
+`redisxCacheCollector`, so a reader can tell an observation of the application from a promise
+somebody typed.
+
+What it deliberately never claims:
+
+- An error contract. The library contains no exception filter, no `HttpException` and no
+  `HttpStatus` anywhere in its source: a miss runs the method and a failure runs it too. There is no
+  status to report and one is never invented.
+- A module wide default as a route's own. A `@Cached` with no `ttl` falls back to the plugin's
+  `defaultTtl`, which is configuration rather than a decision recorded on the route, so no number is
+  printed for it.
+- Interceptor logic. A tag function, a `condition` or `unless`, and a key that is not a literal
+  template all decide at request time what is cached and under what, and are never read.
+- A cache declared on a service. The collector is handed route handlers and reads nothing else, so a
+  method on a provider cannot be attributed to an endpoint.
+
+Each of those, and every unbound declaration, is recorded as a finding instead. They come out of
+`problems()`, which the collector registry drains into `openref doctor`.
+
+---
+
+# @openref/collector-redisx-circuit-breaker
+
+Reads `@nestjs-redisx/circuit-breaker` and reports what a route does when the thing behind it is
+down: how many failures in what window trip the breaker, how long it stays refusing, how it is
+probed back open, and what a refused caller meets. The facts land in `IRNodeRuntime.handlerPolicies`
+as a policy of kind `circuit-breaker`, and none of it is anything an OpenAPI field can carry.
+
+## Install
+
+```sh
+npm install @openref/collector-redisx-circuit-breaker @openref/nest @nestjs-redisx/circuit-breaker
+```
+
+`@openref/core` is a peer as well, for the types the facts are declared in. It arrives with
+`@openref/nest`, so there is nothing extra to install for it.
+
+## Use
+
+```ts
+import { OpenRefModule } from '@openref/nest';
+import { redisxCircuitBreakerCollector } from '@openref/collector-redisx-circuit-breaker';
+
+OpenRefModule.forRoot({
+  runtime: {
+    collectors: [redisxCircuitBreakerCollector()],
+  },
+});
+```
+
+The factory takes no options.
+
+## What it reads
+
+`@WithCircuitBreaker(options)` writes its options onto the wrapper function that replaces the
+method, so the key standing on the handler is proof the breaker wraps the thing NestJS routes to. It
+is a method decorator and cannot stand on the controller, so only the handler is read.
+
+A string `key` becomes the circuit's name. `failureThreshold`, `windowMs`, `openDurationMs`,
+`halfOpenMaxCalls`, `successThreshold` and `probeTimeoutMs` are carried across under their own
+names, the four durations already in milliseconds by the library's own definition and the two counts
+without a unit. `whenOpen` says what a refused call meets, in the library's own order of precedence:
+a `fallback` function wins outright, then `onOpen: 'skip'`, then throwing.
+
+## The contract
+
+It implements `IRuntimeCollector`, the public collector contract of `@openref/nest`: a `name`, and
+`collect(context)` returning what was read about one node, or `undefined`.
+
+It is fail open. When `@nestjs-redisx/circuit-breaker` is not installed, or when the runtime offers
+no metadata reflection, the factory returns a skip naming what was missing rather than a collector.
+Nothing runs and the reference renders without the fact. The package is resolved and never loaded.
+
+Every policy it emits carries a confidence, `derived` here, its reach, and the collector name
+`redisxCircuitBreakerCollector`, so a reader can tell an observation of the application from a
+promise somebody typed.
+
+What it deliberately never claims:
+
+- A status. The library contains no exception filter, no `HttpException` and no `HttpStatus`
+  anywhere in its source, `CircuitBreakerOpenError` extends a plain `Error`, and the plugin's
+  `errorFactory` lets a host replace even that. A 503 here would have been the obvious guess and the
+  wrong one.
+- A module wide threshold as a route's own. Every knob has a default under the plugin options token,
+  and reading one would attribute a module figure to one endpoint, so a route that declares only a
+  key carries only a key.
+- A breaker on a service. `@WithCircuitBreaker` wraps a method on any injectable, and the library's
+  own examples put it on a payments service. This collector is handed route handlers and reads
+  nothing else, so what it reports is exactly the set of breakers around a function NestJS routes
+  to.
+- A key or a `skip` computed in code. Both decide at call time what the breaker counts and what it
+  sees at all, and a function under a key is never read.
+
+The missing status is itself a finding this package writes, alongside a breaker with no threshold of
+its own and a fallback whose body the reference cannot know. They come out of `problems()`, which
+the collector registry drains into `openref doctor`.
+
+---
+
+# @openref/collector-redisx-idempotency
+
+Reads `@nestjs-redisx/idempotency` and reports the statuses an idempotent route can answer with. A
+route that replays a stored response can refuse a repeated key, and a route that answers something
+the document does not mention is exactly the drift this project exists to find, so the statuses go
+into the route's runtime derived error contracts rather than into a shape of their own.
+
+## Install
+
+```sh
+npm install @openref/collector-redisx-idempotency @openref/nest @nestjs-redisx/idempotency
+```
+
+`@openref/core` is a peer as well, for the types the facts are declared in. It arrives with
+`@openref/nest`, so there is nothing extra to install for it.
+
+## Use
+
+```ts
+import { OpenRefModule } from '@openref/nest';
+import { redisxIdempotencyCollector } from '@openref/collector-redisx-idempotency';
+
+OpenRefModule.forRoot({
+  runtime: {
+    collectors: [redisxIdempotencyCollector()],
+  },
+});
+```
+
+The factory takes no options.
+
+## What it reads
+
+`@Idempotent(options)` is `SetMetadata(IDEMPOTENT_OPTIONS, options)` plus
+`UseInterceptors(IdempotencyInterceptor)`, so the key standing on the handler or on the controller
+is proof the behaviour is bound to the route. The decorator on either target activates it; its
+options are read off the handler alone, because that is where the library's own interceptor reads
+them.
+
+Such a route always reports 409, for a key whose first attempt is still running past the plugin's
+`waitTimeout` or whose first attempt failed. It reports 422 as well where the library compares
+request fingerprints, resolved as the decorator option, then the plugin option. Both contracts land
+in `IRErrorContracts.runtimeDerived`, the group the drift engine already compares against the
+document.
+
+## The contract
+
+It implements `IRuntimeCollector`, the public collector contract of `@openref/nest`: a `name`, and
+`collect(context)` returning what was read about one node, or `undefined`.
+
+It is fail open. When `@nestjs-redisx/idempotency` is not installed, or when the runtime offers no
+metadata reflection, the factory returns a skip naming what was missing rather than a collector.
+Nothing runs and the reference renders without the fact. The package is resolved and never loaded.
+
+Every fact it emits carries a confidence, `derived` here, and the collector name
+`redisxIdempotencyCollector`, so a reader can tell an observation of the application from a promise
+somebody typed.
+
+What it deliberately never claims:
+
+- A status the application cannot produce. The library's filter maps five errors to four statuses
+  and two of those errors are constructed nowhere in its source, so only the two reachable ones are
+  reported.
+- A status it did not read the condition for. Where nothing answers the plugin options token, the
+  422 is left off rather than assumed from the library's own fallback.
+- Interceptor logic. A `keyExtractor` decides what a request is keyed by and a `skip` decides
+  whether the route is idempotent for this request at all; both are functions under a key and are
+  never read.
+
+Each of those, and a `@Idempotent` on a controller whose options the library will silently discard,
+is recorded as a finding instead. They come out of `problems()`, which the collector registry drains
+into `openref doctor`.
+
+---
+
+# @openref/collector-redisx-locks
+
+Reads `@nestjs-redisx/locks` and reports how a route behaves when two callers arrive at once: what
+the concurrent call is serialized per, how long the lock is held, how long a second caller waits,
+and what that caller gets when it loses the race. The facts land in `IRNodeRuntime.handlerPolicies`
+as a policy of kind `lock`, and none of it is anything an OpenAPI field can carry.
+
+## Install
+
+```sh
+npm install @openref/collector-redisx-locks @openref/nest @nestjs-redisx/locks
+```
+
+`@openref/core` is a peer as well, for the types the facts are declared in. It arrives with
+`@openref/nest`, so there is nothing extra to install for it.
+
+## Use
+
+```ts
+import { OpenRefModule } from '@openref/nest';
+import { redisxLockCollector } from '@openref/collector-redisx-locks';
+
+OpenRefModule.forRoot({
+  runtime: {
+    collectors: [redisxLockCollector()],
+  },
+});
+```
+
+The factory takes no options.
+
+## What it reads
+
+`@WithLock(options)` writes its options onto the wrapper function that replaces the method, so the
+key standing on the handler is proof the lock wraps the thing NestJS routes to. It is a method
+decorator and cannot stand on the controller, so only the handler is read.
+
+A string `key` becomes the lock's name, `ttl` and `waitTimeout` become `ttlMs` and `waitTimeoutMs`
+untouched because the library documents both in milliseconds already, and `autoRenew` is carried as
+declared. `onFailure` says which of three things a losing caller meets: `throw`, which is the
+library's own default, `skip`, or `custom-error` where the route supplied an error factory.
+
+## The contract
+
+It implements `IRuntimeCollector`, the public collector contract of `@openref/nest`: a `name`, and
+`collect(context)` returning what was read about one node, or `undefined`.
+
+It is fail open. When `@nestjs-redisx/locks` is not installed, or when the runtime offers no
+metadata reflection, the factory returns a skip naming what was missing rather than a collector.
+Nothing runs and the reference renders without the fact. The package is resolved and never loaded.
+
+Every policy it emits carries a confidence, `derived` here, its reach, and the collector name
+`redisxLockCollector`, so a reader can tell an observation of the application from a promise
+somebody typed.
+
+What it deliberately never claims:
+
+- A status. The library contains no exception filter, no `HttpException` and no `HttpStatus`
+  anywhere in its source, and `LockAcquisitionError` extends a plain `Error`, so the code a losing
+  caller sees is decided by whatever filter the host registered. A 409 or a 503 here would have been
+  the cheap home and would have been invented.
+- A lock on a service. `@WithLock` wraps a method on any injectable, and most of them in a real
+  application sit on services. This collector is handed route handlers and reads nothing else: it
+  never walks the container and never reads a provider's prototype, so what it reports is exactly
+  the set of locks around a function NestJS routes to.
+- A key computed in code. A `key` given as a function decides at call time whether the lock is per
+  caller, per tenant or per resource, and a function under a key is never read.
+
+The missing status is itself a finding this package writes, alongside the function key and the empty
+response a skipped caller receives. They come out of `problems()`, which the collector registry
+drains into `openref doctor`.
+
+---
+
+# @openref/collector-redisx-rate-limit
+
+Reads `@nestjs-redisx/rate-limit` and reports the rate limit an endpoint actually enforces, the
+`RateLimitGuard` its own decorator bound to the route, and the statuses a limited route can answer
+with. A route without the decorator is not left blank either: it is reported as limited by something
+unreadable, or as limited by nothing, which are two different answers.
+
+## Install
+
+```sh
+npm install @openref/collector-redisx-rate-limit @openref/nest @nestjs-redisx/rate-limit
+```
+
+`@openref/core` is a peer as well, for the types the facts are declared in. It arrives with
+`@openref/nest`, so there is nothing extra to install for it.
+
+## Use
+
+```ts
+import { OpenRefModule } from '@openref/nest';
+import { redisxRateLimitCollector } from '@openref/collector-redisx-rate-limit';
+
+OpenRefModule.forRoot({
+  runtime: {
+    collectors: [redisxRateLimitCollector()],
+  },
+});
+```
+
+The factory takes no options.
+
+## What it reads
+
+`@RateLimit(options)` is `SetMetadata(RATE_LIMIT_OPTIONS, options)` plus
+`UseGuards(RateLimitGuard)`, so the key standing on a target is proof the guard stands in front of
+the route. The controller's options and the handler's are merged field by field, because that is
+what the library's own guard enforces. `points` and `duration` become `IRRateLimit`, in
+milliseconds; a string `key` becomes the bucket name. Because the value is read at runtime, a
+`points` computed at startup is reported as the integer the application is enforcing rather than as
+the call that produced it.
+
+A decorated route answers 429 whenever the budget is spent, and answers 503 as well where the module
+declares `errorPolicy: 'fail-closed'`, which is the only place that option can be read. Both go into
+`IRErrorContracts.runtimeDerived`, the group the drift engine already compares against the document.
+
+## The contract
+
+It implements `IRuntimeCollector`, the public collector contract of `@openref/nest`: a `name`, and
+`collect(context)` returning what was read about one node, or `undefined`.
+
+It is fail open. When `@nestjs-redisx/rate-limit` is not installed, or when the runtime offers no
+metadata reflection, the factory returns a skip naming what was missing rather than a collector.
+Nothing runs and the reference renders without the fact. The package is resolved and never loaded.
+
+Every fact it emits carries a confidence, `derived` here, and the collector name
+`redisxRateLimitCollector`, so a reader can tell an observation of the application from a promise
+somebody typed.
+
+What it deliberately never claims:
+
+- Guard logic. Whether a globally registered guard limits a given route, and at what budget, is
+  written in that guard's own code and is never read.
+- A module wide number as a route's own. The configured default is read, reported once as a
+  statement about the application, and carried onto a route only as a separately labelled budget on
+  the unreadable case, never as the limit the route enforces.
+- A window under an algorithm that has none. A `token-bucket` route declares a capacity and a refill
+  rate, which no field of the model means, so nothing is reported for it.
+- A status it cannot tie to something it read. Where no readable `errorPolicy` stands under the
+  plugin token, the 503 is left off rather than taken from the library's own fallback.
+
+Each of those, and a `key` or `skip` given as a function, is recorded as a finding instead. They
+come out of `problems()`, which the collector registry drains into `openref doctor`.
+
+---
+
+# @openref/collector-throttler
+
+Reads `@nestjs/throttler` and reports the rate limit an endpoint actually enforces, so the reference
+carries the number the running application holds to rather than one nobody wrote down. It also names
+`ThrottlerGuard` where that guard was observed standing in front of a route, and says which of two
+states a route that declares no throttler of its own is in.
+
+## Install
+
+```sh
+npm install @openref/collector-throttler @openref/nest @nestjs/throttler
+```
+
+`@openref/core` is a peer as well, for the types the facts are declared in. It arrives with
+`@openref/nest`, so there is nothing extra to install for it.
+
+## Use
+
+```ts
+import { OpenRefModule } from '@openref/nest';
+import { throttlerCollector } from '@openref/collector-throttler';
+
+OpenRefModule.forRoot({
+  runtime: {
+    collectors: [throttlerCollector()],
+  },
+});
+```
+
+The factory takes no options. It reads what `@Throttle` and `@SkipThrottle` wrote on the controller
+and on the handler, and the handler wins for a throttler of the same name, which is what NestJS
+enforces.
+
+## What it reads
+
+`@nestjs/throttler` concatenates the throttler's name into its own metadata key, so there is no
+fixed key to ask for. The keys present on the target are enumerated instead, which finds every named
+throttler and invents none. The installed version is read too, because `ttl` was seconds before
+throttler 5.0 and is milliseconds from 5.0. A number whose unit cannot be established is not a fact,
+so a copy whose version is unreadable produces no rate limit at all rather than one that is wrong by
+a factor of a thousand.
+
+## The contract
+
+It implements `IRuntimeCollector`, the public collector contract of `@openref/nest`: a `name`, and
+`collect(context)` returning what was read about one node, or `undefined`.
+
+It is fail open. When `@nestjs/throttler` is not installed, when its version cannot be read, or when
+the runtime offers no metadata reflection, the factory returns a skip naming what was missing rather
+than a collector. Nothing runs and the reference renders without the fact.
+
+Every fact it emits carries a confidence, `derived` here, and the collector name
+`throttlerCollector`, so a reader can tell an observation of the application from a promise somebody
+typed.
+
+What it deliberately never claims:
+
+- Guard logic. Which request is counted against which throttler is decided inside `ThrottlerGuard`,
+  and that code is never read.
+- A guard it did not observe. `@Throttle` writes metadata and applies nothing, so `ThrottlerGuard`
+  is named only where it was seen, on the route or in the global registrations, and at both scopes
+  when it stands at both.
+- A module default. `ThrottlerModule.forRoot` holds the application wide budget behind a token this
+  package has measured no reachable reading of, so no budget travels from it onto a route.
+
+Where a fact cannot be obtained it records a finding instead of guessing: a throttler that declares
+a limit and no ttl, or several complete throttlers on one route when the model carries one. Those
+come out of `problems()`, which the collector registry drains into `openref doctor`.
+
+---
+
+# @openref/core
+
+The intermediate representation every other OPENREF package reads, the normalizers that produce it
+from an OpenAPI or AsyncAPI document, and the deterministic digest stamped on each one. The
+specification describes how the API looks and the running NestJS application knows how it behaves;
+this package holds the shape they are joined in, and knows about neither.
+
+Most consumers never install it. `@openref/nest` bundles what it needs and re-exports the IR types
+its own signatures name, so a collector author installs one package; the same is true of
+`@openref/vue` for a theme author. This one is published for whoever builds on the IR directly.
+
+## Install
+
+```sh
+npm install @openref/core
+```
+
+No peer dependencies. It brings `@noble/hashes` and `yaml`, and nothing else.
+
+## Use
+
+```ts
+import { hashDocument, normalizeSpecification, parseSpecification } from '@openref/core';
+import { readFile } from 'node:fs/promises';
+
+const text = await readFile('openapi.yaml', 'utf8');
+const document = normalizeSpecification(parseSpecification(text, { source: 'openapi.yaml' }));
+
+document.hash === hashDocument(document); // true
+```
+
+`normalizeSpecification` picks the reader the document names itself by, `openapi` or `asyncapi`, and
+refuses one that declares both, since that is two specifications and neither reader can be the right
+one. What comes back is finalized: stamped with its own digest and frozen at every depth, because a
+hash goes on claiming to describe content after somebody has written to it.
+
+## No framework, no DOM
+
+Nothing here imports NestJS, Vue or anything from a browser. That is not an accident of layout: it is
+what lets the normalizers run against a corpus of external specifications with no runtime present at
+all, and it is checked by the dependency graph linter rather than left to habit. `core` depends on no
+other package in this project, and no other package's types leak into its signatures.
+
+The normalizer is fail closed. A specification it cannot read is refused with a `NormalizeError` that
+names the problem, never rendered as though it were fine.
+
+## Hashing goes through canonical serialization
+
+`hash` and `hashDocument` canonicalize before they digest, and no path in this package hashes the
+output of `JSON.stringify`. JavaScript iterates integer-like keys in numeric order rather than
+insertion order, and HTTP status codes are integer-like keys, so a restructuring that changes nothing
+a reader sees would otherwise shuffle the serialization and invalidate every cache keyed on the
+digest. Canonical form is a recursive key sort by code point, a normalized number representation, and
+maps written as sorted arrays of pairs.
+
+`hashDocument` blanks the `hash` field before hashing, so two documents differing only in that field
+produce one value, which is what makes the field checkable at all.
+
+`IR_VERSION` moves when the digest of an unchanged document would change. It is at 3, and the last
+bump is the one worth knowing about: the IR did not change shape, the serialization rule did, so
+nothing a consumer compiles against moved while every stored digest stopped describing what it named.
+
+## A second entry point
+
+`@openref/core/security` carries the address, path and scheme rules: `addressRefusal`,
+`isAddressLiteral`, `isHttpUrl`, `isSecureCredentialUrl`, `refusesPathSuffix`, and the scheme and
+loopback lists. They sit on their own door because the same origin proxy, the static generator and
+the CLI read them and no page's first paint does, and a barrel that the first paint imports
+statically carries every module it re-exports.
+
+## Errors
+
+Every error this project raises extends `OpenRefError` and carries an `ErrorCode`. Both are exported
+here along with the whole hierarchy: `NormalizeError`, `CollectorError`, `RunnerError`,
+`FederationError`, `ThemeError`, `ConfigError` and their leaves. The other packages re-export the
+subset they can throw, from here rather than by redeclaring them, so `instanceof` answers true and a
+`catch` never needs a second dependency.
+
+---
+
+# @openref/federation
+
+The merge engine and the remote lifecycle for a federated reference. The merge takes several
+normalized documents and returns one: each service's nodes are prefixed and rewritten, name
+collisions are allocated rather than silently won, schemas are classified as shared or distinct,
+and a `MergeReport` records every rename and deduplication with its reason. The lifecycle around it
+fetches each remote's specification document, polls it, caches it and merges what it has. It
+reaches `@openref/core` and nothing else.
+
+## Not published
+
+This package is not on npm. It is architecturally separate, it has its own tests, and it ships
+bundled inside `@openref/nest`, which is the package a consumer installs to get the federated
+mount. A host configures remotes through that module's options and calls nothing here directly.
+
+## When a remote is down
+
+The done-when of this package is that one bad service cannot take down the documentation of the
+others, and every mechanism here serves that sentence.
+
+Each remote is fetched and polled on its own schedule, so a slow one delays nobody, and every fetch
+is bounded by a timeout the lifecycle enforces itself, ten seconds by default, so a hung one cannot
+hold a promise forever. `snapshot()` is a synchronous read of settled state, so serving a page never
+waits on a network.
+
+`failureMode` is `degrade` or `fail`, and `degrade` is the default. Under `degrade` the last
+successful version keeps being served and is marked as such: a degraded remote that rendered
+exactly like a fresh one would be a lie with a cache behind it. `remoteStatusOf` is a total function
+over two observable facts, whether a version is being served and how the last completed attempt
+ended, giving five statuses: `pending`, `stale`, `fresh`, `degraded` and `failed`. Each remote's
+state carries the version being served, where it came from, the last failure and when the next
+attempt is due, all as plain serializable data, because a page puts it in front of a reader.
+
+A malformed document is a failure, not a partial merge. The body goes through the fail-closed
+normalizer before anything else sees it, so a remote answering 200 with garbage degrades to its
+cached version exactly like a remote answering nothing at all. There is no path on which half a
+document reaches the merge.
+
+The failure backoff doubles and is capped at eight times the refresh interval, because the point of
+polling is to notice recovery and an unbounded doubling reads as a remote that never came back. It
+carries no jitter, deliberately: jitter defends a fleet of clients against synchronizing on one
+origin, and this is one process asking for one document.
+
+---
+
+# @openref/nest
+
+The package a consumer installs. It mounts an API reference on a running NestJS application, serves
+every route of it from that application, and reads what the application knows about its own handlers.
+The specification describes how the API looks; the running application knows how it behaves; this is
+the package that joins the two.
+
+## Install
+
+```sh
+npm i @openref/nest
+```
+
+`@nestjs/common` and `@nestjs/core` are peer dependencies, `^10.0.0 || ^11.0.0`, and a NestJS
+application already has them. Nothing else is needed: the renderer, the default theme, the request
+runner and the search index are bundled in.
+
+## Use
+
+```ts
+import { OpenRefModule } from '@openref/nest';
+
+OpenRefModule.setup('/docs', app, { document });
+```
+
+`document` is the object `@nestjs/swagger` already builds. `setup` is synchronous on purpose, because
+routes have to exist before `app.listen()` and a promise a host forgets to await registers them after
+the first requests arrive; everything expensive is built on first use behind the service instead. The
+routes go onto the http adapter directly rather than onto a controller, which is how a documentation
+route avoids sitting behind whatever guards and interceptors the application applies globally.
+
+## The two entry points, and why there are two
+
+`setup` takes a route, an application and a document, and carries no runtime options at all. That is
+a consequence rather than a preference: everything the runtime pass reads needs the controller
+classes, the only public route to them is `DiscoveryService`, and a service is injectable only into
+something the container instantiates, which `setup` is not. So `forRoot` is the form that collects
+facts, and nothing is registered unasked:
+
+```ts
+import { guardsCollector, OpenRefModule, scopesCollector, sourceCollector } from '@openref/nest';
+
+OpenRefModule.forRoot({
+  runtime: {
+    collectors: [
+      guardsCollector(),
+      scopesCollector({ metadataKey: SCOPES_KEY }),
+      sourceCollector(),
+    ],
+    sourceLink: 'https://github.com/org/repo/blob/{ref}/{file}#L{line}',
+  },
+});
+```
+
+A host that imports it gets those facts on whatever `setup` mounts afterwards, because `setup` asks
+the container whether the pass is there. `forRootAsync` takes a factory, for a host whose document
+comes out of a configuration provider.
+
+## Every runtime fact carries where it came from
+
+A collector returns an `IRNodeRuntime`, and each field of it that holds a value holds it in an
+`IRFact` carrying a `confidence` and the `collector` name. There is no overload, no union and no cast
+in the contract that admits a bare value. Three levels, and no others: `declared`, a decorator
+somebody wrote; `derived`, metadata under a key the host named; `inferred`, a compile time reading
+that is best effort and says so.
+
+Nothing is guessed to fill a gap. A guard class is not turned into a security scheme name, the route
+exemption key has no default and is never sniffed for, and an endpoint's error list is never derived
+from an exception filter, because a filter says how to handle X rather than that this endpoint can
+raise X. Where a fact cannot be had, the page says the comparison did not run and `doctor` reports it.
+
+## Collectors fail open
+
+A collector factory whose optional package is absent returns a `SkippedCollector` instead of throwing,
+and the registry never calls it. Its name and the reason still reach `IRRuntimeMeta.skipped`, so the
+absence reads as "throttler facts are missing because `@nestjs/throttler` is not installed" rather
+than as an empty panel. The contract itself is two members, `name` and `collect`, and it is frozen
+public API: third parties publish collectors against it, so changing it is a major version.
+
+## Headers, and what this module will not send
+
+It writes no `Content-Security-Policy`. What it guarantees is that its own output is compatible with
+a strict one: no inline style, no inline script, a nonce on what needs one, no CDN and no outgoing
+request of any kind. `buildContentSecurityPolicy` is re-exported here so the host can build the
+header it is the host's job to send.
+
+`DISTRIBUTION.md` beside this file covers the four ways the client ships and which theme levels each
+DOM mode supports, including the light DOM web component, which is a supported mode and not a
+workaround.
+
+---
+
+# @openref/nuxt
+
+The Nuxt module. It is a wrapper, and that is its whole definition: `nuxt generate` writes the site
+`openref build` writes, byte for byte, because it calls the same build, and Nitro answers the
+addresses that site holds, because the same package produces both. What lives here is the mounting:
+which hook, which route, which directory, which prerender ignore pattern, and how the generated
+proxy route is written into the Nitro config. It stands on `@openref/core`, `@openref/render`,
+`@openref/search` and `@openref/static`.
+
+It does not see `@openref/nest`, and a Nuxt application does not install NestJS. The runtime facts
+come from a running Nest application, so a reference built from a specification file carries what
+that file says and nothing more. A host that wants the runtime pass runs `openref build --from-nest`
+and points this module at what it produced, which is the same document by the time it reaches here.
+
+## Not published, and why
+
+This package is not on npm and it is not bundled into anything either, which makes it different
+from the other internal packages. It has a consumer who cannot reach it any other way, so it would
+be published but for one named reason, and it stays private until that reason is gone.
+
+A resolved peer dependency belongs to the production licence zone; that was confirmed on 2026-09-04
+and the rule does not move. This package's `nuxt` peer therefore drags its whole closure into that
+zone, and the closure carries six packages under licences the zone forbids: `argparse` under
+Python-2.0, `caniuse-lite` under CC-BY-4.0, `lightningcss` and `lightningcss-darwin-arm64` under
+MPL-2.0, `@speed-highlight/core` under CC0-1.0 with no data-only reading, and `mdn-data` as a merged
+two-version entry no reading matches. Measured on this tree the same day: the production zone goes
+from 121 packages and no violation to 658 packages and six.
+
+It is expected in a release after 1.0. Until then a Nuxt host builds with `openref build` and serves
+the output directory, which is the same site this module would have generated.
+
+The absence is reconciled in both directions rather than left to look like an oversight: the
+`publish-list` gate holds this package's name against the held-back list, and additionally requires
+it to be a workspace package, to be `private`, to be absent from the published list, and to be
+absent from what `pnpm publish --dry-run` would emit.
+
+## What is here
+
+The module factory and its option resolution, the generate service and the public-directory output
+store, the Nitro proxy route, the specification loader, and the runtime handler that serves an
+embedded site. The parity suite is what keeps the byte-for-byte claim above honest.
+
+---
+
+# @openref/render
+
+The server render pipeline: the page models a document is projected into, the Vue 3 components that
+draw them, the HTML shell around the application, the asset catalog and the render cache. It sits
+above `@openref/core` and `@openref/vue` and below every host: `buildPageModel` turns a normalized
+document into what a page reads, `renderPage` turns that into markup, and the 21 default components
+of the frozen slot registry are each exported so a level 1 theme can replace one of them rather
+than all of them.
+
+It also holds everything that must not reach the browser: the markdown parser, the sanitizer and
+the syntax highlighter. What the browser gets is `@openref/render/browser`, which imports none of
+the three, because descriptions arrive as HTML the server already sanitized and code arrives
+already tokenized.
+
+## Not published
+
+This package is not on npm. It is architecturally separate, it has its own tests, and it ships
+bundled inside the packages that use it: `@openref/nest` inlines it into the module a host
+installs, and the `openref` CLI inlines it into the binary. `@openref/static` and `@openref/nuxt`
+build on it too, and both are themselves unpublished.
+
+## No inline styles, ever
+
+Working under `style-src 'self' 'nonce-...'` with no `unsafe-inline` is a declared advantage of
+this project, and a CSP nonce can never authorize an inline `style` attribute: only `<style>` and
+`<script>` elements. So a dynamic value goes through a CSS custom property set on a class, never
+through `:style`. The `csp` gate scans built output for an inline style attribute and for an
+unnonced script, and either one is fatal.
+
+Every asset the shell writes is external, per SPEC 19.2. The only element with content in it is the
+state block, which is data rather than code, and it carries the nonce whenever one exists. The
+nonce is applied on the way out of the cache rather than on the way in, because a nonce is per
+response: cached, it would either be handed to a second response, which is what a nonce exists to
+prevent, or be stale, which breaks every script and style on the page.
+
+`buildContentSecurityPolicy` returns the policy as a string and this package sets no header. It
+opens `default-src 'none'` rather than `'self'`, so every directive under it is one the reference
+actually uses, and neither `script-src` nor `style-src` carries `unsafe-inline` or `unsafe-eval`.
+Whether to serve it is the host's decision; `connect-src` is the one directive a host has to widen,
+because the authorization code flow's token exchange is a browser `fetch` to the authorization
+server.
+
+---
+
+# @openref/runner
+
+The engine behind the try-it console, per SPEC 14. It takes a projection of one operation and what a
+reader typed into it, plans the request, serializes every parameter and the body, applies credentials,
+sends it, and reads the answer back. It also holds the OAuth2 session surface, the streaming reader
+and the WebSocket client.
+
+It never sees an `IRDocument`. What it is handed is a plain JSON projection that can travel inside a
+rendered page, so nothing here depends on Vue, on a DOM beyond `fetch`, or on the document being
+present at send time.
+
+## Install
+
+```sh
+npm install @openref/runner
+```
+
+No peer dependencies. `@openref/core` comes with it, for the IR parameter types and the error classes.
+
+## Use
+
+```ts
+import { createRunner } from '@openref/runner';
+
+const runner = createRunner({ visibility: 'public' });
+
+const result = await runner.send({
+  operation, // a RunnableOperation: method, path, parameters, servers, security, body media types
+  serverUrl: 'https://api.example.com',
+  values: { 'query:color': { kind: 'array', value: ['blue', 'black'] } },
+});
+
+result.status; // 200
+result.durationMs; // wall clock from the call to the body being read
+```
+
+Values are keyed by `${location}:${name}`, and a missing key is not an empty one. An absent value
+means the reader filled nothing in and the parameter does not appear; an empty value means they
+cleared the field and the request carries `color=`. Those are different requests, and the runner
+sends whichever one was asked for.
+
+Credentials live in the runner rather than travelling in the send call, so nothing above it ever
+holds one, and a `visibility` of `public` refuses prefilled credentials at the type level.
+
+## The serialization matrix is the product
+
+`style x explode x location x value type`, whole: seven styles, `explode` either way, four locations,
+and three value kinds. Every cell is implemented or refused by name with a `SerializationError`, and
+there is no third behaviour: nothing falls back to a nearby style. A console that renders `deepObject`
+as `form` sends a request that looks sent, comes back 400, and reads to the reader as the API being
+broken.
+
+OpenAPI leaves eleven cells undefined and says nothing about an empty array, an empty object, or
+whether a delimiter is percent encoded. Silence is not permission to guess quietly: each choice is
+stated where it is made, and the case in `serialization-matrix.spec.ts` that pins it carries the
+chosen behaviour in its own title.
+
+An object is ordered pairs and not a record, for the reason the canonical serialization rule exists
+one package over: every exploded style renders an object field by field, so field order is visible in
+the request, and a record with integer-like keys would reorder what the reader wrote.
+
+## Transports, and the closed direction
+
+| Transport                  | What it does                                                        |
+| -------------------------- | ------------------------------------------------------------------- |
+| `FetchHttpTransport`       | Direct mode: the browser sends the request, with its own CORS rules |
+| `ProxyHttpTransport`       | Same origin mode: the documentation server puts it on the wire      |
+| `PathRewriteHttpTransport` | A static build's rewrite rules, for a host that has them            |
+
+The proxy transport refuses to be clever. Its endpoint must be an absolute path on this origin and
+the constructor throws otherwise, so this transport cannot address another origin; the request is a
+JSON envelope in a body rather than a url to rewrite, and whether that url may be reached at all is
+the server's decision, in `@openref/nest`, where the allowlist lives. Credentials are omitted on the
+fetch to our own origin, since the reader's cookies for the documentation site have no business
+travelling with a request whose purpose is to reach the API.
+
+A token endpoint or an OpenID discovery document that answers with a redirect is refused rather than
+followed, because that request carries a client secret, a code verifier or the reader's password. An
+ordinary API request keeps following redirects, which is what a browser does for anything else the
+page sends.
+
+## Two narrower entry points
+
+`@openref/runner/http` and `@openref/runner/socket` are doors onto the same modules for a bundler
+that needs the smaller ones: a chunk that sends a request should not be a chunk that opens a socket.
+The barrel still exports every name on both, and `test/unit/entry-parity.spec.ts` holds the three
+surfaces equal rather than anybody remembering to add a name in three places.
+
+---
+
+# @openref/samples
+
+The code sample generator. It turns one operation into a request in fifteen languages, starting
+with cURL, HTTPie, wget and PowerShell and running through TypeScript, Python, Go, C#, Rust, Swift,
+Dart and Kotlin. Twelve are drawn as tabs on the page; PHP, Java and Ruby are written by the same
+emitters and named rather than carried, which is the answer the page gives a reader looking for
+Ruby. It depends on `@openref/core` and `@openref/runner`.
+
+## Not published
+
+This package is not on npm. It is architecturally separate, it has its own tests, and it ships
+bundled inside `@openref/nest` and the `openref` CLI, which are the two packages that see both the
+renderer and the runner and are therefore the two that can compose it. A host reaches it through
+nothing at all, because every operation page draws what it writes.
+
+## One request, proven at the wire level
+
+The sample a reader copies and the button beside it send the same request. The edge to
+`@openref/runner` is what makes that true rather than aspirational: `buildSampleRequest` reads the
+runner's own `buildRequest`, so the style matrix, the body encoder and the credential rule are one
+implementation. A samples package that reached only `core` would rebuild all three, and the day one
+of the copies changed, the reference would show a reader code that does not match the button.
+
+The claim is worth exactly as much as the binary that was run to check it, so the integration suites
+run real binaries through a real shell against a live server that records bytes rather than
+meanings, and compare with what the runner's transport sent over the same plan. Using `sh -c` puts
+the quoting under test too: a body carrying a quote, a dollar sign or a backtick reaches the server
+as the reader wrote it, or the case fails. Parsing the command in JavaScript and replaying it with
+`fetch` would only prove that this package's emitter agrees with a parser this package also wrote.
+
+cURL is required outright, because every machine this project builds on has it. wget, HTTPie,
+PowerShell, Swift, Ruby and the .NET SDK are each guarded: the group asserts its toolchain is
+present and skips with the reason named when it is not, so it never passes without having sent
+anything. Where each group runs is recorded, because a guard covering neither machine looks exactly
+like one covering both. Kotlin, Dart, Python, Java, Go, PHP, Rust and TypeScript have no wire case,
+and the reason for each is written down rather than left out.
+
+An emitter that cannot write a request answers with a refusal and the reason for it. There is no
+third outcome, and in particular no sample with a hole in it: a template printing a comment where
+the multipart body belongs would be code a reader copies, runs and watches fail, with the generator
+having said nothing.
+
+---
+
+# @openref/search
+
+The search index. It projects a normalized document into a flat list of records, builds a MiniSearch
+index over them and serializes it to a single file, together with the loader and query side that
+reads it back. It depends on `@openref/core` and MiniSearch and nothing else. The index is a pure
+function of the IR, which is what lets the prerender cache key it by `IRDocument.hash` alongside the
+rendered HTML.
+
+## Not published
+
+This package is not on npm. It is architecturally separate, it has its own tests, and it ships
+bundled inside `@openref/nest`, which serves the index to the command palette, and inside the
+`openref` CLI, which writes it into the static build's output directory.
+
+## What is indexed
+
+One record per HTTP operation, per event channel and per named schema. A record carries an id, a
+kind, a title, and whichever of a summary, a description, a route, a method, a channel address, a
+tag list and a deprecation flag apply to it. `schemaNames` holds the names of every named schema an
+operation reaches through its use sites, so a route can be found by its type; it walks the slots
+rather than the schema bodies, because a slot either names a schema or it does not.
+
+Eight fields are tokenized and matched against: `title`, `summary`, `description`, `path`, `method`,
+`address`, `tags` and `schemaNames`. Seven are stored and returned on a hit without being tokenized:
+`id`, `kind`, `title`, `path`, `method`, `address` and `deprecated`. Field names are short on
+purpose, because the serialized index has a size budget measured over a thousand records and every
+name is repeated once per record.
+
+Matching is prefix and fuzzy, weighted so that a route or a title outranks a mention deep in a
+description: `title` and `path` at 4, `tags` and `schemaNames` at 3, `summary`, `method` and
+`address` at 2, `description` at 1. A search for `orders` should reach `GET /orders` before an
+operation whose prose happens to say the word. Building and loading share one configuration
+function, because an index loaded with different field lists silently returns nothing rather than
+failing.
+
+The index is serialized as constructed rather than canonicalized. Canonical form is the hash's tool,
+and a payload that borrows it inherits a sort nobody asked for. The bytes are identical between two
+builds because the records are collected in a deterministic order from a deterministic IR and
+MiniSearch keeps insertion order in its structures, and the suite compares two independently built
+indexes to say so. The file carries a format version, so a consumer that does not recognise the
+shape refuses it rather than reading it as an empty one.
+
+---
+
+# @openref/static
+
+The static build: one normalized document in, a directory of files out. One HTML page per node with
+its own URL, the navigation payload, the search index, hashed assets, a sitemap, `llms.txt`, and,
+for a target that needs them, the rewrite rules that put the request console's proxy in front of the
+API. It stands on `@openref/core`, `@openref/render`, `@openref/samples` and `@openref/search`, and
+it cannot see `@openref/nest` per the dependency rule. The one artefact that lives on that side, the
+browser bundle, arrives as bytes a caller read off disk.
+
+## Not published
+
+This package is not on npm. It is architecturally separate, it has its own tests, and it ships
+bundled inside the `openref` CLI, which is where `openref build` runs it. `@openref/nuxt` calls the
+same build so that `nuxt generate` writes the same site, and that package is itself unpublished.
+
+## Determinism
+
+The same input produces the same bytes. That is the property this build sells, and the design is
+arranged around keeping it.
+
+The build is sequential and runs in one process. `renderToString` is deterministic in one process,
+and a worker pool would put the ordering of an unordered merge between the input and the output. It
+is affordable: SPEC 20 allows 60 seconds for 1000 nodes on 4 cores, and 1000 nodes is 2103 pages
+rendered in 2.2 seconds on the workstation recorded beside the figure in the build budget suite.
+
+Hashing goes through `canonicalize` and never `JSON.stringify`. A page key is taken over the two
+things that can change one page's bytes: the node itself, and the frame, which is the document with
+its nodes and its hash removed, so that a change to the title, the servers, the navigation or the
+health report rebuilds every page and a change to one operation rebuilds its own. A `Map` iterates
+in insertion order, so any restructuring of the document would otherwise shuffle the bytes and
+invalidate every key for no reason.
+
+The build writes a manifest of what it did, and the next build reads it. A directory listing says
+which files exist and nothing about why, so it cannot tell a page this build wrote from a file the
+deployer dropped in beside it. Every page records the digest of the bytes that build actually
+wrote, so a rebuild compares against fact rather than intent, and a missing or unreadable manifest
+means a full build, which is the only safe reading of "nothing is known about this directory".
+
+Zero outbound requests, by construction. Nothing here opens a socket: the document arrives already
+normalized and the assets arrive as bytes a caller read. The proof installs a global network trap,
+and it asserts the trap sees the calls it would report before asserting the build made none, since
+a trap that watched nothing would report zero for the wrong reason.
+
+---
+
+# @openref/theme
+
+The default OPENREF theme: a design called vernier, published as token data and three stylesheets.
+Its thesis is a double scale. What the specification declares and what the running application does
+stand side by side, and the verdict is read from the ruler between them. Flat and rectangular, built
+from hairlines and lightness rather than from shadow and rounding.
+
+It imports no workspace package and no framework, which is deliberate rather than incidental: the
+server renderer, the static build and the command line all have to be able to read the default theme,
+and a theme that has to be executed by a framework can be read by none of them.
+
+## Install
+
+```sh
+npm install @openref/theme
+```
+
+`@openref/nest` already depends on it and serves it without being asked. Install it directly to read
+the token set, to check contrast, or to hand the dark variant to a host that renders one scheme.
+
+## Use
+
+```ts
+import { defaultTheme, DEFAULT_THEME_STYLESHEETS } from '@openref/theme';
+
+defaultTheme.name; // 'vernier'
+DEFAULT_THEME_STYLESHEETS; // faces, tokens, rules, in the order they must be applied
+```
+
+The three stylesheets resolve through this package's `exports` from anywhere, which is why they are
+written as specifiers rather than as relative paths:
+
+- `@openref/theme/fonts.css`
+- `@openref/theme/tokens.css`
+- `@openref/theme/theme.css`
+
+`defaultDarkTheme` is the same theme with the dark values baked into its token defaults, for a host
+that renders one scheme and never offers the other.
+
+## Every visual value is a token
+
+`src/tokens/domain/tokens.ts` and `src/styles/tokens.css` are the only two places in this package
+where a literal colour, length or font stack may appear. Everywhere else reads `var(--oref-*)`, and a
+gate fails the build on a literal that escapes. `tokens.css` is generated from the token arrays and
+compared against the generator by a test, so the two cannot drift and the arrays stay the one source.
+
+122 names are the design contract, identical in every theme; six more are vernier's own and are kept
+in a separate array so a theme's private token can never be mistaken for one of the contract's. They
+fall into fourteen groups: `color`, `font`, `space`, `radius`, `border`, `shadow`, `focus`, `layout`,
+`prov`, `state`, `drift`, `syntax`, `motion` and `scrim`, which are the second segment of every token
+name. That is what makes L0 theming real: a consumer restyles the
+whole reference by setting custom properties, with no build step and no fork.
+
+Contrast is checkable rather than asserted. `CONTRAST_PAIRS`, `contrastRatio`, `hexContrastRatio` and
+the two AA thresholds are exported, and the pairs are held against them in both colour schemes.
+
+## Colour scheme and motion
+
+The light block declares every token; the dark block declares only the ones that change and the rest
+resolve through the cascade. Dark applies from `prefers-color-scheme` with nothing set. A host that
+has to force one sets `data-oref-color-scheme="light"` or `"dark"` on the document or on a subtree,
+and `COLOR_SCHEME_ATTRIBUTE` is that attribute name, exported so nobody spells it twice.
+
+Under `prefers-reduced-motion: reduce` every duration token aliases the zero token. That happens once,
+in the token layer, rather than in each theme's own rules, so a checker can read that it happened.
+
+## Both DOM modes
+
+The stylesheets are plain CSS with no inline style and no inline script anywhere, so they work under
+`style-src 'self'` with no `unsafe-inline`. The reference ships as a light DOM build and as a shadow
+DOM web component, and the shadow boundary is what changes which of them a theme can lean on: a theme
+that depends on the host page's CSS needs `shadow="false"`, which is a first class supported mode.
+`DISTRIBUTION.md` in `@openref/nest` is the table of which theme level each output supports.
+
+## Fonts
+
+Space Grotesk for the interface and JetBrains Mono for code, self hosted, no CDN, no external request
+of any kind. Each face is two files, latin and latin-ext, chosen by `unicode-range`. The full OFL text
+of both families, a `NOTICE.md` and a manifest recording the source and digest of every byte ship in
+`fonts/` inside the tarball.
+
+---
+
+# @openref/theme-kit
+
+What a theme author runs. Three things, each answering a question the other two do not: the
+conformance checker reads a theme as data and refuses it by name, the harness runs its components
+against a real document and reports which threw, and the scaffold writes a theme package that passes
+the first and survives the second.
+
+The contract itself lives in `@openref/vue`. This package is how you find out that you satisfied it,
+outside this repository and in your own test suite.
+
+## Install
+
+```sh
+npm install -D @openref/theme-kit @openref/vue
+```
+
+No peer dependencies. Vue 3 arrives with it, because the harness renders your components.
+`@openref/vue` is in the line because that is what the theme itself is written against.
+
+## Use
+
+```ts
+import { assertTheme, checkTheme } from '@openref/theme-kit';
+import aurora from '../src/theme';
+
+// In a test: throws a ThemeContractError naming every problem.
+assertTheme(aurora, { level: 'L2' });
+
+// Or read the report instead of throwing.
+const report = checkTheme(aurora, { level: 'L2' });
+report.missingSlots; // ['StreamLog']
+```
+
+`ThemeContractError`, `ThemeError`, `OpenRefError` and `ErrorCode` are re-exported here, so a
+`toThrow(ThemeContractError)` assertion needs no second dependency. They are `@openref/core`'s own
+classes rather than copies, so `instanceof` answers true.
+
+## What the checker verifies
+
+- Every name the theme filled is one of the 21 slots of the frozen registry. A name that is not is
+  refused, because nothing will ever render it.
+- At `L2`, every one of the 21 is filled, the page shell included, since the reference ships no
+  markup for an L2 theme to fall through to. At `L1` only the first rule applies, because falling
+  through is what an L1 theme is for.
+- `layout` and `components.AppShell` are one position under two names, so a theme that writes both is
+  refused here rather than at load time, and one that writes `layout` alone is not told it is missing
+  a slot it has written.
+- The theme name is lowercase words joined by hyphens, since it becomes a package name and a class
+  name fragment, and every token key is a custom property in the `--oref-` namespace, because nothing
+  in the reference reads one that is not.
+
+Each refusal names its subject and says what to write next, rather than handing back a diff for the
+author to interpret.
+
+## What the checker does not do
+
+It never renders, so a theme that fills every position with a component that throws on mount passes
+it: conflating the two questions would report a rendering bug as a contract violation. The harness is
+where the components run:
+
+```ts
+import { renderThemeSlots } from '@openref/theme-kit';
+
+const report = await renderThemeSlots(aurora.components ?? {}, state, {
+  StateNotice: { kind: 'search-no-results', message: 'Nothing matched that query' },
+});
+
+report.failed; // the components that threw, with the message each threw with
+report.refused; // overrides that would be dead in the adopted page
+```
+
+It renders on the server, one slot at a time, in its own app, and a throw is a result rather than a
+stop: an author wants the list of which components are broken, not the first one. Props come from the
+caller and are never invented, so the harness holds no private opinion about the contract beside the
+one in `SlotPropsMap`.
+
+`report.refused` is the probe. A server resolved position never hydrates, so an override that
+attaches a handler there has attached nothing, and one that changes its root element loses its markup
+the moment the page hydrates. `probeAdoptedSlot` finds both before the first reader does.
+
+## Starting from something that conforms
+
+```ts
+import { scaffoldTheme } from '@openref/theme-kit';
+
+scaffoldTheme({ name: 'aurora', level: 'L2' }); // every file of the package, as data
+```
+
+It returns the files and writes nothing, so the caller decides where they land, and what comes back
+passes the checker on its first run rather than starting from an empty directory.
+
+---
+
+# @openref/theme-telltale
+
+The second reference theme for OPENREF: an instrument rather than a document.
+
+Everything is monospace. Every row sits on a 21 px grid. Provenance is a three letter code, `DCL`,
+`DRV` or `INF`, with an edge style behind it, so where a fact came from survives a monochrome print
+and reaches a screen reader as text. A bench line across the bottom says what the page weighs.
+
+It is a level 2 theme, per SPEC 10.1: its own layout, all 21 positions of the frozen registry, all
+122 tokens of the design contract in both colour modes, and its own faces. It reads `@openref/vue`
+and nothing else of this project: the four IR types the contract's props are declared in came onto
+that surface with `T031-R1`, and the `@openref/core` dependency this package used to carry for them
+came off.
+
+## Install
+
+```sh
+npm install @openref/theme-telltale @openref/vue
+```
+
+## Use
+
+```ts
+import { telltale, TELLTALE_STYLESHEETS } from '@openref/theme-telltale';
+
+// The stylesheets, in the order they must be applied: faces, tokens, rules.
+TELLTALE_STYLESHEETS;
+
+// The theme itself, as data.
+telltale;
+```
+
+The three stylesheets resolve through this package's `exports` from anywhere:
+
+- `@openref/theme-telltale/fonts.css`
+- `@openref/theme-telltale/tokens.css`
+- `@openref/theme-telltale/theme.css`
+
+## Colour scheme
+
+The dark values apply from `prefers-color-scheme` with nothing set, because a reader who has told
+their operating system they want a dark interface has answered the question. A host that has to
+force one sets `data-oref-color-scheme="light"` or `"dark"` on the document or on a subtree; that
+comes last in the stylesheet, so it wins on equal specificity rather than fighting the media query.
+
+Under `prefers-reduced-motion: reduce` both durations collapse onto the zero token. That happens in
+the token layer rather than in this theme's rules, so a checker can read that it happened.
+
+## Fonts
+
+JetBrains Mono for the interface at 400 and 700, Martian Mono for strip headings and the bench line
+at 700. Self hosted, no CDN, no external request of any kind. Each face is two files, latin and
+latin-ext, chosen by `unicode-range`. The complete OFL text of both families, a `NOTICE.md` and a
+manifest recording the source and digest of every byte travel in `fonts/` inside the tarball.
+
+## What this package is for
+
+It is the proof that the theme contract is real, and what that proof returned, including the parts
+that came back negative, is in `THEME-BOUNDARY.md` beside this file. Read it before writing a theme
+of your own: it is the list of things the contract does not yet carry.
+
+---
+
+# @openref/vue
+
+The headless layer an OPENREF theme is written against. It carries state, composables, the page model
+a rendered page travels as, and the registry of positions a theme fills. It carries no markup and no
+styles at all, which is what makes a theme possible without reworking the renderer: everything a
+theme needs is reachable through a composable or arrives as a prop, so a theme never reaches into a
+store.
+
+This is the whole surface a theme author needs. `@openref/theme-telltale` is written against it and
+nothing else of this project, which is what the second theme exists to prove.
+
+## Install
+
+```sh
+npm install @openref/vue
+```
+
+Vue 3 arrives with it as a dependency rather than a peer. There is nothing else to install: the IR
+types the slot props are declared in are re-exported here, so typing the value a component is handed
+does not cost a second package.
+
+## Use
+
+```ts
+import { defineTheme } from '@openref/vue';
+import ProvenanceTag from './components/ProvenanceTag';
+
+export default defineTheme({
+  name: 'aurora',
+  layout: () => import('./Layout'),
+  components: { ProvenanceTag },
+  assets: { css: ['@openref/theme-aurora/theme.css'] },
+});
+```
+
+A theme is data and runs nothing at import time. Each component is handed the props its position
+declares, and reads anything else through the composables:
+
+```ts
+import { h, type VNode } from 'vue';
+import type { IRConfidence } from '@openref/vue';
+
+export default function ProvenanceTag(props: {
+  readonly confidence: IRConfidence;
+  readonly collector: string;
+}): VNode {
+  const attrs = { class: `oref-prov-${props.confidence}`, title: props.collector };
+
+  return h('abbr', attrs, props.confidence);
+}
+```
+
+## The surface is frozen, and it is written down
+
+`PUBLIC-API.md` in this package is the export surface rather than a summary of it:
+`test/integration/public-surface.spec.ts` reads the built type declarations and fails both ways, when
+this package exports a name that file does not list and when that file lists a name the package does
+not export. It checks `dist/`, not `src/`, because only the artefact reaches you.
+
+Three contracts are pinned by type level tests that fail to compile rather than at runtime: the slot
+props, the theme definition, and, over in `@openref/nest`, the collector interface. Adding a name is a
+minor version; removing or retyping one is a major version, and widening an exported union counts as
+retyping it, because a total `Record` over that union is a sanctioned way to write a theme.
+
+`SLOT_NAMES` is the registry, 21 positions in order. `SERVER_RESOLVED_SLOTS` is the subset whose
+override resolves on the server only: the browser adopts that markup without hydrating it, so a
+handler attached in one of those positions is never attached at all. `@openref/theme-kit` finds that
+before a reader does.
+
+## Two entry points, split by gesture
+
+| Specifier             | What is on it                                                 |
+| --------------------- | ------------------------------------------------------------- |
+| `@openref/vue`        | Everything a page needs before a reader touches anything      |
+| `@openref/vue/runner` | The try-it surface, loaded only when a reader opens a console |
+
+The split is a measurement rather than a taxonomy. A barrel that the first paint imports statically
+carries every module it re-exports, whichever side names the symbol, so `useRunner` on the main
+barrel cost every reader of every page close to a kilobyte for a console most never open. A theme that
+overrides `AuthPanel`, `SendButton`, `ResponseView`, `ShapeForm` or `StreamLog` imports from
+`@openref/vue/runner` and pays the same way the shipped console does.
+
+## What a theme still has to style by hand
+
+An L2 theme replaces every position and still receives markup drawn outside all of them, under the
+reference's own `oref-` class names. Those names are not frozen and a theme that ignores them ships
+unstyled regions with nothing going red on its own side. The list is pinned by a test in
+`@openref/theme-telltale`, which fails when a name arrives or leaves, and `THEME-BOUNDARY.md` in that
+package is the honest account of what the contract does not yet carry. Read it before writing a theme.

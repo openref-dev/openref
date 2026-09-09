@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { documentationSpecification, REPOSITORY_ROOT, siteLlmsFullText } from './index.js';
 import { writeGeneratedDocumentation } from './generate.js';
+import { writeRepoLlmsTexts } from './repo-llms.js';
 
 /**
  * `pnpm docs:build`: composes the documentation site's document and hands it to the product.
@@ -31,6 +32,11 @@ export function buildDocumentationSite(): number {
   // same expansion and refuses a change catches anyone who did not.
   const moved = writeGeneratedDocumentation();
   for (const file of moved) process.stdout.write(`Regenerated ${file}\n`);
+
+  // The repository's own llms.txt and llms-full.txt, from the manifests and the READMEs, on
+  // the same rule: written here, composed again by repo-llms.spec.ts, stale copies refused.
+  const movedTexts = writeRepoLlmsTexts();
+  for (const file of movedTexts) process.stdout.write(`Regenerated ${file}\n`);
 
   mkdirSync(outputDirectory, { recursive: true });
   writeFileSync(specificationFile, `${JSON.stringify(documentationSpecification(), null, 2)}\n`);

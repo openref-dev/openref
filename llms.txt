@@ -1,0 +1,40 @@
+# OPENREF
+
+> NestJS-native API reference engine for HTTP, events and runtime contracts. The specification describes how the API looks, the running NestJS application knows how the API behaves, and OPENREF connects the two.
+
+The reference this project renders for itself is https://openref.dev, and the same pair of
+files at that root describes the API rather than the packages. This pair describes the
+repository. The full text of every README below is in llms-full.txt beside this file.
+
+## Published packages
+
+- [openref](packages/cli/README.md): OPENREF command line interface
+- [@openref/core](packages/core/README.md): OPENREF intermediate representation, normalizers and deterministic hashing
+- [@openref/nest](packages/nest/README.md): OPENREF for NestJS. Module, decorators and runtime collectors
+- [@openref/runner](packages/runner/README.md): OPENREF request runner: planning, serialization, auth and transports, per SPEC 14
+- [@openref/theme](packages/theme/README.md): OPENREF default theme, tokens and slots
+- [@openref/theme-kit](packages/theme-kit/README.md): OPENREF theme authoring kit: scaffolding, dev harness, contract conformance
+- [@openref/theme-telltale](packages/theme-telltale/README.md): OPENREF telltale theme, a level 2 theme written against the published contract
+- [@openref/vue](packages/vue/README.md): OPENREF headless Vue layer for theme authors
+
+## Ecosystem collectors
+
+- [@openref/collector-access-control](packages/collector-access-control/README.md): OPENREF collector for accesscontrol: declarative grant facts from the running application
+- [@openref/collector-casl](packages/collector-casl/README.md): OPENREF collector for CASL: declarative ability facts from the running application
+- [@openref/collector-redisx-cache](packages/collector-redisx-cache/README.md): OPENREF collector for @nestjs-redisx/cache: what a handler declares about caching its own response
+- [@openref/collector-redisx-circuit-breaker](packages/collector-redisx-circuit-breaker/README.md): OPENREF collector for @nestjs-redisx/circuit-breaker: what a route does when the thing behind it is down
+- [@openref/collector-redisx-idempotency](packages/collector-redisx-idempotency/README.md): OPENREF collector for @nestjs-redisx/idempotency: the statuses an idempotent route can answer with
+- [@openref/collector-redisx-locks](packages/collector-redisx-locks/README.md): OPENREF collector for @nestjs-redisx/locks: how a route behaves when two callers arrive at once
+- [@openref/collector-redisx-rate-limit](packages/collector-redisx-rate-limit/README.md): OPENREF collector for @nestjs-redisx/rate-limit: rate limit facts from the running application
+- [@openref/collector-throttler](packages/collector-throttler/README.md): OPENREF collector for @nestjs/throttler: rate limit facts from the running application
+
+## Internal packages, bundled into the published ones
+
+- [@openref/action](packages/action/README.md): OPENREF GitHub Action: the pull request API review of SPEC 17.2
+- [@openref/agent](packages/agent/README.md): OPENREF agent surface: llms.txt, llms-full.txt and the MCP endpoint of SPEC 18.1. Internal, not published, bundled into @openref/nest
+- [@openref/federation](packages/federation/README.md): OPENREF federation merge engine. Internal, bundled into @openref/nest
+- [@openref/nuxt](packages/nuxt/README.md): OPENREF for Nuxt. The module of SPEC 16.4, wrapping the render and static paths
+- [@openref/render](packages/render/README.md): OPENREF render pipeline. Internal, bundled into @openref/nest
+- [@openref/samples](packages/samples/README.md): OPENREF code sample generator. Internal, not published; bundled into @openref/nest and openref, which are the two packages that see both the renderer and the runner and therefore the two that can compose it
+- [@openref/search](packages/search/README.md): OPENREF search index builder. Internal, bundled into @openref/nest
+- [@openref/static](packages/static/README.md): OPENREF static build. Internal, bundled into the openref CLI
