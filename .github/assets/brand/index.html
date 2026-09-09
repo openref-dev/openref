@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="icon" href="openref-favicon-light.svg" type="image/svg+xml" media="(prefers-color-scheme: light)" />
+<link rel="icon" href="openref-favicon-dark.svg" type="image/svg+xml" media="(prefers-color-scheme: dark)" />
+<title>openref - логотип</title>
+<style>
+:root{color-scheme:light}
+*{box-sizing:border-box}
+body{margin:0;background:#f4f5f7;color:#14161c;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;font-size:15px;line-height:1.6}
+.wrap{max-width:1080px;margin:0 auto;padding:56px 28px 96px}
+h1{margin:0 0 6px;font-size:27px;font-weight:600;letter-spacing:-.03em}
+.sub{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;letter-spacing:.14em;color:#b45309;margin-bottom:10px}
+.lede{color:#565f6d;max-width:82ch;margin:0 0 36px}
+h2{margin:0 0 6px;font-size:13px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:#78818f}
+.note{margin:0 0 16px;font-size:13px;color:#78818f;max-width:88ch}
+section{background:#fff;border:1px solid #e2e5ea;border-radius:14px;padding:26px;margin-bottom:20px}
+.row{display:flex;flex-wrap:wrap;gap:16px;align-items:flex-end}
+figure{margin:0}
+.box{display:flex;align-items:center;justify-content:center;background:#fafbfc;border:1px solid #eceef2;border-radius:10px;padding:22px;min-height:150px}
+.box--dark{background:#12151a;border-color:#12151a}
+.box--wide{flex:1 1 420px}
+.box--plain{background:#fff}
+figcaption{margin-top:8px;font-size:12px;color:#78818f}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px;color:#565f6d}
+img{display:block;max-width:100%;height:auto}
+table{width:100%;border-collapse:collapse;font-size:14px}
+td,th{text-align:left;padding:9px 12px 9px 0;border-top:1px solid #eceef2;vertical-align:top}
+th{border-top:0;font-weight:600;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:#78818f}
+.px{display:flex;align-items:flex-end;gap:28px}
+.clear{display:inline-block;padding:24px;border-radius:10px;background:repeating-linear-gradient(45deg,#f1f3f6 0 6px,transparent 6px 12px)}
+ul{margin:0;padding-left:20px;color:#565f6d}
+li{margin-bottom:6px}li:last-child{margin-bottom:0}
+pre{margin:0;padding:16px;background:#f7f8fa;border:1px solid #eceef2;border-radius:10px;overflow:auto;
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px;line-height:1.7;color:#14161c}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="sub">НАПРАВЛЕНИЕ B, «ПРОПУСК»</div>
+<h1>openref</h1>
+<p class="lede">Три строки записи, средняя разомкнута, и пробел ограничен двумя стойками. Это ровно то, что делает движок: если факт нельзя прочитать достоверно, строка остаётся незакрытой и помечается как неизмеренная, а не как чистая. Логика формы держится на одном приёме, поэтому она выживает и на 16 пикселях, и в один цвет.</p>
+
+<section>
+  <h2>Как устроена раздача</h2>
+  <p class="note">Файла, который сам подстраивается под тёмную тему, в наборе нет, и это осознанное решение. Медиазапрос внутри SVG не виден, когда файл подключён картинкой: README на GitHub такой запрос не пробрасывает, у фавиконки поведение зависит от браузера. Поэтому цвет зашит в файл литералом, а переключение делает та сторона, которая про тему знает: тег picture в разметке или атрибут media у link. Всего два цвета чернил и два акцента, остальное - пары.</p>
+  <pre>&lt;!-- README на GitHub и npm --&gt;
+&lt;picture&gt;
+  &lt;source media="(prefers-color-scheme: dark)" srcset="openref-lockup-dark.svg" /&gt;
+  &lt;img src="openref-lockup-light.svg" width="360" alt="openref" /&gt;
+&lt;/picture&gt;
+
+&lt;!-- фавиконка --&gt;
+&lt;link rel="icon" href="openref-favicon-light.svg" type="image/svg+xml" media="(prefers-color-scheme: light)" /&gt;
+&lt;link rel="icon" href="openref-favicon-dark.svg"  type="image/svg+xml" media="(prefers-color-scheme: dark)" /&gt;
+
+&lt;!-- в своём интерфейсе: разметка прямо в DOM, цвет наследуется от текста --&gt;
+&lt;span class="logo"&gt;&lt;!-- содержимое openref-mark-inline.svg --&gt;&lt;/span&gt;</pre>
+</section>
+
+<section>
+  <h2>Марк</h2>
+  <div class="row">
+    <figure><div class="box"><img src="openref-mark-light.svg" width="120" height="120" alt="" /></div><figcaption>светлый фон</figcaption></figure>
+    <figure><div class="box box--dark"><img src="openref-mark-dark.svg" width="120" height="120" alt="" /></div><figcaption>тёмный фон</figcaption></figure>
+    <figure><div class="box"><img src="openref-mark-light-mono.svg" width="120" height="120" alt="" /></div><figcaption>один цвет, светлый</figcaption></figure>
+    <figure><div class="box box--dark"><img src="openref-mark-dark-mono.svg" width="120" height="120" alt="" /></div><figcaption>один цвет, тёмный</figcaption></figure>
+  </div>
+</section>
+
+<section>
+  <h2>Марк с надписью</h2>
+  <div class="row">
+    <figure class="box--wide"><div class="box"><img src="openref-lockup-light.svg" width="440" alt="" /></div><figcaption>светлый фон</figcaption></figure>
+    <figure class="box--wide"><div class="box box--dark"><img src="openref-lockup-dark.svg" width="440" alt="" /></div><figcaption>тёмный фон</figcaption></figure>
+  </div>
+  <div class="row" style="margin-top:16px">
+    <figure class="box--wide"><div class="box"><img src="openref-lockup-light-mono.svg" width="440" alt="" /></div><figcaption>один цвет, светлый</figcaption></figure>
+    <figure class="box--wide"><div class="box box--dark"><img src="openref-lockup-dark-mono.svg" width="440" alt="" /></div><figcaption>один цвет, тёмный</figcaption></figure>
+  </div>
+  <div class="row" style="margin-top:16px">
+    <figure><div class="box"><img src="openref-stack-light.svg" width="190" alt="" /></div><figcaption>вертикальная, светлый</figcaption></figure>
+    <figure><div class="box box--dark"><img src="openref-stack-dark.svg" width="190" alt="" /></div><figcaption>вертикальная, тёмный</figcaption></figure>
+    <figure><div class="box"><img src="openref-mark-tight-light.svg" width="120" height="120" alt="" /></div><figcaption>кадр по содержимому</figcaption></figure>
+  </div>
+</section>
+
+<section>
+  <h2>Масштаб</h2>
+  <div class="box box--plain px">
+    <figure><img src="openref-favicon-light.svg" width="16" height="16" alt="" /><figcaption>16 px</figcaption></figure>
+    <figure><img src="openref-mark-light-mono.svg" width="32" height="32" alt="" /><figcaption>32 px</figcaption></figure>
+    <figure><img src="openref-mark-light-mono.svg" width="64" height="64" alt="" /><figcaption>64 px</figcaption></figure>
+    <figure><img src="openref-mark-light-mono.svg" width="200" height="200" alt="" /><figcaption>200 px</figcaption></figure>
+  </div>
+  <p class="note" style="margin:16px 0 0">На 16 и 24 пикселях берётся файл favicon: у него своя сетка, штрихи ложатся на целые пиксели и пробел шире. Начиная с 32 пикселей работает основной марк.</p>
+</section>
+
+<section>
+  <h2>Поле и минимальный размер</h2>
+  <div class="row">
+    <figure><div class="box box--plain"><span class="clear"><img src="openref-mark-light-mono.svg" width="96" height="96" alt="" /></span></div><figcaption>свободное поле: четверть высоты марка</figcaption></figure>
+    <figure class="box--wide"><div class="box box--plain" style="justify-content:flex-start"><ul>
+      <li>Марк отдельно: не меньше 16 пикселей, до 24 включительно - файл favicon.</li>
+      <li>Марк с надписью: не меньше 120 пикселей по ширине, ниже этого надпись теряет просветы, берите марк отдельно.</li>
+      <li>Свободное поле со всех сторон - четверть высоты марка, внутрь не заходят ни текст, ни рамки.</li>
+      <li>Пропорции не меняются, марк не наклоняется, надпись не набирается заново шрифтом.</li>
+      <li>Стойки не убираются: без них средняя строка читается как обрыв, а не как объявленный пробел.</li>
+    </ul></div><figcaption>правила применения</figcaption></figure>
+  </div>
+</section>
+
+<section>
+  <h2>Цвет</h2>
+  <table>
+    <tr><th>роль</th><th>светлый фон</th><th>тёмный фон</th></tr>
+    <tr><td>чернила</td><td><code>#14161c</code></td><td><code>#eef1f6</code></td></tr>
+    <tr><td>акцент, только стойки пробела</td><td><code>#b45309</code></td><td><code>#f0b429</code></td></tr>
+  </table>
+  <p class="note" style="margin:16px 0 0">Умбра намеренно уведена от красного NestJS, зелёного Swagger и зелёного OpenAPI. В акцентной версии стойки отделены цветом, в версии в один цвет весь марк идёт чернилами: смысл сохраняется, потому что пробел держится геометрией, а не окраской.</p>
+</section>
+
+<section>
+  <h2>Какой файл брать</h2>
+  <table>
+    <tr><th>файл</th><th>цвет внутри</th><th>где брать</th></tr>
+    <tr><td><code>openref-mark-light.svg</code><br /><code>openref-lockup-light.svg</code><br /><code>openref-stack-light.svg</code><br /><code>openref-favicon-light.svg</code><br /><code>openref-mark-tight-light.svg</code></td><td>чернила <code>#14161c</code>, акцент <code>#b45309</code>, литералом</td><td>светлый фон. Основа пары в теге picture и в link с media светлой темы</td></tr>
+    <tr><td><code>openref-mark-dark.svg</code><br /><code>openref-lockup-dark.svg</code><br /><code>openref-stack-dark.svg</code><br /><code>openref-favicon-dark.svg</code><br /><code>openref-mark-tight-dark.svg</code></td><td>чернила <code>#eef1f6</code>, акцент <code>#f0b429</code>, литералом</td><td>тёмный фон. Вторая половина той же пары</td></tr>
+    <tr><td><code>openref-*-light-mono.svg</code><br /><code>openref-*-dark-mono.svg</code></td><td>один цвет, литералом</td><td>печать, тиснение, гравировка, чужой интерфейс с одним доступным цветом</td></tr>
+    <tr><td><code>openref-mark-inline.svg</code><br /><code>openref-lockup-inline.svg</code></td><td><code>currentColor</code></td><td>только при вставке разметки прямо в DOM: цвет наследуется от текста и тема решается вашим CSS. В теге img такой файл станет чёрным, это не годится</td></tr>
+  </table>
+  <p class="note" style="margin:16px 0 0">Во всех файлах <code>viewBox</code>, растра нет, шрифты не подключаются, надпись в кривых и штрихах, ни градиентов, ни теней, ни фильтров, ни блока style внутри файла.</p>
+</section>
+
+</div>
+</body>
+</html>
