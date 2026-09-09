@@ -2,7 +2,7 @@ import { spawnSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { documentationSpecification, REPOSITORY_ROOT } from './index.js';
+import { documentationSpecification, REPOSITORY_ROOT, siteLlmsFullText } from './index.js';
 import { writeGeneratedDocumentation } from './generate.js';
 
 /**
@@ -41,6 +41,16 @@ export function buildDocumentationSite(): number {
     [binary, 'build', '--spec', specificationFile, '--out', outputDirectory, '--base', '/'],
     { stdio: 'inherit' },
   );
+
+  if (result.status === 0) {
+    // Beside the `llms.txt` the product's build already wrote. See `siteLlmsFullText` for why
+    // the full text is written here and not by the product: a static export has no live route
+    // to answer it, and this site wants the whole reference reachable from one address. A
+    // failure here fails the build, because a site that says it carries the file and does not
+    // is the exact class of silent gap this repository exists to refuse.
+    writeFileSync(join(outputDirectory, 'llms-full.txt'), siteLlmsFullText());
+    process.stdout.write('Wrote llms-full.txt at the site root\n');
+  }
 
   return result.status ?? 1;
 }

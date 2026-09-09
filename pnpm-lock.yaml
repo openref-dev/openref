@@ -896,6 +896,12 @@ importers:
 
   tools/docs-site:
     devDependencies:
+      '@openref/agent':
+        specifier: workspace:*
+        version: link:../../packages/agent
+      '@openref/core':
+        specifier: workspace:*
+        version: link:../../packages/core
       '@openref/nest':
         specifier: workspace:*
         version: link:../../packages/nest

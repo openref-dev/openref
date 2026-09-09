@@ -12,15 +12,21 @@ is every chapter joined in filename order and whose paths are the routes
 `OpenRefModule.setup` mounts, then runs the shipped `openref build` binary over it. There is no
 second renderer: the site is the product rendering itself.
 
+The build then writes `llms-full.txt` at the site root, beside the `llms.txt` the product's
+static build already emits: the whole reference as text, through the same `buildLlmsFull` the
+live route answers with, because a static export has no server to answer that route and this
+site wants the whole reference reachable from one address.
+
 ## What holds it to the product
 
-| Suite | What it checks |
-| --- | --- |
-| `tools/docs-site/test/unit/guide.spec.ts` | the guide opens with the install and the one line, before any architecture word |
-| `tools/docs-site/test/unit/route-table.spec.ts` | the documented routes are exactly the routes the module registers, both directions |
-| `tools/docs-site/test/integration/documentation-examples.spec.ts` | every TypeScript example type checks against the real packages |
-| `tools/docs-site/test/integration/example-applications.spec.ts` | every example application boots and serves |
-| `tools/browser-budget/test/integration/documentation-site.spec.ts` | the built site under a strict policy in a real browser: zero violations, zero external requests |
+| Suite                                                              | What it checks                                                                                        |
+| ------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------- |
+| `tools/docs-site/test/unit/guide.spec.ts`                          | the guide opens with the install and the one line, before any architecture word                       |
+| `tools/docs-site/test/unit/route-table.spec.ts`                    | the documented routes are exactly the routes the module registers, both directions                    |
+| `tools/docs-site/test/unit/llms-full.spec.ts`                      | the text at the site root is deterministic and carries every operation the composed document declares |
+| `tools/docs-site/test/integration/documentation-examples.spec.ts`  | every TypeScript example type checks against the real packages                                        |
+| `tools/docs-site/test/integration/example-applications.spec.ts`    | every example application boots and serves                                                            |
+| `tools/browser-budget/test/integration/documentation-site.spec.ts` | the built site under a strict policy in a real browser: zero violations, zero external requests       |
 
 ## What the product cannot do here, said rather than worked around
 

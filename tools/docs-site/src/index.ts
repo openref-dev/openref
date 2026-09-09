@@ -1,6 +1,8 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { buildLlmsFull } from '@openref/agent';
+import { normalizeOpenApiDocument } from '@openref/core';
 import { referenceRoutes, type ReferenceRouteId } from '@openref/nest';
 
 /**
@@ -396,4 +398,28 @@ export function documentationSpecification(basePath: string = DOCUMENTED_ROUTE):
  */
 export function typescriptExamplesIn(markdown: string): readonly string[] {
   return [...markdown.matchAll(/```ts\n([\s\S]*?)```/g)].map(([, body]) => body ?? '');
+}
+
+/**
+ * The whole reference as text, for the root of the published site.
+ *
+ * THE PRODUCT ALREADY WRITES `llms.txt` AT THE ROOT AND ANSWERS `llms-full.txt` ONLY LIVE. The
+ * static build of `@openref/static` emits the index file beside the pages, and the full text is
+ * an application route served by the agent surface, so a static export carries the page that
+ * documents the route and not the text itself. For this site the text matters more than the
+ * route page: a reader that follows no link should get the whole reference from one address, per
+ * SPEC 18's reason for the file existing at all. So the build writes it here, from the same
+ * composed document the site is built from and through the same `buildLlmsFull` the live route
+ * answers with, so the two cannot say different things about one document.
+ *
+ * The agent switches are the doc-only surface: the text index is on and MCP is off, because the
+ * published site has no server to answer JSON-RPC on.
+ *
+ * @returns The file contents for `llms-full.txt` at the site root
+ */
+export function siteLlmsFullText(): string {
+  return buildLlmsFull(normalizeOpenApiDocument(documentationSpecification()), {
+    basePath: DOCUMENTED_ROUTE,
+    agent: { llmsTxt: true, mcp: false },
+  });
 }
