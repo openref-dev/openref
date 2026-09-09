@@ -1,7 +1,7 @@
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset=".github/assets/logo-dark.svg">
-    <img src=".github/assets/logo-light.svg" alt="OPENREF" width="420">
+    <source media="(prefers-color-scheme: dark)" srcset=".github/assets/brand/openref-lockup-dark.svg">
+    <img src=".github/assets/brand/openref-lockup-light.svg" alt="openref" width="360">
   </picture>
 </p>
 
