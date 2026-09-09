@@ -58,9 +58,9 @@ export type SlotPropsBySlot = Partial<Record<SlotName, Record<string, unknown>>>
  *
  * @example
  * const report = await renderThemeSlots(aurora.components ?? {}, state, {
- *   StateNotice: { kind: 'empty', message: undefined },
+ *   StateNotice: { kind: 'search-no-results', message: 'No operation matches.' },
  * });
- * report.failed.map((outcome) => outcome.slot); // ['StateNotice']
+ * report.failed.map((outcome) => outcome.slot); // the slots whose render threw, [] when none did
  */
 export async function renderThemeSlots(
   components: Readonly<Record<string, Component>>,
