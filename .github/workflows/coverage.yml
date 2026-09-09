@@ -1,0 +1,60 @@
+name: Coverage
+
+# THE ONE JOB THAT UPLOADS COVERAGE, KEPT OUT OF ci.yml ON PURPOSE. The verify job's wall was
+# measured without coverage instrumentation, and instrumenting it would move the number that
+# whole comment derives. So the coverage run is its own workflow, on the pushes that move main,
+# with the sibling wall of 45 that coverage-timeout-study.yml already carries.
+#
+# THE UPLOAD RUNS WHETHER THE SUITE WAS GREEN OR NOT, and the job still reports the suite's own
+# result. A coverage report of a red run is a true report of that run; an upload step that only
+# fires on green would leave the badge frozen at the last good day and call that current.
+#
+# The upload needs the Codecov GitHub App installed on the repository, or a CODECOV_TOKEN
+# secret. With neither, the upload step fails and says so; nothing here hides that.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: coverage-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  coverage:
+    name: unit and integration coverage, uploaded to Codecov
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '^24.15.0'
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm run build
+
+      - name: Test with coverage
+        id: cov
+        run: pnpm run test:cov
+
+      - name: Upload to Codecov
+        if: always()
+        uses: codecov/codecov-action@v5
+        with:
+          files: coverage/coverage-final.json
+          token: ${{ secrets.CODECOV_TOKEN }}

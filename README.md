@@ -1,10 +1,33 @@
-# OPENREF
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset=".github/assets/logo-dark.svg">
+    <img src=".github/assets/logo-light.svg" alt="OPENREF" width="420">
+  </picture>
+</p>
 
-NestJS-native API reference for HTTP, events and runtime contracts.
+<p align="center">NestJS-native API reference for HTTP, events and runtime contracts</p>
 
-The specification describes how the API looks.
-The NestJS application knows how the API behaves.
-OPENREF connects the two.
+<p align="center">
+  <em>The specification describes how the API looks.<br>
+  The NestJS application knows how the API behaves.<br>
+  OPENREF connects the two.</em>
+</p>
+
+<p align="center">
+  <a href="https://github.com/openref-dev/openref/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/openref-dev/openref/ci.yml?branch=main&label=ci" alt="CI" /></a>
+  <a href="https://github.com/openref-dev/openref/actions/workflows/docs-site.yml"><img src="https://img.shields.io/github/actions/workflow/status/openref-dev/openref/docs-site.yml?branch=main&label=docs%20site" alt="docs site" /></a>
+  <a href="https://codecov.io/gh/openref-dev/openref"><img src="https://codecov.io/gh/openref-dev/openref/graph/badge.svg" alt="codecov" /></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-1f57ab" alt="license MIT" /></a>
+  <a href="package.json"><img src="https://img.shields.io/badge/node-%3E%3D22.22.2-8a5200" alt="node" /></a>
+</p>
+
+<p align="center">
+  <a href="https://openref.dev">Documentation</a> &#8226;
+  <a href="https://openref.dev/llms-full.txt">The whole reference as text</a> &#8226;
+  <a href="docs/guide/">Guide</a> &#8226;
+  <a href="examples/">Examples</a> &#8226;
+  <a href="llms.txt">Packages</a>
+</p>
 
 ## Install
 
@@ -123,15 +146,15 @@ From a clean clone, with no build order to get right. `examples/README.md` says 
 
 ## Examples
 
-| Directory | What it is for |
-| --- | --- |
-| `examples/nest-minimal` | the first minute: one controller, one line, a page you can send requests from |
-| `examples/runtime-intelligence` | a hand written collector, and what a fact with provenance looks like |
-| `examples/custom-theme` | an L0 theme: tokens only, no build step, no package |
-| `examples/federation` | three services, one reference over all of them |
-| `examples/events` | message channels discovered from handlers, rendered as AsyncAPI |
-| `examples/static-build` | the static build, and the proxy configuration per hosting platform |
-| `examples/nuxt-reference` | the Nuxt module, for a site that is not a NestJS application |
+| Directory                       | What it is for                                                                |
+| ------------------------------- | ----------------------------------------------------------------------------- |
+| `examples/nest-minimal`         | the first minute: one controller, one line, a page you can send requests from |
+| `examples/runtime-intelligence` | a hand written collector, and what a fact with provenance looks like          |
+| `examples/custom-theme`         | an L0 theme: tokens only, no build step, no package                           |
+| `examples/federation`           | three services, one reference over all of them                                |
+| `examples/events`               | message channels discovered from handlers, rendered as AsyncAPI               |
+| `examples/static-build`         | the static build, and the proxy configuration per hosting platform            |
+| `examples/nuxt-reference`       | the Nuxt module, for a site that is not a NestJS application                  |
 
 The ones that listen are booted by a committed test, which fetches a page from each of them.
 `static-build` is not in that suite because it builds and exits, so its own case runs the
@@ -145,6 +168,18 @@ itself: `openref build` over a document whose description is the guide and whose
 the routes `OpenRefModule.setup` mounts. There is no second renderer and no static site
 generator, which is the only way a page claiming zero external requests can be checked rather
 than believed.
+
+## Packages
+
+Every package, published and internal alike, carries a full README. The index is
+[llms.txt](llms.txt), generated from the manifests so it cannot go stale, and the whole of
+every README in one text is [llms-full.txt](llms-full.txt).
+
+## Changelog
+
+[CHANGELOG.md](CHANGELOG.md) records the repository's milestones. Per package release notes are
+written by `changeset version` into each package's own `CHANGELOG.md` at release time, which is
+why they do not exist before the first release does.
 
 ## Licence
 
