@@ -1,5 +1,7 @@
 /**
- * The six decorators of SPEC 13.4, which are how a person declares what no collector can observe.
+ * The nine decorators of SPEC 13.4, which are how a person declares what no collector can observe.
+ * They were six until M5 brought the three of events, and this sentence counted six for four
+ * milestones after that, which is the staleness it now names instead of repeating.
  *
  * THEY ARE THE `declared` LEVEL OF SPEC 6.1, and that is the whole reason they exist. A collector
  * reads what the application happens to expose: a guard's class name, a throttler's configuration,
@@ -12,7 +14,7 @@
  * and the observation are compared afterwards, by the drift engine, and a decorator that refused a
  * declaration disagreeing with the runtime would delete the evidence T022 exists to report.
  *
- * WHAT EACH ONE COSTS A CONSUMER IS ZERO NEW DEPENDENCIES. Three write metadata this package's own
+ * WHAT EACH ONE COSTS A CONSUMER IS ZERO NEW DEPENDENCIES. Six write metadata this package's own
  * collectors read; three write `x-` extensions straight into the object `@nestjs/swagger` builds
  * its operation from. See `metadata.ts` for why the second half needs no import of that package.
  */

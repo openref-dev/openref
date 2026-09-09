@@ -12,7 +12,7 @@ import { OPENREF_EXTENSIONS, OPENREF_METADATA } from '../../src/api/decorators/m
 import { SWAGGER_EXTENSION_METADATA } from '../../src/shared/types/nest-surface';
 
 /**
- * The six decorators of SPEC 13.4, checked for where they write rather than for what they return.
+ * The nine decorators of SPEC 13.4, checked for where they write rather than for what they return.
  *
  * WHERE A DECORATOR WRITES IS ITS WHOLE CONTRACT, because nothing else in the system reads it: a
  * collector reads a key, and `@nestjs/swagger` reads the extension object. A decorator that stored
