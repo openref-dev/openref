@@ -194,9 +194,11 @@ finding 3, `T064`, and the same reason for waiting.
   every theme carries its own copy. `test/unit/contrast.spec.ts` is this one's.
 - `SchemaPayloadMap` arrives as a `Record` and `SchemaExpansionOptions.schemas` wants a `Map`, so
   every theme drawing a body converts between them. `src/components/media.ts` does it once.
-- `@openref/theme-kit` is what a theme author runs and is not published. This package needs it in
-  `devDependencies` to check itself, which is the first time anything has needed it without the
-  rest, and that is the condition SPEC 4 names for publishing a package. Filed against `T064`.
+- `@openref/theme-kit` is what a theme author runs. This package needed it in `devDependencies`
+  to check itself, which was the first time anything had needed it without the rest, and that is
+  the condition SPEC 4 names for publishing a package. Filed against `T064`, and `T064`
+  published it: the sentence that stood here calling it unpublished outlived the fact by three
+  milestones.
 
 ## What this theme corrected in its own handoff
 

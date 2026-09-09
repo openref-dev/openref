@@ -27,7 +27,7 @@ import type {
 /**
  * What a collector is given for one node.
  *
- * ALL FIVE ARE PRESENT OR THE COLLECTOR IS NOT RUN. A context with a missing reflector would
+ * EVERY MEMBER IS PRESENT OR THE COLLECTOR IS NOT RUN. A context with a missing reflector would
  * push a null check into every collector ever written, including third party ones, and the
  * first one to skip it would read metadata off `undefined` in a consumer's boot. The registry
  * is the one place that decides whether a runtime pass is possible at all.

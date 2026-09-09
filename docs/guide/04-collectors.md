@@ -171,10 +171,10 @@ export function abilityCollector(options: { readonly metadataKey: string }): IRu
 written as a statement about this route. Getting that level wrong is the one way a collector
 can lie.
 
-Note what is not annotated: `collect` returns `IRNodeRuntime | undefined`, and that type lives
-in `@openref/core`, which `@openref/nest` does not re-export. Writing the annotation costs you a
-second package for one name, so the literal is left to be checked against `IRuntimeCollector`
-instead, which checks the same thing.
+Note what is not annotated: `collect` returns `IRNodeRuntime | undefined`. Writing the
+annotation is fine, and `@openref/nest` re-exports the type so it costs no second package;
+leaving it off is fine too, because the literal is checked against `IRuntimeCollector`,
+which checks the same thing.
 
 Collectors are fail open. A collector that throws, or one whose optional package is not
 installed, is skipped and reported; it never takes the reference down with it. That is the
