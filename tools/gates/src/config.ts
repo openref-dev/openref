@@ -408,6 +408,15 @@ export const PROJECTION_LEAF_FLOOR = 500;
  * can weigh. 145 KB is 148,480: 16,005 over today's reading, two milestones plus 11 bytes,
  * still under three by 7,986, so the corridor holds from both ends and no other number moved.
  *
+ * RE-DERIVED TO 146 KB ON 2026-09-09, BY THE ANSWER THE CORRIDOR CASE HAD ALREADY PRICED. The
+ * eleven byte margin was named thinner than one published package name the day it was set, and
+ * the next arrival was the client-js-raw cap step writing its ledger into the claim map: the
+ * artefact reads 132,489 and 145 KB left 15,991 against a two milestone demand of 15,994,
+ * three bytes short. Shaving an operand out of the fresh ledger sentence would have bought
+ * those three back and left a margin the next honest sentence kills again, which is the game
+ * the corridor exists to end. 146 KB is 149,504: 17,015 over the reading, two milestones plus
+ * 1,021, under three by 6,976, and the leaf ceiling did not move.
+ *
  * WHAT IT REFUSES, WHICH IS THE HALF THAT MAKES IT A BUDGET. The 4.72 MB above, by a factor of 32.
  * The amendments surrogate, 70,352 bytes of the file, arriving a second time: that reads 198,420.
  * And the digest count, which this now binds before `DIGESTS_IN_THE_ARTEFACT` does, since 12,000
@@ -428,7 +437,7 @@ export const PROJECTION_LEAF_FLOOR = 500;
  */
 export const PROJECTION_ARTEFACT_BUDGET = {
   /** Most bytes the whole committed artefact may weigh. */
-  limitBytes: 145 * 1024,
+  limitBytes: 146 * 1024,
   /** Most leaves it may hold over every position together. */
   leaves: 800,
 } as const;
@@ -1199,7 +1208,22 @@ export const SIZE_BUDGETS: readonly SizeBudget[] = [
     //
     // 1,020 BYTES IS THE NUMBER TO WATCH NOW. The next 1,021 bytes the first paint gains fail this
     // budget, and the task that brings them comes to the maintainer with its own measurement.
-    limitBytes: 111 * 1024,
+    //
+    // 112 KB SINCE 2026-09-09, BY THE MAINTAINER'S RULING AND BY THE SAME PROPERTY, AFTER THE
+    // EXCEPTION ROUTE WAS REFUSED BY THE RATCHET. The row stood red at 668 bytes for six days
+    // and nothing moved for it in silence: an exception was written and the budget-exceptions
+    // gate refused it by closed-and-live, since this budget spent its one exception on
+    // 2026-08-14, and the refusal was obeyed. THE ARRIVAL IS RECORDED AND NOT ONLY THE NUMBER:
+    // the TX chain put the suppression disclosure and the guard exemption row on the page, and
+    // the minifier reseated short names around four new `@openref/core` exports, 1,688 bytes
+    // between the recorded 112,644 and the 114,332 the budgets gate weighs off the published
+    // closure today, with the recorded step forensics showing one chunk at 2,352 becoming 2,357
+    // whose first divergence is a rename at byte 346. THE ARITHMETIC, EVERY OPERAND OFF THE
+    // TREE: 111 KB is 113,664 and no longer holds the artefact; 112 KB is 114,688 and the
+    // artefact fits with 356; `sign-in-return` published is the same 1,468, and 114,332 plus
+    // 1,468 is 115,800 against 114,688, so the cheapest deferred gesture returning still fails
+    // and one step is what the property allows. 356 BYTES IS THE NUMBER TO WATCH NOW.
+    limitBytes: 112 * 1024,
     roots: CLIENT_JS_ROOTS,
     extensions: ['.js', '.mjs'],
     quantity: 'parse',

@@ -83,6 +83,23 @@ const TODAY = {
 } as const;
 
 /**
+ * The published initial closure after the TX chain, which is what the 112 KB step of 2026-09-09
+ * was derived from.
+ *
+ * THE INSTRUMENT IS NAMED BECAUSE IT IS NOT THE ONE ABOVE: `TODAY` was held to the browser
+ * record, and this figure is the budgets gate's own weighing of the published closure, the same
+ * reading the gate printed while the row stood red at 668. The 1,688 bytes over `TODAY` are the
+ * suppression disclosure and the guard exemption row arriving on the page, and the minifier
+ * reseating short names around four new `@openref/core` exports; the recorded step forensics is
+ * one chunk at 2,352 becoming 2,357 with its first divergence a rename at byte 346. What holds
+ * this figure live is the gate itself: the artefact outgrowing 114,688 is a red row, and the cap
+ * comment names 356 as the number to watch.
+ */
+const AFTER_TX = {
+  clientJsBytes: 114_332,
+} as const;
+
+/**
  * The property `client-js-raw`'s cap is derived by, as SPEC 20 has recorded it since `T011-R`.
  *
  * IT IS THIS ROW'S OWN AND IS NOT SHARED WITH ITS NEIGHBOURS, which is why it is written as a
@@ -150,7 +167,7 @@ describe('which budgets weigh the published form', () => {
     // Then, each is the figure SPEC 20's re-derivation states, and two of the four are `transfer`
     expect(published.filter((entry) => entry.quantity === 'transfer')).toHaveLength(2);
     expect(caps).toEqual({
-      'client-js-raw': 111 * 1024,
+      'client-js-raw': 112 * 1024,
       'client-js-schema': 2_300,
       'theme-css-raw': 62 * 1024,
       'theme-entry': 97 * 1024,
@@ -218,22 +235,23 @@ describe('the client-js-raw cap, re-checked against the published form', () => {
     // Given the recorded property: the artefact fits, and the cheapest deferred gesture returning
     // to the first load still fails the budget. Applied to today's artefact, because a property
     // re-checked only against the artefact it was derived from is a property nobody re-checked.
-    const returning = TODAY.clientJsBytes + PUBLISHED.signInReturnBytes;
+    const returning = AFTER_TX.clientJsBytes + PUBLISHED.signInReturnBytes;
 
     // When
     const derived = smallestStepKeepingTheProperty(
-      TODAY.clientJsBytes,
+      AFTER_TX.clientJsBytes,
       PUBLISHED.signInReturnBytes,
     );
 
-    // Then, 111 KB is 113,664: the artefact fits and 114,112 does not, so a return of the cheapest
-    // gesture still fails. 110 KB at 112,640 no longer holds the artefact at all and 112 KB at
-    // 114,688 would let that return in unremarked, so neither neighbour is available.
-    expect(returning).toBe(114_112);
-    expect(TODAY.clientJsBytes).toBeGreaterThan(110 * 1024);
-    expect(returning).toBeLessThanOrEqual(112 * 1024);
-    expect(derived).toBe(111 * 1024);
-    expect(cap).toBe(111 * 1024);
+    // Then, 2026-09-09: 111 KB is 113,664 and no longer holds the artefact; 112 KB is 114,688,
+    // the artefact fits with 356, and the return of the same 1,468 reads 115,800 against
+    // 114,688 and still fails. On 2026-09-04 the same property on `TODAY` chose 111, which the
+    // falsification case below still holds it to.
+    expect(returning).toBe(115_800);
+    expect(AFTER_TX.clientJsBytes).toBeGreaterThan(111 * 1024);
+    expect(returning).toBeGreaterThan(112 * 1024);
+    expect(derived).toBe(112 * 1024);
+    expect(cap).toBe(112 * 1024);
   });
 
   it('should be the same property that chose every cap this row has carried', () => {
@@ -245,12 +263,17 @@ describe('the client-js-raw cap, re-checked against the published form', () => {
     const gesture = PUBLISHED.signInReturnBytes;
 
     // When
-    const chosen = [110_539, 110_559, AFTER_CONSOLE.clientJsBytes, TODAY.clientJsBytes].map(
-      (artefact) => smallestStepKeepingTheProperty(artefact, gesture) / 1024,
-    );
+    const chosen = [
+      110_539,
+      110_559,
+      AFTER_CONSOLE.clientJsBytes,
+      TODAY.clientJsBytes,
+      AFTER_TX.clientJsBytes,
+    ].map((artefact) => smallestStepKeepingTheProperty(artefact, gesture) / 1024);
 
-    // Then, 108 for the two readings before the socket console, 110 for the console's own, 111 now
-    expect(chosen).toEqual([108, 108, 110, 111]);
+    // Then, 108 for the two readings before the socket console, 110 for the console's own, 111
+    // for the third sentence under the tabs, 112 for the TX chain's rows
+    expect(chosen).toEqual([108, 108, 110, 111, 112]);
   });
 
   it('should have moved by one step for the sentence and not by more, which is the whole rule', () => {
@@ -265,17 +288,22 @@ describe('the client-js-raw cap, re-checked against the published form', () => {
     expect(TODAY.clientJsBytes - 112_587).toBe(57);
     expect(TODAY.clientJsBytes).toBeGreaterThan(previous);
     expect(TODAY.clientJsBytes - previous).toBe(4);
-    expect(cap - previous).toBe(1024);
+    // That move was one step, and so is the 2026-09-09 one: 110 to 111 for the sentence, 111 to
+    // 112 for the TX chain's rows, never two at once and never a banked spare.
+    expect(111 * 1024 - previous).toBe(1024);
+    expect(cap - 111 * 1024).toBe(1024);
   });
 
-  it('should state 1,020 bytes of headroom, which is the number the entry says to watch', () => {
-    // Given, the margin under the published form
+  it('should state 356 bytes of headroom, which is the number the entry says to watch', () => {
+    // Given, the margin under the published form. The 2026-09-04 entry said 1,020 against the
+    // 111 KB of its day, and that arithmetic is held here as history rather than overwritten.
     // When
-    const headroom = cap - TODAY.clientJsBytes;
+    const headroom = cap - AFTER_TX.clientJsBytes;
 
-    // Then, and the payer beside it: all 57 bytes are in the entry, so the six files beside it
-    // weigh the same 91,364 they weighed before the sentence arrived
-    expect(headroom).toBe(1_020);
+    // Then, and the payer of the earlier step beside it: all 57 of its bytes were in the entry,
+    // so the six files beside it weighed the same 91,364 before and after the sentence arrived
+    expect(111 * 1024 - TODAY.clientJsBytes).toBe(1_020);
+    expect(headroom).toBe(356);
     expect(TODAY.clientJsBytes - 91_364).toBe(21_280);
   });
 

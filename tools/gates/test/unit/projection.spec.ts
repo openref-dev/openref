@@ -2098,6 +2098,15 @@ describe('the figures this code states about this repository', () => {
     // is two milestones plus 11 bytes, and is under three milestones by 7,986. ELEVEN BYTES IS
     // THINNER THAN ONE PUBLISHED PACKAGE NAME, so the next arrival re-opens this ledger, and the
     // answer to it is priced above rather than left to the session that meets it.
+    //
+    // 132,489 OVER 661 SINCE 2026-09-09, AND THE ELEVEN BYTE MARGIN ENDED THE WAY ITS OWN
+    // SENTENCE SAID IT WOULD. The client-js-raw cap step wrote its ledger into the fullest
+    // claim map cell, 755 characters of 800, and the page-bytes cell reached its own enforced
+    // figure the same day: 145 KB left 15,991 against a demand of 15,994, three bytes short,
+    // and the answer was the one priced above rather than an operand shaved out of a fresh
+    // ledger sentence to buy three bytes and lose them to the next honest sentence. The
+    // ceiling reads 146 KB: 17,015 of headroom, two milestones plus 1,021, under three by
+    // 6,976, and the leaf corridor did not move.
     const read = readProjection(repoRoot);
     expect(read.ok).toBe(true);
     const data = read.ok ? read.projection.data : undefined;
@@ -2114,7 +2123,7 @@ describe('the figures this code states about this repository', () => {
 
     // Then each figure the budget's derivation states is the one the artefact gives, and the
     // headroom really is two milestones of it
-    expect([scan.bytes, scan.leaves]).toEqual([132_475, 661]);
+    expect([scan.bytes, scan.leaves]).toEqual([132_489, 661]);
     expect([perHeading, perTask, perRow]).toEqual([417, 126, 224]);
     expect(milestone).toBe(7_997);
     expect(PROJECTION_ARTEFACT_BUDGET.limitBytes - scan.bytes).toBeGreaterThanOrEqual(

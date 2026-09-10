@@ -585,8 +585,9 @@ const THRESHOLD_BOUND: Extent = { chars: 24, segments: 5, perToken: 2, capitals:
 /**
  * The figures one claim map row states, separated by `" ; "`.
  *
- * The fullest row today reads 629 characters over 126 segments, and the bound is a table about a
- * quarter longer again, 800 over 160. THE SEGMENT COUNT IS NOT THE FIGURE COUNT and this comment
+ * The fullest row today reads 755 characters over 150 segments, since the client-js-raw cap step
+ * of 2026-09-09 wrote its ledger into that cell, and the bound is 800 over 160: 45 characters of
+ * room, named rather than assumed, and the next entry in that row prices its own fit. THE SEGMENT COUNT IS NOT THE FIGURE COUNT and this comment
  * used to say it was:
  * `156,672 bytes` is one figure of three segments, so the 126 is 75 figures. What bounds the
  * figures is {@link FIGURES_IN_A_ROW} and what bounds the digits inside one is {@link FIGURE},
@@ -676,7 +677,7 @@ const AMENDMENT_LINE_BOUND: Extent = {
  * measurement, disclosed as one.
  *
  * WHAT MAKES THAT SAFE IS THAT IT IS NO LONGER THE BINDING NUMBER. 12,000 digests weigh 204,000
- * bytes at seventeen each, and {@link PROJECTION_ARTEFACT_BUDGET} refuses the file above 148,480,
+ * bytes at seventeen each, and {@link PROJECTION_ARTEFACT_BUDGET} refuses the file above 149,504,
  * so the byte budget goes red first and this count now names a channel rather than limiting one.
  */
 export const DIGESTS_IN_THE_ARTEFACT = 12_000;
@@ -1107,8 +1108,8 @@ export const CITED_READINGS: readonly {
     reading: 6,
     cited: 'ACKNOWLEDGED_RESIDUE, the claim id entry',
   },
-  { path: 'data.claimMap[].text', measure: 'chars', reading: 629, cited: 'FIGURES_BOUND' },
-  { path: 'data.claimMap[].text', measure: 'segments', reading: 126, cited: 'FIGURES_BOUND' },
+  { path: 'data.claimMap[].text', measure: 'chars', reading: 755, cited: 'FIGURES_BOUND' },
+  { path: 'data.claimMap[].text', measure: 'segments', reading: 150, cited: 'FIGURES_BOUND' },
   { path: 'data.claimMap[].proofs[]', measure: 'chars', reading: 68, cited: 'PATH_BOUND' },
   { path: 'data.claimMap[].proofs[]', measure: 'segments', reading: 10, cited: 'PATH_BOUND' },
   {
