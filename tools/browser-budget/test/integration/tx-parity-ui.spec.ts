@@ -84,10 +84,21 @@ describe('the prefilled body and Reset', () => {
 
         // When the reader types over it and presses Reset
         await body.fill('{ "broken": tru');
+        expect((await body.inputValue()).trim()).toBe('{ "broken": tru');
         await session.page.locator('.oref-tryit-reset').click();
 
-        // Then the form is the prefilled one again
-        expect((await body.inputValue()).trim()).toBe(prefilled);
+        // Then the form is the prefilled one again. POLLED, BECAUSE THE RESTORE IS NOT
+        // SYNCHRONOUS WITH THE CLICK: the handler writes the model and Vue patches the
+        // textarea on its own tick, so an immediate read asks an asynchronous question
+        // synchronously, the race frame.spec.ts already lost once on the rail. It won here
+        // on the workstation and on every uninstrumented runner, and lost on 2026-09-09 on
+        // the first coverage instrumented run of the gates step, which read the typed text
+        // back. Polling keeps the assertion exactly as strong: a Reset that never restores
+        // still fails on the timeout, and one restoring the wrong text still fails on the
+        // value.
+        await expect
+          .poll(async () => (await body.inputValue()).trim(), { timeout: 30_000 })
+          .toBe(prefilled);
       } finally {
         await session.close();
       }
