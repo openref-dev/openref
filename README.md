@@ -175,7 +175,7 @@ than believed.
 | Package | What it is for |
 | --- | --- |
 | **Published to npm** | |
-| [`openref`](packages/cli) | Command line for the reference: build a static site, doctor, diff and fix |
+| [`@openref/cli`](packages/cli) | Command line for the reference: build a static site, doctor, diff and fix |
 | [`@openref/core`](packages/core) | Intermediate representation and normalizers: one deterministic, hashable document from OpenAPI and AsyncAPI |
 | [`@openref/nest`](packages/nest) | NestJS module that mounts a full API reference beside @nestjs/swagger in one line, with decorators and runtime collectors |
 | [`@openref/runner`](packages/runner) | Request planning, serialization, auth and transports behind the try-it console |

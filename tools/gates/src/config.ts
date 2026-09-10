@@ -101,7 +101,7 @@ export const PUBLISHED_PACKAGES: readonly string[] = [
   '@openref/theme-kit',
   '@openref/theme-telltale',
   '@openref/vue',
-  'openref',
+  '@openref/cli',
 ];
 
 /**

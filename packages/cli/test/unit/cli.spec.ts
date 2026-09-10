@@ -54,7 +54,7 @@ describe('openref package shell', () => {
 
   it('should expose its own package name', () => {
     // Given
-    const expected = 'openref';
+    const expected = '@openref/cli';
 
     // When
     const actual = PACKAGE_NAME;

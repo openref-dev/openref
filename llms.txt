@@ -8,7 +8,7 @@ repository. The full text of every README below is in llms-full.txt beside this 
 
 ## Published packages
 
-- [openref](packages/cli/README.md): Command line for the reference: build a static site, doctor, diff and fix
+- [@openref/cli](packages/cli/README.md): Command line for the reference: build a static site, doctor, diff and fix
 - [@openref/core](packages/core/README.md): Intermediate representation and normalizers: one deterministic, hashable document from OpenAPI and AsyncAPI
 - [@openref/nest](packages/nest/README.md): NestJS module that mounts a full API reference beside @nestjs/swagger in one line, with decorators and runtime collectors
 - [@openref/runner](packages/runner/README.md): Request planning, serialization, auth and transports behind the try-it console

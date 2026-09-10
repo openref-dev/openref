@@ -1,5 +1,5 @@
 {
-  "name": "openref",
+  "name": "@openref/cli",
   "version": "0.1.0",
   "description": "Command line for the reference: build a static site, doctor, diff and fix",
   "license": "MIT",

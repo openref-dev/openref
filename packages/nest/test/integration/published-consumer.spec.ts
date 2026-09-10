@@ -477,9 +477,9 @@ const IMPORTABLE = [
   '@openref/runner',
   '@openref/theme',
   '@openref/theme-kit',
+  '@openref/cli',
   '@openref/theme-telltale',
   '@openref/vue',
-  'openref',
 ] as const;
 
 /** Shipped file extensions a module specifier can appear in. */
@@ -538,6 +538,7 @@ describe('a consumer holding only what npm pack produced', () => {
 
     // Then
     expect(present).toEqual([
+      'cli',
       'collector-access-control',
       'collector-casl',
       'collector-redisx-cache',
@@ -554,7 +555,7 @@ describe('a consumer holding only what npm pack produced', () => {
       'theme-telltale',
       'vue',
     ]);
-    expect(existsSync(join(consumer, 'node_modules', 'openref'))).toBe(true);
+    expect(existsSync(join(consumer, 'node_modules', '@openref', 'cli'))).toBe(true);
   });
 
   it('should hold every packed package in IMPORTABLE, so none of them is proved importable by nothing', () => {
@@ -589,7 +590,7 @@ describe('a consumer holding only what npm pack produced', () => {
 
     // Then
     expect(packedNames).toHaveLength(16);
-    expect(packedNames).toContain('openref');
+    expect(packedNames).toContain('@openref/cli');
     expect(packedNames).toContain('@openref/theme-kit');
     expect(packedNames).toContain('@openref/collector-casl');
   });
@@ -882,7 +883,7 @@ describe('a consumer holding only what npm pack produced', () => {
         '@openref/nest',
         '@openref/runner',
         '@openref/vue',
-        'openref',
+        '@openref/cli',
         '@openref/theme-kit',
       ];
       const source = [
