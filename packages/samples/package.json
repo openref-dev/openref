@@ -1,7 +1,7 @@
 {
   "name": "@openref/samples",
   "version": "0.0.0",
-  "description": "OPENREF code sample generator. Internal, not published; bundled into @openref/nest and openref, which are the two packages that see both the renderer and the runner and therefore the two that can compose it",
+  "description": "Code samples for every operation, proven at the wire against the real runner",
   "license": "MIT",
   "repository": {
     "type": "git",

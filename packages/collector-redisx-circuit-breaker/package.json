@@ -1,7 +1,7 @@
 {
   "name": "@openref/collector-redisx-circuit-breaker",
   "version": "0.0.0",
-  "description": "OPENREF collector for @nestjs-redisx/circuit-breaker: what a route does when the thing behind it is down",
+  "description": "Reads @nestjs-redisx/circuit-breaker and reports what a route does when the thing behind it is down",
   "license": "MIT",
   "repository": {
     "type": "git",

@@ -1,7 +1,7 @@
 {
   "name": "@openref/federation",
   "version": "0.0.0",
-  "description": "OPENREF federation merge engine. Internal, bundled into @openref/nest",
+  "description": "Merge engine and remote lifecycle for one reference over many services",
   "license": "MIT",
   "repository": {
     "type": "git",

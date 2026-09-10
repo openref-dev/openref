@@ -1,7 +1,7 @@
 {
   "name": "@openref/render",
   "version": "0.0.0",
-  "description": "OPENREF render pipeline. Internal, bundled into @openref/nest",
+  "description": "Vue render pipeline: page models and components built for a strict CSP",
   "license": "MIT",
   "repository": {
     "type": "git",

@@ -1,7 +1,7 @@
 {
   "name": "@openref/collector-casl",
   "version": "0.0.0",
-  "description": "OPENREF collector for CASL: declarative ability facts from the running application",
+  "description": "Reads CASL ability metadata and reports the access facts a route declares",
   "license": "MIT",
   "repository": {
     "type": "git",

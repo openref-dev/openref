@@ -1,7 +1,7 @@
 {
   "name": "@openref/search",
   "version": "0.0.0",
-  "description": "OPENREF search index builder. Internal, bundled into @openref/nest",
+  "description": "The serializable search index a reference ships",
   "license": "MIT",
   "repository": {
     "type": "git",

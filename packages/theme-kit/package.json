@@ -1,7 +1,7 @@
 {
   "name": "@openref/theme-kit",
   "version": "0.0.0",
-  "description": "OPENREF theme authoring kit: scaffolding, dev harness, contract conformance",
+  "description": "Theme authoring kit: scaffold, dev harness and the contract checker",
   "license": "MIT",
   "repository": {
     "type": "git",
