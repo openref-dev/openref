@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { SLOT_NAMES, SERVER_RESOLVED_SLOTS } from '@openref/vue';
 import { BUILD_TARGETS, DIRECT_TARGETS, PROXY_CONFIG_TARGETS } from '@openref/static';
 import { claimsFor, type ClaimContext } from './claims.js';
+import { describedPackages } from './repo-llms.js';
 export { REPOSITORY_ROOT } from './index.js';
 import { REPOSITORY_ROOT } from './index.js';
 
@@ -30,13 +31,48 @@ import { REPOSITORY_ROOT } from './index.js';
  * any of the five plants, in the one chapter where a wrong number is worst.
  */
 
+/**
+ * The packages table of the front page, derived rather than written.
+ *
+ * Each name links to the package directory, whose README expands it; the sentence beside it is
+ * the manifest's own description. The three group rows are derived the way the root llms.txt
+ * derives them: `private` says internal, the collector prefix says ecosystem, the rest publish.
+ *
+ * @returns One markdown table over every package of `packages/`
+ */
+function packagesTable(): string {
+  const packages = describedPackages();
+  const collectors = packages.filter(
+    (p) => !p.internal && p.name.startsWith('@openref/collector-'),
+  );
+  const published = packages.filter((p) => !p.internal && !collectors.includes(p));
+  const internal = packages.filter((p) => p.internal);
+
+  const row = (p: (typeof packages)[number]): string =>
+    `| [\`${p.name}\`](packages/${p.directory}) | ${p.description} |`;
+  const group = (title: string): string => `| **${title}** | |`;
+
+  return [
+    '| Package | What it is for |',
+    '| --- | --- |',
+    group('Published to npm'),
+    ...published.map(row),
+    group('Ecosystem collectors'),
+    ...collectors.map(row),
+    group('Internal, bundled into the published ones'),
+    ...internal.map(row),
+  ].join('\n');
+}
+
 /** How a region says what belongs in it. */
 type Spec =
   | { readonly kind: 'claims'; readonly context: ClaimContext }
-  | { readonly kind: 'count'; readonly source: string };
+  | { readonly kind: 'count'; readonly source: string }
+  | { readonly kind: 'packages-table' };
 
 /** Reads one region's spec, or refuses it by name. */
 function parseSpec(text: string): Spec {
+  if (text === 'packages-table') return { kind: 'packages-table' };
   const claims = /^claims:(\S+)$/.exec(text);
   if (claims !== null) {
     const context = claims[1] ?? '';
@@ -258,6 +294,16 @@ export function expandGenerated(markdown: string): string {
   // answers and a checked-in file could never be stable.
   const withClaims = markdown.replace(REGION, (whole, rawSpec: string) => {
     const spec = parseSpec(rawSpec.trim());
+
+    // THE PACKAGES TABLE IS A BLOCK REGION FOR THE SAME REASON A CLAIM IS, so it expands in
+    // this pass: it moves every line below it, and a count read against the unmoved file
+    // would be a count about a file that no longer exists. What it emits is derived, not
+    // written: the same `describedPackages` that composes the root llms.txt, so the front
+    // page, the index and the full text cannot name three different sets of packages.
+    if (spec.kind === 'packages-table') {
+      return `<!-- gen: ${rawSpec.trim()} -->\n${packagesTable()}\n<!-- /gen -->`;
+    }
+
     if (spec.kind !== 'claims') return whole;
 
     // THE FENCE IS EMITTED TOO, because a comment inside a fenced block is not a comment: it is
@@ -271,7 +317,7 @@ export function expandGenerated(markdown: string): string {
 
   return withClaims.replace(REGION, (whole, rawSpec: string, body: string, offset: number) => {
     const spec = parseSpec(rawSpec.trim());
-    if (spec.kind === 'claims') return whole;
+    if (spec.kind !== 'count') return whole;
 
     // A count is inline, so its spelling has to match the sentence it sits in: the body it
     // replaces says whether the number opens the sentence.
@@ -294,7 +340,7 @@ export function expandGenerated(markdown: string): string {
  * that does not exist, so this table cannot outlive the surface it describes.
  */
 export const EXPECTED_REGIONS: Readonly<Record<string, readonly string[]>> = {
-  'README.md': ['claims:bare-mount', 'claims:printed-block', 'count:fence-above'],
+  'README.md': ['claims:bare-mount', 'claims:printed-block', 'count:fence-above', 'packages-table'],
   'docs/guide/00-first-minute.md': [
     'claims:bare-mount',
     'claims:printed-block',
