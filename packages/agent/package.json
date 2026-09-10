@@ -1,6 +1,6 @@
 {
   "name": "@openref/agent",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "llms.txt, llms-full.txt and a read only MCP endpoint for a mounted reference",
   "license": "MIT",
   "repository": {

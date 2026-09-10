@@ -1,6 +1,6 @@
 {
   "name": "@openref/render",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Vue render pipeline: page models and components built for a strict CSP",
   "license": "MIT",
   "repository": {

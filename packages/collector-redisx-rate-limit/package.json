@@ -1,6 +1,6 @@
 {
   "name": "@openref/collector-redisx-rate-limit",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Reads @nestjs-redisx/rate-limit and reports the rate limit a route actually enforces",
   "license": "MIT",
   "repository": {

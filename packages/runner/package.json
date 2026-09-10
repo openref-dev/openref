@@ -1,6 +1,6 @@
 {
   "name": "@openref/runner",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Request planning, serialization, auth and transports behind the try-it console",
   "license": "MIT",
   "repository": {

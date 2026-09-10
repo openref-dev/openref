@@ -1,6 +1,6 @@
 {
   "name": "@openref/collector-redisx-idempotency",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Reads @nestjs-redisx/idempotency and reports the statuses an idempotent route can answer with",
   "license": "MIT",
   "repository": {

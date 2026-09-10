@@ -1,6 +1,6 @@
 {
   "name": "@openref/nest",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "NestJS module that mounts a full API reference beside @nestjs/swagger in one line, with decorators and runtime collectors",
   "license": "MIT",
   "repository": {

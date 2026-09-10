@@ -1,6 +1,6 @@
 {
   "name": "@openref/static",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Deterministic static build: the same document produces the same bytes",
   "license": "MIT",
   "repository": {

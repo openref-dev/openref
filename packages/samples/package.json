@@ -1,6 +1,6 @@
 {
   "name": "@openref/samples",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Code samples for every operation, proven at the wire against the real runner",
   "license": "MIT",
   "repository": {

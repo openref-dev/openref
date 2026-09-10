@@ -1,6 +1,6 @@
 {
   "name": "@openref/action",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "GitHub Action that reviews the API changes of a pull request",
   "license": "MIT",
   "repository": {

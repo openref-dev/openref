@@ -1,6 +1,6 @@
 {
   "name": "@openref/nuxt",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Nuxt module wrapping the render and static paths",
   "license": "MIT",
   "repository": {
