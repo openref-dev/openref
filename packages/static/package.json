@@ -1,7 +1,7 @@
 {
   "name": "@openref/static",
   "version": "0.0.0",
-  "description": "OPENREF static build. Internal, bundled into the openref CLI",
+  "description": "Deterministic static build: the same document produces the same bytes",
   "license": "MIT",
   "repository": {
     "type": "git",

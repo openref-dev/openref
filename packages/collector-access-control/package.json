@@ -1,7 +1,7 @@
 {
   "name": "@openref/collector-access-control",
   "version": "0.0.0",
-  "description": "OPENREF collector for accesscontrol: declarative grant facts from the running application",
+  "description": "Reads accesscontrol grants and reports the access facts a route declares",
   "license": "MIT",
   "repository": {
     "type": "git",

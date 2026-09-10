@@ -175,32 +175,32 @@ than believed.
 | Package | What it is for |
 | --- | --- |
 | **Published to npm** | |
-| [`openref`](packages/cli) | OPENREF command line interface |
-| [`@openref/core`](packages/core) | OPENREF intermediate representation, normalizers and deterministic hashing |
-| [`@openref/nest`](packages/nest) | OPENREF for NestJS. Module, decorators and runtime collectors |
-| [`@openref/runner`](packages/runner) | OPENREF request runner: planning, serialization, auth and transports, per SPEC 14 |
-| [`@openref/theme`](packages/theme) | OPENREF default theme, tokens and slots |
-| [`@openref/theme-kit`](packages/theme-kit) | OPENREF theme authoring kit: scaffolding, dev harness, contract conformance |
-| [`@openref/theme-telltale`](packages/theme-telltale) | OPENREF telltale theme, a level 2 theme written against the published contract |
-| [`@openref/vue`](packages/vue) | OPENREF headless Vue layer for theme authors |
+| [`openref`](packages/cli) | Command line for the reference: build a static site, doctor, diff and fix |
+| [`@openref/core`](packages/core) | Intermediate representation and normalizers: one deterministic, hashable document from OpenAPI and AsyncAPI |
+| [`@openref/nest`](packages/nest) | NestJS module that mounts a full API reference beside @nestjs/swagger in one line, with decorators and runtime collectors |
+| [`@openref/runner`](packages/runner) | Request planning, serialization, auth and transports behind the try-it console |
+| [`@openref/theme`](packages/theme) | Default theme: every color, space and font is a token, and nothing is inline |
+| [`@openref/theme-kit`](packages/theme-kit) | Theme authoring kit: scaffold, dev harness and the contract checker |
+| [`@openref/theme-telltale`](packages/theme-telltale) | Second reference theme: monospace, a fixed grid, provenance readable in monochrome |
+| [`@openref/vue`](packages/vue) | Headless Vue layer for theme authors: composables, slots and the frozen props contract |
 | **Ecosystem collectors** | |
-| [`@openref/collector-access-control`](packages/collector-access-control) | OPENREF collector for accesscontrol: declarative grant facts from the running application |
-| [`@openref/collector-casl`](packages/collector-casl) | OPENREF collector for CASL: declarative ability facts from the running application |
-| [`@openref/collector-redisx-cache`](packages/collector-redisx-cache) | OPENREF collector for @nestjs-redisx/cache: what a handler declares about caching its own response |
-| [`@openref/collector-redisx-circuit-breaker`](packages/collector-redisx-circuit-breaker) | OPENREF collector for @nestjs-redisx/circuit-breaker: what a route does when the thing behind it is down |
-| [`@openref/collector-redisx-idempotency`](packages/collector-redisx-idempotency) | OPENREF collector for @nestjs-redisx/idempotency: the statuses an idempotent route can answer with |
-| [`@openref/collector-redisx-locks`](packages/collector-redisx-locks) | OPENREF collector for @nestjs-redisx/locks: how a route behaves when two callers arrive at once |
-| [`@openref/collector-redisx-rate-limit`](packages/collector-redisx-rate-limit) | OPENREF collector for @nestjs-redisx/rate-limit: rate limit facts from the running application |
-| [`@openref/collector-throttler`](packages/collector-throttler) | OPENREF collector for @nestjs/throttler: rate limit facts from the running application |
+| [`@openref/collector-access-control`](packages/collector-access-control) | Reads accesscontrol grants and reports the access facts a route declares |
+| [`@openref/collector-casl`](packages/collector-casl) | Reads CASL ability metadata and reports the access facts a route declares |
+| [`@openref/collector-redisx-cache`](packages/collector-redisx-cache) | Reads @nestjs-redisx/cache and reports what a handler declares about caching its response |
+| [`@openref/collector-redisx-circuit-breaker`](packages/collector-redisx-circuit-breaker) | Reads @nestjs-redisx/circuit-breaker and reports what a route does when the thing behind it is down |
+| [`@openref/collector-redisx-idempotency`](packages/collector-redisx-idempotency) | Reads @nestjs-redisx/idempotency and reports the statuses an idempotent route can answer with |
+| [`@openref/collector-redisx-locks`](packages/collector-redisx-locks) | Reads @nestjs-redisx/locks and reports how a route behaves when two callers arrive at once |
+| [`@openref/collector-redisx-rate-limit`](packages/collector-redisx-rate-limit) | Reads @nestjs-redisx/rate-limit and reports the rate limit a route actually enforces |
+| [`@openref/collector-throttler`](packages/collector-throttler) | Reads @nestjs/throttler and reports the rate limit a route actually enforces |
 | **Internal, bundled into the published ones** | |
-| [`@openref/action`](packages/action) | OPENREF GitHub Action: the pull request API review of SPEC 17.2 |
-| [`@openref/agent`](packages/agent) | OPENREF agent surface: llms.txt, llms-full.txt and the MCP endpoint of SPEC 18.1. Internal, not published, bundled into @openref/nest |
-| [`@openref/federation`](packages/federation) | OPENREF federation merge engine. Internal, bundled into @openref/nest |
-| [`@openref/nuxt`](packages/nuxt) | OPENREF for Nuxt. The module of SPEC 16.4, wrapping the render and static paths |
-| [`@openref/render`](packages/render) | OPENREF render pipeline. Internal, bundled into @openref/nest |
-| [`@openref/samples`](packages/samples) | OPENREF code sample generator. Internal, not published; bundled into @openref/nest and openref, which are the two packages that see both the renderer and the runner and therefore the two that can compose it |
-| [`@openref/search`](packages/search) | OPENREF search index builder. Internal, bundled into @openref/nest |
-| [`@openref/static`](packages/static) | OPENREF static build. Internal, bundled into the openref CLI |
+| [`@openref/action`](packages/action) | GitHub Action that reviews the API changes of a pull request |
+| [`@openref/agent`](packages/agent) | llms.txt, llms-full.txt and a read only MCP endpoint for a mounted reference |
+| [`@openref/federation`](packages/federation) | Merge engine and remote lifecycle for one reference over many services |
+| [`@openref/nuxt`](packages/nuxt) | Nuxt module wrapping the render and static paths |
+| [`@openref/render`](packages/render) | Vue render pipeline: page models and components built for a strict CSP |
+| [`@openref/samples`](packages/samples) | Code samples for every operation, proven at the wire against the real runner |
+| [`@openref/search`](packages/search) | The serializable search index a reference ships |
+| [`@openref/static`](packages/static) | Deterministic static build: the same document produces the same bytes |
 <!-- /gen -->
 
 Every name links to its package and every sentence beside one is the manifest's own: the table

@@ -1,7 +1,7 @@
 {
   "name": "@openref/collector-redisx-locks",
   "version": "0.0.0",
-  "description": "OPENREF collector for @nestjs-redisx/locks: how a route behaves when two callers arrive at once",
+  "description": "Reads @nestjs-redisx/locks and reports how a route behaves when two callers arrive at once",
   "license": "MIT",
   "repository": {
     "type": "git",

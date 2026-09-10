@@ -1,7 +1,7 @@
 {
   "name": "@openref/runner",
   "version": "0.0.0",
-  "description": "OPENREF request runner: planning, serialization, auth and transports, per SPEC 14",
+  "description": "Request planning, serialization, auth and transports behind the try-it console",
   "license": "MIT",
   "repository": {
     "type": "git",

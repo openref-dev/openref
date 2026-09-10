@@ -1,7 +1,7 @@
 {
   "name": "@openref/agent",
   "version": "0.0.0",
-  "description": "OPENREF agent surface: llms.txt, llms-full.txt and the MCP endpoint of SPEC 18.1. Internal, not published, bundled into @openref/nest",
+  "description": "llms.txt, llms-full.txt and a read only MCP endpoint for a mounted reference",
   "license": "MIT",
   "repository": {
     "type": "git",

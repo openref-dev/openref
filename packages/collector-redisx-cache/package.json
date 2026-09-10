@@ -1,7 +1,7 @@
 {
   "name": "@openref/collector-redisx-cache",
   "version": "0.0.0",
-  "description": "OPENREF collector for @nestjs-redisx/cache: what a handler declares about caching its own response",
+  "description": "Reads @nestjs-redisx/cache and reports what a handler declares about caching its response",
   "license": "MIT",
   "repository": {
     "type": "git",

@@ -1,7 +1,7 @@
 {
   "name": "@openref/theme-telltale",
   "version": "0.0.0",
-  "description": "OPENREF telltale theme, a level 2 theme written against the published contract",
+  "description": "Second reference theme: monospace, a fixed grid, provenance readable in monochrome",
   "license": "MIT",
   "repository": {
     "type": "git",
