@@ -1,6 +1,6 @@
 {
   "name": "@openref/theme",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Default theme: every color, space and font is a token, and nothing is inline",
   "license": "MIT",
   "repository": {

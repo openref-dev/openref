@@ -1,6 +1,6 @@
 {
   "name": "@openref/core",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Intermediate representation and normalizers: one deterministic, hashable document from OpenAPI and AsyncAPI",
   "license": "MIT",
   "repository": {

@@ -1,6 +1,6 @@
 {
   "name": "@openref/theme-telltale",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Second reference theme: monospace, a fixed grid, provenance readable in monochrome",
   "license": "MIT",
   "repository": {

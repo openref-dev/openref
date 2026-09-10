@@ -106,21 +106,30 @@ describe('the release preflight', () => {
     expect(preflightAt).toBeLessThan(publishAt);
   });
 
-  it('should refuse this repository as it stands today, which is the whole point', () => {
-    // Given, no falsification is needed for this one: the tree really is at the placeholder with
-    // no changeset, and this case goes green again on the day a real release is prepared.
+  it('should pass this repository as it stands today, which is the day the refusal was for', () => {
+    // Given: until 2026-09-10 this case asserted the refusal, because the tree really was at the
+    // placeholder, and its comment said it would flip on the day a real release is prepared. The
+    // day came: the maintainer set 0.1.0 as the first number, one version shared by every
+    // package, always, so the tree the preflight reads today is a releasable one. The refusal
+    // behavior did not lose coverage: every refusing branch is held by the fixture cases below.
     // When
     const result = preflight(repoRoot);
 
     // Then
-    expect(result.code).toBe(1);
-    expect(result.output).toContain('still at 0.0.0');
-    expect(result.output).toContain('Refusing to publish');
+    expect(result.code).toBe(0);
+    expect(result.output).toContain('0 still at 0.0.0');
+    expect(result.output).not.toContain('Refusing to publish');
   });
 
   it('should name every package it refuses, so the message is actionable', () => {
+    // Given a tree still at the placeholder, which the repository itself no longer is
+    const root = treeWith([
+      { directory: 'nest', name: '@openref/nest', version: '0.0.0' },
+      { directory: 'cli', name: 'openref', version: '0.0.0' },
+    ]);
+
     // When
-    const result = preflight(repoRoot);
+    const result = preflight(root);
 
     // Then
     expect(result.output).toContain('@openref/nest (packages/nest) is at 0.0.0');

@@ -1,6 +1,6 @@
 {
   "name": "@openref/vue",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Headless Vue layer for theme authors: composables, slots and the frozen props contract",
   "license": "MIT",
   "repository": {

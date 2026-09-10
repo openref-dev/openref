@@ -377,7 +377,14 @@ export function documentationSpecification(basePath: string = DOCUMENTED_ROUTE):
     openapi: '3.1.0',
     info: {
       title: 'OPENREF',
-      version: '0.0.0',
+      // The version the site states is the version the packages carry, read from the manifest
+      // rather than written here: a site saying 0.0.0 over a registry saying 0.1.0 would be
+      // the two-copies defect on the front page itself.
+      version: (
+        JSON.parse(
+          readFileSync(join(REPOSITORY_ROOT, 'packages', 'nest', 'package.json'), 'utf8'),
+        ) as { version: string }
+      ).version,
       summary: 'An API reference engine for NestJS, for HTTP, events and runtime contracts.',
       description: guideMarkdown(),
       license: { name: 'MIT', identifier: 'MIT' },

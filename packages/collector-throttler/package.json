@@ -1,6 +1,6 @@
 {
   "name": "@openref/collector-throttler",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Reads @nestjs/throttler and reports the rate limit a route actually enforces",
   "license": "MIT",
   "repository": {
