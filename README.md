@@ -171,9 +171,41 @@ than believed.
 
 ## Packages
 
-Every package, published and internal alike, carries a full README. The index is
-[llms.txt](llms.txt), generated from the manifests so it cannot go stale, and the whole of
-every README in one text is [llms-full.txt](llms-full.txt).
+<!-- gen: packages-table -->
+| Package | What it is for |
+| --- | --- |
+| **Published to npm** | |
+| [`openref`](packages/cli) | OPENREF command line interface |
+| [`@openref/core`](packages/core) | OPENREF intermediate representation, normalizers and deterministic hashing |
+| [`@openref/nest`](packages/nest) | OPENREF for NestJS. Module, decorators and runtime collectors |
+| [`@openref/runner`](packages/runner) | OPENREF request runner: planning, serialization, auth and transports, per SPEC 14 |
+| [`@openref/theme`](packages/theme) | OPENREF default theme, tokens and slots |
+| [`@openref/theme-kit`](packages/theme-kit) | OPENREF theme authoring kit: scaffolding, dev harness, contract conformance |
+| [`@openref/theme-telltale`](packages/theme-telltale) | OPENREF telltale theme, a level 2 theme written against the published contract |
+| [`@openref/vue`](packages/vue) | OPENREF headless Vue layer for theme authors |
+| **Ecosystem collectors** | |
+| [`@openref/collector-access-control`](packages/collector-access-control) | OPENREF collector for accesscontrol: declarative grant facts from the running application |
+| [`@openref/collector-casl`](packages/collector-casl) | OPENREF collector for CASL: declarative ability facts from the running application |
+| [`@openref/collector-redisx-cache`](packages/collector-redisx-cache) | OPENREF collector for @nestjs-redisx/cache: what a handler declares about caching its own response |
+| [`@openref/collector-redisx-circuit-breaker`](packages/collector-redisx-circuit-breaker) | OPENREF collector for @nestjs-redisx/circuit-breaker: what a route does when the thing behind it is down |
+| [`@openref/collector-redisx-idempotency`](packages/collector-redisx-idempotency) | OPENREF collector for @nestjs-redisx/idempotency: the statuses an idempotent route can answer with |
+| [`@openref/collector-redisx-locks`](packages/collector-redisx-locks) | OPENREF collector for @nestjs-redisx/locks: how a route behaves when two callers arrive at once |
+| [`@openref/collector-redisx-rate-limit`](packages/collector-redisx-rate-limit) | OPENREF collector for @nestjs-redisx/rate-limit: rate limit facts from the running application |
+| [`@openref/collector-throttler`](packages/collector-throttler) | OPENREF collector for @nestjs/throttler: rate limit facts from the running application |
+| **Internal, bundled into the published ones** | |
+| [`@openref/action`](packages/action) | OPENREF GitHub Action: the pull request API review of SPEC 17.2 |
+| [`@openref/agent`](packages/agent) | OPENREF agent surface: llms.txt, llms-full.txt and the MCP endpoint of SPEC 18.1. Internal, not published, bundled into @openref/nest |
+| [`@openref/federation`](packages/federation) | OPENREF federation merge engine. Internal, bundled into @openref/nest |
+| [`@openref/nuxt`](packages/nuxt) | OPENREF for Nuxt. The module of SPEC 16.4, wrapping the render and static paths |
+| [`@openref/render`](packages/render) | OPENREF render pipeline. Internal, bundled into @openref/nest |
+| [`@openref/samples`](packages/samples) | OPENREF code sample generator. Internal, not published; bundled into @openref/nest and openref, which are the two packages that see both the renderer and the runner and therefore the two that can compose it |
+| [`@openref/search`](packages/search) | OPENREF search index builder. Internal, bundled into @openref/nest |
+| [`@openref/static`](packages/static) | OPENREF static build. Internal, bundled into the openref CLI |
+<!-- /gen -->
+
+Every name links to its package and every sentence beside one is the manifest's own: the table
+is generated from the manifests, the way the root [llms.txt](llms.txt) is, so it cannot go
+stale. The whole of every README in one text is [llms-full.txt](llms-full.txt).
 
 ## Changelog
 
