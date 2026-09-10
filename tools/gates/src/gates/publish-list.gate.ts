@@ -87,9 +87,23 @@ export const publishListGate: Gate = {
     const manifests = readWorkspaceManifests(repoRoot);
 
     // pnpm resolves through the workspace root, so the command is run from there.
-    const dryRun = runCommand('pnpm', ['-r', 'publish', '--dry-run', '--no-git-checks'], repoRoot, {
-      npm_config_registry: UNREACHABLE_REGISTRY,
-    });
+    //
+    // --force SINCE 2026-09-10, THE DAY AFTER THE FIRST RELEASE FOUND THE METHOD'S BLIND SPOT.
+    // Without it, pnpm -r publish treats a local git tag name@version as already released and
+    // skips the package, so the first successful publish turned this gate red on the machine
+    // that had made the changeset tags: fifteen of sixteen dropped from the dry run while the
+    // registry stayed unreachable, measured here. The question this gate asks is what the
+    // publishable set IS, not what remains unpublished today, and --force is what makes the
+    // dry run answer it in every era: with the tags present it prints all sixteen, and the
+    // unreachable registry below keeps guaranteeing no network answer is consulted either.
+    const dryRun = runCommand(
+      'pnpm',
+      ['-r', 'publish', '--dry-run', '--no-git-checks', '--force'],
+      repoRoot,
+      {
+        npm_config_registry: UNREACHABLE_REGISTRY,
+      },
+    );
 
     if (!dryRun.ok && dryRun.stdout === '') {
       findings.push({

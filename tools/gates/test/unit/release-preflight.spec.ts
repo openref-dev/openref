@@ -125,7 +125,7 @@ describe('the release preflight', () => {
     // Given a tree still at the placeholder, which the repository itself no longer is
     const root = treeWith([
       { directory: 'nest', name: '@openref/nest', version: '0.0.0' },
-      { directory: 'cli', name: 'openref', version: '0.0.0' },
+      { directory: 'cli', name: '@openref/cli', version: '0.0.0' },
     ]);
 
     // When
@@ -133,7 +133,7 @@ describe('the release preflight', () => {
 
     // Then
     expect(result.output).toContain('@openref/nest (packages/nest) is at 0.0.0');
-    expect(result.output).toContain('openref (packages/cli) is at 0.0.0');
+    expect(result.output).toContain('@openref/cli (packages/cli) is at 0.0.0');
   });
 
   it('should say there is no changeset to raise the versions with, when there is none', () => {

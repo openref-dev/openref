@@ -2107,6 +2107,10 @@ describe('the figures this code states about this repository', () => {
     // ledger sentence to buy three bytes and lose them to the next honest sentence. The
     // ceiling reads 146 KB: 17,015 of headroom, two milestones plus 1,021, under three by
     // 6,976, and the leaf corridor did not move.
+    //
+    // FIVE BYTES MORE THE SAME WEEK AND NOT A LEAF: the cli's SPEC 20 row grew the sentence
+    // naming why the bare npm name was refused and the scope took its place. 132,494, headroom
+    // 17,010, and nothing else moved.
     const read = readProjection(repoRoot);
     expect(read.ok).toBe(true);
     const data = read.ok ? read.projection.data : undefined;
@@ -2123,7 +2127,7 @@ describe('the figures this code states about this repository', () => {
 
     // Then each figure the budget's derivation states is the one the artefact gives, and the
     // headroom really is two milestones of it
-    expect([scan.bytes, scan.leaves]).toEqual([132_489, 661]);
+    expect([scan.bytes, scan.leaves]).toEqual([132_494, 661]);
     expect([perHeading, perTask, perRow]).toEqual([417, 126, 224]);
     expect(milestone).toBe(7_997);
     expect(PROJECTION_ARTEFACT_BUDGET.limitBytes - scan.bytes).toBeGreaterThanOrEqual(

@@ -1,6 +1,8 @@
-# openref
+# @openref/cli
 
-The command line. It reads a document, or boots a NestJS application and reads both, and then builds
+The command line, and the command it installs is still `openref`: the package is scoped because
+npm's similarity filter refuses the bare name beside the existing `opener`, and the binary a
+scoped package installs keeps whatever name it declares. It reads a document, or boots a NestJS application and reads both, and then builds
 a static reference, reports on documentation health, lints a specification, diffs two of them, or
 posts a review comment on a pull request. Everything it renders goes through the same normalizer and
 the same renderer that `@openref/nest` serves from, so a built site and a mounted one are the same
@@ -9,7 +11,7 @@ pages.
 ## Install
 
 ```sh
-npm i -D openref
+npm i -D @openref/cli
 ```
 
 No peer dependencies. `--from-nest` boots a compiled entry point of your application, so for that
@@ -18,8 +20,8 @@ one source your own build has to exist first.
 ## Use
 
 ```sh
-npx openref build --spec openapi.yaml --out dist-docs --base https://docs.example.com/api
-npx openref doctor --from-nest dist/main.js --fail-on=drift
+npx @openref/cli build --spec openapi.yaml --out dist-docs --base https://docs.example.com/api
+npx @openref/cli doctor --from-nest dist/main.js --fail-on=drift
 ```
 
 ## The commands

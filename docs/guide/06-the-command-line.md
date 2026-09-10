@@ -1,7 +1,7 @@
 ## The command line
 
 ```bash
-npm i -D openref
+npm i -D @openref/cli
 ```
 
 <!-- gen: count:fence -->Six<!-- /gen --> commands. `build` and `doctor` are the two you will use.
@@ -96,8 +96,8 @@ it, and a link to the preview build. It is what the GitHub Action runs.
 ### In CI
 
 ```yaml
-- run: npx openref lint openapi.yaml
-- run: npx openref diff origin/main HEAD --spec openapi.yaml
-- run: npx openref doctor --from-nest dist/main.js --fail-on error
-- run: npx openref build --spec openapi.yaml --out dist-docs --base ${{ env.DOCS_URL }}
+- run: npx @openref/cli lint openapi.yaml
+- run: npx @openref/cli diff origin/main HEAD --spec openapi.yaml
+- run: npx @openref/cli doctor --from-nest dist/main.js --fail-on error
+- run: npx @openref/cli build --spec openapi.yaml --out dist-docs --base ${{ env.DOCS_URL }}
 ```

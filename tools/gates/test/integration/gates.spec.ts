@@ -252,6 +252,7 @@ describe('licensesGate', () => {
     // lists; that is the one thing this expectation would not have caught, since a private package
     // is absent from `result.published` and from every list it is compared against at once.
     expect(result.published).toEqual([
+      '@openref/cli',
       '@openref/collector-access-control',
       '@openref/collector-casl',
       '@openref/collector-redisx-cache',
@@ -267,7 +268,6 @@ describe('licensesGate', () => {
       '@openref/theme-kit',
       '@openref/theme-telltale',
       '@openref/vue',
-      'openref',
     ]);
     // `@openref/theme-kit` JOINED THE BUNDLED SET IN T032 WITHOUT BEING BUNDLED, WHICH WAS THIS
     // HEURISTIC'S FIRST COUNTEREXAMPLE, AND AT T064 IT LEFT BY BEING PUBLISHED RATHER THAN BY THE

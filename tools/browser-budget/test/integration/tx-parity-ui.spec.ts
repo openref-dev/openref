@@ -84,7 +84,14 @@ describe('the prefilled body and Reset', () => {
 
         // When the reader types over it and presses Reset
         await body.fill('{ "broken": tru');
-        expect((await body.inputValue()).trim()).toBe('{ "broken": tru');
+        // Polled for the same reason the restore below is: under coverage instrumentation the
+        // first read landed before the controlled field settled on the typed text, the mirror
+        // of the race the entry below records, measured 2026-09-10 on the second instrumented
+        // run. The strength is unchanged: a field that never carries the typed text fails on
+        // the timeout.
+        await expect
+          .poll(async () => (await body.inputValue()).trim(), { timeout: 30_000 })
+          .toBe('{ "broken": tru');
         await session.page.locator('.oref-tryit-reset').click();
 
         // Then the form is the prefilled one again. POLLED, BECAUSE THE RESTORE IS NOT

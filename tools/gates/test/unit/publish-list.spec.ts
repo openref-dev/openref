@@ -863,7 +863,7 @@ describe('the dry run this gate shells out to', () => {
       // When
       const result = runCommand(
         'pnpm',
-        ['-r', 'publish', '--dry-run', '--no-git-checks'],
+        ['-r', 'publish', '--dry-run', '--no-git-checks', '--force'],
         repoRoot,
         {
           npm_config_registry: UNREACHABLE_REGISTRY,
@@ -873,7 +873,11 @@ describe('the dry run this gate shells out to', () => {
       // Then
       expect(UNREACHABLE_REGISTRY).toMatch(/^http:\/\/127\.0\.0\.1:\d+\/$/);
       expect(result.ok).toBe(true);
-      expect(parseDryRun(`${result.stdout}\n${result.stderr}`)).toEqual([...PUBLISHED_PACKAGES]);
+      // Sorted on both sides since the cli's rename: the emission order is pnpm's topological
+      // walk and moved with the name, and the set is the contract this case holds.
+      expect([...parseDryRun(`${result.stdout}\n${result.stderr}`)].sort()).toEqual(
+        [...PUBLISHED_PACKAGES].sort(),
+      );
     },
     SPAWNED_PROCESS_TIMEOUT_MS,
   );

@@ -6,6 +6,7 @@
     [
       "@openref/action",
       "@openref/agent",
+      "@openref/cli",
       "@openref/collector-access-control",
       "@openref/collector-casl",
       "@openref/collector-redisx-cache",
@@ -26,8 +27,7 @@
       "@openref/theme",
       "@openref/theme-kit",
       "@openref/theme-telltale",
-      "@openref/vue",
-      "openref"
+      "@openref/vue"
     ]
   ],
   "linked": [],

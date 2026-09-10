@@ -118,7 +118,7 @@ describe('the action definition', () => {
     ) as { fixed?: string[][] };
 
     // When
-    const group = (config.fixed ?? []).find((names) => names.includes('openref'));
+    const group = (config.fixed ?? []).find((names) => names.includes('@openref/cli'));
 
     // Then
     expect(group).toBeDefined();
