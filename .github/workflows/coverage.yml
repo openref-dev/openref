@@ -30,8 +30,16 @@ jobs:
     timeout-minutes: 45
 
     steps:
+      # THE HISTORY IS FETCHED FOR THE SAME REASON ci.yml FETCHES IT, and this file learned it
+      # the same way: the published-form suite counts commits to the recorded browser baseline,
+      # a depth one checkout answers that count with a fatal, and the case rightly fails on an
+      # undetermined count rather than passing over it. First run of this workflow after the
+      # budget row went green, 2026-09-09: 6,466 of 6,507 passed and the one failure was this
+      # missing line.
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up pnpm
         uses: pnpm/action-setup@v4
